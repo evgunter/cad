@@ -141,6 +141,7 @@ fn stepped_shaft_sized(
         loops: vec![
             LoopProgram::polygon([(-o, -o), (o, -o), (o, o), (-o, o)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let base = r.insert(Node::Extrude {
         profile: base_p,
@@ -151,6 +152,7 @@ fn stepped_shaft_sized(
         loops: vec![
             LoopProgram::polygon([(-i, -i), (i, -i), (i, i), (-i, i)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let boss_raw = r.insert(Node::Extrude {
         profile: boss_p,
@@ -233,6 +235,7 @@ fn arc_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p,

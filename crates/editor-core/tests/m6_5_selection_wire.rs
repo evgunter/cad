@@ -36,6 +36,7 @@ fn the_selection_reaches_the_wire_canonical() {
             node: Node::Profile(editor_core::ProfileProgram {
                 plane: editor_core::RecipeNodeId(0),
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         DocEdit::InsertNode {

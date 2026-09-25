@@ -216,6 +216,7 @@ pub fn document() -> CorpusDoc {
     let cube_p = r.insert(Node::Profile(ProfileProgram {
         plane: cube_plane,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: cube_p,
@@ -233,6 +234,7 @@ pub fn document() -> CorpusDoc {
     let ball_p = r.insert(Node::Profile(ProfileProgram {
         plane: ball_plane,
         loops: vec![half_disc],
+        ids: Vec::new(),
     }));
     let ball = r.insert(Node::Revolve {
         profile: ball_p,

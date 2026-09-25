@@ -121,6 +121,7 @@ fn measures(half: f64, theta: f64) -> Result<f64, String> {
             Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square.clone()],
+                ids: Vec::new(),
             }),
         );
         doc = next;

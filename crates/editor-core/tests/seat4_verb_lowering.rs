@@ -80,6 +80,7 @@ fn both_blends() -> BothBlends {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile,
@@ -345,6 +346,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pa = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![square(0.0)],
+        ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
         profile: pa,
@@ -361,6 +363,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pb = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![square(3.0)],
+        ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
         profile: pb,

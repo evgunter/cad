@@ -1887,6 +1887,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
                 LoopProgram::polygon([(0.0, 0.0), (0.02, 0.0), (0.02, 0.02), (0.0, 0.02)])
                     .expect("finite corners"),
             ],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -1896,6 +1897,7 @@ fn the_body_seat_tracks_the_evaluators_operand_door() {
         Node::Profile(ProfileProgram {
             plane: sketch_frame,
             loops: vec![LoopProgram::circle(0.05, 0.0, 0.01).expect("finite circle")],
+            ids: Vec::new(),
         }),
         tol,
     );

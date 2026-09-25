@@ -53,6 +53,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             node: Node::Profile(ProfileProgram {
                 plane: PLANE,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         DocEdit::InsertNode {

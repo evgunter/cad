@@ -229,7 +229,14 @@ fn plate() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             LoopProgram::circle(r.centre.0, r.centre.1, r.radius).expect("a finite hole circle"),
         );
     }
-    let (doc, profile) = fixture::insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = fixture::insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, block) = fixture::insert(
         doc,
         Node::Extrude {

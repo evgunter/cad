@@ -110,6 +110,7 @@ fn a_rebound_a_later_edit_strands_folds_into_the_strand() {
                     radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
                 },
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -422,6 +423,7 @@ fn a_rebound_then_a_delete_of_its_minting_node_reports_only_the_strand() {
                 ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(

@@ -30,7 +30,14 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
-    let (doc, p) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, axis) = insert(
         doc,
         // The axis, in the frame's own coordinates: the profile's v is

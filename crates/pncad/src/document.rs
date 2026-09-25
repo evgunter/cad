@@ -74,18 +74,14 @@
 // that applies several edits as one action (a cascade delete) folds
 // their rows into what is true of the document the action ends at, and
 // that rule has one spelling.
-// `LoopProvenance` is a field of `DocEdit::SetProgram` — a caller who
-// cannot spell it cannot author the edit — and `ProvenanceFault` is
-// what `EditError::ProvenanceMalformed` carries, so a consumer matching
-// that arm can name what it caught.
-// `RETIRED_FLOOR` is where `SetProgram` retires a stranded name's
-// locator: a consumer reading a `Strand` row's spelling recognises the
-// retired coordinate by it, and a consumer inventing one cannot pick a
-// coordinate a program might draw.
+// `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
+// who cannot spell it cannot author the edit — and `StepIdFault` is
+// what `EditError::StepIdsRefused` carries, so a consumer matching that
+// arm can name what it caught.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    LoopProvenance, Maintenance, MaintenanceNet, MetaVersionError, ProgramRefusal, ProvenanceFault,
-    RETIRED_FLOOR, apply, apply_logged,
+    Maintenance, MaintenanceNet, MetaVersionError, ProgramRefusal, StepId, StepIdFault, apply,
+    apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -409,7 +405,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, inline, split,
+    SplitOutcome, StepMap, Unmapped, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

@@ -1,45 +1,32 @@
 //! **The profile naming anchor (PROFILES-V2 §V3).**
 //!
-//! Profile-entity names (`ProfileEdgeRef`/`ProfileVertexRef`) index
-//! CANONICAL positions — canonical loop order (outer first, holes in
-//! authored order) and canonical traversal from each loop's AUTHORED
-//! start — and every verb that consumes a profile emits them in that
-//! one numbering. The canonical form keeps what the author wrote
-//! wherever validity allows, so a parameter edit renumbers only through
-//! the two things canonicalization decides: each loop's traversal
-//! sense, which cannot flip under a continuous edit without passing
-//! through a sliver, and which loop is the outer one (canonical loop
-//! 0), which cannot change without the loops crossing. A value edit can
-//! still move either in one jump — a hole grown until it encloses the
-//! outer loop, a vertex moved across its loop — and a document-parameter
-//! edit can also land the profile in a state whose numbering cannot be
-//! read at all (it does not replay, or its loops cannot be ordered:
-//! refusing programs may exist at rest). The edit door compares the
-//! profile's numbering before and after every value edit that reaches
-//! it: where both sides read and differ it carries every name spelled
-//! in the numbering across, and where either side cannot be read it
-//! strands them, reporting each row either way (`reanchor_report` in
-//! `edit.rs`, through `SetProgram`'s map and report). What a parameter
-//! edit CAN still
-//! do is change how many segments a step draws — a corner fillet whose
-//! runs reach a `Zero` fit emits nothing, so a radius written through
-//! `SetParam` grows or shrinks the loop and every live name after that
-//! step renumbers, reported by nothing
-//! (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
-//! Structure changes by `DocEdit::SetProgram`, which rebinds every kept
-//! name and retires the rest (DM7); the freeze doctrine (stale
-//! selections refuse `Vanished`, M6-5) backstops what a reshaping
-//! strands, as everywhere.
+//! Every verb that consumes a profile iterates its CANONICAL positions
+//! — canonical loop order (outer first, holes in authored order) and
+//! canonical traversal from each loop's AUTHORED start — and none of
+//! them is a name. A published name spells the PIECE a canonical
+//! segment is (`names/README.md`, "N1, the profile pieces"): the step
+//! that drew it, by the id the step was minted with, and its role in
+//! that step's fixed list. This module pairs the two when a profile's
+//! value is built: [`ProfilePieces`], one locator per canonical
+//! segment and per canonical vertex, which the sweep emitters read in
+//! place of the position they iterate.
+//!
+//! So a value edit moves no name. Which loop is outer, which way a
+//! loop runs and how many segments a step draws are decisions about
+//! geometry, and each can move a canonical position; none of them
+//! moves a step's id or a piece's role. A piece the current values do
+//! not draw has no canonical segment and its name resolves `Vanished`
+//! until they draw it again.
 //!
 //! # Mechanism
 //!
 //! The profile value carries a per-loop [`LoopAnchor`] — which program
 //! loop a canonical loop came from and whether canonicalization
 //! reversed it, recovered by BIT-matching the canonical f64 loop
-//! against the replayed (program-order) f64 loop. Its one reader is the
-//! map from an authored step to the canonical segments it became
-//! (`ProfileProgram::profile_edges_of`), where a loop authored against
-//! its canonical sense reads `s ↦ n − 1 − s`.
+//! against the replayed (program-order) f64 loop. A canonical segment
+//! is read back to the program segment it is (`s ↦ n − 1 − s` on a
+//! reversed loop), and the replay record names that segment's piece
+//! (`profile::ReplayStructure::pieces`).
 //!
 //! The match is exact: canonical loops are EXACT reindexings of their
 //! input (validate's own contract), starting at the authored vertex 0.
@@ -48,6 +35,9 @@
 //! (see `derive_naming`).
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
+
+use crate::names::{PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle};
+use crate::node::StepId;
 
 /// One canonical loop's anchor: how canonical indices map back to the
 /// program's authored order. Canonical vertex 0 is always program
@@ -112,16 +102,133 @@ pub struct ProfileNaming {
     pub loops: Vec<LoopAnchor>,
 }
 
+/// **A canonical position** — canonical loop `loop_index` (0 the outer
+/// loop, then the holes in description order) and segment `segment`
+/// counted along its canonical traversal from the loop's authored
+/// start. The order the emitters, the loft's correspondence and the
+/// viewer's per-segment marks iterate (V3, DM8); a position, never a
+/// name ([`ProfilePieces`] pairs the two).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct CanonicalSegment {
+    /// The canonical loop.
+    pub loop_index: u32,
+    /// The segment along it.
+    pub segment: u32,
+}
+
+/// **The piece every canonical position is** — what a sweep emitter
+/// names each wall, rim and vertex it iterates by (`names/README.md`,
+/// "N1, the profile pieces"): per CANONICAL loop, the locator of each
+/// canonical segment and of each canonical vertex (the start of the
+/// piece of the same spelling).
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
+pub struct ProfilePieces {
+    /// Per canonical loop, per canonical segment.
+    pub edges: Vec<Vec<ProfileEdgeRef>>,
+    /// Per canonical loop, per canonical vertex.
+    pub vertices: Vec<Vec<ProfileVertexRef>>,
+}
+
+impl ProfilePieces {
+    /// **An authored profile's pieces**: each canonical segment read
+    /// back through its loop's anchor to the program segment it is,
+    /// whose piece the replay recorded, spelled with the step's minted
+    /// id. `None` where the three records do not describe one program
+    /// — an anchor naming a loop the record or the ids lack, or a
+    /// record of another length — which the evaluation surfaces typed.
+    pub(crate) fn publish(
+        naming: &ProfileNaming,
+        replay: &[profile::ReplayStructure],
+        ids: &[Vec<StepId>],
+    ) -> Option<Self> {
+        let mut edges = Vec::with_capacity(naming.loops.len());
+        let mut vertices = Vec::with_capacity(naming.loops.len());
+        for anchor in &naming.loops {
+            let pl = anchor.program_loop as usize;
+            let pieces = &replay.get(pl)?.pieces;
+            let steps = ids.get(pl)?;
+            if pieces.len() != anchor.len as usize {
+                return None;
+            }
+            let piece = |program_segment: u32| -> Option<ProfileEdgeRef> {
+                let p = pieces.get(program_segment as usize)?;
+                Some(ProfileEdgeRef::Piece {
+                    step: *steps.get(p.step)?,
+                    role: p.role.into(),
+                })
+            };
+            edges.push(
+                (0..anchor.len)
+                    .map(|k| piece(anchor.segment(k)))
+                    .collect::<Option<Vec<_>>>()?,
+            );
+            // Canonical vertex `v` is program vertex `anchor.vertex(v)`,
+            // where the program segment of the same index starts.
+            vertices.push(
+                (0..anchor.len)
+                    .map(|v| piece(anchor.vertex(v)).map(|e| e.start()))
+                    .collect::<Option<Vec<_>>>()?,
+            );
+        }
+        Some(Self { edges, vertices })
+    }
+
+    /// **A kernel-built section's pieces** — a tube's: loop 0 the outer
+    /// circle and loop 1 a hollow tube's bore, each of `counts[l]`
+    /// pieces, named structurally under the node that builds them.
+    /// `None` for a shape no tube door builds (more than two loops).
+    pub(crate) fn section(counts: &[usize]) -> Option<Self> {
+        let circle = |l: usize| match l {
+            0 => Some(SectionCircle::Outer),
+            1 => Some(SectionCircle::Bore),
+            _ => None,
+        };
+        let mut edges = Vec::with_capacity(counts.len());
+        let mut vertices = Vec::with_capacity(counts.len());
+        for (l, &n) in counts.iter().enumerate() {
+            let circle = circle(l)?;
+            let roles = (0..n).map(|k| PieceRole::Piece(u32::try_from(k).unwrap_or(u32::MAX)));
+            edges.push(
+                roles
+                    .clone()
+                    .map(|role| ProfileEdgeRef::Section { circle, role })
+                    .collect(),
+            );
+            vertices.push(
+                roles
+                    .map(|role| ProfileVertexRef::Section { circle, role })
+                    .collect(),
+            );
+        }
+        Some(Self { edges, vertices })
+    }
+
+    /// The locator of canonical segment `k` of canonical loop `l`.
+    #[must_use]
+    pub fn edge(&self, l: usize, k: usize) -> Option<ProfileEdgeRef> {
+        self.edges.get(l)?.get(k).copied()
+    }
+
+    /// The locator of canonical vertex `v` of canonical loop `l`.
+    #[must_use]
+    pub fn vertex(&self, l: usize, v: usize) -> Option<ProfileVertexRef> {
+        self.vertices.get(l)?.get(v).copied()
+    }
+}
+
 /// The profile node's evaluated value: the validated (canonical)
 /// profile, the naming anchor that maps its program's segments onto the
-/// canonical ones every profile ref names, and the per-edge radius the
-/// program draws each of its segments at.
+/// canonical ones, the piece every canonical position is, and the
+/// per-edge radius the program draws each of its segments at.
 #[derive(Debug, Clone)]
 pub struct ProfileValue<T: geom_core::Real> {
     /// The validated profile downstream ops consume.
     pub validated: ValidatedProfile<T>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
+    /// The piece every canonical segment and vertex is — what the
+    /// sweeps over this profile name their entities by.
+    pub pieces: ProfilePieces,
     /// **Which radius expression each profile edge is drawn at**, per
     /// CANONICAL loop and then per CANONICAL segment — the indexing a
     /// sweep's own wall record uses, so a consumer pairs the two by
@@ -191,6 +298,8 @@ pub(crate) struct ProfilePre {
     pub placement_f64: Option<profile::SketchPlane<f64>>,
     /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
+    /// The piece every canonical position is ([`ProfilePieces::publish`]).
+    pub pieces: ProfilePieces,
     /// The discrete decisions this f64 pass made — the witness the
     /// lift's second pass consumes and re-verifies at its own scalar.
     pub structure: profile::ProfileStructure,
@@ -270,108 +379,4 @@ pub(crate) fn derive_naming(
         anchors.push(found?);
     }
     Some(ProfileNaming { loops: anchors })
-}
-
-/// **A program's naming anchor, from its replayed loops**: validate
-/// them (at the conventional plane — validation is 2-D and the anchor
-/// is loop-derived) and bit-match the canonical form against them, the
-/// derivation the evaluation's pre-pass makes. `None` where the loops
-/// do not validate, or the match fails.
-pub(crate) fn naming_of(loops: &[ProfileLoop<f64>], tol: geom_core::Tol) -> Option<ProfileNaming> {
-    let validated = Profile::new(profile::SketchPlane::xy(), loops.to_vec())
-        .validate(tol)
-        .ok()?;
-    derive_naming(&validated, loops)
-}
-
-/// **A naming anchor read off a replay alone** — for a program that
-/// replays but does not validate, whose names were published by an
-/// earlier evaluation that did. One entry per CANONICAL loop, `None`
-/// where that loop's anchor cannot be read; `None` overall where the
-/// canonical loop ORDER cannot.
-///
-/// The canonical form keeps each loop's authored start, so a loop's
-/// anchor is two facts: which canonical loop it is, and whether
-/// canonicalization reverses it. Both are read here without the
-/// validation the program fails:
-///
-/// - **Order.** The canonical order is the outer loop first, then the
-///   holes in authored order. Validation's outer loop contains every
-///   other, so on a profile that validates it is the unique loop of
-///   largest enclosed area — the rule read here. Two loops tied for
-///   the largest area (or none with any) give no order, and every name
-///   strands.
-/// - **Orientation.** The loop's signed enclosed area — shoelace plus
-///   each arc's circular segment `(r²/2)(θ − sin θ)`, `θ = 4·atan(b)`,
-///   the quantity validation's `loop_orientation` classifies — with
-///   the outer loop canonically counter-clockwise and holes clockwise.
-///   An area that is exactly zero decides no sense, and that loop's
-///   names strand.
-///
-/// On a program that validates this agrees with [`naming_of`]: the SetProgram door
-/// asserts so on every new program it admits.
-pub(crate) fn replay_naming(loops: &[ProfileLoop<f64>]) -> Option<Vec<Option<LoopAnchor>>> {
-    let areas: Vec<f64> = loops.iter().map(signed_area).collect();
-    let largest = areas.iter().map(|a| a.abs()).fold(0.0_f64, f64::max);
-    let mut at_largest = (0..loops.len()).filter(|&i| areas[i].abs() == largest);
-    let outer = at_largest.next()?;
-    if largest == 0.0 || at_largest.next().is_some() || !largest.is_finite() {
-        return None;
-    }
-    let order = core::iter::once(outer).chain((0..loops.len()).filter(|&i| i != outer));
-    Some(
-        order
-            .map(|li| {
-                let a = areas[li];
-                if a == 0.0 || !a.is_finite() {
-                    return None;
-                }
-                let ccw = a > 0.0;
-                Some(LoopAnchor {
-                    program_loop: u32::try_from(li).ok()?,
-                    reversed: ccw != (li == outer),
-                    len: u32::try_from(loops[li].vertices().len()).ok()?,
-                })
-            })
-            .collect(),
-    )
-}
-
-/// The signed area a loop encloses, positive
-/// counter-clockwise — the chord polygon's shoelace about the first
-/// vertex plus each arc's signed circular segment.
-fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
-    let vs = lp.vertices();
-    let Some(first) = vs.first() else {
-        return 0.0;
-    };
-    let o = first.pos();
-    let n = vs.len();
-    let mut twice = 0.0;
-    let mut arcs = 0.0;
-    for (k, v) in vs.iter().enumerate() {
-        let (a, b) = (v.pos(), vs[(k + 1) % n].pos());
-        twice += (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
-        let bulge = v.bulge();
-        if bulge != 0.0 {
-            let theta = 4.0 * bulge.atan();
-            let chord2 = (b.x - a.x).powi(2) + (b.y - a.y).powi(2);
-            let half = (0.5 * theta).sin();
-            let r2 = chord2 / (4.0 * half.powi(2));
-            arcs += 0.5 * r2 * (theta - theta.sin());
-        }
-    }
-    0.5 * twice + arcs
-}
-
-/// **A program's naming anchor as far as it can be read**, per
-/// CANONICAL loop, off its replay alone ([`replay_naming`]); empty
-/// where the loops cannot be ordered. Where the loops validate this IS
-/// the validated anchor ([`naming_of`]) — the `SetProgram` door asserts
-/// the agreement on every program it admits — so the edit doors that
-/// carry names across a change read each side without paying for a
-/// validation: which is what a value edit would otherwise pay per
-/// profile, per edit.
-pub(crate) fn readable_naming(loops: &[ProfileLoop<f64>]) -> Vec<Option<LoopAnchor>> {
-    replay_naming(loops).unwrap_or_default()
 }

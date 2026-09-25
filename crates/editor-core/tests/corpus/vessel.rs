@@ -113,6 +113,7 @@ pub fn document_with_open(open: fn(RecipeNodeId) -> [StableName; 2]) -> CorpusDo
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![meridian()],
+        ids: Vec::new(),
     }));
     let pot = r.insert(Node::Revolve {
         profile,

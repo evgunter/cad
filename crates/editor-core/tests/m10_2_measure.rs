@@ -120,6 +120,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Node::Profile(ProfileProgram {
                 plane: xy,
                 loops: vec![outer],
+                ids: Vec::new(),
             }),
         },
     );
@@ -145,6 +146,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -246,6 +248,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![square()],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -299,6 +302,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -808,6 +812,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -867,6 +872,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
+                ids: Vec::new(),
             }),
         },
     );

@@ -251,6 +251,7 @@ fn every_verb_the_form_offers_loads_back_as_itself() {
         let program = ProfileProgram {
             plane: RecipeNodeId(0),
             loops: vec![shape(&ProfileShape::Path { steps: vec![step] })],
+            ids: Vec::new(),
         };
         let held = sketch::held_program(node, &program, &ParamEnv::default())
             .unwrap_or_else(|refusal| panic!("{verb}: {refusal}"));
@@ -504,6 +505,7 @@ fn editing_a_non_profile_refuses_wrong_kind() {
         base: ProfileProgram {
             plane,
             loops: Vec::new(),
+            ids: Vec::new(),
         },
         loops: Vec::new(),
     });

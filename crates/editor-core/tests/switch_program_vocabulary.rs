@@ -324,6 +324,7 @@ fn corpus() -> ProfileProgram {
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
         ],
+        ids: Vec::new(),
     }
 }
 
@@ -567,6 +568,7 @@ fn every_target_form_is_a_document_program() {
             loops: vec![LoopProgram::Chain(vec![ProgramStep::LineTo(
                 target_witness(*kind),
             )])],
+            ids: Vec::new(),
         };
         let resolved = program
             .resolve(&ParamEnv::<f64>::default())
@@ -668,6 +670,7 @@ fn every_arc_mode_is_a_document_program() {
             loops: vec![LoopProgram::Chain(vec![ProgramStep::ArcTo(mode_witness(
                 *mode,
             ))])],
+            ids: Vec::new(),
         };
         let resolved = program
             .resolve(&ParamEnv::<f64>::default())
@@ -1070,6 +1073,7 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
             let alone = ProfileProgram {
                 plane: program.plane,
                 loops: vec![one],
+                ids: Vec::new(),
             };
             let (slots, exprs) = (alone.slots().len(), literal_count(&alone));
             if slots != exprs {

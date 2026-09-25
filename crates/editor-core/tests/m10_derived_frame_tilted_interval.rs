@@ -134,6 +134,7 @@ fn boss_on_widened_width_box(half: f64) -> ProfileDoc {
             [w, len(0.5)],
             [neg_w, len(0.5)],
         ])],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: p,

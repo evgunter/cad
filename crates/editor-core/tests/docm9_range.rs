@@ -103,6 +103,7 @@ fn slab(depth: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -119,6 +120,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
@@ -149,6 +151,7 @@ fn two_param_slab() -> ProfileDoc {
             [param("side"), param("side")],
             [lit(0.0), param("side")],
         ])],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -164,6 +167,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,

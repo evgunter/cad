@@ -333,6 +333,7 @@ fn overlapping_roots_still_draw_and_land_a_finding() {
                     ])
                     .expect("a square"),
                 ],
+                ids: Vec::new(),
             }),
             tol,
         );

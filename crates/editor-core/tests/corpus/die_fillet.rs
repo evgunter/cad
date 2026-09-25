@@ -85,6 +85,7 @@ pub fn document() -> CorpusDoc {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile,

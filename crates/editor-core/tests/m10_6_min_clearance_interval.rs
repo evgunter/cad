@@ -127,6 +127,7 @@ fn dumbbell() -> Dumbbell {
             )
             .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -475,6 +476,7 @@ fn a_selection_that_is_not_a_body_or_a_face_refuses_typed() {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,

@@ -115,6 +115,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,

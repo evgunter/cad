@@ -51,8 +51,15 @@ fn extruded(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let (doc, plane) = common::inserted(doc, common::xy_frame(), tol);
-    let (doc, profile) =
-        common::inserted(&doc, Node::Profile(ProfileProgram { plane, loops }), tol);
+    let (doc, profile) = common::inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+        tol,
+    );
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {

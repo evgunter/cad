@@ -545,6 +545,7 @@ fn the_rectangle_template_is_the_centred_polygon() {
             LoopProgram::polygon([(-0.02, -0.01), (0.02, -0.01), (0.02, 0.01), (-0.02, 0.01)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     });
     assert!(
         session

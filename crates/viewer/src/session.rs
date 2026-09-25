@@ -2058,7 +2058,11 @@ impl DocSession {
             ProfilePlane::NewXy => return self.add_profile_on_new_xy(loops),
         };
         self.commit(DocEdit::InsertNode {
-            node: Node::Profile(ProfileProgram { plane, loops }),
+            node: Node::Profile(ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }),
         })
     }
 
@@ -2093,6 +2097,7 @@ impl DocSession {
                     loops: loops
                         .take()
                         .unwrap_or_else(|| unreachable!("the profile's position comes round once")),
+                    ids: Vec::new(),
                 }),
             }),
             [None] => unreachable!("an `InsertNode` mints an id (`EditRecord::minted`)"),
@@ -2142,6 +2147,7 @@ impl DocSession {
         let whole = ProfileProgram {
             plane: current.plane,
             loops,
+            ids: Vec::new(),
         };
         if let Err(refusal) = whole.check(&doc.param_env::<f64>(), self.tol) {
             return OpOutcome::refused(Refusal::Edit(Box::new(EditError::ProfileProgramRefused {
@@ -2496,10 +2502,9 @@ impl DocSession {
             DocEdit::InsertNode { .. }
             | DocEdit::DeleteNode { .. }
             | DocEdit::SetMembers { .. }
-            // A profile's program replaced whole, with the names its
-            // reshaping moves rebound at the door: structure, not a
-            // panel field's value — and the identity program under
-            // the identity provenance is the door's own no-op.
+            // A profile's program replaced whole: structure, not a
+            // panel field's value — and the identity program keeping
+            // every step is the door's own no-op.
             | DocEdit::SetProgram { .. }
             | DocEdit::SetRoots { .. }
             | DocEdit::Rebind { .. }
@@ -3064,7 +3069,11 @@ mod tests {
             sketch::loop_program(&ProfileShape::Path { steps }, Notation::CANONICAL)
                 .expect("finite"),
         ];
-        let node = Node::Profile(ProfileProgram { plane, loops });
+        let node = Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        });
         let doc = apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
             .expect("a square")
             .doc;

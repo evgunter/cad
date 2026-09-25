@@ -69,6 +69,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,

@@ -2008,6 +2008,7 @@ fn doors_square(
             ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
@@ -2113,6 +2114,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lifted],
+            ids: Vec::new(),
         }),
     );
     let (doc, body) = doors_insert(
@@ -2242,6 +2244,7 @@ fn doors_square_at(
             ProgramStep::LineTo(ProgramTarget::Point([lit(x), lit(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     })
 }
 
@@ -2429,6 +2432,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+            ids: Vec::new(),
         }),
     );
     let (doc, plate) = doors_insert(
@@ -2458,6 +2462,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
                 LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                     .expect("finite tab corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, tab) = doors_insert(
@@ -6134,6 +6139,7 @@ mod the_hollowed_box_through_the_facade {
             Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         );
         let (doc, blank) = insert(

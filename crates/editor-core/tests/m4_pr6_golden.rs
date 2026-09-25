@@ -167,6 +167,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![bracket],
+                ids: Vec::new(),
             }),
         },
     );
@@ -197,6 +198,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![fillet_loop],
+                ids: Vec::new(),
             }),
         },
     );

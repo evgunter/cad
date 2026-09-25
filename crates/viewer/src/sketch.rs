@@ -557,6 +557,7 @@ pub fn program_edits(
     let held = Node::Profile(ProfileProgram {
         plane: current.plane,
         loops: loops.to_vec(),
+        ids: Vec::new(),
     });
     let mut probe = Node::Profile(current.clone());
     let mut edits = Vec::new();

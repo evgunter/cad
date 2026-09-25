@@ -430,6 +430,7 @@ fn p7_a_holed_designated_face_mints_a_hole_rim() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outer, hole],
+        ids: Vec::new(),
     }));
     let blank = r.insert(Node::Extrude {
         profile,

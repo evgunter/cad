@@ -235,6 +235,7 @@ fn plate_spaced(
             LoopProgram::polygon([(-1.0, -0.5), (1.0, -0.5), (1.0, 0.5), (-1.0, 0.5)])
                 .expect("finite plate corners"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -248,6 +249,7 @@ fn plate_spaced(
                 centre: [len(cx), len(0.0)],
                 radius: param("hole_r", Dimension::Length),
             }],
+            ids: Vec::new(),
         }));
         holes.push(r.insert(Node::Extrude {
             profile: p,
@@ -318,6 +320,7 @@ fn kink(dist: Distribution) -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile: p,
@@ -371,6 +374,7 @@ fn slab(half: f64) -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: p,
@@ -1188,6 +1192,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
             centre: [len(0.0), len(0.0)],
             radius: len(0.5),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_p,
@@ -1199,6 +1204,7 @@ fn the_bore_pin_gap_stackup_pins_the_lift() {
             centre: [len(0.1), len(0.0)],
             radius: param("r", Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let pin = r.insert(Node::Extrude {
         profile: pin_p,
@@ -1327,6 +1333,7 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
                 ])),
                 editor_core::ProgramStep::LineTo(editor_core::ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         })
     };
     let f0 = frame_at(&mut r, 0.0);

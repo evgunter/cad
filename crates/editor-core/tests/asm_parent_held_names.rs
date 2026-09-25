@@ -1,12 +1,13 @@
-//! **A parent's names spelled in a child document's numbering, across
-//! the child's reshaping and the parent's pin update.**
+//! **A parent's names of a child document's pieces, across the child's
+//! reshaping and the parent's pin update.**
 //!
 //! An assembly holds names of a part's entities as `InPart { of }` at
 //! the instantiate node: `of` is the name the part document mints, so
-//! it is spelled in the part's own numbering — for a swept profile,
-//! that profile's canonical segment order. When the part is reshaped
-//! its own names are carried and reported (DM7), and the parent is a
-//! different document the part's edit door never sees.
+//! a swept wall's is spelled by the piece its profile step drew — the
+//! step's minted id and its role (`names/README.md`, "N1, the profile
+//! pieces"). A reshaping that keeps the step keeps the id, so the
+//! parent's name needs nothing from the part's edit door, which never
+//! sees it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -17,8 +18,8 @@ use std::sync::Arc;
 
 use editor_core::{
     Attr, CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EvalOptions, Evaluation,
-    LoopProgram, LoopProvenance, Node, ProfileDoc, ProfileProgram, RecipeNodeId, ResolveFailure,
-    ResolveFault, Rgba8, RoleSeg, StableName, apply, content_pin, evaluate,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, RecipeNodeId, ResolveFailure, ResolveFault,
+    Rgba8, RoleSeg, StableName, apply, content_pin, evaluate,
 };
 use fixture::{insert, len, point, table, tol};
 use geom_core::Tol;
@@ -69,6 +70,7 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             loops: vec![
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap(),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -81,9 +83,10 @@ fn part() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (doc, profile, ext)
 }
 
-/// The part's wall `k` of its one loop, as the part names it.
-fn part_wall(ext: RecipeNodeId, k: u32) -> StableName {
-    fixture::fname(ext, fixture::wall(k))
+/// The part's wall at canonical segment `k` of its one loop, as the
+/// part names it: the piece its profile draws there.
+fn part_wall(doc: &ProfileDoc, ext: RecipeNodeId, k: u32) -> StableName {
+    fixture::fname(ext, fixture::wall(doc, ext, k))
 }
 
 /// The same wall as the parent names it: `InPart { of }` at the
@@ -117,27 +120,26 @@ fn corners(
 }
 
 /// **A part reshaped under a parent that holds one of its walls.** The
-/// part inserts a leg before its wall 1 (`(2,0)→(2,2)`), so its wall 1
-/// is its wall 2 now — the part's own edit rebinds every name it holds
-/// and reports it. The parent paints the part's wall 1 through its
-/// instance, then moves its pin to the reshaped version.
+/// part inserts a leg before the step that draws its wall 1 (the leg
+/// to `(2,2)`, drawn from `(2,0)`), keeping every step it had. The
+/// parent paints that wall through its instance, then moves its pin
+/// to the reshaped version.
 ///
-/// Measured: `UpdateReference` reports nothing and rewrites nothing,
-/// and the parent's held spelling `InPart { part wall 1 }` now denotes
-/// the leg `(2,0)→(3,1)` — a DIFFERENT wall, silently. This row PINS
-/// that defect, so it is the row that turns when it is fixed
-/// (`work/emit/a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering.md`,
-/// P0, which says why the translation does not survive to the pin
-/// update).
+/// The held name spells the step that draws the leg to `(2,2)`, by the
+/// id it was minted with, and the reshaping kept the step, so after
+/// the pin update the name denotes the leg that step draws now —
+/// `(3,1)→(2,2)`, still ending at the corner its step targets — and
+/// never the inserted leg `(2,0)→(3,1)`, which is a new step's piece.
+/// Neither door has anything to report: nothing the name denotes was
+/// removed.
 #[test]
-fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
+fn a_parents_held_name_follows_its_step_across_a_pin_update() {
     let (v1, profile, ext) = part();
-    // The part's own reshaping, and what its door reports for its own
-    // names (a paint on its wall 1, so the report has a row to show).
+    let wall = part_wall(&v1, ext, 1);
     let v1_painted = apply(
         &v1,
         &DocEdit::SetAppearance {
-            name: part_wall(ext, 1),
+            name: wall.clone(),
             attr: Attr::Color(Rgba8::opaque(1, 2, 3)),
         },
         tol(),
@@ -145,6 +147,14 @@ fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
     )
     .unwrap()
     .doc;
+    let kept: Vec<Option<editor_core::StepId>> = match v1_painted.node(profile) {
+        Some(Node::Profile(p)) => p.ids[0].iter().copied().map(Some).collect(),
+        other => panic!("the part's profile: {other:?}"),
+    };
+    // The new leg is step 2 of the six: `at`, `line_to(2,0)`, the new
+    // `line_to(3,1)`, then the four old ones' remainder.
+    let mut ids = kept;
+    ids.insert(2, None);
     let reshaped = apply(
         &v1_painted,
         &DocEdit::SetProgram {
@@ -153,10 +163,7 @@ fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (3.0, 1.0), (2.0, 2.0), (0.0, 2.0)])
                     .unwrap(),
             ],
-            provenance: vec![LoopProvenance {
-                from: Some(0),
-                steps: vec![Some(0), Some(1), None, Some(2), Some(3), Some(4)],
-            }],
+            ids: vec![ids],
         },
         tol(),
         &editor_core::RefusingReach,
@@ -164,11 +171,8 @@ fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
     .unwrap();
     assert_eq!(
         reshaped.maintenance,
-        vec![editor_core::Maintenance::Rebound {
-            from: part_wall(ext, 1),
-            to: part_wall(ext, 2),
-        }],
-        "the part's own door carries its own name"
+        Vec::new(),
+        "a reshaping that keeps every step has nothing to report"
     );
     let mut shelf = VersionShelf::default();
     let r1 = shelf.shelve(v1_painted);
@@ -177,7 +181,7 @@ fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
 
     let parent = ProfileDoc::empty(DocumentId::derive("held-names-parent"), Tol::witness());
     let (parent, instance) = insert(parent, Node::instantiate_part(r1));
-    let name = held(instance, &part_wall(ext, 1));
+    let name = held(instance, &wall);
     let parent = apply(
         &parent,
         &DocEdit::SetAppearance {
@@ -206,14 +210,14 @@ fn a_parents_held_name_silently_renumbers_across_a_pin_update() {
     )
     .unwrap();
     let after_ev = run(&updated.doc, &shelf);
-    let spelling = corners(&after_ev, instance, &name);
+    let after = corners(&after_ev, instance, &name);
     assert!(
-        spelling.contains(&(3.0, 1.0, 0.0)),
-        "measured: the old spelling now denotes the leg (2,0)→(3,1): {spelling:?}"
+        after.contains(&(3.0, 1.0, 0.0)) && after.contains(&(2.0, 2.0, 0.0)),
+        "the held name denotes the leg its step draws now, (3,1)→(2,2): {after:?}"
     );
-    assert_eq!(
-        updated.maintenance,
-        Vec::new(),
-        "measured: nothing is reported"
+    assert!(
+        !after.contains(&(2.0, 0.0, 0.0)),
+        "and never the inserted leg (2,0)→(3,1): {after:?}"
     );
+    assert_eq!(updated.maintenance, Vec::new(), "nothing is reported");
 }

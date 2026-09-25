@@ -180,6 +180,7 @@ fn width_slab(w: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![chain],
+        ids: Vec::new(),
     }));
     let slab = r.insert(Node::Extrude {
         profile: p,

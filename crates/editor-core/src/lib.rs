@@ -108,15 +108,15 @@ pub use drive::{
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
-    Maintenance, MaintenanceNet, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged,
-    cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance,
+    MaintenanceNet, apply, apply_logged, cascade_delete_order,
 };
 pub use eval::{
-    Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
-    EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement, NamingKey, NodeError,
-    NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach, ProfileLift,
-    SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate, mate_reach,
+    Arity, BooleanValue, CancelToken, CanonicalSegment, ContentBits, ContentKey, DatumValue,
+    DirectionRefusal, Epoch, EvalOptions, EvalOutcome, EvalScalar, Evaluation, FramePlacement,
+    NamingKey, NodeError, NodeErrorKind, NodeRefusal, NodeResult, NodeValue, PartFault, PartReach,
+    ProfileLift, ProfilePieces, SectionScalar, SplitSide, ValuePayload, VerbKind, evaluate,
+    mate_reach,
 };
 // The entity door's token: a field of four `NodeErrorKind` variants, so
 // a reader that matches one needs to be able to name it here rather
@@ -150,17 +150,18 @@ pub use names::{
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
     FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
-    NameTable, NamingError, NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier,
-    RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal,
-    Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies,
-    all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare,
-    declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
-    face_frame, find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
+    NameTable, NamingError, NotAFaceName, OpGroup, PieceRole, ProfileEdgeRef, ProfileVertexRef,
+    Qualifier, RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SectionCircle, SegPat,
+    SegTag, SelectRefusal, Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet,
+    TagPat, all_bodies, all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim,
+    carried, declare, declare_all, declare_node, denotation, edge_carrier_kind, edge_frame,
+    face_carrier_kind, face_frame, find_flush_candidates, meridian_vertex, select, select_where,
+    vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
     Node, PartSelect, PatternKind, PlacementRuleFault, RecipeNodeId, SitedFace, SitedRef, SlotId,
-    StepArg, TubeWindow, VectorSlot,
+    StepArg, StepId, TubeWindow, VectorSlot,
 };
 pub use parse::{ParseError, parse_expr};
 pub use part::{PartResolver, ResolveFailure, ResolveFault};
@@ -177,14 +178,15 @@ pub use product::{
 };
 pub use program::{
     LoopProgram, ProfileDoc, ProfilePayload, ProfileProgram, ProgramArcData, ProgramRefusal,
-    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepSegmentsError,
-    resolve_loops,
+    ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepIdFault,
+    StepSegmentsError, resolve_loops,
 };
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
 pub use refactor::{
-    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, remap_name, split,
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, StepMap, Unmapped, inline,
+    remap_name, split,
 };
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,

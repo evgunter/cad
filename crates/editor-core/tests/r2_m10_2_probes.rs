@@ -227,6 +227,7 @@ fn sphere(doc: &ProfileDoc, r: f64, cz: f64) -> (ProfileDoc, RecipeNodeId) {
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![half],
+                ids: Vec::new(),
             }),
         },
     );
@@ -271,6 +272,7 @@ fn cylinder(
                     centre: [len(cx), len(cy)],
                     radius: len(r),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -730,6 +732,7 @@ fn r2_a_sub_epsilon_tilt_at_ten_millimetres() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.001),
                 }],
+                ids: Vec::new(),
             }),
         },
     );

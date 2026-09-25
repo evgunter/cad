@@ -157,6 +157,7 @@ fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile,
@@ -613,6 +614,7 @@ fn report_key_tells_two_budgets_apart() {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -1303,6 +1305,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             ])
             .expect("plate"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
@@ -1315,6 +1318,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
                 centre: [centre, len(0.0)],
                 radius: Expr::param(name(radius), Dimension::Length),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,

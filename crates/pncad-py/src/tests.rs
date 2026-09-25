@@ -1278,6 +1278,7 @@ fn resolution_status_tags_are_stable() {
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, extrude) = insert(
@@ -1805,6 +1806,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         tol,
@@ -9329,6 +9331,7 @@ mod product_memo_rows {
                 d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
                 d::ProgramStep::LineTo(d::ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         })
     }
 

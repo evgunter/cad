@@ -195,6 +195,7 @@ pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<
             LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     })
 }
 

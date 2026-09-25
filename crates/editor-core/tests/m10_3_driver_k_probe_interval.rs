@@ -95,6 +95,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,

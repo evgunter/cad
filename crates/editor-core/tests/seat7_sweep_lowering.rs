@@ -118,6 +118,7 @@ fn circle_on_frame(
                 centre: [len(0.0), len(0.0)],
                 radius,
             }],
+            ids: Vec::new(),
         }),
     );
     (doc, plane, profile)
@@ -182,6 +183,7 @@ fn both_sweeps() -> BothSweeps {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![square_loop],
+        ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
         profile,
@@ -197,6 +199,7 @@ fn both_sweeps() -> BothSweeps {
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
         plane: rev_frame,
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
+        ids: Vec::new(),
     }));
     let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
     let revolved = r.insert(Node::Revolve {
@@ -456,6 +459,7 @@ fn a_polygon_profile_attaches_nothing() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
+            ids: Vec::new(),
         }),
     );
     let (doc, cube) = insert(
@@ -508,6 +512,7 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
                 centre: [len(0.0), len(-3.0)],
                 radius: param("r"),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
@@ -582,6 +587,7 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
@@ -707,7 +713,14 @@ fn extruded(
             v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, body) = insert(
         doc,
         Node::Extrude {

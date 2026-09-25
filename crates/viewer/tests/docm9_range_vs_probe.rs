@@ -81,6 +81,7 @@ fn slab(depth: f64) -> ProfileDoc {
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite square corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     insert(

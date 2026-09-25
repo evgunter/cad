@@ -59,9 +59,9 @@ pub mod value_channel;
 use editor_core::{
     AssemblyError, CancelToken, CapEnd, Datum, Dimension, DocEdit, DocParam, EntityKey, EntityKind,
     Entry, EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MateReach, NameTable, Node,
-    ParamName, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProfileVertexRef, RecipeNodeId,
-    RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate, mate_reach,
-    solve_document,
+    ParamName, ProfileDoc, ProfileEdgeRef, ProfilePieces, ProfileProgram, ProfileVertexRef,
+    RecipeNodeId, RefusingReach, RoleSeg, SitedRef, SolvedPoses, StableName, assemble, evaluate,
+    mate_reach, solve_document,
 };
 use geom_core::{Point3, Tol};
 use std::collections::HashSet;
@@ -406,7 +406,14 @@ pub struct Swept {
 pub fn wall_row(id: &str, loops: Vec<LoopProgram>) -> Swept {
     let doc = ProfileDoc::empty_derived(id, Tol::witness());
     let (doc, plane) = insert(doc, xy_frame());
-    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, ext) = insert(
         doc,
         Node::Extrude {
@@ -483,7 +490,11 @@ pub fn desc(plane: RecipeNodeId, loops: Vec<Vec<(f64, f64)>>) -> ProfileProgram 
         .into_iter()
         .map(|pts| LoopProgram::polygon(pts).expect("finite corners"))
         .collect();
-    ProfileProgram { plane, loops }
+    ProfileProgram {
+        plane,
+        loops,
+        ids: Vec::new(),
+    }
 }
 
 /// **A frame and a profile on it, inserted in that order** — the whole
@@ -739,12 +750,7 @@ pub fn die() -> Die {
     // faces() order: -z, +x, -x, +y, -y, +z against the cube extrude's
     // roles (profile (0,0)->(2,0)->(2,2)->(0,2): wall seg 0 = -y,
     // 1 = +x, 2 = +y, 3 = -x; caps: Bottom = -z, Top = +z).
-    let wall = |seg: u32| {
-        RoleSeg::Lateral(ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        })
-    };
+    let wall = |seg: u32| wall(&r.doc, cube, seg);
     let mut cube_face_names: [StableName; 6] = [
         face_name(cube, RoleSeg::Cap(CapEnd::Start)),
         face_name(cube, wall(1)),
@@ -1030,42 +1036,86 @@ pub fn face_edges(body: &Body<f64>, f: FaceKey) -> HashSet<EdgeKey> {
 ///
 /// Authored, not queried: a selection FREEZES, so a corpus document
 /// states the set it means rather than asking an evaluation.
-pub fn prism_edges(node: RecipeNodeId, n: u32) -> Vec<StableName> {
+pub fn prism_edges(doc: &ProfileDoc, node: RecipeNodeId, n: u32) -> Vec<StableName> {
     let mut out = Vec::new();
-    for seg in 0..n {
-        let e = ProfileEdgeRef {
-            loop_index: 0,
-            segment: seg,
-        };
+    for seg in 0..n as usize {
+        let e = piece(doc, node, 0, seg);
         out.push(rim_edge(node, CapEnd::Start, e));
         out.push(rim_edge(node, CapEnd::End, e));
-        out.push(ename(
-            node,
-            RoleSeg::LateralEdge(ProfileVertexRef {
-                loop_index: 0,
-                vertex: seg,
-            }),
-        ));
+        out.push(ename(node, RoleSeg::LateralEdge(vpiece(doc, node, 0, seg))));
     }
     out
 }
 
-/// A wall (lateral) role for outer-loop segment `seg`.
-pub fn wall(seg: u32) -> RoleSeg {
-    RoleSeg::Lateral(ProfileEdgeRef {
-        loop_index: 0,
-        segment: seg,
-    })
+/// **The piece every canonical position of the profile at `profile`
+/// is**, under the document's current values — what a sweep over it
+/// names each wall, rim and vertex by.
+///
+/// # Panics
+///
+/// If `profile` is not a profile node, or its program does not replay
+/// and validate.
+pub fn pieces(doc: &ProfileDoc, profile: RecipeNodeId) -> ProfilePieces {
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p
+            .pieces(&doc.param_env::<f64>(), Tol::witness())
+            .expect("the profile's program replays and validates"),
+        other => panic!("node {} is not a profile: {other:?}", profile.0),
+    }
+}
+
+/// **The profile a sweep node sweeps** — an extrude's or a revolve's
+/// operand, or the node itself where it IS a profile.
+///
+/// # Panics
+///
+/// If `node` is none of those.
+pub fn swept(doc: &ProfileDoc, node: RecipeNodeId) -> RecipeNodeId {
+    match doc.node(node) {
+        Some(Node::Extrude { profile, .. } | Node::Revolve { profile, .. }) => *profile,
+        Some(Node::Profile(_)) => node,
+        other => panic!("node {} sweeps no profile: {other:?}", node.0),
+    }
+}
+
+/// **The piece canonical segment `k` of canonical loop `l` is**, on the
+/// profile `sweep` sweeps (or `sweep` itself, a profile).
+///
+/// # Panics
+///
+/// Where [`pieces`] does, or where the position is past the profile.
+pub fn piece(doc: &ProfileDoc, sweep: RecipeNodeId, l: usize, k: usize) -> ProfileEdgeRef {
+    pieces(doc, swept(doc, sweep))
+        .edge(l, k)
+        .expect("the canonical position is the profile's")
+}
+
+/// **The piece starting at canonical vertex `v` of canonical loop
+/// `l`**, on the profile `sweep` sweeps.
+///
+/// # Panics
+///
+/// Where [`piece`] does.
+pub fn vpiece(doc: &ProfileDoc, sweep: RecipeNodeId, l: usize, v: usize) -> ProfileVertexRef {
+    pieces(doc, swept(doc, sweep))
+        .vertex(l, v)
+        .expect("the canonical position is the profile's")
+}
+
+/// A wall (lateral) role for outer-loop canonical segment `seg` of the
+/// profile the extrude `ext` sweeps, spelled by the piece it is.
+pub fn wall(doc: &ProfileDoc, ext: RecipeNodeId, seg: u32) -> RoleSeg {
+    RoleSeg::Lateral(piece(doc, ext, 0, seg as usize))
 }
 
 /// **The four flush families two x-offset blocks share** — the walls
 /// y0/y1 (segments 0/2, the `square`/`desc` corner order) and both
 /// caps — in ONE place, so a suite that names them and a suite that
 /// declares them cannot disagree about which four they are.
-pub fn flush_segs() -> [RoleSeg; 4] {
+pub fn flush_segs(doc: &ProfileDoc, ext: RecipeNodeId) -> [RoleSeg; 4] {
     [
-        wall(0),
-        wall(2),
+        wall(doc, ext, 0),
+        wall(doc, ext, 2),
         RoleSeg::Cap(CapEnd::Start),
         RoleSeg::Cap(CapEnd::End),
     ]
@@ -1076,15 +1126,17 @@ pub fn flush_segs() -> [RoleSeg; 4] {
 /// name is the one the extrude `ext` minted, which a pass-through op
 /// carries verbatim (N1).
 pub fn flush_pairs(
+    doc: &ProfileDoc,
     (a_at, a_ext): (RecipeNodeId, RecipeNodeId),
     (b_at, b_ext): (RecipeNodeId, RecipeNodeId),
 ) -> Vec<(SitedRef, SitedRef)> {
-    flush_segs()
+    flush_segs(doc, a_ext)
         .into_iter()
-        .map(|seg| {
+        .zip(flush_segs(doc, b_ext))
+        .map(|(a, b)| {
             (
-                SitedRef::new(a_at, fname(a_ext, seg.clone())),
-                SitedRef::new(b_at, fname(b_ext, seg)),
+                SitedRef::new(a_at, fname(a_ext, a)),
+                SitedRef::new(b_at, fname(b_ext, b)),
             )
         })
         .collect()
@@ -1146,10 +1198,8 @@ pub fn declare_x_offset_flush_at(
 ) -> (ProfileDoc, RecipeNodeId) {
     // Each name is sited at the OPERAND whose table holds it, which
     // is what says which side of the boolean it is read on.
-    insert(
-        doc,
-        Node::declare_rest(flush_pairs((a_at, a_ext), (b_at, b_ext))),
-    )
+    let pairs = flush_pairs(&doc, (a_at, a_ext), (b_at, b_ext));
+    insert(doc, Node::declare_rest(pairs))
 }
 
 /// **What every at-rest finding says about a declaration, in one

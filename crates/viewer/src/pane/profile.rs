@@ -558,7 +558,11 @@ mod tests {
             )
             .expect("finite"),
         ];
-        let node = Node::Profile(ProfileProgram { plane, loops });
+        let node = Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        });
         let doc = apply(
             &doc,
             &DocEdit::InsertNode { node },

@@ -48,6 +48,7 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -98,6 +99,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
                 b: scl(1.0),
             }),
         ])],
+        ids: Vec::new(),
     });
     doc.apply(
         &DocEdit::InsertNode { node },
