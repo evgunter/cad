@@ -182,7 +182,8 @@ of which only one ever resolved a solid key.
 
 ## Closed 2026-09-24 — `SolidOwners` made total; two doors, citing each other
 
-Merge base `6db5b87f2`.
+Merge base `6db5b87f2`; `origin/main` `a3a623755` merged in at
+`ae06754b1`. Each measurement below names the tree it ran on.
 
 ### 1. The divergence: `SolidOwners` was wrong, and is now total
 
@@ -211,11 +212,19 @@ this row recorded on 2026-09-20 holds at the merge base.
   right. Moving `Scope` toward `SolidOwners` would have made it wrong
   against check 5 as well.
 
-So the vertex map now reads **both anchors check 5 allows** — the
-half-edge arena pass it had, plus a loop-arena pass placing each
-`LoopBoundary::Empty` vertex through its loop's face — and the struct
-doc says *"A body that passes tier 1 has a total map"*, with the
-reason.
+So `SolidOwners::of` now places lone vertices, and its struct doc says
+*"A body that passes tier 1 has a total map"*, with the reason. **The
+shape it landed in** (`13d254850`, after review): one forward walk,
+solids → shells → faces → each face's outer loop and rings → a
+cycle's half-edge starts or an empty loop's lone vertex — the same
+walk as `Scope::walk`, over every solid instead of named ones and
+skipping where `Scope` refuses. The first shape (`a66fe80aa`) kept the
+half-edge-arena scan and added a loop-arena pass beside it: three
+passes against `Scope`'s one, two spellings of "the vertices a face
+holds" reconciled only by prose, and a `LoopBoundary` discard that
+`scripts/gates/loop-boundary-discards.sh` needed registered as
+audited. The rewrite retires that discard (the match names both arms)
+and its register entry.
 
 **The false totality sentence was not in the tree at the merge base.**
 The brief named *"a body that passes tier 1 has a total map"* as false;
@@ -280,9 +289,11 @@ vertex and every solid `owners.vertex(v) == Some(s)` exactly when
 The row asserts an equality, so both directions of divergence make it
 harder to satisfy, and totality is asserted separately because an
 equality alone passes two indices that both dropped a lone vertex.
-Baseline, `cargo test -p topo --lib --tests`: **761 + 575 = 1336, all
-green, 0 ignored.** Every plant restored byte-for-byte from saved
-bytes; `git diff --stat HEAD` empty after each.
+**First shape, on `a66fe80aa` (the merge base plus this unit, before
+the main merge).** Baseline, `cargo test -p topo --lib --tests`:
+**761 + 575 = 1336, all green, 0 ignored.** Every plant restored
+byte-for-byte from saved bytes; `git diff --stat HEAD` empty after
+each.
 
 | plant | what | direction | red | where |
 | --- | --- | --- | --- | --- |
@@ -292,6 +303,19 @@ bytes; `git diff --stat HEAD` empty after each.
 | P4 | the loop-arena pass places a lone vertex in the body's FIRST solid | a different answer, not a null | **1** / 1336 | the row, at the outer-loop vertex assertion |
 | P5 | `Scope::walk`'s `Empty` arm `panic!`s | reach control (item 19) | **1** / 1336 | the row |
 | P6 | the loop-arena pass `panic!`s | reach control | **1** / 1336 in `topo`; **0** attributable in `editor-core` (181 + 4×1 + 1607, 2 baseline failures, above) | the row |
+
+**Re-taken on the final shape, at `32d6d4ed3`** (after the main merge
+and the rewrite). Baseline **813 + 654 = 1467, all green, 0 ignored**;
+every `test result:` line read, both targets, every run.
+
+| plant | what | red |
+| --- | --- | --- |
+| Q1 | `SolidOwners`' `Empty` arm inserts nothing (P1's equivalent) | **1** / 1467 — lib 812/1, integration 654/0; the row, outer-loop vertex assertion |
+| P2 | `Scope::walk`'s `Empty` arm inserts nothing | **1** / 1467 — lib 812/1, integration 654/0; the row, per-solid equality |
+| Q3 | both at once | **1** / 1467; the row, outer-loop vertex assertion |
+| Q4 | `SolidOwners`' `Empty` arm places the lone vertex in the body's FIRST solid | **1** / 1467; the row, outer-loop vertex assertion |
+
+The reach controls (P5, P6) were not re-run on the final shape.
 
 P5 is a finding in itself: **before this row, nothing in `topo`
 reached `Scope`'s lone-vertex arm**, so the sentence in `Scope`'s doc
@@ -320,6 +344,12 @@ The reasons:
   answers one solid per whole-arena scan (a whole-body index through
   it is solids × faces), and drops a face whose shell does not resolve
   where `Scope` refuses.
+
+Since `13d254850` the two are **one walk in one shape**, and what
+differs is exactly what the first bullet names: which solids are
+visited, whether a miss skips or refuses, and `Scope`'s extra edge
+map. Sharing the loop body would mean that walk with a posture
+parameter, which is the fold this section declines.
 
 `SolidSeparation::of`, the third posture in the table above, builds
 boxes rather than an index and was not touched.
