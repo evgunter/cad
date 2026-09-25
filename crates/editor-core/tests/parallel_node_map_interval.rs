@@ -23,7 +23,6 @@
 //! four-thread row that shows the decisions depended on the width. The
 //! report row reds at one thread too: the map visits the nodes level by
 //! level, which is not the serial order on this document.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture::{on_pool, two_blocks_and_their_union};
