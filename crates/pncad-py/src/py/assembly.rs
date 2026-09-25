@@ -95,6 +95,9 @@ fn product_fields(py: Python<'_>, err: &d::ProductError) -> (Py<PyAny>, Py<PyAny
         | E::SolidInvalid { node, .. } => (id(node), none(), none()),
         E::RootPoisoned { node, through } => (id(node), id(through), none()),
         E::Naming { node, name } => (id(node), none(), text(name)),
+        // The placed node is the one the author acts on; the two roots
+        // it sits under are in the message.
+        E::PlacedUnderTwoRoots { placed, .. } => (id(placed), none(), none()),
         // The document-mismatch arm names two DOCUMENTS, which this
         // node/node/name triple cannot carry; the message states both.
         E::NoBodyRoots

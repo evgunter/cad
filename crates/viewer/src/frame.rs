@@ -2144,6 +2144,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::RootPoisoned
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
+        | ProductErrorKind::PlacedUnderTwoRoots
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
         | ProductErrorKind::Graft
@@ -2985,6 +2986,7 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::Graft,
             ProductErrorKind::SolidInvalid,
@@ -3037,6 +3039,7 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
+            ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,
