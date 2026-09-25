@@ -181,10 +181,12 @@ fn seam_sides_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> usize
 
 const A: Bx = ((0.0, 1.0), (0.0, 1.0), (0.0, 1.0));
 const B: Bx = ((0.5, 1.5), (0.0, 1.0), (0.0, 1.0));
-/// A slab 2e-5 wide centred on `b`'s x = 0.5 end, from z = 0.5 up.
-const NEAR: Bx = ((0.49999, 0.50001), (-1.0, 2.0), (0.5, 2.0));
+/// A slab 2e-3 wide centred on `b`'s x = 0.5 end, from z = 0.5 up: the
+/// ZIP row's 2e-5 slab refuses at the 1e-6 tolerance row, and the width
+/// is not what leaves the vertex.
+const NEAR: Bx = ((0.499, 0.501), (-1.0, 2.0), (0.5, 2.0));
 
-/// The ZIP row's document
+/// The ZIP row's shape
 /// (`work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`):
 /// `a`, `b` declared flush and a slab over `b`'s end.
 fn near_slab() -> Case {
@@ -218,23 +220,27 @@ fn a_union_cites_only_what_the_finished_body_holds() {
 #[test]
 fn a_seam_a_leftover_vertex_splits_is_published_twice_under_two_names() {
     let case = near_slab();
-    let mut published = BTreeSet::new();
+    let mut published = std::collections::BTreeMap::new();
     runs(&case, |at, ev, _, unions| {
         let union = unions[0].1;
         match failure(ev, union) {
             None => {
-                published.insert(at.to_string());
+                published.insert(at.to_string(), body_of(ev, union).vertices().count());
                 seam_sides_hold(ev, union, at);
             }
             Some(e @ NodeErrorKind::Naming(_)) => panic!("{at}: {e}"),
-            Some(_) => {}
+            Some(e) => eprintln!("{at}: refused {e:?}"),
         }
     });
-    for order in ["[1, 2, 0]", "[2, 1, 0]", "[0, 1, 2]", "[1, 0, 2]"] {
-        assert!(
-            published.contains(order),
-            "{order} does not publish: {published:?}"
-        );
+    let count = |order: &str| {
+        *published
+            .get(order)
+            .unwrap_or_else(|| panic!("{order} does not publish: {published:?}"))
+    };
+    // The shape under test: the orders that cut before they merge keep
+    // two vertices the others do not.
+    for (late, early) in [("[1, 2, 0]", "[0, 1, 2]"), ("[2, 1, 0]", "[1, 0, 2]")] {
+        assert_eq!(count(late), count(early) + 2, "{late} against {early}");
     }
 }
 
