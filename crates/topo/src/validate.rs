@@ -10481,6 +10481,16 @@ mod tests {
         let (e, n) = (p(6.0, 5.0, 0.0), p(5.0, 6.0, 0.0));
         let (got, _) = words_with_arcs(&notch_below, &[c, e, n], &[(e, n, c)]);
         assert!(got.is_empty(), "[on the arc's circle] got {got:?}");
+    }
+
+    /// The second example of [`a_vertex_in_a_locus_band_off_the_trim_is_clear`]:
+    /// a notch vertex `3ε` off the infinite extension of a square hole's
+    /// bottom edge, two metres past the edge's end.
+    #[test]
+    fn a_vertex_in_a_line_locus_band_off_the_trim_is_clear() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let e3 = 3.0 * tol.eps();
         let notch_right = vec![
             p(0.0, 0.0, 0.0),
             p(10.0, 0.0, 0.0),
