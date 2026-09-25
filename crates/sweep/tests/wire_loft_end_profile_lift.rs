@@ -61,7 +61,7 @@ fn canonical_world_points(section: &Section, place: &Affine3<f64>) -> Vec<Point3
     validated.loops()[0]
         .vertices()
         .iter()
-        .map(|v| place.transform_point(Point3::new(v.pos().x, v.pos().y, 0.0)))
+        .map(|v| place.transform_point(Point3::new(v.x, v.y, 0.0)))
         .collect()
 }
 
