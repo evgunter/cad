@@ -152,8 +152,7 @@ pub fn cube<T: Decide>(l: f64, tol: Tol) -> Body<T> {
 /// **The second view of [`brick`], not a second body**: the suites are
 /// written in two vocabularies for one box — by bounds (`brick`) and
 /// by extent from the origin (this, and [`cube`] with one extent) —
-/// and both reach the same construction through the same door, so no
-/// suite keeps a private copy of it under a third name.
+/// and both reach the same construction through the same door.
 pub fn block<T: Decide>(w: f64, d: f64, h: f64, tol: Tol) -> Body<T> {
     brick((0.0, w), (0.0, d), (0.0, h), tol)
 }

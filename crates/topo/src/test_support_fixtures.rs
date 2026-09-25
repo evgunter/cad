@@ -1,7 +1,8 @@
 //! **The Euler-op fixture family**: the unit cube, the prism builders,
 //! the straddle seat, the §9.3 ring and hole surgery, the
-//! cylinder-wall sheet, and the construction steps they share. Generic over the scalar lane (`f64`, `Dual`,
-//! `Interval` — every `Decide` scalar) wherever the builder is.
+//! cylinder-wall sheet, and the construction steps they share. Generic
+//! over the scalar lane (`f64`, `Dual`, `Interval` — every `Decide`
+//! scalar) wherever the builder is.
 //!
 //! **Two families, and what separates them is the boundary they can
 //! describe.**
@@ -937,7 +938,6 @@ pub fn drill_hole<T: geom_core::Decide>(
 /// If a face's outer loop is not a cycle, or its corners do not
 /// certify a plane at `tol`.
 pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
-    let band = Band::linear(tol).unwrap();
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for face in faces {
         let outer = body.get_face(face).unwrap().outer;
@@ -955,8 +955,7 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
                 *body.get_point(body.get_vertex(v).unwrap().point).unwrap()
             })
             .collect();
-        let plane = newell_plane(&corners, band).unwrap();
-        body.set_face_surface(face, FaceSurface::New(plane))
+        body.set_face_surface(face, FaceSurface::New(plane(&corners, tol)))
             .unwrap();
     }
 }

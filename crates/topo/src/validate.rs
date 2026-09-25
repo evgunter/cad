@@ -9052,7 +9052,7 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let mut honest = ops_holed_box(tol).body;
-        plane_every_face(&mut honest, Tol::witness());
+        plane_every_face(&mut honest, tol);
 
         // The fixture's through-hole leaves TWO ring-bearing faces.
         // The mutant is built on `holed[0]` — whichever the arena
@@ -9186,7 +9186,7 @@ mod tests {
             ops_holed_box(tol).body,
             ops_genus2(tol),
         ] {
-            plane_every_face(&mut body, Tol::witness());
+            plane_every_face(&mut body, tol);
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
@@ -9331,7 +9331,7 @@ mod tests {
             .unwrap();
         // Plant the ring and cover it with its membrane.
         plant_ring_face(&mut body, f.he_plus, ring, tol);
-        plane_every_face(&mut body, Tol::witness());
+        plane_every_face(&mut body, tol);
         let ringed: Vec<FaceKey> = body
             .faces
             .iter()
@@ -9526,7 +9526,7 @@ mod tests {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let mut honest = ops_holed_box(tol).body;
-        plane_every_face(&mut honest, Tol::witness());
+        plane_every_face(&mut honest, tol);
         let face = honest
             .faces
             .iter()
