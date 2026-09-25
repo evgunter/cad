@@ -118,7 +118,12 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
 fn r2_the_cusp_reversal_residual_is_measured() {
     let lp = lune();
     let raw = profile::ProfileLoop::from(lp);
-    let v: Vec<profile::ProfileVertex<f64>> = raw.vertices().to_vec();
+    let v: Vec<profile::ProfileVertex<f64>> = raw
+        .vertices()
+        .iter()
+        .zip(raw.bulges())
+        .map(|(&p, &b)| profile::ProfileVertex::new(p, b))
+        .collect();
     let n = v.len();
     // The kiss is vertex 2 (the loop is: (0,4) → (0,2) → (0,0) kiss →
     // back). Incoming arc is v[1]→v[2]; outgoing arc is v[2]→v[3 % n].

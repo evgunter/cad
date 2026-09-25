@@ -22,19 +22,22 @@
 use geom_core::k_stats::decide;
 use geom_core::{Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Vec2};
 
+use crate::Segment;
+
 /// The left normal: `v` rotated +90° counterclockwise, (−y, x).
 pub(crate) fn perp<T: Real>(v: Vec2<T>) -> Vec2<T> {
     Vec2::new(-v.y, v.x)
 }
 
 /// A classified segment of a loop: the chord data plus the carrier
-/// geometry its bulge implies.
+/// geometry of its canonical segment.
 pub(crate) struct Seg<T: Real> {
     /// Start point.
     pub a: Point2<T>,
     /// End point.
     pub b: Point2<T>,
-    /// The stored bulge (tan(θ/4); crate-doc sign convention).
+    /// The bulge the segment was lowered from (tan(θ/4); crate-doc sign
+    /// convention) — the value the sagitta margins are written in.
     pub bulge: T,
     /// The chord vector `b − a`.
     pub chord: Vec2<T>,
@@ -55,13 +58,15 @@ pub(crate) enum SegKind<T: Real> {
     Arc(ArcGeom<T>),
 }
 
-/// Derived arc geometry (closed forms from the crate docs' bulge
-/// identities).
+/// Arc geometry: the canonical segment's carrier and sweep, plus the
+/// apex and span chord the membership margins are written on.
 pub(crate) struct ArcGeom<T: Real> {
     /// The carrier circle's center.
     pub center: Point2<T>,
     /// The carrier circle's radius (positive).
     pub radius: T,
+    /// The signed sweep Δθ (positive counterclockwise).
+    pub sweep: T,
     /// The arc's apex (its midpoint — the point farthest from the
     /// chord).
     pub apex: Point2<T>,
@@ -113,9 +118,9 @@ impl<T: Real> SegIssue<T> {
 /// The chord frame of the segment a → b: its length, chord vector,
 /// unit direction, midpoint and left unit normal — computed ONCE, in
 /// one spelling, for every expression written on it: the segment's
-/// own predicates ([`build_seg`]), the arc carrier ([`arc_carrier`]),
-/// and the validated form's lift, which rebuilds a carried arc's
-/// carrier at the target scalar from the same frame.
+/// own predicates ([`build_seg`]), the arc carrier ([`arc_carrier`])
+/// at the lowering, and the validated form's lift, which rebuilds a
+/// carried arc's carrier at the target scalar from the same frame.
 pub(crate) struct ChordFrame<T: Real> {
     /// |b − a|.
     pub len: T,
@@ -161,12 +166,12 @@ pub(crate) struct ArcCarrier<T: Real> {
 /// The carrier of the arc on `frame` with `bulge`: the center at
 /// apothem L·(1 − b²)/(4b) along the frame's normal from its midpoint,
 /// the radius |L·(1 + b²)/(4b)|. Pure arithmetic over the segment's
-/// stored values — no predicate runs here — and the ONE spelling of
-/// it: [`build_seg`] mints a classified segment's carrier through this,
-/// and the validated form's lift rebuilds a carried arc's carrier
-/// through it, so the carrier at any scalar is one expression of the
-/// endpoints and bulge at that scalar (at a certified scalar, its own
-/// enclosure).
+/// input values — no predicate runs here — and the ONE spelling of
+/// it: the lowering to the canonical form mints an arc's carrier
+/// through this ([`crate::ProfileVertex::lower_to`]), and the validated
+/// form's lift rebuilds a carried arc's carrier through it, so the
+/// carrier at any scalar is one expression of the endpoints and bulge
+/// at that scalar (at a certified scalar, its own enclosure).
 pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrier<T> {
     let b2 = bulge.powi(2);
     let four_bulge = T::from_f64(4.0) * bulge;
@@ -178,7 +183,10 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
     }
 }
 
-/// Builds and classifies a segment.
+/// Builds and classifies a segment from its endpoints, its canonical
+/// segment and the bulge it was lowered from. An arc's carrier and
+/// sweep are the canonical segment's; the sagitta margins below are
+/// written in the bulge.
 ///
 /// Predicates fired, in order:
 ///
@@ -206,6 +214,7 @@ pub(crate) fn arc_carrier<T: Real>(frame: &ChordFrame<T>, bulge: T) -> ArcCarrie
 pub(crate) fn build_seg<T: Decide>(
     a: Point2<T>,
     b: Point2<T>,
+    segment: Segment<T>,
     bulge: T,
     band: Band,
 ) -> Result<Seg<T>, SegIssue<T>> {
@@ -217,16 +226,25 @@ pub(crate) fn build_seg<T: Decide>(
     }
     let half = T::from_f64(0.5);
     let sagitta = len * bulge * half;
-    let kind = match decide(
+    let straightness = decide(
         "segment_straightness",
         Margin::levered(bulge * half, len),
         band,
     )
-    .map_err(SegIssue::Escalated)?
-    {
-        Sign::Zero => SegKind::Line,
-        turn => {
-            let ArcCarrier { center, radius } = arc_carrier(&frame, bulge);
+    .map_err(SegIssue::Escalated)?;
+    // The decision is fired for every segment, since the K stream
+    // records it for every segment, but only an arc's is read: a stored
+    // line's bulge is exactly zero (the lowering rule), so there is no
+    // turn for its margin to report.
+    let kind = match segment {
+        Segment::Line => SegKind::Line,
+        Segment::Arc { .. } if straightness == Sign::Zero => SegKind::Line,
+        Segment::Arc {
+            centre: center,
+            radius,
+            sweep,
+        } => {
+            let turn = straightness;
             let apex = frame.mid - frame.normal * sagitta;
             let span_chord = a.distance(apex);
             let clearance = radius + radius - span_chord;
@@ -241,6 +259,7 @@ pub(crate) fn build_seg<T: Decide>(
             SegKind::Arc(ArcGeom {
                 center,
                 radius,
+                sweep,
                 apex,
                 span_chord,
                 turn,

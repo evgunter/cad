@@ -409,9 +409,9 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             .enumerate()
         {
             assert!(
-                a.pos().x.to_bits() == b.pos().x.to_bits()
-                    && a.pos().y.to_bits() == b.pos().y.to_bits()
-                    && a.bulge().to_bits() == b.bulge().to_bits(),
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }
