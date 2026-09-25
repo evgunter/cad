@@ -2,12 +2,14 @@
 id: census-witness-string-repeats-the-subject
 kind: issue
 title: two census witness STRINGS repeat the subject in the slot documented for the witnessing position
-status: review
+status: closed
 opened: 2026-09-11
 priority: P4
 cost: E
 rides_with: atrest-refusal-prose-outgrows-the-viewer
 parent: ATREST-8
+closed: 2026-09-25
+pr: 3185
 ---
 
 

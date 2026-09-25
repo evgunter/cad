@@ -2,12 +2,14 @@
 id: atrest-refusal-prose-outgrows-the-viewer
 kind: issue
 title: topo: the at-rest validation findings are too long for the checks window (Ev's concision request)
-status: review
+status: closed
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 priority: P1
 cost: D
 parent: ATREST-8
+closed: 2026-09-25
+pr: 3185
 ---
 
 
