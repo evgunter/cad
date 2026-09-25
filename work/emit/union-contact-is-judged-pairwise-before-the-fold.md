@@ -2,11 +2,12 @@
 id: union-contact-is-judged-pairwise-before-the-fold
 kind: unit
 title: Build DM4's pairwise contact rule: every touching member pair is judged as its own two-member union before the fold, and a declared contact is satisfied wherever the fold meets it
-status: open
+status: closed
 opened: 2026-09-25
 priority: P1
-needs_ev: true
 cost: D
+closed: 2026-09-25
+pr: 3213
 ---
 
 

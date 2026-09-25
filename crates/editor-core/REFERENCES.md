@@ -327,8 +327,10 @@ that row names; the flat
 The contact rule (every pairwise contact is judged before the fold and
 must be declared, a covered contact included; a declared contact is
 satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
-PR #3200 (2026-09-25), and is built by the unit
-`union-contact-is-judged-pairwise-before-the-fold`.*
+PR #3200 (2026-09-25), and built by the unit
+`union-contact-is-judged-pairwise-before-the-fold` (PR 3213), where Ev
+also ruled that a declared pair is judged whatever its boxes and that
+a fold step's contact refusal is a bug assertion.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
