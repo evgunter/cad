@@ -3,7 +3,7 @@
 //!
 //! - This crate's `errors_display_without_panicking` indexes them by
 //!   the enum's compiler-derived companion, so an arm added without a
-//!   sample reds by name, and it asserts [`nested_coverage_gaps`] is
+//!   sample reds by name, and it asserts `nested_coverage_gaps` is
 //!   empty — the same statement one level in, for every enum an arm
 //!   renders whole.
 //! - `editor-core`'s `refusal_concision_at_rest` renders each one the
