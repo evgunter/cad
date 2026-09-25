@@ -10456,6 +10456,88 @@ mod tests {
         );
     }
 
+    /// **A vertex in the band of an edge's LOCUS but definitely off
+    /// its TRIM is clear** (review NEW-MAJOR): arm 2 decides the trim
+    /// alongside the locus, and a vertex whose trim is definitely out
+    /// draws nothing whatever the locus band says. Both examples put an
+    /// outer notch vertex `3ε` off a ring edge's locus, in the band,
+    /// and far from the edge itself:
+    ///
+    /// - a quarter-disc hole (centre `(5, 5)`, radius 1, its arc from
+    ///   0° to 90°) above a notch at `(5, 4 − 3ε)` — on the arc's
+    ///   CIRCLE at 270°, a metre from any point of the arc;
+    /// - a square hole `[4, 6]²` beside a notch at `(8, 4 − 3ε)` — on
+    ///   the infinite EXTENSION of the hole's bottom edge, two metres
+    ///   past its end.
+    #[test]
+    fn a_vertex_in_a_locus_band_off_the_trim_is_clear() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let e3 = 3.0 * tol.eps();
+        let notch_below = vec![
+            p(0.0, 0.0, 0.0),
+            p(4.0, 0.0, 0.0),
+            p(5.0, 4.0 - e3, 0.0),
+            p(6.0, 0.0, 0.0),
+            p(10.0, 0.0, 0.0),
+            p(10.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ];
+        let c = p(5.0, 5.0, 0.0);
+        let (e, n) = (p(6.0, 5.0, 0.0), p(5.0, 6.0, 0.0));
+        let (got, _) = words_with_arcs(&notch_below, &[c, e, n], &[(e, n, c)]);
+        assert!(got.is_empty(), "[on the arc's circle] got {got:?}");
+        let notch_right = vec![
+            p(0.0, 0.0, 0.0),
+            p(10.0, 0.0, 0.0),
+            p(10.0, 3.5, 0.0),
+            p(8.0, 4.0 - e3, 0.0),
+            p(10.0, 4.5, 0.0),
+            p(10.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ];
+        let hole = vec![
+            p(4.0, 4.0, 0.0),
+            p(6.0, 4.0, 0.0),
+            p(6.0, 6.0, 0.0),
+            p(4.0, 6.0, 0.0),
+        ];
+        let (got, _) = words_with_arcs(&notch_right, &hole, &[]);
+        assert!(got.is_empty(), "[on the edge's extension] got {got:?}");
+    }
+
+    /// **A near-full arc whose END faces a wall, clear of it, is not a
+    /// meeting** — the MAJOR-1 shape on a 350° arc, where an angular
+    /// window compresses arc length near an end by `sin(175°) ≈ 0.087`.
+    /// The hole is a pac-man about `(5, 5)`, radius 1, its 10° mouth
+    /// facing right between `A` (5°) and `B` (355°). An outer tongue
+    /// reaches in from the wall `x = 10` below `A`: its bottom edge at
+    /// `A.y − 50ε`, its tip `200ε` short of `A.x`, its top edge rising
+    /// gently past `A`. The arc's circle crosses both tongue edges about
+    /// `50ε` of arc length past `A`, inside the mouth; no ring or outer
+    /// point comes within `30ε` of the other loop.
+    #[test]
+    fn a_near_full_arcs_end_facing_a_wall_is_clear() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let eps = tol.eps();
+        let c = p(5.0, 5.0, 0.0);
+        let h = 5.0_f64.to_radians();
+        let a = p(5.0 + h.cos(), 5.0 + h.sin(), 0.0);
+        let b = p(5.0 + h.cos(), 5.0 - h.sin(), 0.0);
+        let outer = vec![
+            p(0.0, 0.0, 0.0),
+            p(10.0, 0.0, 0.0),
+            p(10.0, a.y - 50.0 * eps, 0.0),
+            p(a.x - 200.0 * eps, a.y - 50.0 * eps, 0.0),
+            p(10.0, a.y + 0.01, 0.0),
+            p(10.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ];
+        let (got, _) = words_with_sweeps(&outer, &[a, b, c], &[(a, b, c, true)]);
+        assert!(got.is_empty(), "a clear pac-man drew {got:?}");
+    }
+
     /// Gives every face of `body` the Newell plane of its outer loop —
     /// the minimum needed to reach check 6 from [`crate::test_support_fixtures::declined_cube`], whose
     /// faces are raw `Nurbs` placeholders (check 6 only inspects
