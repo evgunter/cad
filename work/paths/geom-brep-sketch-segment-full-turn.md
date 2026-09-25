@@ -2,12 +2,11 @@
 id: geom-brep-sketch-segment-full-turn
 kind: unit
 title: geom-brep's SketchSegment takes the canonical arc form; certify, topo description readers and the symbolic tier re-keyed on Δθ
-status: parked
+status: open
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [canonical-segment-type-in-profile]
 ---
 
 

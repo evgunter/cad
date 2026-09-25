@@ -2,12 +2,14 @@
 id: canonical-segment-type-in-profile
 kind: unit
 title: Lower to the canonical segment form (verbatim vertices + Line | Arc{centre, radius, Δθ}) inside profile; byte-identical
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
 branch: claude/clever-bardeen-4itqb3
+closed: 2026-09-25
+pr: 3224
 ---
 
 
@@ -82,3 +84,15 @@ stands on its byte-identity claim.
 - (C4) reversal in `canonicalize_loop` negates Δθ and keeps the carrier;
 - (C5) the survey's reader census is complete for `profile`, `sweep`
   and `editor-core`, with its blind spot re-swept.
+
+## Closed (2026-09-25, #3224)
+
+Merged byte-identical, with one disclosed exception: a sub-tolerance arc
+now lofts as a degree-1 line with exact endpoints. The earlier
+degree-2 wall had its end control points off by up to 2.5e-4. Dual
+review is DR-5. Both reviewers found one MAJOR: an arc verb at b = 0
+stored a poisoned `Segment::Arc`. The fix removed the hidden kind flag,
+so a stored segment is a line exactly when its bulge is exactly zero.
+The transitional bulge storage and its readers are scheduled on
+`geom-brep-sketch-segment-full-turn` (unit 2) and
+`store-constructed-carriers` (unit 5).

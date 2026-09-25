@@ -2,12 +2,11 @@
 id: fixture-door-takes-canonical-segments
 kind: unit
 title: The dev-only RawLoop fixture door takes canonical segments; ProfileVertex retires; fixtures migrate through a helper forwarding to arc_to(Bulge)
-status: parked
+status: open
 opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [canonical-segment-type-in-profile]
 ---
 
 
