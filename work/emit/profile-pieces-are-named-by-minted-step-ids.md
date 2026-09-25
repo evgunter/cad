@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: H
-needs_ev: true
 ---
 
 
@@ -54,19 +53,20 @@ unit builds it.
   Ev ruled the design on #3193, so these re-wordings describe the ruled
   change.
 
-## Open before build
+## Ruled before build (2026-09-25)
 
-The ruling leaves three questions whose answers decide which spellings
-exist. They are asked in `names/README.md`'s "N1, the profile pieces":
-
-- **Q1.** The role list for each verb #3193 did not list. It also covers
-  which piece keeps a segment that a fillet run and an authored leg share.
-- **Q2.** `circle` draws two segments, but the ruled text gives it one
-  carrier role.
-- **Q3.** How a loft's seams, caps and rims are named, beside its walls.
-
-The id, the anchor's translation and the deletions do not depend on
-these answers.
+Ev answered the three questions on #3202:
+- **Roles.** Roles stand as the path-language side of the name, and
+  whatever the user sees speaks the language the path was written in.
+  Where a fillet run and an authored leg share one segment, the earlier
+  piece in authored order names it.
+- **Circles.** A circle is `Piece(0)`/`Piece(1)` for now, and this unit
+  ships with that. PATHS's lowering question
+  (`work/paths/lower-profiles-to-carrier-and-interval-not-vertex-and-bulge.md`)
+  would make it one `Carrier`, re-spelled then, with a second format
+  break.
+- **Loft seams.** A loft seam takes one vertex locator per section. Caps,
+  rims and cap vertices take their own section's locators.
 
 ## Closes
 

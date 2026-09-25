@@ -740,3 +740,23 @@ DM4 is re-worded, and its footer records the ruling. Filed the P1 unit
 `union-contact-is-judged-pairwise-before-the-fold` (cost D). Measured
 across the fixtures: 5 of 153 member pairs touch undeclared, and the
 only new refusals are `row` and `rowids`.
+
+## 2026-09-25 — Ev: step roles (PR 3202)
+
+Ev answered the step-id build's three open questions:
+- **Roles.** Roles are the path-language side of the name. Ev noted that
+  the path algebra and its lowering are "two ways of describing the
+  same thing"; user-facing text keeps the language the path was
+  written in.
+- **Circles.** A circle is `Piece(0)`/`Piece(1)` for now, and the P0
+  step-id build ships without waiting.
+- **Loft seams.** One vertex locator per section.
+- **Q4 withdrawn.** Ev was right: a fillet never has an authored corner,
+  so no authored point leaves the path.
+
+Ev raised the deeper point: vertex + bulge cannot express a full turn,
+so a circle is split in two and the lowering diverges from the
+authored path. EMIT filed it on PATHS's slate as
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (P1, H),
+with a recommendation that a dedicated PATHS orchestrator take it.
+`needs_ev` is cleared on `profile-pieces-are-named-by-minted-step-ids`.
