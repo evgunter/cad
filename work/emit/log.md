@@ -823,6 +823,23 @@ It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
 
+## 2026-09-25 — a cited seam-vertex group always ranks along its member edge (PR 3219)
+
+`cite_member_edges` ranks every group of two or more vertices that
+share one seam citing one member edge. It ranks along that edge,
+oriented as in the member's own body, whether or not a vertex of the
+group moved. Before, an unmoved group kept the fold's ranks, and those
+could run the other way, so `#0 of 2` could name different vertices in
+different member orders.
+
+The case is latent. Instrumented, the corpus and union rows form no
+group of two or more, since planar members meet a line at most once,
+and the curved probes refuse in the boolean first. Unit rows red on
+main pin the case, plus the two refusal arms that were untested before.
+No name moved.
+
+After #3198 landed, the unit fixture needed a `Flush` argument. The
+merge added it.
 ## Announced seam from PATHS (2026-09-25)
 
 Ev ruled on #3218 that a profile lowers to verbatim vertices +

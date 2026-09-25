@@ -2,7 +2,7 @@
 id: decision-read-triples-the-plate-pin-suites-wall-time
 kind: issue
 title: the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile
-status: open
+status: dispatched
 opened: 2026-09-21
 priority: P2
 cost: D
