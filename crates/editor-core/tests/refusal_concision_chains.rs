@@ -2761,6 +2761,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::PartialTorusFace { face },
         ),
         (
+            "PartialPlaneFace",
+            PointInSolidError::PartialPlaneFace { face },
+        ),
+        (
             "NoSuchSolid",
             PointInSolidError::NoSuchSolid {
                 solid: topo::SolidKey::default(),

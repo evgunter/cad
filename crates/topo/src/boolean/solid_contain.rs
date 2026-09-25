@@ -15,11 +15,13 @@
 //! near-parallel members. One table, two different sweeps — the
 //! shared const buys the absence of drift between copies, not
 //! agreement on a direction, and determinism is per site (a `const`
-//! swept in a fixed order every run). For each face
-//! (planar — the F5 regime):
+//! swept in a fixed order every run). For each planar face:
 //! intersect the ray with the face plane, test the hit point against
-//! the face's loops (outer minus rings) via [`point_in_loop`], and
-//! keep the **closest** crossing. The verdict reads the material side
+//! the face's loops (outer minus rings) — [`point_in_loop`] for a loop
+//! of lines, whose vertex polygon IS its region, and an in-plane parity
+//! walk that crosses each arc on its circle for a loop that carries
+//! arcs ([`loop_region`]) — and keep the **closest** crossing; the
+//! curved kinds' arms below fold their roots the same way. The verdict reads the material side
 //! from that crossing's outward normal: `d·n > 0` at the closest hit
 //! ⇒ the ray *exits* material there ⇒ `In`; `d·n < 0` ⇒ `Out`.
 //!
@@ -53,6 +55,15 @@
 //!   skipped, not grazed).
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - **`bool_face_loop_arm`** / **`bool_face_loop_side`** /
+//!   **`bool_face_loop_advance`** / **`bool_face_loop_segment`** /
+//!   **`bool_face_loop_boundary`**: the arc-bearing loop walk's
+//!   [`point_in_loop`] rows — the in-plane ray gate, a vertex on the
+//!   ray line, a chord's crossing advance, and the boundary pre-pass —
+//!   under their own names. **`bool_face_arc_disc`**: the in-plane
+//!   ray×circle discriminant over `2r` (Zero ⇒ tangent — graze);
+//!   **`bool_face_arc_advance`**: a root's advance. Whether a root lies
+//!   on the arc is `point_on_arc`'s window (`bool_contact_arc{,_span}`).
 //! - **`bool_point_in_solid_order`**: `t − t_best` (closest-hit
 //!   selection; Zero ⇒ tie ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
@@ -257,6 +268,23 @@ pub enum PointInSolidError {
         /// The torus face neither class expresses.
         face: FaceKey,
     },
+    /// A `Plane` face with a boundary edge on a carrier the planar arm
+    /// has no crossing row for — neither a line nor a circle (an
+    /// ellipse, as a tilted section of a cylinder mints; a spiric; a
+    /// spline).
+    ///
+    /// The arm decides whether a ray's hit on a face's plane lies inside
+    /// the face by ray parity in that plane, crossing every boundary
+    /// edge on its own carrier: a line where its end vertices straddle
+    /// the ray, a circle at the roots of its quadratic inside the arc's
+    /// window. For any other carrier the only curve on offer is the
+    /// chord through the edge's end vertices, which is a different
+    /// curve — the region between the two would read on the wrong side
+    /// — so the face is refused rather than answered from its polygon.
+    PartialPlaneFace {
+        /// The planar face whose boundary the walk cannot cross.
+        face: FaceKey,
+    },
     /// [`point_in_solid_of`] was asked about a solid the body does not
     /// hold — an arena claim, like [`Self::CorruptFace`].
     NoSuchSolid {
@@ -322,6 +350,10 @@ impl PointInSolidError {
             | Self::PartialTorusFace { .. } => {
                 "the instance carries a curved face outside the point-in-solid door's \
                  chart classes, so its material cannot be probed"
+            }
+            Self::PartialPlaneFace { .. } => {
+                "the instance carries a flat face bounded by an edge that is neither \
+                 straight nor circular, so its material cannot be probed"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
             Self::SurfaceSharedOutsideSolid { .. } => {
@@ -409,6 +441,14 @@ impl core::fmt::Display for PointInSolidError {
                  Recourse: bound the torus face with circles around and along the tube \
                  (parallels and meridians), or let its faces together cover the whole \
                  torus"
+            ),
+            Self::PartialPlaneFace { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: one of its flat faces is bounded \
+                 by an edge that is neither straight nor circular (an ellipse, say), and \
+                 the inside/outside test cannot read that outline. The solid itself is \
+                 fine. Recourse: bound the flat face with straight edges and circular \
+                 arcs"
             ),
             Self::NoSuchSolid { .. } => write!(
                 f,
@@ -2251,7 +2291,8 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
 
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
-/// loop is reported as `None` (graze).
+/// loop is reported as `None` (graze). Each loop is read by
+/// [`loop_region`], which walks it on its edges' own carriers.
 pub(super) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -2270,7 +2311,7 @@ pub(super) fn point_in_face<T: Decide>(
     ) {
         return Ok(Some(false));
     }
-    match point_in_loop(body, f.outer, normal, p, band)? {
+    match loop_region(body, face, f.outer, normal, p, band)? {
         LoopContainment::Out => return Ok(Some(false)),
         LoopContainment::OnBoundary => return Ok(None),
         LoopContainment::In => {}
@@ -2282,13 +2323,376 @@ pub(super) fn point_in_face<T: Decide>(
         ) {
             continue; // a lone ring vertex excludes no area
         }
-        match point_in_loop(body, ring, normal, p, band)? {
+        match loop_region(body, face, ring, normal, p, band)? {
             LoopContainment::In => return Ok(Some(false)),
             LoopContainment::OnBoundary => return Ok(None),
             LoopContainment::Out => {}
         }
     }
     Ok(Some(true))
+}
+
+/// One boundary edge of a planar loop, on its own carrier: the chord
+/// between its end vertices, or an arc of a circle in the face's plane.
+enum PlanarEdge<T: geom_core::Real> {
+    /// A line edge — which IS its chord — or null scaffolding, a
+    /// zero-length coincident copy whose chord is a point.
+    Chord,
+    /// An arc of the circle `(center, axis, radius, u_ref)` over the
+    /// carrier window `[t0, t1]`; `full` when that window is a whole
+    /// period, so every point of the circle is on the edge.
+    Arc {
+        center: Point3<T>,
+        axis: Vec3<T>,
+        radius: T,
+        u_ref: Vec3<T>,
+        t0: T,
+        t1: T,
+        full: bool,
+    },
+}
+
+/// The in-plane walk's rows over a loop's CHORDS — the boundary pre-pass
+/// and one ray's straddle count, [`crate::ray_parity`]'s, under this
+/// walk's own names.
+const ARC_LOOP_ROWS: crate::ray_parity::ParityRows = crate::ray_parity::ParityRows {
+    segment: "bool_face_loop_segment",
+    boundary: "bool_face_loop_boundary",
+    side: "bool_face_loop_side",
+    advance: "bool_face_loop_advance",
+};
+
+/// **A planar face loop's region, read on its edges' own carriers.**
+///
+/// [`point_in_loop`]'s contract is the polygon through a loop's
+/// vertices — *"which must be a planar polygon (line carriers — the F5
+/// regime)"* — and that polygon is this loop's region only when every
+/// edge is a line. An arc moves region across its chord: a revolved
+/// cap is a half-disc whose three vertices are COLLINEAR, an extruded
+/// disc's cap has two, and in both the polygon has no area at all, so
+/// every hit on the face read as a miss and the ray fell through to
+/// whatever lay behind it (the re-posed torus barrel's false `Out`). An
+/// arc bowing into a polygon puts region the face does not have inside
+/// it, and one bowing out leaves region outside it.
+///
+/// So a loop of lines keeps [`point_in_loop`] — its polygon IS the
+/// region — and a loop with an arc in it is walked by
+/// [`arc_loop_region`], which crosses each arc on its circle. A boundary
+/// edge on any other carrier (an ellipse, a spiric, a spline) has no
+/// crossing row here, and its chord is a different curve, so the face
+/// is refused as [`PointInSolidError::PartialPlaneFace`] rather than
+/// read as its polygon.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for an unwalkable loop, the
+/// [`PartialPlaneFace`](PointInSolidError::PartialPlaneFace) refusal
+/// above, and the walks' own escalations and exhaustion.
+fn loop_region<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    lk: crate::entity::LoopKey,
+    normal: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<LoopContainment, PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let LoopBoundary::Cycle { first } = body.get_loop(lk).ok_or_else(corrupt)?.boundary else {
+        return Err(corrupt());
+    };
+    let mut verts = Vec::new();
+    let mut edges = Vec::new();
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let h = body.get_half_edge(he).ok_or_else(corrupt)?;
+        let point = body.get_vertex(h.start).ok_or_else(corrupt)?.point;
+        verts.push(*body.get_point(point).ok_or_else(corrupt)?);
+        let edge = body.get_edge(h.edge).ok_or_else(corrupt)?;
+        let curve = body
+            .get_curve_geom(edge.curve)
+            .and_then(crate::null::CurveGeom::certified);
+        edges.push(match curve.map(|c| (c.carrier(), c.params())) {
+            None | Some((geom::Curve3::Line { .. }, _)) => PlanarEdge::Chord,
+            Some((
+                &geom::Curve3::Circle {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                },
+                (t0, t1),
+            )) => {
+                // The window's own period guard, levered by the radius
+                // (D4's θ·r) — `point_on_arc`'s, asked once per edge.
+                let full = match decide(
+                    "bool_contact_arc_span",
+                    Margin::levered(T::tau() - (t1 - t0), radius),
+                    band,
+                )
+                .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+                {
+                    Sign::Positive => false,
+                    Sign::Zero => true,
+                    // A window wound past a period is no edge at all.
+                    Sign::Negative => return Err(corrupt()),
+                };
+                PlanarEdge::Arc {
+                    center,
+                    axis,
+                    radius,
+                    u_ref,
+                    t0,
+                    t1,
+                    full,
+                }
+            }
+            Some(_) => return Err(PointInSolidError::PartialPlaneFace { face }),
+        });
+    }
+    if edges.iter().all(|e| matches!(e, PlanarEdge::Chord)) {
+        return Ok(point_in_loop(body, lk, normal, p, band)?);
+    }
+    arc_loop_region(face, lk, &verts, &edges, normal, p, band)
+}
+
+/// **In-plane ray parity over a loop that carries arcs**, each edge
+/// crossed on its own carrier — the walk [`point_in_loop`] runs, with
+/// the arcs' crossings counted on their circles instead of their
+/// chords. The loop is a closed curve in the face's plane, so a ray
+/// from `p` crosses it an odd number of times exactly when `p` is
+/// inside, whatever the edges' carriers are; only the crossing rows
+/// differ.
+///
+/// **The boundary pre-pass** decides `p` ON the loop first: a vertex or
+/// a chord edge by [`crate::ray_parity::on_boundary`], an arc by
+/// [`super::contain::point_on_arc`] (the whole circle for a full-period
+/// edge). A point on an arc's circle but OFF the arc is remembered: a
+/// ray from it meets that circle at `p` itself, which is no crossing.
+///
+/// **One ray** is the schedule member projected into the plane, gated
+/// as [`point_in_loop`] gates it (`bool_face_loop_arm`), and abandoned
+/// — graze, next member — on anything that is not a definite crossing
+/// count:
+///
+/// - a vertex on the ray line (`bool_face_loop_side`); a chord edge
+///   then crosses exactly when its end vertices straddle the line, at
+///   the advance `bool_face_loop_advance` decides;
+/// - an arc crosses at the roots of the ray×circle quadratic, the
+///   sphere arm's form in the circle's plane: `bool_face_arc_disc` is
+///   its discriminant over `2r` (a length; Zero is a ray tangent to the
+///   circle), `bool_face_arc_advance` each root's advance, and a root
+///   ahead of `p` counts when it lies on the arc — `point_on_arc`'s
+///   angular window, whose endpoint neighbourhood is a graze (the
+///   vertex there is the chord rows' to see).
+///
+/// # Errors
+///
+/// [`PointInSolidError::Escalated`] on an in-band margin, and
+/// [`PointInSolidError::Loop`] wrapping the loop's `RayExhausted` when
+/// every schedule member grazes.
+#[allow(clippy::too_many_arguments)] // one loop, each datum named
+fn arc_loop_region<T: Decide>(
+    face: FaceKey,
+    lk: crate::entity::LoopKey,
+    verts: &[Point3<T>],
+    edges: &[PlanarEdge<T>],
+    normal: Vec3<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Result<LoopContainment, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    let contain = |e: super::contain::ContainError| match e {
+        super::contain::ContainError::Escalated(diag) => escalate(diag),
+        _ => PointInSolidError::CorruptFace { face },
+    };
+    let n = verts.len();
+    // ---- Boundary pre-pass, and which circles carry `p`. ----
+    let mut on_circle = vec![false; n];
+    for (i, edge) in edges.iter().enumerate() {
+        match *edge {
+            PlanarEdge::Chord => {
+                let seg = [verts[i], verts[(i + 1) % n]];
+                if crate::ray_parity::on_boundary(&seg, p, &ARC_LOOP_ROWS, band)
+                    .map_err(escalate)?
+                {
+                    return Ok(LoopContainment::OnBoundary);
+                }
+            }
+            PlanarEdge::Arc {
+                center,
+                axis,
+                radius,
+                u_ref,
+                t0,
+                t1,
+                full,
+            } => {
+                on_circle[i] = super::contain::point_on_circle(p, center, axis, radius, band)
+                    .map_err(escalate)?
+                    .is_some();
+                if !on_circle[i] {
+                    continue;
+                }
+                if full {
+                    return Ok(LoopContainment::OnBoundary);
+                }
+                match super::contain::point_on_arc(p, center, axis, radius, u_ref, t0, t1, band)
+                    .map_err(contain)?
+                {
+                    // On the arc, or at an endpoint's neighbourhood,
+                    // which is a vertex of this loop.
+                    Some(true) | None => return Ok(LoopContainment::OnBoundary),
+                    Some(false) => {}
+                }
+            }
+        }
+    }
+    // The loop's reach from `p`: the lever the arm gate meters at.
+    let mut extent = T::zero();
+    for v in verts {
+        extent = extent.max((*v - p).norm());
+    }
+    for edge in edges {
+        if let PlanarEdge::Arc { center, radius, .. } = *edge {
+            extent = extent.max((center - p).norm() + radius);
+        }
+    }
+    for r in &SCHEDULE {
+        let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
+        let d_raw = r - normal * normal.dot(r);
+        let arm = Margin::levered(d_raw.norm() / r.norm(), extent);
+        match decide("bool_face_loop_arm", arm, band).map_err(escalate)? {
+            Sign::Positive => {}
+            _ => continue, // near-parallel schedule member: skip
+        }
+        let d = d_raw.normalize();
+        let side_axis = normal.cross(d);
+        if let Some(inside) = arc_ray_parity(verts, edges, &on_circle, p, d, side_axis, band)
+            .map_err(|e| match e {
+                ArcRayError::Escalated(diag) => escalate(diag),
+                ArcRayError::Contain(e) => contain(e),
+            })?
+        {
+            return Ok(if inside {
+                LoopContainment::In
+            } else {
+                LoopContainment::Out
+            });
+        }
+    }
+    Err(PointInSolidError::Loop(PointInLoopError::RayExhausted {
+        r#loop: lk,
+    }))
+}
+
+/// What one ray of [`arc_loop_region`] can fail with: a margin of its
+/// own, or one of `point_on_arc`'s.
+enum ArcRayError {
+    Escalated(Indeterminate),
+    Contain(super::contain::ContainError),
+}
+
+impl From<Indeterminate> for ArcRayError {
+    fn from(diag: Indeterminate) -> Self {
+        Self::Escalated(diag)
+    }
+}
+
+/// One ray of [`arc_loop_region`]: `Some(inside)` on a definite
+/// crossing count, `None` for a graze.
+#[allow(clippy::too_many_arguments)] // one ray against one loop
+fn arc_ray_parity<T: Decide>(
+    verts: &[Point3<T>],
+    edges: &[PlanarEdge<T>],
+    on_circle: &[bool],
+    p: Point3<T>,
+    d: Vec3<T>,
+    side_axis: Vec3<T>,
+    band: Band,
+) -> Result<Option<bool>, ArcRayError> {
+    let n = verts.len();
+    let mut xs = Vec::with_capacity(n);
+    let mut ys = Vec::with_capacity(n);
+    let mut sides = Vec::with_capacity(n);
+    for v in verts {
+        let w = *v - p;
+        let y = w.dot(side_axis);
+        match decide("bool_face_loop_side", Margin::of(y), band)? {
+            Sign::Zero => return Ok(None), // a vertex on the ray line
+            s => sides.push(s),
+        }
+        xs.push(w.dot(d));
+        ys.push(y);
+    }
+    let mut crossings = 0usize;
+    for (i, edge) in edges.iter().enumerate() {
+        match *edge {
+            PlanarEdge::Chord => {
+                let j = (i + 1) % n;
+                if sides[i] == sides[j] {
+                    continue; // no straddle, no crossing
+                }
+                let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
+                match decide("bool_face_loop_advance", advance, band)? {
+                    Sign::Positive => crossings += 1,
+                    Sign::Negative => {}
+                    Sign::Zero => return Ok(None),
+                }
+            }
+            PlanarEdge::Arc {
+                center,
+                axis,
+                radius,
+                u_ref,
+                t0,
+                t1,
+                full,
+            } => {
+                let w0 = p - center;
+                let b = w0.dot(d);
+                let disc = b.powi(2) - (w0.norm_squared() - radius.powi(2));
+                let two_r = T::from_f64(2.0) * radius;
+                match decide("bool_face_arc_disc", Margin::over_lever(disc, two_r), band)? {
+                    Sign::Positive => {}
+                    Sign::Zero => return Ok(None), // tangent to the circle
+                    Sign::Negative => continue,    // misses the circle
+                }
+                let root = disc.max(T::zero()).sqrt();
+                for t in [T::zero() - b - root, T::zero() - b + root] {
+                    match decide("bool_face_arc_advance", Margin::of(t), band)? {
+                        Sign::Positive => {}
+                        Sign::Negative => continue,
+                        // The root at `p` itself: no crossing when the
+                        // pre-pass put `p` on this circle and off the
+                        // arc; otherwise a crossing the pre-pass
+                        // should have seen, and a graze.
+                        Sign::Zero if on_circle[i] => continue,
+                        Sign::Zero => return Ok(None),
+                    }
+                    if full {
+                        crossings += 1;
+                        continue;
+                    }
+                    match super::contain::point_on_arc(
+                        p + d * t,
+                        center,
+                        axis,
+                        radius,
+                        u_ref,
+                        t0,
+                        t1,
+                        band,
+                    )
+                    .map_err(ArcRayError::Contain)?
+                    {
+                        Some(true) => crossings += 1,
+                        Some(false) => {}
+                        None => return Ok(None), // at an arc endpoint
+                    }
+                }
+            }
+        }
+    }
+    Ok(Some(!crossings.is_multiple_of(2)))
 }
 
 /// Trilean containment of `q` in `body`'s material (module docs).
