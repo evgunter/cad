@@ -468,8 +468,8 @@ mod reporting_door_bit_digest;
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
 
-#[path = "sign_certified_plus_v.rs"]
-mod sign_certified_plus_v;
+#[path = "sign_walk_plus_v.rs"]
+mod sign_walk_plus_v;
 
 #[path = "shell_census_is_thread_count_invariant.rs"]
 mod shell_census_is_thread_count_invariant;

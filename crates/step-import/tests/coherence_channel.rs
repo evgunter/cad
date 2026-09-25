@@ -466,15 +466,19 @@ fn asking_for_the_examination_changes_nothing_about_acceptance() {
         {
             Ok(StepImport::Solid {
                 body, enclosure, ..
-            }) => (
-                common::arena_census(&body),
-                [
-                    enclosure.volume,
-                    enclosure.surface_area,
-                    enclosure.volume_pad,
-                    enclosure.area_pad,
-                ],
-            ),
+            }) => {
+                let enclosure =
+                    enclosure.unwrap_or_else(|e| panic!("{name}: the enclosure measures: {e}"));
+                (
+                    common::arena_census(&body),
+                    [
+                        enclosure.volume,
+                        enclosure.surface_area,
+                        enclosure.volume_pad,
+                        enclosure.area_pad,
+                    ],
+                )
+            }
             other => panic!("{name} must import as a solid: {other:?}"),
         };
         assert_eq!(

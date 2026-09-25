@@ -321,7 +321,7 @@ pub enum RefusedRef {
     /// ONE face, and a tie is never broken by picking.
     Ambiguous {
         /// How many entities the tie holds.
-        width: u32,
+        width: usize,
     },
 }
 
@@ -1085,9 +1085,7 @@ fn resolve_face<P, T: Decide>(
             );
             ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
         }
-        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous {
-            width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
-        })),
+        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous { width: ents.len() })),
     }
 }
 
