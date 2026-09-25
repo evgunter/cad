@@ -6401,4 +6401,125 @@ mod tests {
         }
         assert!(!sess.reductions.contains_key(&linear.digest()));
     }
+
+    // ---- DECIDE-7 review probes (decide/7-review) ----
+
+    /// A session with `sqrt(x + 1)` minted, and the form `s² + s` over it.
+    fn review_sqrt_session() -> (Session, u128, Form) {
+        let mut sess = Session::new(budget(), SymRules::shipped(), SymRetry::none(), None);
+        let x = Form::poly(Poly::indet(indet_param(1)));
+        let arg = x.add(&Form::poly(Poly::one()), budget()).unwrap();
+        let s = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
+        mint_atom(&mut sess, s, true, || AtomInfo {
+            op: SymOp::Sqrt,
+            payload: 0,
+            args: [Some(Arc::new(arg.clone())), None, None],
+        });
+        let mut p = Poly::zero();
+        p.insert(vec![(s, 2)], Rat::one()).unwrap();
+        p.insert(vec![(s, 1)], Rat::one()).unwrap();
+        (sess, s, Form::poly(p))
+    }
+
+    /// REVIEW PROBE (claim 1, digest collision, forced): an entry planted
+    /// in `f`'s digest bucket for a DIFFERENT input, under the same rules
+    /// and ring bound, with a bogus answer, must be a miss. Reds if the
+    /// whole-form compare is dropped from the key.
+    #[test]
+    fn review_probe_a_bucket_mate_with_another_input_is_a_miss() {
+        let (mut sess, s, f) = review_sqrt_session();
+        let direct = algebra::reduce_steps(&f, sess.rules, sess.budget, &sess.atoms, EARLY_STEPS);
+        let other = Form::poly(Poly::indet(s));
+        sess.reductions
+            .entry(f.digest())
+            .or_default()
+            .push(Reduction {
+                input: other,
+                rules: sess.rules,
+                bits: rational::coeff_bound(),
+                out: None,
+            });
+        let (out, hit) = reduce_per_node(&mut sess, &f);
+        assert!(!hit, "a colliding bucket-mate is not this form");
+        assert_eq!(out, direct);
+    }
+
+    /// REVIEW PROBE (claim 1, the ladder's masks): the kept-atom ladder's
+    /// two masks over the shipped set, and a ring retry, are each their
+    /// own key — none is answered by the first attempt's entry, and each
+    /// answer is the direct reduction under THAT attempt's rules and ring.
+    #[test]
+    fn review_probe_every_ladder_attempt_is_its_own_key() {
+        let (mut sess, _s, f) = review_sqrt_session();
+        let first = sess.rules;
+        let (_, hit) = reduce_per_node(&mut sess, &f);
+        assert!(!hit);
+        let retry = SymRetry {
+            bits: Some(512),
+            ..SymRetry::kept_atom()
+        };
+        for (_, rules, bits) in retry.attempts(first) {
+            sess.rules = rules;
+            let direct = rational::with_coeff_bound(bits, || {
+                algebra::reduce_steps(&f, rules, sess.budget, &sess.atoms, EARLY_STEPS)
+            });
+            let (out, hit) = rational::with_coeff_bound(bits, || reduce_per_node(&mut sess, &f));
+            assert!(!hit, "attempt {rules:?} at {bits} is its own key");
+            assert_eq!(out, direct, "attempt {rules:?} at {bits}");
+        }
+        sess.rules = first;
+        assert!(
+            reduce_per_node(&mut sess, &f).1,
+            "the first attempt's entry is still there"
+        );
+    }
+
+    /// REVIEW PROBE (claim 1, the gate bit): a gated and an ungated form
+    /// with the same terms are two keys, and each answer carries its own
+    /// gate.
+    #[test]
+    fn review_probe_the_gate_is_in_the_key() {
+        let (mut sess, _s, f) = review_sqrt_session();
+        let g = Form {
+            gated: true,
+            ..f.clone()
+        };
+        let (a, _) = reduce_per_node(&mut sess, &f);
+        let (b, hit) = reduce_per_node(&mut sess, &g);
+        assert!(!hit);
+        assert!(!a.unwrap().gated);
+        assert!(b.unwrap().gated);
+    }
+
+    /// REVIEW PROBE (claim 1, the atom table): the memo is sound only
+    /// while every atom a form names to an even power is in the table
+    /// BEFORE the form is first reduced. Here it is not (the form is
+    /// reduced, then its atom minted): the memo answers the stale
+    /// "nothing to substitute" where the reduction now substitutes. This
+    /// PASSES by asserting the divergence — it documents that the premise
+    /// is unenforced; by inspection no walk builds such a form.
+    #[test]
+    fn review_probe_the_memo_leans_on_mint_before_reference() {
+        let mut sess = Session::new(budget(), SymRules::shipped(), SymRetry::none(), None);
+        let x = Form::poly(Poly::indet(indet_param(1)));
+        let arg = x.add(&Form::poly(Poly::one()), budget()).unwrap();
+        let s = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
+        let mut p = Poly::zero();
+        p.insert(vec![(s, 2)], Rat::one()).unwrap();
+        let f = Form::poly(p);
+        let (before, _) = reduce_per_node(&mut sess, &f);
+        assert_eq!(before.as_ref(), Some(&f), "no record, nothing substituted");
+        mint_atom(&mut sess, s, true, || AtomInfo {
+            op: SymOp::Sqrt,
+            payload: 0,
+            args: [Some(Arc::new(arg.clone())), None, None],
+        });
+        let direct = algebra::reduce_steps(&f, sess.rules, sess.budget, &sess.atoms, EARLY_STEPS);
+        let (memo, hit) = reduce_per_node(&mut sess, &f);
+        assert!(hit);
+        assert_ne!(
+            memo, direct,
+            "the memo's answer is stale once the atom is minted"
+        );
+    }
 }
