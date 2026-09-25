@@ -495,6 +495,72 @@ fn a_certified_decision_is_gated_and_a_form_settled_one_is_not() {
     );
 }
 
+/// **The order read picks the arm its DIFFERENCE signs, and a
+/// difference the budget refuses picks none.** `min(x, y)` with `x`
+/// below `y` over the box is `x` there, and `max(x, y)` is `y`: a read
+/// that signed `b − a` in place of `a − b` would take the other arm and
+/// leave each residual below numeric. Under a four-term budget the
+/// difference of `(x+y+z)/(u+1)` and `(v+w)/(t+1)` is refused (its
+/// cross product has six terms) while both kids fit; the node is then
+/// an opaque atom and the residual `min(P, Q) − P` stays numeric — a
+/// read that fell back to either argument would call it zero, on a box
+/// where `Q < P` at some points.
+#[test]
+fn the_order_read_signs_a_minus_b_and_a_refused_difference_picks_no_arm() {
+    let s = SymRules::shipped();
+    for (what, build) in [
+        (
+            "min(x, y) - x, x in [1,2], y in [3,4]",
+            (|| {
+                let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+                x.min(y) - x
+            }) as fn() -> Sym<Interval>,
+        ),
+        ("max(x, y) - y, x in [1,2], y in [3,4]", || {
+            let (x, y) = (over("x", 1.0, 2.0), over("y", 3.0, 4.0));
+            x.max(y) - y
+        }),
+    ] {
+        assert_eq!(row(what, how(s, build)), "sign_gated", "{what}");
+    }
+    let tiny = SymBudget {
+        max_terms: 4,
+        max_degree: 128,
+    };
+    fn kids() -> (Sym<Interval>, Sym<Interval>) {
+        let p = (over("x", 1.0, 2.0) + over("y", 1.0, 2.0) + over("z", 1.0, 2.0))
+            / (over("u", 0.0, 1.0) + lit(1.0));
+        let q = (over("v", 1.0, 2.0) + over("w", 1.0, 2.0)) / (over("t", 0.0, 1.0) + lit(1.0));
+        (p, q)
+    }
+    for (what, build) in [
+        (
+            "[4 terms] min(P, Q) - P",
+            (|| {
+                let (p, q) = kids();
+                p.min(q) - p
+            }) as fn() -> Sym<Interval>,
+        ),
+        ("[4 terms] min(P, Q) - Q", || {
+            let (p, q) = kids();
+            p.min(q) - q
+        }),
+    ] {
+        let ((out, value), counts) = with_session_rules(tiny, s, || {
+            let m = build();
+            (
+                geom_core::k_stats::decide("sym_root_rows", Margin::of(m), band()),
+                m.value,
+            )
+        });
+        let l = row(what, (label(out, counts), value.enclosure_probe()));
+        assert!(
+            l.starts_with("numeric") || l.starts_with("refused"),
+            "{what}: the difference is refused, so the node is an atom and nothing discharges: {l}"
+        );
+    }
+}
+
 /// **A comparison of two CONSTANTS is A0's, and it is a THEOREM.**
 /// `max(1, 1/4)` is arithmetic on the coefficient ring: the tier's
 /// ability to answer it may not depend on the leaf's box, and
