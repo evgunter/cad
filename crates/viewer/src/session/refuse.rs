@@ -830,9 +830,11 @@ impl FaceFrameFault {
     /// A fault about the PICK is [`Tone::Actionable`]: a face on
     /// several bodies, a curved face, and a name that does not resolve
     /// each refuse what the reader chose, and the form stays shut until
-    /// they choose again. [`Self::Unresolved`] is a stale pick, the
-    /// fact `Standing::Face` draws loud in the header of the same pane,
-    /// so it takes the same tone here.
+    /// they choose again. [`Self::Unresolved`] is that on its own
+    /// merits: the form's pick is LATCHED (it outlives the selection,
+    /// so the reader can go on clicking elsewhere), and a latched face
+    /// that no longer resolves holds the button until the reader picks
+    /// a face again, whatever is selected now.
     ///
     /// A seat not yet answerable is [`Tone::Advisory`]: no face picked
     /// is the form asking for one, and no evaluation yet is "we cannot

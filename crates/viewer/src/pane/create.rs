@@ -24,7 +24,9 @@ use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::render_number;
 use crate::seats::{Seat, seat_line};
-use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
+use crate::session::{
+    FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing, face_frame_seat,
+};
 use crate::sketch;
 use crate::theme::Theme;
 use crate::tools::ToolKind;
@@ -359,14 +361,49 @@ fn part_listing(ui: &mut egui::Ui, theme: &Theme, chooser: &PartChooser) -> Opti
 }
 
 /// **A face-frame fault under the datum form**, in the voice the fault
-/// gives itself ([`FaceFrameFault::tone`]). `NoFace` draws nothing: it
-/// is the form's unmet seat, which the form has already asked for in
-/// the same words from its one home.
+/// gives itself ([`FaceFrameFault::tone`]) — or nothing, where this
+/// pane already says the fact elsewhere, because it says a fact once:
+///
+/// - `NoFace` is the form's unmet seat, which the form has already
+///   asked for in the same words from its one home;
+/// - `Unresolved`, when `said_by_selection`: the form's latched face IS
+///   the selection, and the selection's own verdict
+///   (`pane::properties::standing_verdict`, in this pane) is already
+///   saying, loud, that it does not resolve. A latched face that is no
+///   longer selected has nobody else to say it, so the form does.
 ///
 /// A free function over the `Ui` so a headless drive can reach it.
-fn face_frame_fault(ui: &mut egui::Ui, theme: &Theme, fault: &FaceFrameFault) {
-    if *fault != FaceFrameFault::NoFace {
+fn face_frame_fault(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    fault: &FaceFrameFault,
+    said_by_selection: bool,
+) {
+    let said_elsewhere = match fault {
+        FaceFrameFault::NoFace => true,
+        FaceFrameFault::Unresolved { .. } => said_by_selection,
+        FaceFrameFault::NotLanded
+        | FaceFrameFault::NotOneBody { .. }
+        | FaceFrameFault::NotPlanar { .. } => false,
+    };
+    if !said_elsewhere {
         crate::widgets::message_toned(ui, fault.to_string(), theme, fault.tone());
+    }
+}
+
+/// **Whether the selection's verdict is already saying that the form's
+/// latched face does not resolve**: the latched face is the one
+/// selected, and the selection carries an unresolved verdict
+/// ([`Standing::unresolved`]). A selected face that resolves, or has no
+/// evaluation behind it yet, says no such thing, so the form's own
+/// refusal is the only place a reader would learn it.
+fn selection_says_unresolved(standing: &Standing, latched: Option<&FaceSelection>) -> bool {
+    match standing {
+        Standing::Face { face, .. } => Some(face) == latched && standing.unresolved().is_some(),
+        Standing::Empty
+        | Standing::Node { .. }
+        | Standing::Param { .. }
+        | Standing::Edge { .. } => false,
     }
 }
 
@@ -395,6 +432,16 @@ impl Held {
             Self::Refused(_) => Tone::Actionable,
         }
     }
+}
+
+/// **What a bored circle holds the button for**: a bore at least as
+/// wide as the radius, which is an input the reader gave and the form
+/// refuses — [`Held::Refused`], not a request for the next input.
+fn bore_held(bored: bool, bore: f64, radius: f64) -> Option<Held> {
+    (bored && bore >= radius).then_some(Held::Refused(
+        "the bore must be smaller than the radius — which loop is the hole is decided by \
+         containment, so a larger bore would swap the roles rather than refuse",
+    ))
 }
 
 /// The held button's reason, drawn in its own voice. A free function
@@ -752,7 +799,11 @@ impl ViewerBehavior<'_> {
         // `NoFace` is the unmet seat above, in the same words from its
         // one home: the sentence asking for the pick is drawn once.
         if let Some(fault) = refused {
-            face_frame_fault(ui, &self.theme, fault);
+            let said = selection_says_unresolved(
+                &self.session.standing(),
+                self.drafts.datum_face.as_ref(),
+            );
+            face_frame_fault(ui, &self.theme, fault, said);
         }
         if ui
             .add_enabled(
@@ -969,14 +1020,12 @@ impl ViewerBehavior<'_> {
                         unit_field(ui, unit, FIELD_DRAG_SPEED, &mut self.drafts.profile_bore);
                     }
                 });
-                if self.drafts.profile_bored
-                    && self.drafts.profile_bore >= self.drafts.profile_radius
-                {
-                    blocked = Some(Held::Refused(
-                        "the bore must be smaller than the radius — which loop is the \
-                         hole is decided by containment, so a larger bore would swap \
-                         the roles rather than refuse",
-                    ));
+                if let Some(held) = bore_held(
+                    self.drafts.profile_bored,
+                    self.drafts.profile_bore,
+                    self.drafts.profile_radius,
+                ) {
+                    blocked = Some(held);
                 }
             }
             Some(ShapeKind::Rectangle) => {
@@ -2095,10 +2144,15 @@ mod tone_tests {
     use pncad::document::{DocumentId, RecipeNodeId};
     use pncad::prelude::SurfaceKind;
 
-    use super::{Held, face_frame_fault, held_line, part_listing};
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::{InterrogateError, Resolution};
+
+    use super::{
+        Held, bore_held, face_frame_fault, held_line, part_listing, selection_says_unresolved,
+    };
     use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
     use crate::parts::{PartCensus, PartChooser, PartEntry};
-    use crate::session::{FaceFrameFault, Refusal};
+    use crate::session::{FaceFrameFault, FaceSelection, Refusal, Standing};
     use crate::theme::Theme;
 
     fn listed(
@@ -2157,26 +2211,48 @@ mod tone_tests {
         assert_eq!(find(&painted, &id.to_string()).ink, Some(voices.weak));
     }
 
-    /// **A face-frame fault about the pick is loud**; one about a seat
-    /// not yet answerable is quiet.
+    fn latched() -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(1),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(2),
+            body: 0,
+        }
+    }
+
+    fn unresolved() -> FaceFrameFault {
+        FaceFrameFault::Unresolved {
+            error: InterrogateError::NoSuchName,
+        }
+    }
+
+    /// **A face-frame fault about the pick is loud**, a stale latched
+    /// pick included; one about a seat not yet answerable is quiet.
     #[test]
     fn a_face_frame_fault_takes_the_voice_the_fault_gives_it() {
         let (painted, voices) = landed_voiced(|ui| {
+            let theme = &Theme::DEFAULT;
             face_frame_fault(
                 ui,
-                &Theme::DEFAULT,
+                theme,
                 &FaceFrameFault::NotPlanar {
                     carrier: SurfaceKind::Cylinder,
                 },
+                false,
             );
             face_frame_fault(
                 ui,
-                &Theme::DEFAULT,
+                theme,
                 &FaceFrameFault::NotOneBody {
                     at: RecipeNodeId(4),
                 },
+                false,
             );
-            face_frame_fault(ui, &Theme::DEFAULT, &FaceFrameFault::NotLanded);
+            face_frame_fault(ui, theme, &unresolved(), false);
+            face_frame_fault(ui, theme, &FaceFrameFault::NotLanded, false);
         });
         assert_eq!(
             find_opening(&painted, "a sketch frame is read off a PLANAR face").ink,
@@ -2187,9 +2263,90 @@ mod tone_tests {
             Some(voices.unresolved)
         );
         assert_eq!(
+            find_opening(&painted, "that face does not resolve: ").ink,
+            Some(voices.unresolved)
+        );
+        assert_eq!(
             find_opening(&painted, "the document has not evaluated yet").ink,
             Some(voices.weak)
         );
+    }
+
+    /// **A stale pick the selection is already calling gone is not said
+    /// a second time** by the form; one the selection is not about is.
+    #[test]
+    fn a_stale_latched_face_is_said_once_in_the_pane() {
+        let (said_once, _) = landed_voiced(|ui| {
+            face_frame_fault(ui, &Theme::DEFAULT, &unresolved(), true);
+        });
+        assert!(
+            said_once.is_empty(),
+            "{:?}",
+            said_once.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        // Only `Unresolved` is the selection's to say.
+        let (planar, _) = landed_voiced(|ui| {
+            face_frame_fault(
+                ui,
+                &Theme::DEFAULT,
+                &FaceFrameFault::NotPlanar {
+                    carrier: SurfaceKind::Cylinder,
+                },
+                true,
+            );
+        });
+        assert_eq!(planar.len(), 1);
+    }
+
+    /// **The selection says a latched face does not resolve exactly when
+    /// it IS that face and no longer denotes** — the one case the form
+    /// leaves the sentence to it.
+    #[test]
+    fn the_selection_speaks_for_the_latched_face_only_when_it_is_that_face_and_gone() {
+        let face = |resolution: Option<Resolution>| Standing::Face {
+            face: latched(),
+            resolution: resolution.map(Box::new),
+        };
+        let gone = face(Some(Resolution::Failed(pncad::select::ResolutionFailure {
+            error: pncad::select::ResolveError::NodeGone {
+                name: latched().name,
+                edit: editor_core::RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(1),
+                },
+            },
+            offers: Vec::new(),
+        })));
+        assert!(selection_says_unresolved(&gone, Some(&latched())));
+        // Another face, or nothing latched: the form must say it.
+        let other = FaceSelection {
+            node: RecipeNodeId(9),
+            ..latched()
+        };
+        assert!(!selection_says_unresolved(&gone, Some(&other)));
+        assert!(!selection_says_unresolved(&gone, None));
+        // The latched face selected with no evaluation behind it: the
+        // selection says "no evaluation yet", not that it is gone.
+        assert!(!selection_says_unresolved(&face(None), Some(&latched())));
+        // A node selected: the header is about the node.
+        assert!(!selection_says_unresolved(
+            &Standing::Node {
+                node: RecipeNodeId(2),
+                present: false,
+            },
+            Some(&latched())
+        ));
+    }
+
+    /// **A bore at least as wide as the radius is a refused input**, and
+    /// loud — not the form asking for its next one.
+    #[test]
+    fn a_bore_as_wide_as_the_radius_is_refused() {
+        assert!(matches!(
+            bore_held(true, 0.01, 0.01),
+            Some(Held::Refused(_))
+        ));
+        assert_eq!(bore_held(true, 0.005, 0.01), None);
+        assert_eq!(bore_held(false, 0.02, 0.01), None);
     }
 
     /// **The add-profile form's held reason**: a refused input is loud,
