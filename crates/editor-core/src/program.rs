@@ -1111,9 +1111,30 @@ pub(crate) fn program_index(i: usize) -> u32 {
 /// only where the corpus reaches it.
 fn target_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
-        ProgramTarget::Point(_) => out.extend([StepArg::TargetX, StepArg::TargetY]),
+        ProgramTarget::Point(_) => out.extend(target_roles(false)),
         ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
+}
+
+/// A point target's two coordinate roles: the `Target*` pair, or the
+/// `Target2*` twins a fused step's second spec carries. The one
+/// assignment the enumeration ([`target_slots`], [`target2_slots`]),
+/// the addressing ([`target_coord`], under both accessor macros) and
+/// the resolution ([`res_target`]) all read, so a refusal reports at
+/// the slot the census enumerates and that slot addresses the
+/// coordinate that refused.
+fn target_roles(second: bool) -> [StepArg; 2] {
+    if second {
+        [StepArg::Target2X, StepArg::Target2Y]
+    } else {
+        [StepArg::TargetX, StepArg::TargetY]
+    }
+}
+
+/// Which coordinate of a point target `arg` addresses, when it is one
+/// of [`target_roles`]' pair for `second`.
+fn target_coord(arg: StepArg, second: bool) -> Option<usize> {
+    target_roles(second).iter().position(|role| *role == arg)
 }
 
 /// The argument roles of one arc spec; `second` selects the arrival
@@ -1167,7 +1188,7 @@ fn spec_slots(spec: &ProgramArcData, second: bool, out: &mut Vec<StepArg>) {
 /// The spec₂ twin of [`target_slots`], exhaustive for the same reason.
 fn target2_slots(t: &ProgramTarget, out: &mut Vec<StepArg>) {
     match t {
-        ProgramTarget::Point(_) => out.extend([StepArg::Target2X, StepArg::Target2Y]),
+        ProgramTarget::Point(_) => out.extend(target_roles(true)),
         ProgramTarget::Start | ProgramTarget::StartArriving => {}
     }
 }
@@ -1250,29 +1271,15 @@ macro_rules! spec_arg_access {
             (S::Center { c, .. }, A::CenterY, false)
             | (S::Center { c, .. }, A::Center2Y, true) => Some($($ref_kw)* c[1]),
             (
-                S::Bulge { target: ProgramTarget::Point(p), .. },
-                A::TargetX,
-                false,
-            )
-            | (S::Bulge { target: ProgramTarget::Point(p), .. }, A::Target2X, true)
-            | (S::Via { target: ProgramTarget::Point(p), .. }, A::TargetX, false)
-            | (S::Via { target: ProgramTarget::Point(p), .. }, A::Target2X, true)
-            | (S::Center { target: ProgramTarget::Point(p), .. }, A::TargetX, false)
-            | (S::Center { target: ProgramTarget::Point(p), .. }, A::Target2X, true) => {
-                Some($($ref_kw)* p[0])
-            }
-            (
-                S::Bulge { target: ProgramTarget::Point(p), .. },
-                A::TargetY,
-                false,
-            )
-            | (S::Bulge { target: ProgramTarget::Point(p), .. }, A::Target2Y, true)
-            | (S::Via { target: ProgramTarget::Point(p), .. }, A::TargetY, false)
-            | (S::Via { target: ProgramTarget::Point(p), .. }, A::Target2Y, true)
-            | (S::Center { target: ProgramTarget::Point(p), .. }, A::TargetY, false)
-            | (S::Center { target: ProgramTarget::Point(p), .. }, A::Target2Y, true) => {
-                Some($($ref_kw)* p[1])
-            }
+                S::Bulge { target: ProgramTarget::Point(p), .. }
+                | S::Via { target: ProgramTarget::Point(p), .. }
+                | S::Center { target: ProgramTarget::Point(p), .. },
+                a,
+                second,
+            ) => match target_coord(a, second) {
+                Some(k) => Some($($ref_kw)* p[k]),
+                None => None,
+            },
             _ => None,
         }
     }};
@@ -1300,12 +1307,15 @@ macro_rules! step_arg_access {
             (P::Toward { dy, .. }, A::DirY) => Some(dy),
             (P::Turn(e), A::TurnVal) => Some(e),
             (P::Line(e), A::Length) => Some(e),
-            (P::LineTo(ProgramTarget::Point(p)), A::TargetX)
-            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetX)
-            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetX) => Some($($ref_kw)* p[0]),
-            (P::LineTo(ProgramTarget::Point(p)), A::TargetY)
-            | (P::ContinueTo(ProgramTarget::Point(p)), A::TargetY)
-            | (P::TangentArcTo(ProgramTarget::Point(p)), A::TargetY) => Some($($ref_kw)* p[1]),
+            (
+                P::LineTo(ProgramTarget::Point(p))
+                | P::ContinueTo(ProgramTarget::Point(p))
+                | P::TangentArcTo(ProgramTarget::Point(p)),
+                a,
+            ) => match target_coord(a, false) {
+                Some(k) => Some($($ref_kw)* p[k]),
+                None => None,
+            },
             (P::ArcTo(spec), a) => $spec_fn(spec, a, false),
             (P::Fillet(e), A::Radius)
             | (P::FilletArc { radius: e, .. }, A::Radius)
@@ -1545,9 +1555,14 @@ fn res<T: Decide>(
     eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
 }
 
-/// Resolves a target's expressions, addressing its coordinates at the
-/// slot roles the caller names (a fused step's second spec carries the
-/// `Target2*` twins, exactly as [`spec_slots`] enumerates them).
+/// Resolves a target's expressions, addressing its coordinates at
+/// [`target_roles`]' pair for `second` — the `Target2*` twins on a
+/// fused step's second spec. Every other role this module resolves is
+/// still spelled three times: in the resolvers ([`res_step`],
+/// [`res_spec`]), in the enumeration ([`spec_slots`], [`step_slots`])
+/// and in the accessor macros behind [`step_expr`].
+/// `every_enumerated_slot_is_where_its_refusal_reports`
+/// (`tests/switch_program_vocabulary.rs`) is what holds them together.
 ///
 /// This is the target vocabulary's ONE construct hop: every target a
 /// document program carries — a straight leg's, a continuation's, a
@@ -1566,9 +1581,9 @@ fn res_target<T: Decide>(
     env: &ParamEnv<T>,
     loop_: u32,
     step: u32,
-    ax: StepArg,
-    ay: StepArg,
+    second: bool,
 ) -> Result<profile::Target<T>, (SlotId, EvalError)> {
+    let [ax, ay] = target_roles(second);
     Ok(match t {
         ProgramTarget::Start => profile::Target::Start,
         ProgramTarget::StartArriving => profile::Target::StartArriving,
@@ -1609,16 +1624,10 @@ fn res_step<T: Decide>(
         ProgramStep::Cusp => Step::Cusp,
         ProgramStep::Turn(e) => Step::Turn(res(e, env, loop_, i, A::TurnVal)?),
         ProgramStep::Line(e) => Step::Line(res(e, env, loop_, i, A::Length)?),
-        ProgramStep::LineTo(t) => {
-            Step::LineTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
-        }
-        ProgramStep::ContinueTo(t) => {
-            Step::ContinueTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
-        }
+        ProgramStep::LineTo(t) => Step::LineTo(res_target(t, env, loop_, i, false)?),
+        ProgramStep::ContinueTo(t) => Step::ContinueTo(res_target(t, env, loop_, i, false)?),
         ProgramStep::ArcTo(spec) => Step::ArcTo(res_spec(spec, env, loop_, i, false)?),
-        ProgramStep::TangentArcTo(t) => {
-            Step::TangentArcTo(res_target(t, env, loop_, i, A::TargetX, A::TargetY)?)
-        }
+        ProgramStep::TangentArcTo(t) => Step::TangentArcTo(res_target(t, env, loop_, i, false)?),
         ProgramStep::Fillet(e) => Step::Fillet {
             radius: res(e, env, loop_, i, A::Radius)?,
         },
@@ -1670,16 +1679,7 @@ fn res_spec<T: Decide>(
             res(&p[1], env, loop_, i, ay)?,
         ))
     };
-    let tgt = |t: &ProgramTarget| -> Result<profile::Target<T>, (SlotId, EvalError)> {
-        res_target(
-            t,
-            env,
-            loop_,
-            i,
-            pick(A::TargetX, A::Target2X),
-            pick(A::TargetY, A::Target2Y),
-        )
-    };
+    let tgt = |t: &ProgramTarget| res_target(t, env, loop_, i, second);
     Ok(match spec {
         ProgramArcData::Radius { r, side } => profile::ArcData::Radius {
             r: res(r, env, loop_, i, pick(A::CarrierRadius, A::CarrierRadius2))?,
