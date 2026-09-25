@@ -33,30 +33,10 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// The pinned diagnosis-corpus digest (update ONLY on a ratified
 /// resolution-semantics change — this is the replay-identity family's
 /// resolution member).
-// RE-PINNED at M4 PR 5: the corpus's sliding-union scenario now
-// DECLARES its flush planes (F5), shifting downstream node ids; the
-// row SHAPES are unchanged (verified: flip-vanish → PredicateFlip,
-// cascade → Cascade, structural-param, node-gone, ambiguous).
-// RE-PINNED at M5 PR 8 (ratified 2026-07-29): the corpus runs the
-// PRODUCTION (realized BVH) sweep, and exactly ONE row changed shape
-// — "flip-vanish" now diagnoses the documented evidence-free fallback
-// RecipeEdit{NodeChanged(minting node)} instead of PredicateFlip: the
-// scenario's disjoint run prunes the pair space, so the flip evidence
-// is never computed (NAMING-DESIGN N5 as amended). All other rows
-// unchanged (cascade → Cascade, structural-param, node-gone,
-// ambiguous).
-// RE-PINNED for the sketch-frame node: a profile's plane is a document
-// node, so every corpus scenario gained one and the ids inside the
-// diagnosed names shifted. The five row SHAPES are unchanged and were
-// re-read before this pin moved (flip-vanish → RecipeEdit/NodeChanged,
-// cascade → Cascade, structural-param, node-gone, ambiguous).
-// RE-PINNED for the group-size rung (N5): exactly ONE row changed
-// shape — "flip-vanish", a ranked rim-edge fragment whose group went
-// from two fragments to one, now diagnoses GroupResized { node, was:
-// 2, now: 1 } instead of the evidence-free fallback. The other four
-// row shapes were re-read and are unchanged (cascade → Cascade,
-// structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xf735_449b_3e36_841b;
+// What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
+// naming B's cap vertex as the one cutter gone; cascade → Cascade;
+// structural-param → StructuralParam; node-gone; ambiguous.
+const DIAGNOSIS_DIGEST: u64 = 0x732a_85e6_51d3_cedd;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

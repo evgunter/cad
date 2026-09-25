@@ -328,6 +328,19 @@ const ROSTER: &[Site] = &[
         why: Selection("the C6 inventory gate's `is the trig channel exactly 0.0` read"),
     },
     Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "analytic_datum_verdicts",
+        why: Selection(
+            "tier-3 check 1's representability read: `Bounds::lo` of each STORED datum's \
+             convention margin (`geom::Surface::representability_margins`) compared with \
+             zero — whether a datum lies inside the convention its variant states, a \
+             locally constant fact about data, not a geometric quantity of the body. It \
+             selects the refusal and never crosses into a certificate; the argument is \
+             the `bounds_allowlist` 2026-09-02 certified at-rest entry in `real.rs`, which \
+             discloses this as the file's one bracket read",
+        ),
+    },
+    Site {
         path: "crates/topo/src/query.rs",
         subject: "rim_of",
         why: Selection(
