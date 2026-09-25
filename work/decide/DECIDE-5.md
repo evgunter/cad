@@ -2,7 +2,7 @@
 id: DECIDE-5
 kind: unit
 title: the arc's span from the turn the profile decided: the sweep spells 4·atan(σ·b), not 4·atan|b| (Ev's route B, #3186)
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P1
 cost: D
