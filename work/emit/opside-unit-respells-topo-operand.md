@@ -1,11 +1,14 @@
 ---
 id: opside-unit-respells-topo-operand
 kind: issue
-title: "emit_topo's OpSide<()> re-spells topo::Operand {A, B}: two dataless operand-side vocabularies"
-status: open
+title: emit_topo's OpSide<()> re-spells topo::Operand {A, B}: two dataless operand-side vocabularies
+status: closed
 opened: 2026-09-23
 priority: P4
 cost: E
+branch: emit/small-rows
+closed: 2026-09-24
+pr: 3175
 ---
 
 

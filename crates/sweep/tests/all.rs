@@ -8,7 +8,7 @@
 //! second, unchecked copy of a set the compiler already knows.
 //!
 //! Each suite keeps its own `//!` docs and its inner attributes
-//! (`#![cfg(feature = "interval")]` and friends work as module-level
+//! (`#![cfg(feature = "probe")]` and friends work as module-level
 //! attributes). What it does NOT keep is a `mod <helper>;` line of its
 //! own: the shared helper trees are declared once, below, as modules of
 //! THIS root, and a suite that wants one says `use crate::<helper>;`.
@@ -466,8 +466,8 @@ mod reporting_door_bit_digest;
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
 
-#[path = "sign_certified_plus_v.rs"]
-mod sign_certified_plus_v;
+#[path = "sign_walk_plus_v.rs"]
+mod sign_walk_plus_v;
 
 #[path = "shell_census_is_thread_count_invariant.rs"]
 mod shell_census_is_thread_count_invariant;

@@ -8,7 +8,7 @@
 //! [`editor_core::eval::ContentBits`] feeding BOTH channels (DL2), and
 //! the scalar-policy seam that makes certified validation structurally
 //! absent at a dual (`topo::AtRestPolicy`, DL3). This suite pins that
-//! `Dual64` — and, under the `interval` feature, `Dual<Interval>` —
+//! `Dual64` — and `Dual<Interval>` —
 //! satisfies **every** bound `evaluate` asks for, so the door's state
 //! is a compiler fact rather than prose.
 //!
@@ -57,7 +57,12 @@
 //!
 //! **This suite is the record of which bounds a dual satisfies.** When
 //! that set changes, the change belongs in this header with its date,
-//! because nothing else in the tree states it.
+//! because nothing else in the tree states it. 2026-09-21: the set
+//! lost `ShellLane`, its eleventh term. Which scalars can form the
+//! shell door's call is now a VALUE the DL3 policy answers
+//! (`topo::AtRestPolicy::shell_door`), so the capability rides the
+//! `AtRestPolicy` term already in the list and the refusal a dual
+//! meets at a shell node is unchanged.
 
 use geom_core::Dual64;
 use geom_core::predicate::Decide;
@@ -76,8 +81,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
 }
 
@@ -102,8 +106,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
     let _ = editor_core::eval::evaluate::<T>;
 }
@@ -124,8 +127,7 @@ where
         + editor_core::analysis::AxisScalar
         + editor_core::analysis::SeedScalar
         + editor_core::MinClearanceLane
-        + editor_core::eval::SectionScalar
-        + editor_core::ShellLane,
+        + editor_core::eval::SectionScalar,
 {
     requires_the_whole_eval_scalar_set::<T>();
 }
@@ -155,9 +157,8 @@ fn dual64_meets_every_evaluate_bound() {
 }
 
 /// The derivative-enclosure instantiation (DL1's third use): the
-/// generic impls open the same door for `Dual<Interval>` under the
-/// `interval` feature, with nothing scalar-specific added.
-#[cfg(feature = "interval")]
+/// generic impls open the same door for `Dual<Interval>`, with nothing
+/// scalar-specific added.
 #[test]
 fn dual_interval_meets_every_evaluate_bound() {
     requires_every_evaluate_bound::<geom_core::DualInterval>();

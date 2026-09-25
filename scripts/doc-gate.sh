@@ -139,13 +139,13 @@
 # FEATURES: --all-features EVERYWHERE, WITH ONE NAMED EXCEPTION.
 #
 # --all-features on the WORKSPACE pass, UNLIKE the clippy job. Clippy
-# avoids it because the `interval` feature is a second build graph whose
-# test targets would double that job's compile time for no extra
-# coverage, and the interval job owns its own clippy pass. Neither
-# reason survives here: rustdoc builds no test targets, and there is no
-# second doc job. What the flag buys is real — under default features
-# alone, every doc link into `#[cfg(feature = "probe")]` or
-# `#[cfg(feature = "interval")]` code resolves to nothing, so rustdoc
+# avoids it because a second feature selection in one job mixes two
+# graphs into one cache entry, and `clippy (--all-features)` owns that
+# selection. That reason does not reach here: rustdoc builds no test
+# targets, and there is no second doc job. What the flag buys is real —
+# under default features alone, every doc link into
+# `#[cfg(feature = "probe")]` code (and, until RING-4 deleted it, into
+# code behind the `interval` feature) resolves to nothing, so rustdoc
 # reported 12 CORRECT links as broken while the prose on those items
 # went unchecked entirely. Documenting the full feature set is also what
 # docs.rs does by default.
@@ -312,10 +312,10 @@
 # exist". Additivity constrains ONE crate's own feature set and not a
 # DEPENDENCY's, which cargo lets you set independently: measured
 # 2026-09-04, `cargo doc -p editor-core --no-default-features --features
-# geom-core/interval` compiles editor-core with its own `interval` OFF
-# while `geom_core::Interval` exists, 7 unresolved sites down to 6 — and
-# `interval = ["geom-core/interval", …]` forwarding is the shape this
-# workspace is built out of. Only the intra-crate claim survives, and
+# geom-core/interval` compiled editor-core with its own `interval` OFF
+# while `geom_core::Interval` existed, 7 unresolved sites down to 6 — and
+# that feature forwarding was the shape this workspace was built out of
+# (`probe` and `budget` still are). Only the intra-crate claim survives, and
 # the differential does not need it.
 #
 # A `--output-format json` census at --all-features could

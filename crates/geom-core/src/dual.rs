@@ -809,7 +809,7 @@ where
 /// # This grants no certification right
 ///
 /// [`crate::CertifiedEnclosure`] is deliberately unimplemented for `Dual`
-/// and this impl does not change that: every C9-ring door is bounded by it
+/// and this impl does not change that: every C9 certification door is bounded by it
 /// and stays uninstantiable at a dual. What opens is the bracket half —
 /// boxes, pruning, the `f64` margin payloads a typed refusal reports,
 /// and **selections**, which are the ones with a condition on them: a
@@ -1787,14 +1787,13 @@ mod tests {
     }
 
     // ------------------------------------------------------------------
-    // Dual<Interval> (feature-gated)
+    // Dual<Interval>
     // ------------------------------------------------------------------
 
     /// `Dual<Interval>` through the public API only ([`crate::real::Bounds`]
     /// on the channels); the decoration-level pins for the interval kink
     /// selectors live in `crate::interval`'s test module, which can see
     /// the wrapped `DecInterval`.
-    #[cfg(feature = "interval")]
     mod interval_duals {
         use super::*;
         use crate::interval::Interval;
@@ -2231,7 +2230,6 @@ mod tests {
         /// endpoints — not a point, and not touched by an unbounded
         /// tangent (E9: tangent poison never refuses). Red if the impl
         /// hulls the channels together: `[−∞, ∞]` would swallow `[−1, 2]`.
-        #[cfg(feature = "interval")]
         #[test]
         fn dual_interval_bracket_is_the_value_enclosure() {
             use crate::interval::Interval;

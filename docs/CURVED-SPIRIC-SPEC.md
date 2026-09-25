@@ -213,7 +213,7 @@ exhaustiveness with the reason at the site.
 | `replace_face.rs:cone_v_range` | U |
 | `replace_face.rs:plan_edge` | no change (constructs `Nurbs`) |
 | `topo/src/pcurves.rs:nurbs_iso_derive`, `derive_general_image` | no change (let-else on `Nurbs`) |
-| `topo/src/merge_faces.rs:loop_winding` ×2 | `None` — the honest remainder, as `Nurbs` |
+| `topo/src/loop_winding.rs:planar_loop_winding` ×2 | `None` — the honest remainder, as `Nurbs` |
 | `topo/src/chord_join.rs:between_edge_in_plane` | R `SectionInvariant` (the join lanes are fenced; never assume "on") |
 | `topo/src/boolean/reduce.rs:gate_operand_edges` | R `CurvedEdgeUnsupported` — the boolean fence (§7) |
 | `boolean/boxes.rs:edge_box_rule` | `EdgeBoxRule::Spiric` → `spiric_arc_aabb` |

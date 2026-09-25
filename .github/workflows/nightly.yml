@@ -295,7 +295,7 @@ jobs:
       # for the same ruling. ci.yml's `clippy (--all-features)` lints the
       # workspace at every feature at once, and drops `viewer` from that
       # selection when the seeds do not buy the toolkit — so on a skipped
-      # run NOTHING there lints this crate at `app` + `interval`
+      # run NOTHING there lints this crate at `app` + the other opt-ins
       # together, which is a combination the two rows above do not cover
       # either: the clippy row above pins `--features app` and the
       # rustdoc row issues no lints. Ungated here, once a day, which is
@@ -1041,10 +1041,10 @@ jobs:
   #
   # SO HOW IS THE SET SELECTED WITHOUT A LIST. `scripts/nightly-only-
   # selection.py` derives it as the difference between two
-  # `cargo nextest list` outputs — the same trick, and the same shape,
-  # `scripts/interval-only-selection.py` uses for the `interval` feature. Its
-  # header carries the details, including the one that is easy to get wrong:
-  # the difference is over the `ignored` FLAG, because nextest lists ignored
+  # `cargo nextest list` outputs — the same trick, and the same shape, the
+  # retired `scripts/interval-only-selection.py` used for the retired
+  # `interval` feature. Its header carries the details, including the one
+  # that is easy to get wrong: the difference is over the `ignored` FLAG, because nextest lists ignored
   # tests too, so subtracting one name set from the other is empty for every
   # tree — a nightly reporting green having run nothing.
   #
@@ -1206,7 +1206,7 @@ jobs:
             "$RUNNER_TEMP/list-gate.json" "$RUNNER_TEMP/list-nightly.json" \
             > "$RUNNER_TEMP/nightly-selection.txt"
       # `--no-tests` IS DECIDED BY THE SELECTION, mirroring ci-local.sh's
-      # identical conditional on the interval selection: nextest exits 4 on a
+      # identical conditional on the nightly selection: nextest exits 4 on a
       # zero-test run, which is the alarm we want when a real filter matches
       # nothing, and exactly wrong for the `none()` the selection script emits
       # for a tree carrying no markers at all. Any other filter that selects
@@ -1273,17 +1273,10 @@ jobs:
   # gives up is LATENCY, and this row is the bound on it: at most a day, and
   # only for a break reached by a path the marker did not name.
   #
-  # `--features interval`, ONE BUILD AND NOT TWO, and the choice is about
-  # coverage rather than thrift. The `interval` feature is purely additive —
-  # ci.yml's `discipline` row gates that with
-  # `scripts/check-interval-cfg-additive.py` — so the interval build compiles
-  # every test the default build does PLUS the interval-only ones, of which
-  # the gated set has some (a ring fuzz, an interval surfaces probe) that a
-  # default-lane row would re-take with nothing. What this does NOT re-take is
-  # a gated suite that breaks only in the DEFAULT compile mode. That was the
-  # standing residue of lane sampling; since 2026-09-04 ci.yml runs both lanes
-  # on every code-tier run, so the PR gate covers it and only this nightly
-  # re-take is one-lane.
+  # ONE BUILD, the workspace's one compile mode. Until RING-4 this row passed
+  # `--features interval`, the superset build, so that the gated set's
+  # interval rows (a ring fuzz, an interval surfaces probe) were re-taken
+  # too; the feature is deleted and every build compiles them.
   #
   # AN EMPTY SET IS NOT A SILENT ZERO, the same distinction the `demoted` job
   # draws one lane over. `--gated-set` prints `none()` only after proving from
@@ -1297,10 +1290,9 @@ jobs:
   # comes from a hosted run and this job has never had one. Its SHAPE is
   # knowable and is the whole of what can be claimed today:
   #
-  #   * one `--workspace --features interval` TEST BUILD at the gate's opt-1
+  #   * one `--workspace` TEST BUILD at the gate's opt-1
   #     environment, which is the job's dominant term. It is the same compile
-  #     interval.yml's `build + archive (interval)` step pays, so that step is
-  #     the
+  #     ci.yml's `build + archive` step pays, so that step is the
   #     bound: 11.1 min at the 2026-09-02 reading in docs/S-TCOST-PLAN.md, and
   #     11-15 min is the band those readings have moved in. This job pays no
   #     artifact upload, so it should sit at or under that;
@@ -1331,8 +1323,7 @@ jobs:
     if: needs.gate.outputs.run == 'true'
     timeout-minutes: 90
     env:
-      # The gate's own build environment, copied from interval.yml's
-      # `build-interval`
+      # The gate's own build environment, copied from ci.yml's `build`
       # job and TRACKING it, for the reason the `demoted` job states at its
       # own copy: a cost measured in a configuration we do not use is not a
       # cost anyone can act on.
@@ -1414,7 +1405,7 @@ jobs:
           # an hour. Nobody is blocked on this run.
           echo "fail-fast mode: --no-fail-fast — every selected gated test runs to completion."
           status=0
-          cargo nextest run --workspace --features interval -E "$sel" --no-fail-fast || status=$?
+          cargo nextest run --workspace -E "$sel" --no-fail-fast || status=$?
           echo "fail-fast mode was --no-fail-fast: the summary above is the whole gated-set failure SURFACE, not its first failure."
           exit $status
 

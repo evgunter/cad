@@ -74,6 +74,14 @@ impl ViewerBehavior<'_> {
                 }
             }
             Selection::Param(name) => {
+                // **The previewed document here, deliberately**: this
+                // row's field IS the drag, so it must show the value
+                // the gesture is previewing. What decides whether the
+                // row is drawn at all — the declaration — is the same
+                // in both documents, because the only edit a preview
+                // applies to a parameter is a value write
+                // (`props::param_edit`), which cannot declare or
+                // undeclare one.
                 if let Some(row) = crate::props::param_rows(self.session.doc())
                     .into_iter()
                     .find(|row| row.name == name)
@@ -127,6 +135,7 @@ impl ViewerBehavior<'_> {
                                 },
                             },
                             self.ops,
+                            self.notices,
                         );
                         // **The unit is the picker's to say.** A
                         // parameter's notation is a fact the document
@@ -301,10 +310,17 @@ impl ViewerBehavior<'_> {
             }
         });
         let name = self.drafts.new_param_name.trim();
+        // `create_param` asks `committed_doc()`, so the notice ahead of
+        // the click asks it too: a notice drawn from the previewed
+        // document would be answering about a document the door will
+        // not see.
         let existing = if name.is_empty() {
             None
         } else {
-            self.session.doc().params().get(&ParamName::new(name))
+            self.session
+                .committed_doc()
+                .params()
+                .get(&ParamName::new(name))
         };
         if let Some(existing) = existing {
             let name = ParamName::new(name);
@@ -501,23 +517,53 @@ impl ViewerBehavior<'_> {
     /// again here would be one fact spelled twice in one pane, which is
     /// what the parameter half of this panel already does and is not a
     /// pattern to copy.
+    ///
+    /// **The section's gate and the toggle's are two different tests,
+    /// and each control reads the one its own door runs.**
+    /// [`crate::display::instance_check`] decides whether there is a
+    /// section at all — it is the kind test, and a node of another kind
+    /// has no per-instance display state to show. What the hide toggle
+    /// pushes runs [`crate::display::display_check`], the full
+    /// admission test, so an instance whose geometry is fused into a
+    /// drawn root with another's is a live instance with a section and
+    /// no display operation that can address it: the toggle is gated on
+    /// the door's test and carries the door's own sentence.
     pub(crate) fn instance_ui(&mut self, ui: &mut egui::Ui, node: RecipeNodeId) {
+        // **The COMMITTED document, because that is the one the doors
+        // read.** `set_hidden` and `begin_free_move` are handed
+        // `history.doc()`, and both ops are permitted during a value
+        // gesture, so a panel reading the previewed document would be
+        // answering a different question from the click it is standing
+        // in for. Reading the same document makes the agreement
+        // structural instead of circumstantial.
+        let doc = self.session.committed_doc();
         // The fault is discarded HERE, at the party that decides the
         // two refusals are one answer, rather than by a door that
         // answered a `bool` and could not have offered anything else.
-        if crate::display::instance_check(self.session.doc(), node).is_err() {
+        if crate::display::instance_check(doc, node).is_err() {
             return;
         }
         ui.separator();
         ui.label(format!("instance {}", node.0));
+        // The admission test `SetInstanceHidden` itself runs, read once
+        // for the section: the toggle below is offered exactly where
+        // the op would accept it, and the free-move probe runs this
+        // same test before its own.
+        let addressable = crate::display::display_check(doc, node);
         let mut shown = !self.display.hidden.contains(&node);
-        if ui.checkbox(&mut shown, "shown in viewport").changed() {
+        if hide_toggle(ui, &self.theme, &addressable, &mut shown) {
             self.ops.push(SessionOp::SetInstanceHidden {
                 instance: node,
                 hidden: !shown,
             });
         }
-        match free_move_check(self.session.doc(), node) {
+        // The probe below would refuse this very fault —
+        // `free_move_check` runs `display_check` first — so the section
+        // ends at the toggle rather than saying it a second time.
+        if addressable.is_err() {
+            return;
+        }
+        match free_move_check(doc, node) {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
@@ -729,6 +775,7 @@ impl ViewerBehavior<'_> {
                 },
             },
             self.ops,
+            self.notices,
         );
     }
 
@@ -857,6 +904,19 @@ impl ViewerBehavior<'_> {
     /// driven slot's value is not the user's to move, so a range for it
     /// would answer a question they cannot act on. The reading itself
     /// lands in [`Self::slot_notes_ui`], in the slot's own written unit.
+    ///
+    /// **The control reads the refused operation's own value.**
+    /// `Session::probe_bounds` refuses a driven slot through
+    /// `guard_driven` with [`Refusal::DrivenByExpression`], and
+    /// [`Self::probe_refusal`] answers that same value ahead of the
+    /// click; the button gates on whether there is one and renders it
+    /// through its own `Display`. **The row's VALUE is not a second
+    /// conjunct**: a slot the document holds a bare literal for always
+    /// evaluates, because `Node::slot_dimension_fault` — the one
+    /// predicate the edit doors and the load walk both ask — refuses
+    /// an expression whose dimension disagrees with the slot's. A gate
+    /// that also read the value would owe a sentence for a state no
+    /// document can be in.
     pub(crate) fn range_button(
         &mut self,
         ui: &mut egui::Ui,
@@ -864,12 +924,12 @@ impl ViewerBehavior<'_> {
         row: &SlotRow,
         label: &str,
     ) {
-        let offered = !row.driver.is_driven() && row.value.is_ok();
-        let button = ui.add_enabled(offered, egui::Button::new(label).small());
-        let button = if offered {
-            button.on_hover_text(PROBE_HOVER)
-        } else {
-            button.on_disabled_hover_text("a computed slot has no range of its own to probe")
+        let refused = Self::probe_refusal(node, row);
+        let button = ui.add_enabled(refused.is_none(), egui::Button::new(label).small());
+        let button = match refused {
+            None => button.on_hover_text(PROBE_HOVER),
+            // The refusal renders itself; nothing here composes words.
+            Some(refusal) => button.on_disabled_hover_text(refusal.to_string()),
         };
         if button.clicked() {
             self.ops.push(SessionOp::ProbeBounds {
@@ -878,6 +938,26 @@ impl ViewerBehavior<'_> {
                     slot: row.slot,
                 },
             });
+        }
+    }
+
+    /// **What `SessionOp::ProbeBounds` would answer for this row, or
+    /// `None` where it would accept** — a [`Refusal`], not a sentence.
+    ///
+    /// `guard_driven` builds this very value from this very row
+    /// (`props::slot_rows`, the driver and the value it evaluated), so
+    /// the disabled control's words are the refused operation's own by
+    /// construction rather than by two compositions agreeing. A caller
+    /// that wants the words asks the value for them.
+    pub(crate) fn probe_refusal(node: RecipeNodeId, row: &SlotRow) -> Option<Refusal> {
+        match &row.driver {
+            SlotDriver::Literal => None,
+            SlotDriver::Expression { params } => Some(Refusal::DrivenByExpression {
+                node,
+                slot: row.slot,
+                params: params.clone(),
+                current: row.value.as_ref().ok().copied(),
+            }),
         }
     }
 
@@ -1009,6 +1089,30 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         .clicked()
 }
 
+/// **The hide toggle, offered exactly where `SetInstanceHidden` would
+/// accept it.** `addressable` is the admission test that op runs
+/// (`display::display_check`); where it refuses, the checkbox is drawn
+/// disabled and the refusal's own sentence stands under it, visible
+/// rather than behind a hover.
+///
+/// Answers whether the toggle was changed — which a refused toggle
+/// never is.
+fn hide_toggle(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    addressable: &Result<(), crate::display::AdmissionFault>,
+    shown: &mut bool,
+) -> bool {
+    let toggle = ui.add_enabled(
+        addressable.is_ok(),
+        egui::Checkbox::new(shown, "shown in viewport"),
+    );
+    if let Err(fault) = addressable {
+        crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
+    }
+    toggle.changed()
+}
+
 /// What a range button says on hover, for a slot's and a parameter's
 /// alike.
 const PROBE_HOVER: &str =
@@ -1030,15 +1134,13 @@ mod layout_tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use eframe::egui;
     use pncad::document::{Dimension, ParamName, SlotId};
 
     use super::{bounds_notes, exists_notice, slot_notes};
-    use crate::pane::headless::{Landed, landed};
+    use crate::pane::headless::{assert_inside, assert_own_lines, assert_under, drawn_in, find};
     use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
     use crate::theme::Theme;
-    use crate::widgets::message_tests::SLACK;
 
     /// A narrow pane, and wider than `crate::widgets::message_floor`,
     /// so these rows read the region and not the floor.
@@ -1061,88 +1163,12 @@ mod layout_tests {
         }
     }
 
-    /// One headless frame of `draw` in a [`REGION`]-wide pane: the
-    /// pane's rect, and everything painted in it.
-    fn drawn(draw: impl FnOnce(&mut egui::Ui)) -> (egui::Rect, Vec<Landed>) {
-        let region = core::cell::Cell::new(egui::Rect::NOTHING);
-        let painted = landed(|ui| {
-            ui.allocate_ui(egui::vec2(REGION, 800.0), |ui| {
-                region.set(ui.max_rect());
-                let floor = crate::widgets::message_floor(ui);
-                assert!(
-                    REGION > floor,
-                    "a {REGION}-point pane is at or under the {floor}-point floor, \
-                     so these rows would read the floor rather than the region"
-                );
-                draw(ui);
-            });
-        });
-        (region.get(), painted)
-    }
-
-    fn find<'a>(painted: &'a [Landed], text: &str) -> &'a Landed {
-        painted
-            .iter()
-            .find(|landed| landed.text == text)
-            .unwrap_or_else(|| panic!("`{text}` was never painted"))
-    }
-
-    /// Every row of `landed` inside the pane's right-hand edge.
-    fn assert_inside(region: egui::Rect, landed: &Landed) {
-        for row in &landed.rows {
-            assert!(
-                row.right() <= region.right() + SLACK,
-                "`{}` ends {} points past a {REGION}-point pane (rows {:?})",
-                landed.text,
-                row.right() - region.right(),
-                landed.rows
-            );
-        }
-    }
-
-    /// [`assert_inside`], and every row starting at the pane's left
-    /// edge: a line of its own, with nothing beside it.
-    fn assert_own_lines(region: egui::Rect, landed: &Landed) {
-        assert_inside(region, landed);
-        for row in &landed.rows {
-            assert!(
-                (row.left() - region.left()).abs() <= SLACK,
-                "`{}` has a row starting {} points into the pane rather than \
-                 at its edge (rows {:?})",
-                landed.text,
-                row.left() - region.left(),
-                landed.rows
-            );
-        }
-    }
-
-    /// `below` starts under the last row of `above`.
-    fn assert_under(above: &Landed, below: &Landed) {
-        let bottom = above
-            .rows
-            .iter()
-            .map(egui::Rect::bottom)
-            .fold(f32::NEG_INFINITY, f32::max);
-        let top = below
-            .rows
-            .iter()
-            .map(egui::Rect::top)
-            .fold(f32::INFINITY, f32::min);
-        assert!(
-            top >= bottom - SLACK,
-            "`{}` starts above the bottom of `{}` — beside it, not under it \
-             ({top} against {bottom})",
-            below.text,
-            above.text
-        );
-    }
-
     #[test]
     fn a_declared_names_notice_and_its_door_each_take_a_line_inside_the_pane() {
         let name = param("outer_enclosure_wall_thickness");
         let wording = Refusal::exists_wording(&name, Dimension::Length);
         let door = format!("edit {}", name.0);
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             exists_notice(ui, &Theme::DEFAULT, &name, Dimension::Length);
         });
         let notice = find(&painted, &wording);
@@ -1171,7 +1197,7 @@ mod layout_tests {
             },
             Ok(value),
         );
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
         let affordance = find(
@@ -1193,7 +1219,7 @@ mod layout_tests {
     #[test]
     fn a_slots_fault_is_said_under_its_row_inside_the_pane() {
         let row = distance_row(SlotDriver::Literal, Err(SlotFault::NoExpression));
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             slot_notes(ui, &Theme::DEFAULT, &row, None);
         });
         let fault = find(
@@ -1207,11 +1233,195 @@ mod layout_tests {
     fn a_parameters_range_reading_is_said_over_its_button_inside_the_pane() {
         let reading = "free from 0.0012345678901234567 m to 12.345678901234567 m \
                        before something new fails";
-        let (region, painted) = drawn(|ui| {
+        let (region, painted) = drawn_in(REGION, |ui| {
             bounds_notes(ui, &Theme::DEFAULT, Some(reading));
         });
         let said = find(&painted, reading);
         assert_own_lines(region, said);
         assert_under(said, find(&painted, "range?"));
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
+
+    use std::cell::Cell;
+
+    use super::hide_toggle;
+    use crate::app::ViewerBehavior;
+    use crate::display::AdmissionFault;
+    use crate::pane::headless::painted_after_clicking;
+    use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
+    use crate::session::Refusal;
+    use crate::theme::Theme;
+    use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
+
+    const NODE: RecipeNodeId = RecipeNodeId(4);
+
+    fn thickness() -> ParamName {
+        ParamName("thickness".to_owned())
+    }
+
+    /// One extrude distance row, driven or not, with the value the
+    /// document's parameters give it.
+    fn distance_row(driver: SlotDriver, value: Result<SlotValue, SlotFault>) -> SlotRow {
+        SlotRow {
+            slot: SlotId::Distance,
+            dimension: Dimension::Length,
+            structural: false,
+            driver,
+            value,
+            unit: None,
+            source: None,
+        }
+    }
+
+    /// **The disabled range button reads the refused operation's own
+    /// value** — the variant and its payload, not a sentence about it.
+    ///
+    /// `guard_driven` builds `DrivenByExpression` from the same row's
+    /// driver and value, so the fields asserted here are the ones the
+    /// click's refusal carries; the rendering follows from the value
+    /// rather than being a second composition beside it. Both are
+    /// asserted: a control that started minting words again would keep
+    /// the variant and lose the sentence.
+    #[test]
+    fn a_driven_slots_range_button_reads_the_refusal_the_probe_would_give() {
+        let current = SlotValue::Continuous(0.004);
+        let row = distance_row(
+            SlotDriver::Expression {
+                params: vec![thickness()],
+            },
+            Ok(current),
+        );
+        match ViewerBehavior::probe_refusal(NODE, &row) {
+            Some(Refusal::DrivenByExpression {
+                node,
+                slot,
+                ref params,
+                current: carried,
+            }) => {
+                assert_eq!(node, NODE);
+                assert_eq!(slot, SlotId::Distance);
+                assert_eq!(params, &vec![thickness()], "what to edit instead");
+                assert_eq!(carried, Some(current));
+            }
+            ref other => panic!("expected the driven refusal, got {other:?}"),
+        }
+        let rendered = ViewerBehavior::probe_refusal(NODE, &row)
+            .expect("a driven slot is refused the probe")
+            .to_string();
+        assert_eq!(
+            rendered,
+            Refusal::affordance(&[thickness()], Some(current)),
+            "and it renders as the ratified affordance, from its one home"
+        );
+        // The mapping itself, planted: the words a reader gets for this
+        // row. The coupling above holds under any rewording of the one
+        // home; this line does not.
+        assert_eq!(
+            rendered,
+            "driven by an expression over thickness (currently 0.004) — edit the expression?"
+        );
+    }
+
+    /// The fault a fused instance's display doors refuse with.
+    fn fused() -> AdmissionFault {
+        AdmissionFault::FusedGeometry {
+            instance: RecipeNodeId(0),
+            root: RecipeNodeId(2),
+            others: vec![RecipeNodeId(1)],
+        }
+    }
+
+    /// **A refused hide toggle is drawn, cannot be flipped, and carries
+    /// the door's own sentence under it** — the panel half of the fused
+    /// instance's repair, drawn headless.
+    ///
+    /// The runtime value that makes it false is a toggle gated on
+    /// anything weaker than the display doors' own test: clicked here,
+    /// it would report a change the op then refuses.
+    #[test]
+    fn a_refused_hide_toggle_is_disabled_and_says_why() {
+        let changed = Cell::new(false);
+        let painted = painted_after_clicking("shown in viewport", |ui| {
+            let mut shown = true;
+            if hide_toggle(ui, &Theme::DEFAULT, &Err(fused()), &mut shown) {
+                changed.set(true);
+            }
+        });
+        assert!(!changed.get(), "a refused toggle is not the user's to flip");
+        // Planted, not compared with another reading of the fault.
+        assert!(
+            painted.contains(
+                "instance 0's geometry is fused into node 2 together with instance(s) 1 — \
+                 a display operation cannot address it separately"
+            ),
+            "{painted}"
+        );
+    }
+
+    /// **The same click on an addressable toggle DOES flip it** — the
+    /// row that keeps the one above from passing because the harness
+    /// missed the checkbox, and that no sentence is owed where the op
+    /// would accept.
+    #[test]
+    fn an_addressable_hide_toggle_flips_and_says_nothing() {
+        let changed = Cell::new(false);
+        let painted = painted_after_clicking("shown in viewport", |ui| {
+            let mut shown = true;
+            if hide_toggle(ui, &Theme::DEFAULT, &Ok(()), &mut shown) {
+                changed.set(true);
+            }
+        });
+        assert!(changed.get(), "the click reached the checkbox");
+        assert!(!painted.contains("fused"), "{painted}");
+    }
+
+    /// **A slot the user can write is offered the probe**, with nothing
+    /// owed: `probe_bounds` would accept the click.
+    #[test]
+    fn a_literal_slot_is_offered_the_probe() {
+        assert!(
+            ViewerBehavior::probe_refusal(
+                NODE,
+                &distance_row(SlotDriver::Literal, Ok(SlotValue::Continuous(0.008)))
+            )
+            .is_none()
+        );
+    }
+
+    /// **The driver decides the arm, and a driven row with no value
+    /// still gets the refusal** — naming what to edit instead is most
+    /// of what that reader needs, and `current` goes `None` rather
+    /// than the whole affordance going away.
+    ///
+    /// This is also the one shape in which a row reaches the panel with
+    /// an `Err` value and no `EvalError`: `props::slot_row` reports a
+    /// slot its node lists and carries no expression for as
+    /// `SlotFault::NoExpression`, and classifies it as driven with an
+    /// empty parameter list, which is the refusing direction.
+    #[test]
+    fn a_driven_slot_that_did_not_evaluate_still_gets_the_refusal() {
+        let row = distance_row(
+            SlotDriver::Expression {
+                params: vec![thickness()],
+            },
+            Err(SlotFault::NoExpression),
+        );
+        let refusal =
+            ViewerBehavior::probe_refusal(NODE, &row).expect("a driven slot is refused the probe");
+        assert!(
+            matches!(refusal, Refusal::DrivenByExpression { current: None, .. }),
+            "no current value to name: {refusal:?}"
+        );
+        assert_eq!(
+            refusal.to_string(),
+            Refusal::affordance(&[thickness()], None)
+        );
+        assert!(refusal.to_string().contains("thickness"));
     }
 }

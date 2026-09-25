@@ -19,7 +19,6 @@ use core::f64::consts::PI;
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::blend::battery::{Chain, ChainClosure};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -120,11 +119,11 @@ fn assert_pairing_off_the_body(
 /// top rim is a closed chain of three LINES and three arcs. No suite
 /// builds a closed chain of mixed link kinds.
 fn mixed_rim_prism(h: f64) -> Body<f64> {
-    let verts: Vec<ProfileVertex<f64>> = (0..6)
+    let verts: Vec<(Point2<f64>, f64)> = (0..6)
         .map(|i| {
             let th = PI / 3.0 * f64::from(i);
             let bulge = if i % 2 == 0 { 0.2 } else { 0.0 };
-            ProfileVertex::new(Point2::new(th.cos(), th.sin()), bulge)
+            (Point2::new(th.cos(), th.sin()), bulge)
         })
         .collect();
     prism(verts, h, tol())

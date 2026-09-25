@@ -38,7 +38,6 @@
 //! of the document's own web margin, which is affine and positive over
 //! the whole box there (`m10_10_the_plates_ceiling_is_dependency_widening_not_a_flip`);
 //! the leaves certify up to the real flip at 0.625 of the study.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;

@@ -611,7 +611,6 @@ fn a_distribution_changes_no_content_key_naming_key_or_verdict() {
 
 /// The same claim at the INTERVAL scalar — the lane the spec names
 /// alongside f64.
-#[cfg(feature = "interval")]
 #[test]
 fn a_distribution_changes_no_content_key_at_interval() {
     let plain = fixture::die().doc;

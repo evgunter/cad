@@ -3,18 +3,22 @@
 //! `NurbsSurface::reversed_v` preserves the POINT SET, not the
 //! parameterization: the reversed chart answers at `v` what the source
 //! answered at `lo + hi − v`. Every parameter already recorded against
-//! the old chart — a pcurve, an edge description's interval — therefore
-//! goes stale the moment the chart is swapped under its face, and
-//! nothing in the swap can say so: `Body::set_face_surface` reports
-//! whether the face key resolves, and its own docs put the geometric
-//! consequence on tier 3 (attach surfaces BEFORE upgrading edge
-//! descriptions).
+//! the old chart therefore means something else once the chart is
+//! swapped under its face. The swap disposes of one kind and not the
+//! other. The face's pcurve rows are stated IN the chart, so
+//! `Body::set_face_surface` drops them when the new surface is not the
+//! chart they were stated in, and the face arrives rowless for the
+//! caller to re-mint. An edge description's interval is stated against
+//! the edge's carrier, not the face, so the setter does not touch it and
+//! it goes stale — the setter's own docs put that consequence on tier 3
+//! (attach surfaces BEFORE upgrading edge descriptions).
 //!
-//! This row is the hazard, pinned: structural validation stays green
-//! over the surgery and the geometric-structural tier reports the stale
-//! parameters on every edge of every reversed face. It exists so that a
-//! caller who reads `reversed_v`'s "What this does not do" paragraph can
-//! see what the door does not do, rather than take its word for it.
+//! This row is that hazard, pinned: structural validation stays green
+//! over the surgery, no pcurve survives to be stranded, and the
+//! geometric-structural tier reports the stale interval on every
+//! reversed wall. It exists so that a caller who reads `reversed_v`'s
+//! "What this does not do" paragraph can see what the door does not do,
+//! rather than take its word for it.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -74,7 +78,7 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
     );
 
     let errs = topo::validate_geometric_structural(&body, tol)
-        .expect_err("the reversed charts stranded every parameter recorded against them");
+        .expect_err("the reversed charts stranded the edge descriptions recorded against them");
     let mut stale_descriptions = 0usize;
     let mut stale_pcurves = 0usize;
     for e in &errs {
@@ -90,8 +94,10 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
          meant in the OLD chart ({errs:?})"
     );
     assert_eq!(
-        stale_pcurves, 16,
-        "four per reversed wall: every pcurve on the face now maps its samples \
-         somewhere else on the same point set ({errs:?})"
+        stale_pcurves, 0,
+        "no pcurve is stranded: `set_face_surface` drops a face's rows when the \
+         new surface is not the chart they were stated in, so each reversed \
+         wall arrives rowless and the pass has nothing to measure on it; \
+         before that drop this read sixteen, four per wall ({errs:?})"
     );
 }

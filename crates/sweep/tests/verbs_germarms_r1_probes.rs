@@ -9,7 +9,7 @@ use core::f64::consts::PI;
 use crate::common::approx::band;
 use geom_brep::{EntersMaterial, OutwardNormal, enters_material, implicit_residual};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
@@ -203,10 +203,10 @@ fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
 fn r1_the_cone_fixture_names_its_own_door() {
     let tol = Tol::witness();
     let frustum = {
-        let lp = profile::ProfileLoop::new(
+        let lp = bulge_loop(
             [(0.2, 0.0), (0.6, 0.0), (0.4, 0.6), (0.2, 0.6)]
                 .into_iter()
-                .map(|(r, y)| profile::ProfileVertex::new(p2(r, y), 0.0))
+                .map(|(r, y)| (p2(r, y), 0.0))
                 .collect(),
         );
         let vp = Profile::new(SketchPlane::xy(), vec![lp])

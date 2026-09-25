@@ -6,7 +6,6 @@
 //! a non-identity, and clause 1 must stand in front of rule A); they run
 //! at `with_session` (rules A+B on) and at explicit rule sets.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;

@@ -11,7 +11,7 @@ use geom::Surface;
 use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use profile::ProfileLoop;
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 
@@ -110,10 +110,7 @@ fn donut_two_arc_profile_shares_one_torus() {
     // survives — definitely smooth); both meridian arcs lie on the
     // torus's u = 0 minor circle and carry `Seam { torus }`. Also the
     // minimal (m = 2) exercise of the kfmrh + zip closure.
-    let lp = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
-        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, 0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -241,7 +238,6 @@ fn donut_two_arc_profile_shares_one_torus() {
 /// attributed by NECESSITY. Here the inner radius is a parameter over a
 /// narrow box, so the residual is a genuine identity IN the parameters
 /// and only the registration answers it.
-#[cfg(feature = "interval")]
 #[test]
 fn m10_9_the_revolve_carriers_state_their_rim_identity() {
     use geom_core::sym::with_session_rules;

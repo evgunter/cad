@@ -305,17 +305,6 @@ fn a_carrier_with_no_chart_image_names_the_pair_it_could_not_state() {
 /// scalar: an enclosure lane can widen where an `f64` lane is exact,
 /// and the `sec α` re-baseline is a claim about the GEOMETRY that
 /// should survive the widening — which it does, measured below.
-///
-/// **Why these rows live here rather than in a file of their own.**
-/// A separate `*_interval.rs` file pins the interval compile-mode
-/// lane for the whole change (`ci-filter.py`'s `_forces_interval`
-/// matches on basenames), and pinning it would mean the DEFAULT lane
-/// never draws — which is where every bit-level row in this unit
-/// lives, including the mint tripwire that is the D2 guard. The proof
-/// below is already obtained; sampling re-verifies it over time,
-/// which is the normal posture. Guaranteeing one lane by excluding
-/// the other was the bad trade.
-#[cfg(feature = "interval")]
 mod at_intervals {
     use crate::shared::interval::iv;
     use crate::shared::surf::table;

@@ -78,11 +78,14 @@ use crate::theme::Theme;
 /// egui answers three ways: from the cursor to the right-hand edge in an
 /// ordinary row; the whole row in a wrapping one, where the galley is
 /// then too wide for what is left and moves whole to the next line; and
-/// **last frame's content in an auto-sized container** —
-/// `egui::Resize::begin` ratchets to it, so the wrap never fires and the
-/// container grows instead. A caller in one gives it a width, as the
-/// Checks window (`crate::app`'s `checks_window`) does with
-/// `default_width`.
+/// **in a container that sizes itself, the width it began at or the
+/// widest content it has held since** — `egui::Resize::begin` ratchets
+/// up to last frame's content and never back, so a sentence wraps at
+/// that width and a wider row beside it widens the container rather
+/// than the other way round. An `egui::Window` begins at egui's own
+/// default unless it is given a width; the Checks window
+/// (`crate::app`'s `checks_window`) and the part chooser
+/// (`crate::pane::create`'s `part_window`) each give theirs one.
 ///
 /// # A floor, and then the pane scrolls
 ///
@@ -740,7 +743,10 @@ struct HandedOver(String);
 /// `showing` is the number it holds IN that notation, and `fixed` is a
 /// text it shows instead of a number (a slot's source, when the row
 /// has source rather than a number to show). `dimension` is what turns
-/// a typed number into the value the vocabulary's number door carries.
+/// a typed number into the value the vocabulary's number door carries,
+/// and a typed number it refuses is the frame's news: its
+/// [`crate::session::Refusal`] goes onto `notices`, since there is no
+/// operation for it to ride on.
 ///
 /// # Text the field itself produced is not an edit
 ///
@@ -815,6 +821,7 @@ pub(crate) fn value_field_ops(
     gesture: GestureVocabulary<impl Fn(f64) -> SessionOp>,
     doors: FieldVocabulary<impl Fn(props::SlotValue) -> SessionOp, impl Fn(String) -> SessionOp>,
     ops: &mut Vec<SessionOp>,
+    notices: &mut Vec<crate::frame::Message>,
 ) {
     let FieldShowing {
         writing,
@@ -913,18 +920,24 @@ pub(crate) fn value_field_ops(
         }
     };
     match handed {
-        // **A number the dimension cannot carry is not an edit.** A
-        // `Count` field takes `inf` and `NaN` from its parser like any
-        // other (`props::field_edit`), and `props::SlotValue::of` is
-        // where that stops being a value — so there is nothing for the
-        // number door to carry and the field keeps what the document
-        // says it holds. The refusal reaches a word on the DRAG path,
-        // where the session's gesture door maps it to
-        // `crate::session::Refusal::Dimension`; on this path there is
-        // no operation to carry one, so it is silent.
+        // **A number the dimension cannot carry is not an edit, and
+        // it is news.** A `Count` field takes `inf` and `NaN` from its
+        // parser like any other (`props::field_edit`), and
+        // `props::SlotValue::of` is where that stops being a value —
+        // so there is nothing for the number door to carry and the
+        // field keeps what the document says it holds. The refusal is
+        // the one a DRAG of the same value gets from the session's
+        // gesture door, `crate::session::Refusal::Dimension` over the
+        // same `SlotValue::of`, and it reaches the line through the
+        // same `crate::frame::refusal_message`: no operation can carry
+        // a value that never became one, so it goes onto the frame's
+        // notices instead.
         Some(props::FieldEdit::Number(written)) => {
-            if let Ok(value) = props::SlotValue::of(dimension, writing.authored(written)) {
-                ops.push((doors.number)(value));
+            match props::SlotValue::of(dimension, writing.authored(written)) {
+                Ok(value) => ops.push((doors.number)(value)),
+                Err(error) => notices.push(crate::frame::refusal_message(
+                    &crate::session::Refusal::Dimension(error),
+                )),
             }
         }
         Some(props::FieldEdit::Expression(text)) => ops.push((doors.text)(text)),
@@ -1649,7 +1662,9 @@ mod roster_tests {
     /// paragraph, which enumerates them.
     ///
     /// Derived from the crate's own source, by the one spelling every
-    /// call site uses: the qualified path. That spelling is what
+    /// call site uses: the qualified path, called — so a file that
+    /// only measures the floor (`message_floor`) is not a message
+    /// site. That spelling is what
     /// makes this mechanical, so a site that imported the name
     /// instead would be invisible here — which is why there is no
     /// such site and why this row's failure message says so.
@@ -1672,7 +1687,14 @@ mod roster_tests {
                 let text = test_utils::source::code_only(
                     &std::fs::read_to_string(&path).expect("a source file"),
                 );
-                if text.contains("widgets::message") {
+                if [
+                    "widgets::message(",
+                    "widgets::message_link(",
+                    "widgets::message_toned(",
+                ]
+                .iter()
+                .any(|call| text.contains(call))
+                {
                     callers.push(
                         path.strip_prefix(&src)
                             .expect("a path under src")
@@ -1687,6 +1709,7 @@ mod roster_tests {
             callers,
             [
                 "app.rs",
+                "pane/create.rs",
                 "pane/features.rs",
                 "pane/profile.rs",
                 "pane/properties.rs",
@@ -1728,6 +1751,7 @@ pub(crate) mod message_tests {
     #![allow(clippy::expect_used)]
 
     use super::{message, wrapped_in_region};
+    use crate::pane::headless::SLACK;
     use eframe::egui;
 
     /// A refusal-length sentence: longer than [`REGION`] at the
@@ -1754,10 +1778,6 @@ pub(crate) mod message_tests {
 
     /// The region the single-width rows use.
     const REGION: f32 = REGIONS[1];
-
-    /// Rows are placed at whole pixels, so two readings of one edge
-    /// can differ by less than one.
-    pub(crate) const SLACK: f32 = 1.0;
 
     /// The widest row of a laid-out galley — what the sentence
     /// actually asked the layout for.
@@ -3341,13 +3361,14 @@ mod value_field_tests {
 
     use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
+    use crate::frame::{self, StatusUpdate};
     use crate::props;
     use crate::session::ValueGestureName;
-    use crate::session::{DocSession, SessionOp};
+    use crate::session::{DocSession, Refusal, SessionOp};
     use eframe::egui;
     use pncad::document::{
-        Datum, Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName,
-        ProfileProgram, RecipeNodeId, RefusingReach, SlotId, apply,
+        Datum, Dimension, DimensionError, Doc, DocEdit, DocParam, Expr, LoopProgram, Node,
+        ParamName, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId, apply,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
@@ -3387,6 +3408,10 @@ mod value_field_tests {
         /// Every text the last frame painted
         /// (`super::field_tests::painted_texts`).
         texts: Vec<String>,
+        /// Every notice the frames of this gesture put on the frame's
+        /// list, in order — what reaches the line with no operation
+        /// under it.
+        notices: Vec<crate::frame::Message>,
     }
 
     /// Apply one edit to a fixture document, answering the document
@@ -3443,6 +3468,7 @@ mod value_field_tests {
                 emitted: Vec::new(),
                 landed: Vec::new(),
                 texts: Vec::new(),
+                notices: Vec::new(),
             }
         }
 
@@ -3504,6 +3530,39 @@ mod value_field_tests {
                 emitted: Vec::new(),
                 landed: Vec::new(),
                 texts: Vec::new(),
+                notices: Vec::new(),
+            }
+        }
+
+        /// **A pattern's instance count**, standing at `count` — a
+        /// `Count` slot, the dimension that refuses a number with no
+        /// integer in it — patterning [`Self::extrude_distance`]'s
+        /// extrude.
+        fn pattern_count(label: &str, count: i64) -> Self {
+            let tol = Tol::witness();
+            let base = Self::extrude_distance(label, 0.01);
+            let Subject::Slot { node: extrude, .. } = base.subject else {
+                panic!("the base row is a slot row");
+            };
+            let (doc, pattern) = inserted(
+                base.session.doc(),
+                Node::Pattern {
+                    input: extrude,
+                    count: Expr::count(count),
+                    kind: PatternKind::Linear {
+                        direction: [scl(0.0), scl(1.0), scl(0.0)],
+                        spacing: len(0.08),
+                    },
+                },
+                tol,
+            );
+            Self {
+                session: DocSession::inline(doc, tol),
+                subject: Subject::Slot {
+                    node: pattern,
+                    slot: SlotId::Count,
+                },
+                ..base
             }
         }
 
@@ -3604,6 +3663,7 @@ mod value_field_tests {
             let (writing, dimension, number, fixed) = self.field();
             let subject = self.subject.clone();
             let mut ops = Vec::new();
+            let mut notices = Vec::new();
             let rect = &mut self.rect;
             let mut output = ctx.run_ui(input, |ui| {
                 let showing = super::FieldShowing {
@@ -3628,6 +3688,7 @@ mod value_field_tests {
                             },
                         },
                         &mut ops,
+                        &mut notices,
                     ),
                     Subject::Slot { node, slot } => value_field_ops(
                         ui,
@@ -3649,12 +3710,14 @@ mod value_field_tests {
                             },
                         },
                         &mut ops,
+                        &mut notices,
                     ),
                 }
                 *rect = ui.min_rect();
             });
             self.texts = super::field_tests::painted_texts(&output.shapes);
             output.textures_delta.clear();
+            self.notices.extend(notices);
             for op in ops {
                 self.emitted.push(op.clone());
                 let outcome = self.session.perform(op.clone());
@@ -3756,6 +3819,69 @@ mod value_field_tests {
             "and costs no undo step"
         );
         assert_eq!(row.showing().0, shown, "and moves the value nowhere");
+    }
+
+    /// **A number a `Count` field cannot carry is said, typed or
+    /// dragged, in one sentence.**
+    ///
+    /// `inf` reads as a number on purpose (`props::field_edit`), so
+    /// that the refusal downstream names the problem:
+    /// `props::SlotValue::of` refuses it, no operation is emitted, and
+    /// the document does not move. What the typed route owes is the
+    /// line the drag route already gets — the session's gesture door
+    /// refusing the same value [`Refusal::Dimension`].
+    ///
+    /// Held three ways, so no two of them can be wrong together: the
+    /// typed route's line against the dimension error's own fixed
+    /// words, the drag route's refusal against its exact variant, and
+    /// the two lines against each other.
+    #[test]
+    fn a_count_the_dimension_refuses_is_said_typed_as_dragged() {
+        let mut row = Row::pattern_count("vnews-typed-count", 2);
+        assert_eq!(row.showing().0, 2.0, "the fixture stands at two");
+        let before = row.session.history().len();
+        row.click_in();
+        row.frame(vec![egui::Event::Text("inf".to_owned())]);
+        row.click_away();
+        let typed_ops = row.taken();
+        assert!(
+            typed_ops.is_empty(),
+            "a value the slot cannot carry is not an edit: {typed_ops:?}"
+        );
+        assert_eq!(row.session.history().len(), before, "and nothing lands");
+        assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
+        let typed = frame::frame_status(&row.notices, &typed_ops, None);
+        let StatusUpdate::Show(said) = &typed else {
+            panic!("the typed refusal reaches the line: {typed:?}");
+        };
+        assert_eq!(said.text(), "a literal value must be finite");
+        assert_eq!(said.subject(), frame::Subject::Document);
+        assert_eq!(row.notices.len(), 1, "said once: {:?}", row.notices);
+
+        let Subject::Slot { node, slot } = row.subject.clone() else {
+            panic!("the row is a slot row");
+        };
+        let begun = row.session.perform(SessionOp::BeginGesture { node, slot });
+        assert!(begun.refusal.is_none(), "{:?}", begun.refusal);
+        let preview = SessionOp::PreviewGesture {
+            node,
+            slot,
+            value: f64::INFINITY,
+        };
+        let dragged = row.session.perform(preview.clone());
+        assert!(
+            matches!(
+                dragged.refusal,
+                Some(Refusal::Dimension(DimensionError::NonFiniteLiteral))
+            ),
+            "the drag route's refusal: {:?}",
+            dragged.refusal
+        );
+        assert_eq!(
+            frame::frame_status(&[], &[preview], dragged.refusal.as_ref()),
+            typed,
+            "a drag and a keyboard say the same thing about the same value"
+        );
     }
 
     /// **One typed number is one operation and one undo step.**

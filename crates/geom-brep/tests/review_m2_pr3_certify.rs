@@ -676,7 +676,6 @@ fn fixed_n3_near_collinear_normal_documented_under_determination() {
 // Interval lane (target 3d): the f64::MAX plane-arm fix and poison
 // hygiene, at the certified interval scalar.
 // =====================================================================
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::{Bounds, Interval, Real};

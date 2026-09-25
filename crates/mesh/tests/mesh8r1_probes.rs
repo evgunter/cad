@@ -26,7 +26,7 @@ use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::Tol;
 use geom_core::{Point3, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use topo::{Body, CoherenceCondition, FaceSurface, MefSite, MevSite};
 
@@ -43,11 +43,11 @@ fn band(rho: f64) -> Body<f64> {
     let (hh, rc) = (0.5f64.sin(), 0.5f64.cos());
     let yt = (1.0 - rho * rho).sqrt();
     let bulge = ((yt.atan2(rho) - hh.atan2(rc)) / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(rc, hh), bulge),
-        ProfileVertex::new(p2(rho, yt), 0.0),
-        ProfileVertex::new(p2(0.3, 1.3), 0.0),
-        ProfileVertex::new(p2(1.1, 0.9), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(rc, hh), bulge),
+        (p2(rho, yt), 0.0),
+        (p2(0.3, 1.3), 0.0),
+        (p2(1.1, 0.9), 0.0),
     ]);
     sweep::revolve(
         &validated(vec![lp]),

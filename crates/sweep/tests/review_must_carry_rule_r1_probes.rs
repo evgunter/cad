@@ -23,7 +23,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, MarginDiag, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
 
@@ -222,11 +222,11 @@ fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let r = STADIUM_R;
     let p2 = Point2::<f64>::new;
     // A semicircle's bulge is tan(π/4) = 1.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 0.0),
-        ProfileVertex::new(p2(2.0, -r), 1.0),
-        ProfileVertex::new(p2(2.0, r), 0.0),
-        ProfileVertex::new(p2(0.0, r), 1.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -r), 0.0),
+        (p2(2.0, -r), 1.0),
+        (p2(2.0, r), 0.0),
+        (p2(0.0, r), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -267,12 +267,12 @@ fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
     // end meets the top annulus at a CORNER: one smooth join only.
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     let c = core::f64::consts::FRAC_1_SQRT_2;
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.2, -0.5), 0.0),
-        ProfileVertex::new(p2(1.0, -0.5), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), bulge),
-        ProfileVertex::new(p2(1.0 - r + r * c, r * c), 0.0),
-        ProfileVertex::new(p2(0.2, r * c), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.2, -0.5), 0.0),
+        (p2(1.0, -0.5), 0.0),
+        (p2(1.0, 0.0), bulge),
+        (p2(1.0 - r + r * c, r * c), 0.0),
+        (p2(0.2, r * c), 0.0),
     ])
     .with_tangent_joints(vec![2]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

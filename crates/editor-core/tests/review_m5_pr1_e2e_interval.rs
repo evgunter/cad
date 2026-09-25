@@ -30,7 +30,6 @@
 //! 3. a domain violation flows through arithmetic AND transcendentals
 //!    into a **refused** verdict carrying `MarginDiag::Invalid`.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

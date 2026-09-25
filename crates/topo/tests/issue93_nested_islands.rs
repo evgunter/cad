@@ -317,7 +317,6 @@ fn issue106_depth3_nested_intersect_probe() {
 // guessing). Censuses only — Interval has no exact-value oracle.
 // =====================================================================
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::Interval;

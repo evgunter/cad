@@ -14,7 +14,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError};
 
@@ -53,11 +53,11 @@ fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
     let c = p2(0.0, h / 2.0);
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -66,11 +66,11 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 /// **The cone frustum** between two caps normal to its axis.
 fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r0, 0.0), 0.0),
-            ProfileVertex::new(p2(r1, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r0, 0.0), 0.0),
+            (p2(r1, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -80,11 +80,11 @@ fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
 /// are planes CONTAINING the axis.
 fn wedge(r: f64, h: f64) -> Body<f64> {
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Partial(core::f64::consts::FRAC_PI_2),
     )
@@ -202,11 +202,11 @@ fn the_drum_still_hollows_on_the_new_branch() {
     let got = wall(
         "the drum",
         &revolved(
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r, 0.0), 0.0),
-                ProfileVertex::new(p2(r, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r, 0.0), 0.0),
+                (p2(r, h), 0.0),
+                (p2(0.0, h), 0.0),
             ]),
             Revolution::Full,
         ),
@@ -245,11 +245,11 @@ fn the_axial_door_names_its_own_boundary() {
     // and the revolve mints a torus.
     let c = p2(0.0, h / 2.0);
     let torus_vase = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), -bulge(p2(r, 0.0), p2(r, h), c)),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), -bulge(p2(r, 0.0), p2(r, h), c)),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     );
@@ -267,11 +267,11 @@ fn the_axial_door_names_its_own_boundary() {
     // A hemisphere TANGENT to its cylinder: same pair as the bellied
     // pot's foot junction, differing only in the angle between them.
     let dome = revolved(
-        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), (core::f64::consts::FRAC_PI_2 / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, h + r), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), (core::f64::consts::FRAC_PI_2 / 4.0).tan()),
+            (p2(0.0, h + r), 0.0),
         ])
         .with_tangent_joints(vec![2]),
         Revolution::Full,

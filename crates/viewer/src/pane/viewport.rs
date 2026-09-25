@@ -7,18 +7,21 @@ use std::sync::Arc;
 use std::sync::atomic::Ordering;
 
 use eframe::egui;
+use pncad::document::Evaluation;
+use pncad::prelude::StableName;
 
 use crate::app::{ViewerBehavior, chrome};
 use crate::camera::{self, Camera, CameraOp};
 use crate::datums::{self, datum_view};
+use crate::display::DisplayView;
 use crate::frame;
 use crate::gpu::{IdQuery, ViewportCallback};
 use crate::idpass::{self, IdStep};
-use crate::input::{self, PointerButton, ViewportEvent, ViewportSize};
+use crate::input::{self, PickAction, PointerButton, ViewportEvent, ViewportSize};
 use crate::marks;
 use crate::narrowing::Narrow;
 use crate::pickcache;
-use crate::pickindex::{PickIndex, PictureKey};
+use crate::pickindex::{PickError, PickIndex, PictureKey};
 use crate::session::SessionOp;
 use crate::sketch::{self, PreviewLoop, TIP_MARK_PX, heading};
 
@@ -156,6 +159,80 @@ pub(crate) fn land(
 /// ([`crate::pickcache::NotIndexed::AnotherPicture`]).
 fn drawn_index(index: Option<&PickIndex>, scene_key: Option<PictureKey>) -> Option<&PickIndex> {
     index.filter(|index| index.current_for(scene_key))
+}
+
+/// **Whether a pick action is skipped this frame**: a hover over an
+/// unchanged picture at an unmoved cursor, whose answer the session is
+/// taken to hold already. A click never skips: it is an ACTION, not an
+/// observation.
+fn skips_the_ray(action: PickAction, step: IdStep) -> bool {
+    step == IdStep::Hold && matches!(action, PickAction::Hover(_))
+}
+
+/// **Whether this frame's pick actions ask the ray at `cursor`**, and
+/// so say what it refuses there through [`frame::pick_refusal`].
+///
+/// The loop that performs the actions skips by [`skips_the_ray`] and
+/// this reads the same rule, so the two cannot disagree about which
+/// frames the pick path spoke on.
+fn ray_asked_at(actions: &[PickAction], step: IdStep, cursor: [f64; 2]) -> bool {
+    actions.iter().any(|&action| {
+        !skips_the_ray(action, step)
+            && matches!(action, PickAction::Hover(at) | PickAction::Select(at) if at == cursor)
+    })
+}
+
+/// Everything the ray path is asked beside the index: one cursor over
+/// one evaluation, through one camera, under one display view.
+#[derive(Clone, Copy)]
+struct RayQuestion<'a> {
+    eval: &'a Evaluation<f64>,
+    camera: &'a Camera,
+    viewport: ViewportSize,
+    cursor: [f64; 2],
+    display: &'a DisplayView,
+}
+
+/// **What the cursor comparison says this frame**: the two picking
+/// paths' disagreement, the ray path's refusal, or nothing.
+///
+/// The ray answer travels to [`idpass::disagreement`] typed, because a
+/// refusal is not a miss: that function reads a refused ray path as no
+/// verdict rather than as "the ray named nothing".
+///
+/// **A refusal no pick action said this frame is said here.** The
+/// refusal is the ray path's news, and it has words already
+/// ([`frame::pick_refusal`]); the pick loop says them whenever it asks
+/// the ray at this cursor, because `hovered_for` seeds through the
+/// same un-projection and hit test as `faces_under_cursor`. It does
+/// not ask on a frame it skips ([`skips_the_ray`]), and the skip reads
+/// only the cursor and the picture — so a camera that moved under a
+/// still cursor gets a ray nobody else asked. `ray_asked` is the pick
+/// loop's own record of that ([`ray_asked_at`]), which is what keeps
+/// the refusal said exactly once a frame: by the pick path when it
+/// asked, here when it did not.
+fn cursor_news(
+    index: &PickIndex,
+    question: RayQuestion<'_>,
+    answer: u64,
+    outstanding: Option<u32>,
+    ray_asked: bool,
+) -> Option<frame::Message> {
+    let RayQuestion {
+        eval,
+        camera,
+        viewport,
+        cursor,
+        display,
+    } = question;
+    let from_ray: Result<Vec<StableName>, PickError> = index
+        .faces_under_cursor(eval, camera, viewport, cursor, display)
+        .map(|faces| faces.into_iter().map(|face| face.name).collect());
+    match &from_ray {
+        Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal)),
+        _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
+            .map(|report| report.notice()),
+    }
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -502,13 +579,13 @@ impl ViewerBehavior<'_> {
         // 2026-09-15 ruling — the pick itself, which would otherwise
         // answer about geometry the screen is not showing.
         let on_screen = drawn_index(self.index, self.scene_key);
+        // Read before the loop spends `actions`: whether a pick action
+        // below asks the ray at this frame's cursor, and so words its
+        // refusal itself ([`cursor_news`] reads it).
+        let ray_asked = cursor_px.is_some_and(|cursor| ray_asked_at(&actions, step, cursor));
         if let (Some(index), Some(eval)) = (on_screen, self.session.evaluation()) {
             for action in actions {
-                // A hover over an unchanged picture at an unmoved
-                // cursor asks a question whose answer the session
-                // already holds. A click never skips: it is an
-                // ACTION, not an observation.
-                if step == IdStep::Hold && matches!(action, input::PickAction::Hover(_)) {
+                if skips_the_ray(action, step) {
                     continue;
                 }
                 match index.op_under(eval, self.camera, viewport, action, self.display, kinds) {
@@ -776,9 +853,9 @@ impl ViewerBehavior<'_> {
             }
         };
 
-        // The two paths' agreement, compared BY NAME (`frame::
-        // disagreement` says why ids are the wrong currency, and
-        // records the ray-authoritative role inversion against
+        // The two paths' agreement, compared BY NAME
+        // (`idpass::disagreement` says why ids are the wrong currency,
+        // and records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
         //
         // **The ray side of this comparison is the FACE under the
@@ -788,33 +865,31 @@ impl ViewerBehavior<'_> {
         // different one as soon as the priority rule picks an edge,
         // and feeding it would report a disagreement between two
         // questions on every frame the cursor came within
-        // `EDGE_PICK_RADIUS_PX` of an edge. So the face is re-derived
-        // through `face_under_cursor`, and only where there is a fresh
-        // answer waiting for it — `disagreement` still owns the
+        // `EDGE_PICK_RADIUS_PX` of an edge. So the faces are re-derived
+        // through `faces_under_cursor`, and only where there is a fresh
+        // answer waiting for them — `disagreement` still owns the
         // freshness rule, this only declines to do the work when no
-        // question is outstanding at all.
+        // question is outstanding at all. A ray path that could not be
+        // asked — no evaluation to ask it of — is no comparison either.
         let outstanding = self.id_log.outstanding();
-        let from_ray: Vec<_> = outstanding
-            .and_then(|_| {
-                let index = on_screen?;
-                let eval = self.session.evaluation()?;
-                index
-                    .faces_under_cursor(eval, self.camera, viewport, cursor_px?, self.display)
-                    .ok()
-            })
-            .unwrap_or_default()
-            .into_iter()
-            .map(|face| face.name)
-            .collect();
-        if let Some(report) = on_screen.and_then(|index| {
-            idpass::disagreement(
-                index,
+        let said = outstanding.and_then(|_| {
+            let question = RayQuestion {
+                eval: self.session.evaluation()?,
+                camera: self.camera,
+                viewport,
+                cursor: cursor_px?,
+                display: self.display,
+            };
+            cursor_news(
+                on_screen?,
+                question,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
-                &from_ray,
+                ray_asked,
             )
-        }) {
-            self.notices.push(report.notice());
+        });
+        if let Some(news) = said {
+            self.notices.push(news);
         }
 
         // **The pane's own numbers at the same seam the matrix just
@@ -902,22 +977,25 @@ mod tests {
     use eframe::egui;
 
     use super::{
-        button_events, drawn_index, egui_buttons, land, push_loop, push_segment, scroll_event,
-        viewer_button, viewer_modifiers,
+        RayQuestion, button_events, cursor_news, drawn_index, egui_buttons, land, push_loop,
+        push_segment, ray_asked_at, scroll_event, viewer_button, viewer_modifiers,
     };
-    use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::camera::{self, Camera, CameraOp, fold_recorded};
+    use crate::display::DisplayView;
     use crate::frame::{self, product_badge};
-    use crate::idpass;
-    use crate::input::{self, InputMap, PointerButton, ViewportEvent};
+    use crate::idpass::{self, IdStep};
+    use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::pickindex::{IdMap, PickIndex, PictureKey};
+    use crate::pickindex::{IdMap, PickError, PickIndex, PictureKey};
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use crate::sketch::PreviewLoop;
-    use pncad::document::SlotId;
+    use pncad::document::{Doc, ProfileProgram, SlotId};
     use pncad::geom_core::Tol;
+    use pncad::prelude::StableName;
+    use pncad::select::HitTestError;
 
     fn framed() -> Camera {
         Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
@@ -1379,15 +1457,203 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report =
-            idpass::disagreement(&index, nothing, Some(serial), std::slice::from_ref(&named))
-                .expect("nothing-under-the-cursor against a named face is a disagreement");
+        let report = idpass::disagreement(
+            &index,
+            nothing,
+            Some(serial),
+            Ok(std::slice::from_ref(&named)),
+        )
+        .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),
             "a picture with no index behind it is compared against no index"
+        );
+    }
+
+    /// **A refused ray beside an id-pass face**: the plate's index, an
+    /// evaluation of ANOTHER document its hit test refuses before
+    /// reading a table (a distinct identity; a twin recipe derives the
+    /// same one), a framed cursor, and the channel word of an id-pass
+    /// answer naming a face the plate really draws.
+    struct RefusedRay {
+        index: PickIndex,
+        foreign: DocSession,
+        camera: Camera,
+        pane: ViewportSize,
+        cursor: [f64; 2],
+        named: StableName,
+        /// The id the named face is drawn under.
+        id: u32,
+        serial: u32,
+        answer: u64,
+    }
+
+    fn refused_ray() -> RefusedRay {
+        let tol = Tol::witness();
+        let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let mut foreign =
+            DocSession::inline(Doc::<ProfileProgram>::empty_derived("another", tol), tol);
+        foreign.pump();
+        let id = index.ids().ids().next().expect("the plate draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+        let serial = 7u32;
+        RefusedRay {
+            index,
+            foreign,
+            camera: framed(),
+            pane: ViewportSize {
+                width_px: 1600.0,
+                height_px: 900.0,
+            },
+            cursor: [800.0, 450.0],
+            named,
+            id,
+            serial,
+            answer: (u64::from(serial) << 32) | u64::from(id),
+        }
+    }
+
+    /// **A ray path that REFUSED is not a ray path that named
+    /// nothing**, at the comparison itself: the same id-pass face is no
+    /// verdict against the refusal and a disagreement against an empty
+    /// answer, so the type tells the two apart.
+    #[test]
+    fn a_refused_ray_path_is_no_verdict_against_a_named_face() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &DisplayView::none(),
+            )
+            .expect_err("an evaluation of another document is refused");
+        assert!(
+            matches!(
+                refusal,
+                PickError::HitTest(HitTestError::EvaluationOfAnotherDocument { .. })
+            ),
+            "the planted refusal is the kernel declining: {refusal:?}"
+        );
+        let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Err(&refusal)),
+            None,
+            "a refused ray path is compared against nothing"
+        );
+        assert_eq!(
+            idpass::disagreement(index, answer, serial, Ok(&[])),
+            Some(idpass::Disagreement {
+                from_gpu: Some(fixture.named),
+                from_ray: Vec::new(),
+            }),
+            "while a ray path that answered nothing is contradicted by the face"
+        );
+    }
+
+    /// **A ray refusal is said exactly once a frame — by the pick path
+    /// when it asked, by the comparison when it did not — and never as
+    /// a disagreement.** This drives the pane's own wiring
+    /// (`ray_asked_at`, `cursor_news`) across the two frames the id
+    /// log distinguishes.
+    ///
+    /// The second frame is the one the pick path skips: the camera
+    /// orbits under a still cursor, which the id log reads as `Hold`,
+    /// so no hover asks the ray, while the comparison asks it through
+    /// the moved camera. The refusal a camera move ALONE can bring on
+    /// is the hit test's unnamed-entity arm, which nothing in this
+    /// crate can plant; the evaluation of another document stands in
+    /// for it, and what this row pins is who says a refusal on a frame
+    /// nobody else asked the ray, not which refusal it is.
+    #[test]
+    fn a_ray_refusal_the_pick_path_did_not_ask_for_is_said_by_the_comparison() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let at = fixture.cursor;
+        let actions = [input::PickAction::Hover(at)];
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(fixture.index.generation()),
+        };
+        let mut log = idpass::IdQueryLog::new();
+
+        // The cursor arrives: a new question, and the pick path asks
+        // the ray there — so it says the refusal, and the comparison
+        // says nothing.
+        let arrived = log.step(Some(at), subject);
+        let serial = match arrived {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        // The id pass's answer to THIS question, naming a face: fresh,
+        // so a ray answer read as empty would be a disagreement.
+        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
+        assert!(
+            ray_asked_at(&actions, arrived, at),
+            "the hover asks the ray"
+        );
+        let asked = RayQuestion {
+            eval: foreign,
+            camera: &fixture.camera,
+            viewport: fixture.pane,
+            cursor: at,
+            display: &display,
+        };
+        assert_eq!(
+            cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
+            None,
+            "the pick path said this refusal; the comparison adds nothing"
+        );
+
+        // The camera orbits; the cursor does not move.
+        let moved = camera::apply(
+            &fixture.camera,
+            &CameraOp::Orbit {
+                yaw: 0.3,
+                pitch: 0.1,
+            },
+        )
+        .expect("the orbit applies");
+        let held = log.step(Some(at), subject);
+        assert_eq!(held, IdStep::Hold, "the id log does not read the camera");
+        assert!(
+            !ray_asked_at(&actions, held, at),
+            "so the hover skips the frame and nobody on the pick path asks the ray"
+        );
+        let unasked = RayQuestion {
+            camera: &moved,
+            ..asked
+        };
+        let refusal = fixture
+            .index
+            .faces_under_cursor(foreign, &moved, fixture.pane, at, &display)
+            .expect_err("the moved ray is refused");
+        assert_eq!(
+            cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
+            Some(frame::pick_refusal(&refusal)),
+            "the comparison says the refusal in the pick path's own words"
         );
     }
 

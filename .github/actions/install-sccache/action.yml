@@ -15,7 +15,7 @@
 #
 # THE FIRST RUN AFTER A FLIP IS COLD AND IS NOT A READING:
 # RUSTC_WRAPPER is RUST*-prefixed, so Swatinem/rust-cache hashes it and
-# the flip buys one cold rebuild in each lane that flips. That is not a
+# the flip buys one cold rebuild in each job that flips. That is not a
 # footnote here — it is why no hosted A/B of sccache ALONE is possible
 # through this rig, and why F4's verdict rests on the stats step rather
 # than on a pair of step durations.
@@ -66,9 +66,6 @@ inputs:
   version:
     description: sccache version to install (ci.yml's SCCACHE_VERSION pin).
     required: true
-  lane:
-    description: "Cache discriminator — the build lane this runs in (default / interval)."
-    required: true
 
 runs:
   using: composite
@@ -101,16 +98,17 @@ runs:
     # THE OBJECT CACHE, rolling. The key carries the run id so every run
     # saves a fresh entry, and `restore-keys` takes the newest previous
     # one — the standard shape for a cache that must ACCUMULATE rather
-    # than be pinned to a content hash. Keyed per LANE because the two
-    # build jobs compile different feature unifications and would
-    # otherwise fight over one entry.
+    # than be pinned to a content hash. One key: there is one build
+    # graph since the `interval` feature went (RING-4), where there were
+    # two feature unifications keyed apart so they would not fight over
+    # one entry.
     - name: restore the sccache object cache
       uses: actions/cache@v4
       with:
         path: ~/.sccache-objects
-        key: sccache-obj-${{ inputs.lane }}-${{ github.run_id }}
+        key: sccache-obj-${{ github.run_id }}
         restore-keys: |
-          sccache-obj-${{ inputs.lane }}-
+          sccache-obj-
 
     # Fail here rather than in whatever step first reports a wrapper it
     # cannot execute: a restored-but-empty entry is the one failure mode

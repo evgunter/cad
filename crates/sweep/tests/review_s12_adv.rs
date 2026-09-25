@@ -29,8 +29,7 @@
 use crate::common::operands;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::f64::consts::PI;
 use sweep::test_support::brick;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -49,10 +48,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// angles `phi` and `phi + pi`, extruded z0..z0+len.
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
     let at = |th: f64| p2(r * th.cos(), r * th.sin());
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(phi), 1.0),
-        ProfileVertex::new(at(phi + PI), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(at(phi), 1.0), (at(phi + PI), 1.0)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -68,10 +64,7 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
 #[test]
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.1, 0.0), 1.0),
-        ProfileVertex::new(p2(1.9, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.1, 0.0), 1.0), (p2(1.9, 0.0), 1.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -257,9 +250,9 @@ fn probe_involution_on_a_boolean_result_body() {
     let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness());
     let boss = {
         let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
-        let lp = ProfileLoop::new(
+        let lp = bulge_loop(
             (0..3)
-                .map(|i| ProfileVertex::new(at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
+                .map(|i| (at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
                 .collect(),
         );
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
