@@ -9381,37 +9381,345 @@ mod tests {
         }
     }
 
-    /// **A ring that CROSSES its outer loop passes**, which check 9's
-    /// banner states as a residue rather than a guarantee: the walk
-    /// stops at the first definite verdict, so a crossing whose first
-    /// cycle vertex is the inside one settles as nested. The row shows
-    /// the residue instead of leaving it as prose.
+    /// **A ring that CROSSES its outer loop is refused by name** — the
+    /// line case: the ring walks out past `x = 10` and back, crossing
+    /// the outer edge `(10, 0)–(10, 10)` at two points neither loop has
+    /// a vertex at. The first cycle vertex is inside, so without the
+    /// meeting arm the nesting walk settles the ring as nested and the
+    /// body passes.
     #[test]
-    fn a_ring_crossing_its_outer_loop_passes_as_the_banner_says() {
+    fn a_ring_crossing_its_outer_loop_is_refused() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
         let p = Point3::new;
-        let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
-        ];
-        // The first cycle vertex is inside; the loop then walks out
-        // past x = 10.
         let ring = vec![
             p(5.0, 5.0, 0.0),
             p(15.0, 5.0, 0.0),
             p(15.0, 7.0, 0.0),
             p(5.0, 7.0, 0.0),
         ];
-        let (body, _face) = lamina_with_ring(&outer, &ring, tol);
+        let (body, face) = lamina_with_ring(&square_outer(), &ring, tol);
         let got = check_9_words(&body, band, tol);
         assert!(
-            !got.iter()
-                .any(|e| matches!(e, ValidationError::RingOutsideOuter { .. })),
-            "the banner's crossing residue: got {got:?}"
+            matches!(
+                got.as_slice(),
+                [ValidationError::RingMeetsOuter {
+                    face: f,
+                    contact: RingContact::EdgesMeet { .. },
+                    ..
+                }] if *f == face
+            ),
+            "one crossing, named by its edges: got {got:?}"
         );
+    }
+
+    /// The outer loop of the crossing rows: the square `[0, 10]²`.
+    fn square_outer() -> Vec<Point3<f64>> {
+        let p = Point3::new;
+        vec![
+            p(0.0, 0.0, 0.0),
+            p(10.0, 0.0, 0.0),
+            p(10.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ]
+    }
+
+    /// Four points on the circle `(center, radius)` in `z = 0`, at the
+    /// given angles in degrees, counter-clockwise.
+    fn on_circle(center: Point3<f64>, radius: f64, degrees: [f64; 4]) -> Vec<Point3<f64>> {
+        degrees
+            .iter()
+            .map(|d| {
+                let t = d.to_radians();
+                Point3::new(
+                    center.x + radius * t.cos(),
+                    center.y + radius * t.sin(),
+                    0.0,
+                )
+            })
+            .collect()
+    }
+
+    /// The angles the circular loops of these rows put their vertices
+    /// at: every arc under a half turn, and none at 0° or 180°, where
+    /// the rows put their crossings and tangencies — so no vertex arm
+    /// can see the contact and only the meeting arms are measured.
+    const RING_DEGREES: [f64; 4] = [60.0, 120.0, 240.0, 300.0];
+    /// The same, for a circular outer loop.
+    const OUTER_DEGREES: [f64; 4] = [45.0, 135.0, 225.0, 315.0];
+
+    /// Re-carries `edge` of a `z = 0` lamina as the arc about `center`
+    /// between its two stored end points that is under a half turn —
+    /// the certified arc a sketch would have minted there.
+    fn recarry_as_arc(body: &mut Body<f64>, edge: EdgeKey, center: Point3<f64>, tol: Tol) {
+        let stored = body.get_edge(edge).unwrap().clone();
+        let (start, end) = edge_endpoints(body, stored.he_plus).unwrap();
+        let radius = (start - center).norm();
+        let u_ref = geom_core::Vec3::new(1.0, 0.0, 0.0);
+        let (axis, t0, t1) = [1.0, -1.0]
+            .into_iter()
+            .find_map(|z| {
+                let axis = geom_core::Vec3::new(0.0, 0.0, z);
+                let v_ref = axis.cross(u_ref);
+                let angle = |q: Point3<f64>| {
+                    let w = q - center;
+                    w.dot(v_ref).atan2(w.dot(u_ref))
+                };
+                let t0 = angle(start);
+                let t1 = t0 + (angle(end) - t0).rem_euclid(std::f64::consts::TAU);
+                (t1 - t0 < std::f64::consts::PI).then_some((axis, t0, t1))
+            })
+            .expect("one sense of the circle is the short arc");
+        let carrier = geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        };
+        let spec = geom_brep::EdgeCurveSpec::arc_of_circle(carrier, t0, t1).unwrap();
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, start, end, |_| None, Band::linear(tol).unwrap())
+                .expect("the arc certifies against its own end points");
+        *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
+    }
+
+    /// Re-carries every edge of `r#loop` as an arc about `center`.
+    fn recarry_loop(body: &mut Body<f64>, r#loop: LoopKey, center: Point3<f64>, tol: Tol) {
+        let edges: Vec<EdgeKey> = loop_cycle_of(body, r#loop)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .collect();
+        for edge in edges {
+            recarry_as_arc(body, edge, center, tol);
+        }
+    }
+
+    /// A lamina whose outer loop is `outer` and whose ring is the circle
+    /// `(ring_center, ring_radius)`, carried by four arcs; with
+    /// `outer_circle` set, the outer loop's edges are re-carried as arcs
+    /// of that circle too. Hand-built: no public door mints a ring that
+    /// crosses or touches its outer loop — `Profile` validation refuses
+    /// both — and that is the shape these rows exist to put at rest.
+    fn lamina_with_circular_ring(
+        outer: &[Point3<f64>],
+        outer_circle: Option<Point3<f64>>,
+        ring_center: Point3<f64>,
+        ring_radius: f64,
+        tol: Tol,
+    ) -> (Body<f64>, FaceKey) {
+        let ring = on_circle(ring_center, ring_radius, RING_DEGREES);
+        let (mut body, face) = lamina_with_ring(outer, &ring, tol);
+        let f = body.get_face(face).unwrap().clone();
+        recarry_loop(&mut body, f.rings[0], ring_center, tol);
+        if let Some(center) = outer_circle {
+            recarry_loop(&mut body, f.outer, center, tol);
+        }
+        (body, face)
+    }
+
+    /// Check 9's one word on `body`, asserted to be a `RingMeetsOuter`
+    /// on `face` whose contact `shape` accepts.
+    fn assert_meets(
+        name: &str,
+        body: &Body<f64>,
+        face: FaceKey,
+        shape: impl Fn(&RingContact) -> bool,
+    ) {
+        let tol = Tol::witness();
+        let got = check_9_words(body, Band::linear(tol).unwrap(), tol);
+        assert!(
+            matches!(
+                got.as_slice(),
+                [ValidationError::RingMeetsOuter { face: f, contact, .. }]
+                    if *f == face && shape(contact)
+            ),
+            "[{name}] got {got:?}"
+        );
+    }
+
+    /// **Two whole circles that cross or touch are refused, as circles**
+    /// — arm 4, exact on the class. Outer: radius 5 about the origin.
+    /// The crossing ring (radius 1 about `(4.3, 0)`) has every vertex
+    /// inside the outer circle and bows past it between two of them,
+    /// the shape `ring_nesting`'s doc says only the contact half can
+    /// see. The internally tangent ring (about `(4, 0)`) and the
+    /// externally tangent one (about `(6, 0)`) touch at `(5, 0)`, where
+    /// neither loop has a vertex.
+    #[test]
+    fn two_whole_circles_that_cross_or_touch_are_refused() {
+        let tol = Tol::witness();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let outer = on_circle(o, 5.0, OUTER_DEGREES);
+        for (name, at) in [
+            ("crossing", 4.3),
+            ("internally tangent", 4.0),
+            ("externally tangent", 6.0),
+        ] {
+            let (body, face) =
+                lamina_with_circular_ring(&outer, Some(o), Point3::new(at, 0.0, 0.0), 1.0, tol);
+            let f = body.get_face(face).unwrap();
+            let (outer_loop, ring_loop) = (f.outer, f.rings[0]);
+            let got = check_9_words(&body, Band::linear(tol).unwrap(), tol);
+            assert!(
+                matches!(
+                    got.as_slice(),
+                    [ValidationError::RingMeetsOuter {
+                        contact: RingContact::Circles { ring_loop: r, outer_loop: q },
+                        ..
+                    }] if *r == ring_loop && *q == outer_loop
+                ),
+                "[{name}] got {got:?}"
+            );
+        }
+    }
+
+    /// The five placements [`circle_pair`] tells apart, each decided
+    /// exactly — the same outer circle, radius 5 about the origin, and
+    /// a radius-1 circle whose centre sits at `x`.
+    #[test]
+    fn circle_pair_names_all_five_placements() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let o = Point3::new(0.0, 0.0, 0.0);
+        for (x, want) in [
+            (7.0, CirclePair::Apart),
+            (6.0, CirclePair::ExternallyTangent),
+            (4.3, CirclePair::Crossing),
+            (4.0, CirclePair::InternallyTangent),
+            (2.0, CirclePair::Nested),
+        ] {
+            let got = circle_pair(o, 5.0, Point3::new(x, 0.0, 0.0), 1.0, band);
+            assert_eq!(got, Ok(want), "centre at x = {x}");
+        }
+        // Symmetric in the pair: the larger circle as the second one.
+        assert_eq!(
+            circle_pair(Point3::new(4.0, 0.0, 0.0), 1.0, o, 5.0, band),
+            Ok(CirclePair::InternallyTangent)
+        );
+    }
+
+    /// **An edge pair meeting at a point is refused, by its edges** —
+    /// arm 5 — on each carrier pairing it has a closed form for that a
+    /// row can reach without arm 4: a circular ring crossing and touching
+    /// a square's straight edge `x = 10` (line × arc), and crossing an
+    /// outer loop one of whose edges is an arc bulging out to `x = 12`
+    /// (arc × arc — the outer loop bears one arc among lines, so it is
+    /// not a whole circle and arm 4 does not open). Every ring vertex
+    /// in the crossing rows is inside the outer loop.
+    #[test]
+    fn an_edge_pair_meeting_at_a_point_is_refused() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let square = square_outer();
+        for (name, at) in [("line × arc crossing", 9.3), ("line × arc tangency", 9.0)] {
+            let (body, face) = lamina_with_circular_ring(&square, None, p(at, 5.0, 0.0), 1.0, tol);
+            assert_meets(name, &body, face, |c| {
+                matches!(c, RingContact::EdgesMeet { .. })
+            });
+        }
+        // The square's right edge re-carried as the arc through
+        // (10, 0) and (10, 10) about (4.75, 5): radius 7.25, bulging to
+        // x = 12. The ring, radius 1 about (11.2, 5), bows past it.
+        let (mut body, face) =
+            lamina_with_circular_ring(&square, None, p(11.2, 5.0, 0.0), 1.0, tol);
+        let outer_loop = body.get_face(face).unwrap().outer;
+        let right = loop_cycle_of(&body, outer_loop)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .find(|&e| {
+                let (a, b) = edge_endpoints(&body, body.get_edge(e).unwrap().he_plus).unwrap();
+                a.x == 10.0 && b.x == 10.0
+            })
+            .expect("the square's right edge");
+        recarry_as_arc(&mut body, right, p(4.75, 5.0, 0.0), tol);
+        assert_meets(
+            "arc × arc crossing",
+            &body,
+            face,
+            |c| matches!(c, RingContact::EdgesMeet { outer_edge, .. } if *outer_edge == right),
+        );
+    }
+
+    /// **The controls: a ring near its outer loop but clear of it
+    /// certifies, and one in the band escalates rather than passing.**
+    /// Each shape of the meeting rows — a whole circle inside a whole
+    /// circle, and a circle beside a straight edge — placed three ways:
+    /// the concentric annulus and a hole well clear of the rim
+    /// (silent), a hole `4·K·ε` from the rim — the closest a clear ring
+    /// can be at this run's ε, down to `4e-11` m at `ε = 1e-12` —
+    /// (silent), and a hole `ε·√K` from the rim, strictly inside the
+    /// band (`RingContactEscalated`, never read as clear).
+    #[test]
+    fn a_ring_near_its_outer_loop_is_decided_three_ways() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let p = Point3::new;
+        let o = p(0.0, 0.0, 0.0);
+        let disc = on_circle(o, 5.0, OUTER_DEGREES);
+        let clear = 4.0 * tol.k() * tol.eps();
+        let in_band = tol.eps() * tol.k().sqrt();
+        // (name, outer loop, outer circle, ring centre, ring radius)
+        let silent: [(&str, &[Point3<f64>], Option<Point3<f64>>, Point3<f64>, f64); 5] = [
+            ("concentric annulus", &disc, Some(o), o, 2.0),
+            (
+                "off-centre hole near the rim",
+                &disc,
+                Some(o),
+                p(3.9, 0.0, 0.0),
+                1.0,
+            ),
+            (
+                "disc hole 4Kε from the rim",
+                &disc,
+                Some(o),
+                p(4.0 - clear, 0.0, 0.0),
+                1.0,
+            ),
+            (
+                "hole 4Kε from a straight edge",
+                &square_outer(),
+                None,
+                p(9.0 - clear, 5.0, 0.0),
+                1.0,
+            ),
+            (
+                "hole well clear of a straight edge",
+                &square_outer(),
+                None,
+                p(8.5, 5.0, 0.0),
+                1.0,
+            ),
+        ];
+        for (name, outer, outer_circle, center, radius) in silent {
+            let (body, _) = lamina_with_circular_ring(outer, outer_circle, center, radius, tol);
+            let got = check_9_words(&body, band, tol);
+            assert!(got.is_empty(), "[{name}] a clear ring drew {got:?}");
+        }
+        for (name, outer, outer_circle, center) in [
+            (
+                "disc hole in band of the rim",
+                disc.clone(),
+                Some(o),
+                p(4.0 - in_band, 0.0, 0.0),
+            ),
+            (
+                "hole in band of a straight edge",
+                square_outer(),
+                None,
+                p(9.0 - in_band, 5.0, 0.0),
+            ),
+        ] {
+            let (body, face) = lamina_with_circular_ring(&outer, outer_circle, center, 1.0, tol);
+            let got = check_9_words(&body, band, tol);
+            assert!(
+                matches!(
+                    got.as_slice(),
+                    [ValidationError::RingContactEscalated { face: f, .. }] if *f == face
+                ),
+                "[{name}] got {got:?}"
+            );
+        }
     }
 
     /// Gives every face of `body` the Newell plane of its outer loop —
