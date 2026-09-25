@@ -2295,6 +2295,20 @@ pub struct Core<T: Real> {
     /// one step pushed, and so the segments it produced —
     /// [`Core::step_spans`] does that arithmetic once, at the close.
     step_starts: Vec<usize>,
+    /// **The piece each emitted segment is**, indexed by the vertex the
+    /// segment leaves — written when the segment's bulge is set
+    /// ([`Core::set_leaving`], every emission's one door) and reported
+    /// beside the spans ([`Core::finish`]).
+    pieces: Vec<Option<crate::structure::Piece>>,
+    /// The role the NEXT emission draws, where a fillet names it: its
+    /// run in or its arc. `None` is the default, the current step's
+    /// leg.
+    claim: Option<crate::structure::Piece>,
+    /// **A fillet whose run out is the next segment**: set when a
+    /// fillet arc is emitted with something tangent following it, and
+    /// taken by the next emission — which is that run, whatever step
+    /// draws it.
+    run_out: Option<usize>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2316,6 +2330,9 @@ impl<T: Real> Core<T> {
             radii: Vec::new(),
             program: Vec::new(),
             step_starts: Vec::new(),
+            pieces: Vec::new(),
+            claim: None,
+            run_out: None,
             guide: crate::structure::Guide::recording(),
         }
     }
@@ -2404,12 +2421,61 @@ impl<T: Real> Core<T> {
         match self.verts.last_mut() {
             Some(v) => {
                 v.bulge = bulge;
-                Ok(())
             }
-            None => Err(PathError::UnderdeterminedLeg {
-                site: "set_leaving on an empty chain",
-            }),
+            None => {
+                return Err(PathError::UnderdeterminedLeg {
+                    site: "set_leaving on an empty chain",
+                });
+            }
         }
+        self.attribute(self.verts.len() - 1)
+    }
+
+    /// **Names the segment leaving vertex `segment`** as the piece it
+    /// is (`crate::structure::Piece`): the fillet role a site claimed
+    /// for it, or else the current step's leg — and a pending run out
+    /// competes for it either way, since the segment after a fillet's
+    /// arc is that fillet's run out whichever step draws it. A segment
+    /// named before (a closing segment re-set) keeps its earlier name
+    /// where that one outranks.
+    fn attribute(&mut self, segment: usize) -> Result<(), PathError<T>> {
+        use crate::structure::{Piece, PieceRole};
+        let claimed = self.claim.take();
+        let mut best = match claimed {
+            Some(c) => c,
+            None => Piece {
+                step: self.current_step()?,
+                role: PieceRole::Leg,
+            },
+        };
+        let run_out = self.run_out.take();
+        if best.role != PieceRole::Arc
+            && let Some(step) = run_out
+        {
+            let candidate = Piece {
+                step,
+                role: PieceRole::RunOut,
+            };
+            if candidate.outranks(&best) {
+                best = candidate;
+            }
+        }
+        if self.pieces.len() <= segment {
+            self.pieces.resize(segment + 1, None);
+        }
+        if let Some(Some(earlier)) = self.pieces.get(segment)
+            && earlier.outranks(&best)
+        {
+            best = *earlier;
+        }
+        self.pieces[segment] = Some(best);
+        Ok(())
+    }
+
+    /// Claims the next emission as `role` of the fillet bound at
+    /// `step`.
+    fn claim(&mut self, step: usize, role: crate::structure::PieceRole) {
+        self.claim = Some(crate::structure::Piece { step, role });
     }
 
     /// Appends a straight segment to `p` (the raw `line_to`).
@@ -2501,6 +2567,7 @@ impl<T: Real> Core<T> {
     fn record_fillet_arc(&mut self, radius: T, bound_at: usize) -> Result<usize, PathError<T>> {
         let leaving = self.record_radius(bound_at, crate::structure::RadiusRole::Fillet)?;
         self.fillet_arcs.push((leaving, radius));
+        self.claim(bound_at, crate::structure::PieceRole::Arc);
         Ok(leaving)
     }
 
@@ -2538,6 +2605,7 @@ impl<T: Real> Core<T> {
     fn finish(mut self) -> ClosedLoop<T> {
         let spans = self.step_spans();
         let radii = core::mem::take(&mut self.radii);
+        let pieces = self.segment_pieces();
         let structure = self.take_structure();
         ClosedLoop {
             loop_: ProfileLoop {
@@ -2545,8 +2613,25 @@ impl<T: Real> Core<T> {
                 tangent_joints: self.tangent,
             },
             program: self.program,
-            structure: structure.into_record(spans, radii),
+            structure: structure.into_record(spans, radii, pieces),
         }
+    }
+
+    /// The piece every segment of the closed chain is, in segment
+    /// order. Every segment of a closed chain had its bulge set, and so
+    /// was named ([`Core::set_leaving`]); a segment that was not would
+    /// be an emission that bypassed the door.
+    fn segment_pieces(&self) -> Vec<crate::structure::Piece> {
+        (0..self.verts.len())
+            .map(|k| {
+                self.pieces.get(k).copied().flatten().unwrap_or_else(|| {
+                    unreachable!(
+                        "every segment of a closed chain is emitted through set_leaving, which \
+                         names it; segment {k} was not"
+                    )
+                })
+            })
+            .collect()
     }
 }
 
@@ -3260,6 +3345,7 @@ impl<T: Decide> Core<T> {
                 // the leg's end is the leg→arc tangency.
                 self.extend_leg_to(trims.t1)?;
             } else {
+                self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                 self.push_line(trims.t1)?;
                 self.declare_last();
             }
@@ -3296,6 +3382,7 @@ impl<T: Decide> Core<T> {
             // a construction.
             if kind == ArrivalKind::Continues || trims.fit_out == Sign::Positive {
                 self.declare_last();
+                self.run_out = Some(meta.bound_at);
             }
         }
         Ok((arc, trims.fit_out))
@@ -3324,7 +3411,10 @@ impl<T: Decide> Core<T> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
                 None if merge => self.extend_leg_to(t.t1)?,
-                None => self.push_line(t.t1)?,
+                None => {
+                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
+                    self.push_line(t.t1)?;
+                }
                 // An EXTENSION emits no segment — the leg's own end
                 // vertex moves along the carrier it already had — so
                 // the segment keeps the address the leg step gave it
@@ -3338,6 +3428,7 @@ impl<T: Decide> Core<T> {
                     if meta.incoming_radius {
                         self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
                     }
+                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                     self.push_arc(t.t1, bulge)?;
                 }
             }
@@ -3399,7 +3490,8 @@ impl<T: Decide> Core<T> {
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
     /// its outgoing joint when something tangent actually follows it
-    /// (see [`ArrivalKind`]).
+    /// (see [`ArrivalKind`]) — and then that something is the fillet's
+    /// run out, which the next emission is named as.
     fn emit_fillet_arc(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
@@ -3411,6 +3503,7 @@ impl<T: Decide> Core<T> {
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
         if declare {
             self.declare_last();
+            self.run_out = Some(bound_at);
         }
         Ok(())
     }

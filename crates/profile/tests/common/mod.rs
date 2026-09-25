@@ -341,7 +341,33 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
     };
     assert_bit_identical(&closed.loop_, &replayed);
     assert_spans_partition(&closed);
+    assert_pieces_name_one_segment_each(&closed);
     closed.loop_
+}
+
+/// **Every segment is exactly one piece, and no piece is two
+/// segments**: one piece per segment of the loop, each naming a step
+/// of the program, no two alike — which is what lets a `{ step, role }`
+/// locator denote one wall. A step whose role list the lowering can
+/// draw twice would land here, over the whole corpus.
+pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
+    let pieces = &closed.structure.pieces;
+    assert_eq!(
+        pieces.len(),
+        closed.loop_.vertices().len(),
+        "one piece per segment"
+    );
+    for (k, p) in pieces.iter().enumerate() {
+        assert!(
+            p.step < closed.program.len(),
+            "segment {k}'s piece names step {}, past the program's {} steps",
+            p.step,
+            closed.program.len()
+        );
+        if let Some(j) = pieces[..k].iter().position(|q| q == p) {
+            panic!("segments {j} and {k} are both {p}: a locator on it would denote two walls");
+        }
+    }
 }
 
 /// **The per-step segment span partitions the loop**: one span per

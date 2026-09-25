@@ -2531,8 +2531,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
 /// than the program reaches is refused the same way, and so is one
-/// whose per-step segment spans — or whose per-radius emissions —
-/// this pass did not reproduce.
+/// whose per-step segment spans — or whose per-radius emissions, or whose
+/// per-segment pieces — this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2599,6 +2599,30 @@ pub fn replay_guided<T: ArcCarrierScalar>(
                 Decision::RadiusEmission { at },
                 DecisionValue::Emission(*recorded),
                 DecisionValue::Emission(*found),
+            )));
+        }
+    }
+    // The pieces, for the same reason: which step and role each
+    // segment is follows from which arm ran, and a pass that drew a
+    // run as its own segment where the record merged it into a leg
+    // names every later segment differently.
+    if structure.pieces.len() != closed.structure.pieces.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.pieces.len(),
+            closed.structure.pieces.len(),
+        )));
+    }
+    for (segment, (recorded, found)) in structure
+        .pieces
+        .iter()
+        .zip(&closed.structure.pieces)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::Piece { segment },
+                DecisionValue::Piece(*recorded),
+                DecisionValue::Piece(*found),
             )));
         }
     }

@@ -269,6 +269,84 @@ impl core::fmt::Display for RadiusEmission {
     }
 }
 
+/// **Which of its step's pieces a segment is** — the role half of a
+/// profile piece's name (`crates/editor-core/src/names/README.md`, "N1,
+/// the profile pieces").
+///
+/// Each verb draws from a fixed list:
+///
+/// - a verb that draws one segment draws its [`PieceRole::Leg`];
+/// - a fillet — `fillet(r)` and the fused verbs alike — draws its
+///   [`PieceRole::RunIn`], its [`PieceRole::Arc`] and its
+///   [`PieceRole::RunOut`], a fused verb's authored arc carriers being
+///   its runs;
+/// - a complete-loop carrier form (`circle`, `circle_split`) draws
+///   [`PieceRole::Piece`] `k` for its segment `k`.
+///
+/// A role the values do not draw has no segment: a run that a `Zero`
+/// fit suppresses, or a piece drawn as one segment with an earlier
+/// piece on the same carrier (see [`Piece`]).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub enum PieceRole {
+    /// The one segment a single-segment verb draws.
+    Leg,
+    /// The run into a fillet: the trimmed incoming side.
+    RunIn,
+    /// A fillet's own arc.
+    Arc,
+    /// The run out of a fillet: the trimmed arrival side.
+    RunOut,
+    /// Piece `k` of a complete-loop carrier form.
+    Piece(u32),
+}
+
+impl core::fmt::Display for PieceRole {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Leg => f.write_str("leg"),
+            Self::RunIn => f.write_str("run in"),
+            Self::Arc => f.write_str("arc"),
+            Self::RunOut => f.write_str("run out"),
+            Self::Piece(k) => write!(f, "piece {k}"),
+        }
+    }
+}
+
+/// **The piece one segment is**: the authored step that drew it, in
+/// program order, and which of that step's roles it plays.
+///
+/// Two pieces on one carrier can be drawn as a single segment — a
+/// fillet's run and the authored leg it continues. The segment is
+/// then the EARLIER piece in authored order, and the later one is not
+/// drawn at all; where one step plays two roles on one segment, its
+/// fillet role is the one drawn rather than its leg.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
+pub struct Piece {
+    /// The authored step, in program order.
+    pub step: usize,
+    /// Which of that step's pieces.
+    pub role: PieceRole,
+}
+
+impl Piece {
+    /// Whether `self` names a segment `other` would otherwise name:
+    /// the earlier step, and within one step the fillet role over the
+    /// leg.
+    #[must_use]
+    pub(crate) fn outranks(&self, other: &Self) -> bool {
+        self.step < other.step
+            || (self.step == other.step
+                && other.role == PieceRole::Leg
+                && self.role != PieceRole::Leg)
+    }
+}
+
+impl core::fmt::Display for Piece {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "step {}'s {}", self.step, self.role)
+    }
+}
+
 /// The structure one replay selected, for one loop: its fillet
 /// resolutions in the order the program reached them, which
 /// segments each authored step became, and which segment each
@@ -300,6 +378,13 @@ pub struct ReplayStructure {
     /// close-time tangency re-read keyed by vertex, this is the
     /// authored ADDRESS of every radius-drawn arc.
     pub radii: Vec<RadiusEmission>,
+    /// **The piece each segment is**, per PRE-CANONICAL segment: the
+    /// authored step that drew it and its role (see [`Piece`]).
+    ///
+    /// A decision like the spans beside it: which arm emitted a
+    /// segment, and whether a fillet run was drawn on its own or as
+    /// the leg it continues, is what the emission pass chose.
+    pub pieces: Vec<Piece>,
 }
 
 impl ReplayStructure {
@@ -318,6 +403,12 @@ impl ReplayStructure {
             fillets: Vec::new(),
             steps: vec![StepSpan::new(0, segments)],
             radii: Vec::new(),
+            pieces: (0..segments)
+                .map(|k| Piece {
+                    step: 0,
+                    role: PieceRole::Piece(u32::try_from(k).unwrap_or(u32::MAX)),
+                })
+                .collect(),
         }
     }
 }
@@ -483,6 +574,11 @@ pub enum Decision {
         /// The emission's index, in emission order.
         at: usize,
     },
+    /// Which piece one segment is.
+    Piece {
+        /// The pre-canonical segment index.
+        segment: usize,
+    },
     /// A loop's declared tangent-joint set after canonicalization.
     TangentJoints {
         /// The loop's input index.
@@ -535,6 +631,8 @@ pub enum DecisionValue {
     Span(StepSpan),
     /// Which segment one authored radius drew.
     Emission(RadiusEmission),
+    /// Which piece one segment is.
+    Piece(Piece),
 }
 
 /// Why a guided pass could not reproduce the recorded structure.
@@ -647,6 +745,7 @@ impl core::fmt::Display for Decision {
             Self::RadiusEmission { at } => {
                 write!(f, "which segment the radius at emission {at} drew")
             }
+            Self::Piece { segment } => write!(f, "which piece segment {segment} is"),
             Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
             Self::GuideNotInstalled => {
                 write!(f, "the guide's installation into the chain's core")
@@ -677,6 +776,7 @@ impl core::fmt::Display for DecisionValue {
             Self::Role(r) => write!(f, "{r}"),
             Self::Span(s) => write!(f, "{s}"),
             Self::Emission(e) => write!(f, "{e}"),
+            Self::Piece(p) => write!(f, "{p}"),
         }
     }
 }
@@ -826,7 +926,7 @@ impl<T: Real> Guide<T> {
     /// program with fewer resolutions than the record describes is
     /// visible to the caller as the shorter record it produced.
     ///
-    /// `spans` and `radii` are what THIS pass emitted, whichever arm it
+    /// `spans`, `radii` and `pieces` are what THIS pass emitted, whichever arm it
     /// ran under: a guided pass reports the spans and the radius
     /// emissions it reproduced rather than the ones it was handed,
     /// because the caller's comparison is only worth making against a
@@ -835,11 +935,13 @@ impl<T: Real> Guide<T> {
         self,
         spans: Vec<StepSpan>,
         radii: Vec<RadiusEmission>,
+        pieces: Vec<Piece>,
     ) -> ReplayStructure {
         match self {
             Self::Recording(mut s) => {
                 s.steps = spans;
                 s.radii = radii;
+                s.pieces = pieces;
                 s
             }
             Self::Guided {
@@ -848,6 +950,7 @@ impl<T: Real> Guide<T> {
                 record.fillets.truncate(next);
                 record.steps = spans;
                 record.radii = radii;
+                record.pieces = pieces;
                 record
             }
         }
