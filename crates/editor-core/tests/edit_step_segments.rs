@@ -112,7 +112,13 @@ fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
     let verts = assembled
         .loops
         .iter()
-        .map(|lp| lp.vertices().iter().map(|v| (v.pos(), v.bulge())).collect())
+        .map(|lp| {
+            lp.vertices()
+                .iter()
+                .zip(lp.bulges())
+                .map(|(&v, &b)| (v, b))
+                .collect()
+        })
         .collect();
     let (validated, canonical) = assembled
         .validate_recording(tol())
@@ -126,10 +132,10 @@ fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
         .loops
         .iter()
         .map(|lp| {
-            let mut want: Vec<_> = lp.vertices().iter().map(|v| bits(v.pos())).collect();
+            let mut want: Vec<_> = lp.vertices().iter().map(|&v| bits(v)).collect();
             want.sort_unstable();
             let found = validated.loops().iter().position(|cl| {
-                let mut got: Vec<_> = cl.vertices().iter().map(|v| bits(v.pos())).collect();
+                let mut got: Vec<_> = cl.vertices().iter().map(|&v| bits(v)).collect();
                 got.sort_unstable();
                 got == want
             });

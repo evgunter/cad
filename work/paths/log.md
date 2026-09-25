@@ -187,3 +187,29 @@ unit 1: **dual**. It is an architectural change with broad reach, and
 its byte-identity claim is what every later unit stands on. An
 announced-seam note goes on EMIT's log for unit 4's `Piece(0/1)` →
 `Carrier` re-spelling.
+
+## 2026-09-25 — lowering unit 1 merges (#3224, DR-5)
+
+`canonical-segment-type-in-profile` is closed. Both dual reviewers found
+the same MAJOR (a b = 0 arc verb stored a poisoned carrier, which made
+the anchor's area NaN and `lift` emit `ArcTo(b:0)`). It is fixed at the
+root: the stored kind is the exact-zero read at every lowering. The
+tally is unchanged at 0 because the MAJOR was bilateral.
+
+Class-level findings recorded:
+- "Is this a line?" has two layers: the stored exact-zero kind and the
+  validated ε-kind. The two are documented on `Segment`.
+- 4·atan b is spelled in about six places. Units 2 and 5 own them.
+- Bulge stays in storage until unit 5 retires it.
+
+Orchestrator's own miss: the implementer never compiled the
+probe-feature tests, and hosted `clippy --all-features` and
+`k-lint dev-probe` went red. Unit briefs now say `--all-features`.
+
+Next dispatchable:
+- `fixture-door-takes-canonical-segments`: mechanical, D, single
+  review;
+- `geom-brep-sketch-segment-full-turn`: H, dual review.
+
+Both are unblocked by this merge. They touch different crates and can
+run in parallel.

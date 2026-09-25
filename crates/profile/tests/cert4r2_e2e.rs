@@ -91,9 +91,9 @@ fn the_asymmetric_fused_pocket_replays_hairline_at_interval() {
         .enumerate()
     {
         for (what, exact, enc) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
         ] {
             let w = enc.hi() - enc.lo();
             assert!(

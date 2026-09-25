@@ -305,8 +305,8 @@ fn survives_digon_outer_both_directions() {
 fn survives_two_arc_hole_hand_traced_cycles() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = validated(vec![outer, circle_loop(0.5, 0.5, 0.1)]);
-    let outer_canon: Vec<Point2<f64>> = vp.loops()[0].vertices().iter().map(|v| v.pos()).collect();
-    let hole_canon: Vec<Point2<f64>> = vp.loops()[1].vertices().iter().map(|v| v.pos()).collect();
+    let outer_canon: Vec<Point2<f64>> = vp.loops()[0].vertices().to_vec();
+    let hole_canon: Vec<Point2<f64>> = vp.loops()[1].vertices().to_vec();
     assert_eq!(vp.loops()[1].role(), LoopRole::Hole);
 
     for d in [1.0f64, -0.5] {
@@ -471,7 +471,7 @@ fn survives_reversal_maps_and_orientation() {
     ]);
     lp = lp.with_tangent_joints(vec![1, 2]);
     let vp = validated(vec![lp]);
-    let canon: Vec<Point2<f64>> = vp.loops()[0].vertices().iter().map(|v| v.pos()).collect();
+    let canon: Vec<Point2<f64>> = vp.loops()[0].vertices().to_vec();
     let n = canon.len();
     assert_eq!(n, 5);
     assert_eq!(canon[0].x, 0.0);
@@ -554,7 +554,7 @@ fn survives_sliver_join_reports_canonical_index_both_directions() {
     let vp = validated(vec![lp]);
     // Canonical start is (0,0) (the authored one), CCW as written: the shallow
     // corner is canonical vertex 1.
-    assert_eq!(vp.loops()[0].vertices()[1].pos().x, 1.0);
+    assert_eq!(vp.loops()[0].vertices()[1].x, 1.0);
     for d in [1.0e-3, -1.0e-3] {
         let err = extrude(&vp, Extrusion::Distance(d), Tol::witness()).unwrap_err();
         match err {
@@ -778,7 +778,7 @@ fn survives_notched_circle_wrap_join_shares_the_key() {
         ProfileVertex::new(p2(0.0, 1.0), q),
     ]);
     let vp = validated(vec![lp]);
-    assert_eq!(vp.loops()[0].vertices()[0].pos().x, -1.0);
+    assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     // Walls: [arc, line, line, arc]; the wrap join (segment 3 → 0)
@@ -833,7 +833,7 @@ fn fixed_wrap_cosurface_run_shares_one_key() {
         ProfileVertex::new(p2(-c60, s60), sixth),
     ]);
     let vp = validated(vec![lp]);
-    assert_eq!(vp.loops()[0].vertices()[0].pos().x, -1.0);
+    assert_eq!(vp.loops()[0].vertices()[0].x, -1.0);
     let t = extrude(&vp, Extrusion::Distance(0.5), Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
     let key = |j: usize| t.body.get_face(t.side_faces[0][j]).unwrap().surface;
