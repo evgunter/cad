@@ -209,6 +209,12 @@ pub enum ChartOverlap {
 /// escalation arm carries `f64` margins — which is the same reason
 /// `ValidationError` has none.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ChartRegionError {
     /// The pair has no structural chart identity (rung 3 or below):
     /// C2's caveat — two descriptions of one locus may differ as

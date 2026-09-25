@@ -3430,17 +3430,17 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         );
     }
 
-    // The payload survives the rewording: an arena key still names
-    // each entity, so the prose is a diagnosis a caller can act on
-    // rather than a sentence that dropped its subject.
+    // The prose names what touched and where, in words — the keys
+    // ride in the typed payload a caller resolves against — and ends
+    // on the recourse.
     let message = census.to_string();
     assert!(
-        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.contains("never blessed from discovery"),
-        "the undeclared-contact recourse is the actionable half"
+        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        "the undeclared-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -3453,7 +3453,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
-/// inventory or a scalar with no certified chart-overlap lane, and
+/// inventory or a door that holds no certified chart-overlap lane
+/// (the `_structural` ones, which the binding does not expose), and
 /// the structural arms want a corrupt arena, which the public API
 /// cannot mint. Those are exactly the arms whose projection the
 /// Python suite cannot exercise, so they are constructed here and

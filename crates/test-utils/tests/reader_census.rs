@@ -353,6 +353,11 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/census.rs",
+        disposition: Shared, // the backstop's no-inline-`what` guard, literal view
+                             // carved by `balanced_end`
+    },
+    Entry {
         path: "crates/topo/src/chord_join.rs",
         disposition: Unconverted("Track Q — whitespace-stripped raw text, no reader"),
     },
