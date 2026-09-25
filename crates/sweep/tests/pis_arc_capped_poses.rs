@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{
     ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
@@ -32,13 +32,13 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn pv(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// A meridian revolved fully about the sketch `y` axis.
-fn revolved(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
-    let profile = Profile::new(SketchPlane::xy(), vec![RawLoop::new(verts)])
+fn revolved(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
+    let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(verts)])
         .validate(tol())
         .expect("the meridian validates");
     revolve(
@@ -56,7 +56,7 @@ fn revolved(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
 
 /// A prism whose volume is checked against the closed form, so the
 /// region the probes are judged by is the body that was built.
-fn prism_of(verts: Vec<ProfileVertex<f64>>, volume: f64) -> Body<f64> {
+fn prism_of(verts: Vec<(Point2<f64>, f64)>, volume: f64) -> Body<f64> {
     let body = prism(verts, 1.0, tol());
     let v = topo::mass_properties(&body, tol()).unwrap().volume;
     assert!(
