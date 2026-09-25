@@ -95,7 +95,7 @@ fn add_seat(
     b_x: f64,
     clocking: Option<f64>,
 ) -> RecipeNodeId {
-    common::insert(
+    common::session_insert(
         session,
         SessionOp::AddMate {
             a: common::head(common::asm::in_part(post, &bench.post_top)),
@@ -117,7 +117,7 @@ fn add_rest(
     bench: &common::asm::Bench,
     post: RecipeNodeId,
 ) -> RecipeNodeId {
-    common::insert(
+    common::session_insert(
         session,
         SessionOp::AddMate {
             a: common::head(common::asm::in_part(post, &bench.post_top)),
