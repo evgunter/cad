@@ -7,7 +7,6 @@ opened: 2026-09-25
 priority: P0
 cost: D
 refs: [swept-continuation-walls-reach-the-boolean-unmerged, torus-operand-gate-admission]
-needs_ev: true
 ---
 
 
@@ -64,3 +63,21 @@ is unchanged (no revolve mints a same-key planar adjacency, and no merge
 stage is needed). The merged-wall naming both designers recommended
 follows: plain `Band(s)`, with no `BandPi(s)` and no `Pole` for a planar
 segment. The π revolve stays a separate, parked question.
+
+## Ruled (Ev, 2026-09-25, on the `[ev]` PR)
+
+Yes to both points. A full revolve CONSTRUCTS each planar wall as one face,
+named plain `Band(s)`, with no `BandPi(s)`, no `Meridian(·, s)` and no
+`Pole` at a disc's centre. F7 is unchanged. The π revolve is parked as
+`half-revolve-caps-are-never-an-operand` (P2). This row is now the
+implementation:
+- `revolve/full.rs::build_wire` sweeps two π-bands only for curved walls;
+- the `Revolved` handles return `None` for a planar segment's π halves;
+- the emitter reads the wire case from `RevolvedKind`, not from
+  `pi_walls.iter().any(is_some)`;
+- the N1 poles paragraph and the `RoleSeg::BandPi` docs are re-worded;
+- the kernel-test workarounds (`blend1_r1_probes`, `bool2_cone_doors`'
+  quarter cone, `test_support.rs`) and the tour's half-disc selections are
+  retired.
+Before building, measure the corpus of planar-wall positions: pole disc,
+off-axis annulus, joint disc, and the lamina case's interior slit edge.
