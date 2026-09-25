@@ -1,0 +1,4 @@
+fork: work/encl/approx-surface-tolerance-is-now-always-the-runs-eps.md
+byte: 132
+mapping: A = Opus, B = Fable
+dispatched: 2026-09-25
