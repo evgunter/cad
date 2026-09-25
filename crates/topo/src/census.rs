@@ -3143,7 +3143,7 @@ impl<T: Decide> Cone<T> {
 
     /// The cone at a vertex, from its orbit: each sector a corner of a
     /// planar face between two line edges, a sector of 180° or more
-    /// subdivided at an interior direction ([`sector_shape`]).
+    /// subdivided at an interior direction ([`crate::sector_shape::sector_shape`]).
     fn vertex(
         body: &Body<T>,
         geo: &Geo<T>,
