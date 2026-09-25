@@ -36,6 +36,7 @@ test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
     "crates/geom-core/src/sym/",
     "crates/editor-core/src/drive.rs",
+    "crates/sweep/src/swept.rs",
     "crates/editor-core/tests/fixture/",
     "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
     "crates/editor-core/tests/m10_7_plate.rs",
@@ -326,6 +327,16 @@ const SLAB_LEDGER: [&str; 3] = [
 /// and these roots are first built by the decision walk — the pin
 /// holds that no other line moves, and that reading of it is not a
 /// separate measurement.
+///
+/// **What the arc's span spelled from the decided turn moves**
+/// (`sweep`'s `turned_span`, `4·atan(σ·b)` for `4·atan|b|`): the plate's
+/// arcs mint the span over `b` or `0 − b` instead of `abs(b)`, so the
+/// walks memoize different forms — `Plain/Decision` 15030 → 15028,
+/// `Plain/Assertion` 2594 → 2593, `Early/Decision` 7979 → 7977,
+/// `Early/Assertion` 3406 → 3405, `Door/Decision` 11884 → 11860 forms,
+/// and those five digests. Every call and frozen count is identical, the
+/// slab's ledger and both largest forms are unmoved, and the plate's
+/// receipt is `[811, 0, 140, 462]` either way.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -333,11 +344,11 @@ const PLATE_MAX_TERMS: usize = 252;
 /// plate's nominal reads no ε (its dimensions are literals, not
 /// multiples of ε) and the captures at the three rows agree.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
-     Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 2a62023a371bd4aacf1017c8e9f8029e\n\
-     Early/Assertion calls 462 forms 3406 frozen 0 digest 4bcf903191f8a0a9db825a2798908440\n\
-     Door/Decision calls 330 forms 11884 frozen 0 digest 90c99c9e033c9e0adf0032dacb84aee1\n\
+     Plain/Decision calls 951 forms 15028 frozen 672 digest e01e2313fd037aca2818ff3698c254b9\n\
+     Plain/Assertion calls 462 forms 2593 frozen 372 digest 06eed02baeb60a6d45c18f291ca889d1\n\
+     Early/Decision calls 320 forms 7977 frozen 8 digest 0b3062ec9922ece1c90746c7f302843c\n\
+     Early/Assertion calls 462 forms 3405 frozen 0 digest 02e9f04ad97f5f583bf0de4873927d48\n\
+     Door/Decision calls 330 forms 11860 frozen 0 digest 99249cc1939eab0e134d0081c7d0b768\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

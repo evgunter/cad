@@ -113,9 +113,11 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // class, so six more of the rim identity's samples meet
             // the registrant's forms (90 -> 96) and twenty-six more
             // residuals are theorems outright (515 -> 541). Both move
-            // UP; nothing was traded.
-            registered: 96,
-            symbolic_zero: 541,
+            // UP; nothing was traded. DECIDE-5: the arc's span spelled
+            // from the decided turn meets the pushforward's atom, and
+            // both move up again, 96 -> 108 and 541 -> 545.
+            registered: 108,
+            symbolic_zero: 545,
             at: Box::new(move |s: f64| crate::m10_9_r2_probes_interval::link(s, tol).0),
         },
         Study {

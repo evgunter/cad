@@ -27,12 +27,20 @@ use crate::m10_8_harness::nominal_box;
 
 /// The retry ladder the env-driven rows run: `CAD_M10_10_RETRY=default`
 /// is the drive's shipped ladder (`editor_core::drive::DEFAULT_SYM_RETRY`),
-/// unset or `none` is one attempt per rung (`SymRetry::none()`).
+/// `ring_512` one retry at a 512-bit ring, unset or `none` is one attempt
+/// per rung (`SymRetry::none()`).
 fn retry_from_env() -> geom_core::SymRetry {
     match std::env::var("CAD_M10_10_RETRY").as_deref() {
         Err(_) | Ok("none") => geom_core::SymRetry::none(),
         Ok("default") => editor_core::drive::DEFAULT_SYM_RETRY,
-        Ok(other) => panic!("unknown retry {other:?}: none | default"),
+        // One retry at a wider ring and nothing else: whether a decision
+        // the first attempt leaves numeric on a `Coefficient` freeze is
+        // the ring's width and not a missing rule.
+        Ok("ring_512") => geom_core::SymRetry {
+            bits: Some(512),
+            ..geom_core::SymRetry::none()
+        },
+        Ok(other) => panic!("unknown retry {other:?}: none | default | ring_512"),
     }
 }
 
@@ -253,10 +261,16 @@ fn m10_10_the_four_residuals_rendered_at_the_nominal() {
             *i += 1;
             // `Invalid` is a domain violation the tier is never asked
             // about, and `Definite` a sign the numeric channel settled.
-            if !matches!(
+            // `CAD_M10_10_DUMP_ASKED`: every decision the tier was asked,
+            // whatever it answered — a theorem's line carries no form (the
+            // report renders none) but carries its causes, so a decision
+            // that moves between two trees is read on both.
+            let asked = !matches!(s.outcome, ShapeOutcome::Definite(_) | ShapeOutcome::Invalid);
+            let numeric = matches!(
                 s.outcome,
                 ShapeOutcome::NumericZero | ShapeOutcome::Indeterminate
-            ) {
+            );
+            if !(numeric || asked && std::env::var("CAD_M10_10_DUMP_ASKED").is_ok()) {
                 continue;
             }
             let line = serde_json::json!({
@@ -387,6 +401,12 @@ fn rules_named(name: &str) -> SymRules {
         // DECIDE-4's differential: the shipped set with rule G's exact
         // quotient shut, which is SYM-9's tier bit for bit.
         "no_q" => SymRules::without_root_quotient(),
+        // The kept-atom ladder's FIRST attempt on the shipped set as a
+        // rule set of its own (`SymRetry::kept_atom`'s rule-G mask, which
+        // a session intersects with its own rules: rule G and its
+        // conjunct dials shut), so a decision the ladder answers on that
+        // attempt is rendered where this set leaves it numeric.
+        "no_g" => SymRules::without_canonical_root(),
         // The cost breakdown: rule D alone, and rules A/B per node alone.
         "d_only" => SymRules {
             trig_of_atan: true,

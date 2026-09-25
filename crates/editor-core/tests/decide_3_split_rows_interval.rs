@@ -80,45 +80,51 @@ fn decide_3_no_predicate_loses_a_decision() {
                 if a == *b { "" } else { "  <- moved" }
             );
             let discharged = |s: [u64; 4]| s[0] + s[1] + s[2];
-            // **ONE predicate is re-baselined, at its numbers, with
-            // its reason.** R2's link's `carrier_on_surface_2` loses
-            // sixteen theorems to rule G — TEN to rule A's companion
-            // rewrite opening the squares of `abs` NODES the document
-            // wrote (the same rewrite buys 52 of the 88 it leaves on
-            // this predicate: with it shut, rule G reads 36/0/0/72
-            // here), SIX to `sqrt(R²) = |R|`, which the rim
-            // registrant's axiom then closes. Neither is the retired
-            // side-condition source, and the remedy the finding named
-            // was implemented and measured: it recovers the six and
-            // four of the ten and costs the DOCUMENT forty theorems,
-            // because after rule G a `sqrt(R²)` and a document's
-            // `abs(R)` are the same atom, so the restriction narrows
-            // by traversal order rather than by provenance.
+            // **TWO predicates are re-baselined, at their numbers, with
+            // their reasons**, both on R2's link. It is a re-baseline and
+            // not an exemption: the numbers are asserted on both sides,
+            // so any further drift reds and says which.
             //
-            // It is a re-baseline and not an exemption: the numbers
-            // are asserted on both sides, so any further drift reds
-            // and says which. The whole measurement, and the remedy
-            // record, is
+            // `carrier_on_surface_2` is rule G's trade: with G and the
+            // read shut this predicate proves 88 theorems, with them on
+            // 84 (and 8 through the door). The whole measurement, the
+            // remedy record, and DECIDE-5's re-take of it, is
             // `work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`.
             // At the DOCUMENT level rule G is a gain here —
-            // `[515, 0, 90, 497]` becomes `[541, 0, 96, 465]` — and a
+            // `[505, 0, 110, 487]` becomes `[545, 0, 108, 449]` — and a
             // change that makes the code right is not skipped for the
             // re-baseline it costs.
             //
-            // In this row's own vocabulary the sixteen are two things:
-            // TEN decisions lost to `numeric`, and SIX claims WEAKENED
-            // from a theorem to an axiom. Both sides here run one attempt
-            // per rung (`split_at_the_nominal`, no retry ladder), because
-            // this is rule G's trade and a ladder on the `on` side would
-            // read it as recovered. What the measured retry ladder does
-            // about it is pinned where the ladder is:
-            // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`
-            // (the ten back, `[92, 0, 6, 10]`; the six still weakened).
-            if *name == "r2_link" && *p == "carrier_on_surface_2" {
+            // `carrier_matches_mapped_source` is the other side of the
+            // arc's span spelled from the decided turn (`sweep`'s
+            // `turned_span`, DECIDE-5): the carrier's span meets the
+            // pushforward's atom, so this predicate's door answers rise
+            // under BOTH tiers — 40 to 60 with G shut, 40 to 50 with it
+            // on — so ten decisions the G-shut tier sends through the
+            // door stay numeric on the shipped side, where before the
+            // two sides were equal at `[108, 0, 40, 32]`. The shipped
+            // ladder takes the shipped side to `[108, 0, 62, 10]`, past
+            // the G-shut tier (`m10_10_evidence_interval` at
+            // `CAD_M10_10_DOC=r2_link CAD_M10_10_RETRY=default`).
+            //
+            // Both sides here run one attempt per rung
+            // (`split_at_the_nominal`, no retry ladder), because this is
+            // rule G's trade and a ladder on the `on` side would read it
+            // as recovered. What the measured retry ladder does about it
+            // is pinned where the ladder is:
+            // `sym_9_retry_interval::sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured`.
+            let rebaselined: Option<([u64; 4], [u64; 4])> = match (*name, *p) {
+                ("r2_link", "carrier_on_surface_2") => Some(([88, 0, 0, 20], [84, 0, 8, 16])),
+                ("r2_link", "carrier_matches_mapped_source") => {
+                    Some(([108, 0, 60, 12], [108, 0, 50, 22]))
+                }
+                _ => None,
+            };
+            if let Some(expected) = rebaselined {
                 assert_eq!(
                     (*b, a),
-                    ([98, 0, 0, 10], [82, 0, 6, 20]),
-                    "the re-baselined predicate moved: re-measure it and say what"
+                    expected,
+                    "{name}/{p}: the re-baselined predicate moved: re-measure it and say what"
                 );
                 continue;
             }

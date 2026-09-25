@@ -37,13 +37,15 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the ladder and to the documents it is measured on: the tier
-// and its rules, the drive's retry dial, the leaf lane that carries it, and the
-// fixture doors the two documents that gain from it are built through.
+// and its rules, the drive's retry dial, the leaf lane that carries it, the
+// fixture doors the two documents that gain from it are built through, and
+// the arc carrier's construction, whose spelling moves the link's row.
 test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
     "crates/geom-core/src/sym/",
     "crates/editor-core/src/drive.rs",
     "crates/editor-core/src/eval/mod.rs",
+    "crates/sweep/src/swept.rs",
     "crates/editor-core/tests/m10_7_r2_probes_interval.rs",
     "crates/editor-core/tests/m10_8_arc_family_interval.rs",
     "crates/editor-core/tests/m10_8_harness.rs",
@@ -383,9 +385,21 @@ fn sym_9_what_each_retry_recovers() {
 /// **THE LADDER'S PIN**: what `SymRetry::kept_atom` recovers, per
 /// document, asserted on both sides — and on R2's link, the two
 /// predicates it recovers, at their rows: `carrier_on_surface_2`
-/// `[82, 0, 6, 20]` → `[92, 0, 6, 10]` (the ten decisions rule G costs,
-/// `decide_3_split_rows_interval` pins that trade one attempt per rung)
-/// and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
+/// `[84, 0, 8, 16]` → `[88, 0, 8, 12]` (four of the decisions rule G
+/// costs, `decide_3_split_rows_interval` pins that trade one attempt per
+/// rung) and `witness_on_surface_2` `[14, 0, 0, 2]` → `[16, 0, 0, 0]`.
+///
+/// The link's row is the arc's span spelled from the decided turn
+/// (`sweep`'s `turned_span`): `[541, 0, 96, 465]` → `[545, 0, 108, 449]`
+/// without the ladder and `[553, 0, 96, 453]` → `[549, 0, 120, 433]`
+/// with it, retried 12 → 16, and the predicate with the ladder
+/// `[92, 0, 6, 10]` → `[88, 0, 8, 12]`. Eight of its theorems go to the
+/// door because the ladder's rule-G-shut attempt now freezes on the
+/// coefficient ring (a 512-bit ring takes all eight back), four come
+/// back as theorems where the carrier's span meets the pushforward's
+/// atom, and two door answers go numeric on the term budget
+/// (`work/decide/rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`
+/// renders each).
 ///
 /// It pins the two things the acceptance asks for and nothing else. On
 /// the two documents that gain, the whole split with the ladder against
@@ -415,7 +429,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
             [1104, 7, 150, 760],
             6,
         ),
-        ("r2_link", [541, 0, 96, 465], [553, 0, 96, 453], 12),
+        ("r2_link", [545, 0, 108, 449], [549, 0, 120, 433], 16),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want_off, want_on, want_retried) in expected {
@@ -431,7 +445,7 @@ fn sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured() {
         if link {
             let t = split(&shapes);
             for (pred, want) in [
-                ("carrier_on_surface_2", [92, 0, 6, 10]),
+                ("carrier_on_surface_2", [88, 0, 8, 12]),
                 ("witness_on_surface_2", [16, 0, 0, 0]),
             ] {
                 let got = t.get(pred).copied().unwrap_or([0; 4]);
