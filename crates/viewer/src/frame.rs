@@ -68,9 +68,9 @@
 //! acted.
 //!
 //! **"Held state" is the mechanical shadow of that, a strong
-//! indicator and not a decision procedure**, and the sweep that sorted
-//! eighteen writers on this paragraph needed the three ways it falls
-//! short said out loud:
+//! indicator and not a decision procedure**, and sorting the line's
+//! writers on this paragraph needs the three ways it falls short said
+//! out loud:
 //!
 //! * **It is a property of the FACT, not of a signature.**
 //!   [`unindexed_refusal`] takes a `&NotIndexed` and nothing else;
@@ -137,13 +137,18 @@
 //! refusing a camera move and then orbiting left the refusal on the
 //! line for as long as the user navigated: navigation acts on nothing.
 //!
-//! **Seventeen of the eighteen writers now reach the line through
-//! that ranking**, and the one that does not is named below. The
-//! membership test is what the count kept getting wrong, so it is
-//! stated rather than inferred: a writer is one of these if it **can
-//! put a SENTENCE on the line that the ranking never saw**. That is
-//! not the same as reaching the field outside the ranking, and the
-//! difference is a retirement. A retirement says nothing, so there is
+//! **Every writer but one reaches the line through that ranking**, and
+//! the one that does not is named below. A ranked writer is one that
+//! writes to the frame's notices — `ViewerApp`'s `notices`, which
+//! `ViewerBehavior` lends the panes — and no number is given for them:
+//! the population is every such write under `crates/viewer/src`, which
+//! a grep finds and no type bounds, so a count here or in a row would
+//! be one more thing to hand-update beside each new writer. The
+//! membership test is stated rather than inferred: a writer is one of
+//! these if it **can put a SENTENCE on the line that the ranking never
+//! saw**. That is not the same as reaching the field outside the
+//! ranking, and the difference is a retirement. A retirement says
+//! nothing, so there is
 //! nothing to weigh it against and nothing to join it to; ranking one
 //! is not a stricter discipline but a category error. [`apply`] is
 //! therefore a legitimate door and stays one — it is where a
@@ -153,7 +158,7 @@
 //! [`deliver`] is the door for a policy that can answer either way:
 //! news to the frame's notices, retirement to the field.
 //!
-//! **The eighteenth is the startup initializer**, `ViewerApp::new`'s
+//! **The exception is the startup initializer**, `ViewerApp::new`'s
 //! `status: startup_notices(&notices)` — the preferences file's
 //! complaints rendered into the field before any frame has run, where
 //! the session's first accepted act silently deletes them. It cannot
@@ -161,7 +166,7 @@
 //! a read of held state, so under this module's own rule it wants a
 //! BADGE, and badging it means HOLDING it and deciding what retires
 //! it. That is a design question, tracked as
-//! `work/view/startup-notices-need-holding-to-badge.md` and not
+//! `work/vseam/startup-notices-need-holding-to-badge.md` and not
 //! asserted here as done.
 //!
 //! # The toolbar: held state, read
@@ -660,9 +665,9 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// accurately. Making the line stop being one string — several
 /// labels, one per notice — is the better answer and is not this
 /// function's to give: it needs a value that carries several
-/// subjects, which `work/view/one-line-one-subject-loses-a-mixed-
-/// frames-expiry.md` owns and which is a design question for Ev.
-/// Until then the line is one string, and one string needs a mark.
+/// subjects, and
+/// `work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`
+/// owns that fork. Until then the line is one string, and one string needs a mark.
 pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
@@ -707,7 +712,7 @@ pub fn frame_status(
 /// line is about `Document`, which has no [`StatusUpdate::Expire`]
 /// issuer ([`SUBJECTS_WITH_AN_EXPIRY_ISSUER`]), so the camera event
 /// that would have retired the camera half no longer can. That is
-/// `work/view/one-line-one-subject-loses-a-mixed-frames-expiry.md`,
+/// `work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`,
 /// which owns the fork; this function is the rule it is a consequence
 /// of, and the rule is unchanged.
 fn joined_subject(notices: &[Message]) -> Subject {
