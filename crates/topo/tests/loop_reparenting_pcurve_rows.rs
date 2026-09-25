@@ -308,10 +308,13 @@ fn the_fixture_is_pcurve_complete_and_the_pcurve_pass_accepts_it() {
 /// **The fixture is a pcurve fixture, not a valid solid**, and this
 /// measures the difference so no row above is read as more than it is.
 /// The sheet's back is a plane through the six vertices that does not
-/// contain the two rim ARCS bounding it (the module docs say so), so
-/// the structural battery refuses the body — every finding is about
+/// contain the two rim ARCS bounding it (the module docs say so), and
+/// whose normal is set by hand without regard to its loop's traversal,
+/// so the structural battery refuses the body — every finding is about
 /// that planar face's geometry, and none of them is about a pcurve
-/// row. The pcurve pass and the structural battery ask different
+/// row. `LoopRoleInverted` is the hand-set normal: the rim arcs' axis
+/// lies IN the plane, so the loop's winding about the normal is its
+/// chord hexagon's, and that winds clockwise. The pcurve pass and the structural battery ask different
 /// questions of the same body and this suite asks only the first.
 #[test]
 fn the_fixture_is_not_a_structurally_valid_body() {
@@ -333,6 +336,7 @@ fn the_fixture_is_not_a_structurally_valid_body() {
     assert_eq!(
         kinds,
         vec![
+            "LoopRoleInverted".to_string(),
             "PlanarBoundaryResidual".to_string(),
             "ScaffoldAtRest".to_string(),
             "TransverseNotIntrinsic".to_string(),

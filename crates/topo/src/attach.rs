@@ -144,13 +144,12 @@ impl<T: Decide> Body<T> {
     /// know. Callers must keep the two encodings of orientation
     /// coherent — the bit and the loop winding — and the obligation is
     /// the CALLER'S, because at rest it is only partly checkable:
-    /// tier 3's check 6 falsifies a planar disagreement whose loop is
-    /// LINE-bounded, and passes over one whose loop carries a conic.
-    /// That skip is deliberate and banner-documented at the arm (an
-    /// arc's vertex chord is not the boundary), and it is a recorded
-    /// residual, so a planar face bounded by an arc can carry an
-    /// inverted bit through this door and certify. The test-only
-    /// hand-flip door [`Body::flipped_face_sense_for_tests`] is the
+    /// tier 3's check 6 falsifies a planar disagreement whose loop
+    /// rides `Line` and `Circle` carriers, and passes over one whose
+    /// loop rides an `Ellipse`, spiric or NURBS carrier (the residue
+    /// named at the arm's banner), so a planar face bounded so can
+    /// carry an inverted bit through this door and certify. The
+    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`] is the
     /// deliberate exception to the coherence rule; it is not the only
     /// way to break it.
     ///
