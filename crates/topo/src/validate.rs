@@ -9456,21 +9456,19 @@ mod tests {
         assert_ne!(contact, unboundable);
     }
 
-    /// **Every decline the census can raise ends in a recourse.**
+    /// **Every decline the census can raise ends in the repair that
+    /// fits its cause.**
     ///
-    /// This arm used to append one of its own to all of them, which
-    /// is what kept the gap invisible: eight `ChartRegionError` arms
-    /// named none, and the blanket tail stood in for them — while
-    /// naming the wrong repair for every arm it did not describe. The
-    /// tail is gone, so the carriers owe it, and this is the row that
-    /// says they pay.
+    /// This arm once appended one blanket tail to all of them, naming
+    /// the wrong repair for every cause it did not describe. The
+    /// repair is now chosen per cause by the classifier, and this row
+    /// holds three of them to theirs.
     ///
-    /// The one deliberate exception is stated rather than excluded:
-    /// [`ContactRefusal::NotCertifiable`] carries no recourse because
-    /// `contact.rs` ratified that it must not — a declaration cannot
-    /// move a configuration inside the certifiable set. That arm is
-    /// asserted to carry its `what` instead, which `contact.rs` calls
-    /// the only honest steering there is.
+    /// [`ContactRefusal::NotCertifiable`] gets no repair to make —
+    /// `contact.rs` ratified that the declare-or-move menu is a false
+    /// lead there, since a declaration cannot move a configuration into
+    /// the certifiable set — so the finding says plainly that there is
+    /// no way through yet, as the refusal standard asks of a dead end.
     #[test]
     fn no_census_decline_renders_without_a_repair_to_make() {
         let what = "a declared face's surface kind is outside the Rest ladder's \
@@ -9484,14 +9482,20 @@ mod tests {
             cause: CensusUnsupportedCause::ChartRegion(ChartRegionError::TouchingBoundary),
         }
         .to_string();
-        assert!(chart.contains("Move the boundaries"), "{chart}");
+        assert!(
+            chart.ends_with(
+                "Recourse: move the edges clearly apart or clearly across each other, or \
+                 lower the tolerance"
+            ),
+            "{chart}"
+        );
         let unboundable = ValidationError::CensusUnsupported {
             subject: CensusSubject::Entity(EntityId::Face(FaceKey::default())),
             cause: CensusUnsupportedCause::FaceUnboundable,
         }
         .to_string();
         assert!(
-            unboundable.contains("repair the face's loop"),
+            unboundable.ends_with("this is a kernel defect or a damaged file; report it"),
             "{unboundable}"
         );
         let contact = ValidationError::CensusUnsupported {
@@ -9499,7 +9503,10 @@ mod tests {
             cause: CensusUnsupportedCause::ContactLane(ContactRefusal::NotCertifiable { what }),
         }
         .to_string();
-        assert!(contact.contains(what), "{contact}");
+        assert!(
+            contact.ends_with("There is no way through yet"),
+            "{contact}"
+        );
     }
 
     /// S6 (two-tolerance, D4 ¶1 addendum): the census pair —
@@ -9558,113 +9565,50 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod review_census_display_keys {
-    use super::*;
-    use crate::entity::{EdgeKey, FaceKey, VertexKey};
-
-    /// **Every arena key a census payload carries must survive its
-    /// `Display`.** The keys stay `{:?}` because "the key IS the name a
-    /// caller resolves" — that is the whole justification for rendering
-    /// them at all, and nothing else in the tree checks it. The two
-    /// prose pins (`pncad-py`'s no-interpreter row and
-    /// `test_the_census_findings_arrive_as_prose`) assert the message
-    /// READS as prose and that it says the word "vertex"; both stay
-    /// green if a rewording drops the keys and leaves the sentence
-    /// grammatical. The `Debug` goldens in
-    /// `tests/mate4a_ef_bound_rung.rs` pin the ERROR's derived `Debug`,
-    /// which never calls these impls. So a payload that lost its
-    /// subject would land silently.
+    /// **A census payload's keys ride in its `Debug`, never in its
+    /// `Display`.** The `Display` is the sentence a person at the
+    /// viewer reads, where an arena key is developer detail (the
+    /// refusal standard); the typed payload — its `Debug`, and the
+    /// fields a caller resolves against — carries every key. Both
+    /// halves are held here, over every payload variant the samples
+    /// render, so a rewording that put a key back on screen reds, and
+    /// so does one that lost a key from the payload.
     ///
-    /// Multiplicity, not containment: the same-type pairs (`a`/`b`) are
-    /// built from ONE key, so a `Display` that dropped either half
-    /// would still CONTAIN it. Two occurrences are required.
+    /// Multiplicity, not containment, for the `Debug` half: the
+    /// same-type pairs (`a`/`b`) are built from ONE key, so a payload
+    /// that dropped either half would still contain it once.
     #[test]
-    fn every_census_payload_display_names_its_keys() {
-        let v = VertexKey::default();
-        let e = EdgeKey::default();
-        let fk = FaceKey::default();
-        let (vd, ed, fd) = (format!("{v:?}"), format!("{e:?}"), format!("{fk:?}"));
-
-        // (payload, the key rendering it must carry, how many times)
-        let contacts: Vec<(CensusContact, Vec<(&str, usize)>)> = vec![
-            (CensusContact::VertexVertex { a: v, b: v }, vec![(&vd, 2)]),
-            (
-                CensusContact::VertexOnFace {
-                    vertex: v,
-                    face: fk,
-                },
-                vec![(&vd, 1), (&fd, 1)],
-            ),
-            (
-                CensusContact::VertexOnEdge { vertex: v, edge: e },
-                vec![(&vd, 1), (&ed, 1)],
-            ),
-            (
-                CensusContact::EdgeFacePierce { edge: e, face: fk },
-                vec![(&ed, 1), (&fd, 1)],
-            ),
-            (CensusContact::EdgeEdgeCross { a: e, b: e }, vec![(&ed, 2)]),
-            (
-                CensusContact::EdgeEdgeOverlap { a: e, b: e },
-                vec![(&ed, 2)],
-            ),
-            (
-                CensusContact::EdgeFaceOverlap { edge: e, face: fk },
-                vec![(&ed, 1), (&fd, 1)],
-            ),
-        ];
-        for (contact, wanted) in &contacts {
-            let msg = contact.to_string();
-            for (key, times) in wanted {
-                assert_eq!(
-                    msg.matches(key).count(),
-                    *times,
-                    "`{msg}` must name {key} {times}x — the key is what a \
-                     caller resolves back to an entity, so a rewording \
-                     that drops it reads as prose and says nothing"
-                );
+    fn census_payload_keys_ride_in_debug_and_not_on_screen() {
+        let samples = crate::test_support_samples::validation_error_samples();
+        let mut checked = 0;
+        for (label, e) in &samples {
+            let keys_in_debug = format!("{e:?}").matches("Key(").count();
+            match e {
+                super::ValidationError::UndeclaredContact { contact, .. } => {
+                    assert!(!contact.to_string().contains("Key("), "{label}: {contact}");
+                    // Every contact names two entities.
+                    assert!(keys_in_debug >= 2, "{label}: {e:?}");
+                    checked += 1;
+                }
+                super::ValidationError::StaleContactDeclaration { declaration } => {
+                    assert!(
+                        !declaration.to_string().contains("Key("),
+                        "{label}: {declaration}"
+                    );
+                    let want = match declaration {
+                        super::StaleDeclaration::CurveLocus { .. } => 3,
+                        _ => 2,
+                    };
+                    assert_eq!(keys_in_debug, want, "{label}: {e:?}");
+                    checked += 1;
+                }
+                _ => {}
             }
-            assert!(!msg.contains(" { "), "no struct braces: {msg}");
         }
-
-        let stale: Vec<(StaleDeclaration, Vec<(&str, usize)>)> = vec![
-            (
-                StaleDeclaration::VertexVertex { a: v, b: v },
-                vec![(&vd, 2)],
-            ),
-            (
-                StaleDeclaration::VertexOnFace {
-                    vertex: v,
-                    face: fk,
-                },
-                vec![(&vd, 1), (&fd, 1)],
-            ),
-            (
-                StaleDeclaration::CurveLocus {
-                    face_a: fk,
-                    face_b: fk,
-                    witness: e,
-                },
-                vec![(&fd, 2), (&ed, 1)],
-            ),
-            (
-                StaleDeclaration::Patch {
-                    face_a: fk,
-                    face_b: fk,
-                },
-                vec![(&fd, 2)],
-            ),
-        ];
-        for (decl, wanted) in &stale {
-            let msg = decl.to_string();
-            for (key, times) in wanted {
-                assert_eq!(
-                    msg.matches(key).count(),
-                    *times,
-                    "`{msg}` must name {key} {times}x"
-                );
-            }
-            assert!(!msg.contains(" { "), "no struct braces: {msg}");
-        }
+        assert_eq!(
+            checked, 12,
+            "every CensusContact and StaleDeclaration sample"
+        );
     }
 }
 

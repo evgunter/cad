@@ -398,7 +398,10 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     assert_eq!(placements.len(), 2, "{errors:?}");
     for p in placements {
         let what = undecidable_what(p).expect("the typed refusal");
-        assert!(what.contains("escalated in band"), "{what}");
+        assert!(
+            what.contains("too close to the other's boundary to place at this tolerance"),
+            "{what}"
+        );
     }
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
@@ -519,7 +522,7 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         assert_eq!(placements.len(), 1, "{name}: {errors:?}");
         let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("crossing at a lower-dimensional feature"),
+            what.contains("passes through a face of the other where they touch"),
             "{name}: {what}"
         );
         assert!(
@@ -660,7 +663,8 @@ fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     assert!(
         matches!(
             placement[0],
-            ValidationError::CensusUndecidable { what, .. } if what.contains("unclaimable")
+            ValidationError::CensusUndecidable { what, .. }
+                if what.contains("where that part ends is unknown")
         ),
         "and it names why the extent is unclaimable: {placement:?}"
     );

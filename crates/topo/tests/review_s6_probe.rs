@@ -118,9 +118,13 @@ fn probe_census_pair_e2e() {
                     saw_escalated = true;
                     eprintln!("[probe] census escalated (delta={delta}):\n  {msg}\n");
                     assert_unified(&msg, recourse_for(&e));
+                    // The margin is developer detail: it survives in the
+                    // payload, and the sentence says what it means.
+                    assert!(msg.contains("too close to call at this tolerance"), "{msg}");
                     assert!(
-                        msg.contains("ambiguity band") || msg.contains("cannot be classified"),
-                        "margin payload must survive: {msg}"
+                        format!("{e:?}").contains("Value(")
+                            || format!("{e:?}").contains("Enclosure"),
+                        "margin payload must survive in Debug: {e:?}"
                     );
                 }
                 other => panic!("unexpected error class: {other:?}"),
