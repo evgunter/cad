@@ -85,3 +85,35 @@ CURVED-TORUS spec's own next door, and its stated honesty condition (torus
 arms in the crossing layer) lands in the same PR. The measurement lane
 thought it wanted a ruling. If the review finds the `class_of` ordering
 premise shaky, it goes to Ev.
+
+## 2026-09-25 — the full-revolve fork goes to Ev
+
+Designer pair on `full-revolve-emits-split-planar-walls`, blinded, with the
+mapping on `analysis/design-fork/full-revolve-split-planar-walls`. First
+reports, recorded before any reconciliation:
+
+- **A**: the revolve runs the structural merge as its own final stage; F7's
+  sweeps clause is widened by one clause; the merged planar wall is plain
+  `Band(s)`; π revolve a SEPARATE question (lean: recognise a half turn like
+  `Full`, or park). Seat likely. Did not reject the framing. Changes ratified
+  text (F7, pole-valence bullet, N1 poles, `RoleSeg::BandPi`).
+- **B**: the same seat; F7 rewritten as the general rule; `Band(s)` (unsure,
+  Ev's call); π answered NOW (B1: decide θ vs π at the band and mint the end
+  cap Shared; B2: a declared `Half`). Did not reject the framing. Changes
+  ratified text.
+
+They agree on the final state for the main question and split only on F7's
+wording and on the π timing, so no reconciliation round was run. The split
+is stated for Ev. Put to Ev as an `[ev]` PR (`germ/ev-full-revolve-maximal-walls`,
+stacked on the claim PR). The design-fork log row waits for
+`docs/DESIGN-FORK-LOG.md` (PR 3247).
+
+Orchestrator-side actions from the reports:
+- ONE final-stage merge seat for the continuation and the band twins.
+  A note is left on BAND's log (below, announced seam).
+- Before implementing: measure the merge on a full-revolve corpus (pole
+  disc, off-axis annulus, joint disc), and check the lamina (off-axis)
+  plane annulus, which keeps an interior seam edge (two canonical forms for
+  one annulus).
+- The `UndeclaredCoincidence` diag's `margin: Invalid` rides
+  `germ/torus-doors` as a drive-by (already in that brief).
