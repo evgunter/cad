@@ -2907,7 +2907,12 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
 /// it, a `vertex_on_edge` contact puts a ring vertex on the interior
 /// of an outer edge, and an `edge_along_edge` contact shares a
 /// positive-length arc — the two loops run together rather than
-/// touching, and no single vertex move separates them.
+/// touching, and no single vertex move separates them. The two point
+/// words name a meeting no vertex carries: `edge_edge_point` is a ring
+/// edge crossing or touching an outer edge (or an outer vertex on a
+/// ring edge's interior), and `circle_circle` is a whole-circle ring
+/// crossing or touching a whole-circle outer loop — the circle itself
+/// has to move or shrink.
 ///
 /// The words are the census vocabulary's where the shape is the same
 /// one ([`census_contact_tag`]), because a caller reading two contact
@@ -2918,6 +2923,8 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
         RingContact::Vertex { .. } => "vertex_vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge_along_edge",
+        RingContact::EdgesMeet { .. } => "edge_edge_point",
+        RingContact::Circles { .. } => "circle_circle",
     }
 }
 

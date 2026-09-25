@@ -5128,7 +5128,13 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "ring_contact_tag",
-        values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {

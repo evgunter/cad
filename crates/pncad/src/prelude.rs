@@ -486,7 +486,8 @@ pub use topo::{
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
-//   vertex-on-edge, or edge-along-edge.
+//   vertex-on-edge, edge-along-edge, two edges meeting at a point, or
+//   two whole circles crossing or touching.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
 //   four because both of its payload types are already on this list.

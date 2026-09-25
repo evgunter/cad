@@ -1162,8 +1162,9 @@ pub enum ValidationError {
         finding: crate::pcurves::PcurveMintError,
     },
     /// **Tier 3, check 9.** A face's RING meets its own OUTER loop: it
-    /// shares a vertex position with it, or one of its edges runs
-    /// along one of the outer loop's. A ring states "the region this
+    /// shares a vertex position with it, one of its edges runs along
+    /// one of the outer loop's, or the two cross or touch at a point
+    /// ([`RingContact`] names which). A ring states "the region this
     /// face trims has a hole strictly inside it"; a ring that touches
     /// the outer boundary states no such region, and every consumer
     /// that reads the trim — the CDT above all — is entitled to refuse
@@ -2776,7 +2777,10 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   nesting arm's own residue, enumerated at check 9's banner and
 ///   waiting on the arc-aware walk
 ///   (`work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`),
-///   sits inside that same deferral —
+///   sits inside that same deferral, and so does check 9's CONTACT
+///   half off a plane and on an `Ellipse`, `Spiric` or NURBS edge,
+///   where a ring crossing its outer loop at a point no vertex carries
+///   is not seen —
 ///   plus the curved arm's documented residuals (the
 ///   rimless sphere band; NURBS faces; the quadrature-owned
 ///   conic-trimmed walls, whose boundary parse refuses typed and is
@@ -4857,10 +4861,10 @@ pub(crate) fn tier3_local_checks_marked<
     // Tier 3, check 9: ring-vs-outer disjointness, and then NESTING.
     // A ring is the statement "this face's region has a hole strictly
     // inside it", and that statement has two halves. A ring that
-    // stands on the outer loop — sharing a vertex position with it, or
-    // running along one of its edges — is not a trim of any region;
-    // that is the DISJOINTNESS half, the three arms of
-    // `ring_outer_contact`. A ring that is cleanly disjoint from the
+    // stands on the outer loop — sharing a vertex position with it,
+    // running along one of its edges, or crossing or touching it at a
+    // point — is not a trim of any region; that is the DISJOINTNESS
+    // half, the five arms of `ring_outer_contact`. A ring that is cleanly disjoint from the
     // outer loop but lies OUTSIDE it is not a hole either; that is the
     // NESTING half, `ring_nesting`, and it runs on the pairs the
     // contact arms cleared. Nothing else in this battery sees either
@@ -4877,27 +4881,31 @@ pub(crate) fn tier3_local_checks_marked<
     // the volume check IS gated on this one at `validate_geometric`,
     // for the reason check 8 above states in full.
     //
-    // **What the three arms match, and WHAT THEY DO NOT** (D4 honesty
+    // **What the five arms match, and WHAT THEY DO NOT** (D4 honesty
     // — an unstated blind spot is an unverified claim). Matched:
     // vertex-on-vertex (kind-agnostic, positions only);
-    // vertex-on-edge-interior; and edge-along-edge, on `Line` and
-    // `Circle` carriers. Every margin escalates typed rather than
-    // reading as "disjoint".
+    // vertex-on-edge-interior; edge-along-edge, on `Line` and `Circle`
+    // carriers; and, on a PLANAR face, the two loops meeting at a
+    // point no vertex arm names — a transversal crossing, a one-point
+    // tangency (circle-circle internal or external, line-circle), or
+    // an outer vertex on a ring edge's interior. That last shape has
+    // two arms: two WHOLE circles (arm 4, both loops in
+    // `loop_shape`'s `Disc` class) are decided exactly by the centre
+    // distance against the radii's sum and difference, with no trim to
+    // test; every other pair of `Line` and `Circle` edges (arm 5) has
+    // its carriers' meeting points computed in closed form and each
+    // tested against both edges' trims — a line's span, an arc's
+    // window by `boolean::contain::point_on_arc`. Every margin
+    // escalates typed rather than reading as "disjoint".
     //
     // NOT matched, enumerated rather than gestured at:
     //
-    // - **one-point TANGENCY between two edges at a point that is a
-    //   vertex of neither** — circle-circle internal or external
-    //   tangency, line-circle tangency. Three-sample locus agreement
-    //   cannot see a single shared point, and the closed forms that
-    //   could (|c1-c2| vs |r1 +/- r2|) need an arc-containment test
-    //   this predicate does not have.
-    // - **a transversal CROSSING** of a ring edge and an outer edge at
-    //   a non-vertex point, for the same reason. These two are one
-    //   row (`work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`).
-    // - **`Ellipse` and NURBS carriers** in arms 2 and 3: `locus_gap`
-    //   has no inversion for them, so a contact carried by one is
-    //   skipped. Arm 1 still covers their endpoints.
+    // - **`Ellipse`, `Spiric` and NURBS carriers** in arms 2, 3 and
+    //   5: `locus_gap` has no inversion for them and arm 5 no closed
+    //   meeting point, so a contact carried by one is skipped. Arm 1
+    //   still covers their endpoints.
+    // - **A face on a non-planar surface** in arms 4 and 5: there is
+    //   no plane to meet in. Arms 1-3 still run there.
     //
     // The residue is a floor, not a ceiling: what it costs is that a
     // body carrying one of those shapes validates. The shapes this
@@ -4921,9 +4929,10 @@ pub(crate) fn tier3_local_checks_marked<
     // The queries are the ring's VERTICES, exact whatever curve joins
     // them, so an arc-bearing RING is decided as readily as a
     // polygonal one — on the PREMISE that the two loops do not cross,
-    // which is assumed rather than checked; `ring_nesting`'s doc is
-    // the premise's one home, and says why a circular ring gets no
-    // second instrument. The queries lie in the face's plane
+    // which the contact arms CHECK wherever every edge of both loops
+    // is a `Line` or a `Circle`, and which is assumed on the carriers
+    // they are silent on; `ring_nesting`'s doc is the premise's one
+    // home, and says why a circular ring gets no second instrument. The queries lie in the face's plane
     // because check 5 above certifies that they do
     // (`planar_boundary_residual`), which is both instruments' stated
     // precondition.
@@ -4973,14 +4982,14 @@ pub(crate) fn tier3_local_checks_marked<
     //
     // One shape inside the gate the arm still does not catch,
     // enumerated rather than gestured at: **a ring that CROSSES its
-    // outer loop**, part inside and part out — the premise above,
-    // failing. A vertex definitely inside settles the ring, so a
-    // crossing whose first decided vertex is the inside one passes —
-    // the trade that keeps one escalating vertex from refusing a ring
-    // another vertex has already placed inside — and so does a
-    // crossing ARC whose every vertex is inside (`ring_nesting`'s
-    // doc). The crossing itself is the disjointness half's residue
-    // above.
+    // outer loop along an `Ellipse`, `Spiric` or NURBS edge**, part
+    // inside and part out — the premise above, failing where the
+    // contact arms cannot see it. A vertex definitely inside settles
+    // the ring, so such a crossing whose first decided vertex is the
+    // inside one passes — the trade that keeps one escalating vertex
+    // from refusing a ring another vertex has already placed inside.
+    // Every crossing between `Line` and `Circle` edges is the contact
+    // half's `RingMeetsOuter` before this arm runs.
     //
     // Order, and why it is that order: the nesting arm runs only on a
     // pair the contact arms cleared. A ring that MEETS its outer loop
@@ -5059,7 +5068,8 @@ pub(crate) enum RingOuterVerdict {
 }
 
 /// The first contact between `ring` and the outer loop `outer` of the
-/// same face, in the three shapes the arms below can decide.
+/// same face, in the five shapes the arms below can decide
+/// ([`RingContact`]).
 ///
 /// Shared with the shell verb, which runs it as a PRECONDITION of the
 /// rim glue so the refusal names the shape rather than arriving as a
@@ -5826,25 +5836,26 @@ enum RingNestingVerdict {
 /// the outer boundary is a connected curve in one component of the
 /// plane minus that boundary, so any one of its points places all of
 /// it — whatever curve joins its vertices, arcs and whole circles
-/// included. The premise is not checked by this arm and is not
-/// checked for this arm: the contact arms clear shared vertices and
-/// shared edges, not a transversal crossing at a point that is a
-/// vertex of neither (check 9's banner lists it in their residue);
-/// the tier-3′ census refuses an edge-edge crossing, but only between
-/// `Line` edges and only at [`validate_pseudomanifold`]'s door. So
-/// the premise is ASSUMED on every class.
+/// included. The premise is not checked BY this arm; it is checked
+/// FOR it, by the contact arms that run first: on a planar face whose
+/// two loops carry only `Line` and `Circle` edges, a crossing or a
+/// touching point is a `RingMeetsOuter` (arm 4 for two whole circles,
+/// arm 5 for every other edge pair), so this function never runs on
+/// a pair that crosses. The premise is ASSUMED only where a loop
+/// carries an `Ellipse`, `Spiric` or NURBS edge, which arm 5 has no
+/// meeting point for (check 9's banner lists it in the residue).
 ///
 /// **Why a `Disc`-class ring gets no second instrument** — the one
-/// home of this argument; check 9's banner, `docs/KERNEL-VERBS.md` and
-/// the crossing row point here. The shape the premise excludes — a
-/// ring arc bowing past the outer circle while every ring vertex sits
-/// inside — is a CROSSING, and the only case the two-circle closed
-/// form (centre distance plus ring radius against the outer radius)
-/// adds over the vertices is exactly that one. Reported here it would
-/// be a `RingOutsideOuter` with no vertex outside to name; its home is
-/// the contact half, as the loops MEETING
-/// (`work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`,
-/// which carries the closed form).
+/// home of this argument; check 9's banner and `docs/KERNEL-VERBS.md`
+/// point here. The shape the premise excludes — a ring arc bowing past
+/// the outer circle while every ring vertex sits inside — is a
+/// CROSSING, and the only case the two-circle closed form (centre
+/// distance plus ring radius against the outer radius) adds over the
+/// vertices is exactly that one. Reported here it would be a
+/// `RingOutsideOuter` with no vertex outside to name; its home is the
+/// contact half, as the loops MEETING — [`RingContact::Circles`] from
+/// arm 4 when both loops are whole circles, [`RingContact::EdgesMeet`]
+/// from arm 5 otherwise.
 ///
 /// **The off-boundary precondition** both instruments give a definite
 /// `In`/`Out` under — the query is not within the band of the outer
