@@ -219,6 +219,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
         Node::Profile(ProfileProgram {
             plane: cube_plane,
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -264,6 +265,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         Node::Profile(ProfileProgram {
             plane: ball_plane,
             loops: vec![half_disc()],
+            ids: Vec::new(),
         }),
         tol,
     );

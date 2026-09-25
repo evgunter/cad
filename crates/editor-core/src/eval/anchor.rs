@@ -203,6 +203,41 @@ impl ProfilePieces {
         Some(Self { edges, vertices })
     }
 
+    /// **Distinct stand-in pieces for a profile no document holds** —
+    /// a kernel profile a unit test sweeps directly: loop `l`'s segment
+    /// `k` is the leg of step `1000·l + k`. Only the distinctness of the
+    /// names is what such a test reads.
+    #[cfg(test)]
+    pub(crate) fn numbered(counts: &[usize]) -> Self {
+        let step = |l: usize, k: usize| StepId((1000 * l + k) as u64);
+        Self {
+            edges: counts
+                .iter()
+                .enumerate()
+                .map(|(l, &n)| {
+                    (0..n)
+                        .map(|k| ProfileEdgeRef::Piece {
+                            step: step(l, k),
+                            role: PieceRole::Leg,
+                        })
+                        .collect()
+                })
+                .collect(),
+            vertices: counts
+                .iter()
+                .enumerate()
+                .map(|(l, &n)| {
+                    (0..n)
+                        .map(|k| ProfileVertexRef::Piece {
+                            step: step(l, k),
+                            role: PieceRole::Leg,
+                        })
+                        .collect()
+                })
+                .collect(),
+        }
+    }
+
     /// The locator of canonical segment `k` of canonical loop `l`.
     #[must_use]
     pub fn edge(&self, l: usize, k: usize) -> Option<ProfileEdgeRef> {

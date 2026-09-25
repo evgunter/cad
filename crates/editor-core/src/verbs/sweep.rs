@@ -272,10 +272,11 @@ mod tests {
     fn each_reader_refuses_a_foreign_record() {
         let id = RecipeNodeId(1);
         let (ec, rc) = (extrude::<f64>(), revolve::<f64>());
-        let Err(e) = (ec.read)(id, VerbRecord::Blend(None), ec.foreign_record) else {
+        let pieces = crate::eval::ProfilePieces::default();
+        let Err(e) = (ec.read)(id, VerbRecord::Blend(None), &pieces, ec.foreign_record) else {
             panic!("the extrude's reader accepted a blend's record");
         };
-        let Err(r) = (rc.read)(id, VerbRecord::Blend(None), rc.foreign_record) else {
+        let Err(r) = (rc.read)(id, VerbRecord::Blend(None), &pieces, rc.foreign_record) else {
             panic!("the revolve's reader accepted a blend's record");
         };
         let (e, r) = (format!("{e}"), format!("{r}"));

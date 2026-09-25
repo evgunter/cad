@@ -760,7 +760,7 @@ fn spout_loft(
                 phase: ang(0.0),
             };
             let loops = vec![arcs(outer), arcs(outer * SPOUT_BORE)];
-            insert(doc, Node::Profile(ProfileProgram { plane, loops }), tol)
+            insert(doc, Node::Profile(ProfileProgram { plane, loops, ids: Vec::new() }), tol)
         })
         .collect();
     insert(
@@ -836,6 +836,7 @@ fn revolved(
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![loop_],
+            ids: Vec::new(),
         }),
         tol,
     );

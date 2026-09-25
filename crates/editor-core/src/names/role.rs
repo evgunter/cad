@@ -1846,130 +1846,142 @@ pub(crate) use never_in_a_boolean_table;
 #[cfg(test)]
 mod tests {
     use super::{
-        EntityKind, MeridianEnd, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName,
-        band, band_pi, band_rim, carried, meridian_vertex,
+        EntityKind, MeridianEnd, NameRef, PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle,
+        StableName, band, band_pi, band_rim, carried, meridian_vertex,
     };
-    use crate::node::RecipeNodeId;
+    use crate::node::{RecipeNodeId, StepId};
 
     /// The node every pin below mints against.
     const N: RecipeNodeId = RecipeNodeId(7);
 
+    /// The two locator forms every pin below is written at: an
+    /// authored piece and a kernel-built section's piece.
+    fn edges() -> [ProfileEdgeRef; 2] {
+        [
+            ProfileEdgeRef::Piece {
+                step: StepId(3),
+                role: PieceRole::RunOut,
+            },
+            ProfileEdgeRef::Section {
+                circle: SectionCircle::Bore,
+                role: PieceRole::Piece(1),
+            },
+        ]
+    }
+
     /// A builder mints EXACTLY the name a caller would spell by hand.
-    /// Five pins, one per builder, each written the long way — the
-    /// spelling they replace at their consumers — so a builder cannot
-    /// drift from the vocabulary without this file disagreeing with
-    /// itself. The four that take a loop are pinned on a HOLE's loop
-    /// (1) and again on the outer loop (0), because a builder that
-    /// dropped its loop argument and kept the outer loop would satisfy
-    /// a pin written only at 0.
+    /// Four pins, one per builder, each written the long way — the
+    /// spelling they replace at their consumers — at both locator
+    /// forms, so a builder cannot drift from the vocabulary without
+    /// this file disagreeing with itself.
     #[test]
     fn band_mints_the_hand_spelled_face() {
-        assert_eq!(
-            band(N, 1, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::Band(ProfileEdgeRef {
-                    loop_index: 1,
-                    segment: 3,
-                })],
-            }
-        );
-        assert_eq!(
-            band(N, 0, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::Band(ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band(N, e),
+                StableName {
+                    kind: EntityKind::Face,
+                    node: N,
+                    path: vec![RoleSeg::Band(e)],
+                }
+            );
+        }
     }
 
     #[test]
     fn band_pi_mints_the_hand_spelled_face() {
-        assert_eq!(
-            band_pi(N, 1, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-                    loop_index: 1,
-                    segment: 3,
-                })],
-            }
-        );
-        assert_eq!(
-            band_pi(N, 0, 3),
-            StableName {
-                kind: EntityKind::Face,
-                node: N,
-                path: vec![RoleSeg::BandPi(ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band_pi(N, e),
+                StableName {
+                    kind: EntityKind::Face,
+                    node: N,
+                    path: vec![RoleSeg::BandPi(e)],
+                }
+            );
+        }
     }
 
     #[test]
     fn band_rim_mints_the_hand_spelled_edge() {
-        assert_eq!(
-            band_rim(N, 1, 2),
-            StableName {
-                kind: EntityKind::Edge,
-                node: N,
-                path: vec![RoleSeg::BandRim(ProfileVertexRef {
-                    loop_index: 1,
-                    vertex: 2,
-                })],
-            }
-        );
-        assert_eq!(
-            band_rim(N, 0, 2),
-            StableName {
-                kind: EntityKind::Edge,
-                node: N,
-                path: vec![RoleSeg::BandRim(ProfileVertexRef {
-                    loop_index: 0,
-                    vertex: 2,
-                })],
-            }
-        );
+        for e in edges() {
+            assert_eq!(
+                band_rim(N, e.start()),
+                StableName {
+                    kind: EntityKind::Edge,
+                    node: N,
+                    path: vec![RoleSeg::BandRim(e.start())],
+                }
+            );
+        }
     }
 
     #[test]
     fn meridian_vertex_mints_the_hand_spelled_vertex() {
+        for e in edges() {
+            assert_eq!(
+                meridian_vertex(MeridianEnd::Seam, N, e.start()),
+                StableName {
+                    kind: EntityKind::Vertex,
+                    node: N,
+                    path: vec![RoleSeg::MeridianVertex(MeridianEnd::Seam, e.start())],
+                }
+            );
+        }
+    }
+
+    /// **A piece's vertex is spelled as the piece is**: the vertex
+    /// locator a piece starts at carries the same form, step or circle,
+    /// and role — and its wire text is the edge's, which is what lets
+    /// one piece text name both.
+    #[test]
+    fn a_pieces_start_is_spelled_as_the_piece() {
+        for e in edges() {
+            let v = e.start();
+            assert_eq!(v.step(), e.step());
+            assert_eq!(
+                serde_json::to_string(&v).unwrap(),
+                serde_json::to_string(&e).unwrap()
+            );
+        }
         assert_eq!(
-            meridian_vertex(MeridianEnd::Seam, N, 1, 2),
-            StableName {
-                kind: EntityKind::Vertex,
-                node: N,
-                path: vec![RoleSeg::MeridianVertex(
-                    MeridianEnd::Seam,
-                    ProfileVertexRef {
-                        loop_index: 1,
-                        vertex: 2,
-                    },
-                )],
-            }
+            serde_json::to_string(&edges()[0]).unwrap(),
+            r#"{"Piece":{"step":3,"role":"RunOut"}}"#
         );
         assert_eq!(
-            meridian_vertex(MeridianEnd::Seam, N, 0, 2),
-            StableName {
-                kind: EntityKind::Vertex,
-                node: N,
-                path: vec![RoleSeg::MeridianVertex(
-                    MeridianEnd::Seam,
-                    ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: 2,
-                    },
-                )],
-            }
+            serde_json::to_string(&edges()[1]).unwrap(),
+            r#"{"Section":{"circle":"Bore","role":{"Piece":1}}}"#
         );
+    }
+
+    /// **A name's piece steps are its own path's and every carried
+    /// name's of this document, and never an `InPart` argument's** —
+    /// the other document's ids are not this one's.
+    #[test]
+    fn piece_steps_read_the_names_own_document_only() {
+        let wall = |node: u64, step: u64| StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: StepId(step),
+                role: PieceRole::Leg,
+            })],
+        };
+        let carried_wall = carried(RecipeNodeId(9), wall(1, 4));
+        assert_eq!(
+            carried_wall.piece_steps().into_iter().collect::<Vec<_>>(),
+            vec![StepId(4)]
+        );
+        let foreign = StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(9),
+            path: vec![RoleSeg::InPart {
+                of: NameRef::new(wall(1, 5)),
+            }],
+        };
+        assert!(foreign.piece_steps().is_empty());
+        let section = band(N, edges()[1]);
+        assert!(section.piece_steps().is_empty(), "a section has no step");
     }
 
     /// `carried` takes the INNER name's kind, which is the one field
@@ -1977,7 +1989,7 @@ mod tests {
     /// wraps an edge and asserts the wrapper is an edge.
     #[test]
     fn carried_mints_the_hand_spelled_wrapper_and_keeps_the_kind() {
-        let inner = band_rim(N, 0, 2);
+        let inner = band_rim(N, edges()[0].start());
         let outer = RecipeNodeId(9);
         assert_eq!(
             carried(outer, inner.clone()),

@@ -2177,7 +2177,7 @@ impl PartResolver for WithPart {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod remap_keeps_the_kind {
-    use super::{NodeMap, remap_face, remap_name};
+    use super::{NodeMap, StepMap, Unmapped, remap_face, remap_name};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -2216,7 +2216,8 @@ mod remap_keeps_the_kind {
             EntityKind::Edge,
             EntityKind::Vertex,
         ] {
-            let out = remap_name(&name(kind), &map()).expect("the map covers both ids");
+            let out =
+                remap_name(&name(kind), &map(), &StepMap::new()).expect("the map covers both ids");
             assert_eq!(out.kind, kind, "remap_name must carry the kind through");
             assert_eq!(out.node, RecipeNodeId(10), "and renumber the mint");
             assert_eq!(
@@ -2232,12 +2233,14 @@ mod remap_keeps_the_kind {
     #[test]
     fn a_face_remap_agrees_with_it_on_a_covered_map() {
         let face = FaceName::new(name(EntityKind::Face)).expect("a face");
-        let out = remap_face(&face, &map()).unwrap_or_else(|_| panic!("the map covers both ids"));
+        let out = remap_face(&face, &map(), &StepMap::new())
+            .unwrap_or_else(|_| panic!("the map covers both ids"));
         assert_eq!(out.node, RecipeNodeId(10));
         assert_eq!(out.kind, EntityKind::Face);
         assert_eq!(
             *out,
-            remap_name(&name(EntityKind::Face), &map()).expect("the map covers both ids"),
+            remap_name(&name(EntityKind::Face), &map(), &StepMap::new())
+                .expect("the map covers both ids"),
             "the two rewrites are one rewrite"
         );
     }
@@ -2248,10 +2251,10 @@ mod remap_keeps_the_kind {
     fn its_one_miss_is_the_id_the_map_lacks() {
         let face = FaceName::new(name(EntityKind::Face)).expect("a face");
         let empty = NodeMap::new();
-        match remap_face(&face, &empty) {
+        match remap_face(&face, &empty, &StepMap::new()) {
             Err(missing) => assert_eq!(
                 missing,
-                RecipeNodeId(0),
+                Unmapped::Node(RecipeNodeId(0)),
                 "an empty map lacks the mint first, so that is the id reported"
             ),
             Ok(out) => panic!("an empty map covers no id, got {out}"),
@@ -2270,7 +2273,7 @@ mod remap_keeps_the_kind {
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod a_miss_two_segments_down_is_not_the_outer_name {
-    use super::{NodeMap, RemapMiss, remap_face, remap_name, remap_node};
+    use super::{NodeMap, RemapMiss, StepMap, Unmapped, remap_face, remap_name, remap_node};
     use crate::names::{FaceName, NameRef, RoleSeg, StableName};
     use crate::node::{Node, RecipeNodeId, SitedRef};
     use crate::{CapEnd, EntityKind};
@@ -2307,10 +2310,11 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn the_rewrite_reports_the_nested_node() {
         let name = nested(EntityKind::Edge);
-        let missing = remap_name(&name, &map()).expect_err("INNER is unmapped");
-        assert_eq!(missing, INNER);
+        let missing = remap_name(&name, &map(), &StepMap::new()).expect_err("INNER is unmapped");
+        assert_eq!(missing, Unmapped::Node(INNER));
         assert_ne!(
-            missing, name.node,
+            missing,
+            Unmapped::Node(name.node),
             "the node that failed is not the name's own mint"
         );
     }
@@ -2320,9 +2324,9 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
     #[test]
     fn the_face_rewrite_reports_it_too() {
         let face = FaceName::new(nested(EntityKind::Face)).expect("a face");
-        let missing = remap_face(&face, &map()).expect_err("INNER is unmapped");
-        assert_eq!(missing, INNER);
-        assert_ne!(missing, face.node);
+        let missing = remap_face(&face, &map(), &StepMap::new()).expect_err("INNER is unmapped");
+        assert_eq!(missing, Unmapped::Node(INNER));
+        assert_ne!(missing, Unmapped::Node(face.node));
     }
 
     /// The payload rewrite pairs them: the name it could not rewrite
@@ -2335,15 +2339,20 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
             SitedRef::new(OUTER, name.clone()),
             SitedRef::at_mint(name.clone()),
         )]);
-        match remap_node(&node, &map()) {
+        match remap_node(&node, &map(), &StepMap::new()) {
             Err(RemapMiss::Name {
                 name: reported,
                 missing,
             }) => {
                 assert_eq!(*reported, name, "the refusal names the outer name");
-                assert_eq!(missing, INNER, "and carries the node that actually failed");
+                assert_eq!(
+                    missing,
+                    Unmapped::Node(INNER),
+                    "and carries the node that actually failed"
+                );
                 assert_ne!(
-                    missing, reported.node,
+                    missing,
+                    Unmapped::Node(reported.node),
                     "which the outer name does not say: they are different nodes"
                 );
             }
@@ -2364,7 +2373,7 @@ mod a_miss_two_segments_down_is_not_the_outer_name {
 #[cfg(test)]
 #[allow(clippy::expect_used)]
 mod a_remap_that_reorders_ids_republishes_the_canonical_form {
-    use super::{NodeMap, remap_name};
+    use super::{NodeMap, StepMap, remap_name};
     use crate::names::{NameRef, Qualifier, RoleSeg, SideVerdict, StableName};
     use crate::node::RecipeNodeId;
     use crate::{CapEnd, EntityKind};
@@ -2428,7 +2437,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
 
     #[test]
     fn a_union_seam_edge_swaps_its_sides_and_reverses_its_rank() {
-        let out = remap_name(&union_edge(9, (1, 2), 0), &map()).expect("covered");
+        let out = remap_name(&union_edge(9, (1, 2), 0), &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out,
             union_edge(20, (31, 30), 2),
@@ -2448,7 +2457,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             name(EntityKind::Vertex, u, vec![seam(x, y), rank(r, 2)])
         };
         let was = vertex(9, union_edge(9, (1, 2), 0), 3, 0);
-        let out = remap_name(&was, &map()).expect("covered");
+        let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
         assert_eq!(out, vertex(20, union_edge(20, (31, 30), 2), 32, 1));
     }
 
@@ -2467,7 +2476,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
                 ])),
             ],
         );
-        let out = remap_name(&was, &map()).expect("covered");
+        let out = remap_name(&was, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![
@@ -2483,7 +2492,7 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![seam(face(1), face(3)), seam(face(2), face(3))],
         );
-        let out = remap_name(&junction, &map()).expect("covered");
+        let out = remap_name(&junction, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![seam(face(30), face(32)), seam(face(31), face(32))],
@@ -2494,11 +2503,63 @@ mod a_remap_that_reorders_ids_republishes_the_canonical_form {
             5,
             vec![seam(face(1), face(2)), rank(0, 3)],
         );
-        let out = remap_name(&sided, &map()).expect("covered");
+        let out = remap_name(&sided, &map(), &StepMap::new()).expect("covered");
         assert_eq!(
             out.path,
             vec![seam(face(31), face(30)), rank(0, 3)],
             "a pair boolean's seam is sided: no swap, no reversal"
+        );
+    }
+}
+
+/// **A profile piece's step crosses a refactoring through the step
+/// map**, the way a node id crosses through the node map: the other
+/// document re-mints every step it inserts, and a name spelling a step
+/// no carried profile holds — a dropped step's stranded name — misses
+/// on that step, typed.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod remap_moves_the_step {
+    use super::{NodeMap, StepMap, Unmapped, remap_name};
+    use crate::EntityKind;
+    use crate::names::{PieceRole, ProfileEdgeRef, RoleSeg, SectionCircle, StableName};
+    use crate::node::{RecipeNodeId, StepId};
+
+    fn wall(node: u64, e: ProfileEdgeRef) -> StableName {
+        StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(node),
+            path: vec![RoleSeg::Lateral(e)],
+        }
+    }
+
+    fn piece(step: u64) -> ProfileEdgeRef {
+        ProfileEdgeRef::Piece {
+            step: StepId(step),
+            role: PieceRole::Leg,
+        }
+    }
+
+    #[test]
+    fn a_piece_crosses_on_the_step_map_and_a_section_crosses_as_it_is() {
+        let nodes: NodeMap = [(RecipeNodeId(2), RecipeNodeId(0))].into_iter().collect();
+        let steps: StepMap = [(StepId(7), StepId(1))].into_iter().collect();
+        assert_eq!(
+            remap_name(&wall(2, piece(7)), &nodes, &steps).expect("covered"),
+            wall(0, piece(1))
+        );
+        let section = ProfileEdgeRef::Section {
+            circle: SectionCircle::Outer,
+            role: PieceRole::Piece(0),
+        };
+        assert_eq!(
+            remap_name(&wall(2, section), &nodes, &steps).expect("covered"),
+            wall(0, section)
+        );
+        assert_eq!(
+            remap_name(&wall(2, piece(8)), &nodes, &steps),
+            Err(Unmapped::Step(StepId(8))),
+            "a step no carried profile holds misses on that step"
         );
     }
 }

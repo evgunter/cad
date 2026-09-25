@@ -1600,6 +1600,8 @@ mod tests {
         const SNAPSHOT_ERROR: SnapshotError = [
             OrderMismatch,
             IdBeyondCounter,
+            StepIds,
+            NameStepBeyondCounter,
             DanglingInput,
             ForwardInput,
             DeclareInput,
@@ -1692,6 +1694,21 @@ mod tests {
             SnapshotError::IdBeyondCounter {
                 id: node,
                 next_id: 4,
+            },
+            SnapshotError::StepIds {
+                node,
+                fault: crate::program::StepIdFault::Repeated {
+                    step: crate::node::StepId(2),
+                },
+            },
+            SnapshotError::NameStepBeyondCounter {
+                name: Box::new(crate::names::StableName {
+                    kind: crate::names::EntityKind::Face,
+                    node,
+                    path: Vec::new(),
+                }),
+                step: crate::node::StepId(9),
+                next_step: 4,
             },
             SnapshotError::DanglingInput {
                 node,

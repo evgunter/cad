@@ -134,6 +134,7 @@ fn sharp_lid(tol: Tol) -> (Doc<ProfileProgram>, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lid_meridian()],
+            ids: Vec::new(),
         }),
         tol,
     );
