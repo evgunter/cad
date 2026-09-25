@@ -37,6 +37,7 @@ pub fn document() -> CorpusDoc {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![disc],
+        ids: Vec::new(),
     }));
     let cylinder = r.insert(Node::Extrude {
         profile,

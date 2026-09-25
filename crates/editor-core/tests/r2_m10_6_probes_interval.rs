@@ -155,6 +155,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let solid = r.insert(Node::Extrude {
         profile,
@@ -179,8 +180,14 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(1))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(3))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 1)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 3)),
+                ),
             ],
         )
         .expect("both indices in range"),
@@ -284,6 +291,7 @@ fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
             }],
+            ids: Vec::new(),
         }));
         r_.insert(Node::Extrude {
             profile,
@@ -392,6 +400,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             ])
             .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let c = r.insert(Node::Extrude {
         profile: c_profile,
@@ -403,6 +412,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             LoopProgram::polygon([(2.2, 0.1), (2.8, 0.1), (2.8, 0.7), (2.2, 0.7)])
                 .expect("finite corners"),
         ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: block_profile,
@@ -765,6 +775,7 @@ fn guide(bound: f64) -> Guide {
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
             ],
+            ids: Vec::new(),
         }))
     };
     let rail_profile = square(&mut r);
@@ -791,12 +802,14 @@ fn guide(bound: f64) -> Guide {
         ],
         rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
     });
-    let refs = || {
-        vec![
-            SitedRef::new(rail, fixture::fname(rail, fixture::wall(1))),
-            SitedRef::new(placed, fixture::fname(tongue, fixture::wall(3))),
-        ]
-    };
+    let pair = vec![
+        SitedRef::new(rail, fixture::fname(rail, fixture::wall(&r.doc, rail, 1))),
+        SitedRef::new(
+            placed,
+            fixture::fname(tongue, fixture::wall(&r.doc, tongue, 3)),
+        ),
+    ];
+    let refs = || pair.clone();
     let by_distance = r.insert(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),

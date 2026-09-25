@@ -35,7 +35,7 @@ use geom_core::k_stats::Verdict;
 // bar's walls.
 // ---------------------------------------------------------------
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -81,14 +81,16 @@ struct Slot {
 /// The bar's wall over profile segment `segment` (`block`'s profile
 /// runs counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is
 /// x = x1, 3 is x = x0).
-fn wall(bar: RecipeNodeId, segment: u32) -> StableName {
+fn wall(doc: &ProfileDoc, bar: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Face,
         node: bar,
-        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        })],
+        path: vec![RoleSeg::Lateral(crate::fixture::piece(
+            doc,
+            bar,
+            0,
+            segment as usize,
+        ))],
     }
 }
 
@@ -450,16 +452,18 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
     };
     assert_eq!(cutter.kind, EntityKind::Vertex, "{cutter:?}");
     assert_ne!(cutter.node, name.node, "{cutter:?}");
-    assert_eq!(
-        cutter.path,
-        [RoleSeg::CapVertex(
-            editor_core::CapEnd::End,
-            editor_core::ProfileVertexRef {
-                loop_index: 0,
-                vertex: 0,
-            },
-        )],
-        "{cutter:?}"
+    assert!(
+        matches!(
+            cutter.path.as_slice(),
+            [RoleSeg::CapVertex(
+                editor_core::CapEnd::End,
+                editor_core::ProfileVertexRef::Piece {
+                    role: editor_core::PieceRole::Leg,
+                    ..
+                },
+            )]
+        ),
+        "an end cap vertex where a leg starts: {cutter:?}"
     );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
@@ -797,7 +801,7 @@ fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor()
                 // crosses it too.
                 cutters: GroupCutters::Read {
                     gone: vec![],
-                    new: vec![wall(s.bar, 0)],
+                    new: vec![wall(&s.doc, s.bar, 0)],
                 },
             },
             "y = {to}"
@@ -868,7 +872,7 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
                     // The near rim edge: the bar has left it, both x
                     // walls at once.
                     cutters: GroupCutters::Read {
-                        gone: vec![wall(s.bar, 1), wall(s.bar, 3)],
+                        gone: vec![wall(&s.doc, s.bar, 1), wall(&s.doc, s.bar, 3)],
                         new: vec![],
                     },
                 },

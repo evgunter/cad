@@ -36,13 +36,13 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
 }
 
-fn insert(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn insert(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -134,6 +134,7 @@ fn slab() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane: xy,
             loops: vec![outer],
+            ids: Vec::new(),
         }),
     );
     let (doc, slab) = insert(
@@ -410,7 +411,7 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 
 /// A ball of radius `r` centred `c` up the y-axis: the natural
 /// meridian (bulge-1 semicircle) revolved 2π about y.
-fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
+fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
     let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
         ProgramStep::At(p2(0.0, c - r)),
@@ -426,6 +427,7 @@ fn ball(doc: &ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane: xy,
             loops: vec![meridian],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -495,6 +497,7 @@ fn cylinders(bore_r: f64, pin_r: f64, off: f64) -> (ProfileDoc, RecipeNodeId, Re
                 centre: [len(cx), len(0.0)],
                 radius: len(r),
             }],
+            ids: Vec::new(),
         })
     };
     let (doc, p1) = insert(&doc, circle(0.0, bore_r));
@@ -622,6 +625,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 centre: [len(0.0), len(0.0)],
                 radius: len(0.3),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, bore) = insert(
@@ -639,6 +643,7 @@ fn r1_skew_cylinder_axes_refuse_typed() {
                 centre: [len(0.0), len(1.0)],
                 radius: len(0.2),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, pin) = insert(
@@ -1123,6 +1128,7 @@ fn r1_own_document_web_and_flip() {
                 centre: [len(cx), len(0.0)],
                 radius: Expr::param(ParamName::new("r"), Dimension::Length),
             }],
+            ids: Vec::new(),
         })
     };
     let (d2, p1) = insert(&doc, circle(-0.25));

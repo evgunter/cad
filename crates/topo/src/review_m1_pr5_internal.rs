@@ -300,6 +300,20 @@ pub(crate) const ALLOWED: &[(&str, &str)] = &[
         "calls `prism_ops` at the unit square, then `describe_as_intersections`",
     ),
     (
+        "plant_ring_face",
+        "plants a ring face through `mev_line`, `kemr` and `mef_chord` and writes no arena \
+         itself — every mutation is one of those, each asserting",
+    ),
+    (
+        "drill_hole",
+        "calls `plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh` (asserting)",
+    ),
+    (
+        "plane_every_face",
+        "places each face's plane through `set_face_surface`, which declares the tier-1 \
+         postcondition itself",
+    ),
+    (
         "cyl_wall_sheet_keyed",
         "grows a cylinder-wall sheet through `mvfs`, `mev`, `mev_line` and `mef` \
          (asserting), places the cylinder key through `set_face_surface` and records it \

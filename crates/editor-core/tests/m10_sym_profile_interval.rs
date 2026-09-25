@@ -66,7 +66,7 @@ use std::sync::Arc;
 /// no shape report (which renders every blocked residual through the
 /// walks, ~1 % of a replay's instructions) — so a callgrind count over
 /// it is the tier's and the numeric channel's alone.
-fn bare_replay(doc: &ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
+fn bare_replay(doc: &editor_core::ProfileDoc, box_: &ParamBox, tol: Tol) -> geom_core::SymCounts {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_.clone())),
         profile_lift: ProfileLift::Guided,

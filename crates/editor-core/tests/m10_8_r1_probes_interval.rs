@@ -307,6 +307,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             centre: [len(0.0), len(0.0)],
             radius: plen("outer_r"),
         }],
+        ids: Vec::new(),
     }));
     let disc = r.insert(Node::Extrude {
         profile: disc_profile,
@@ -318,6 +319,7 @@ pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,

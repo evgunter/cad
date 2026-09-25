@@ -2324,6 +2324,53 @@ pub fn session_counts() -> Option<SymCounts> {
     SESSION.with(|s| s.borrow().as_ref().map(|s| s.counts))
 }
 
+/// **Whether a decision may be taken on a worker thread at all** — the
+/// test every walk that maps deciding units onto rayon workers reads
+/// before it maps (`topo::props`' face walks, `editor_core`'s node
+/// schedule), and the one home of that test.
+///
+/// **It covers more than decisions.** It is false while a symbolic
+/// session is installed, which changes what a decision answers, AND
+/// while the shape report is installed, which changes nothing a
+/// decision answers but records every one in a thread-local of the
+/// deciding thread. The name is the session half's; the report half is
+/// the third bullet below.
+///
+/// The K-funnel's frame and sample sink are thread-local too, but they
+/// compose back: a unit run under `k_stats::detached` hands its
+/// recording back as a value and the caller's fold splices it
+/// (`k_stats::map_detached`). The two thread-locals read here do not,
+/// and three things follow. The first is about the answer, not about
+/// what is recorded; the other two are about recording:
+///
+/// - **The decision itself changes.** `Sym`'s `sign_within` consults
+///   the session; with none installed `discharge` answers `None`, the
+///   identity tier discharges nothing and the answer is the plain
+///   numeric one. A unit on a worker would decide differently from its
+///   siblings on the caller's thread — the one thing D9 forbids
+///   outright.
+/// - **The receipt is written in place.** `count_decision` and
+///   `count_registration_contradicted` mutate the installed session's
+///   [`SymCounts`], and [`Sym::opaque`] advances the per-replay
+///   `OPAQUE_SEQ` counter — a sequence whose determinism rests on the
+///   minting ORDER being a fixed single-threaded walk. Neither is a
+///   value handed back, so neither can be spliced. (Node ids are NOT in
+///   this list: `intern` is a content hash of the node, so the DAG a
+///   replay builds is the same whatever order it is built in.)
+/// - **The shape report is written in place too.** [`report`]'s rows
+///   are pushed from `Sym::sign_within` into a thread-local on the
+///   deciding thread, with or without a session, so a unit decided on a
+///   worker is missing from the report the caller takes.
+///
+/// So a walk stays on the caller's thread — the serial walk, exactly —
+/// for as long as either is installed. It is a property of the CALL and
+/// not of the scalar: `Sym` with neither installed is as portable as
+/// `f64`, and the test reads the thread's state rather than the type.
+#[must_use]
+pub fn decisions_are_thread_portable() -> bool {
+    session_counts().is_none() && !report::active()
+}
+
 /// Records `node` in the installed session and answers its id. Outside a
 /// session the id is still computed — it is a pure function of the node
 /// — and nothing is stored.

@@ -268,7 +268,7 @@ pub fn documents() -> Vec<CorpusDoc> {
 /// The transitive downstream cone of `root` (inclusive) over the
 /// recipe DAG's input edges — computed independently of the
 /// evaluator, so the counted-reuse assertions have a real oracle.
-pub fn cone(doc: &ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+pub fn cone(doc: &editor_core::ProfileDoc, root: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut set = BTreeSet::new();
     set.insert(root);
     // `order` is insertion order and inputs must pre-exist, so one

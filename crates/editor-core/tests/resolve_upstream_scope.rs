@@ -22,7 +22,7 @@ use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -167,10 +167,9 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
     let wall = |segment| StableName {
         kind: EntityKind::Face,
         node: *bar1,
-        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        })],
+        path: vec![RoleSeg::Lateral(crate::fixture::piece(
+            &doc, *bar1, 0, segment,
+        ))],
     };
     let mut vanished = 0;
     for name in &names {
@@ -271,7 +270,7 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
 /// The strict ancestors of `node` in ONE document — the test's own
 /// reading of "fed the minting node in this run", independent of the
 /// walk under test.
-fn ancestors_in(doc: &ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
     let mut stack = doc.node(node).map(|n| n.inputs()).unwrap_or_default();
     while let Some(n) = stack.pop() {
