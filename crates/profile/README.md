@@ -121,7 +121,7 @@ positions was ruled by Ev on #3193 (2026-09-25), with the role lists on
 #3202.*
 
 **V4 — The stored form, chain-only.** `Node::Profile` carries
-`ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram> }`;
+`ProfileProgram { plane: RecipeNodeId, loops: Vec<LoopProgram>, ids: Vec<Vec<StepId>> }`;
 `LoopProgram` is `Chain(Vec<ProgramStep>)`, `Circle { centre, radius }`
 or `CircleSplit { centre, radius, n, phase }`, the carrier forms being
 one-step programs whose form is structural. There is one wire

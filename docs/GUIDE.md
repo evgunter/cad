@@ -1715,6 +1715,7 @@ let (next, profile) = insert(
     Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![outline, hole],
+        ids: Vec::new(),
     }),
 );
 doc = next;
@@ -1757,7 +1758,7 @@ use pncad::prelude::*;
 # let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("a scalar");
 # let (next, frame) = insert(&doc, Node::Datum(Datum::Frame { origin: [len(0.0), len(0.0), len(0.0)], u: [scl(1.0), scl(0.0), scl(0.0)], v: [scl(0.0), scl(1.0), scl(0.0)] }));
 # doc = next;
-# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole] }));
+# let (next, profile) = insert(&doc, Node::Profile(ProfileProgram { plane: frame, loops: vec![outline, hole], ids: Vec::new() }));
 # doc = next;
 # let (next, plate) = insert(&doc, Node::Extrude { profile, distance: len(0.5) });
 # doc = next;
@@ -1870,6 +1871,7 @@ doc = next;
 let (next, profile) = insert(&doc, Node::Profile(ProfileProgram {
     plane: base_frame,
     loops: vec![outline, hole(1.0, 1.0), hole(2.2, 1.0)],
+    ids: Vec::new(),
 }));
 doc = next;
 let (next, plate) = insert(&doc, Node::Extrude { profile, distance: lit(0.5) });
@@ -1889,6 +1891,7 @@ let (next, tab_p) = insert(&doc, Node::Profile(ProfileProgram {
         LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
             .expect("finite corners"),
     ],
+    ids: Vec::new(),
 }));
 doc = next;
 let (next, tab) = insert(&doc, Node::Extrude { profile: tab_p, distance: lit(0.25) });
