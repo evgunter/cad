@@ -25,3 +25,7 @@ stays reviewable apart from the mechanical churn: about 1355
 
 Afterwards the only bulge surface left in the kernel is `arc_to(Bulge)`.
 Move one crate per commit, and keep the rewrite scriptable.
+
+Unit 1 gave `ProfileVertex::new` an exact-zero test built from
+`is_poison` (`Real` has no equality), so it can decide Line vs Arc from
+a raw bulge. It retires with `ProfileVertex` in this unit.
