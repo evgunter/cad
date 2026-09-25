@@ -1203,6 +1203,7 @@ fn a_cusp_extrude_document_refuses_at_the_product_gate() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lune],
+            ids: Vec::new(),
         }),
     );
     let (doc, ex) = mint(
