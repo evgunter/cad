@@ -23,9 +23,9 @@
 #![allow(clippy::panic)]
 
 use crate::common;
-use common::{insert, inserted, len};
+use common::{inserted, len, session_insert};
 
-use pncad::document::{Datum, Doc, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Doc, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::geom_core::Tol;
 use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName, SurfaceKind, attribute};
 use pncad::select::{InterrogateError, all_faces, face_carrier_kind};
@@ -98,19 +98,11 @@ fn a7_the_viewer_takes_a_derived_frame_by_value() {
     );
 
     let mut session = DocSession::inline(doc, tol);
-    let boss = insert(
+    let boss = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(frame),
-            loops: vec![
-                LoopProgram::polygon([
-                    (-0.005, -0.005),
-                    (0.005, -0.005),
-                    (0.005, 0.005),
-                    (-0.005, 0.005),
-                ])
-                .expect("finite corners"),
-            ],
+            loops: vec![common::rectangle_loop([-0.005, -0.005], 0.01, 0.01)],
         },
     );
     session.pump();
@@ -150,7 +142,7 @@ fn the_chrome_mints_what_the_document_door_mints() {
     );
 
     let mut session = DocSession::inline(doc, tol);
-    let minted = insert(
+    let minted = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::FaceFrame {
@@ -239,7 +231,7 @@ fn at_is_the_node_the_ray_met_and_not_the_feature() {
     // through a node the name does not live in would not resolve at
     // all.
     let mut session = session;
-    let frame = insert(
+    let frame = session_insert(
         &mut session,
         SessionOp::AddDatum {
             datum: DatumSpec::FaceFrame {
@@ -466,7 +458,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
     // a document-door edit's.
     let mut session = DocSession::inline(Doc::empty_derived("docm1-viewer", tol), tol);
     let plane = common::xy_frame_in(&mut session);
-    let profile = insert(
+    let profile = session_insert(
         &mut session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -476,7 +468,7 @@ fn a_pick_whose_node_an_undo_took_away_is_refused_as_gone() {
             })],
         },
     );
-    let cube = insert(
+    let cube = session_insert(
         &mut session,
         SessionOp::AddExtrude {
             profile,

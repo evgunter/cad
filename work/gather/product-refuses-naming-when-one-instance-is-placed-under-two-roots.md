@@ -1,12 +1,15 @@
 ---
 id: product-refuses-naming-when-one-instance-is-placed-under-two-roots
-kind: issue
+kind: unit
 title: product refuses Naming when one instance's names appear under two transform roots, so a document the solve accepts cannot gather
-status: open
+status: closed
 opened: 2026-09-05
 refs: [does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: H
+branch: gather/two-roots-refusal
+pr: 3142
+closed: 2026-09-25
 ---
 
 
@@ -95,3 +98,25 @@ cannot represent.** Two layers disagree today, and the ruling did not
 change that; it only settled which layer's answer is right.
 
 `crates/editor-core/src/product.rs` is WIRE's, so this lands here.
+
+## Implemented (PR 3142)
+
+The gather refuses the shape from the recipe, before any root is read,
+as `ProductError::PlacedUnderTwoRoots { placed, select, first, second }`
+(`product.rs`, `placed_under_two_roots`). Both late `Naming` arms stay
+reachable. The per-root carry is reached through a split's intact
+pass-through (`wire_product_gather_tie`) and through one instance
+index spelled two ways. Both the carry and the tie flush are reached,
+FALSELY, by two `Part` roots over the halves of a split that separates
+a tie: `work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`,
+pinned as measurements in `gather_placed_under_two_roots`. The solve's
+half is MSOLVE's:
+`work/msolve/the-solve-accepts-a-body-placed-under-two-roots.md`.
+
+## Closed (2026-09-25)
+
+Merged as PR 3142. Tier: single FULL review. The adjudicated fix pass
+landed on the same PR. Residue filed as its own rows:
+`product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique`
+(P0), `three-walks-over-the-name-carrying-edges` (P1), and MSOLVE's
+`the-solve-accepts-a-body-placed-under-two-roots` (P1).
