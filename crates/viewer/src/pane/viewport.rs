@@ -1712,9 +1712,11 @@ mod tests {
             revision: 1,
             generation: Some(index.generation()),
         };
-        let IdStep::Ask { serial } = log.step(Some(cursor), subject) else {
-            panic!("a cursor arriving is a new question");
-        };
+        let serial = match log.step(Some(cursor), subject) {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
         let question = RayQuestion {
             eval,
             camera: &camera,
@@ -1749,9 +1751,9 @@ mod tests {
     #[test]
     fn an_unassigned_id_against_a_named_face_is_said_as_that_id() {
         let (id, from_ray, news) = unassigned_id_news(|names| names.len() == 1);
-        let [named] = &from_ray[..] else {
-            unreachable!("the helper returned the answer it was asked for");
-        };
+        let named = from_ray
+            .first()
+            .expect("the helper returns the one-face answer it was asked for");
         assert_eq!(
             news.expect("an unassigned id against a named face is a disagreement")
                 .text(),
