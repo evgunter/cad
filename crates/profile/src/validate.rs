@@ -145,7 +145,7 @@ use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop, ProfileVertex};
+use crate::{Profile, ProfileLoop};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -477,12 +477,13 @@ pub const FILLET_FIT_RECOURSE: &str =
 
 /// **The recourse for a fillet arc too shallow to be STORED as an arc.**
 ///
-/// A profile holds an arc as a chord and a bulge, and a reader
-/// classifies that pair back through `segment_straightness`, whose
-/// margin is the sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε
-/// the stored segment is read as a line and the carrier the door
-/// computed is simply not in the loop, so the tangency the fillet
-/// declares has nothing to be about.
+/// A profile stores an arc as its vertices plus a carrier and sweep
+/// lowered from the chord and the bulge, and validation classifies the
+/// segment through `segment_straightness`, whose margin is the sagitta
+/// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
+/// read as a line and the carrier the door computed is simply not in
+/// the validated loop, so the tangency the fillet declares has nothing
+/// to be about.
 ///
 /// Both levers move the sagitta, and the sentence says which way each
 /// runs — a larger turn, or a larger radius. The radius lever has a
@@ -1079,6 +1080,10 @@ pub enum SegmentKind<T: Real> {
         center: Point2<T>,
         /// The carrier circle's radius (positive).
         radius: T,
+        /// The signed sweep Δθ from the segment's start to its end about
+        /// `center`, positive counterclockwise — the arc's parameter
+        /// span is `|sweep|`.
+        sweep: T,
         /// The turn sense: `Positive` = counterclockwise sweep
         /// (positive bulge), `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
@@ -1093,16 +1098,16 @@ pub struct ValidatedSegment<T: Real> {
     pub start: Point2<T>,
     /// End point.
     pub end: Point2<T>,
-    /// The bulge, in canonical traversal (reversal negated it if the
-    /// input wound the other way). This is carried-through input data;
-    /// **consumers select carriers by [`ValidatedSegment::kind`], never
-    /// by re-inspecting the bulge** — a sub-tolerance bulge classifies
-    /// as `Line` while retaining its stored value. One sanctioned
-    /// re-inspection: for an `Arc` segment the **parameter span is
-    /// θ = 4·atan|bulge|**, taken from the stored bulge (exact input
-    /// data; deriving the span from endpoint `atan2` angles instead is
-    /// seam-fragile for wide arcs at small ε) — PR 4's sweeps rely on
-    /// this.
+    /// The bulge the segment was lowered from, in canonical traversal
+    /// (reversal negated it if the input wound the other way) — see
+    /// [`crate::ProfileLoop::bulges`] for why it is kept beside the
+    /// canonical form. **Consumers select carriers by
+    /// [`ValidatedSegment::kind`], never by the bulge** — a
+    /// sub-tolerance bulge classifies as `Line` while retaining its
+    /// value. The one boundary that still reads the bulge itself is the
+    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
+    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
+    /// the segment they build.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
@@ -1112,11 +1117,12 @@ pub struct ValidatedSegment<T: Real> {
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: the endpoints and the bulge
     /// through `from_f64`, the classification and turn carried, and an
-    /// arc's carrier REBUILT at `U` from the embedded endpoints and
-    /// bulge through validation's own arithmetic
-    /// ([`seg::arc_carrier`] on the segment's [`seg::ChordFrame`]) —
-    /// the carrier is derived data, not a stored value, and at a
-    /// certified scalar the derivation is what mints its enclosure.
+    /// arc's carrier and sweep REBUILT at `U` from the embedded
+    /// endpoints and bulge through the arc lowering
+    /// ([`crate::lower_arc`]: [`seg::arc_carrier`] on the segment's
+    /// [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
+    /// and sweep are derived data, not stored values, and at a
+    /// certified scalar the derivation is what mints their enclosure.
     /// See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
         let (start, end, bulge) = (
@@ -1127,10 +1133,15 @@ impl ValidatedSegment<f64> {
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
             SegmentKind::Arc { turn, .. } => {
-                let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
+                let crate::LoweredArc {
+                    centre,
+                    radius,
+                    sweep,
+                } = crate::lower_arc(start, end, bulge);
                 SegmentKind::Arc {
-                    center: carrier.center,
-                    radius: carrier.radius,
+                    center: centre,
+                    radius,
+                    sweep,
                     turn,
                 }
             }
@@ -1148,7 +1159,7 @@ impl ValidatedSegment<f64> {
 /// read-only.
 #[derive(Debug, Clone)]
 pub struct ValidatedLoop<T: Real> {
-    vertices: Vec<ProfileVertex<T>>,
+    vertices: Vec<Point2<T>>,
     segments: Vec<ValidatedSegment<T>>,
     tangent_joints: Vec<usize>,
     role: LoopRole,
@@ -1160,9 +1171,9 @@ impl<T: Real> ValidatedLoop<T> {
         self.role
     }
 
-    /// The canonical vertex chain (see [`ValidatedProfile`] for the
-    /// canonical-form rules).
-    pub fn vertices(&self) -> &[ProfileVertex<T>] {
+    /// The canonical vertices, verbatim (see [`ValidatedProfile`] for
+    /// the canonical-form rules).
+    pub fn vertices(&self) -> &[Point2<T>] {
         &self.vertices
     }
 
@@ -1267,8 +1278,8 @@ impl<T: Real> ValidatedLoop<T> {
 
 impl ValidatedLoop<f64> {
     /// The `f64` loop embedded at `U`: each vertex through
-    /// [`ProfileVertex::map`], the segments in place, the role and the
-    /// joint set carried. See [`ValidatedProfile::lift_onto`].
+    /// [`Point2::map`], the segments in place, the role and the joint
+    /// set carried. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedLoop<U> {
         ValidatedLoop {
             vertices: self
@@ -1348,10 +1359,11 @@ impl<T: Real> ValidatedProfile<T> {
 
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
-    /// stored scalar — each vertex's position and bulge, each segment's
-    /// endpoints and bulge — through [`Real::from_f64`]; each arc's
-    /// carrier, which is DERIVED data, rebuilt at `U` from the embedded
-    /// endpoints and bulge through validation's own arithmetic; the
+    /// stored scalar — each vertex's position, each segment's endpoints
+    /// and the bulge it was lowered from — through [`Real::from_f64`];
+    /// each arc's carrier and sweep, which are DERIVED data, rebuilt at
+    /// `U` from the embedded endpoints and bulge through the lowering's
+    /// own arithmetic; the
     /// plane taken as given (validation is 2-D and reads nothing of it
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
@@ -1575,7 +1587,7 @@ impl<T: Decide> Profile<T> {
                     lp.vertices.len(),
                 )));
             };
-            rep.push(v.pos);
+            rep.push(*v);
             rep_index.push(idx);
         }
 
@@ -1743,22 +1755,23 @@ fn build_loop_segs<T: Decide>(
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        let a = lp.vertices[k];
-        let b = lp.vertices[(k + 1) % n];
-        segs.push(build_seg(a.pos, b.pos, a.bulge, band).map_err(|issue| {
-            let at = SegmentRef {
-                loop_index,
-                segment_index: k,
-            };
-            match issue {
-                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                SegIssue::Escalated(source) => ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
-                },
-            }
-        })?);
+        let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
+        segs.push(
+            build_seg(a, b, lp.segments[k], lp.bulges[k], band).map_err(|issue| {
+                let at = SegmentRef {
+                    loop_index,
+                    segment_index: k,
+                };
+                match issue {
+                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
+                    SegIssue::Escalated(source) => ProfileError::Escalated {
+                        site: EscalationSite::Segment(at),
+                        source,
+                    },
+                }
+            })?,
+        );
     }
     Ok(segs)
 }
@@ -1790,10 +1803,10 @@ fn judge_pair<T: Decide>(
     if li == lj {
         let n = loop_segs[li].len();
         if sj == si + 1 {
-            shared.push(profile.loops[li].vertices[(si + 1) % n].pos);
+            shared.push(profile.loops[li].vertices[(si + 1) % n]);
         }
         if si == 0 && sj == n - 1 {
-            shared.push(profile.loops[li].vertices[0].pos);
+            shared.push(profile.loops[li].vertices[0]);
         }
     }
 
@@ -1966,13 +1979,13 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, 
 /// The index of a chain's lexicographically minimal vertex — the
 /// containment representative point.
 fn lex_min_index<T: Decide>(
-    vertices: &[ProfileVertex<T>],
+    vertices: &[Point2<T>],
     exact: Band,
     loop_index: usize,
 ) -> Result<usize, ProfileError> {
     let mut best = 0;
     for i in 1..vertices.len() {
-        if lex_less(vertices[i].pos, vertices[best].pos, exact).map_err(|source| {
+        if lex_less(vertices[i], vertices[best], exact).map_err(|source| {
             ProfileError::Escalated {
                 site: EscalationSite::Loop { loop_index },
                 source,
@@ -1998,7 +2011,7 @@ fn lex_min_index<T: Decide>(
 /// 2·A/P, the loop's mean width (meters): A is the bulge-polygon signed
 /// area (shoelace about the loop's first vertex — the ch. 13
 /// translate-to-origin accuracy fix — plus per-arc circular-segment
-/// corrections (r²/2)·(θ − sin θ), θ = 4·atan(b)); P is the true
+/// corrections (r²/2)·(θ − sin θ), θ the arc's sweep); P is the true
 /// perimeter (chords for lines, r·|θ| for arcs). Positive = the input
 /// chain runs counterclockwise. The area, a length², acts through the
 /// half-perimeter lever arm to become the honest sliver-width margin —
@@ -2036,7 +2049,7 @@ fn canonicalize_loop<T: Decide>(
     // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
     let n = chain.vertices.len();
-    let vertices: Vec<ProfileVertex<T>> = chain.vertices;
+    let (vertices, lowered, bulges) = (chain.vertices, chain.segments, chain.bulges);
     // Declared joints: reversal already remapped them in `reversed()`,
     // and indices are in range — validated at entry. Sorted +
     // deduplicated: canonical.
@@ -2051,9 +2064,8 @@ fn canonicalize_loop<T: Decide>(
     let mut segments = Vec::with_capacity(n);
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
-        let a = vertices[k];
-        let b = vertices[(k + 1) % n];
-        let s = build_seg(a.pos, b.pos, a.bulge, band).map_err(|issue| {
+        let (a, b) = (vertices[k], vertices[(k + 1) % n]);
+        let s = build_seg(a, b, lowered[k], bulges[k], band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,
@@ -2084,6 +2096,7 @@ fn canonicalize_loop<T: Decide>(
             SegKind::Arc(g) => SegmentKind::Arc {
                 center: g.center,
                 radius: g.radius,
+                sweep: g.sweep,
                 turn: g.turn,
             },
         };
@@ -2155,7 +2168,6 @@ struct LoopPermutation {
 fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Indeterminate> {
     let origin = segs[0].a;
     let half = T::from_f64(0.5);
-    let four = T::from_f64(4.0);
     let mut twice_area = T::zero();
     let mut perimeter = T::zero();
     for s in segs {
@@ -2165,7 +2177,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 perimeter = perimeter + s.len;
             }
             SegKind::Arc(g) => {
-                let theta = four * s.bulge.atan();
+                let theta = g.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
                 // doubled here since we accumulate 2A. `r²` is the tight
                 // square, and here it is the tight square of something

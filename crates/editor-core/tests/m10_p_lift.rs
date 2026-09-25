@@ -168,7 +168,7 @@ fn a_dual_seed_on_a_profile_parameter_now_carries_a_tangent() {
         seen_tangent |= lp
             .vertices()
             .iter()
-            .any(|v| v.pos().x.deriv != 0.0 || v.pos().y.deriv != 0.0);
+            .any(|v| v.x.deriv != 0.0 || v.y.deriv != 0.0);
     }
     assert!(
         seen_tangent,
@@ -381,10 +381,10 @@ fn the_evaluation_door_runs_the_lift_at_dual() {
                 for lp in p.validated.loops() {
                     for vx in lp.vertices() {
                         out.push((
-                            vx.pos().x.value.to_bits(),
-                            vx.pos().y.value.to_bits(),
-                            vx.pos().x.deriv,
-                            vx.pos().y.deriv,
+                            vx.x.value.to_bits(),
+                            vx.y.value.to_bits(),
+                            vx.x.deriv,
+                            vx.y.deriv,
                         ));
                     }
                 }
@@ -487,7 +487,7 @@ fn the_loft_section_stays_f64_while_the_profile_payload_lifts() {
             for lp in p.validated.loops() {
                 for vx in lp.vertices() {
                     assert!(
-                        vx.pos().x.lo() <= vx.pos().x.hi() && vx.pos().y.lo() <= vx.pos().y.hi(),
+                        vx.x.lo() <= vx.x.hi() && vx.y.lo() <= vx.y.hi(),
                         "the lane-elaborated profile must carry well-formed enclosures"
                     );
                 }

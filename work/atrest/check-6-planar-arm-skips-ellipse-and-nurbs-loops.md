@@ -2,11 +2,12 @@
 id: check-6-planar-arm-skips-ellipse-and-nurbs-loops
 kind: issue
 title: check 6's planar arm does not examine a planar loop riding an Ellipse, spiric or NURBS carrier
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P2
 cost: D
 refs: [sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts, m6-sense-gate-recorded-residuals]
+parent: ATREST-13
 ---
 
 
