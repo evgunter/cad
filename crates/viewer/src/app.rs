@@ -198,11 +198,13 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 
 /// `text` in the weight or colour its [`frame::Tone`] asks for.
 ///
-/// **The one place the tone-to-chrome mapping is made.** Its two
-/// readers are the toolbar's badge family ([`draw_badge`]) and the
-/// feature tree's row badge, which reads the same tone off
-/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
-/// `Advisory` looks like is changed here or nowhere.
+/// **The one place the tone-to-chrome mapping is made.** Its readers
+/// are the toolbar's badge family ([`draw_badge`]), the feature tree's
+/// row badge, which reads the same tone off
+/// [`crate::tree::RowStatus::tone`], the properties pane's one-word
+/// verdict on a deleted node, off [`crate::session::Standing::tone`],
+/// and every message drawn through `widgets::message_toned` — one
+/// rule, so what `Advisory` looks like is changed here or nowhere.
 ///
 /// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
 /// REDUNDANT — everything wearing it says its own words — so this
