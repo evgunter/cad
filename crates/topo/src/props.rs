@@ -966,17 +966,12 @@ pub struct TargetUnreached<T: Real> {
 
 impl<T: Real> fmt::Display for TargetUnreached<T> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        // The bracket is a field, not prose: its ends are the scalar's
+        // own values, which this impl has no `Display` for, and a
+        // caller that wants them reads `bracket`.
         fmt::Display::fmt(&self.refusal, f)?;
-        if let Some(VolumeEnclosure {
-            volume_lo,
-            volume_hi,
-            ..
-        }) = &self.bracket
-        {
-            write!(
-                f,
-                " (the sign-level bracket is [{volume_lo:?}, {volume_hi:?}])"
-            )?;
+        if self.bracket.is_some() {
+            f.write_str(" (the volume's sign is decided; its sign-level bracket is kept)")?;
         }
         Ok(())
     }
