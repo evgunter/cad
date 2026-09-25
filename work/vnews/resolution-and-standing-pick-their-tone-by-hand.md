@@ -147,7 +147,8 @@ the paint (`pane::headless::Landed::ink`, added here) and holds it
 against fixed colours — `Theme::DEFAULT.unresolved` and egui's own weak
 text — for a vanished face (and its offer count), an indeterminate
 edge, and a pick with no evaluation. Planting `Failed(_) =>
-Tone::Advisory` in `Standing::tone` reds the first; swapping the
-arms of `app::toned` reds all three. `session::select::tests` holds
-the node and parameter arms, which no headless drive reaches, against
-fixed `Tone`s.
+Tone::Advisory` in `Standing::tone` reds the first.
+`session::select::tests` holds the node and parameter arms, which no
+headless drive reaches, against fixed `Tone`s; planting `Advisory` for
+a vanished node or parameter reds it. (The mutation run is named in
+PR #3230.)
