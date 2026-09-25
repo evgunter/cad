@@ -189,7 +189,9 @@ So the chain goes, not the link:
 - **`Node::Union { members: Vec<RecipeNodeId>, declare }`** — an
   n-ary union, two or more members, ONE body out. It evaluates as a
   fold of the kernel's pair verb in member order (D9: the order is the
-  list's, and the list is data). It sits beside `Boolean(Union)`,
+  list's, and the list is data), with one exception: a member whose
+  step refuses `UndeclaredContact` is set aside and folded after the
+  rest (the contact rule below). It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
@@ -218,9 +220,32 @@ So the chain goes, not the link:
   else in the vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks —
   CHROME's build, not in the tree today.
-- **A declaration channel, sited at the members.** Two members that
-  touch refuse `UndeclaredContact` exactly as a pair boolean's operands
-  do, and the union carries the same recourse: `Node::Union { members,
+- **Contact is judged against the other members, not against the
+  fold.** A member's contacts are the ones it makes with the union of
+  all the OTHER members. So a flush contact between two members that a
+  third member covers is not a contact and needs no declaration. A
+  third member covers a contact when the contact region lies in its
+  interior. The fold realizes this by deferral:
+  - A step whose pair verb refuses `UndeclaredContact` sets its member
+    aside, and the fold continues in member order.
+  - Once the rest are in, each member set aside is folded again, in
+    member order. This repeats while any of them joins.
+  - A member that still refuses when no further member joins refuses
+    with the finding of its last step.
+
+  Deferral is not declaration. The retried step runs the same census,
+  and a contact it finds refuses exactly as a pair boolean's operands'
+  contact does: discovery is never declaration. The deferral realizes
+  the rule except where a contact's only cover is itself a member set
+  aside, and there the refusal still depends on order. A declaration
+  naming a covered contact names no contact. Where the fold has
+  consumed the declared face, the declaration refuses as the
+  containment arm of the look-through below does. Where the fold meets
+  the contact before its cover, the declaration backs it. That
+  difference belongs to the look-through's bound, not to this rule.
+- **A declaration channel, sited at the members.** A contact that
+  survives that judgement refuses `UndeclaredContact`, and the union
+  carries the pair boolean's recourse: `Node::Union { members,
   declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
   SITED entities — `SitedRef { at, name }`, the entity `name` as it
   stands at node `at`, where `at` is the member (for a pair boolean,
@@ -230,8 +255,10 @@ So the chain goes, not the link:
   names only what exists before the union does, and is authored in one
   pass: the `Declare` is inserted before the union that carries it.
   Each pair is fed to the fold step at which both its sites are in the
-  accumulation: the later member's step in list order, the earlier
-  side as the accumulator's operand, the later as the joining member's;
+  accumulation: the step at which the later of its two members joins,
+  which is its step in list order or, for a member set aside, its
+  retried step. The earlier side is the accumulator's operand and the
+  later side the joining member's;
   a pair whose two sites are ONE member is that member's carried
   contact at its own step; no fold position is recorded anywhere. A
   name not in its site's table refuses typed through the pair
