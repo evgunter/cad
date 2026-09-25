@@ -134,13 +134,16 @@ build cannot read refuses `PersistError::Unreadable` with the regenerate
 recourse. `plane` references a `Datum::Frame` node, so a profile has a
 DAG input; evaluation resolves the frame at f64 for structure selection
 (`eval/wire.rs::profile_plane_f64`). Raw loop data stays kernel
-vocabulary through the `RawLoop` trait (`new`, `polygon`,
-`with_tangent_joints`), omitted from the `pncad::profile` façade;
+vocabulary through the `RawLoop` trait (`new`, which takes the
+canonical form, `polygon`, `with_tangent_joints`) and the
+`test_support::bulge_loop` helper, which hands a bulge chain to the
+lowering; both are omitted from the `pncad::profile` façade.
 `ProfileLoop`'s fields are private, so outside this crate a loop exists
-only through the lattice, the `map_scalar` materialization door, or that
-trait — whose item is declared `pub(crate)` in any build satisfying
-neither `test` nor `test-support` (`ProfileLoop`'s own docs are the one
-home for the door list). `continue_to` is a lattice verb
+only through the lattice, the `map_scalar` materialization door, or
+those fixture doors — the trait's item is declared `pub(crate)` and the
+helper's module does not exist in any build satisfying neither `test`
+nor `test-support` (`ProfileLoop`'s own docs are the one home for the
+door list). `continue_to` is a lattice verb
 the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 

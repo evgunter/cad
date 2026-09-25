@@ -55,8 +55,7 @@
 use crate::common::operands::{nested_box, rim_plate, rounded_plate, small_box, top_rim_plate};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
@@ -92,10 +91,10 @@ fn cylinder_from(z0: f64, height: f64, first: f64) -> Body<f64> {
         let th: f64 = deg.to_radians();
         p2(0.5 * th.cos(), 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(first), b120),
-        ProfileVertex::new(at((first + 120.0) % 360.0), b120),
-        ProfileVertex::new(at((first + 240.0) % 360.0), b120),
+    let lp = bulge_loop(vec![
+        (at(first), b120),
+        (at((first + 120.0) % 360.0), b120),
+        (at((first + 240.0) % 360.0), b120),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
@@ -157,7 +156,7 @@ fn a_body_nested_inside_a_curved_solid_is_never_silently_cleared() {
                     a: EntityId::Face(_),
                     b: EntityId::Face(_),
                     what,
-                } if what.contains("curved carrier or a curved boundary")
+                } if what.contains("a curved face of one is within reach of the other")
             )),
             "probe at {cx}: arm 1 refuses the wall pairs first, got {errors:?}"
         );
@@ -244,7 +243,7 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
         !arm1.is_empty()
             && arm1.iter().all(|e| match e {
                 ValidationError::CensusUndecidable { what, .. } => {
-                    what.contains("curved carrier or a curved boundary")
+                    what.contains("a curved face of one is within reach of the other")
                 }
                 _ => false,
             })
@@ -270,11 +269,7 @@ fn a_part_in_a_blind_bore_is_refused_by_arm_1_before_the_material_test() {
         })
         .collect();
     assert_eq!(arm2.len(), 1, "{errors:?}");
-    assert!(
-        arm2[0].contains("not certified crossing-free"),
-        "{}",
-        arm2[0]
-    );
+    assert!(arm2[0].contains("another finding"), "{}", arm2[0]);
     assert!(
         !errors
             .iter()

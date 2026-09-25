@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
@@ -34,13 +34,7 @@ fn tol() -> Tol {
 fn plate(loops: &[&[(f64, f64, f64)]], h: f64) -> Body<f64> {
     let loops = loops
         .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.iter()
-                    .map(|&(x, y, b)| ProfileVertex::new(Point2::new(x, y), b))
-                    .collect(),
-            )
-        })
+        .map(|lp| bulge_loop(lp.iter().map(|&(x, y, b)| (Point2::new(x, y), b)).collect()))
         .collect();
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
@@ -258,6 +252,46 @@ fn an_annular_face_is_decided() {
     nested_then_inverted("square hole in a round plate", &body);
 }
 
+/// **A hole as close to its outer loop as a clear hole can be at this
+/// run's ε certifies**, built the way a user would: the `Profile`
+/// door, then `extrude`. The gap is `4·K·ε` — past the band's
+/// escalation threshold `K·ε`, and down to `4e-11` m at `ε = 1e-12`.
+/// Check 9's contact half decides each placement by a margin of
+/// exactly that gap: a round hole beside a round rim (two whole
+/// circles, one inside the other, whose vertices also sit `4·K·ε`
+/// apart), and a round hole beside a straight edge (the hole's arc
+/// against the edge's line). A contact arm that read a near miss as a
+/// crossing or a tangency would refuse a body the profile door
+/// accepted.
+#[test]
+fn a_hole_one_clear_gap_from_its_rim_certifies() {
+    let gap = 4.0 * tol().k() * tol().eps();
+    for (name, body) in [
+        (
+            "round hole beside a round rim",
+            plate(&[&circle(0.0, 0.0, 5.0), &circle(4.0 - gap, 0.0, 1.0)], 0.3),
+        ),
+        (
+            "round hole beside a straight edge",
+            plate(
+                &[&rect(0.0, 0.0, 10.0, 10.0), &circle(9.0 - gap, 5.0, 1.0)],
+                0.3,
+            ),
+        ),
+    ] {
+        let words = check_9_words(&body);
+        assert!(
+            words.is_empty(),
+            "[{name}] check 9 refused a clear hole: {words:?}"
+        );
+        assert_eq!(
+            topo::validate_geometric(&body, tol()),
+            Ok(()),
+            "[{name}] the body validates"
+        );
+    }
+}
+
 /// **The two classes the arm is silent on stay silent, in both
 /// directions.** A rectangular plate carrying a hole whose loop bears
 /// arcs and is not one circle: the honest body is decided (its outer
@@ -305,11 +339,11 @@ fn the_silent_classes_are_silent_in_both_directions() {
 #[test]
 fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
     let (r, h, t) = (1.0, 2.0, 0.2);
-    let meridian = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(r, h), 0.0),
-        ProfileVertex::new(Point2::new(0.0, h), 0.0),
+    let meridian = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![meridian])
         .validate(tol())

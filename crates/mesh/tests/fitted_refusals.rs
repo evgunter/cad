@@ -15,7 +15,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use profile::RawLoop;
 use std::sync::Arc;
 
 use geom::Surface;
@@ -25,7 +24,7 @@ use geom_brep::{Pcurve, PcurveCache};
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3, Vec3};
 use mesh::TessellateError;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::loft_prism;
 use sweep::{Extrusion, extrude};
 use test_utils::vacuity;
@@ -165,9 +164,9 @@ fn build_fitted_cache() -> Option<PcurveCache<f64>> {
 /// The m5_pr11_trimmed suite's split cylinder (trimmed cylinder walls
 /// with Harmonic caches), lower half — `disc`/`halves` verbatim.
 fn split_cylinder_half() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 1.0),
+        (Point2::new(1.0, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

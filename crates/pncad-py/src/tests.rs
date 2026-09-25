@@ -3434,17 +3434,17 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         );
     }
 
-    // The payload survives the rewording: an arena key still names
-    // each entity, so the prose is a diagnosis a caller can act on
-    // rather than a sentence that dropped its subject.
+    // The prose names what touched and where, in words — the keys
+    // ride in the typed payload a caller resolves against — and ends
+    // on the recourse.
     let message = census.to_string();
     assert!(
-        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.contains("never blessed from discovery"),
-        "the undeclared-contact recourse is the actionable half"
+        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        "the undeclared-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -3457,7 +3457,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
-/// inventory or a scalar with no certified chart-overlap lane, and
+/// inventory or a door that holds no certified chart-overlap lane
+/// (the `_structural` ones, which the binding does not expose), and
 /// the structural arms want a corrupt arena, which the public API
 /// cannot mint. Those are exactly the arms whose projection the
 /// Python suite cannot exercise, so they are constructed here and
@@ -3621,17 +3622,19 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 
 /// **Every `RingContact` arm's word, built and read.**
 ///
-/// The arm table for `ring_contact_kind`, executable. The three arms
-/// are three different repairs — a shared position one vertex move
-/// clears, a ring vertex standing on an outer edge's interior, and a
-/// shared arc no single move separates — so each is pinned by name.
+/// The arm table for `ring_contact_kind`, executable. The six arms
+/// are different repairs — a shared position one vertex move clears,
+/// a vertex of either loop standing on an edge's interior in the
+/// other, a shared arc no single move separates, two edges crossing or
+/// touching at a point, and two whole circles doing so — so each is
+/// pinned by name.
 ///
-/// **None of the three is reachable from Python.** A ring meeting its
+/// **None of the six is reachable from Python.** A ring meeting its
 /// own face's outer loop is minted by raw Euler surgery on a body
 /// (the shell verb's suites glue a lifted counterpart chart on with
 /// `kfmrh` to build one); every Python door answers a body its own
 /// producer already validated, and the binding exposes no Euler
-/// operator to build one with. So the three words are pinned here,
+/// operator to build one with. So the six words are pinned here,
 /// and `tests/test_validate.py` says the gap is the DOORS' rather
 /// than the projection's.
 #[test]
@@ -3669,6 +3672,27 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             outer_edge: Default::default(),
         }),
         Some("edge_along_edge")
+    );
+    assert_eq!(
+        word(RingContact::OuterVertexOnEdge {
+            outer_vertex: VertexKey::default(),
+            ring_edge: Default::default(),
+        }),
+        Some("vertex_on_ring_edge")
+    );
+    assert_eq!(
+        word(RingContact::EdgesMeet {
+            ring_edge: Default::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("edge_edge_point")
+    );
+    assert_eq!(
+        word(RingContact::Circles {
+            ring_loop: Default::default(),
+            outer_loop: Default::default(),
+        }),
+        Some("circle_circle")
     );
 
     // The escalated sibling carries a margin, not a shape: it is a
@@ -5136,7 +5160,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "ring_contact_tag",
-        values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_on_ring_edge",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {

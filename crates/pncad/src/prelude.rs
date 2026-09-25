@@ -178,8 +178,8 @@ pub use quantity::{
 
 // --- 2. Profile authoring -------------------------------------
 // NAMEABLE, NOT MINTABLE:
-// `ProfileLoop` and `ProfileVertex` stay here because read-back hands
-// them back, `ProfileError` payloads point into them, and `validated`
+// `ProfileLoop` stays here because read-back hands it back,
+// `ProfileError` payloads point into it, and `validated`
 // takes a `Vec<ProfileLoop>` — a prelude user must be able to name what
 // the ladder passes around. What left is the raw MINTING tier:
 // `ProfileLoop::new`/`polygon` live on `profile::RawLoop`, which is a
@@ -188,8 +188,8 @@ pub use quantity::{
 // authored through the lattice below, and a table that already exists
 // crosses scalars through `ProfileLoop::map_scalar`.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
-    SketchPlane, ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, FilletLegShape, Profile, ProfileError, ProfileLoop, SegmentKind, SketchPlane,
+    ValidatedLoop, ValidatedProfile, bulge_from_center, bulge_from_via,
 };
 // The PATHS authoring algebra: `circle` (the one-step closed-carrier
 // program form) and the
@@ -486,7 +486,8 @@ pub use topo::{
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
-//   vertex-on-edge, or edge-along-edge.
+//   vertex-on-edge (either loop's vertex), edge-along-edge, two edges
+//   meeting at a point, or two whole circles crossing or touching.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
 //   four because both of its payload types are already on this list.

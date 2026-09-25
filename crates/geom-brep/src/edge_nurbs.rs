@@ -107,6 +107,13 @@ pub struct PlaneNurbsLimbs<T: Real> {
 /// The lane's typed refusal — actionable, closed, and always carrying
 /// the measured number when one exists.
 #[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PlaneNurbsRefusalKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PlaneNurbsRefusal {
     /// The foot-point projection did not converge at a schedule
     /// sample. Never a best-effort foot.

@@ -14,7 +14,7 @@ use common::{
     annulus, arc_kisses_line, bowtie, lift, near_tangent_hole, profile, tangent_hole, tol,
 };
 use geom_core::{Dual, Dual64, Sign};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
@@ -183,12 +183,12 @@ fn dual_with_seeded_derivatives_still_decides_by_value_only() {
         base.loops
             .iter()
             .map(|lp| {
-                profile::ProfileLoop::new(
+                bulge_loop(
                     lp.vertices()
                         .iter()
                         .zip(lp.bulges())
                         .map(|(v, &b)| {
-                            profile::ProfileVertex::new(
+                            (
                                 geom_core::Point2::new(
                                     Dual::new(v.x, f64::NAN),
                                     Dual::new(v.y, f64::NAN),

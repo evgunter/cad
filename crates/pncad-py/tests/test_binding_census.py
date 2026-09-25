@@ -1687,7 +1687,7 @@ FAMILIES: dict[str, str] = {
 #: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
-#: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
+#: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
 #: `FilletLegShape`, `validated`) and the recorded program the node
 #: stores (`ProfileProgram`, `LoopProgram`, `ProgramStep`,
@@ -2659,7 +2659,6 @@ NOT_BOUND = {
     "SectionCircle": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
-    "ProfileVertex": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,

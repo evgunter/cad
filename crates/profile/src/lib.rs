@@ -27,10 +27,10 @@
 //!   positive counterclockwise). The vertices are authoritative;
 //!   an arc's carrier and sweep agree with them, and validation reads
 //!   the carrier rather than re-deriving it.
-//! - **The bulge input form.** Loops are written as a vertex chain
-//!   `[{pos, bulge}, …]` ([`ProfileVertex`]) — vertex k's `bulge`
-//!   describes the segment leaving it — and LOWERED to the stored form
-//!   once: a bulge of exactly zero (either sign) is a line, and any
+//! - **The bulge input form.** The lattice's emission layer writes a
+//!   loop as a chain of (position, bulge) pairs — vertex k's bulge
+//!   describes the segment leaving it — and LOWERS it to the stored
+//!   form once: a bulge of exactly zero (either sign) is a line, and any
 //!   other an arc whose
 //!   carrier is the closed form below and whose sweep is
 //!   Δθ = 4·atan(b). The bulge each segment was lowered from is kept
@@ -150,6 +150,8 @@ pub mod path;
 mod seg;
 pub mod structure;
 mod sugar;
+#[cfg(any(test, feature = "test-support"))]
+pub mod test_support;
 mod validate;
 
 use geom_core::{Affine3, Mat3, OrthoFrame, Point2, Point3, Real, Vec3};
@@ -233,86 +235,23 @@ pub enum Segment<T: Real> {
     },
 }
 
-/// One vertex of the **bulge input form**: a position plus the bulge of
-/// the segment *leaving* it toward the next vertex (see the crate docs'
-/// bulge semantics).
-///
-/// This is an input record, not the stored form: the emission layer
-/// builds its chain in it, and the fixture door takes a chain of them.
-/// Both lower it to a [`ProfileLoop`]'s vertices and canonical
-/// [`Segment`]s at once.
-#[derive(Clone, Copy, Debug)]
-pub struct ProfileVertex<T: Real> {
-    pos: Point2<T>,
-    bulge: T,
-}
-
-impl<T: Real> ProfileVertex<T> {
-    /// A vertex: a position plus the bulge of the segment leaving it.
-    /// The segment lowers to a [`Segment::Line`] when the bulge is
-    /// exactly zero (either sign) and to a [`Segment::Arc`] otherwise.
-    ///
-    /// **What the privacy on this type does and does not claim.**
-    /// Vertex *values* stay mintable wherever the type is nameable —
-    /// this door is unconditional and every field reads back, exactly
-    /// as for [`Point2`]. Privacy here buys representation freedom, not
-    /// mint-prevention. The funnel claim is about LOOPS: outside this
-    /// crate a [`ProfileLoop`] cannot be spelled from a vertex table:
-    /// the lattice's emission layer and [`ProfileLoop::map_scalar`] are
-    /// the only doors a shipped build has, and neither takes one. A
-    /// caller holding a bag of vertices has nothing to put them in.
-    pub fn new(pos: Point2<T>, bulge: T) -> Self {
-        Self { pos, bulge }
+/// **The lowering rule** every loop is built by: the canonical segment
+/// that the segment leaving `start` with `bulge` and ending at `end`
+/// lowers to — a [`Segment::Line`] exactly when the bulge is exactly
+/// zero (either sign), and otherwise the arc [`lower_arc`] builds.
+pub(crate) fn lower_to<T: Real>(start: Point2<T>, bulge: T, end: Point2<T>) -> Segment<T> {
+    if is_exact_zero(bulge) {
+        return Segment::Line;
     }
-
-    /// **The leaf rung of the profile scalar lift**: the same vertex
-    /// read at another scalar — the position through [`Point2::map`],
-    /// the bulge through `f`.
-    ///
-    /// `map`, not `map_scalar`, because a vertex is a fixed pair of
-    /// scalars with no structure to carry: `geom`'s `scalar_lift`
-    /// convention is `map` on every leaf and `map_scalar` on every type
-    /// whose lift has counts or indices to carry
-    /// ([`ProfileLoop::map_scalar`], [`Profile::map_scalar`]).
-    ///
-    /// Structural, not arithmetic: every scalar goes through `f` and
-    /// nothing is computed, so the lift is exact whenever `f` is.
-    #[must_use]
-    pub fn map<U: Real>(self, f: impl Fn(T) -> U) -> ProfileVertex<U> {
-        ProfileVertex::new(self.pos.map(&f), f(self.bulge))
-    }
-
-    /// The vertex position in sketch-plane coordinates (meters).
-    pub fn pos(&self) -> Point2<T> {
-        self.pos
-    }
-
-    /// The bulge b = tan(θ/4) of the segment from this vertex to the
-    /// next (0 ⇒ line; sign per the crate docs — positive sweeps
-    /// counterclockwise). The last vertex's bulge belongs to the
-    /// implicit closing segment.
-    pub fn bulge(&self) -> T {
-        self.bulge
-    }
-
-    /// The canonical segment this vertex's leaving segment lowers to,
-    /// given the vertex it ends at, by the one rule every lowering
-    /// shares: a [`Segment::Line`] exactly when the bulge is exactly
-    /// zero (either sign), and otherwise the arc [`lower_arc`] builds.
-    pub(crate) fn lower_to(self, end: Point2<T>) -> Segment<T> {
-        if is_exact_zero(self.bulge) {
-            return Segment::Line;
-        }
-        let LoweredArc {
-            centre,
-            radius,
-            sweep,
-        } = lower_arc(self.pos, end, self.bulge);
-        Segment::Arc {
-            centre,
-            radius,
-            sweep,
-        }
+    let LoweredArc {
+        centre,
+        radius,
+        sweep,
+    } = lower_arc(start, end, bulge);
+    Segment::Arc {
+        centre,
+        radius,
+        sweep,
     }
 }
 
@@ -330,7 +269,7 @@ pub(crate) struct LoweredArc<T: Real> {
 /// chord `start → end` for `bulge`, and the sweep Δθ = 4·atan(b).
 ///
 /// Pure arithmetic over its inputs, so it is the same expression at
-/// every scalar: [`ProfileVertex::lower_to`] mints a stored arc
+/// every scalar: [`lower_to`] mints a stored arc
 /// through it, and the validated form's lift rebuilds a validated
 /// arc's carrier and sweep through it at the target scalar. A bulge of
 /// exactly zero has no carrier (its centre is at infinity), and the
@@ -374,11 +313,13 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 /// writing coordinates down. **This is the one home for what mints a
 /// loop; everywhere else points here.**
 ///
-/// One PRIVATE constructor exists, and two public doors reach it:
+/// A shipped build has one PRIVATE constructor, the lowering, and two
+/// public doors reach it:
 ///
 /// - **the authoring door** — the [`path`] lattice's emission layer.
 ///   It classifies every junction and declares every tangency as the
-///   chain is written, then calls the crate's private constructor. The
+///   chain is written, then calls the crate's private lowering
+///   (`ProfileLoop::lower`). The
 ///   only door on the presented surface.
 /// - **the materialization door** — [`ProfileLoop::map_scalar`]: a
 ///   table that already exists, read at another scalar. It authors
@@ -387,11 +328,13 @@ fn is_exact_zero<T: Real>(b: T) -> bool {
 ///   profile's loops, not a second one.
 /// - **fixtures** — `RawLoop` (unlinked deliberately: in a shipped
 ///   build it is a crate-private item, so a link from this public page
-///   would name something the page's reader does not have), which IS
-///   that private constructor,
-///   additionally exported under `test`/`test-support`. In a shipped
-///   build the trait item itself is `pub(crate)`, so no re-export of it
-///   compiles and no downstream build can name it.
+///   would name something the page's reader does not have), which
+///   writes the canonical form verbatim, and `test_support::bulge_loop`,
+///   which hands a bulge chain to the lowering. Both are exported under
+///   `test`/`test-support` only. In a shipped build the trait item
+///   itself is `pub(crate)`, so no re-export of it compiles and no
+///   downstream build can name it, and the helper's module does not
+///   exist.
 ///
 /// Two further materialization doors were anticipated by the Q1 ruling
 /// and **do not exist**: a STEP-import face loop (`crates/step-import`
@@ -491,9 +434,10 @@ macro_rules! raw_door {
         /// declared `pub(crate)`. Not "declared public and not
         /// re-exported" — declared crate-private, so no re-export of it
         /// can compile anywhere in this crate and a downstream build
-        /// has no route to it at all. `crate::RawLoop` still resolves in
-        /// both arms, so the emission layer needs no second spelling; it
-        /// is calling the crate's own private constructor.
+        /// has no route to it at all. Nothing in a shipped build mints
+        /// through it — the emission layer calls the lowering itself —
+        /// so the shut arm's item is dead code there, and says so with
+        /// an `expect` that fires the day something reaches it.
         ///
         /// Why a trait rather than inherent methods, still: inherent
         /// methods travel with their type, and the type must stay
@@ -506,18 +450,39 @@ macro_rules! raw_door {
         /// fields are private, so outside this crate there is no
         /// struct-literal route around it — a downstream
         /// `ProfileLoop { .. }` does not compile (E0451, under test).
+        #[cfg_attr(
+            not(any(test, feature = "test-support")),
+            expect(
+                dead_code,
+                reason = "a shipped build mints no loop through the fixture door; the \
+                          shut arm declares the item crate-private so no re-export compiles"
+            )
+        )]
         $vis trait RawLoop<T: Real>: Sized {
-            /// Builds a loop from a chain in the bulge input form,
-            /// lowered to verbatim vertices and canonical segments,
-            /// with no declared-tangent joints.
+            /// Builds a loop from its canonical form, verbatim: each
+            /// vertex paired with the [`Segment`] leaving it, with no
+            /// declared-tangent joints.
             ///
-            /// The one method of this trait that is NOT gated: the
-            /// lattice's emission layer calls it as the crate's private
-            /// constructor, so it exists in both arms.
-            fn new(vertices: Vec<ProfileVertex<T>>) -> Self;
+            /// Nothing is lowered and nothing is checked, so a fixture
+            /// can write any table the stored form can hold — a
+            /// one-segment full circle included — and
+            /// [`Profile::validate`] is what decides it. The bulge kept
+            /// beside each segment ([`ProfileLoop::bulges`]) is zero for
+            /// a line and tan(Δθ/4) for an arc; the readers that lower a
+            /// loop again ([`ProfileLoop::map_scalar`],
+            /// [`ProfileLoop::reversed`]) re-derive the carrier from it,
+            /// so a given carrier comes back off in its last bits, and a
+            /// one-segment full circle (a zero chord) comes back with a
+            /// NaN centre and zero radius. Retiring the kept bulge
+            /// removes both.
+            ///
+            /// The one method of this trait that is NOT gated, so the
+            /// trait has the same shape in both arms.
+            fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self;
 
             /// Builds a loop of straight segments through the given
-            /// points (all bulges zero) — polygon sugar.
+            /// points — [`RawLoop::new`] with a [`Segment::Line`] per
+            /// edge — polygon sugar.
             #[cfg(any(test, feature = "test-support"))]
             fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self;
 
@@ -534,18 +499,26 @@ macro_rules! raw_door {
         }
 
         impl<T: Real> RawLoop<T> for ProfileLoop<T> {
-            fn new(vertices: Vec<ProfileVertex<T>>) -> Self {
-                Self::lower(&vertices, Vec::new())
+            fn new(chain: impl IntoIterator<Item = (Point2<T>, Segment<T>)>) -> Self {
+                let (vertices, segments): (Vec<_>, Vec<_>) = chain.into_iter().unzip();
+                let bulges = segments
+                    .iter()
+                    .map(|segment| match *segment {
+                        Segment::Line => T::zero(),
+                        Segment::Arc { sweep, .. } => (sweep / T::from_f64(4.0)).tan(),
+                    })
+                    .collect();
+                Self {
+                    vertices,
+                    segments,
+                    bulges,
+                    tangent_joints: Vec::new(),
+                }
             }
 
             #[cfg(any(test, feature = "test-support"))]
             fn polygon(points: impl IntoIterator<Item = Point2<T>>) -> Self {
-                <Self as RawLoop<T>>::new(
-                    points
-                        .into_iter()
-                        .map(|pos| ProfileVertex::new(pos, T::zero()))
-                        .collect(),
-                )
+                <Self as RawLoop<T>>::new(points.into_iter().map(|pos| (pos, Segment::Line)))
             }
 
             #[cfg(any(test, feature = "test-support"))]
@@ -569,14 +542,13 @@ impl<T: Real> ProfileLoop<T> {
     /// **A materialization door**: the same loop read at another
     /// scalar.
     ///
-    /// The middle rung of this crate's scalar lift, between
-    /// [`ProfileVertex::map`] and [`Profile::map_scalar`], and named by
+    /// The lower rung of this crate's scalar lift, below
+    /// [`Profile::map_scalar`], and named by
     /// `geom`'s `scalar_lift` convention: `map` on every leaf
     /// ([`Point2::map`](geom_core::Point2::map),
     /// [`Vec2::map`](geom_core::Vec2::map),
     /// [`Affine3::map`](geom_core::Affine3::map),
-    /// [`SketchPlane::map`], [`ProfileVertex::map`] — a fixed tuple of
-    /// scalars), `map_scalar` wherever the lift has structure to carry,
+    /// [`SketchPlane::map`] — a fixed tuple of scalars), `map_scalar` wherever the lift has structure to carry,
     /// which here is the vertex count and the joint index set. One name per operation, on the type it lifts. It
     /// takes `&self` where a leaf takes `self`, because a loop owns its
     /// `Vec`s and its caller holds a borrow.
@@ -596,46 +568,50 @@ impl<T: Real> ProfileLoop<T> {
     /// nothing is taken on trust by crossing.
     ///
     /// With `U::from_f64` — the widening direction, which never refuses
-    /// — the crossing is total, and for any `U` whose `from_f64` is
-    /// exact on `f64` (`f64` itself included) bit-identical.
+    /// — the crossing is total, and for a loop the lowering built and
+    /// any `U` whose `from_f64` is exact on `f64` (`f64` itself
+    /// included) bit-identical.
     ///
     /// This door and the [`path`] lattice's emission layer are the whole
     /// production population; see [`ProfileLoop`]'s own docs for the two
     /// anticipated doors that do not exist.
     #[must_use]
     pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ProfileLoop<U> {
-        let chain: Vec<ProfileVertex<U>> = self.input_chain().map(|v| v.map(&f)).collect();
+        let chain: Vec<(Point2<U>, U)> = self
+            .input_chain()
+            .map(|(pos, bulge)| (pos.map(&f), f(bulge)))
+            .collect();
         ProfileLoop::lower(&chain, self.tangent_joints.clone())
     }
 
     /// **The lowering** — the one constructor every `ProfileLoop` comes
-    /// out of: a chain in the bulge input form becomes verbatim vertices
-    /// and one canonical segment per edge ([`ProfileVertex::lower_to`]),
-    /// the bulges kept beside them. The emission layer, the fixture
-    /// door, [`Self::map_scalar`], [`Self::reversed`] and the lift's
-    /// re-seaming all build through it, so every stored segment is the
-    /// lowering of its own chord and bulge. The fixture door's
-    /// `with_tangent_joints` replaces the joint set of a loop it already
-    /// lowered and touches nothing else.
-    pub(crate) fn lower(chain: &[ProfileVertex<T>], tangent_joints: Vec<usize>) -> Self {
+    /// out of but the fixture door's canonical one: a chain of
+    /// (position, bulge) pairs in the bulge input form becomes verbatim
+    /// vertices and one canonical segment per edge ([`lower_to`]), the
+    /// bulges kept beside them. The emission layer, the fixture
+    /// helper `test_support::bulge_loop`, [`Self::map_scalar`],
+    /// [`Self::reversed`] and the lift's re-seaming all build through
+    /// it, so every segment they store is the lowering of its own chord
+    /// and bulge.
+    pub(crate) fn lower(chain: &[(Point2<T>, T)], tangent_joints: Vec<usize>) -> Self {
         let n = chain.len();
         Self {
-            vertices: chain.iter().map(|v| v.pos).collect(),
+            vertices: chain.iter().map(|&(pos, _)| pos).collect(),
             segments: (0..n)
-                .map(|k| chain[k].lower_to(chain[(k + 1) % n].pos))
+                .map(|k| lower_to(chain[k].0, chain[k].1, chain[(k + 1) % n].0))
                 .collect(),
-            bulges: chain.iter().map(|v| v.bulge).collect(),
+            bulges: chain.iter().map(|&(_, bulge)| bulge).collect(),
             tangent_joints,
         }
     }
 
     /// The input chain this loop was lowered from: each vertex with the
     /// bulge of its leaving segment.
-    pub(crate) fn input_chain(&self) -> impl Iterator<Item = ProfileVertex<T>> + '_ {
+    pub(crate) fn input_chain(&self) -> impl Iterator<Item = (Point2<T>, T)> + '_ {
         self.vertices
             .iter()
             .zip(&self.bulges)
-            .map(|(&pos, &bulge)| ProfileVertex::new(pos, bulge))
+            .map(|(&pos, &bulge)| (pos, bulge))
     }
 }
 
@@ -759,9 +735,9 @@ impl<T: Real> ProfileLoop<T> {
         if n == 0 {
             return self.clone();
         }
-        let input: Vec<ProfileVertex<T>> = self.input_chain().collect();
-        let chain: Vec<ProfileVertex<T>> = (0..n)
-            .map(|k| ProfileVertex::new(input[(n - k) % n].pos, -input[(n - k - 1) % n].bulge))
+        let input: Vec<(Point2<T>, T)> = self.input_chain().collect();
+        let chain: Vec<(Point2<T>, T)> = (0..n)
+            .map(|k| (input[(n - k) % n].0, -input[(n - k - 1) % n].1))
             .collect();
         // Out-of-range indices (garbage data) pass through untouched —
         // total code; validation refuses them typed.
@@ -1065,8 +1041,11 @@ mod lowering_tests {
 
     /// The kind `b` lowers to on a unit chord.
     fn kind_of<T: Real>(b: T) -> &'static str {
-        let v = ProfileVertex::new(Point2::new(T::zero(), T::zero()), b);
-        match v.lower_to(Point2::new(T::one(), T::zero())) {
+        match lower_to(
+            Point2::new(T::zero(), T::zero()),
+            b,
+            Point2::new(T::one(), T::zero()),
+        ) {
             Segment::Line => "line",
             Segment::Arc { .. } => "arc",
         }
@@ -1133,12 +1112,12 @@ mod lowering_tests {
     /// chord, differs from the forward centre in its last bits: the
     /// chord's two endpoints are three orders of magnitude apart in x,
     /// so `a + (b − a)/2` and `b + (a − b)/2` round differently.
-    fn discriminating() -> Vec<ProfileVertex<f64>> {
+    fn discriminating() -> Vec<(Point2<f64>, f64)> {
         vec![
-            ProfileVertex::new(Point2::new(0.1, 0.3), 0.37),
-            ProfileVertex::new(Point2::new(0.000_524_560_164_915_884, 0.7), 0.37),
-            ProfileVertex::new(Point2::new(0.039_166_573_353_688_7, 1.9), 0.0),
-            ProfileVertex::new(Point2::new(0.9, 1.1), -1.3),
+            (Point2::new(0.1, 0.3), 0.37),
+            (Point2::new(0.000_524_560_164_915_884, 0.7), 0.37),
+            (Point2::new(0.039_166_573_353_688_7, 1.9), 0.0),
+            (Point2::new(0.9, 1.1), -1.3),
         ]
     }
 
@@ -1155,7 +1134,7 @@ mod lowering_tests {
         for k in 0..n {
             let j = (n - k - 1) % n;
             let (a, b) = (back.vertices()[k], back.vertices()[(k + 1) % n]);
-            let relowered = ProfileVertex::new(a, -lp.bulges()[j]).lower_to(b);
+            let relowered = lower_to(a, -lp.bulges()[j], b);
             assert_eq!(bits(&back.segments()[k]), bits(&relowered), "segment {k}");
             match (lp.segments()[j], back.segments()[k]) {
                 (Segment::Line, Segment::Line) => {}

@@ -5244,3 +5244,25 @@ is about doors with NO projection and lists `split`/`inline` among those
 that already have one, so this is a different and much smaller unit.
 
 Signed (FIX orchestrator).
+
+## Announced seam from PATHS (2026-09-25) — `ProfileVertex` leaves the façade
+
+**`crates/pncad/src/profile.rs` and `crates/pncad/src/prelude.rs`, one
+name each.** `profile::ProfileVertex`, the bulge input form's vertex
+record, is retired (Ev's ruling on #3218, q4), so both re-exports drop
+it. Nothing on the façade handed one out or took one: read-back is
+`ProfileLoop::{vertices, segments, bulges}`, which are unchanged.
+
+**What else moved in your ground.** `pncad/tests/all.rs`'s
+`no_raw_loop_minting_door_is_nameable_through_the_facade` swaps its
+`ProfileVertex{` needle, a type that no longer exists, for the new
+fixture helper `bulge_loop(`. The pncad-py binding census drops the
+`ProfileVertex` INTERIOR row with the name. No Python binding named the
+type, so nothing Python-visible changed.
+
+Fixtures that wrote a bulge chain now call
+`profile::test_support::bulge_loop`, which exists only under
+`test`/`test-support`. `RawLoop::new` takes the canonical form (a vertex
+and its `Segment` per edge). Neither is on the façade.
+
+Signed (PATHS orchestrator).

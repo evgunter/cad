@@ -38,8 +38,7 @@ use core::f64::consts::FRAC_1_SQRT_2;
 
 use crate::common::approx::band;
 use geom::Surface;
-use geom_core::Tol;
-use profile::ProfileVertex;
+use geom_core::{Point2, Tol};
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::battery::chain_g1;
@@ -55,11 +54,11 @@ fn tol() -> Tol {
 /// from the equator up 45°, on a flat base annulus, bored on-axis so the
 /// profile stays annular and the full revolve mints CLOSED latitude
 /// rims.
-fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
+fn dome_profile(r: f64) -> Vec<(Point2<f64>, f64)> {
     sweep::test_support::dome_profile(r)
 }
 
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 

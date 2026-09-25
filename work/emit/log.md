@@ -823,6 +823,52 @@ It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
 
+## 2026-09-25 — union face names go to Ev: re-derive over the merge closure
+
+The fork on `union-face-names-follow-fold-order` went to Ev. The
+recommendation is to re-derive. A union face's parent is its merge
+closure: the member faces the union's merges link, transitively. A
+parent held as one face takes the parent's name. A parent held as
+several faces gets one `SideOf` against the parents across the group's
+seam edges. N2 and N3 in `names/README.md` state it.
+
+Measured with a scratch probe (deleted) over the rebind row's corpus
+(45 case-unions; 248 fused orders; the probe's 186 refusing orders are
+the known mixed and all-refusing cases, untouched):
+- **The absences, by the shape where the name IS published:**
+  - `Merged#SideOf` (merged then cut): 234;
+  - bare constituent a merge lists: 66;
+  - `Merged` whole: 54;
+  - one four-partner `SideOf`: 84;
+  - two stacked `SideOf`s: 48.
+
+  That totals 486. The 330 seam absences split into 120 citing a
+  fragment, 120 citing a merge and 90 citing bare faces.
+- **Re-derive:**
+  - Across 552 parents, the finished body's faces per parent and their
+    seam partners agree in every fused order (0 mismatches).
+  - Partners read from the fold's names instead disagree in 25
+    parents, so the partners must come from the body.
+  - Axis-plane verdicts separate every piece: no new ties.
+  - All 342 seam parent-pairs hold one edge each and agree across
+    orders.
+  - Renamed: 238 of 3468 face rows (90 of 702 distinct names), of which
+    102 are stacked or misplaced fragments, 76 have a parent that is not
+    the closure (56 bare constituents and 20 sub-merges, the latter in
+    `r2endsg`), 48 have a different partner set, and 12 cite a partner
+    as a piece. Seam rows: 132 of 1924.
+  - Faces already in merged-then-cut, single-step form keep their
+    spelling.
+- **Refuse:** refusing only where the fold's spelling varies would
+  itself follow order. The order-free test is "a merged parent is cut,
+  or a face is cut by two or more other members". It refuses 134 of 248
+  fused orders, and 26 of 45 case-unions in every order, `r1two`,
+  `abg` and every `fam0**` among them. It renames nothing.
+- **The collision freeze** (`retire_into_merges`) fires on none of the
+  corpus. It fires only on the ZIP-shape row: four seam edges in each
+  of its four runs, two edges of one seam line between the same two
+  faces. Under the rule, those are two pieces of the seam, ranked
+  along it.
 ## 2026-09-25 — a cited seam-vertex group always ranks along its member edge (PR 3219)
 
 `cite_member_edges` ranks every group of two or more vertices that
@@ -871,3 +917,60 @@ Left as they are, with reasons in the PR: the `param_source` prefix code,
 `sign_ix as u8`, and every widening cast.
 
 Filed: gather P4 `product-instance-output-body-index-saturates`.
+
+## 2026-09-25 — Ev: a union names its faces from the finished body (PR 3222)
+
+Ev chose re-deriving over refusing:
+- a face's parent is its merge closure;
+- one `SideOf` per piece, with partners read from the finished body;
+- seams cite parents.
+
+Measured, the rule:
+- renames 90 of 702 distinct face names;
+- refuses nothing new;
+- is order-free over the rebind corpus;
+- lets N3's "constituents retire" hold in every order.
+
+Refusing would have refused 134 of 248 fused orders.
+`union-face-names-follow-fold-order` becomes the build.
+
+## 2026-09-25 — profile pieces are named by minted step ids (PR 3223)
+
+N1's rule is built, as Ev ruled it on #3193 and #3202:
+- every profile step carries a `StepId`, minted from the document's
+  step counter and never reused;
+- a profile locator is `{ step, role }`;
+- a tube's sections are named structurally, as `Section { Outer | Bore }`;
+- a loft wall or seam holds one locator per section.
+
+The positional rename machinery is deleted: `LoopProvenance`, the
+`SegmentMap` rewrite, `RETIRED_FLOOR`, `reanchor_report` and the
+signed-area anchor. The wire format breaks, and the goldens are
+re-baselined.
+
+Nothing renumbers any more:
+- the held name in `asm_parent_held_names` survives a pin update;
+- EDIT's zero-fit chain keeps its names;
+- a dropped step's names vanish, with a DM7 report.
+
+Review found one alias (B1): a fillet claimed the next step's tangent
+arc as its run out, so dropping that step moved a paint silently. It is
+fixed, with the run out tied to its arrival carrier. The implementer
+was lost to a container restart mid-unit, and a second lane finished
+the fix pass.
+
+Closed:
+- `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+  (P0);
+- `a-value-edits-last-published-numbering-is-not-recipe-state`;
+- `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+
+Notes left on:
+- EDIT's zero-fit and stranded-names rows;
+- WIRE's two signed-area rows, which are now moot.
+
+Filed:
+- P3 `a-fillets-run-out-rides-by-segment-kind-only`;
+- P2 `sibling-branches-mint-one-step-id-for-different-steps` (via the
+  PR);
+- the Python handles remainder, `python-spells-a-piece-by-its-authoring-calls-step-handle`.

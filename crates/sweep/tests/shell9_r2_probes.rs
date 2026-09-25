@@ -8,7 +8,7 @@
 use std::f64::consts::PI;
 
 use geom_core::{Point2, Tol, Vec3};
-use profile::{ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
@@ -27,11 +27,11 @@ fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
     let c = p2(0.0, h / 2.0);
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )

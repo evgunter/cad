@@ -10,7 +10,7 @@ use std::collections::BTreeMap;
 
 use geom::Curve3;
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{arcs_at, ball_poled_z, cube, dome, lantern, sphere_zone, waisted};
 use sweep::{Extrusion, Revolution, extrude};
@@ -54,10 +54,7 @@ fn cube_minus_ball() -> Body<f64> {
 fn plate_with_hole() -> Body<f64> {
     let p2 = |x: f64, y: f64| Point2::new(x, y);
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.4, 0.5), 1.0),
-        ProfileVertex::new(p2(0.6, 0.5), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(0.4, 0.5), 1.0), (p2(0.6, 0.5), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(tol())
         .unwrap();

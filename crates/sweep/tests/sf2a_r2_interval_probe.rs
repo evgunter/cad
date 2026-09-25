@@ -8,7 +8,7 @@
 
 use geom::Surface;
 use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ChartMove};
 
@@ -17,9 +17,9 @@ fn p2(x: f64, y: f64) -> Point2<Interval> {
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<Interval> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), Interval::from_f64(0.0)))
+            .map(|&(x, y)| (p2(x, y), Interval::from_f64(0.0)))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
