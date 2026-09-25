@@ -366,7 +366,7 @@ fn insert_node_checks_program_dimensions() {
 /// **The arrival spec's `Sweep`/`ArcLen`/`Bulge` argument has a role of
 /// its own** — `SweepVal2`, `ArcLenVal2`, `Bulge2`.
 ///
-/// A fused step carries two specs, and `spec_slots` enumerates the
+/// A fused step carries two specs, and `spec_roles` enumerates the
 /// arrival's roles as the spec₂ twins. With a twin for every mode, a
 /// hand-built `ArcFilletArc` whose two specs share a mode addresses
 /// each spec's argument exactly once; the second clause here is the

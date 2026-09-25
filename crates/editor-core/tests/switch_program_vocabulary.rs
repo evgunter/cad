@@ -34,7 +34,7 @@
 //! # The spelling, now that the document form is the format
 //!
 //! A verb added to `ProgramStep` still breaks the compile at three
-//! sites in `program.rs` — `step_slots`, `res_step` and `step_bit_eq`
+//! sites in `program.rs` — `loop_roles`, `res_step` and `step_bit_eq`
 //! (measured: one added document verb, exactly those three) — so it
 //! cannot arrive unnoticed, and what carries it into the corpus, the
 //! round trip and the pin below is the `ALL_NAMES` census rather than
@@ -149,7 +149,7 @@ fn point(x: f64, y: f64) -> ProgramTarget {
 /// point: a mode the kernel vocabulary gains has no arm here, so this
 /// function stops compiling until the document vocabulary learns the
 /// mode too. Every downstream spelling follows from that one addition
-/// by exhaustiveness — `spec_slots`' roles, `spec_bit_eq`, and the
+/// by exhaustiveness — `spec_roles`' rows, `spec_bit_eq`, and the
 /// kernel construction in `res_spec`. The wire needs no arm: the
 /// document type is the serde type.
 ///
@@ -1025,7 +1025,7 @@ fn literal_count(program: &ProfileProgram) -> usize {
 /// The census's count clause compares WHOLE-PROGRAM totals, so a verb
 /// or arc mode whose slot enumeration is short reads as a bare delta
 /// naming neither the position nor the vocabulary member: an arc mode
-/// whose `spec_slots` arm enumerates nothing fails that clause as two
+/// whose `spec_roles` arm enumerates nothing fails that clause as two
 /// numbers fifteen apart. Re-running the same comparison one position
 /// at a time names the position, and [`step_label`] names the member
 /// riding it — `ArcTo` alone would not, since this corpus carries one
@@ -1084,13 +1084,13 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
 
 /// Slot addressing is a BIJECTION onto the program's expressions:
 /// every slot addresses one, no two address the same one, and there
-/// are exactly as many slots as expressions. Each clause catches a
-/// different silence — `step_expr`'s table ends in a catch-all `None`
-/// (a role that enumerates but does not address), the fused arms fall
-/// back from one spec to the other (two roles collapsing onto one
-/// argument), and `spec_slots` could simply stop enumerating a role
-/// (an expression no slot reaches, which neither of the other two
-/// clauses can see).
+/// are exactly as many slots as expressions. Enumeration and
+/// addressing read one role table (`loop_roles` in `program.rs`), so
+/// what each clause catches is a fault in that table: a row whose role
+/// repeats another's — a fused step's arrival spec written at the
+/// incoming spec's roles, say — addresses one expression twice and the
+/// other never, and a row the table omits is an expression no slot
+/// reaches, which only the count clause can see.
 ///
 /// The count comes from the wire rather than from a number written
 /// here: every expression in the corpus is a bare literal, so the
@@ -1148,14 +1148,18 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
 }
 
 /// **A refusal reports at the slot the census enumerates.** The
-/// enumeration (`spec_slots` / `step_slots`) and the resolution
-/// (`res_step` / `res_spec` / `res_target`) each assign a role to every
-/// expression a step carries, and the bijection census above reads only
-/// the first. So each enumerated slot's expression is replaced, one at
-/// a time, by a reference to a parameter nothing binds, and the
-/// program's resolution must refuse AT that slot — a resolver that
-/// addressed a fused arrival's target at the incoming spec's roles
-/// would point the user at the wrong field here, and nowhere else.
+/// enumeration and the resolution (`res_step` / `res_spec` /
+/// `res_target`) both read the role table (`loop_roles` in
+/// `program.rs`): the resolvers name no role themselves and reach the
+/// evaluator through one leaf that tags a refusal with the role the
+/// table pairs with the refusing expression. The bijection census above
+/// reads only the enumeration's side. So each enumerated slot's
+/// expression is replaced, one at a time, by a reference to a parameter
+/// nothing binds, and the program's resolution must refuse AT that
+/// slot — a resolver arm that named a role of its own, or tagged the
+/// wrong step, would point the user at the wrong field here, and
+/// nowhere else; and a row the table omits fails the leaf's lookup on
+/// every resolution of that step shape, which reds this test too.
 ///
 /// Blind spot, stated: the corpus's, as for the census above.
 #[test]
