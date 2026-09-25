@@ -51,9 +51,8 @@ design issue; say so rather than reconciling them locally.
 **Disregard the cost of the change**: re-baselining, changed behaviour,
 refactoring callers, a larger diff. Compare the answers as if each were
 already landed. "Final state" means the code after the work is done, not
-only what it outputs. Two answers that return the same body, value or
-geometry are not equivalent when one of them builds something wrong and
-then repairs it. Ergonomics and clean layering do count — they are
+only what it outputs: two answers that return the same body, value or
+geometry are not thereby equivalent. Ergonomics and clean layering do count — they are
 properties of the final state. If a cost is so large it changes what is feasible, say
 that separately; do not fold it into the ranking.
 
