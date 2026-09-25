@@ -600,15 +600,26 @@ pub fn acts(op: &SessionOp) -> bool {
 /// answer.
 pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdate {
     match (ops.iter().any(acts), refusal) {
-        // A refusal is the document's answer to the act it was asked
-        // for, so its subject is the document: it stops being the news
-        // when the document accepts one.
-        (_, Some(refusal)) => {
-            StatusUpdate::Show(Message::new(Subject::Document, refusal.to_string()))
-        }
+        (_, Some(refusal)) => StatusUpdate::Show(refusal_message(refusal)),
         (true, None) => StatusUpdate::Clear,
         (false, None) => StatusUpdate::Keep,
     }
+}
+
+/// **A [`Refusal`] as the line carries it** — the one place a refusal
+/// becomes a [`Message`], whichever way it reached the frame.
+///
+/// A refusal is the document's answer to an act it was asked for, so
+/// its subject is [`Subject::Document`]: it stops being the news when
+/// the document accepts one. Most arrive as an operation's outcome
+/// ([`batch_status`]); a refusal the chrome meets before any operation
+/// could carry the value — [`crate::widgets::value_field_ops`]'s typed
+/// number that [`crate::props::SlotValue::of`] refuses, the same
+/// refusal a drag of that value gets from the session's gesture door —
+/// goes onto the frame's notices through this same door, so the two
+/// routes say one sentence rather than two spellings of it.
+pub fn refusal_message(refusal: &Refusal) -> Message {
+    Message::new(Subject::Document, refusal.to_string())
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -1906,6 +1917,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::RootPoisoned
         | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
         ProductErrorKind::EvaluationOfAnotherDocument
+        | ProductErrorKind::PlacedUnderTwoRoots
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
         | ProductErrorKind::Graft
@@ -2726,6 +2738,7 @@ mod tests {
         // went silent would not fail.
         for kind in [
             ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::Graft,
             ProductErrorKind::SolidInvalid,
@@ -2778,6 +2791,7 @@ mod tests {
         let left_to_the_tree = [
             ProductErrorKind::EvaluationOfAnotherDocument,
             ProductErrorKind::UnknownNode,
+            ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::RootFailed,
             ProductErrorKind::RootPoisoned,

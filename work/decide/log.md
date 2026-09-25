@@ -619,3 +619,44 @@ for a clockwise one — and no longer `4·atan|b|`. No bulge crosses into
   to any of those.
 
 Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
+## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
+
+DECIDE-6 closed at its measurement.
+- The decision read is under 0.4% of every replay. Shut, or run ten
+  times over, it moves no suite.
+- None of the three answers was taken.
+- What ships is the profiling instrument behind `sym-profile-testing`,
+  with the decline's cause noted at the enclosure's own refusal arms,
+  plus its rows.
+
+**Where the cost went.** The review measured the separation: rule G shut
+takes the pad's dev leaf 280.6 → 122.4 s, and the pad's release leaf
+73.8 → 17.2 s. The exact quotient and A0's `min`/`max` folds are flat.
+`decision-read-triples-the-plate-pin-suites-wall-time` closes, and
+`rule-g-is-the-link-and-pads-leaf-cost` (P2) carries the cost.
+
+**Review.** Single FULL review on `cadc16eaf`: APPROVE-WITH-FIXES 0/5/6.
+Fix pass at `25f64b906`.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 237k | 139 min |
+| implementer, fix pass | 100k | 70 min |
+| reviewer | 213k | 97 min |
+
+
+## 2026-09-25 — DECIDE-7 spec'd: rule G's leaf cost, single FULL review
+
+DECIDE-6 moved the pin suites' cost from the decision read to rule G, so
+`rule-g-is-the-link-and-pads-leaf-cost` is next, as DECIDE-7. It is the
+largest measured cost on the slate: 73.8 → 17.2 s on the pad's release
+leaf. Both P1 rows are still gated (ROUND's Fillet centre; E6).
+
+**Review tier: single FULL review.** It is a cost change behind a
+receipt-equality invariant, as DECIDE-6 was. A stop clause sends any
+decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
+
+Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
+`props/sign-hull` at `a7dd5c520`.

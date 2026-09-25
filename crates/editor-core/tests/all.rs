@@ -196,6 +196,8 @@ mod rv_dm7_probes;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "gather_placed_under_two_roots.rs"]
+mod gather_placed_under_two_roots;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
