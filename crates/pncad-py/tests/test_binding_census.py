@@ -2292,6 +2292,14 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
+    # `StepImport::Solid::enclosure`'s refusal arm and the bracket it
+    # carries cross the way `MassPropsError` does: as the measurement
+    # refusal `ImportReport.enclosure` and
+    # `Body.validate_geometric_measured` raise, with the bracket as its
+    # `volume_lo`/`volume_hi`/`surface_area` attributes (`None` unless
+    # the schedule ran out) rather than as values Python holds.
+    "TargetUnreached": SHAPE,
+    "VolumeEnclosure": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.
@@ -3529,7 +3537,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::ApproxLaneUnsupported": "ValidationFinding.variant",
     "ValidationError::DegenerateTorus": "ValidationFinding.variant",
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
-    "ValidationError::NonpositiveTorusTube": "ValidationFinding.variant",
+    "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::EdgeCertification": "ValidationFinding.variant",
     "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
     "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",

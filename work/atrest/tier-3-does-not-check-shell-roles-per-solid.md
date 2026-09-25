@@ -49,7 +49,7 @@ as check 9's deferred nesting half
 `validate-tier3-curved-boundary-containment`: the shape that would
 answer it is `shell::encloses`-shaped, not flux-shaped, and a
 sign-level read of a shell's volume — which ATREST-1 built and is
-available as `props::sign_certified` restricted to a shell's faces —
+available as `props::sign_walk` restricted to a shell's faces —
 cannot see it. Whether the three nesting gaps want one walk between
 them is the design question this row opens.
 

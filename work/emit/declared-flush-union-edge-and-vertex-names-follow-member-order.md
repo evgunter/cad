@@ -2,10 +2,12 @@
 id: declared-flush-union-edge-and-vertex-names-follow-member-order
 kind: issue
 title: A declared flush union's edge, vertex and face names follow member order
-status: open
+status: closed
 opened: 2026-09-23
 priority: P1
 cost: H
+closed: 2026-09-25
+pr: 3198
 ---
 
 
@@ -182,3 +184,85 @@ finished body, so they are order-free only as far as the body is. A
 leftover vertex like these, landing on a member edge, would change that
 edge's cell count between orders.
 
+
+## After `emit/declared-flush-order` (EMIT, 2026-09-25)
+
+Measured with a scratch probe over #3168's rebind-row corpus (PR 3112's
+review corpus plus the r1–r4 fixtures). The probe counts (order, name)
+instances published in one fused order and absent in another.
+
+**What the branch changes.** The published table now names four things
+from the finished body rather than from the fold
+(`crates/editor-core/src/names/emit_union.rs`):
+- `retire_into_merges`: a seam's side is cited as the merge it retired
+  into where that merge is the face beside the seam, and a `SideOf`
+  partner as the one published merge listing it, unless the constituent
+  is itself published.
+- `Flush`: an edge lying along several members' edges is a piece of
+  the least of them. An edge lying along a member edge is a piece of it
+  whatever the fold named it.
+- `cite_member_edges`: a vertex at a member vertex is the least such
+  member vertex, and a vertex where one face crosses a member edge is
+  `Seam { edge, face }`.
+- A seam vertex cites the least member edge through it.
+
+| class | on main | on the branch |
+|---|---|---|
+| vertices (`FromMember`, `Seam`, junctions) | 3478 | 0 |
+| member-edge pieces (`FromMember` edges) | 1366 | 0 |
+| seam edges | 1776 | 330 |
+| faces | 778 | 486 |
+| **total** | **7398** | **816** |
+
+No pair of fused orders rebinds a name, and `KNOWN_MIXED` is unchanged.
+22 cases now publish one table in every fused order. The rebind row
+fails on any absent vertex or member-edge piece, and
+`a_flush_union_publishes_one_table_in_every_member_order` pins those 22
+cases.
+
+**What is left is fold history in how FACES are named.** Every one of
+the 816 is a face, or a seam edge citing one. A seam beside a bare
+constituent cites it (it borders it), so the seam names follow the face
+names.
+
+1. **Merged, then cut; or cut, then merged.** When `a` and `b` are
+   folded before a slab, it cuts the merged face, and the pieces are
+   `Merged(set)#SideOf(..)`. When the slab comes first, or in the step
+   that merges, the pieces are the merge and a bare constituent. Cases:
+   `abg` (and its `ids`/`low` variants), `abgg2`, `row`, `rowids`,
+   `fam000`, `fam001`, `fam002`, `fam012`, `fam022`, `fam200`, `fam201`,
+   `fam202`, `fam212`, `fam222`, `r1flush`, `r2endsg`, `r4trig`. The bare constituent also contradicts N3 inside one step,
+   which is filed as
+   `work/emit/a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires.md`.
+2. **Cut in two steps, or in one.** Two slabs across one cap stack two
+   `SideOf` fragments, in the order they were folded, when they are
+   folded after the cap. They make one `SideOf` over all four partners
+   when they are folded together first. Cases: `r1two` (undeclared,
+   the "three or more members" section above), `r3nest2`, `r4trig`.
+
+Both need a canonical form for a union's face fragments, whichever step
+cut or merged them. Two candidates:
+- re-derive every face group's qualifiers over the finished body, with
+  the merge as the parent;
+- refuse the shapes above.
+
+Re-deriving renames every fragmented face of every union. Refusing
+turns documents that fuse today into refusals, including the ordinary
+undeclared `r1two`. That choice is the orchestrator's; it is not made
+on this branch.
+
+**The body-level cause is ZIP's.** A declared merge leaves a collinear
+valence-2 vertex that an earlier step's cut made:
+`work/zip/a-declared-merge-leaves-a-collinear-valence-two-vertex-an-earlier-cut-made.md`.
+The flush-slab measurement above reproduces there.
+
+**Where the rules do not reach:**
+- The flush tests are straight-segment tests. A curved flush stretch
+  (two members whose arcs coincide) keeps the fold's member. No
+  corpus case has one, and two overlapping cylinders refuse
+  `CurvedPierceUnsupported` before naming.
+- A tied face descends from nothing the pass can use, so an edge beside
+  it keeps the fold's member.
+
+**Correction.** `fam012` and `fam212`'s third member is y∈(−1,0.5),
+not y∈(0.5,2). The corpus's `(z0, dz)` pair is z∈(−0.5,2).

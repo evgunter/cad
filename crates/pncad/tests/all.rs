@@ -1303,7 +1303,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         panic!("the box re-imports as a solid, not a wireframe");
     };
     named::<Body<f64>>(body.clone());
-    named::<MassProperties<f64>>(enclosure);
+    named::<Result<MassProperties<f64>, TargetUnreached<f64>>>(enclosure.clone());
+    // A box measures, so the refusal arm is spelled here and not taken.
+    let enclosure = enclosure.expect("a box's enclosure is measurable");
     named::<f64>(eps_in);
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
@@ -4195,7 +4197,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
-///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `GroupCutters`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -4411,7 +4413,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 94] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4439,6 +4441,7 @@ const NOT_CARRIED: [&str; 94] = [
     "FlipSet",
     "FlipSource",
     "FragmentGroups",
+    "GroupCutters",
     "Implicated",
     "Lane",
     "MeshPatchKey",

@@ -7,15 +7,19 @@
 //! Each certifying tier has a **certificate form** beside it —
 //! [`validate_geometric_certificate`], its `_declared` twin, and
 //! [`validate_pseudomanifold_certificate`] — which runs the same pass
-//! and returns a whole-body [`crate::MassProperties`] instead of
-//! dropping what check 7 derived. Same verdicts, and one certified
-//! quadrature per SOLID, check 7's subject: on the overwhelmingly
-//! common one-solid body that is one quadrature for the pass and the
-//! returned value IS the object check 7 decided on, while a body
-//! holding several solids pays a further arena-wide reporting read for
-//! the body-level number, because no one solid's read is the body's
-//! (`check7_subjects`). The `()`-returning doors above ARE those calls
-//! with the value mapped away.
+//! and returns the [`crate::SignCertificate`] check 7 decided on instead
+//! of dropping it; [`validate_pseudomanifold_certificate_structural`] is
+//! the same form holding no lane, whose check 7 is the closed form's.
+//! Every tier-3 door that MAKES check 7 makes it the same way
+//! (`plus_v_by_sign`, through the lane it holds —
+//! [`validate_geometric_structural`] makes none): one walk per SOLID, check
+//! 7's subject, each stopped at the round where that solid's sign is
+//! certain, assembled into one body certificate over the face arena —
+//! one read of each face, whatever the solid count. A caller that wants
+//! the number continues the certificate
+//! ([`crate::SignCertificate::refine_to_target`]) and pays only the
+//! rounds the check did not. The `()`-returning doors above ARE those
+//! calls with the value mapped away.
 //!
 //! # The two validity tiers (ratified via the M1-PLAN conversation)
 //!
@@ -774,17 +778,62 @@ pub enum ValidationError {
         /// The predicate-layer escalation.
         cause: Indeterminate,
     },
-    /// Tier 3: a face's torus has a tube radius that is not definitely
-    /// positive — the `r > 0` half of D3's ring convention `R > r > 0`.
+    /// Tier 3: a face's analytic surface stores a datum that is not a
+    /// finite number, or a plane whose `normal` is the zero vector — a
+    /// description that claims a locus and cannot evaluate one.
+    ///
+    /// **The analytic kinds' answer to `geom`'s totality-and-poison
+    /// rule, and not [`ValidationError::PoisonedSurfaceDescription`]**:
+    /// that variant is check 1's answer to a NET's state
+    /// ([`geom::NetState::Poisoned`], paired with the placeholder's
+    /// [`ValidationError::UncertifiableSurface`]) and carries only the
+    /// face, because a net's poison sits in no one named field. An
+    /// analytic surface's datums are named fields, so this refusal
+    /// names the one that failed, and the kind that carries it.
+    ///
+    /// `+∞` is refused here with NaN: a datum is a number the variant's
+    /// formula reads, and an infinite radius or origin is no more a
+    /// locus than a NaN one.
+    PoisonedSurfaceDatum {
+        /// The face whose surface stores the datum.
+        face: FaceKey,
+        /// The surface kind.
+        kind: geom_brep::SurfaceKind,
+        /// The datum that describes no locus.
+        datum: geom::SurfaceDatum,
+    },
+    /// Tier 3: a face's analytic surface stores a finite datum outside
+    /// its variant's convention — a cylinder or sphere radius, or a
+    /// torus tube radius, that is not definitely positive, or a cone
+    /// half-angle not definitely inside `(0, π/2)`
+    /// ([`geom::Surface::representability_margins`], the one place in
+    /// code the at-rest bounds are computed; that door says where else
+    /// they are stated).
+    ///
+    /// **Refused on representability, the torus ring convention's
+    /// reason**: such a datum describes no 2-manifold a face can bound
+    /// — a radius of zero is a line or a point, not a small cylinder or
+    /// sphere; a half-angle of `0` or `π/2` is a line or a plane. That
+    /// `geom` evaluates it as "well-defined garbage" is `geom`'s
+    /// contract with its callers, not a statement that the face is
+    /// valid.
     ///
     /// **Not a metered predicate, deliberately** (the chamfer's
-    /// `NonpositiveSize` precedent): whether the stored datum is a
-    /// positive number is a fact about the DATUM, not a geometric
+    /// `NonpositiveSize` precedent): whether a stored datum lies inside
+    /// its convention is a fact about the DATUM, not a geometric
     /// quantity of the body, so it takes no `k_stats` name and no band.
-    /// A poisoned or zero-straddling radius fails it with the rest.
-    NonpositiveTorusTube {
-        /// The face whose torus has no tube.
+    /// A zero-straddling enclosure fails it with the rest.
+    UnrepresentableSurfaceDatum {
+        /// The face whose surface stores the datum.
         face: FaceKey,
+        /// The surface kind.
+        kind: geom_brep::SurfaceKind,
+        /// The datum outside its convention.
+        datum: geom::SurfaceDatum,
+        /// Which end of the convention it fails: `Lower` for a radius
+        /// that is not positive or a cone closed to a line, `Upper` for
+        /// a cone opened to a plane.
+        end: geom::ConventionEnd,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
     /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
@@ -1943,10 +1992,33 @@ impl fmt::Display for ValidationError {
                 f,
                 "face {face:?}'s ring-torus margin R - r escalated: {cause}"
             ),
-            Self::NonpositiveTorusTube { face } => write!(
+            Self::PoisonedSurfaceDatum { face, kind, datum } => write!(
                 f,
-                "face {face:?}'s torus has a tube radius that is not definitely positive, \
-                 so it is not a torus at all (D3's ring convention R > r > 0)"
+                "face {face:?}'s {kind} surface stores a {datum} that describes no locus: \
+                 {what} — a description that claims a locus and cannot evaluate one",
+                kind = kind.name(),
+                datum = datum.name(),
+                what = if *datum == geom::SurfaceDatum::Normal {
+                    "it is not finite, or is the zero vector"
+                } else {
+                    "it is not a finite number"
+                },
+            ),
+            Self::UnrepresentableSurfaceDatum {
+                face,
+                kind,
+                datum,
+                end,
+            } => write!(
+                f,
+                "face {face:?}'s {kind} surface stores a {datum} {side} of its convention \
+                 (not definitely inside it), so it describes no 2-manifold a face can bound",
+                kind = kind.name(),
+                datum = datum.name(),
+                side = match end {
+                    geom::ConventionEnd::Lower => "at or below the lower end",
+                    geom::ConventionEnd::Upper => "at or above the upper end",
+                },
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -2607,8 +2679,13 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
 ///    `Poisoned` reports
 ///    [`ValidationError::PoisonedSurfaceDescription`], `Described`
-///    passes; and every torus honours D3's ring
-///    convention `R > r > 0`
+///    passes; every analytic surface's stored datums are numbers, and
+///    a plane's normal is not zero
+///    ([`ValidationError::PoisonedSurfaceDatum`]); each datum lies
+///    inside its convention
+///    ([`ValidationError::UnrepresentableSurfaceDatum`], the bounds
+///    being [`geom::Surface::representability_margins`]'s); and every
+///    torus honours D3's ring convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]).
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
@@ -2863,7 +2940,7 @@ pub fn validate_geometric<
 /// computation again. This door returns what the gate computed.
 ///
 /// **A SIGN, and the number on request.** What comes back is a
-/// [`crate::SignCertificate`]: the enclosure `plus_v_invariant`
+/// [`crate::SignCertificate`]: the enclosure `plus_v_decide`
 /// decided on, refined exactly as far as THIS check's certification
 /// needed and no further. There is no volume to read off it, by
 /// construction — a quadrature stopped at the round its caller was
@@ -2878,7 +2955,7 @@ pub fn validate_geometric<
 /// about agreement: this door's certified quadrature and the
 /// measurement door's lane quadrature are the same computation for
 /// every scalar that can reach here (the measurement door's lane IS
-/// `quad_lane::cut_face`), against the same
+/// `quad_lane::cut_face_rounds`), against the same
 /// `Band::linear(tol)`, over the same face-arena order, over the same
 /// rounds — a face left open at round `k` resumes at `k + 1`, and the
 /// lanes' rounds are independent recomputations, so a window changes
@@ -2887,12 +2964,12 @@ pub fn validate_geometric<
 /// **What is evidence for that, and at which scalar.** At `f64` the
 /// identity is measured on real rational-walled bodies —
 /// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
-/// bits, and `sign_certified_plus_v` does it over a roster whose
+/// bits, and `sign_walk_plus_v` does it over a roster whose
 /// schedules run past round 0, where the gate and the continuation
 /// genuinely split the rounds between them. At the other certifying
 /// scalars it rests on one fact about one value: the measurement door
 /// hands its walk [`crate::QuadLane::certified`], whose one field is
-/// `quad_lane::cut_face` — pinned by pointer identity in `props.rs`'s
+/// `quad_lane::cut_face_rounds` — pinned by pointer identity in `props.rs`'s
 /// `wiring_rows` — and a scalar with no certification rights cannot
 /// construct that value, so it cannot form this call at all. That pin
 /// covers the WIRING; it does not re-prove what the quadrature
@@ -3024,7 +3101,7 @@ fn structural_declared_via<
         band,
         &mut marks,
         tol,
-        &|_, _, _, _| None,
+        PlusVCheck::NotMade,
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
@@ -3051,26 +3128,60 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    // ONE certified quadrature PER SOLID, held and then handed on: the
-    // check decides on these objects and the caller receives the body
-    // certificate they assemble to — each refined to the round where
-    // THIS check's certification is complete, which is where that
-    // solid's enclosure's sign stops being in doubt, and continuable
-    // from there by a caller who wants the number.
-    //
-    // ONE decision per solid, too, and that is load-bearing rather
-    // than tidy: each walk stops on the verdict it returns, so no
-    // second reading of a different round's enclosure can disagree
-    // with the round it stopped at, and the check's predicates are
-    // metered once per round rather than twice.
+    plus_v_by_sign(body, band, tol, Some(crate::props::QuadLane::certified()))
+}
+
+/// **Check 7, the whole of it, at SIGN level** — one walk per solid
+/// through the lane the door holds, each stopped at the round where
+/// that solid's enclosure's sign stops being in doubt, and the body
+/// certificate those walks assemble to.
+///
+/// Every door that makes check 7 makes it here — [`validate_geometric`]
+/// with [`crate::QuadLane::certified`], the tier-3′ battery with
+/// whatever lane its door holds — so no body is admitted by one tier-3
+/// door and refused by another on check 7 at the same LANE. Doors that
+/// hold DIFFERENT lanes can still disagree, and that is the lanes
+/// differing rather than the check: at `f64`, [`validate_geometric`]
+/// (the certified quadrature) admits a rational-walled body that
+/// [`validate_pseudomanifold_structural`] (no lane — the closed form)
+/// refuses `VolumeUncomputable`, because the closed form refuses typed
+/// on every face that needed the quadrature, exactly as the reporting
+/// read over the same lane does.
+///
+/// ONE walk per solid, held and then handed on: the check decides on
+/// these objects and the caller receives the body certificate they
+/// assemble to, continuable from there by a caller who wants the
+/// number ([`crate::SignCertificate::refine_to_target`]). So a body of
+/// several solids pays one read of each face, never a further
+/// arena-wide one.
+///
+/// ONE decision per solid, too, and that is load-bearing rather than
+/// tidy: each walk stops on the verdict it returns, so no second reading
+/// of a different round's enclosure can disagree with the round it
+/// stopped at, and the check's predicates are metered once per round
+/// rather than twice.
+///
+/// **Check 7 is clean or it is not, and the type says which**: `Ok` is
+/// the body certificate — every solid derived and passed, so the parts
+/// partition the face arena, which [`crate::SignCertificate::assembled`]
+/// asserts — and `Err` is check 7's verdicts, never empty (it is built
+/// only when one was pushed). There is no state where the check came
+/// back clean without a certificate to hand on.
+fn plus_v_by_sign<'b, T: geom_core::Decide>(
+    body: &'b Body<T>,
+    band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
     for (solid, faces) in check7_subjects(body) {
-        match crate::props::sign_certified(
+        match crate::props::sign_walk(
             body,
             &faces,
             band,
             tol,
+            quad,
             |e| match plus_v_decide(e, band) {
                 PlusVOutcome::Pass => Some(PlusVVerdict::Pass),
                 PlusVOutcome::Refuse => Some(PlusVVerdict::Refuse),
@@ -3087,48 +3198,26 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
     }
     if errors.is_empty() {
         Ok(crate::props::SignCertificate::assembled(
-            body, band, tol, parts,
+            body, band, tol, quad, parts,
         ))
     } else {
         Err(errors)
     }
 }
 
-/// A tier-3 door's own check-7 certificate: the
-/// [`crate::MassProperties`] the +V invariant decided on, or that
-/// check's typed refusal. `None` is the check not being made — the
-/// structural half's answer, and the honest one: that door computes no
-/// certificate.
-pub(crate) type Check7Certificate<T> =
-    Option<Result<crate::props::MassProperties<T>, crate::props::MassPropsError>>;
-
 /// The certificate a CLEAN tier-3 verdict implies.
 ///
-/// INVARIANT: check 7 reports every refusal it can derive as
-/// [`ValidationError::VolumeUncomputable`] and every door that reaches
-/// here gates this call on its own empty verdict vector, so an empty
-/// verdict and an absent certificate cannot co-occur. Either other
-/// state is a bug in the composition above, not a reachable input —
-/// D9's bug-state half, announced rather than papered over with a
+/// INVARIANT: check 7 either hands back a certificate or puts its
+/// verdicts in the vector ([`plus_v_by_sign`]'s `Result`), and every door
+/// that reaches here gates this call on its own empty verdict vector,
+/// so an empty verdict and an absent certificate cannot co-occur. The
+/// other state is a bug in the composition above, not a reachable input
+/// — D9's bug-state half, announced rather than papered over with a
 /// fabricated value.
-///
-/// **The `Some(Err(..))` arm needs its own argument, because the object
-/// handed here is not always the object the verdicts were made on.**
-/// Check 7 decides per SOLID, while a body of several solids reports
-/// through a read over the whole face arena, so those are two reads.
-/// They are not independent ones: tier 1 partitions the arena into the
-/// solids (`check7_subjects` carries that argument), every face belongs
-/// to exactly one subject, and a face refuses the same way in whichever
-/// read visits it — so the arena read's failure set is exactly the
-/// UNION of the per-solid reads'. An empty verdict vector says every
-/// per-solid read came back clean, and an empty union cannot contain
-/// the refusal this arm would be handed.
-fn certificate_of_a_clean_verdict<C>(
-    certificate: Option<Result<C, crate::props::MassPropsError>>,
-) -> C {
+fn certificate_of_a_clean_verdict<C>(certificate: Option<C>) -> C {
     match certificate {
-        Some(Ok(props)) => props,
-        Some(Err(_)) | None => unreachable!(
+        Some(certificate) => certificate,
+        None => unreachable!(
             "a clean tier-3 verdict with no certificate: check 7 is gated on a clean \
              battery and reports its own refusal as VolumeUncomputable"
         ),
@@ -3258,43 +3347,19 @@ pub fn validate_geometric_certificate_declared<
     validate_geometric_certified(body, tol)
 }
 
-/// **Check 7's derivation at the REPORTING level** — the [`PlusVCheck`]
-/// every door that holds a quadrature lane, or none, hands the battery:
-/// the reporting walk over `quad_lane`, which is the certified
-/// quadrature from a door whose bound names the right
-/// (`Some(QuadLane::certified())`) or `None` from a `_structural` door,
-/// where the closed form answers and a face that needs the quadrature
-/// refuses typed. Either way the check IS made; only
-/// [`validate_geometric_structural`] hands the battery no certificate at
-/// all. [`validate_geometric`] wires the battery's hook to the certified
-/// quadrature at SIGN level instead, which is why its check 7 is a claim
-/// rather than a reporting read.
-///
-/// One home, because it was two: [`tier3_local_checks`] and
-/// [`contact_marks_declared`] each spelled this closure out, and two
-/// spellings of one derivation are two places for what a gate derives,
-/// and over which faces, to drift apart.
-fn reporting_certificate<T: geom_core::Decide>(
-    quad_lane: Option<crate::props::QuadLane<T>>,
-) -> impl Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T> {
-    move |body, faces, band, tol| {
-        Some(crate::props::mass_properties_of(
-            body, faces, band, tol, quad_lane,
-        ))
-    }
-}
-
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_pseudomanifold`] and
 /// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
 /// local passes — extraction, not copy-paste). Assumes the tier-1/2
 /// coarse gate already passed.
 ///
-/// Check 7 arrives as the hook `tier3_local_checks_marked` takes, wired
-/// here to [`reporting_certificate`] over `quad_lane` — which is what
-/// keeps this battery callable at every [`crate::AtRestPolicy`] scalar,
-/// a dual included, with the certified door and its `_structural` twin
-/// differing in exactly the lane they hand in.
+/// Check 7 is made through `quad_lane` at SIGN level
+/// ([`PlusVCheck::Through`]) — the certified quadrature from a door
+/// whose bound names the right, the closed form from a `_structural`
+/// door — which is what keeps this battery callable at every
+/// [`crate::AtRestPolicy`] scalar, a dual included, with the certified
+/// door and its `_structural` twin differing in exactly the lane they
+/// hand in.
 ///
 /// `nurbs_lane` is check 2's plane × NURBS derivation, taken as an
 /// argument for the same reason and with the same discipline: the
@@ -3302,15 +3367,19 @@ fn reporting_certificate<T: geom_core::Decide>(
 /// certified body, and what a `None` costs is written at
 /// [`validate_pseudomanifold_structural`].
 pub(crate) fn tier3_local_checks<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
-) -> (Vec<ValidationError>, Check7Certificate<T>) {
+) -> (
+    Vec<ValidationError>,
+    Option<crate::props::SignCertificate<'b, T>>,
+) {
     let mut marks = slotmap::SecondaryMap::new();
     tier3_local_checks_marked(
         body,
@@ -3318,7 +3387,7 @@ pub(crate) fn tier3_local_checks<
         band,
         &mut marks,
         tol,
-        &reporting_certificate(quad_lane),
+        PlusVCheck::Through(quad_lane),
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     )
@@ -3412,32 +3481,10 @@ fn plus_v_decide<T: geom_core::Decide>(
     PlusVOutcome::Undecided
 }
 
-/// **Check 7's verdict**, given the volume enclosure however it was
-/// derived — the +V global orientation invariant's whole decision, in
-/// one place, so the lane-dispatched and the certified derivations are
-/// two ways of getting the argument and not two copies of the check.
-fn plus_v_invariant<T: geom_core::Decide>(
-    solid: SolidKey,
-    subject: &Result<crate::props::MassProperties<T>, crate::props::MassPropsError>,
-    band: Band,
-) -> Vec<ValidationError> {
-    match subject {
-        Ok(subject) => plus_v_errors(
-            solid,
-            &plus_v_at_target(plus_v_decide(subject.enclosure(), band), None),
-        ),
-        Err(source) => vec![ValidationError::VolumeUncomputable {
-            solid,
-            source: source.clone(),
-        }],
-    }
-}
-
 /// **What an enclosure reading means once there is nothing left to
-/// refine** — the one place the undecided arm is resolved, shared by
-/// the lane-dispatched derivation (which reads only the target-level
-/// enclosure, so `refusal` is `None` and its walk already refused for
-/// it) and by the sign-level walk's `last_word`.
+/// refine** — the one place the undecided arm is resolved: the
+/// sign-level walk's `last_word`, handed the outstanding target
+/// refusal.
 fn plus_v_at_target(
     outcome: PlusVOutcome,
     refusal: Option<crate::props::MassPropsError>,
@@ -3726,16 +3773,16 @@ fn contact_marks_declared_via<
     let mut marks = slotmap::SecondaryMap::new();
     // This pass's product is the MARKS channel; its check-7 certificate
     // has no consumer here and is dropped at the one site that could
-    // hand it on, so the pass runs exactly the certificates it always
-    // did (`crate::validate_geometric_certificate` is the returning
-    // door).
+    // hand it on (`crate::validate_geometric_certificate` and
+    // `crate::validate_pseudomanifold_certificate` are the returning
+    // doors).
     let (errors, _) = tier3_local_checks_marked(
         body,
         declarations,
         band,
         &mut marks,
         tol,
-        &reporting_certificate(quad_lane),
+        PlusVCheck::Through(quad_lane),
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
@@ -3746,34 +3793,192 @@ fn contact_marks_declared_via<
     }
 }
 
-/// **Check 7's DERIVATION, as the battery takes it**: the certificate
-/// the +V invariant reads, derived however the caller can derive it, so
-/// the one check of the battery that CERTIFIES is a parameter rather
-/// than a dispatch. `None` is the check not being made, never a
-/// refusal — a refusal is `Some(Err(..))` and the battery turns it into
-/// the [`ValidationError`] in the vector.
+/// **Whether the battery makes check 7, and through which lane** — the
+/// one check of the battery that CERTIFIES is a parameter rather than a
+/// dispatch, so a caller that names it says which derivation it meant.
 ///
-/// The hook yields the DERIVATION and not the verdict so that each of
-/// check 7's subjects is derived exactly once per gate — one per solid,
-/// `check7_subjects` being what the battery iterates — and the battery
-/// can hand a derivation on: `plus_v_invariant` — the whole decision,
-/// in one place — is
-/// applied by the battery to whatever the hook derived, which is what
-/// keeps the lane-dispatched and the certified derivations two ways of
-/// getting the argument rather than two copies of the check.
-type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
+/// [`PlusVCheck::NotMade`] is [`validate_geometric_structural`]'s answer
+/// and is not a refusal — the battery run without a check that caller
+/// does not make, which returns no certificate. Every other door makes
+/// check 7 through [`plus_v_by_sign`] with the lane it holds, so the
+/// battery and [`validate_geometric`] decide the same question the same
+/// way and differ only in which lane they could name.
+#[derive(Clone, Copy)]
+pub(crate) enum PlusVCheck<T: geom_core::Decide> {
+    /// Check 7 is not made.
+    NotMade,
+    /// Check 7 is made at SIGN level through this lane — `None` being
+    /// the closed form, which refuses typed on a face that needed the
+    /// quadrature.
+    Through(Option<crate::props::QuadLane<T>>),
+}
+
+/// **Check 1's DATUM verdicts on one analytic surface**, in the order
+/// they are asked, the second gated on the first having found nothing.
+/// (The torus's ring half `R > r` is a decided geometric margin and is
+/// asked at the call site, after these.)
+///
+/// 1. **Poison** ([`poisoned_datums`]): `geom`'s totality-and-poison
+///    rule is about no particular surface kind, so a stored datum that
+///    is not a number is named here exactly as a poisoned net is named
+///    by the `Nurbs` arm. Every such datum is named, and the convention
+///    is not read over any of them — a margin of poison is poison.
+/// 2. **The convention, on REPRESENTABILITY**: each of
+///    [`geom::Surface::representability_margins`] must be definitely
+///    positive. A datum outside its variant's convention describes no
+///    2-manifold a face can bound. The first failing margin is named,
+///    with the end of the convention it fails. Why this is a bracket
+///    read that decides nothing, unmetered: the `Bounds` scope rule's
+///    entry for this file (`geom_core::real`, `bounds_allowlist`, the
+///    2026-09-02 certified at-rest entry) — one home, not restated here.
+///
+/// A SOLE bracket bound, deliberately: nothing here decides.
+fn analytic_datum_verdicts<T: geom_core::Bounds>(
+    face: FaceKey,
+    surface: &Surface<T>,
+) -> Vec<ValidationError> {
+    let kind = geom_brep::SurfaceKind::of(surface);
+    let poisoned = poisoned_datums(surface);
+    if !poisoned.is_empty() {
+        return poisoned
+            .into_iter()
+            .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
+            .collect();
+    }
+    surface
+        .representability_margins()
+        .into_iter()
+        .flatten()
+        .find(|m| {
+            !matches!(
+                geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
+                Some(core::cmp::Ordering::Greater)
+            )
+        })
+        .map(|m| ValidationError::UnrepresentableSurfaceDatum {
+            face,
+            kind,
+            datum: m.datum,
+            end: m.end,
+        })
+        .into_iter()
+        .collect()
+}
+
+/// **Check 1's poison read of an analytic surface**: every stored datum
+/// that is not a finite number at this scalar, and a plane `normal`
+/// that is the zero vector, in field order. Empty for a surface whose
+/// every datum is a number — and for the spline kinds, whose datum is a
+/// net that check 1 reads through [`geom::NetState`] instead.
+///
+/// Asked through the value channel ([`geom_core::is_finite_length`]),
+/// with no bracket read and no threshold: whether a stored number is a
+/// number is not a decision about geometry. The fields are destructured
+/// without `..`, so a datum a variant gains is a compile error here
+/// rather than a field this read silently skips.
+///
+/// The zero normal is the one direction asked for more than
+/// finiteness, because a plane's `normal` IS its chart normal: a zero
+/// one collapses `v_ref = normal × u_ref`, and the plane with it. It is
+/// asked through [`geom_core::is_zero_length`] under that door's
+/// precondition — the length is asked [`geom_core::is_finite_length`]
+/// first — so a normal whose components are finite but whose NORM
+/// overflows (`(1e200, 0, 0)` at `f64`) is a direction, not the zero
+/// vector, and passes. Underflowed normals pass too: not unit, which is
+/// conventional and unchecked, but a direction.
+///
+/// **The two scalars answer "finite" differently on one shape**, and
+/// that is `is_finite_length`'s value-channel semantics rather than
+/// this read's: an interval ENCLOSURE whose upper end overflowed still
+/// contains its truth and answers finite, where the same computation at
+/// `f64` is `∞` and is refused. A stored datum reaches the interval
+/// scalar through `Interval::from_f64` (NaN and `±∞` become NaI, which
+/// is refused), so the difference bites only a datum that was COMPUTED
+/// at interval type; filed as
+/// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
+fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
+    use geom::SurfaceDatum as D;
+    use geom_core::is_finite_length as finite;
+    let point = |p: &geom_core::Point3<T>| finite(p.x) && finite(p.y) && finite(p.z);
+    let vector = |v: &geom_core::Vec3<T>| finite(v.x) && finite(v.y) && finite(v.z);
+    let is_zero_normal = |n: &geom_core::Vec3<T>| {
+        let len = n.norm();
+        finite(len) && geom_core::is_zero_length(len, n.norm_witness())
+    };
+    let fields: Vec<(D, bool)> = match surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => vec![
+            (D::Origin, point(origin)),
+            (D::Normal, vector(normal) && !is_zero_normal(normal)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => vec![
+            (D::Origin, point(origin)),
+            (D::Axis, vector(axis)),
+            (D::Radius, finite(*radius)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => vec![
+            (D::Apex, point(apex)),
+            (D::Axis, vector(axis)),
+            (D::HalfAngle, finite(*half_angle)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Radius, finite(*radius)),
+            (D::Axis, vector(axis)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Axis, vector(axis)),
+            (D::MajorRadius, finite(*major_radius)),
+            (D::MinorRadius, finite(*minor_radius)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
+    };
+    fields
+        .into_iter()
+        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+        .collect()
+}
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
 ///
-/// `plus_v` is check 7, handed in rather than dispatched, for the same
-/// reason `mass_properties_impl` takes its quadrature as an argument:
-/// the one check of this battery that CERTIFIES is the one whose
-/// availability differs by scalar, and a caller that names it directly
-/// says which of the two it meant. The empty closure is
-/// [`validate_geometric_structural`]'s answer and is not a refusal —
-/// it is the battery run without a check that caller does not make.
+/// `plus_v` is check 7, handed in rather than dispatched ([`PlusVCheck`]
+/// says why): the one check of this battery that CERTIFIES is the one
+/// whose availability differs by scalar. What comes back beside the
+/// verdicts is the [`crate::SignCertificate`] check 7 decided on —
+/// `None` when the check was not made or a subject could not be derived
+/// at all, which the vector then says.
 ///
 /// `nurbs_lane` is check 2's second derivation, handed in for the same
 /// reason and with the same discipline. The M7-8 carrier class
@@ -3800,19 +4005,23 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Ce
 // caller state.
 #[allow(clippy::too_many_arguments)]
 pub(crate) fn tier3_local_checks_marked<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     declarations: &[DeclaredContact],
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
-    plus_v: PlusVCheck<'_, T>,
+    plus_v: PlusVCheck<T>,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
-) -> (Vec<ValidationError>, Check7Certificate<T>) {
+) -> (
+    Vec<ValidationError>,
+    Option<crate::props::SignCertificate<'b, T>>,
+) {
     let mut errors = Vec::new();
-    let mut certificate: Check7Certificate<T> = None;
+    let mut certificate = None;
 
     // ------------------------------------------------------------------
     // Tier 3, check 1: surface implementedness (face-arena order).
@@ -3820,14 +4029,22 @@ pub(crate) fn tier3_local_checks_marked<
     // This is the consumer's described arm for a face's SURFACE, which
     // `geom`'s totality-and-poison rule requires to exist: the three
     // states a control net can be in are `NetState`'s, defined there,
-    // and each is answered below.
+    // and each is answered below; an analytic surface's stored datums
+    // are answered by name, poison first.
     //
-    // A torus is implemented only under D3's ring convention
-    // `R > r > 0`: a horn or spindle torus puts a singular point on the
+    // An analytic surface is implemented only inside its datum
+    // conventions — a radius that is positive, a cone half-angle inside
+    // `(0, π/2)`, and D3's ring convention `R > r > 0` for a torus,
+    // whose horn or spindle configuration puts a singular point on the
     // axis that no chart in the tree represents. The check lives HERE,
-    // at rest, because that is the one place BOTH doors that can mint a
-    // torus pass through — `sweep::revolve` refuses the configuration at
-    // construction, `step-import` reads the two radii verbatim.
+    // at rest, because that is the one place every door that can mint a
+    // surface passes through, whatever each door checks for itself —
+    // `sweep::revolve` refuses a horn or spindle at construction,
+    // `step-import` reads a torus's two radii verbatim.
+    //
+    // Checks 3–5 still read these surfaces for their own questions, and
+    // a datum refused here may draw their escalations as well; the
+    // named refusal is the one reported first.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         match body.surfaces.get(face.surface) {
@@ -3873,32 +4090,33 @@ pub(crate) fn tier3_local_checks_marked<
                     errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
                 }
             },
-            Some(Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            }) => {
-                // `r > 0`, the convention's other half, is a fact about
-                // the STORED DATUM and not a geometric quantity of the
-                // body: a tube radius that is zero, negative or poison
-                // does not describe a small torus, it fails to describe
-                // one. So it takes no `k_stats` name and no band — the
-                // chamfer's `NonpositiveSize` precedent — and is read
-                // off the bracket's low end — `Bounds::lo`, the one
-                // bracket read in this file, disclosed at the `Bounds`
-                // scope rule's entry for it (`geom_core::real`) —
-                // through `partial_cmp`, so the INCOMPARABLE case is an
-                // arm and not an accident.
-                // It is checked FIRST because `R − r` metered against a
-                // nonpositive `r` would quote it: at `r = −R` the
-                // difference reads `2R`, definitely positive, and the
-                // net would pass a surface that has no tube at all.
-                if !matches!(
-                    geom_core::Bounds::lo(*minor_radius).partial_cmp(&0.0),
-                    Some(core::cmp::Ordering::Greater)
-                ) {
-                    errors.push(ValidationError::NonpositiveTorusTube { face: face_key });
-                } else {
+            // Every analytic kind: its datums first, then its
+            // convention (`analytic_datum_verdicts`), then — for the
+            // torus — the one convention that relates two datums.
+            Some(
+                surface @ (Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Cone { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. }),
+            ) => {
+                let verdicts = analytic_datum_verdicts(face_key, surface);
+                if !verdicts.is_empty() {
+                    errors.extend(verdicts);
+                    continue;
+                }
+                // The torus's ring half `R > r` is a GEOMETRIC question
+                // — two datums of the body compared, not one against its
+                // bound — so it goes through `decide`. It is asked only
+                // after `r > 0` has held, because `R − r` metered against
+                // a nonpositive `r` would quote it: at `r = −R` the
+                // difference reads `2R`, definitely positive.
+                if let Surface::Torus {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = surface
+                {
                     match decide(
                         "ring_torus_convention",
                         Margin::of(*major_radius - *minor_radius),
@@ -3917,34 +4135,6 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
             }
-            // A plane's frame CAN fail to describe a locus — a zero or
-            // poisoned normal, a poisoned origin — and check 1 does not
-            // say so. Such a face is refused downstream instead: its
-            // plane equation is read at check 3 and its normal at check
-            // 4, where the residual and the wedge angle come out
-            // `Invalid` and escalate (`PlanarFaceEscalated`,
-            // `PlanarBoundaryEscalated`, `SliverDihedral`). Loud, but
-            // by accident of evaluation and never naming the datum —
-            // the shape this check exists to close for `Nurbs`.
-            Some(Surface::Plane { .. }) => {}
-            // Same, for the quadric datums: a cylinder's or sphere's
-            // radius and a cone's half-angle are read through
-            // EVALUATION, not by any datum check, so a poisoned or
-            // nonpositive one reaches check 4's dihedral arm and
-            // escalates there (`SliverDihedral`, predicate
-            // `dihedral_arm` / `dihedral_wedge`) without check 1 or
-            // anything else naming the surface.
-            //
-            // The torus arm above is the one datum check at rest, and
-            // it is there because D3's ring convention is a
-            // REPRESENTABILITY claim (a horn or spindle torus has a
-            // chart singularity no chart in the tree represents), not
-            // because a stored radius is checked as a matter of course.
-            // Whether the argument stops at the torus is an open
-            // question, filed.
-            Some(Surface::Cylinder { .. }) => {}
-            Some(Surface::Sphere { .. }) => {}
-            Some(Surface::Cone { .. }) => {}
             // Cascade discipline: a face whose surface key does not
             // resolve is tier 1's `DanglingGeometry`, already reported,
             // and the coarse gate means we never reach here in that
@@ -4726,35 +4916,15 @@ pub(crate) fn tier3_local_checks_marked<
     // the face the check-6 curved arm must exempt as Unencoded.
     // ------------------------------------------------------------------
     if errors.is_empty() {
-        // The DERIVATION and the DECISION, in that order and once
-        // each: the hook computes the certificate this door can
-        // compute, `plus_v_invariant` reads it, and the object stays
-        // alive for the caller that asked for it. A door with no
-        // check-7 derivation answers `None` and makes no verdict.
-        let subjects = check7_subjects(body);
-        for (solid, faces) in &subjects {
-            if let Some(derived) = plus_v(body, faces, band, tol) {
-                errors.extend(plus_v_invariant(*solid, &derived, band));
-                // **The body's certificate, when the check's subject
-                // already IS the body.** With one solid, `faces` is
-                // the face arena in arena order, so this derivation is
-                // the whole-body one bit for bit and the door hands
-                // back the object check 7 decided on, computed once.
-                // (`check7_subjects` carries the tier-1 argument.)
-                if subjects.len() == 1 {
-                    certificate = Some(derived);
-                }
+        // The DERIVATION and the DECISION, once each and per solid, and
+        // the object they were made on kept for the caller that asked
+        // for it — the same function `validate_geometric` makes check 7
+        // through, so the two tiers cannot disagree on it at one lane.
+        if let PlusVCheck::Through(quad) = plus_v {
+            match plus_v_by_sign(body, band, tol, quad) {
+                Ok(derived) => certificate = Some(derived),
+                Err(verdicts) => errors.extend(verdicts),
             }
-        }
-        if subjects.len() != 1 {
-            // More than one solid (or none): no subject's derivation
-            // is the body's, so the certificate this door hands back
-            // is a SEPARATE reporting read of the whole boundary. It
-            // is the number the door promises and not a second copy of
-            // the check — the verdicts above are the check, and they
-            // were made per solid.
-            let arena = crate::query::all_faces(body);
-            certificate = plus_v(body, &arena, band, tol);
         }
     }
 
@@ -5561,37 +5731,38 @@ pub fn validate_pseudomanifold_structural<
     validate_pseudomanifold_certificate_structural(body, contacts, tol).map(|_| ())
 }
 
-/// **[`validate_pseudomanifold`], handing back a whole-body
-/// enclosure** — the tier-3′ door's certificate form, and
+/// **[`validate_pseudomanifold`], handing back the certificate its
+/// check 7 decided on** — the tier-3′ door's certificate form, and
 /// [`validate_geometric_certificate`]'s claim verbatim one tier up: the
-/// same pass, the same verdicts, and one certified quadrature per
-/// SOLID, which is check 7's subject.
+/// same pass, the same verdicts, and one certified walk per SOLID,
+/// which is check 7's subject, each stopped at the round where that
+/// solid's SIGN is certain.
 ///
-/// **Whether the value IS the object check 7 decided on depends on how
-/// many solids the body holds.** Over one solid it is: that solid's
-/// faces are the face arena in arena order, so the check's own read is
-/// the whole-body read and nothing is recomputed. Over several, no one
-/// subject's read is the body's, so the number comes back from a
-/// further arena-wide REPORTING read taken in the same pass — the value
-/// this door promises, and not a second copy of the check, whose
-/// verdicts were made per solid and are unchanged by it.
+/// **A SIGN, and the number on request.** What comes back is a
+/// [`crate::SignCertificate`], the per-solid walks assembled into
+/// face-arena order, whatever the body's solid count — so a body of
+/// several solids pays one read of each face and no further
+/// arena-wide one. A caller that wants the number calls
+/// [`crate::SignCertificate::refine_to_target`], which pays only the
+/// rounds the check did not, and whose `Ok` is bit-identical to
+/// [`crate::mass_properties`] on the same body at the same `tol`.
 ///
-/// **This door is the one the import path pays.** A single-solid
-/// `step-import` skips the per-solid tier-3 gate as an identity at one
-/// instance and gates the aggregate here, so a reader that gates a body
-/// and then measures it pays its two quadratures through 3′, not
-/// through [`validate_geometric`].
+/// **This door is the one the import path pays.** `step-import`'s
+/// aggregate gate runs it over every assembled body and continues the
+/// certificate for the enclosure it ships, so the cost of the number is
+/// spelled at that call site rather than folded into the gate.
 ///
 /// # Errors
 ///
 /// As [`validate_pseudomanifold`].
 pub fn validate_pseudomanifold_certificate<
+    'b,
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(
         body,
         contacts,
@@ -5603,7 +5774,7 @@ pub fn validate_pseudomanifold_certificate<
 }
 
 /// [`validate_pseudomanifold_structural`]'s certificate form — the
-/// enclosure its closed-form check 7 decided on.
+/// [`crate::SignCertificate`] its closed-form check 7 decided on.
 ///
 /// **At a [`Dual`](geom_core::Dual) this is where the difference from
 /// [`validate_geometric_certificate`] shows.** The certified door is
@@ -5613,7 +5784,8 @@ pub fn validate_pseudomanifold_certificate<
 /// absence is the one the certificate shows: the closed form answers,
 /// and a face that needs the quadrature refuses TYPED rather than
 /// passing unbounded. So a certificate handed back at a dual is a
-/// closed-form body's, and its pads are `0`. The region door's absence
+/// closed-form body's: every face finished at round 0, its pads `0`,
+/// and its continuation the fold of what it already holds. The region door's absence
 /// shows in the error vector, at every scalar, exactly as at the
 /// `()`-returning twin.
 ///
@@ -5621,12 +5793,13 @@ pub fn validate_pseudomanifold_certificate<
 ///
 /// As [`validate_pseudomanifold_structural`].
 pub fn validate_pseudomanifold_certificate_structural<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
 }
 
@@ -5638,15 +5811,16 @@ pub fn validate_pseudomanifold_certificate_structural<
 /// crossing rung's backing consult — the `_structural` twin's path,
 /// and a [`Dual`](geom_core::Dual)'s only one.
 fn pseudomanifold_certificate_via<
+    'b,
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
-    body: &Body<T>,
+    body: &'b Body<T>,
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
     region: Option<crate::chart_region::RegionLane<T>>,
-) -> Result<crate::props::MassProperties<T>, Vec<ValidationError>> {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
     let band = match Band::linear(tol) {
         Ok(band) => band,
@@ -6577,6 +6751,94 @@ mod tests {
     };
     use crate::seqgen;
     use crate::test_support_fixtures::declined_cube;
+
+    /// **Check 1's analytic verdicts at BOTH scalars**, one surface
+    /// lifted from `f64` to `Interval` through `Surface::map_scalar`
+    /// and handed to the same door. The rows a scalar-shaped
+    /// degradation would red: the zero normal (`[0,0]/[0,0]` is the
+    /// empty interval, poison), a NaN datum (NaI at the interval
+    /// scalar), the cone one ulp inside and exactly at `π/2` (where
+    /// `Interval::pi()` is an enclosure, not a point), and a finite
+    /// normal whose norm overflows at `f64` — a direction, refused at
+    /// neither scalar.
+    #[test]
+    fn check_1_analytic_verdicts_agree_at_f64_and_interval() {
+        use geom::{ConventionEnd, SurfaceDatum as D};
+        use geom_brep::SurfaceKind as K;
+        use geom_core::{Interval, Vec3};
+        let face = FaceKey::default();
+        let plane = |normal: Vec3<f64>| Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: Vec3::unit_x(),
+        };
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
+            face,
+            kind: K::Plane,
+            datum: D::Normal,
+        }];
+        let rows: Vec<(&str, Surface<f64>, Vec<ValidationError>)> = vec![
+            (
+                "zero normal",
+                plane(Vec3::new(0.0, 0.0, 0.0)),
+                normal_verdict.clone(),
+            ),
+            (
+                "NaN normal",
+                plane(Vec3::new(f64::NAN, 0.0, 1.0)),
+                normal_verdict,
+            ),
+            (
+                "normal (1e200, 0, 0)",
+                plane(Vec3::new(1e200, 0.0, 0.0)),
+                vec![],
+            ),
+            (
+                "normal (0, 0, 1e160)",
+                plane(Vec3::new(0.0, 0.0, 1e160)),
+                vec![],
+            ),
+            (
+                "cone at pi/2",
+                cone(half_pi),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Upper,
+                }],
+            ),
+            (
+                "cone one ulp below pi/2",
+                cone(f64::from_bits(half_pi.to_bits() - 1)),
+                vec![],
+            ),
+            (
+                "cone at 0",
+                cone(0.0),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Lower,
+                }],
+            ),
+        ];
+        for (name, surface, expected) in rows {
+            let at_f64 = analytic_datum_verdicts(face, &surface);
+            let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+            let at_interval = analytic_datum_verdicts(face, &lifted);
+            assert_eq!(at_f64, expected, "{name}, at f64");
+            assert_eq!(at_interval, expected, "{name}, at Interval");
+        }
+    }
 
     fn anchor() -> Point3<f64> {
         Point3::origin()
@@ -7599,7 +7861,17 @@ mod tests {
                 face: t.face_a,
                 cause: indeterminate(),
             },
-            ValidationError::NonpositiveTorusTube { face: t.face_a },
+            ValidationError::PoisonedSurfaceDatum {
+                face: t.face_a,
+                kind: geom_brep::SurfaceKind::Plane,
+                datum: geom::SurfaceDatum::Normal,
+            },
+            ValidationError::UnrepresentableSurfaceDatum {
+                face: t.face_a,
+                kind: geom_brep::SurfaceKind::Cone,
+                datum: geom::SurfaceDatum::HalfAngle,
+                end: geom::ConventionEnd::Upper,
+            },
             ValidationError::ApproxCertification {
                 face: t.face_a,
                 error: geom_brep::OffsetFitError::InvalidRequest {
@@ -9661,7 +9933,7 @@ mod offset_fit_door_rows {
     use geom_brep::OffsetFitLane;
     use geom_core::{Band, Tol};
 
-    use super::{DeclaredContact, ValidationError, tier3_local_checks_marked};
+    use super::{DeclaredContact, PlusVCheck, ValidationError, tier3_local_checks_marked};
     use crate::entity::FaceKey;
     use crate::fixtures::approx_faced_body;
 
@@ -9681,7 +9953,7 @@ mod offset_fit_door_rows {
             band,
             &mut marks,
             tol,
-            &|_, _, _, _| None,
+            PlusVCheck::NotMade,
             None,
             door,
         );
