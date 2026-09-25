@@ -417,8 +417,9 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 ///
 /// Two halves. A datum that is not a number (NaN or `±∞`), or a stored
 /// direction (`normal`, `axis`, `u_ref`) that is the zero vector, is
-/// `PoisonedSurfaceDatum`; a finite
-/// datum outside its variant's convention is
+/// `PoisonedSurfaceDatum`; a finite datum outside its variant's
+/// convention — a frame off unit or off `u_ref ⊥ axis` by more than ε
+/// of locus movement at the kind's radius included — is
 /// `UnrepresentableSurfaceDatum`. The first six rungs are the
 /// measurement the carried row took before check 1 read any analytic
 /// datum, when every one of them was refused only by checks 3–5's
@@ -668,6 +669,43 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             Verdict::Poisoned,
         ),
         (
+            "cylinder, u_ref one part in a million long",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0 + 1e-6, 0.0, 0.0),
+            },
+            K::Cylinder,
+            D::URef,
+            Verdict::Unrepresentable(Upper),
+        ),
+        (
+            "sphere, axis of half length",
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: Vec3::new(0.0, 0.0, 0.5),
+                u_ref: Vec3::unit_x(),
+            },
+            K::Sphere,
+            D::Axis,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "torus, unit u_ref tilted off the axis's normal plane",
+            Surface::Torus {
+                center: o,
+                axis: Vec3::unit_z(),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::new(0.6, 0.0, 0.8),
+            },
+            K::Torus,
+            D::URef,
+            Verdict::Unrepresentable(Upper),
+        ),
+        (
             "torus, zero axis",
             Surface::Torus {
                 center: o,
@@ -709,9 +747,11 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
 /// datum is a number inside its convention draw no datum verdict,
 /// whatever else the swap costs the body — a cone ONE ULP inside either
 /// end of `(0, π/2)` (so a bound carrying any tolerance reds), a plane
-/// whose normal underflows its length without being zero, and a plane
+/// whose normal underflows its length without being zero, a plane
 /// whose finite normal's NORM overflows (a direction, not the zero
-/// vector) included.
+/// vector), a cylinder whose frame is off unit by less than ε of locus
+/// movement, and a plane whose frame is not unit at all (it spans the
+/// same plane) included.
 #[test]
 fn datums_inside_their_conventions_draw_no_datum_verdict() {
     let tol = Tol::witness();
@@ -725,6 +765,23 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
             cone(f64::from_bits(core::f64::consts::FRAC_PI_2.to_bits() - 1)),
         ),
         ("ring torus", torus(2.0, 0.5)),
+        (
+            "cylinder, u_ref one part in 1e12 long (1e-12 m of locus at r = 1)",
+            Surface::Cylinder {
+                origin: pt(0.0, 0.0, 0.0),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(1.0 + 1e-12, 0.0, 0.0),
+            },
+        ),
+        (
+            "plane, normal and u_ref of length 3 (the same plane)",
+            Surface::Plane {
+                origin: pt(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 3.0),
+                u_ref: Vec3::new(3.0, 0.0, 0.0),
+            },
+        ),
         (
             "plane, normal underflowed but not zero",
             plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
@@ -798,9 +855,11 @@ fn pillow_with_carrier(
 /// circle or ellipse whose `axis` is zero traces the diameter between
 /// the two vertices — which lies in the chart — while an ellipse whose
 /// `major` is negative and whose `u_ref` is flipped traces the ellipse
-/// it would with both signs righted. Before check 1 read carrier datums
-/// all three were `Ok(())` at rest (the carried row's measurement);
-/// each is now refused, first, by name.
+/// it would with both signs righted; a circle whose `axis` has length 2
+/// traces an ellipse through the same two vertices. Before check 1 read
+/// carrier datums all four minted and nothing at rest named the datum
+/// (the carried row's measurement); each is now refused, first, by
+/// name.
 ///
 /// The honest twin — the same arc with its datums righted — is
 /// asserted clean, so the refusal is the datum's and not the fixture's.
@@ -809,7 +868,7 @@ fn pillow_with_carrier(
 #[test]
 fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     use crate::query::CurveKind as K;
-    use geom::ConventionEnd::Lower;
+    use geom::ConventionEnd::{Lower, Upper};
     use geom::Curve3;
     use geom::CurveDatum as D;
     let tol = Tol::witness();
@@ -842,7 +901,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     let axis = sides[0];
     enum Verdict {
         Poisoned,
-        Unrepresentable,
+        Unrepresentable(geom::ConventionEnd),
     }
     let cases: Vec<(&str, Curve3<f64>, K, D, Verdict)> = vec![
         (
@@ -864,7 +923,14 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
             ellipse(axis, -0.5, x),
             K::Ellipse,
             D::Major,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "circle, axis of length 2 (it evaluates an ellipse)",
+            circle(axis * 2.0),
+            K::Circle,
+            D::Axis,
+            Verdict::Unrepresentable(Upper),
         ),
     ];
     for (name, carrier, kind, datum, verdict) in cases {
@@ -873,11 +939,11 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
         let errs = validate_geometric(&body, tol).expect_err("the carrier datum is refused");
         let expected = match verdict {
             Verdict::Poisoned => ValidationError::PoisonedCurveDatum { edge, kind, datum },
-            Verdict::Unrepresentable => ValidationError::UnrepresentableCurveDatum {
+            Verdict::Unrepresentable(end) => ValidationError::UnrepresentableCurveDatum {
                 edge,
                 kind,
                 datum,
-                end: Lower,
+                end,
             },
         };
         assert_eq!(
@@ -927,8 +993,9 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         minor_radius,
         offset,
     };
+    let band = geom_core::Band::linear(Tol::witness()).unwrap();
     let verdict = |c: &Curve3<f64>| {
-        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins())
+        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins(band))
     };
     let cases: Vec<(&str, Curve3<f64>, Option<V<D>>)> = vec![
         ("honest line", Curve3::Line { origin: o, dir: x }, None),

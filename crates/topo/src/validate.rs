@@ -3972,14 +3972,13 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
 /// site. A SOLE bracket bound, deliberately: nothing here decides.
 pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
     poisoned: Vec<D>,
-    margins: [Option<geom::RepresentabilityMargin<T, D>>; 2],
+    margins: Vec<geom::RepresentabilityMargin<T, D>>,
 ) -> Option<DatumVerdict<D>> {
     if !poisoned.is_empty() {
         return Some(DatumVerdict::Poisoned(poisoned));
     }
     margins
         .into_iter()
-        .flatten()
         .find(|m| {
             !matches!(
                 geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
@@ -4354,7 +4353,7 @@ pub(crate) fn tier3_local_checks_marked<
                 let kind = geom_brep::SurfaceKind::of(surface);
                 match analytic_datum_verdicts(
                     poisoned_datums(surface),
-                    surface.representability_margins(),
+                    surface.representability_margins(band),
                 ) {
                     Some(DatumVerdict::Poisoned(datums)) => {
                         errors.extend(datums.into_iter().map(|datum| {
@@ -4434,7 +4433,7 @@ pub(crate) fn tier3_local_checks_marked<
         let kind = crate::query::CurveKind::of(carrier);
         match analytic_datum_verdicts(
             poisoned_curve_datums(carrier),
-            carrier.representability_margins(),
+            carrier.representability_margins(band),
         ) {
             Some(DatumVerdict::Poisoned(datums)) => {
                 errors.extend(datums.into_iter().map(|datum| {
@@ -7663,6 +7662,7 @@ mod tests {
         use geom_brep::SurfaceKind as K;
         use geom_core::{Interval, Vec3};
         let face = FaceKey::default();
+        let band = geom_core::Band::linear(geom_core::Tol::witness()).unwrap();
         let plane = |normal: Vec3<f64>| Surface::Plane {
             origin: Point3::new(0.0, 0.0, 0.0),
             normal,
@@ -7748,7 +7748,7 @@ mod tests {
                 kind,
                 analytic_datum_verdicts(
                     poisoned_datums(&surface),
-                    surface.representability_margins(),
+                    surface.representability_margins(band),
                 ),
             );
             let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
@@ -7756,7 +7756,7 @@ mod tests {
                 kind,
                 analytic_datum_verdicts(
                     poisoned_datums(&lifted),
-                    lifted.representability_margins(),
+                    lifted.representability_margins(band),
                 ),
             );
             assert_eq!(at_f64, expected, "{name}, at f64");

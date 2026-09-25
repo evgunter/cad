@@ -66,7 +66,7 @@ pub mod projection;
 use std::sync::Arc;
 
 use geom_core::spline::SpanLocate;
-use geom_core::{Point3, Real, Vec3};
+use geom_core::{Band, Point3, Real, Vec3};
 
 use crate::azimuth;
 pub use approx::{ApproxSurface, ApproxWindow, OffsetCertificate, SurfaceDescription, SurfaceSpec};
@@ -312,9 +312,9 @@ impl<T: Real> Surface<T> {
 
     /// **The representability margins of this surface's datum
     /// conventions** — each quantity a variant's docs require to be
-    /// strictly positive for its stored datum to describe a 2-manifold
-    /// at all, named by the datum it constrains and the END of the
-    /// convention it measures:
+    /// strictly positive for its stored datum to describe the surface
+    /// its variant names at all, named by the datum it constrains and
+    /// the END of the convention it measures:
     ///
     /// - `Cylinder`, `Sphere`: `radius`, lower end (`radius > 0`);
     /// - `Cone`: `half_angle` at both ends — `half_angle` (lower: at `0`
@@ -323,9 +323,20 @@ impl<T: Real> Surface<T> {
     /// - `Torus`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention `R > r > 0`). The other half, `R > r`, relates
     ///   two datums rather than bounding one, and is not a margin here;
-    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame carries no
-    ///   scalar convention, and a spline's datum is its net
-    ///   ([`NurbsSurface::net_state`]).
+    /// - **the frame**, for `Cylinder`, `Sphere` and `Torus`, after the
+    ///   scalar conventions: `axis` and `u_ref` unit and `u_ref ⊥ axis`,
+    ///   each within `band`'s coincidence threshold ε at the kind's
+    ///   radius ([`frame_margins`], which says why the frame is a
+    ///   representability convention and how the lever bounds the
+    ///   locus's movement);
+    /// - `Plane`, `Nurbs`, `Approx`: none — a plane's frame moves no
+    ///   locus a datum can lever (a non-unit `normal` or `u_ref` spans
+    ///   the same plane, and a `u_ref` off `⊥ normal` tilts the chart
+    ///   by an amount that grows with distance from `origin`, which no
+    ///   datum bounds), and a spline's datum is its net
+    ///   ([`NurbsSurface::net_state`]). The `Cone`'s frame is not
+    ///   margined either, for the same reason as the plane's tilt: it
+    ///   moves the half-angle, a deviation that grows along the slant.
     ///
     /// **This is the one place in code these bounds are computed for
     /// the at-rest check**, and it is not the only place they are
@@ -343,57 +354,140 @@ impl<T: Real> Surface<T> {
     /// the crate docs' conventional-and-unchecked rule — and a margin
     /// of a poisoned datum is poison. The variants are destructured
     /// without `..`, so a field a variant gains is a compile error
-    /// here rather than a convention this door silently omits.
-    pub fn representability_margins(&self) -> [Option<RepresentabilityMargin<T>>; 2] {
-        let lower = |datum, margin| {
-            Some(RepresentabilityMargin {
-                datum,
-                end: ConventionEnd::Lower,
-                margin,
-            })
+    /// here rather than a convention this door silently omits. The
+    /// scalar conventions come first, so a consumer reading the first
+    /// failing margin names a non-positive radius before the frame it
+    /// levers.
+    pub fn representability_margins(&self, band: Band) -> Vec<RepresentabilityMargin<T>> {
+        let lower = |datum, margin| RepresentabilityMargin {
+            datum,
+            end: ConventionEnd::Lower,
+            margin,
+        };
+        let frame = |axis, u_ref, arm| {
+            frame_margins(
+                axis,
+                u_ref,
+                arm,
+                band,
+                SurfaceDatum::Axis,
+                SurfaceDatum::URef,
+            )
         };
         match self {
             Surface::Cylinder {
                 origin: _,
-                axis: _,
+                axis,
                 radius,
-                u_ref: _,
+                u_ref,
             }
             | Surface::Sphere {
                 center: _,
                 radius,
-                axis: _,
-                u_ref: _,
-            } => [lower(SurfaceDatum::Radius, *radius), None],
+                axis,
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::Radius, *radius))
+                .chain(frame(*axis, *u_ref, *radius))
+                .collect(),
             Surface::Cone {
                 apex: _,
                 axis: _,
                 half_angle,
                 u_ref: _,
-            } => [
+            } => vec![
                 lower(SurfaceDatum::HalfAngle, *half_angle),
-                Some(RepresentabilityMargin {
+                RepresentabilityMargin {
                     datum: SurfaceDatum::HalfAngle,
                     end: ConventionEnd::Upper,
                     margin: T::pi() * T::from_f64(0.5) - *half_angle,
-                }),
+                },
             ],
             Surface::Torus {
                 center: _,
-                axis: _,
-                major_radius: _,
+                axis,
+                major_radius,
                 minor_radius,
-                u_ref: _,
-            } => [lower(SurfaceDatum::MinorRadius, *minor_radius), None],
+                u_ref,
+            } => core::iter::once(lower(SurfaceDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
+                .collect(),
             Surface::Plane {
                 origin: _,
                 normal: _,
                 u_ref: _,
             }
             | Surface::Nurbs(_)
-            | Surface::Approx(_) => [None, None],
+            | Surface::Approx(_) => Vec::new(),
         }
     }
+}
+
+/// **The frame's representability margins** — `axis` unit, `u_ref`
+/// unit and `u_ref ⊥ axis`, each at both ends, as ε-slack quantities at
+/// the kind's lever `arm` (metres):
+///
+/// ```text
+/// ε − (‖axis‖ − 1)·arm      ε − (1 − ‖axis‖)·arm       (axis, Upper / Lower)
+/// ε − (‖u_ref‖ − 1)·arm     ε − (1 − ‖u_ref‖)·arm      (u_ref, Upper / Lower)
+/// ε − (axis · u_ref)·arm    ε + (axis · u_ref)·arm     (u_ref, Upper / Lower)
+/// ```
+///
+/// with ε the band's coincidence threshold ([`Band::zero`]). Each is
+/// strictly positive exactly when the frame is inside its convention
+/// to within ε of locus movement.
+///
+/// **Why the frame is a representability convention and not a
+/// parameterization choice.** Every axisymmetric evaluator reads the
+/// frame through `azimuth::frame` — `radial(u) = u_ref·cos u + v_ref·sin
+/// u`, `v_ref = axis × u_ref` — while the implicit forms and the
+/// section arms read `axis` and the radius as the geometric axis and
+/// radius. A `u_ref` of length `1 + δ` puts the evaluated surface at
+/// radius `r·(1 + δ)`; an `axis` of length `1 + δ` stretches `v_ref`
+/// and makes the section an ellipse; a `u_ref` tilted off `⊥ axis` by
+/// `c = axis · u_ref` tilts the evaluated circle out of its plane.
+/// Either way two consumers read two different loci off one datum,
+/// which is the representability argument, and the movement is at most
+/// the deviation times the kind's largest radius — the `arm`. That
+/// bound is conservative for the cylinder's tilt (an axial component
+/// of `u_ref` slides along the rulings and moves the locus by
+/// `r·(1 − √(1 − c²))`), and exact to first order everywhere else.
+///
+/// **With the band, and not an exact compare**: a frame minted by
+/// arithmetic — a rotation, a normalization, a cross product — is unit
+/// and orthogonal only to rounding, so an exact compare would refuse
+/// every such surface. ε is the run's own threshold below which two
+/// loci coincide.
+pub(crate) fn frame_margins<T: Real, D: Copy>(
+    axis: Vec3<T>,
+    u_ref: Vec3<T>,
+    arm: T,
+    band: Band,
+    axis_datum: D,
+    u_ref_datum: D,
+) -> [RepresentabilityMargin<T, D>; 6] {
+    let eps = T::from_f64(band.zero());
+    let one = T::one();
+    let upper = |datum, deviation: T| RepresentabilityMargin {
+        datum,
+        end: ConventionEnd::Upper,
+        margin: eps - deviation * arm,
+    };
+    let lower = |datum, deviation: T| RepresentabilityMargin {
+        datum,
+        end: ConventionEnd::Lower,
+        margin: eps + deviation * arm,
+    };
+    let axis_len = axis.norm() - one;
+    let u_ref_len = u_ref.norm() - one;
+    let tilt = axis.dot(u_ref);
+    [
+        upper(axis_datum, axis_len),
+        lower(axis_datum, axis_len),
+        upper(u_ref_datum, u_ref_len),
+        lower(u_ref_datum, u_ref_len),
+        upper(u_ref_datum, tilt),
+        lower(u_ref_datum, tilt),
+    ]
 }
 
 /// One representability margin ([`Surface::representability_margins`],
@@ -802,9 +896,8 @@ mod tests {
         };
         let margins = |a: f64| -> Vec<(ConventionEnd, f64)> {
             cone(a)
-                .representability_margins()
+                .representability_margins(geom_core::Band::new(1e-9, 1e-8).unwrap())
                 .into_iter()
-                .flatten()
                 .map(|m| {
                     assert_eq!(m.datum, SurfaceDatum::HalfAngle);
                     (m.end, m.margin)

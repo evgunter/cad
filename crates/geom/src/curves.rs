@@ -409,7 +409,7 @@ impl<T: Real> Curve3<T> {
     /// contract: each quantity a variant's docs require to be strictly
     /// positive for its stored datum to describe the curve the variant
     /// names at all, named by the datum it constrains and the END of the
-    /// convention it measures:
+    /// convention it measures, scalar conventions first:
     ///
     /// - `Circle`: `radius`, lower end (`radius > 0`: at zero the circle
     ///   is a point);
@@ -422,8 +422,14 @@ impl<T: Real> Curve3<T> {
     /// - `Spiric`: `minor_radius`, lower end (the `r > 0` half of the
     ///   ring convention). `R > r` and `|offset| < R − r` relate datums,
     ///   and [`Curve3::spiric`] decides them;
-    /// - `Line`, `Nurbs`: none — a line's datums carry no scalar
-    ///   convention, and a spline's datum is its net.
+    /// - **the frame**, for `Circle`, `Ellipse` and `Spiric`: `axis` and
+    ///   `u_ref` unit and `u_ref ⊥ axis` within `band`'s ε at the
+    ///   carrier's largest radius (the circle's `radius`, the larger
+    ///   semi-axis, the spiric's `R + r`) — the surface door's frame
+    ///   margins, for the same reason: a circle whose `axis` is `2·ẑ`
+    ///   evaluates an ellipse;
+    /// - `Line`, `Nurbs`: none — a line's `dir` spans the same line at
+    ///   any length, and a spline's datum is its net.
     ///
     /// **Nothing is decided here**, exactly as on the surface door: the
     /// quantities are computed at `T` and returned, a margin of a
@@ -431,40 +437,56 @@ impl<T: Real> Curve3<T> {
     /// without `..` so a field a variant gains is a compile error here.
     pub fn representability_margins(
         &self,
-    ) -> [Option<crate::RepresentabilityMargin<T, CurveDatum>>; 2] {
-        let lower = |datum, margin| {
-            Some(crate::RepresentabilityMargin {
-                datum,
-                end: crate::ConventionEnd::Lower,
-                margin,
-            })
+        band: Band,
+    ) -> Vec<crate::RepresentabilityMargin<T, CurveDatum>> {
+        let lower = |datum, margin| crate::RepresentabilityMargin {
+            datum,
+            end: crate::ConventionEnd::Lower,
+            margin,
+        };
+        let frame = |axis, u_ref, arm| {
+            crate::surfaces::frame_margins(
+                axis,
+                u_ref,
+                arm,
+                band,
+                CurveDatum::Axis,
+                CurveDatum::URef,
+            )
         };
         match self {
             Curve3::Circle {
                 center: _,
-                axis: _,
+                axis,
                 radius,
-                u_ref: _,
-            } => [lower(CurveDatum::Radius, *radius), None],
+                u_ref,
+            } => core::iter::once(lower(CurveDatum::Radius, *radius))
+                .chain(frame(*axis, *u_ref, *radius))
+                .collect(),
             Curve3::Ellipse {
                 center: _,
-                axis: _,
+                axis,
                 major,
                 minor,
-                u_ref: _,
+                u_ref,
             } => [
                 lower(CurveDatum::Major, *major),
                 lower(CurveDatum::Minor, *minor),
-            ],
+            ]
+            .into_iter()
+            .chain(frame(*axis, *u_ref, major.max(*minor)))
+            .collect(),
             Curve3::Spiric {
                 center: _,
-                axis: _,
-                u_ref: _,
-                major_radius: _,
+                axis,
+                u_ref,
+                major_radius,
                 minor_radius,
                 offset: _,
-            } => [lower(CurveDatum::MinorRadius, *minor_radius), None],
-            Curve3::Line { origin: _, dir: _ } | Curve3::Nurbs(_) => [None, None],
+            } => core::iter::once(lower(CurveDatum::MinorRadius, *minor_radius))
+                .chain(frame(*axis, *u_ref, *major_radius + *minor_radius))
+                .collect(),
+            Curve3::Line { origin: _, dir: _ } | Curve3::Nurbs(_) => Vec::new(),
         }
     }
 
