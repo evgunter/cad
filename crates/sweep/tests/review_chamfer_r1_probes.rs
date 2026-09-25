@@ -39,7 +39,7 @@ test_utils::gated_to![
 use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
-use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
@@ -240,7 +240,7 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     use geom_core::k_stats::{self, Probe};
-    let lp: ProfileLoop<Probe> = bulge_loop(
+    let lp: profile::ProfileLoop<Probe> = bulge_loop(
         [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
             .into_iter()
             .map(|(x, y)| (Point2::new(Probe(x), Probe(y)), Probe(0.0)))
