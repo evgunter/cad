@@ -27,11 +27,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it measures: the tier itself, the memo, the
-// instrument that counts it, and the driver that installs it.
+// instrument that counts it, the driver that installs it, and the arc
+// carrier's construction, whose spelling moves the plate's walk forms.
 test_utils::gated_to![
     "crates/geom-core/src/sym.rs",
     "crates/geom-core/src/sym/",
     "crates/editor-core/src/drive.rs",
+    "crates/sweep/src/swept.rs",
     "crates/editor-core/tests/fixture/",
     "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
     "crates/editor-core/tests/m10_7_plate.rs",

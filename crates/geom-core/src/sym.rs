@@ -5893,17 +5893,20 @@ mod tests {
     /// The arc carrier's SECOND same-object identity, in miniature —
     /// the SPAN identity `carrier.eval(θ) = q_to` (M10-9 amendment A1;
     /// `sweep::swept::register_span_identity`). The far endpoint is
-    /// reached by rotating the rim vector through the span, so the
-    /// residual carries `cos`/`sin` atoms of `4·atan|b|` that no rule
-    /// relates to the polynomial `q_to − c` is: it is registered per
-    /// COMPONENT, because the consumer asks
-    /// `carrier.eval(t1).distance(end)`.
+    /// reached by rotating the rim vector through the span — spelled as
+    /// the sweep spells it, `4·atan(σ·b)` with `σ` the bulge's decided
+    /// sign (`sweep::swept::turned_span`) — so the residual carries
+    /// `cos`/`sin` forms of the span that no rule relates to the far
+    /// vertex, a parameter of its own: it is registered per COMPONENT,
+    /// because the consumer asks `carrier.eval(t1).distance(end)`.
     ///
     /// Answers the three pairs `[eval(θ), q_to, eval(θ) − q_to]`.
     fn span(theta: f64, off: f64) -> [[Sym<f64>; 2]; 3] {
         let (vx, vy) = (p("vx", 3.0), p("vy", 4.0));
         let b = p("b", theta);
-        let (sn, cs) = (Sym::from_f64(4.0) * b.abs().atan()).sin_cos();
+        // The decided turn: the sign of the bulge this fixture is built at.
+        let signed = if theta < 0.0 { Sym::zero() - b } else { b };
+        let (sn, cs) = (Sym::from_f64(4.0) * signed.atan()).sin_cos();
         // The rotated rim vector, as a circle carrier's `eval` builds
         // it, plus the centre.
         let (cx, cy) = (p("cx", 1.0), p("cy", -2.0));

@@ -1118,10 +1118,11 @@ pub struct ValidatedSegment<T: Real> {
     /// by re-inspecting the bulge** — a sub-tolerance bulge classifies
     /// as `Line` while retaining its stored value. One sanctioned
     /// re-inspection: for an `Arc` segment the **parameter span is
-    /// θ = 4·atan|bulge|**, taken from the stored bulge (exact input
-    /// data; deriving the span from endpoint `atan2` angles instead is
-    /// seam-fragile for wide arcs at small ε) — PR 4's sweeps rely on
-    /// this.
+    /// θ = 4·atan(σ·bulge)**, `σ` the arc's `turn` (the certified sign
+    /// of this bulge, so the value is `4·atan|bulge|`), taken from the
+    /// stored bulge (exact input data; deriving the span from endpoint
+    /// `atan2` angles instead is seam-fragile for wide arcs at small ε)
+    /// — the sweep's carriers spell it so (`sweep`'s `turned_span`).
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).

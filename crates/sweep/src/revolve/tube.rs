@@ -476,8 +476,10 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
 /// duplication nothing will find. S131.)
 ///
 /// The two arguments are the two bits `swept_segments` carries. `turn`
-/// is the TRAVERSAL's own sense (its bulge follows: `+1` for a
-/// positive half-turn, `-1` for a negative one). `reversed` says
+/// is the TRAVERSAL's own sense (its bulge follows: `-1` where
+/// [`crate::swept::turn_negates`] reads the turn as clockwise, `+1`
+/// otherwise — the crate's one reading, so the bulge and the carrier's
+/// axis and span agree at every turn). `reversed` says
 /// whether this traversal is the reversal of its canonical chain,
 /// which is what permutes the canonical labels — the involution's
 /// `(n - j) % n` / `n - 1 - j` written out for `n = 2`. The three
@@ -497,9 +499,10 @@ fn circle_traversal<T: Real>(
         Point2::new(center.x - radius, T::zero()),
         Point2::new(center.x + radius, T::zero()),
     );
-    let bulge = match turn {
-        Sign::Positive => T::one(),
-        Sign::Negative | Sign::Zero => T::zero() - T::one(),
+    let bulge = if crate::swept::turn_negates(turn) {
+        T::zero() - T::one()
+    } else {
+        T::one()
     };
     let arc = |a, b, canonical_vertex, canonical_segment| SweptSeg {
         a,
@@ -517,5 +520,41 @@ fn circle_traversal<T: Real>(
         vec![arc(hi, lo, 0, 1), arc(lo, hi, 1, 0)]
     } else {
         vec![arc(hi, lo, 0, 0), arc(lo, hi, 1, 1)]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use crate::swept::{span_magnitude, turned_span};
+
+    /// **The traversal's bulge agrees with the crate's reading of its
+    /// turn**, at every turn `Sign` has, `Zero` included: each half-turn
+    /// arc's span from the turn is its span from the bulge alone, `π`,
+    /// bit for bit. A bulge minted against another reading of `Zero`
+    /// gives `−π` here.
+    #[test]
+    fn the_traversals_bulge_reads_its_turn_as_the_carrier_does() {
+        for turn in [Sign::Positive, Sign::Negative, Sign::Zero] {
+            for reversed in [false, true] {
+                for seg in circle_traversal(Point2::new(2.0_f64, 0.0), 1.0, turn, reversed) {
+                    let SweptKind::Arc { turn: t, .. } = seg.kind else {
+                        panic!("a circle traversal is arcs");
+                    };
+                    let span = turned_span(t, seg.bulge);
+                    assert_eq!(
+                        (span.to_bits(), span_magnitude(seg.bulge).to_bits()),
+                        (
+                            core::f64::consts::PI.to_bits(),
+                            core::f64::consts::PI.to_bits()
+                        ),
+                        "{turn:?} reversed={reversed}: bulge {} against its turn",
+                        seg.bulge
+                    );
+                }
+            }
+        }
     }
 }

@@ -309,21 +309,14 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<
     mid - nhat * (len * bulge * T::from_f64(0.5))
 }
 
-/// The arc carrier's parameter span from the turn the profile decided:
-/// θ = 4·atan(σ·b), `σ` the segment's turn and `b` its stored bulge
-/// (the sanctioned bulge re-inspection — never endpoint `atan2`).
+/// The arc carrier's parameter span, θ = 4·atan(σ·b): `b` the stored
+/// bulge (the sanctioned re-inspection — never endpoint `atan2`) and `σ`
+/// the segment's turn, read by [`turn_negates`].
 ///
-/// The profile decided `σ` from the sign of `b` itself (the arc's
-/// `segment_straightness`, certified over the box), so `σ·b` IS `|b|`:
-/// negation is exact, and the value is [`span_magnitude`]'s to the bit
-/// at every scalar. What differs is the form. Spelled from the turn,
-/// the span is the atom the pushforward's `4·atan b` mints, up to
-/// `(−b)² = b²`, and the symbolic tier meets the two spellings at a
-/// parameter bulge without asking the sign of `b` a second time; an
-/// `abs(b)` here would be a second atom for one quantity, related to
-/// the first only through the sign the profile already decided.
-/// The turn is read through [`turn_negates`], so the span and
-/// [`turn_axis`] take the same arm at every turn.
+/// The turn is the profile's certified sign of `b`, so the value is
+/// [`span_magnitude`]'s to the bit (`tests::turned_span_is_span_magnitude_to_the_bit`).
+/// The form is the pushforward's `atan b` up to `(−b)² = b²`; `atan|b|`
+/// would be a second atom, related to it only through that sign.
 pub(crate) fn turned_span<T: Real>(turn: Sign, bulge: T) -> T {
     let signed = if turn_negates(turn) {
         T::zero() - bulge
@@ -342,22 +335,14 @@ pub(crate) fn span_magnitude<T: Real>(bulge: T) -> T {
     T::from_f64(4.0) * bulge.abs().atan()
 }
 
-/// **The turn's one reading**: whether a turn negates what it signs —
-/// `true` for a clockwise (`Negative`) turn, `false` for a
-/// counterclockwise one.
-///
-/// `Zero` takes the positive arm, here and nowhere else. It is
-/// unreachable for a classified arc: the profile mints an arc's turn
-/// from a certified non-zero sign (a zero `segment_straightness`
-/// classifies as a line, and `profile::SegmentKind::Arc` never carries
-/// `Zero`), and `revolve::tube` hand-mints only `Positive` and
-/// `Negative`. It is kept total rather than loud because every
-/// consumer reads the turn through this function, so whatever arm
-/// `Zero` took, the carrier's axis, its span and the wall's material side would
-/// take it together: [`turn_axis`], [`turned_span`] and
-/// [`centre_on_material_side`] read it here, and no consumer spells the
-/// convention a second time.
-fn turn_negates(turn: Sign) -> bool {
+/// **The crate's one reading of a turn**: `true` for a clockwise
+/// (`Negative`) turn. [`turn_axis`], [`turned_span`],
+/// [`centre_on_material_side`] and `revolve::tube`'s circle traversal
+/// all read it here, so `Zero` — unreachable for a classified arc, whose
+/// turn is a certified non-zero sign — takes the positive arm in every
+/// one of them at once. Total rather than loud for that reason: no
+/// consumer can part from another on it.
+pub(crate) fn turn_negates(turn: Sign) -> bool {
     matches!(turn, Sign::Negative)
 }
 
@@ -505,7 +490,8 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// in `b` that `q_to − c` is are two unrelated indeterminates.
 /// Measured: with the rim identity registered and this one not, the
 /// residual `carrier_endpoint_end` is what bounds the two-hole plate,
-/// its rendered form carrying the span's `cos(4·atan(…))` verbatim
+/// its rendered form carrying `cos(4·atan(1·abs(1)))` verbatim — the
+/// span as it was spelled when measured, through `abs`
 /// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`,
 /// `docs/DOC-LEDGER.md` sweep 13).
 ///
@@ -788,15 +774,20 @@ mod tests {
 
     use super::*;
     use geom_core::sym::{session_counts, with_session};
-    use geom_core::{ParamSymbol, Sym, SymBudget};
+    use geom_core::{Dual, Interval, ParamSymbol, Sym, SymBudget};
 
-    type S = Sym<f64>;
+    fn budget() -> SymBudget {
+        SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        }
+    }
 
     /// How the tier answers a residual at the scalar door: the scalar's
     /// own `Decide::sign_within` on the residual (no recorder funnel, so
     /// no predicate name joins the crate's roster), read off the
     /// session's receipt.
-    fn how(m: S) -> &'static str {
+    fn how<T: Decide>(m: T) -> &'static str {
         let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
         let before = session_counts().expect("inside a session");
         let _ = m.sign_within(band);
@@ -817,8 +808,8 @@ mod tests {
     /// [`placed_segment_spec`] at the identity placement. The centre and
     /// radius are the sagitta closed forms, so the two registrants the
     /// arm runs state true identities.
-    fn lowered(bulge: S, turn: Sign) -> EdgeCurveSpec<S> {
-        let lit = S::from_f64;
+    fn lowered<T: Real>(bulge: T, turn: Sign) -> EdgeCurveSpec<T> {
+        let lit = T::from_f64;
         let (a, b) = (
             Point2::new(lit(0.0), lit(0.0)),
             Point2::new(lit(2.0), lit(0.0)),
@@ -838,7 +829,7 @@ mod tests {
             canonical_vertex: 0,
             canonical_segment: 0,
         };
-        let q = |p: Point2<S>| Point3::new(p.x, p.y, lit(0.0));
+        let q = |p: Point2<T>| Point3::new(p.x, p.y, lit(0.0));
         placed_segment_spec(
             &seg,
             Affine3::identity(),
@@ -855,8 +846,11 @@ mod tests {
     /// the bulge the description carries. About `−n` the carrier turns
     /// by `−t` in the sketch plane, so its sine enters with the turn's
     /// sign. Per sample, how the tier answers the cosine and the sine.
-    fn samples(spec: &EdgeCurveSpec<S>, turn: Sign) -> Vec<(&'static str, &'static str)> {
-        let lit = S::from_f64;
+    fn samples<T: Real + Decide>(
+        spec: &EdgeCurveSpec<T>,
+        turn: Sign,
+    ) -> Vec<(&'static str, &'static str)> {
+        let lit = T::from_f64;
         let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
             segment: SketchSegment::Arc { bulge, .. },
             ..
@@ -865,11 +859,7 @@ mod tests {
             panic!("an arc lowers to a placed arc segment");
         };
         let theta = lit(4.0) * bulge.atan();
-        let sigma = lit(if matches!(turn, Sign::Negative) {
-            -1.0
-        } else {
-            1.0
-        });
+        let sigma = lit(if turn_negates(turn) { -1.0 } else { 1.0 });
         (0..=8)
             .map(|i| {
                 let s = lit(f64::from(i) / 8.0);
@@ -883,37 +873,152 @@ mod tests {
     }
 
     /// **The carrier's span meets the pushforward's as a THEOREM at a
-    /// parameter bulge of either sign.** The span is spelled from the
-    /// decided turn ([`turned_span`]), so rule D reads `atan(σ·b)` and
-    /// `atan b` as one angle up to `(−b)² = b²`. Spelled through `abs`
-    /// (`4·atan|b|`), the carrier mints `atan(|b|)`, an atom related to
-    /// `atan b` only through the sign of `b`, and the sine at every
-    /// sample but `s = 0` stays numeric (measured: the row reds there,
-    /// on its first arc) — so this row reds if the carrier's span goes
-    /// back to `abs`. Three arcs: a positive parameter bulge, a
-    /// negative one, and the reversal of the positive one (the bulge
-    /// `0 − b`, the turn flipped: `swept_segments`' involution).
+    /// parameter bulge of either sign**, at `Sym<f64>` (a point) and at
+    /// `Sym<Interval>` (a box that keeps the sign). The span is spelled
+    /// from the decided turn ([`turned_span`]), so rule D reads
+    /// `atan(σ·b)` and `atan b` as one angle up to `(−b)² = b²`. Spelled
+    /// through `abs` (`4·atan|b|`), the carrier mints `atan(|b|)`, an
+    /// atom related to `atan b` only through the sign of `b`, and the
+    /// sine at every sample but `s = 0` stays numeric (measured: the row
+    /// reds there, on its first arc) — so this row reds if the
+    /// carrier's span goes back to `abs`. Per scalar, three arcs: a
+    /// positive parameter bulge, a negative one, and the reversal of the
+    /// positive one (the bulge `0 − b`, the turn flipped:
+    /// `swept_segments`' involution).
     #[test]
     fn the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign() {
-        let budget = SymBudget {
-            max_terms: 4096,
-            max_degree: 128,
-        };
-        let cases: [(&str, f64, bool, Sign); 3] = [
-            ("b = +0.7", 0.7, false, Sign::Positive),
-            ("b = −0.7", -0.7, false, Sign::Negative),
-            ("0 − b, b = +0.7 (reversed)", 0.7, true, Sign::Negative),
+        let cases: [(&str, bool, bool, Sign); 3] = [
+            ("b > 0", false, false, Sign::Positive),
+            ("b < 0", true, false, Sign::Negative),
+            ("0 − b, b > 0 (reversed)", false, true, Sign::Negative),
         ];
-        for (name, v, reversed, turn) in cases {
-            let (rows, counts) = with_session(budget, || {
-                let b = S::param(ParamSymbol::of("bulge"), v);
-                let bulge = if reversed { S::zero() - b } else { b };
+        for (name, negative, reversed, turn) in cases {
+            let at = |b: f64| if negative { -b } else { b };
+            let (rows, counts) = with_session(budget(), || {
+                let b = Sym::<f64>::param(ParamSymbol::of("bulge"), at(0.7));
+                let bulge = if reversed { Sym::zero() - b } else { b };
                 samples(&lowered(bulge, turn), turn)
             });
             assert!(
                 rows.iter().all(|r| *r == ("theorem", "theorem")),
-                "{name}: every sample's cosine and sine must be a theorem: {rows:?} ({counts:?})"
+                "Sym<f64>, {name}: every sample's cosine and sine must be a theorem: \
+                 {rows:?} ({counts:?})"
             );
+            let (lo, hi) = if negative {
+                (-0.77, -0.63)
+            } else {
+                (0.63, 0.77)
+            };
+            let (rows, counts) = with_session(budget(), || {
+                let b =
+                    Sym::<Interval>::param(ParamSymbol::of("bulge"), Interval::from_bounds(lo, hi));
+                let bulge = if reversed { Sym::zero() - b } else { b };
+                samples(&lowered(bulge, turn), turn)
+            });
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "Sym<Interval> over [{lo}, {hi}], {name}: every sample's cosine and sine \
+                 must be a theorem: {rows:?} ({counts:?})"
+            );
+        }
+    }
+
+    /// **The value channel does not move**: [`turned_span`] at the
+    /// bulge's own sign is [`span_magnitude`] to the bit, at every scalar
+    /// the kernel evaluates at — `f64` across magnitudes down to the
+    /// subnormals and up to `f64::MAX`, `Dual<f64>` and its tangent,
+    /// `Interval` at a point and over boxes that keep the sign,
+    /// `Dual<Interval>`, and the value channels of `Sym<f64>` and
+    /// `Sym<Interval>` at a parameter bulge. `Debug` is the comparison
+    /// for the wrapped scalars (bounds, decoration and tangent, printed
+    /// round-trip exactly).
+    #[test]
+    fn turned_span_is_span_magnitude_to_the_bit() {
+        let sign = |v: f64| {
+            if v < 0.0 {
+                Sign::Negative
+            } else {
+                Sign::Positive
+            }
+        };
+        let magnitudes = [
+            0.4,
+            0.5,
+            0.7,
+            1.0,
+            2.0,
+            3.0,
+            0.1,
+            0.3,
+            1e-3,
+            1e-300,
+            2.2250738585072014e-308,
+            1e-310,
+            1e300,
+            f64::MAX,
+        ];
+        for &m in &magnitudes {
+            for v in [m, -m] {
+                let t = sign(v);
+                assert_eq!(
+                    turned_span(t, v).to_bits(),
+                    span_magnitude(v).to_bits(),
+                    "f64 {v}"
+                );
+                for d in [1.0, -3.0] {
+                    let x = Dual::new(v, d);
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, x)),
+                        format!("{:?}", span_magnitude(x)),
+                        "Dual<f64> {v}"
+                    );
+                }
+                for w in [0.0, 1e-9, 0.25] {
+                    let (lo, hi) = if v < 0.0 {
+                        (v - v.abs() * w, v)
+                    } else {
+                        (v, v + v.abs() * w)
+                    };
+                    let x = Interval::from_bounds(lo, hi);
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, x)),
+                        format!("{:?}", span_magnitude(x)),
+                        "Interval {v} widened {w}"
+                    );
+                    let xd = Dual::new(x, Interval::from_bounds(-1.0, 2.0));
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, xd)),
+                        format!("{:?}", span_magnitude(xd)),
+                        "Dual<Interval> {v} widened {w}"
+                    );
+                }
+            }
+        }
+        for &m in &[0.4, 0.7, 2.0, 1e-3] {
+            for v in [m, -m] {
+                let t = sign(v);
+                let ((a, b), _) = with_session(budget(), || {
+                    let x = Sym::<f64>::param(ParamSymbol::of("bulge"), v);
+                    (turned_span(t, x).value, span_magnitude(x).value)
+                });
+                assert_eq!(a.to_bits(), b.to_bits(), "Sym<f64> {v}");
+                let (lo, hi) = if v < 0.0 {
+                    (v * 1.1, v * 0.9)
+                } else {
+                    (v * 0.9, v * 1.1)
+                };
+                let ((a, b), _) = with_session(budget(), || {
+                    let x = Sym::<Interval>::param(
+                        ParamSymbol::of("bulge"),
+                        Interval::from_bounds(lo, hi),
+                    );
+                    (
+                        format!("{:?}", turned_span(t, x).value),
+                        format!("{:?}", span_magnitude(x).value),
+                    )
+                });
+                assert_eq!(a, b, "Sym<Interval> {v}");
+            }
         }
     }
 }

@@ -133,3 +133,29 @@ link's four.
 **Gates widened.** `sym_9_retry_interval` and `m10_sym_profile_interval`
 were `gated_to!` paths that did not include `crates/sweep/src/swept.rs`,
 and this change to it moves both. The path is added to both.
+
+## Fix pass (single FULL review on `3a99b1b71`: APPROVE-WITH-FIXES)
+
+- **A. The turn really has one reading now.** `revolve::tube`'s
+  `circle_traversal` read `Zero` as the negative arm, the opposite of
+  `turn_negates`. It now mints its bulge through `turn_negates`, which is
+  `pub(crate)`. That route was chosen over failing loud because the
+  traversal's bulge and the carrier's axis and span must agree on
+  whatever `Zero` means, and one reading makes that structural. No value
+  moves: the tube's three callers pass only `Positive` and `Negative`.
+  - `tube::tests::the_traversals_bulge_reads_its_turn_as_the_carrier_does`
+    checks every turn, `Zero` included, both ways round. Each half-turn's
+    span from the turn must be `π` bit for bit. With the old arm it reds
+    at `Zero`, giving `−π`.
+  - The span row's own `σ` goes through `turn_negates`.
+- **H.** `tests::turned_span_is_span_magnitude_to_the_bit` is the review's
+  probe, adopted. It covers 28 `f64` values (subnormals and `f64::MAX`
+  among them), `Dual`, `Interval` point and box, `Dual<Interval>`, and
+  the `Sym<f64>` and `Sym<Interval>` value channels. The span row now
+  runs at `Sym<Interval>` over `[0.63, 0.77]` as well as at `Sym<f64>`.
+- **E.** The link's two sample-3 decisions are attached to
+  `work/tier/symbolic-tier-census`, the live row for the term-budget
+  class. A session budget of 32,768 terms and degree 256 (local patch,
+  reverted) leaves both numeric at `{Terms: 2, Degree: 3}`.
+- **B, C, D, G, I, J**: prose, gates and doc trims (the PR body's "Fix
+  pass" section lists each).

@@ -699,11 +699,13 @@ number.
   pad are still ε-scale, bounded by identity residuals whose squared
   components the term/coefficient budget freezes at any affordable
   width (the per-node cap is a cost wall, not a reach; what they wait
-  on is the scaffold residual's retirement, PCURVE/D3). And the reach
-  is the UNIT bulge: a parameter bulge is outside the mechanism and a
-  literal bulge other than 1 leaves residue
-  (`work/sym/rule-d-reaches-the-unit-bulge-only`;
-  `work/sym/symbolic-tier-census`).
+  on is the scaffold residual's retirement, PCURVE/D3). And the
+  mechanism folds whole at the UNIT bulge; at any other bulge, a
+  parameter's included, the carrier's span meets the pushforward's
+  through the arc's decided turn (`4·atan(σ·b)`), and what stands is
+  the coefficient ring, the term budget and the sign of the apothem
+  (`work/decide/rule-d-reaches-the-unit-bulge-only`;
+  `work/tier/symbolic-tier-census`).
 
 Rationale: the driver's job is to certify over the STUDY's box; a
 certifier that can only certify boxes narrower than its own ε is

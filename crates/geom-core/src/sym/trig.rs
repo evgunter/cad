@@ -10,8 +10,9 @@
 //! A sketch arc is pushed forward through `sin(s·θ)` and `−2·sin²(s·θ/2)`
 //! with `θ = 4·atan(bulge)` (`geom-brep`'s `SketchSegment::eval`), and
 //! its carrier is evaluated through `cos t`, `sin t` at
-//! `t = (i/8)·4·atan|bulge|` (`Curve3::circle_at` over the certifier's
-//! schedule). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
+//! `t = (i/8)·4·atan(σ·bulge)`, `σ` the arc's decided turn
+//! (`Curve3::circle_at` over the certifier's schedule; the span is
+//! `sweep`'s `turned_span`). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
 //! unrelated indeterminates and the residual between the spellings is
 //! not the zero form anywhere the trig has not collapsed. Written in
 //! closed form both sides are rational functions of `X` and one

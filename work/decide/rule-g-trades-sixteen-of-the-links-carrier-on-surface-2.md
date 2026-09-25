@@ -1,7 +1,7 @@
 ---
 id: rule-g-trades-sixteen-of-the-links-carrier-on-surface-2
 kind: issue
-title: rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left
+title: rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget
 status: open
 opened: 2026-09-21
 priority: P2

@@ -13,7 +13,7 @@ Opened 2026-09-20 by SYM's priority-seam cut
 |---|---|---|---|
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
-| P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left |
+| P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget |
 | P2 | `decision-read-triples-the-plate-pin-suites-wall-time` | D | the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile |
 | P1 | `rule-d-reaches-the-unit-bulge-only` | D | rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10 |
 | P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
