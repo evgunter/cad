@@ -6,7 +6,10 @@
 //! of them and the wording composers are pure functions over their
 //! arguments; nothing here names the session. [`NodeKindWanted`] and
 //! [`admits`] live here because the kind a seat wants is a
-//! [`Refusal::WrongNodeKind`] payload and `admits` is its predicate.
+//! [`Refusal::WrongNodeKind`] payload and `admits` is its predicate,
+//! and [`Step`] for the same reason — it is the
+//! [`Refusal::NothingToDo`] payload and [`Refusal::nothing_to_step`]
+//! is its predicate, over the history vocabulary the moves live in.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
@@ -30,6 +33,7 @@ use editor_core::edit::UNDECLARED_PARAM_RECOURSE;
 use crate::combine;
 use crate::display::{AdmissionFault, DisplayFault};
 use crate::docio::DocIoError;
+use crate::history::History;
 use crate::props::{self, SlotValue};
 use crate::session::FaceSelection;
 use crate::sketch::Restructure;
@@ -133,6 +137,45 @@ impl NodeKindWanted {
             Self::Body => "a body",
             Self::Split => "a split",
             Self::Instances => "a pattern",
+        }
+    }
+}
+
+/// Which way a history step goes — the payload of
+/// [`Refusal::NothingToDo`], so the refusal names the direction that
+/// had nothing rather than hedging over both.
+///
+/// **It is the direction as a VALUE, which is why a third naming of
+/// undo-and-redo earns its place.** [`super::SessionOp::Undo`] and
+/// [`super::SessionOp::Redo`] are two operations and
+/// [`crate::history::History`]'s `undo`/`redo` are two moves; neither
+/// distinction can be passed to anything. This one can, and that is
+/// what lets the direction-to-sentence map below and the toolbar's
+/// two-row table each be written once instead of twice — which is the
+/// whole of what this program asked for here.
+///
+/// It lives in this module rather than beside the moves for the
+/// reason [`NodeKindWanted`] does — it is a `Refusal` payload and
+/// [`Refusal::nothing_to_step`] is its predicate — and the stronger
+/// reason is the one that answers the obvious alternative: folding
+/// `History::can_undo`/`can_redo` into one `can_step(Step)` would
+/// replace two predicates that say which way they go, at eleven
+/// reading sites that know their direction already, with one that
+/// makes every reader carry an argument.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Step {
+    /// Toward the root — [`super::SessionOp::Undo`].
+    Undo,
+    /// Along the current branch — [`super::SessionOp::Redo`].
+    Redo,
+}
+
+impl Step {
+    /// The verb, for a sentence a person reads.
+    fn verb(self) -> &'static str {
+        match self {
+            Self::Undo => "undo",
+            Self::Redo => "redo",
         }
     }
 }
@@ -283,7 +326,18 @@ pub enum Refusal {
     /// A file operation failed.
     Io(Box<DocIoError>),
     /// Undo at the root, or redo at the tip of the current branch.
-    NothingToDo,
+    ///
+    /// **The direction is the payload because the answer is about one
+    /// direction and not both.** Undo at the root refuses while a redo
+    /// is waiting on the branch the cursor just left, so a sentence
+    /// naming both is false of the half that is live — and the two
+    /// controls that produce these ops are separate buttons, each of
+    /// which shows this refusal's words before the click
+    /// ([`Self::nothing_to_step`]).
+    NothingToDo {
+        /// The direction asked for.
+        direction: Step,
+    },
     /// A display-state operation refused (a display op on an id the
     /// document does not hold, hide on a non-instance, a free-move on
     /// a mate-constrained instance, a gesture out of order) — the
@@ -444,7 +498,10 @@ impl Refusal {
                     | AdmissionFault::FusedGeometry { .. } => 1,
                 },
             },
-            Self::NoGesture | Self::GestureInFlight | Self::WrongGesture | Self::NothingToDo => 2,
+            Self::NoGesture
+            | Self::GestureInFlight
+            | Self::WrongGesture
+            | Self::NothingToDo { .. } => 2,
         }
     }
 
@@ -472,14 +529,73 @@ impl Refusal {
         (open == id).then_some(Self::SelfInstance { id })
     }
 
+    /// **The nothing-to-step answer, ahead of the move**: `Some`
+    /// exactly when the history has no state to move to in
+    /// `direction`.
+    ///
+    /// This is the CHROME's door. `DocSession::step` does not call it
+    /// and must not: a door reports what its own attempt found, so it
+    /// moves and refuses on the `None` the move itself answers with,
+    /// which is the only reading that cannot go stale between the ask
+    /// and the act. What this composes is the same refusal VALUE, for
+    /// the toolbar's Undo and Redo buttons, which have to decide
+    /// whether to offer the move BEFORE it is attempted and owe the
+    /// reader the sentence the attempt would have given.
+    ///
+    /// Those two buttons are the only hand that pushes
+    /// [`super::SessionOp::Undo`] or [`super::SessionOp::Redo`], and
+    /// they are disabled exactly while this is `Some` — so the
+    /// tooltip is the only place that sentence is ever read, and the
+    /// status line is not a second surface for it.
+    pub fn nothing_to_step(history: &History, direction: Step) -> Option<Self> {
+        let available = match direction {
+            Step::Undo => history.can_undo(),
+            Step::Redo => history.can_redo(),
+        };
+        (!available).then_some(Self::NothingToDo { direction })
+    }
+
+    /// **The new-document name rule, and its one home**: the name a
+    /// [`super::SessionOp::NewDocument`] is built from, or the refusal
+    /// a blank one is answered with.
+    ///
+    /// Both consumers call this — `DocSession::new_document`, which
+    /// refuses, and the New-document form's Create button, which
+    /// disables and shows the words.
+    ///
+    /// **It hands back the NAME rather than a verdict** because the
+    /// trim is part of the rule and not each caller's own step. A
+    /// control that gated on the raw text would offer a click the door
+    /// refuses; a caller that trimmed again on its own would be a
+    /// second copy of the normalisation with nothing holding the two
+    /// in step — which is the defect one home for the emptiness alone
+    /// still leaves open.
+    ///
+    /// The name says `new_document` and not `name`: a blank
+    /// *parameter* name is a different question with a different
+    /// answer — no door refuses one at all
+    /// (`work/edit/no-door-refuses-a-blank-parameter-name`) — and a
+    /// general name here would be an inviting wrong door for it.
+    pub fn new_document_name(typed: &str) -> Result<&str, Self> {
+        let name = typed.trim();
+        if name.is_empty() {
+            Err(Self::EmptyName)
+        } else {
+            Ok(name)
+        }
+    }
+
     /// **The ratified affordance sentence, and its one home.**
     ///
     /// "Dragging an expression-driven dimension → refuse, with an
     /// affordance" is a ratified micro-decision whose WORDING is part
-    /// of the decision, so it is composed once and every surface that
-    /// shows it — the status line, the inline note under the slot row —
-    /// calls this. Two independently-built copies is how the wording
-    /// drifts from the decision.
+    /// of the decision, so it is composed once and **every surface
+    /// that shows it calls this** — through this function, or through
+    /// the `Display` of a [`Refusal::DrivenByExpression`] the surface
+    /// is holding. The surfaces are not listed here: a list is a
+    /// census of call sites that nothing re-derives, and the rule is
+    /// what does the work. Two independently-built copies is how the
+    /// wording drifts from the decision.
     pub fn affordance(params: &[ParamName], current: Option<SlotValue>) -> String {
         let over = if params.is_empty() {
             "an expression".to_owned()
@@ -584,7 +700,7 @@ impl core::fmt::Display for Refusal {
             Self::GestureInFlight => write!(f, "finish the drag first"),
             Self::WrongGesture => write!(f, "that is not the drag in progress"),
             Self::Io(error) => write!(f, "{error}"),
-            Self::NothingToDo => write!(f, "nothing to undo or redo"),
+            Self::NothingToDo { direction } => write!(f, "nothing to {}", direction.verb()),
             Self::Display(fault) => write!(f, "{fault}"),
             Self::SlotUnit(fault) => write!(f, "{fault}"),
             Self::NoDocumentDirectory => write!(

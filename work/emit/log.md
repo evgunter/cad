@@ -666,6 +666,38 @@ Documented as a known undercount: a piece a later step re-mints as a
 `Seam` edge along its own line is not counted as the parent's
 descendant.
 
+## 2026-09-25 — a declared flush union names vertices and member edges the same in every order (PR 3198)
+
+Four end passes in `emit_union::name_union` replace fold history with
+facts read off the finished body:
+- **`Flush`:** a flush stretch is named for the least member edge it
+  lies along.
+- **`least_vertex`:** a member corner is named for the least member
+  vertex, among faces that descend there.
+- **`crossing`:** a face crossing a member edge is `Seam{edge, face}`.
+- **`retire_into_merges`:** a seam side cites the merge only when the
+  merge is the face beside it. It never cites a duplicate or a false
+  adjacency.
+
+Absences on the rebind probe fell from 7398 to 816, with vertices and
+member-edge pieces at 0.
+
+The review found three regressions against main, all fixed with rows
+that go red:
+- a two-shell member refused;
+- the ZIP document refused `Duplicate`;
+- 46 seam sides named a face they do not border.
+
+A new permanent row checks seam adjacency across the corpus. Cost is
+about 1.1–1.3× main on a 100-step union chain.
+
+Closed `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+Filed:
+- P1 `union-face-names-follow-fold-order` (the faces that remain; the
+  fork goes to Ev);
+- via the PR, zip's leftover-vertex row and EMIT's
+  `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`.
 ## 2026-09-25 — the viewer shows each edit's DM7 rows (PR 3196)
 
 The viewer used to keep only `cluster_rows()` of an applied edit, so no
@@ -723,3 +755,70 @@ Under the rule nothing renumbers, so none of them arises.
 - **Not EMIT's to close:** EDIT's row, and EDIT's #3158 retirement
   question. Both are moot under the rule, and EDIT's orchestrator closes
   them.
+
+## 2026-09-25 — Ev: union contact is pairwise, before the fold (PR 3200)
+
+The first recommendation was that a flush contact covered by a third
+member is not a contact. Ev rejected it: "a whole set can get out of
+having any declared contacts just by having none of the contacts be
+blamed on a single pair". The ruled rule:
+- every touching member pair is judged as its own two-member union,
+  before the fold;
+- an undeclared contact refuses in every order, and that includes a
+  covered one;
+- a declared contact is satisfied wherever the fold meets it.
+
+DM4 is re-worded, and its footer records the ruling. Filed the P1 unit
+`union-contact-is-judged-pairwise-before-the-fold` (cost D). Measured
+across the fixtures: 5 of 153 member pairs touch undeclared, and the
+only new refusals are `row` and `rowids`.
+
+## 2026-09-25 — Ev: step roles (PR 3202)
+
+Ev answered the step-id build's three open questions:
+- **Roles.** Roles are the path-language side of the name. Ev noted that
+  the path algebra and its lowering are "two ways of describing the
+  same thing"; user-facing text keeps the language the path was
+  written in.
+- **Circles.** A circle is `Piece(0)`/`Piece(1)` for now, and the P0
+  step-id build ships without waiting.
+- **Loft seams.** One vertex locator per section.
+- **Q4 withdrawn.** Ev was right: a fillet never has an authored corner,
+  so no authored point leaves the path.
+
+Ev raised the deeper point: vertex + bulge cannot express a full turn,
+so a circle is split in two and the lowering diverges from the
+authored path. EMIT filed it on PATHS's slate as
+`lower-profiles-to-carrier-and-interval-not-vertex-and-bulge` (P1, H),
+with a recommendation that a dedicated PATHS orchestrator take it.
+`needs_ev` is cleared on `profile-pieces-are-named-by-minted-step-ids`.
+
+## 2026-09-25 — GroupResized names the seams that changed (PR 3205)
+
+`GroupResized` now carries `cutters: GroupCutters`, with these arms:
+- `Read { gone, new }`: the seams on the group's parent that only one run
+  spells, read from both tables;
+- `NotSeamBounded`, `TiedParents`, `NoSeamOnRecord` and `SeamUnread`:
+  each says why it cannot read, and none claims without evidence.
+
+The review found several misreports:
+- a partial read (deep `[Seam, Frag, Frag]` rows) claimed "same cutters"
+  or a false `gone`;
+- a cutter that the fold re-ranked read as both gone and new;
+- the docs said "stopped cutting" where the evidence is a seam spelled in
+  one run;
+- two walls rendered identically.
+
+All are fixed:
+- one fragment-tail helper, plus the `SeamUnread` arm;
+- union cutters compared with their fold tail stripped;
+- relabelled docs;
+- role words in Display.
+
+`DIAGNOSIS_DIGEST` moved once: `flip-vanish` now names B's cap vertex as
+gone.
+
+Known limit: a cutter vertex fused onto the parent edge reads as gone.
+It is documented and not detected, because telling it apart needs the
+body. The change is additive to N5 and was not taken to Ev, per his
+ruling on #3115.

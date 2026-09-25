@@ -189,7 +189,9 @@ So the chain goes, not the link:
 - **`Node::Union { members: Vec<RecipeNodeId>, declare }`** — an
   n-ary union, two or more members, ONE body out. It evaluates as a
   fold of the kernel's pair verb in member order (D9: the order is the
-  list's, and the list is data). It sits beside `Boolean(Union)`,
+  list's, and the list is data). The fold builds the body. Contact is
+  not judged by the fold: it is judged pairwise before the fold (the
+  contact rule below). It sits beside `Boolean(Union)`,
   which stays for a pair, and beside `PlacedUnion`, which fuses
   instances of one prototype and is a different sentence (`node.rs`).
 - **Naming keys by member, not by depth.** The emitter wraps a
@@ -218,9 +220,32 @@ So the chain goes, not the link:
   else in the vocabulary is a list.
 - The viewer's combining doors take a union seat of N body picks —
   CHROME's build, not in the tree today.
-- **A declaration channel, sited at the members.** Two members that
-  touch refuse `UndeclaredContact` exactly as a pair boolean's operands
-  do, and the union carries the same recourse: `Node::Union { members,
+- **Contact is judged pairwise, in member space, before the fold.**
+  Every two members that touch are a contact. This holds whatever the
+  other members are and whatever the member order, so the union's
+  contacts are the contacts of its member pairs.
+  - Before the fold, each pair of members whose closed bounding boxes
+    meet is judged by the pair verb, as the two-member union `m ∪ n`,
+    with the declared pairs whose sites are `m` and `n`. Pairs whose
+    boxes are disjoint cannot touch, so they are not judged.
+  - A pair that touches with the contact undeclared refuses
+    `UndeclaredContact` exactly as the two-member union's operands do.
+    It refuses in every member order.
+  - A declared pair that the geometry contradicts refuses as the pair
+    boolean does.
+  - A declared pair that survives the judgement is certified.
+
+  A certified pair authorizes its contact wherever the fold meets it.
+  It is not a demand that the fold meet it. A contact another member
+  covers, whose region lies in a third member's interior, is still a
+  contact of its pair and needs the declaration. Where the fold has
+  consumed the pair's faces before the pair's step, the declaration is
+  satisfied, not refused. Every contact the fold meets is between two
+  members, because the accumulation's boundary is made of member
+  faces. So every contact the fold meets was judged here, and the fold
+  mints no contact verdict of its own.
+- **A declaration channel, sited at the members.** The union carries
+  the pair boolean's recourse: `Node::Union { members,
   declare: Option<RecipeNodeId> }`, the `Declare` node's pairs naming
   SITED entities — `SitedRef { at, name }`, the entity `name` as it
   stands at node `at`, where `at` is the member (for a pair boolean,
@@ -229,9 +254,19 @@ So the chain goes, not the link:
   member beside it, and never names the union. A declaration therefore
   names only what exists before the union does, and is authored in one
   pass: the `Declare` is inserted before the union that carries it.
-  Each pair is fed to the fold step at which both its sites are in the
-  accumulation: the later member's step in list order, the earlier
-  side as the accumulator's operand, the later as the joining member's;
+  Each certified pair is fed to the fold step at which both its sites
+  are in the accumulation. That is the later member's step in list
+  order, with the earlier side as the accumulator's operand and the
+  later side as the joining member's. A pair a face of which the fold
+  consumed whole before that step is satisfied, not `Vanished`: no row
+  of the accumulation descends from the face, because another member
+  contains it, so the contact has nothing left to back. That is DM4's
+  part. What stays
+  `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
+  is a face that survives at its step only in pieces, split by another
+  member or inside a merged row a later step fragmented. Rows do
+  descend from such a face, and which of them carry the contact is
+  that row's question;
   a pair whose two sites are ONE member is that member's carried
   contact at its own step; no fold position is recorded anywhere. A
   name not in its site's table refuses typed through the pair
@@ -251,30 +286,36 @@ So the chain goes, not the link:
   name resolves at its step through whatever merges the fold has
   performed (the union rewrites it to the flat `Merged` row containing
   it before the shared resolver), so a declaration set whose faces are
-  consumed by MERGES fuses in every member order. The bound: a face
-  consumed by a split, by containment, or by a merge a later step
+  consumed by MERGES fuses in every member order, and one whose face a
+  member contains is satisfied (above). The bound: a face
+  consumed by a split, or by a merge a later step
   fragmented is not looked through and stays order-shaped
   (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
-  **The refusal against a fold-minted row.** "The same recourse"
-  above holds for a member's own face verbatim, and for a face the
-  fold MERGED through a constituent: the refusal sites that side at
-  one constituent (the first in member order — any constituent
-  declares the same contact through the look-through, so the pick is
-  immaterial and the finding carries the flat set beside it), and the
-  caller declares what the refusal names. A row the fold minted that
-  no member's entity stands for (a `Fragment` — a `Seam` mints edges
-  and vertices, never a face) has no site to name and so no declare
-  arm: it refuses typed, `UndeclarableContact`, rather than degrading
-  into an emission bug that blames the crate for a document the user
-  wrote. The refusal menu of `docs/SELECT-DESIGN.md` §3d keeps its
-  two arms for every sited row; this one row has only the second.
+  **The refusal names member faces.** A contact is judged between two
+  members, so an `UndeclaredContact` finding sites both of its sides at
+  member faces, and the caller declares exactly what the refusal
+  names. No refusal names a row the fold minted, such as a `Fragment`
+  (a `Seam` mints edges and vertices, never a face). A fold step never
+  meets an undeclared contact, because every contact the fold meets
+  was certified pairwise. So a step that refuses on a fold-minted row
+  is holding a certified pair the routing could not hand it (the look-
+  through's bound above). It refuses typed, `UndeclarableContact`,
+  rather than degrading into an emission bug that blames the crate for
+  a document the user wrote. The refusal menu of
+  `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
+  `UndeclaredContact`.
 
 *Record: the node, its naming and `SetMembers` are DOCM-3 (PR 1803);
 the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
+The contact rule (every pairwise contact is judged before the fold and
+must be declared, a covered contact included; a declared contact is
+satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
+PR #3200 (2026-09-25), and is built by the unit
+`union-contact-is-judged-pairwise-before-the-fold`.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
