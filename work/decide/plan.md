@@ -34,7 +34,8 @@ term-budget residue is the census's, and the apothem's sign is its own
 row, `the-apothems-sign-is-a-value-read`.
 DECIDE-6 merged 2026-09-25 (#3229): the decision read is not the pin
 suites' cost, and rule G is (`rule-g-is-the-link-and-pads-leaf-cost`,
-which replaces the read's row on the slate). Both P1 rows stay gated:
+which replaces the read's row on the slate) and is DECIDE-7, dispatched
+2026-09-25 (`docs/DECIDE-7-SPEC.md`). Both P1 rows stay gated:
 the declared tangency on ROUND's open Fillet-centre row, and the revolve
 carriers on E6.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and

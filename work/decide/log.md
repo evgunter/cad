@@ -606,3 +606,17 @@ Fix pass at `25f64b906`.
 | implementer, fix pass | 100k | 70 min |
 | reviewer | 213k | 97 min |
 
+
+## 2026-09-25 — DECIDE-7 spec'd: rule G's leaf cost, single FULL review
+
+DECIDE-6 moved the pin suites' cost from the decision read to rule G, so
+`rule-g-is-the-link-and-pads-leaf-cost` is next, as DECIDE-7. It is the
+largest measured cost on the slate: 73.8 → 17.2 s on the pad's release
+leaf. Both P1 rows are still gated (ROUND's Fillet centre; E6).
+
+**Review tier: single FULL review.** It is a cost change behind a
+receipt-equality invariant, as DECIDE-6 was. A stop clause sends any
+decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
+
+Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
+`props/sign-hull` at `a7dd5c520`.
