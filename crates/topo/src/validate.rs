@@ -10200,7 +10200,11 @@ mod door_roster {
     /// The tier-1 and tier-2 validators: public, and outside the matrix
     /// because they take no form (the module doc says why).
     const FORMLESS: [&str; 2] = ["validate", "validate_closed"];
-    const STEMS: [&str; 3] = ["validate_geometric", "validate_pseudomanifold", "contact_marks"];
+    const STEMS: [&str; 3] = [
+        "validate_geometric",
+        "validate_pseudomanifold",
+        "contact_marks",
+    ];
     /// The suffixes, in the one order they compose in.
     const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
 
@@ -10256,7 +10260,11 @@ mod door_roster {
     fn door_roster_is_the_exported_set() {
         let listed = roster();
         let roster: BTreeSet<&str> = listed.iter().copied().collect();
-        assert_eq!(roster.len(), listed.len(), "a door listed twice: {listed:?}");
+        assert_eq!(
+            roster.len(),
+            listed.len(),
+            "a door listed twice: {listed:?}"
+        );
         let defined = defined();
         assert_eq!(
             defined.difference(&roster).collect::<Vec<_>>(),
