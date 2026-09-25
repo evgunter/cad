@@ -7,8 +7,7 @@
 use crate::common::operands::{nested_box, rim_plate, rounded_plate, top_rim_plate};
 use geom_core::Point2;
 use geom_core::Tol;
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
@@ -31,11 +30,7 @@ fn cylinder_at(cx: f64) -> Body<f64> {
         let th: f64 = deg.to_radians();
         p2(cx + 0.5 * th.cos(), 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

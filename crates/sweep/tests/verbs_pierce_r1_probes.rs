@@ -12,7 +12,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
@@ -20,8 +20,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-fn pv(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), bulge)
+fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (p2(x, y), bulge)
 }
 
 fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
@@ -206,7 +206,7 @@ fn r1_a_box_through_a_half_disc_cap() {
     let mut bodies = 0;
     for bulge in [1.0, -1.0] {
         // bulge = tan(theta/4); a semicircle is theta = pi -> |1|.
-        let half = ProfileLoop::new(vec![pv(-1.0, 0.0, bulge), pv(1.0, 0.0, 0.0)]);
+        let half = bulge_loop(vec![pv(-1.0, 0.0, bulge), pv(1.0, 0.0, 0.0)]);
         let a = body_of(vec![half], 0.0, 2.0);
         match topo::union(&a, &b, tol) {
             Err(e) => {
@@ -242,7 +242,7 @@ fn r1_a_box_through_a_half_disc_cap() {
 /// **Slot** — two straight flanks and two semicircular ends.
 #[test]
 fn r1_a_box_through_a_slot_cap() {
-    let slot = ProfileLoop::new(vec![
+    let slot = bulge_loop(vec![
         pv(-1.0, -0.5, 0.0),
         pv(1.0, -0.5, 1.0),
         pv(1.0, 0.5, 0.0),
@@ -273,7 +273,7 @@ fn r1_a_box_through_a_rounded_rectangle_cap() {
     // quarter arc: bulge = tan(pi/8).
     let q = (PI / 8.0).tan();
     let (w, h, r) = (1.5f64, 1.0f64, 0.3f64);
-    let rr = ProfileLoop::new(vec![
+    let rr = bulge_loop(vec![
         pv(-w + r, -h, 0.0),
         pv(w - r, -h, q),
         pv(w, -h + r, 0.0),

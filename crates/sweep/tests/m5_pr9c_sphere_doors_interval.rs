@@ -14,8 +14,7 @@
 
 use geom_core::Tol;
 use geom_core::{Band, Interval, Point2, Point3, Real};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 
@@ -29,9 +28,9 @@ fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
 
 /// The unit ball at the certified scalar (the `revolve_ball` fixture).
 fn ball() -> topo::Body<Interval> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
-        ProfileVertex::new(Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
+    let lp = bulge_loop(vec![
+        (Point2::new(iv(0.0), iv(-1.0)), iv(1.0)),
+        (Point2::new(iv(0.0), iv(1.0)), iv(0.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())

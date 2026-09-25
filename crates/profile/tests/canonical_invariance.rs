@@ -30,18 +30,18 @@ test_utils::gated_to![
 use crate::common;
 
 use common::{annulus, bracket, circle_h, l_profile, lens, profile, rect, rounded_rect, tol};
-use profile::{Profile, ProfileLoop, RawLoop};
+use profile::{Profile, ProfileLoop, RawLoop, test_support::bulge_loop};
 use proptest::prelude::*;
 
 /// Rotates a loop's starting vertex by `r` (a pure reindexing — the
 /// same closed chain).
 fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
     let n = lp.vertices().len();
-    ProfileLoop::new(
+    bulge_loop(
         (0..n)
             .map(|k| {
                 let j = (r + k) % n;
-                profile::ProfileVertex::new(lp.vertices()[j], lp.bulges()[j])
+                (lp.vertices()[j], lp.bulges()[j])
             })
             .collect(),
     )
@@ -56,13 +56,11 @@ fn rotated(lp: &ProfileLoop<f64>, r: usize) -> ProfileLoop<f64> {
 
 /// Translates a loop rigidly (fixture plumbing).
 fn translated(lp: &ProfileLoop<f64>, dx: f64, dy: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
             .zip(lp.bulges())
-            .map(|(v, &b)| {
-                profile::ProfileVertex::new(geom_core::Point2::new(v.x + dx, v.y + dy), b)
-            })
+            .map(|(v, &b)| (geom_core::Point2::new(v.x + dx, v.y + dy), b))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())

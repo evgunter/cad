@@ -25,7 +25,7 @@ use crate::common::approx::band;
 use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec, MappedCurve};
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::fillet_edges;
 use sweep::test_support::{
     PRISM_V_DEGREE, PRISM_Z, arcs_at, loft_prism_sections, stacked_at, tube_frame,
@@ -115,18 +115,15 @@ fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
 
 /// A two-vertex full circle (two semicircular arcs), counterclockwise.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(cx - r, cy), 1.0),
-        ProfileVertex::new(p2(cx + r, cy), 1.0),
-    ])
+    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
 }
 
 /// A rounded square: four lines and four quarter-circle corner arcs,
 /// tangent-declared at every arc joint.
 fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan(); // quarter-turn bulge
-    let v = |x, y, bulge| ProfileVertex::new(p2(x, y), bulge);
-    ProfileLoop::new(vec![
+    let v = |x, y, bulge| (p2(x, y), bulge);
+    bulge_loop(vec![
         v(-half + r, -half, 0.0),
         v(half - r, -half, b),
         v(half, -half + r, 0.0),
@@ -140,10 +137,10 @@ fn rounded_square(half: f64, r: f64) -> ProfileLoop<f64> {
 }
 
 fn revolved(points: &[(f64, f64, f64)], rev: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         points
             .iter()
-            .map(|(r, y, bulge)| ProfileVertex::new(p2(*r, *y), *bulge))
+            .map(|(r, y, bulge)| (p2(*r, *y), *bulge))
             .collect(),
     );
     revolve(

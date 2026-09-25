@@ -16,17 +16,14 @@ use crate::revolve_common;
 use core::f64::consts::FRAC_PI_2;
 
 use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
 
 /// The ball meridian, authored CCW: (0,−1) —arc(bulge 1)→ (0,1)
 /// —axis line→ close. Canonical vertex 0 is (0,−1), the authored start.
 fn ball_ccw() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ])
+    bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)])
 }
 
 /// The SAME ball meridian authored in the reversed (CW) vertex order:
@@ -34,10 +31,7 @@ fn ball_ccw() -> ProfileLoop<f64> {
 /// close. Canonicalization reverses the traversal and keeps the
 /// authored start, so canonical vertex 0 is (0,1), north.
 fn ball_cw() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 1.0), -1.0),
-        ProfileVertex::new(p2(0.0, -1.0), 0.0),
-    ])
+    bulge_loop(vec![(p2(0.0, 1.0), -1.0), (p2(0.0, -1.0), 0.0)])
 }
 
 /// y-coordinate of an exported pole vertex.
@@ -116,10 +110,10 @@ fn partial_ball_both_sweep_directions_export_the_same_canonical_poles() {
 /// while both tips stay Some.
 #[test]
 fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), 1.0),
+        (p2(0.0, 1.0), 0.0),
+        (p2(0.0, 0.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -143,10 +137,10 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
 /// alive: THREE poles, every one exported at its canonical index.
 #[test]
 fn partial_subdivided_axis_run_exports_all_three_poles() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), 1.0),
+        (p2(0.0, 1.0), 0.0),
+        (p2(0.0, 0.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -170,10 +164,10 @@ fn partial_subdivided_axis_run_exports_all_three_poles() {
 #[test]
 fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), b),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), b),
+        (p2(0.0, 1.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),

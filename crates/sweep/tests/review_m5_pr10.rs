@@ -16,7 +16,7 @@ use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
 
 fn ring() -> f64 {
@@ -427,11 +427,11 @@ fn review_ragged_column_rows_get_a_shaped_refusal() {
 #[test]
 fn a_sub_tolerance_arc_lofts_as_a_line() {
     let section = || {
-        vec![<profile::ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            profile::ProfileVertex::new(Point2::new(0.0, 0.0), 1e-13),
-            profile::ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            profile::ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            profile::ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 1e-13),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ])]
     };
     let places = [
