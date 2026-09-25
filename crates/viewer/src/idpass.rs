@@ -263,13 +263,13 @@ impl Disagreement {
 /// nothing* on exactly the cursors the kernel declines, which are the
 /// ones the id pass is likeliest to answer with a face.
 ///
-/// The refusal is not dropped by being declined here. The hover path
-/// asks the same un-projection and the same hit test on the same
-/// frame (`PickIndex::hovered_for` seeds exactly as
-/// `faces_under_cursor` does), and says what refused through
-/// [`crate::frame::pick_refusal`]; a second, cursor-subject sentence
-/// here would announce that refusal twice, once as a disagreement it
-/// is not.
+/// Declining to compare is not dropping the refusal: it is the ray
+/// path's news, not the comparison's, and it is said in the ray path's
+/// own words ([`crate::frame::pick_refusal`]) by whoever asked the ray
+/// — the pick path when it asked at this cursor, the viewport's
+/// comparison when the pick path skipped the frame. Said here as well,
+/// as a disagreement, it would be one refusal announced twice and
+/// named as something it is not.
 ///
 /// `answer` is the raw channel word (`serial << 32 | id`); `expected`
 /// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
