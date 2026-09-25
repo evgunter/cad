@@ -445,6 +445,9 @@ fn stale_declaration_and_ring_contact_are_matchable(
         RingContact::Vertex { .. } => "vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge",
+        RingContact::OuterVertexOnEdge { .. } => "outer_vertex_on_edge",
+        RingContact::EdgesMeet { .. } => "edges_meet",
+        RingContact::Circles { .. } => "circles",
     };
     (stale, ring)
 }
