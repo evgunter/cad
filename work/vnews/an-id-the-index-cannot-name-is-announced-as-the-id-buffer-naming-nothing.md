@@ -93,9 +93,9 @@ elsewhere only when the ray meets the same face, because then
 refusal: it gets no verdict and is said once, as before. And
 agreement is a shared name, which these do not have.
 
-Test: `pane::viewport::tests::an_id_the_drawn_index_never_assigned_is_said_as_that_id`
-drives `cursor_news` off the model and at a named face, and asserts
-fixed text.
+Tests: `pane::viewport::tests::an_unassigned_id_over_empty_space_is_said_as_that_id`
+and `an_unassigned_id_against_a_named_face_is_said_as_that_id`, one
+per false sentence. Both drive `cursor_news` and assert fixed text.
 
 Filed from this unit: `an-unassigned-id-under-a-refused-ray-is-unsaid`
 (a refused ray still returns no verdict before the id is read).
