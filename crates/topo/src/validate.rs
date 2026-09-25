@@ -10173,8 +10173,10 @@ mod tests {
                 .edges
                 .iter()
                 .find(|(_, e)| {
-                    edge_endpoints(&body, e.he_plus)
-                        .is_some_and(|(a, b)| (a == from && b == to) || (a == to && b == from))
+                    edge_endpoints(&body, e.he_plus).is_some_and(|(a, b)| {
+                        let same = |x: Point3<f64>, y: Point3<f64>| (x - y).norm() == 0.0;
+                        (same(a, from) && same(b, to)) || (same(a, to) && same(b, from))
+                    })
                 })
                 .map(|(k, _)| k)
                 .expect("the named edge");
