@@ -2,12 +2,14 @@
 id: sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts
 kind: issue
 title: inverting every face's sense on an arc-capped loft leaves tier 3 green with an unchanged positive enclosure
-status: dispatched
+status: closed
 opened: 2026-09-12
 priority: P0
 cost: H
 refs: [verbs-1031b-assigner-checker-divergence, m6-sense-gate-recorded-residuals, 2969]
 parent: ATREST-4
+closed: 2026-09-24
+pr: 3190
 ---
 
 
@@ -280,3 +282,44 @@ refusing bodies the kernel produces on purpose is what ATREST-1 walked
 into on check 10, which measured 36 such rows after the claim had been
 settled as a design decision. That measurement is the opening step of
 the widening unit, not an afterthought to it.
+
+## Closed by ATREST-4 (2026-09-24)
+
+Check 6's planar arm now examines planar loops of `Line` and `Circle`
+carriers, through the winding the merge's role assigner already
+decided on — moved out of `merge_faces.rs` to
+`crates/topo/src/loop_winding.rs` (`Body::planar_loop_winding`), so
+there is one statement of it rather than three. The whole-body
+inversion of the arc prism refuses exactly `LoopRoleInverted` at its
+two caps, as the square prism does; the public-door inversion is
+refused; the spline walls stay silent (residual 3). The three ATREST-2
+rows were re-cut to the new verdicts in
+`crates/sweep/tests/m5_s10_face_sense.rs`
+(`a_whole_body_sense_inversion_refuses_at_every_planar_cap_arcs_included`,
+`the_planar_arm_is_the_only_sense_reader_on_the_arc_loft`,
+`the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps`),
+beside two new rows (one arc cap by name; an extruded washer's arc
+ring) and one pinning the residue
+(`an_ellipse_bounded_planar_face_stays_outside_the_planar_arm`).
+
+**Refusal surface, measured before the arm landed**: the widened
+verdict logged at every `validate_geometric` call across the whole
+nextest suite at all three ε rows, `demos/tour`'s tests, the tour
+binary's scenes and the wild STEP corpus (CI run 36045094459). Per ε,
+~11 000 arc-bearing planar loops newly examined (2 850 more in the
+demos); zero escalations; two `Zero` verdicts (exempt); 15 new
+refusals per ε, every one on a body a TEST inverted, corrupted or
+hand-built with a hand-set normal — none on a body a kernel verb
+produced. Table in ATREST-4's PR.
+
+That measurement is a snapshot, and nothing re-runs it: the
+instrument lived on a throwaway branch. What guards its conclusion
+going forward is weaker and indirect — every row that validates a
+verb's output asserts `Ok`, so a verb whose output starts refusing
+turns its suite red, and check 6's own rows pin the verdicts on the
+bodies above. A body a verb builds that no row validates, or that a
+row validates only for `is_err`, is not guarded.
+
+What remains: a planar loop riding an `Ellipse`, spiric or NURBS
+carrier — `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`.
+

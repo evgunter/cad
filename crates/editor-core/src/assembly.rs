@@ -1375,7 +1375,8 @@ fn attribute(
         | ValidationError::PoisonedSurfaceDescription { .. }
         | ValidationError::DegenerateTorus { .. }
         | ValidationError::DegenerateTorusEscalated { .. }
-        | ValidationError::NonpositiveTorusTube { .. }
+        | ValidationError::PoisonedSurfaceDatum { .. }
+        | ValidationError::UnrepresentableSurfaceDatum { .. }
         | ValidationError::ApproxCertification { .. }
         | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }
