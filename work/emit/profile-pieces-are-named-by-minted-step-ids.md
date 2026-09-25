@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: H
+needs_ev: true
 ---
 
 
@@ -52,6 +53,21 @@ unit builds it.
   - DM7's `Rebound` arm and its value-edit arm.
   Ev ruled the design on #3193, so these re-wordings describe the ruled
   change.
+
+## Open before build
+
+The ruling leaves four questions whose answers decide which spellings
+exist. They are asked in `names/README.md`'s "N1, the profile pieces":
+
+- **Q1.** The role list for each verb #3193 did not list. It also covers
+  which piece keeps a segment that a fillet run and an authored leg share.
+- **Q2.** `circle` draws two segments, but the ruled text gives it one
+  carrier role.
+- **Q3.** How a loft's seams, caps and rims are named, beside its walls.
+- **Q4.** What a closing fillet does to the entry vertex's name.
+
+The id, the anchor's translation and the deletions do not depend on
+these answers.
 
 ## Closes
 
