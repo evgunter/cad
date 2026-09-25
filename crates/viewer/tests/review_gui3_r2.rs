@@ -43,7 +43,7 @@ use viewer::evalseam::{EvalRequest, EvalService, InlineEvaluator, ThreadEvaluato
 use viewer::generation::Generation;
 use viewer::history::History;
 use viewer::props::{SlotDriver, SlotValue};
-use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp};
+use viewer::session::{DocSession, Landing, Refusal, Selection, SessionOp, Step};
 use viewer::{docio, props, tree};
 
 // --- fixtures, authored here rather than borrowed -------------------
@@ -301,7 +301,9 @@ fn opening_a_file_and_saving_it_straight_back_reproduces_its_bytes() {
     assert!(
         matches!(
             reopened.perform(SessionOp::Undo).refusal,
-            Some(Refusal::NothingToDo)
+            Some(Refusal::NothingToDo {
+                direction: Step::Undo
+            })
         ),
         "the file's log is exactly two steps long"
     );

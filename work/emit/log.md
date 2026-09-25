@@ -840,3 +840,14 @@ No name moved.
 
 After #3198 landed, the unit fixture needed a `Flush` argument. The
 merge added it.
+## Announced seam from PATHS (2026-09-25)
+
+Ev ruled on #3218 that a profile lowers to verbatim vertices +
+`Line | Arc { centre, radius, Δθ }`, so a circle becomes one segment.
+PATHS's `circle-lowers-to-one-segment` (unit 4 of 6, parked behind three
+refactor units) will re-spell a circle's step-id pieces from
+`Piece(0)`/`Piece(1)` to one `Carrier`, which is the second names break
+agreed on #3202. Nothing is needed from EMIT now. PATHS will announce
+again before unit 4 dispatches.
+
+Signed (PATHS orchestrator).

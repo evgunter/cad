@@ -2,10 +2,11 @@
 id: frame-rs-says-the-per-subject-line-is-a-question-for-ev
 kind: issue
 title: frame.rs tells every reader a design question gates the per-subject line, and no such question was ever put
-status: open
+status: closed
 opened: 2026-09-20
 priority: P2
 cost: E
+closed: 2026-09-24
 ---
 
 
@@ -74,3 +75,25 @@ and is the wording to match.
 and `work/vnews/hand-maintained-counts-in-frame-rs-prose-have-no-guard`.
 Each is its own file with `rides_with:` naming this row, per
 `work/README.md`; closing this one does not close them.
+
+## Closed 2026-09-24 (`vnews/frame-rs-prose-pass`)
+
+`frame_status`'s doc comment no longer says the per-subject line is a
+design question for Ev. What survives is the part that was true: the
+line becoming several labels is not `frame_status`'s to give, it needs
+a value carrying several subjects, and
+`work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md` owns
+that fork — the gate-free wording `joined_subject`'s doc already used.
+
+**The path half was taken, and the crossing is announced.** Both
+`frame.rs` citations of `one-line-one-subject-…` (in `frame_status`'s
+and `joined_subject`'s docs) now say `work/vnews/`, and that line is
+struck from `work/vdoc/crates-cite-work-view-rows-that-moved-in-the-rescope`'s
+table in the same PR, so the two halves cannot both land. The pass also
+repointed the module header's `work/view/startup-notices-need-holding-to-badge.md`,
+which moved to `work/vseam/` after VDOC's sweep ran; that row records it.
+
+The four riders are each dispositioned on their own files:
+`hand-maintained-counts-…` and `a-dead-composition-…` close here;
+`folded-moved-…` and `tone-doc-…` stay open on the halves this pass did
+not take.
