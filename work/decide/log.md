@@ -426,3 +426,46 @@ both avoided.
 The item leaves it to Ev with the orchestrator. The spec has Phase 1
 count both routes on today's tree, and stops before either is
 implemented. The sign-free part (Phase 2a) does not wait on it.
+
+## 2026-09-25 — DECIDE-4 merged into `props/sign-hull` (#3192)
+
+**What landed.**
+- Phase 1's attribution, and rule G's exact quotient (a root whose
+  argument's denominator divides its numerator exactly is minted over
+  the quotient).
+- The boss's last value-free residual is taken. The boss now certifies
+  0.73 of its real study, bounded by a real margin (`dihedral_wedge`).
+- No other split moves on nine documents, at +0–3% leaf cost.
+
+**What was filed.** The trade: a root re-keyed to `sqrt(Q)` no longer
+meets the split spelling `sqrt(N)/sqrt(D)`. It is filed as
+`the-exact-quotient-re-keys-a-root-the-split-met` (P2); the remedy is a
+canonical factorisation of a root's argument.
+
+**What is still open.** The bulge's sign waits on Ev's fork (`[ev]`
+#3186), and `rule-d-reaches-the-unit-bulge-only` stays open on it. If
+the ruling is route B, it is its own unit, since DECIDE-4 closed before
+the ruling.
+
+**The review.**
+- The dual on `334bb2aa2` gave APPROVE-WITH-FIXES twice: R1 0/7/4 and
+  R2 0/5/5. It was coded blind, byte 19, with no tally candidate and a
+  fair pair.
+- The adjudicated union fix pass A–L ran at `bfb059b7f`.
+- R1's delta found that the budget-sized step cap made one declined
+  division cost 0.78 s at the drive's budget. It was fixed at
+  `de02c07a1`: two necessary monomial conditions before any step, and a
+  remainder map so a step is linear in `|d|`. It now takes 0.3 ms.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer, first pass | 481k | 250 min |
+| implementer, fix pass | 171k | 100 min |
+| implementer, second pass | 39k | 35 min |
+| R1 | 287k | 52 min |
+| R1's delta | 88k | 32 min |
+| R2 | 292k | 51 min |
+| coder | 73k | — |
+
