@@ -2,7 +2,7 @@
 id: structural-suffix-means-two-things-across-the-six-doors
 kind: issue
 title: The _structural suffix means two things: validate_geometric_structural drops check 7, the other four run it closed-form
-status: open
+status: review
 opened: 2026-09-21
 priority: P3
 cost: D
