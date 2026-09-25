@@ -4197,6 +4197,13 @@ mod tests {
     /// helpers, because the sibling test modules in this file and
     /// `r2_probes` build on the same vocabulary rather than keeping a
     /// copy each.
+    ///
+    /// **Its callers take a face KEY and a surface from it, not a
+    /// polygon.** The chart-region rows hand the pipeline their own
+    /// `uv` polygons beside the body, so the rectangle's corners are
+    /// not what they measure: moving a corner, in plane or off it,
+    /// leaves every one of them green. A row that means to assert on
+    /// the sheet's own boundary has to read it back itself.
     pub(super) fn sheet(
         body: &mut Body<f64>,
         x0: f64,
