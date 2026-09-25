@@ -77,7 +77,8 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
     <ProfileLoop<T> as RawLoop<T>>::new(
         lp.vertices()
             .iter()
-            .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
+            .zip(lp.bulges())
+            .map(|(v, &b)| ProfileVertex::new(v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -90,10 +91,11 @@ fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
     <ProfileLoop<T> as RawLoop<T>>::new(
         lp.vertices()
             .iter()
-            .map(|vx| {
+            .zip(lp.bulges())
+            .map(|(vx, &b)| {
                 ProfileVertex::new(
-                    Point2::new(T::from_f64(vx.pos().x), T::from_f64(vx.pos().y)),
-                    T::from_f64(vx.bulge()),
+                    Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
+                    T::from_f64(b),
                 )
             })
             .collect(),
@@ -104,11 +106,11 @@ fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
     assert_eq!(a.vertices().len(), b.vertices().len(), "{what}: length");
     for (i, (x, y)) in a.vertices().iter().zip(b.vertices().iter()).enumerate() {
-        assert_eq!(x.pos().x.to_bits(), y.pos().x.to_bits(), "{what}: v{i}.x");
-        assert_eq!(x.pos().y.to_bits(), y.pos().y.to_bits(), "{what}: v{i}.y");
+        assert_eq!(x.x.to_bits(), y.x.to_bits(), "{what}: v{i}.x");
+        assert_eq!(x.y.to_bits(), y.y.to_bits(), "{what}: v{i}.y");
         assert_eq!(
-            x.bulge().to_bits(),
-            y.bulge().to_bits(),
+            a.bulges()[i].to_bits(),
+            b.bulges()[i].to_bits(),
             "{what}: v{i}.bulge"
         );
     }
@@ -162,46 +164,19 @@ fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
     for (i, v) in door.vertices().iter().enumerate() {
         for (name, other) in [("loft", &loft), ("anchor", &anchor)] {
             let w = other.vertices()[i];
-            assert_eq!(
-                v.pos().x.lo().to_bits(),
-                w.pos().x.lo().to_bits(),
-                "{name} v{i}.x.lo"
-            );
-            assert_eq!(
-                v.pos().x.hi().to_bits(),
-                w.pos().x.hi().to_bits(),
-                "{name} v{i}.x.hi"
-            );
-            assert_eq!(
-                v.pos().y.lo().to_bits(),
-                w.pos().y.lo().to_bits(),
-                "{name} v{i}.y.lo"
-            );
-            assert_eq!(
-                v.pos().y.hi().to_bits(),
-                w.pos().y.hi().to_bits(),
-                "{name} v{i}.y.hi"
-            );
-            assert_eq!(
-                v.bulge().lo().to_bits(),
-                w.bulge().lo().to_bits(),
-                "{name} v{i}.b.lo"
-            );
-            assert_eq!(
-                v.bulge().hi().to_bits(),
-                w.bulge().hi().to_bits(),
-                "{name} v{i}.b.hi"
-            );
+            assert_eq!(v.x.lo().to_bits(), w.x.lo().to_bits(), "{name} v{i}.x.lo");
+            assert_eq!(v.x.hi().to_bits(), w.x.hi().to_bits(), "{name} v{i}.x.hi");
+            assert_eq!(v.y.lo().to_bits(), w.y.lo().to_bits(), "{name} v{i}.y.lo");
+            assert_eq!(v.y.hi().to_bits(), w.y.hi().to_bits(), "{name} v{i}.y.hi");
+            let (vb, wb) = (door.bulges()[i], other.bulges()[i]);
+            assert_eq!(vb.lo().to_bits(), wb.lo().to_bits(), "{name} v{i}.b.lo");
+            assert_eq!(vb.hi().to_bits(), wb.hi().to_bits(), "{name} v{i}.b.hi");
         }
         // And the crossing is exact: every interval is a point.
+        assert_eq!(v.x.lo().to_bits(), v.x.hi().to_bits(), "v{i}.x is thin");
         assert_eq!(
-            v.pos().x.lo().to_bits(),
-            v.pos().x.hi().to_bits(),
-            "v{i}.x is thin"
-        );
-        assert_eq!(
-            v.bulge().lo().to_bits(),
-            v.bulge().hi().to_bits(),
+            door.bulges()[i].lo().to_bits(),
+            door.bulges()[i].hi().to_bits(),
             "v{i}.b is thin"
         );
     }

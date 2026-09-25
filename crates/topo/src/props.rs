@@ -176,6 +176,12 @@ impl From<LoopEdgesError> for MassPropsError {
 
 /// Typed failure of [`mass_properties`] (closed enum, D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(MassPropsErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum MassPropsError {
     /// The run's tolerance cannot form a band.
     Band {

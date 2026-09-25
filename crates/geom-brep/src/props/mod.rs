@@ -374,6 +374,13 @@ pub struct FaceContribution<T: Real> {
 /// residual is definitely nonzero, or a structural classification
 /// escalated. Never a silent fallback.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PropsErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PropsError {
     /// A carrier or surface this closed-form inventory has no arm for
     /// and never will in this lane: the `Nurbs` placeholder, and a

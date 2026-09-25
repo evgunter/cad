@@ -300,8 +300,14 @@ fn the_embedded_cube_is_a_decided_interference() {
     // The Display is the kernel's own sentence, not a struct dump.
     let text = finding.to_string();
     assert!(text.contains("interference fit"), "{text}");
-    assert!(text.contains("material contains vertex"), "{text}");
-    assert!(text.contains("recorded gate-skips do not exist"), "{text}");
+    assert!(
+        text.contains("two instances overlap: a corner of one lies inside the other"),
+        "{text}"
+    );
+    assert!(
+        text.ends_with("Recourse: move the instances apart"),
+        "{text}"
+    );
     assert!(!text.contains("InstanceInterference {"), "{text}");
     assert!(!text.contains("witness:"), "{text}");
 }
@@ -356,7 +362,7 @@ fn every_vertex_on_the_boundary_refuses_typed() {
     assert_eq!(placements.len(), 1, "{errors:?}");
     let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("every vertex of the contained instance lies on the containing"),
+        what.contains("every corner of one lies on the other's boundary"),
         "{what}"
     );
     assert_eq!(errors.len(), 17, "{errors:?}");
@@ -392,7 +398,10 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
     assert_eq!(placements.len(), 2, "{errors:?}");
     for p in placements {
         let what = undecidable_what(p).expect("the typed refusal");
-        assert!(what.contains("escalated in band"), "{what}");
+        assert!(
+            what.contains("too close to the other's boundary to place at this tolerance"),
+            "{what}"
+        );
     }
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
@@ -513,7 +522,7 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         assert_eq!(placements.len(), 1, "{name}: {errors:?}");
         let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("crossing at a lower-dimensional feature"),
+            what.contains("passes through a face of the other where they touch"),
             "{name}: {what}"
         );
         assert!(
@@ -635,7 +644,7 @@ fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::CensusUndecidable { what, .. } if what.contains("sound box")
+            ValidationError::CensusUndecidable { what, .. } if what.contains("a placeholder surface, or an edge whose curve has no bounds")
         )),
         "and the census names the kind it cannot reach: {errors:?}"
     );
@@ -654,7 +663,8 @@ fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     assert!(
         matches!(
             placement[0],
-            ValidationError::CensusUndecidable { what, .. } if what.contains("unclaimable")
+            ValidationError::CensusUndecidable { what, .. }
+                if what.contains("where that part ends is unknown")
         ),
         "and it names why the extent is unclaimable: {placement:?}"
     );
