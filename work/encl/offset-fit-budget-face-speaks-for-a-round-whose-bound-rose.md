@@ -60,3 +60,15 @@ Within the existing vocabulary: carry the best finite bound reached
 (and its grid) on the budget and cap faces, and word the budget face
 by what the last verdict actually was (still falling, or the
 both-directions fallback not yet tried). No new variant is needed.
+
+## `RefinementStalled` is reachable
+
+`stall_verdict`'s docs record the stall refusal as "close to unreachable
+by construction", with no fixture reaching it. The same measurement
+reaches it twice: `bowed()` at `d = 0.05` with the budget raised past 6
+stalls at round 7 (bound 2.49e-9), and the twisted-loft saddle wall at
+`d = ±5e-10` stalls at round 4 through the shipped door at a target of
+1e-14 (bound 1.29e-11). Both go through a rising bound, which is what
+that doc argued the predicate would almost never see. The doc should
+be corrected with whichever fix lands here, and
+`offset-fit-stall-face-has-no-fixture` now has a fixture to use.
