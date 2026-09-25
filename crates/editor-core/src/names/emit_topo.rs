@@ -2034,6 +2034,7 @@ mod tests {
                 ),
             )),
             tied,
+            piece: false,
         }
     }
 
