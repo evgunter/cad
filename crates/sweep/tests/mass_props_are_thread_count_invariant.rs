@@ -282,6 +282,20 @@ fn digest() -> String {
 /// shape, numeric and frozen-operand counts each rise by exactly 2,
 /// the verdicts stay `OK` / `REFUSED`, and no other line of the block
 /// moves.
+///
+/// **Re-cut at all three ε when the sketch pushforward began reading
+/// its segment's stored centre and sweep** (`geom_brep::SketchSegment`,
+/// #3254) instead of rebuilding them inside `eval` from the chord and
+/// the bulge. The move is a loss, disclosed rather than hidden:
+/// `sym_thin_strip validate_geometric` goes `sz` 26 → 22 and `num`
+/// 634 → 638. The four are `pcurve_iso_boundary`'s domain-end test,
+/// Zero both ways, now numeric instead of a theorem: its early form
+/// carries a frozen `0 − x` node that the walk meets in a different
+/// state once the pushforward shares the carrier's centre node. The
+/// f64 block, both verdicts, `sym_arc_loft`'s theorems and every other
+/// count are unchanged apart from `frozen`. Attributed by toggling
+/// (only restoring the in-`eval` rebuild brings the four back), and
+/// filed as `work/decide/sharing-the-carriers-centre-node-costs-four-iso-boundary-theorems.md`.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

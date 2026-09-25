@@ -610,13 +610,11 @@ for a clockwise one — and no longer `4·atan|b|`. No bulge crosses into
   lost theorems were not rendered, so whether any of them is a rule-D
   fold is not established here.
 - **Not the span.** `sweep`'s thread-count session row
-  `sym_thin_strip` at its 32-term receipt budget reads
-  `symbolic_zero` 26 → 22. The four are `pcurve_iso_boundary`'s
-  domain-end test, outcome Zero both ways, Theorem → NumericZero, and
-  the same at a 4096-term budget. They stand with the span, the apex,
-  the description's centre and sweep, `restrict` and the loft wall's
-  centre each restored to the old spelling, so they are not attributed
-  to any of those.
+  `sym_thin_strip` loses four `pcurve_iso_boundary` theorems
+  (`symbolic_zero` 26 → 22; outcome Zero both ways). Attributed by toggle
+  to the pushforward reading the stored centre node instead of building
+  it inside `eval`. Filed as
+  `sharing-the-carriers-centre-node-costs-four-iso-boundary-theorems`.
 
 Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
 ## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
