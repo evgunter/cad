@@ -37,7 +37,7 @@ use crate::common::approx::band;
 use geom_core::Point3;
 use geom_core::Tol;
 use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -45,10 +45,7 @@ use topo::boolean::{SolidContainment, point_in_solid};
 /// The half-disc of the `ball` acceptance: a unit semicircle from
 /// (0, −1) through (1, 0) to (0, 1), closed by the on-axis diameter.
 fn half_disc() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ])
+    bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)])
 }
 
 /// The unit ball: two half-sphere bands on ONE sphere surface.

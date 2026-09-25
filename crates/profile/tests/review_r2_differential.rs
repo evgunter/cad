@@ -28,13 +28,13 @@ fn record(out: &mut String, key: &str, lp: &Result<ProfileLoop<f64>, PathError<f
     match lp {
         Ok(lp) => {
             let _ = write!(out, "{key} BUILT joints={:?}", lp.tangent_joints());
-            for v in lp.vertices() {
+            for (v, b) in lp.vertices().iter().zip(lp.bulges()) {
                 let _ = write!(
                     out,
                     " [{:016x},{:016x},{:016x}]",
-                    v.pos().x.to_bits(),
-                    v.pos().y.to_bits(),
-                    v.bulge().to_bits()
+                    v.x.to_bits(),
+                    v.y.to_bits(),
+                    b.to_bits()
                 );
             }
             let verdict = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol()) {

@@ -226,10 +226,10 @@ where
                         d.u64(13);
                         for lp in p.validated.loops() {
                             d.u64(lp.vertices().len() as u64);
-                            for vx in lp.vertices() {
-                                d.sc(vx.pos().x);
-                                d.sc(vx.pos().y);
-                                d.sc(vx.bulge());
+                            for (vx, s) in lp.vertices().iter().zip(lp.segments()) {
+                                d.sc(vx.x);
+                                d.sc(vx.y);
+                                d.sc(s.bulge);
                             }
                         }
                     }

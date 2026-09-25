@@ -1678,7 +1678,7 @@ FAMILIES: dict[str, str] = {
 #: `Operand`, `Curve3`, `Surface`, `EdgeDescription`,
 #: `ChartCoherenceLane`):
 #: the document layer consumes them and Python receives a `Value`. The
-#: profile ladder's rungs (`Profile`, `ProfileLoop`, `ProfileVertex`,
+#: profile ladder's rungs (`Profile`, `ProfileLoop`,
 #: `ValidatedLoop`, `ValidatedProfile`, `SegmentKind`,
 #: `FilletLegShape`, `validated`) and the recorded program the node
 #: stores (`ProfileProgram`, `LoopProgram`, `ProgramStep`,
@@ -2292,6 +2292,14 @@ NOT_BOUND = {
     "GeomRef": SHAPE,
     "Mat3": SHAPE,
     "MassPropsError": SHAPE,
+    # `StepImport::Solid::enclosure`'s refusal arm and the bracket it
+    # carries cross the way `MassPropsError` does: as the measurement
+    # refusal `ImportReport.enclosure` and
+    # `Body.validate_geometric_measured` raise, with the bracket as its
+    # `volume_lo`/`volume_hi`/`surface_area` attributes (`None` unless
+    # the schedule ran out) rather than as values Python holds.
+    "TargetUnreached": SHAPE,
+    "VolumeEnclosure": SHAPE,
     # WHAT THE CLASSIFIER SAW, curated at the prelude beside the
     # `Indeterminate` that holds it — and a discriminant that crosses
     # as WHICH ATTRIBUTE IS SET rather than as a word.
@@ -2646,7 +2654,6 @@ NOT_BOUND = {
     "ProfileEdgeRef": INTERIOR,
     "ProfileLoop": INTERIOR,
     "ProfileProgram": INTERIOR,
-    "ProfileVertex": INTERIOR,
     "ProfileVertexRef": INTERIOR,
     "ProgramArcData": INTERIOR,
     "ProgramStep": INTERIOR,

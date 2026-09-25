@@ -9,7 +9,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
@@ -255,10 +255,10 @@ fn r2_the_transient_chord_mev_certifies_on_a_wall() {
 #[test]
 fn r2_the_cone_fixture_door_is_measured_not_just_excluded() {
     let tol = Tol::witness();
-    let lp = profile::ProfileLoop::new(
+    let lp = bulge_loop(
         [(0.2, 0.0), (0.6, 0.0), (0.4, 0.6), (0.2, 0.6)]
             .into_iter()
-            .map(|(r, y)| profile::ProfileVertex::new(p2(r, y), 0.0))
+            .map(|(r, y)| (p2(r, y), 0.0))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

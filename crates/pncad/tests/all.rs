@@ -445,6 +445,9 @@ fn stale_declaration_and_ring_contact_are_matchable(
         RingContact::Vertex { .. } => "vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge",
+        RingContact::OuterVertexOnEdge { .. } => "outer_vertex_on_edge",
+        RingContact::EdgesMeet { .. } => "edges_meet",
+        RingContact::Circles { .. } => "circles",
     };
     (stale, ring)
 }
@@ -1011,15 +1014,12 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
     let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
 
-    let want: Vec<ProfileVertex<f64>> = table
-        .iter()
-        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-        .collect();
+    let want: Vec<(Point2<f64>, f64)> = table.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect();
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
-    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    for (i, (g, (pos, bulge))) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.x, g.y), (pos.x, pos.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], *bulge, "vertex {i} bulge");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1040,8 +1040,8 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+        assert_eq!((g.x, g.y), (h.x, h.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], chain.bulges()[i], "vertex {i} bulge");
     }
     assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
@@ -1303,7 +1303,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         panic!("the box re-imports as a solid, not a wireframe");
     };
     named::<Body<f64>>(body.clone());
-    named::<MassProperties<f64>>(enclosure);
+    named::<Result<MassProperties<f64>, TargetUnreached<f64>>>(enclosure.clone());
+    // A box measures, so the refusal arm is spelled here and not taken.
+    let enclosure = enclosure.expect("a box's enclosure is measurable");
     named::<f64>(eps_in);
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
@@ -1818,12 +1820,12 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 ///    prelude.
 /// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
-///    — written in façade source (comments excluded), which would mean
+///    / `bulge_loop` — written in façade source (comments excluded), which would mean
 ///    the façade itself still authors through the retired tier. This
 ///    one is matched on the source with ALL whitespace removed, so a
 ///    call broken across lines is the same pattern as a call written
 ///    on one.
-/// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
+/// 4. Any `ProfileLoop` STRUCT LITERAL in façade
 ///    source. This row's declared blind spot until the seal landed:
 ///    the fields were public, so a literal type-checked wherever the
 ///    type was nameable, and the type must stay nameable. The fields
@@ -1847,7 +1849,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
         ["ProfileLoop::", "new("].concat(),
         ["ProfileLoop::", "polygon("].concat(),
         ["ProfileLoop", "{"].concat(),
-        ["ProfileVertex", "{"].concat(),
+        ["bulge_", "loop("].concat(),
     ];
 
     let mut violations: Vec<String> = Vec::new();
@@ -2100,9 +2102,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
     for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
-        assert_eq!(got.pos().x.to_bits(), want.pos().x.to_bits());
-        assert_eq!(got.pos().y.to_bits(), want.pos().y.to_bits());
-        assert_eq!(got.bulge().to_bits(), want.bulge().to_bits());
+        assert_eq!(got.x.to_bits(), want.x.to_bits());
+        assert_eq!(got.y.to_bits(), want.y.to_bits());
+    }
+    for (got, want) in replayed.bulges().iter().zip(authored.loop_.bulges()) {
+        assert_eq!(got.to_bits(), want.to_bits());
     }
 
     // And it evaluates as a document node.

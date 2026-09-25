@@ -9,6 +9,13 @@ rust-version.workspace = true
 workspace = true
 
 [features]
+# The variant rosters behind `topo`'s sample-coverage row
+# (`topo::test_support_samples`): with this on, the enums a
+# `topo::ValidationError` renders through derive a companion
+# discriminant enum (`strum::EnumDiscriminants`), so a variant added
+# here is a gap in that row by construction, not by a hand-kept list.
+# Test-only: enabled through `topo`'s `test-support` alone.
+test-support = ["dep:strum", "geom-core/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
@@ -17,6 +24,8 @@ workspace = true
 probe = ["geom-core/probe"]
 
 [dependencies]
+# Optional: `test-support` above.
+strum = { version = "0.28", features = ["derive"], optional = true }
 # Certified-conservative box constructors (the two `boxes` modules):
 # the bvh crate sits BELOW the geometry crate by design (its docs).
 bvh = { path = "../bvh" }

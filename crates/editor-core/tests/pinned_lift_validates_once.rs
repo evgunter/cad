@@ -24,26 +24,28 @@ use editor_core::{
 };
 use geom_core::{Real, Sign, Tol};
 use profile::{
-    Profile, ProfileLoop, ProfileVertex, RawLoop, SegmentKind, SketchPlane, ValidatedProfile,
+    Profile, ProfileLoop, RawLoop, SegmentKind, SketchPlane, ValidatedProfile,
+    test_support::bulge_loop,
 };
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
 /// vertex, the declared joints carried — the raw profile the lane's
 /// own validation would run on.
 fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
-            .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
+            .zip(lp.bulges())
+            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
-/// plane's placement, then per loop each vertex's position and bulge,
-/// then each segment's endpoints, bulge and (for an arc) center and
-/// radius. (`profile`'s `validated_map` suite carries the same walk:
+/// plane's placement, then per loop each vertex's position, then each
+/// segment's endpoints, bulge and (for an arc) center, radius and
+/// sweep. (`profile`'s `validated_map` suite carries the same walk:
 /// `test-utils` is a dependency-free leaf and cannot host a walk over
 /// `profile`'s types without a cycle.)
 fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
@@ -64,12 +66,18 @@ fn scalars<T: Real>(vp: &ValidatedProfile<T>) -> Vec<T> {
     ];
     for lp in vp.loops() {
         for v in lp.vertices() {
-            out.extend([v.pos().x, v.pos().y, v.bulge()]);
+            out.extend([v.x, v.y]);
         }
         for s in lp.segments() {
             out.extend([s.start.x, s.start.y, s.end.x, s.end.y, s.bulge]);
-            if let SegmentKind::Arc { center, radius, .. } = s.kind {
-                out.extend([center.x, center.y, radius]);
+            if let SegmentKind::Arc {
+                center,
+                radius,
+                sweep,
+                ..
+            } = s.kind
+            {
+                out.extend([center.x, center.y, radius, sweep]);
             }
         }
     }

@@ -268,9 +268,11 @@ class ValidationFinding:
       it says which record to withdraw or re-seat, and withdrawing
       another one leaves the refusal standing.
     - `ring_contact_kind` — how a ring meets its face's own outer loop
-      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`).
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`).
       The word says where the ring has to move: a shared position one
-      vertex clears, or a shared arc no single vertex move separates.
+      vertex clears, a shared arc no single vertex move separates, or
+      a crossing or touching point no vertex carries.
 
     No arena key crosses. A `Body` is an opaque handle, so WHICH face
     or vertex a finding names stays in the kernel's own prose on the
@@ -4071,6 +4073,14 @@ class ImportReport:
     `report.body.mass_properties()` runs the certified quadrature a
     second time over the same body at the same band, and answers the
     same four fields bit for bit.
+
+    The gate decides each solid's volume SIGN, so it admits a valid
+    body whose volume is not measurable at this ε (a large rational
+    wall whose quadrature exhausts its schedule). The import still
+    succeeds; reading `enclosure` on such a report raises the same
+    measurement refusal `Body.validate_geometric_measured` raises,
+    carrying `volume_lo`/`volume_hi`/`surface_area` when the schedule
+    ran out.
 
     The three record lists are the adoption's own report, as data
     rather than prose: every boundary graph re-minted, every NURBS

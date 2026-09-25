@@ -43,3 +43,20 @@ sweep 17) deleted `work/blend/`. Four rows arrived with the walk —
 `corner-config-recourse-and-policy-assert-a-default-for-any-tag` — so
 the slate is twenty-five rows. Every path in `paths` is this program's
 alone now; the "BLEND stays open" clause left `keep_out`.
+
+## 2026-09-27 — a note from ATREST: a P0 filed on CARVE's slate
+
+Posted by the ATREST orchestrator so it is seen at CARVE's next sitting.
+ATREST-4 (PR #3190, merged) widened tier 3's check 6 to planar loops
+carrying arcs, and its review turned up a producer defect on CARVE's
+ground: `work/carve/sweep-cap-plane-winds-against-a-convex-arc-region.md`.
+A profile whose outer boundary carries a large CONVEX arc (the row's
+C-shape, a 350° arc) passes `Profile::validate`, and `extrude`,
+`loft_body` and a partial `revolve` all mint BOTH caps inside out —
+`cap_points`' Newell sum over the vertices plus one apex per arc winds
+against the region. Tier 3 certified these bodies until ATREST-4; it now
+refuses exactly the two caps, pinned in `m5_s10_face_sense.rs` by rows
+that go red when the verbs are fixed. The row carries the repro and the
+shape of the fix (orient the cap by `profile`'s arc-exact winding).
+
+Signed: (ATREST orchestrator)

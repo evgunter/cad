@@ -34,7 +34,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -51,10 +50,10 @@ fn tol() -> Tol {
 fn cylinder() -> Body<f64> {
     let mut b = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -74,10 +73,7 @@ fn cylinder() -> Body<f64> {
 /// (`test_support::ball_poled_z`'s note, one axis over).
 fn pipped(dc: f64, pr: f64) -> Body<f64> {
     let ball = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, -pr), 1.0),
-            ProfileVertex::new(Point2::new(0.0, pr), 0.0),
-        ],
+        vec![(Point2::new(0.0, -pr), 1.0), (Point2::new(0.0, pr), 0.0)],
         Revolution::Full,
         tol(),
     );

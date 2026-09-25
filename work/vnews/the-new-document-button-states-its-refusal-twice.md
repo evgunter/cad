@@ -2,11 +2,12 @@
 id: the-new-document-button-states-its-refusal-twice
 kind: issue
 title: The New document button's disabled reason is a literal beside a comment claiming Refusal::EmptyName backs it, and the two sentences differ
-status: review
+status: closed
 opened: 2026-09-11
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+closed: 2026-09-25
 ---
 
 
@@ -164,3 +165,7 @@ painted frame. An integration row could assert the refusal a control
 was BUILT from and never which control got it — `add_enabled` and
 `on_disabled_hover_text` keep no value — and "which control got it" is
 the half a reader sees.
+
+## Closed 2026-09-25
+
+Landed in #2960 (merged 2026-09-25), with the argument and the mutation table in that PR and in the `## Done` section above. The row read `review` after the merge; closed here so the board says what `main` holds.

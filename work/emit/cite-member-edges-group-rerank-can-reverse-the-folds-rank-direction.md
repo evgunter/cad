@@ -2,10 +2,12 @@
 id: cite-member-edges-group-rerank-can-reverse-the-folds-rank-direction
 kind: issue
 title: A seam-vertex group re-ranked by cite_member_edges runs along the member edge, while an unmoved group keeps the fold's seam-line direction, so ranks can swap between member orders
-status: open
+status: closed
 opened: 2026-09-24
 priority: P2
 cost: D
+closed: 2026-09-25
+pr: 3219
 ---
 
 
@@ -15,7 +17,7 @@ Found by the review of PR 3168 (O4b). It is unreached: over the corpus
 and the r1–r4 fixtures, every group `cite_member_edges` forms has one
 member, and that member moved (438 groups).
 
-`cite_member_edges` (`crates/editor-core/src/eval/emit_union.rs`)
+`cite_member_edges` (`crates/editor-core/src/names/emit_union.rs`)
 re-ranks a seam-vertex base group along the member edge's own
 direction, and only in an order where some vertex of the group moved.
 In an order where none moved, the group keeps the fold's ranks, which

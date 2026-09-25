@@ -17,7 +17,7 @@ mod certified {
     use geom_core::Tol;
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::{Body, mass_properties};
 
@@ -40,10 +40,7 @@ mod certified {
     fn ball_at(r: f64, centre: Vec3<Interval>) -> Body<Interval> {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
-            ProfileVertex::new(p2(0.0, r), iv(0.0)),
-        ]);
+        let lp = bulge_loop::<Interval>(vec![(p2(0.0, -r), iv(1.0)), (p2(0.0, r), iv(0.0))]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),

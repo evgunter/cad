@@ -29,7 +29,7 @@ use crate::common;
 
 use geom_core::Tol;
 use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 
 // ---------------------------------------------------------------------
@@ -519,17 +519,17 @@ fn consumer_e2e_vase_and_bracket() {
     let delta = 1e-2;
     // Vase: revolved profile with an arc belly (cylinder foot, sphere
     // belly, cylinder neck... kept in the M2 inventory: lines + arc).
-    let mut vase_profile = ProfileLoop::new(vec![
-        ProfileVertex::new(geom_core::Point2::new(0.0, 0.0), 0.0),
-        ProfileVertex::new(geom_core::Point2::new(0.8, 0.0), 0.0),
+    let mut vase_profile = bulge_loop(vec![
+        (geom_core::Point2::new(0.0, 0.0), 0.0),
+        (geom_core::Point2::new(0.8, 0.0), 0.0),
         // quarter-arc belly
-        ProfileVertex::new(
+        (
             geom_core::Point2::new(0.8, 0.4),
             (core::f64::consts::PI / 8.0).tan(),
         ),
-        ProfileVertex::new(geom_core::Point2::new(1.2, 0.8), 0.0),
-        ProfileVertex::new(geom_core::Point2::new(1.2, 1.4), 0.0),
-        ProfileVertex::new(geom_core::Point2::new(0.0, 1.4), 0.0),
+        (geom_core::Point2::new(1.2, 0.8), 0.0),
+        (geom_core::Point2::new(1.2, 1.4), 0.0),
+        (geom_core::Point2::new(0.0, 1.4), 0.0),
     ]);
     // The sphere belly blends tangentially into the neck cylinder at
     // (1.2, 0.8) -- intended smooth blend, declared (#101).
@@ -552,9 +552,9 @@ fn consumer_e2e_vase_and_bracket() {
         common::p2(0.0, 3.0),
     ]);
     let hole = |cx: f64, cy: f64, r: f64| {
-        ProfileLoop::new(vec![
-            ProfileVertex::new(geom_core::Point2::new(cx + r, cy), 1.0),
-            ProfileVertex::new(geom_core::Point2::new(cx - r, cy), 1.0),
+        bulge_loop(vec![
+            (geom_core::Point2::new(cx + r, cy), 1.0),
+            (geom_core::Point2::new(cx - r, cy), 1.0),
         ])
     };
     let bracket = extrude(
@@ -644,9 +644,9 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
         (
             "quarter_donut",
             revolve(
-                &common::validated(vec![ProfileLoop::new(vec![
-                    ProfileVertex::new(geom_core::Point2::new(2.0, -0.5), 1.0),
-                    ProfileVertex::new(geom_core::Point2::new(2.0, 0.5), 1.0),
+                &common::validated(vec![bulge_loop(vec![
+                    (geom_core::Point2::new(2.0, -0.5), 1.0),
+                    (geom_core::Point2::new(2.0, 0.5), 1.0),
                 ])]),
                 common::axis_y(),
                 Revolution::Partial(core::f64::consts::FRAC_PI_2),

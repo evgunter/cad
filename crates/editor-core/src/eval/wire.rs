@@ -1539,6 +1539,20 @@ fn wire_datum<T: Decide>(
     }))
 }
 
+/// The program-order coordinates of a profile's `n` loops, as the
+/// `u32` a program loop is addressed by (a program edit's `loop_`, a
+/// profile name's `loop_index`), or a naming refusal when `n` loops do
+/// not fit: past `u32::MAX` a loop's coordinate would name another
+/// loop's.
+fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
+    names::to_u32(
+        n,
+        "a profile holds more loops than a u32 loop index addresses",
+    )
+    .map(|n| 0..n)
+    .map_err(NodeErrorKind::Naming)
+}
+
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
 /// program replays through `profile::replay` — the driver, the ONLY
 /// path from steps to geometry — then the assembled `Profile<f64>`
@@ -1564,13 +1578,9 @@ pub(crate) fn prepare_profile(
     let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
-        let (lp, record) = profile::replay_recording(steps, tol).map_err(|error| {
-            NodeErrorKind::ProfileReplay {
-                loop_: li as u32,
-                error,
-            }
-        })?;
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
+        let (lp, record) = profile::replay_recording(steps, tol)
+            .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
         loops.push(lp);
         replay_records.push(record);
     }
@@ -1626,7 +1636,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .resolve(lane.params)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
         // One record per program loop, by construction of pass 1.
         //
         // The fallback is an EMPTY record, and what that buys depends on
@@ -1639,10 +1649,15 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         // break either way; this comment says which half of the
         // vocabulary is actually holding the line, because the other
         // half is the shape check in `replay_guided`, not this.
-        let record = pre.structure.replay.get(li).cloned().unwrap_or_default();
+        let record = pre
+            .structure
+            .replay
+            .get(li as usize)
+            .cloned()
+            .unwrap_or_default();
         let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
-                loop_: li as u32,
+                loop_: li,
                 step: error.step,
                 structure: match error.kind {
                     profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
@@ -2563,7 +2578,7 @@ mod ladder {
         /// Exactly one entity carries the name.
         Unique(EntityRef),
         /// The name is a tie row of this width.
-        Tied(u32),
+        Tied(usize),
         /// This table does not carry the name.
         Absent,
     }
@@ -2598,7 +2613,7 @@ mod ladder {
     pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
         match table.lookup(live.0) {
             Some(Entry::Unique(ent)) => Landing::Unique(*ent),
-            Some(Entry::Tied(ents)) => Landing::Tied(ents.len() as u32),
+            Some(Entry::Tied(ents)) => Landing::Tied(ents.len()),
             None => Landing::Absent,
         }
     }
@@ -2870,8 +2885,9 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     // about a carrier, and both are read off the one ladder walk below.
     let mut selections: Vec<Option<Selected<'_, T>>> = Vec::with_capacity(refs.len());
     for (index, r) in refs.iter().enumerate() {
-        let index = u32::try_from(index).unwrap_or(u32::MAX);
-        if !read.contains(&index) {
+        // A primitive names a reference by a `u32` index, so one at a
+        // position past `u32::MAX` is one no primitive reads.
+        if !u32::try_from(index).is_ok_and(|i| read.contains(&i)) {
             carriers.push(super::measure::Carrier::Unread);
             selections.push(None);
             continue;
@@ -6005,5 +6021,32 @@ mod route_tests {
                 "{row}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod loop_coordinates_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{NodeErrorKind, loop_coordinates};
+    use crate::names::NamingError;
+
+    /// Every loop a `u32` addresses gets its own coordinate; one loop
+    /// more refuses the profile rather than wrapping onto loop 0.
+    #[test]
+    fn addresses_every_loop_and_refuses_one_past_the_bound() {
+        assert_eq!(loop_coordinates(3).ok(), Some(0..3));
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(loop_coordinates(max).ok(), Some(0..u32::MAX));
+        let Some(past) = max.checked_add(1) else {
+            return; // a 32-bit usize holds no count past the bound
+        };
+        assert!(
+            matches!(
+                loop_coordinates(past),
+                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+            ),
+            "one loop past u32::MAX is refused"
+        );
     }
 }

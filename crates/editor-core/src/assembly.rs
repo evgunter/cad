@@ -321,7 +321,7 @@ pub enum RefusedRef {
     /// ONE face, and a tie is never broken by picking.
     Ambiguous {
         /// How many entities the tie holds.
-        width: u32,
+        width: usize,
     },
 }
 
@@ -449,7 +449,7 @@ impl core::fmt::Display for Attribution {
                 subject(f, declaration, *relation)?;
                 write!(f, " (carried from {route})")
             }
-            Self::Unattributed => f.write_str("no declaration answers for this finding"),
+            Self::Unattributed => f.write_str("no mate declared this"),
         }
     }
 }
@@ -720,7 +720,7 @@ impl AssemblyError {
     /// without re-spelling them.
     #[must_use]
     pub fn product_refusal(source: &crate::ProductError) -> String {
-        format!("assembly: {source}")
+        source.to_string()
     }
 }
 
@@ -747,21 +747,16 @@ impl core::fmt::Display for AssemblyError {
                 crate::finding::render_lines(f, refusals)
             }
             Self::AtRest { findings } => {
-                write!(
-                    f,
-                    "assembly: the at-rest gate refused ({} finding(s))",
-                    findings.len()
-                )?;
+                write!(f, "{} finding(s) against this assembly:", findings.len())?;
                 crate::finding::render_list(f, findings)
             }
             Self::Uncertified { findings, .. } => {
+                // Nothing was decided either way: the declared
+                // direction's frontier, not a finding against the
+                // document (the arm's docs).
                 write!(
                     f,
-                    "assembly: the at-rest gate could not certify {} declared \
-                     face pair(s) and did not refute any — no certifier lane, so \
-                     nothing was decided about this geometry either way (the \
-                     declared direction's frontier, not a finding against the \
-                     document)",
+                    "nothing was refuted, but {} declared face pair(s) could not be certified:",
                     findings.len()
                 )?;
                 crate::finding::render_list(f, findings)
@@ -1085,9 +1080,7 @@ fn resolve_face<P, T: Decide>(
             );
             ent.key.face().ok_or_else(|| refuse(RefusedRef::Vanished))
         }
-        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous {
-            width: u32::try_from(ents.len()).unwrap_or(u32::MAX),
-        })),
+        Entry::Tied(ents) => Err(refuse(RefusedRef::Ambiguous { width: ents.len() })),
     }
 }
 
@@ -1324,12 +1317,12 @@ fn attribute(
         // is the curve-record confirm pass, which names its witness
         // EDGE — a carried `CurveContact`, never a minted one.
         //
-        // `CensusLaneUnsupported` is a fact about the RUN's scalar —
-        // the conformal arm had no certified overlap lane at all — so
-        // it is not a verdict on any declaration and no mate can
-        // answer for it. Its recourse is to replay the document at a
-        // certifying scalar, which is the document's business and not
-        // a mate's.
+        // `CensusLaneUnsupported` is a fact about the DOOR the census
+        // ran through — it held no certified chart-overlap lane, so a
+        // census arm that needs one examined nothing — and so it is not
+        // a verdict on any declaration and no mate can answer for it.
+        // Its recourse is the certified door at a certifying scalar,
+        // which is the caller's business and not a mate's.
         //
         // `CensusUndecidable` cannot name a minted declaration in
         // either of its two arms. The cross-solid face-pair arm skips
