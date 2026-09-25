@@ -119,3 +119,14 @@ The sentence stops being false the day check 6's planar arm widens
 past line carriers — `work/zip/verbs-1031b-assigner-checker-divergence.md`
 holds that open question and its cost. Until then the wording and the
 posture are this row's.
+
+**2026-09-24 (ATREST-4).** Check 6's planar arm now examines planar
+loops of `Line` and `Circle` carriers: an arc-bounded planar face whose
+stored `sense` disagrees with its stored winding refuses
+`LoopRoleInverted` by name (the arc loft's caps, an extruded washer's
+outline and ring — pinned in `crates/sweep/tests/m5_s10_face_sense.rs`).
+The header's sentence is now true for those faces. It is still false
+for a planar loop riding an `Ellipse`, spiric or NURBS carrier (an
+oblique cut of a cylinder, an imported cap):
+`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`. The
+posture question stands on that narrower population.
