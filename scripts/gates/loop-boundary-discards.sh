@@ -159,6 +159,7 @@ REGISTER=(
   "crates/topo/src/boolean/rim_wedge.rs|face_boundary_circles||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|cone_slant_window||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|cylinder_chart_trim||1|unaudited"
+  "crates/topo/src/boolean/solid_contain.rs|loop_region||1|audited: the discard is answered as corruption, and it is unreachable — point_in_face, the one caller, answers an Empty outer loop (no region) and steps over an Empty ring (no area) before asking"
   "crates/topo/src/boolean/solid_contain.rs|sphere_chart_trim||1|unaudited"
   "crates/topo/src/boolean/solid_contain.rs|torus_chart_windows||1|unaudited"
   "crates/topo/src/boolean/surface_group.rs|surface_group||1|unaudited"
