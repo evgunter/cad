@@ -7,6 +7,7 @@ opened: 2026-09-04
 priority: P0
 cost: D
 closed: 2026-09-25
+pr: 3235
 ---
 
 Disclosed by `opoutcome-superseded-has-no-production-reader`'s fix,
