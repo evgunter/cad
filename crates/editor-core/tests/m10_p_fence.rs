@@ -126,8 +126,8 @@
 //! every one of its twenty-six existing digests is byte-identical, so
 //! no pre-existing document moved. The `probe` row moved with the
 //! `f64` row and stayed EQUAL to it, which is the property that row
-//! exists for; the `interval` row was re-read under the `interval`
-//! feature, the only lane that builds it.
+//! exists for; the `interval` row was re-read in the lane that built
+//! it then.
 //!
 //! RE-BLESSED AGAIN FOR THE IN-PLANE REVOLVE AXIS, and this time the
 //! finer instrument DID separate it. A revolve's axis is written in the
@@ -143,9 +143,8 @@
 //! byte-identical. The INTERVAL row moved with the other two and for
 //! the same reason — it is the same digest over the same ids at a
 //! different scalar — and it was re-blessed a cycle later than they
-//! were, because it compiles only under the `interval` feature and a
-//! default-lane run never builds it, and the hosted lane is what
-//! said so.
+//! were, because a default-lane run did not build it then, and the
+//! hosted lane is what said so.
 //!
 //! This scalar moves anyway, because it feeds `id.0` for every node
 //! in every document and two of the die documents' ids swapped. The geometric evidence below is unchanged and was
@@ -231,6 +230,16 @@
 //!   committed constants of the tree it landed on, and the rows came
 //!   back GREEN against them. `lib_g16_corpus_name_digests` agrees
 //!   the finer way — every pre-existing per-document row unchanged.
+//!
+//! - EDIT-PROGRAM added `reshaped_rod`, the one document whose log
+//!   holds a `SetProgram` — a profile reshaped under a fillet, the
+//!   fillet's name rebound by the door. Removing it alone returns the
+//!   `f64` constant `9b769fcc95b740a8, 9df5aab046b6073c`, the
+//!   committed constant of the tree it landed on, and
+//!   `lib_g16_corpus_name_digests` agrees the finer way — every
+//!   pre-existing per-document row unchanged, one row added. The
+//!   `interval` and `probe` constants below were read off the hosted
+//!   lanes that build those backends, as the azimuth paragraph's were.
 //!
 //! - DOCM-1 added `face_sketch`, the first document drawing on a
 //!   frame DERIVED from a face (`Datum::FaceFrame`), so the derived
@@ -385,6 +394,20 @@
 //! carried by a suite nothing runs is not carried at all. The
 //! `probe`-gated code here therefore executes on the sweep's schedule
 //! rather than on the code tier's.
+//!
+//! RE-BLESSED, ALL THREE ROWS, WHEN THE CANONICAL START BECAME THE
+//! AUTHORED ONE (`profile::validate` keeps each loop's authored vertex
+//! 0 and normalizes only its sense). The digest hashes every body's
+//! points in ARENA order, and a loop's canonical start decides the
+//! order its walls, rims and vertices are minted in, so the stream
+//! moved in the four documents whose loops were not authored from their
+//! lexicographic-minimum vertex (`cut_cylinder`, `boss_union`,
+//! `measured_web`, `plate_param` — each through a circle or a hole).
+//! The POINT SETS did not move: a scratch dump of every node's sorted
+//! point set and its face and edge counts, taken before and after the
+//! change, differs in those four documents' arena order and nowhere
+//! else. The `interval` row moved for the same reason and was read off
+//! the hosted `interval` lane.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus;
@@ -571,10 +594,10 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
             Ok(lp) => {
                 d.text("ok");
                 d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    bits(d, v.pos().x);
-                    bits(d, v.pos().y);
-                    bits(d, v.bulge());
+                for (v, &b) in lp.vertices().iter().zip(lp.bulges()) {
+                    bits(d, v.x);
+                    bits(d, v.y);
+                    bits(d, b);
                 }
             }
             // Same reason as the corpus arm above: the eye's interval
@@ -598,7 +621,7 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
     println!("m10-p fence f64: {got:016x?}");
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
         "the corpus's f64 evaluation moved — see this file's header before \
          touching the number"
     );
@@ -606,7 +629,6 @@ fn the_corpus_evaluation_is_bit_identical_at_f64() {
 
 /// The same fence at `Interval`, where the lift's second pass would
 /// otherwise be tempting to leave on.
-#[cfg(feature = "interval")]
 #[test]
 fn the_corpus_evaluation_is_bit_identical_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -625,7 +647,7 @@ fn the_corpus_evaluation_is_bit_identical_at_interval() {
     println!("m10-p fence interval: {got:016x?}");
     assert_eq!(
         got,
-        (0xd9b9_1f6d_8585_513d, 0x0f4e_3d18_31f7_4221),
+        (0x74fc_91e2_8365_51d5, 0xa1ee_304e_4eba_df89),
         "the corpus's Interval evaluation moved"
     );
 }
@@ -649,7 +671,7 @@ fn the_corpus_evaluation_is_bit_identical_at_probe() {
     // telemetry scalar had started changing decisions.
     assert_eq!(
         got,
-        (0x9b76_9fcc_95b7_40a8, 0x9df5_aab0_46b6_073c),
+        (0x1d88_8859_88d9_dd79, 0x2657_da95_5bf0_b3b5),
         "the corpus's Probe evaluation moved"
     );
 }

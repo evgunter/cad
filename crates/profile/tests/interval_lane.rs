@@ -1,4 +1,4 @@
-//! Interval-scalar validation (feature `interval`): the Q1 story end to
+//! Interval-scalar validation: the Q1 story end to
 //! end — exact fixtures decide definitely from point enclosures, and a
 //! near-tangent profile escalates through an enclosure lying wholly
 //! inside the sliver band (the subdivision-terminal case).
@@ -7,7 +7,6 @@
 //! arc-carrier corner whose gates all decide from enclosures, the
 //! knife-edge fit whose enclosure straddles the hairline and escalates,
 //! and the two-survivor vesica whose pick agrees with the f64 lane.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
@@ -31,7 +30,7 @@ fn rectangle_validates_at_interval() {
             .all(|s| matches!(s.kind, SegmentKind::Line))
     );
     // The canonical start's enclosure is the exact point (0, 0).
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     use geom_core::Bounds;
     assert_eq!((v0.x.lo(), v0.x.hi()), (0.0, 0.0));
     assert_eq!((v0.y.lo(), v0.y.hi()), (0.0, 0.0));
@@ -294,9 +293,9 @@ fn vesica_near_pick_agrees_with_the_f64_lane_at_interval() {
         .enumerate()
     {
         for (what, exact, enc) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", f.loop_.bulges()[k], iv.loop_.bulges()[k]),
         ] {
             assert!(
                 enc.lo() <= exact && exact <= enc.hi(),

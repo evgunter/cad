@@ -2,10 +2,13 @@
 id: viewer-cannot-author-a-duplicate-node
 kind: issue
 title: viewer: a 'duplicate' node reachable from the UI (Ev's request)
-status: dispatched
+status: closed
 opened: 2026-09-17
 priority: P0
 cost: D
+branch: author/part-and-duplicate
+pr: 3052
+closed: 2026-09-24
 ---
 
 **Ev requested this specifically** (in chat, 2026-09-17): a
@@ -70,3 +73,27 @@ Dispatched with its sibling as **AUTH-4**
 (`docs/AUTH-4-SPEC.md`, branch `author/part-and-duplicate`), because
 `AddPart` is what makes a duplicate usable and both halves live in
 `session/op.rs` and the create pane.
+
+## Closed 2026-09-24 — PR 3052 merged (`2273a3a1`)
+
+**Ev's gesture exists.** One button duplicates a picked body: a
+`Pattern` of count 2 projected twice as one action and one undo, so
+both copies stay drawn and either can be moved on its own. No new
+document node, as Ev ruled.
+
+What it took beyond the ruling, all found by running:
+- **The copy must be picked as the drawn body, not its feature.** A
+  viewport click handed tools the node that MADE the face, so
+  duplicating a moved copy duplicated the original extrude onto an
+  existing body. Tools now read `Selection::seat_node()`; the tree's
+  `Selection::node()` is untouched, since for the tree the feature is
+  the right answer. This also changed the boolean, split, transform
+  and pattern tools, for the same reason.
+- **The offset is measured, not fixed.** 20 mm overlapped the default
+  shapes. The step is now the body's own x-width plus at least 25%,
+  measured from a current evaluation — refused while the picture is
+  older than the document, which a narrow re-review caught.
+- **A multi-body input is refused** rather than silently doing nothing.
+
+Residue: `work/vseam/an-action-of-several-edits-becomes-several-undos-after-reopen`
+(the one undo becomes two after save and reopen; affects AUTH-3 too).

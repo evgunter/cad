@@ -13,7 +13,6 @@
 //! and every rung from ε/32 down certifies; the assertion row sits two
 //! rungs under that floor.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

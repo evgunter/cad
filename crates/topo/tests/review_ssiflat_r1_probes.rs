@@ -235,7 +235,6 @@ fn the_f64_siblings_hull_bound_sits_strictly_under_the_interval_constant() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::interval::Interval;
 

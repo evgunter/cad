@@ -3,7 +3,6 @@
 //! Local-only; never pushed. Each probe reproduces one numbered claim
 //! from the review brief with its own fixtures (not the unit's).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Bounds, Interval, Mat3, Point3, Real, Vec3};

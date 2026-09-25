@@ -160,7 +160,6 @@ fn cert4r1_my_fused_tangency_replays_at_f64() {
 /// The interval lane: same profile, and every emitted enclosure is a
 /// hairline rather than a period. This is the consumer-visible claim —
 /// before the unit, a profile of this shape came back refused.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
     use geom_core::{Bounds, Interval};
@@ -171,9 +170,9 @@ fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
     let mut widest = 0.0f64;
     for (k, (a, b)) in iv.vertices().iter().zip(f.vertices()).enumerate() {
         for (what, enc, exact) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", iv.bulges()[k], f.bulges()[k]),
         ] {
             let w = enc.hi() - enc.lo();
             widest = widest.max(w);
@@ -200,7 +199,6 @@ fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
 /// the profile, so the headroom under that ceiling is a property of the
 /// fixtures' size, not of the fix. This row walks the same construction
 /// over four decades of scale and REPORTS the widths.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_the_enclosure_width_scales_with_the_profile() {
     use geom_core::{Bounds, Interval};
@@ -231,8 +229,8 @@ fn cert4r1_the_enclosure_width_scales_with_the_profile() {
         match try_replay_at::<Interval>(&prog) {
             Ok(iv) => {
                 let mut widest = 0.0f64;
-                for v in iv.vertices() {
-                    for enc in [v.pos().x, v.pos().y, v.bulge()] {
+                for (v, &b) in iv.vertices().iter().zip(iv.bulges()) {
+                    for enc in [v.x, v.y, b] {
                         widest = widest.max(enc.hi() - enc.lo());
                     }
                 }

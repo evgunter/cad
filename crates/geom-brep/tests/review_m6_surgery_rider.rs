@@ -13,7 +13,7 @@
 
 test_utils::gated_to![
     "crates/geom-brep/src/implicit.rs",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
     "crates/geom/src/surfaces/",
     "crates/geom/src/surfaces.rs",
 ];

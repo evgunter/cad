@@ -812,7 +812,39 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// unbounded enclosure rather than poison, the answer is `false`, and
 /// the enclosure lane goes on deciding against the band as before.
 pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
-    is_finite_length(len / witness) && !is_finite_length(witness / len)
+    !is_zero_length(len, witness) && !is_finite_length(witness / len)
+}
+
+/// **Is this the ZERO vector?** — the other case
+/// [`is_underflowed_length`] separates out, and the one spelling of
+/// that half of its arithmetic (the underflow door is written over this
+/// one), asked with the same pairing through the value channel, with no bracket
+/// read and no threshold.
+///
+/// `len` and `witness` are exactly [`is_underflowed_length`]'s pair,
+/// and so is the precondition: **ask it AFTER [`is_finite_length`] of
+/// `len`, never instead of it.** Of a finite length, `len / witness` is
+/// the scalar's poison (`0/0`) exactly when both are zero — the vector
+/// has no nonzero component — and a finite ratio otherwise, `0`
+/// included (an underflowed length, whose direction is fine). An
+/// OVERFLOWED length breaks that: `∞ / witness` is not finite for a
+/// vector with perfectly finite components, which is why the
+/// precondition is not optional — a caller that skips it names a large
+/// direction the zero vector.
+///
+/// It bites at the point scalars and at the interval scalar alike for
+/// an exactly-zero vector: `[0, 0] / [0, 0]` is the empty interval,
+/// which is poison.
+///
+/// **Which doors ask it** — hand-kept, like its siblings' rosters:
+///
+/// - `topo`'s tier-3 check 1, of a stored plane `normal`, where a zero
+///   normal is a datum that describes no locus. It does not DECIDE the
+///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
+///   job, metered and band-relative): a datum is asked whether it is
+///   the zero vector, not whether it is short.
+pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
+    !is_finite_length(len / witness)
 }
 
 /// Bracket extraction off a scalar — deliberately a separate trait, never
@@ -996,8 +1028,9 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 /// the only spelling — it IS the "definite sign or indeterminate" trilean,
 /// plus the two things a bare helper lacks (the NAME in the verdict log,
 /// and escalation as the forced disposition of indeterminate). A
-/// free-floating bounds-comparison helper would be the #701 `Enclosure`
-/// evasion with better manners, and stays out.
+/// free-floating bounds-comparison helper would be the #701 evasion (a
+/// bracket reader under a name the gate does not read) with better
+/// manners, and stays out.
 ///
 /// # The direction rule for terminal grants (#571, A′'s ruling)
 ///
@@ -1119,7 +1152,8 @@ pub mod bounds_allowlist {
     //!
     //! **M5 PR 11 (Ev's lane-split ruling) — `topo::props`'s
     //! certified-quadrature plumbing**, which decides (its `props_quad_*`
-    //! funnel margins) and reads brackets into the C9 ring. Its split from
+    //! funnel margins) and reads brackets into certification arithmetic
+    //! (`Interval::from_certified`). Its split from
     //! scalars that may not certify is STATIC and stands on two things:
     //! `topo::QuadLane::certified`, at `Decide + CertifiedBounds`, is the only
     //! entry from the reporting walks, and the `quad_lane::*` signatures
@@ -1132,10 +1166,11 @@ pub mod bounds_allowlist {
     //! a hook, a windowed walk and the certificate type that walk hands
     //! back — every one of them the same lane, the same bound and the same
     //! argument, and the `Decide` half is still what the `props_quad_*`
-    //! funnel needs while the bracket half is still what the C9 ring reads.
+    //! funnel needs while the bracket half is still what the crossing into
+    //! certification arithmetic reads.
     //! The weakest bound that works is unchanged and so is the evidence
     //! that the next tighter one fails: drop the bracket term and the
-    //! windowed walk cannot form `RingInterval::from_certified`; drop
+    //! windowed walk cannot form `Interval::from_certified`; drop
     //! `Decide` and no round can be accepted. The certificate type is
     //! PUBLIC and carries the bound for the same reason its walk does —
     //! it resumes that walk, so what it may read and what it may decide
@@ -1189,12 +1224,12 @@ pub mod bounds_allowlist {
     //! `geom_brep::ssi::certify` (the three limbs) and
     //! `geom_brep::pcurve_cache`'s fitted lane, deciding (its `ssi_on_locus`,
     //! `ssi_hull_sup`, `ssi_tube_transversality`, `pcurve_*` funnel margins)
-    //! and consuming C9-ring enclosures (limb 2 a control-hull bound, limb 3 a
+    //! and consuming certification enclosures (limb 2 a control-hull bound, limb 3 a
     //! box-chain enclosure). Its refusing side is **not** empty:
     //! `PcurveFittedLane` certifies at `f64`, [`Probe`](crate::Probe) and the
     //! interval scalar and refuses at [`Dual`](crate::Dual), dual bodies
     //! really validating and really not holding a fitted cache.
-    //! `geom_brep::ssi::enclose` is deliberately absent: the ring machinery
+    //! `geom_brep::ssi::enclose` is deliberately absent: the enclosure machinery
     //! decides nothing and takes the sole bound the rule already allows.
     //!
     //! **M7-8 (under Ev's #264 ruling) — `geom_brep::edge_nurbs`**, the
@@ -1303,14 +1338,18 @@ pub mod bounds_allowlist {
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
-    //! [`Bounds::lo`](super::Bounds::lo) of a torus's tube radius, the
-    //! representability read. The certified half's own bracket read is
-    //! `props`' certified quadrature, already ratified at the `props.rs`
-    //! seam; this one compares a STORED DATUM's lower bound with zero — a
-    //! tube radius that is zero, negative or poison does not describe a small
-    //! torus, it fails to describe one — so the read is about whether the
-    //! datum is a number at all and not about where geometry lies, and the
-    //! value never crosses into a certificate. It takes no `k_stats` name and
+    //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
+    //! analytic surface's conventions state (`geom`'s
+    //! `Surface::representability_margins` — a cylinder's, sphere's or
+    //! torus tube's radius, and a cone half-angle's distance from each end
+    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! bracket read is `props`' certified quadrature, already ratified at
+    //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
+    //! its convention with zero — a radius that is zero, negative or poison
+    //! does not describe a small cylinder, sphere or torus, it fails to
+    //! describe one — so the read is about whether the datum lies inside
+    //! the convention its variant states and not about where geometry lies,
+    //! and the value never crosses into a certificate. It takes no `k_stats` name and
     //! no band precisely because it meters nothing — the chamfer's
     //! `NonpositiveSize` precedent — and the geometric question beside it
     //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
@@ -1358,85 +1397,10 @@ pub mod bounds_allowlist {
     //! fire.
 }
 
-/// **Bracket access without the `Real` obligation** — the certification
-/// seam (M5 PR 2, `crates/geom-brep/README.md` C9).
-///
-/// [`Bounds`] is a subtrait of [`Real`], which is right for *evaluation
-/// scalars* that also carry a bracket (`f64`, the interval scalar): they
-/// are things geometry recipes are replayed at. But the C9 interval ring
-/// ([`crate::ring_interval::RingInterval`]) is deliberately **not** an
-/// evaluation scalar — it has no transcendentals and must never appear in
-/// an evaluation signature — so it cannot implement `Real`, and therefore
-/// cannot implement `Bounds`.
-///
-/// `Enclosure` is the smaller trait both sides can meet at: just the two
-/// bracket readers, no arithmetic obligation at all. Every `Bounds`
-/// implementor gets it by blanket impl (so `f64` and the interval scalar
-/// are covered without a line of change), and the ring implements it
-/// directly. A helper that only needs to READ a bracket takes
-/// `T: Enclosure` and works for all three: an `f64` coefficient is a
-/// degenerate bracket, an interval-scalar coefficient is the replayed
-/// enclosure, a ring coefficient is the certification arithmetic's own.
-///
-/// **Not a "certification helper" trait**, and the word matters since D1
-/// (2026-08-19): `Enclosure` is a bracket accessor, and the certification
-/// door is [`CertifiedEnclosure`] — which is why the spline hull bounds in
-/// [`crate::spline::hull`] are bounded by that trait and not by this one.
-/// See the blanket impl below for the consequence: a `Dual` is an
-/// `Enclosure`, so a new compound `T: Enclosure` bound is gated exactly as
-/// a `Bounds` one.
-///
-/// # Semantics
-///
-/// Identical to [`Bounds`]: `[lo(), hi()]` brackets every real number the
-/// value stands for, and **poison surfaces as NaN from both accessors**
-/// rather than narrowing — a NaN bracket fails every `residual <= eps`
-/// check loudly (D4 ¶2). Implementors owe that convention.
-///
-/// # Style note (method-name shadowing)
-///
-/// The two traits share method names `lo`/`hi`. Generic code bounded by
-/// `T: Bounds` resolves through its own bound and is unaffected, but
-/// calling `x.lo()` on a **concrete** `Bounds` type with both traits in
-/// scope is ambiguous (E0034). Import one trait, or disambiguate with
-/// `Enclosure::lo(x)`. The names are worth the friction: a second spelling
-/// for "the bottom of the bracket" would be worse.
-pub trait Enclosure: Copy {
-    /// The lower end of the bracket (NaN if poisoned).
-    fn lo(self) -> f64;
-
-    /// The upper end of the bracket (NaN if poisoned).
-    fn hi(self) -> f64;
-}
-
-/// Every [`Bounds`] scalar is an [`Enclosure`] — the one-line seam that
-/// keeps `f64` and the interval scalar usable by helpers written against
-/// the smaller trait.
-///
-/// **This blanket impl means [`Dual`](crate::Dual) is an `Enclosure` too,
-/// since the D1 ruling of 2026-08-19 gave it [`Bounds`].** A compound
-/// `Enclosure` bound is therefore the same class of decide-and-bracket
-/// parameter as a compound `Bounds` one, and it is gated the same way:
-/// `scripts/gates/bounds-allowlist.sh` greps `Enclosure` exactly as it
-/// greps `Bounds`, against the same file allowlist (DUAL-DESIGN DL4 —
-/// the resolution of the issue-701 gap), so a new `T: Enclosure` bound
-/// on certifying code fails CI until it is ratified into the `Bounds`
-/// scope rule here.
-impl<T: Bounds> Enclosure for T {
-    fn lo(self) -> f64 {
-        Bounds::lo(self)
-    }
-
-    fn hi(self) -> f64 {
-        Bounds::hi(self)
-    }
-}
-
 /// **"May this value enter certified code?"** — the other half of what
 /// [`Bounds`] used to mean, given a name of its own.
 ///
-/// [`Bounds`] and [`Enclosure`] answer *"what bracket does this value
-/// carry?"*: `[lo(), hi()]` is a superset of every real the value stands
+/// [`Bounds`] answers *"what bracket does this value carry?"*: `[lo(), hi()]` is a superset of every real the value stands
 /// for, read off storage, and it stays a sound bracket even when the
 /// computation that produced it left a domain somewhere — interval
 /// arithmetic still brackets the values the expression *was* defined on.
@@ -1445,7 +1409,7 @@ impl<T: Bounds> Enclosure for T {
 /// that, and code that must not certify a domain violation needs to be
 /// able to tell.
 ///
-/// So this trait is not "a better [`Enclosure`]" and does not replace it.
+/// So this trait is not "a better [`Bounds`]" and does not replace it.
 /// It is the access-control half, split out, so that the two questions
 /// have separate doors and a caller has to say which one it is asking.
 /// It carries **no supertrait**: a body that needs a bracket accessor
@@ -1455,16 +1419,8 @@ impl<T: Bounds> Enclosure for T {
 /// spelled as one name rather than as a compound bound the
 /// compound-`Bounds` gate would have to special-case. Write
 /// `T: CertifiedBounds`, not `T: Bounds + CertifiedEnclosure`. Making
-/// this a subtrait of
-/// [`Enclosure`] would re-bundle exactly what is being split, and would
-/// put a third `lo`/`hi` in scope wherever a compound bound is written —
-/// the ambiguity this module's style note already warns about for the
-/// [`Bounds`]/[`Enclosure`] pair. The second method below is not a
-/// door of that kind and is not reached for instead of one:
-/// [`Self::crossing_bracket`] answers a *refused* value's own endpoints
-/// for the single consumer that carries the refusal in a channel of its
-/// own, and promises nothing about the computation behind them.
-/// Certification entry points bound by `CertifiedEnclosure` cannot be
+/// this a subtrait of [`Bounds`] would re-bundle exactly what is being
+/// split. Certification entry points bound by `CertifiedEnclosure` cannot be
 /// handed a value that merely *has* a bracket; containment checks bounded
 /// by [`Bounds`] keep working on values certification would refuse, which
 /// is exactly right — a `Trv` enclosure still contains what it claims to.
@@ -1480,11 +1436,6 @@ impl<T: Bounds> Enclosure for T {
 ///   threshold [`crate::predicate::Decide::sign_within`] refuses at, and
 ///   for the same reason. Empty and NaI sit below it, so the NaN
 ///   brackets they store never leave the door.
-/// - [`crate::RingInterval`] — refuses on poison, which it reads off
-///   the decoration it carries (`dec < Def`, with NaI and empty below
-///   that): `is_poison` is its whole domain-violation channel, and a
-///   refused ring still has endpoints, which is what
-///   [`Self::crossing_bracket`] reports at it.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
 ///
@@ -1512,33 +1463,6 @@ pub trait CertifiedEnclosure: Copy {
     /// through `f64` combinators (`f64::max` returns the non-NaN operand),
     /// whereas a `None` the caller must destructure cannot be ignored.
     fn certified_bracket(self) -> Option<(f64, f64)>;
-
-    /// The endpoints this value carries, refused or not — **for a
-    /// consumer whose own refusal channel is a decoration** rather than
-    /// an absence, so the refusal travels in that channel instead of
-    /// erasing the bracket that came with it.
-    ///
-    /// This is **not** a second certified door and promises nothing:
-    /// the pair brackets the reals the value stands for and says
-    /// nothing about the computation behind it, exactly as
-    /// [`Bounds`] does. A caller that may ACT on the bracket asks
-    /// [`Self::certified_bracket`], whose `None` it cannot ignore; a
-    /// caller that reads this one is obliged to carry the refusal
-    /// itself, and the C9 ring's crossing
-    /// (`RingInterval::from_certified`) is the one in the tree — it
-    /// pairs this with the certified door's verdict and caps the
-    /// decoration at `Trv` when the verdict is a refusal, which keeps
-    /// the refusal readable at a type where NaN endpoints would not be.
-    ///
-    /// The default is the honest answer for a scalar whose refusal has
-    /// no bracket to report: `f64`'s refusal IS its NaN, so the pair is
-    /// `(NaN, NaN)` and nothing is lost. A scalar that records a domain
-    /// violation *beside* a sound bracket — the interval scalar's `Trv`
-    /// after a clamp, the ring's zero-touching quotient — overrides
-    /// this and reports those endpoints.
-    fn crossing_bracket(self) -> (f64, f64) {
-        self.certified_bracket().unwrap_or((f64::NAN, f64::NAN))
-    }
 }
 
 /// `f64` refuses on NaN and only on NaN: the bracket is the value, so
@@ -1559,8 +1483,9 @@ impl CertifiedEnclosure for f64 {
 /// The two doors answer different questions — `[lo(), hi()]` is the
 /// bracket read off storage, `certified_bracket()` additionally promises
 /// the computation was defined on the whole input box — and certification
-/// code routinely asks both: it builds C9 ring enclosures through the
-/// certified door and reads raw endpoints for the containment and padding
+/// code routinely asks both: it builds certification enclosures through
+/// the certified door ([`Interval::from_certified`](crate::Interval::from_certified),
+/// whose bound is this one) and reads raw endpoints for the containment and padding
 /// arithmetic around them. Spelling that `T: Bounds + CertifiedEnclosure`
 /// is honest but is a *compound* bound in every mechanical sense, and the
 /// compound-`Bounds` rule on [`Bounds`] exists to catch a specific thing
@@ -1922,6 +1847,49 @@ mod tests {
             crate::Vec3::new(1e200_f64, 0.0, 0.0),
         ] {
             assert!(!ask(v), "{v:?} did not underflow");
+        }
+    }
+
+    /// The zero-vector door answers the zero vector and nothing else,
+    /// at `f64` and at the interval scalar, once its precondition has
+    /// held — and the precondition row shows why it is one: a finite
+    /// vector whose NORM overflowed would be named zero without it.
+    #[test]
+    fn is_zero_length_names_only_the_zero_vector_after_the_finiteness_question() {
+        fn ask<T: Real>(v: crate::Vec3<T>) -> Option<bool> {
+            let len = v.norm();
+            is_finite_length(len).then(|| is_zero_length(len, v.norm_witness()))
+        }
+        assert_eq!(ask(crate::Vec3::new(0.0_f64, 0.0, 0.0)), Some(true));
+        for v in [
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e-200_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+            crate::Vec3::new(1e150_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), Some(false), "{v:?} is a direction");
+        }
+        // Overflowed norms: the precondition refuses to ask, and the
+        // door asked anyway would answer the wrong thing.
+        for v in [
+            crate::Vec3::new(1e160_f64, 0.0, 0.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), None, "{v:?}'s norm overflows at f64");
+            assert!(is_zero_length(v.norm(), v.norm_witness()));
+        }
+        {
+            use crate::Interval;
+            let iv = |x: f64, y: f64, z: f64| {
+                crate::Vec3::new(
+                    Interval::from_f64(x),
+                    Interval::from_f64(y),
+                    Interval::from_f64(z),
+                )
+            };
+            assert_eq!(ask(iv(0.0, 0.0, 0.0)), Some(true), "[0,0]/[0,0] is empty");
+            assert_eq!(ask(iv(0.0, 0.0, 1.0)), Some(false));
+            assert_eq!(ask(iv(1e200, 0.0, 0.0)), Some(false));
         }
     }
 

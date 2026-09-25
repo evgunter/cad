@@ -16,7 +16,7 @@ use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// A point in the profile frame, from its two coordinates.
@@ -155,8 +155,14 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         p.loops
             .iter()
             .map(|lp| {
-                ProfileLoop::new(lp.vertices().iter().map(|v| v.map(T::from_f64)).collect())
-                    .with_tangent_joints(lp.tangent_joints().to_vec())
+                bulge_loop(
+                    lp.vertices()
+                        .iter()
+                        .zip(lp.bulges())
+                        .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
+                        .collect(),
+                )
+                .with_tangent_joints(lp.tangent_joints().to_vec())
             })
             .collect(),
     )
@@ -164,9 +170,9 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 
 /// A loop from `(x, y, bulge)` triples.
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
+            .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
             .collect(),
     )
 }
@@ -402,9 +408,13 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         .zip(replayed.vertices())
         .enumerate()
     {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
+        assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
+        assert_eq!(
+            lowered.bulges()[i].to_bits(),
+            replayed.bulges()[i].to_bits(),
+            "vertex {i} bulge"
+        );
     }
     let mut la = lowered.tangent_joints().to_vec();
     let mut lb = replayed.tangent_joints().to_vec();

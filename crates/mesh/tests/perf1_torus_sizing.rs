@@ -38,7 +38,7 @@ use geom_core::{Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
 use mesh::validate::check_mesh;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::{Revolution, revolve};
 use topo::Body;
 use topo::chart::Chart;
@@ -53,10 +53,7 @@ const MINOR: f64 = 1.0;
 /// `φ = ±π/2`, and on a partial sweep two planar caps whose edges are
 /// meridian semicircles.
 fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(major, -MINOR), 1.0),
-        ProfileVertex::new(p2(major, MINOR), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(major, -MINOR), 1.0), (p2(major, MINOR), 1.0)]);
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
         .body

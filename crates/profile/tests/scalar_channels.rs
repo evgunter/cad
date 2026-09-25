@@ -14,7 +14,7 @@ use common::{
     annulus, arc_kisses_line, bowtie, lift, near_tangent_hole, profile, tangent_hole, tol,
 };
 use geom_core::{Dual, Dual64, Sign};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use profile::{LoopRole, SegmentKind, ValidatedProfile};
 
 /// The decision skeleton of a canonical form: roles, per-segment kind
@@ -33,9 +33,9 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos().x.to_bits(),
-                            v.pos().y.to_bits(),
-                            v.bulge().to_bits(),
+                            v.x.to_bits(),
+                            v.y.to_bits(),
+                            s.bulge.to_bits(),
                             kind_code(&s.kind),
                         )
                     })
@@ -56,9 +56,9 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos().x.value.to_bits(),
-                            v.pos().y.value.to_bits(),
-                            v.bulge().value.to_bits(),
+                            v.x.value.to_bits(),
+                            v.y.value.to_bits(),
+                            s.bulge.value.to_bits(),
                             dual_kind_code(&s.kind),
                         )
                     })
@@ -183,16 +183,17 @@ fn dual_with_seeded_derivatives_still_decides_by_value_only() {
         base.loops
             .iter()
             .map(|lp| {
-                profile::ProfileLoop::new(
+                bulge_loop(
                     lp.vertices()
                         .iter()
-                        .map(|v| {
-                            profile::ProfileVertex::new(
+                        .zip(lp.bulges())
+                        .map(|(v, &b)| {
+                            (
                                 geom_core::Point2::new(
-                                    Dual::new(v.pos().x, f64::NAN),
-                                    Dual::new(v.pos().y, f64::NAN),
+                                    Dual::new(v.x, f64::NAN),
+                                    Dual::new(v.y, f64::NAN),
                                 ),
-                                Dual::new(v.bulge(), f64::NAN),
+                                Dual::new(b, f64::NAN),
                             )
                         })
                         .collect(),

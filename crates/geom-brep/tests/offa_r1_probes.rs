@@ -304,7 +304,6 @@ fn round_trip_non_dyadic_slack_is_one_ulp() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
     use geom_core::{Bounds, Interval, Real};

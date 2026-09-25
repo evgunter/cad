@@ -8,12 +8,12 @@
 
 use core::f64::consts::{FRAC_PI_2, PI};
 use geom_core::{Band, Point2, Point3, Real, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, ContactRecords, SplitPart, SplitPlane, split};
 
-fn v<T: Real>(x: f64, y: f64, b: f64) -> ProfileVertex<T> {
-    ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
+fn v<T: Real>(x: f64, y: f64, b: f64) -> (Point2<T>, T) {
+    (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
 }
 
 fn profile<T: geom_core::Decide>(lp: ProfileLoop<T>) -> profile::ValidatedProfile<T> {
@@ -28,7 +28,7 @@ pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     let tol = Tol::witness();
     let mut out: Vec<(String, Body<T>)> = Vec::new();
     // L-prism (planar, closed form).
-    let l = ProfileLoop::new(vec![
+    let l = bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 0.0),
         v(2.0, 1.0, 0.0),
@@ -41,7 +41,7 @@ pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         .body;
     out.push(("l_prism".into(), l_prism));
     // Cylinder (two semicircular arcs), closed form.
-    let c = ProfileLoop::new(vec![v(-1.0, 0.0, 1.0), v(1.0, 0.0, 1.0)]);
+    let c = bulge_loop(vec![v(-1.0, 0.0, 1.0), v(1.0, 0.0, 1.0)]);
     let cyl = extrude(&profile(c), Extrusion::Distance(T::from_f64(2.0)), tol)
         .unwrap()
         .body;
@@ -65,7 +65,7 @@ pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         out.push(("cut_cylinder_below".into(), below.clone()));
     }
     // Washer: rectangle revolved a full turn (torus-free, cylinder walls).
-    let w = ProfileLoop::new(vec![
+    let w = bulge_loop(vec![
         v(1.0, 0.0, 0.0),
         v(2.0, 0.0, 0.0),
         v(2.0, 1.0, 0.0),
@@ -80,7 +80,7 @@ pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
         .body;
     out.push(("washer".into(), washer));
     // Quarter washer (partial revolve — wedge caps).
-    let w2 = ProfileLoop::new(vec![
+    let w2 = bulge_loop(vec![
         v(1.0, 0.0, 0.0),
         v(2.0, 0.0, 0.0),
         v(2.0, 1.0, 0.0),
@@ -101,7 +101,7 @@ pub(crate) fn corpus<T: topo::AtRestPolicy>() -> Vec<(String, Body<T>)> {
     out.push(("quarter_washer".into(), quarter));
     // Grooved washer: a semicircular arc in the outer wall (torus face,
     // quadrature at certifying scalars).
-    let g = ProfileLoop::new(vec![
+    let g = bulge_loop(vec![
         v(1.0, 0.0, 0.0),
         v(3.0, 0.0, 0.0),
         v(3.0, 0.5, -1.0),
@@ -323,7 +323,6 @@ fn m2r1_structural_at_dual64_is_the_f64_closed_form_and_refuses_where_the_lane_w
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn m2r1_passes_interval() {
     for (n, b) in corpus::<geom_core::Interval>() {
@@ -369,13 +368,13 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let tol = Tol::witness();
     let band = Band::linear(tol).unwrap();
     let mut out = Vec::new();
-    let vessel = revolved(ProfileLoop::new(vec![
+    let vessel = revolved(bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(0.5, 0.0, 0.0),
         v(0.5, 0.4, 0.0),
         v(0.0, 0.4, 0.0),
     ]));
-    let tube = revolved(ProfileLoop::new(vec![
+    let tube = revolved(bulge_loop(vec![
         v(0.30, 0.0, 0.0),
         v(0.50, 0.0, 0.0),
         v(0.50, 0.40, 0.0),

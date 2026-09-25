@@ -31,7 +31,6 @@
 use bvh::Aabb;
 use geom::Curve3;
 use geom::curves::boxes::{circle_arc_aabb, conic_arc_aabb, ellipse_arc_aabb};
-#[cfg(feature = "interval")]
 use geom_core::{Bounds, Interval, Real};
 use geom_core::{Dual64, Point3, Vec3};
 
@@ -265,11 +264,7 @@ fn n3r1_f64_adversarial_corpus_is_contained_at_zero_pad() {
 /// Wide-bracket realizations: every corner and a grid of interior
 /// points of each bracket, realized as an `f64` carrier, must lie in the
 /// `Interval` box.
-/// The wide-bracket helper lives in a gated module: the gate on the
-/// `interval` feature admits whole items of a few kinds (a `mod` is
-/// one; a bare helper `fn` is not), and the tests that read it are
-/// gated the same way.
-#[cfg(feature = "interval")]
+/// The wide-bracket helper, for the tests that read it.
 mod interval_support {
     use super::*;
 
@@ -351,10 +346,8 @@ mod interval_support {
         }
     }
 }
-#[cfg(feature = "interval")]
 use interval_support::check_interval_dominates;
 
-#[cfg(feature = "interval")]
 #[test]
 fn n3r1_interval_brackets_are_dominated_by_the_box() {
     let iv = <Interval as Real>::from_f64;
@@ -508,7 +501,6 @@ fn n3r1_extremal_angle_exactly_pi_is_a_point_interval() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn n3r1_extremal_angle_exactly_pi_is_a_point_interval_at_interval() {
     // At Interval with a point-width bracket, the same.

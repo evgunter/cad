@@ -10,7 +10,6 @@
 //! comparison the `f64` row makes, at the scalar where a lost
 //! enclosure would show as an escalation the `f64` lane never sees.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::predicate::{Band, Margin, Sign};

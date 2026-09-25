@@ -20,6 +20,7 @@
 //! birth facts; THIS module (editor-core) names things.
 
 mod attribute;
+mod canonical;
 mod defer;
 mod discriminate;
 mod emit;
@@ -32,9 +33,11 @@ mod emit_topo;
 mod emit_union;
 mod flush;
 mod geompred;
+mod groups;
 pub(crate) mod interrogate;
 pub(crate) mod merged;
 mod role;
+mod seam_pair;
 mod select;
 mod table;
 
@@ -44,14 +47,17 @@ pub(crate) use discriminate::{FAMILY, SIDE_OF, aggregate_side, shadow_side_of};
 pub(crate) use emit::name_in_part;
 pub use emit::{NamingError, RimShare};
 pub(crate) use emit::{
-    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body,
+    check_total, empty, flat_body_index, name_pattern, name_placed_union, output_body, to_u32,
 };
 pub(crate) use emit_chamfer::name_chamfer;
 pub(crate) use emit_fillet::name_fillet;
 pub(crate) use emit_shell::name_shell;
 pub(crate) use emit_sweep::{name_extrude, name_loft, name_revolve};
 pub(crate) use emit_topo::{OperandCtx, name_boolean, name_split};
-pub(crate) use emit_union::{collapse_name, collapse_table, member_name, member_view, name_union};
+pub(crate) use emit_union::{
+    Member as UnionMember, collapse_name, collapse_table, is_fold_ranked_member_edge, member_name,
+    member_view, name_union,
+};
 pub use flush::{
     CONTACT_RECOURSE, ContactClass, ContactRefusal, ContactVerdict, DeclareError, DeclaredContact,
     FIT_DEFERRAL, FlushEvidence, FlushFinding, FlushRung, declare, declare_all, declare_node,
@@ -61,6 +67,8 @@ pub use geompred::{
     ALL_SURFACE_KINDS, Cmp, CurveKind, CurveKindSet, GeomPred, SEL_DATUM_DISTANCE, SelectRefusal,
     SurfaceKindSet,
 };
+pub(crate) use groups::Emitted;
+pub use groups::FragmentGroups;
 pub use interrogate::{
     Denotation, InterrogateError, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
     face_frame, vertex_position,
@@ -72,6 +80,7 @@ pub use role::{
     ProfileVertexRef, Qualifier, RimSupport, RolePath, RoleSeg, SideVerdict, SplitHalf, StableName,
     band, band_pi, band_rim, carried, meridian_vertex,
 };
+pub(crate) use role::{SegRewrite, inert_seg, locator_seg};
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 

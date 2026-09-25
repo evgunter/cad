@@ -673,7 +673,9 @@ impl<'a> Resolver<'a> {
             }
             // Both radii are read VERBATIM: D3's ring convention
             // `R > r > 0` is not enforced here. It is enforced at rest,
-            // by `topo::validate`'s tier-3 check 1 (`DegenerateTorus`) —
+            // by `topo::validate`'s tier-3 check 1 (`r > 0` as
+            // `UnrepresentableSurfaceDatum`, `R > r` as
+            // `DegenerateTorus`) —
             // the one net that covers this door and `sweep::revolve`
             // alike, so a horn or spindle cannot reach a body's rest
             // state through either.

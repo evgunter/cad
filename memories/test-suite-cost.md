@@ -106,7 +106,8 @@ future comparison that schedules it.
 
 **Silent skips are the escape-hatch shape.** A bare `return` at some ε
 reports green having asserted nothing. Use the tree's NAMED loud-skip
-idiom (`interval_lane_skipped_no_certified_coverage_here`) so the
+idiom (`test_utils::loud_skip_marker!`, e.g.
+`app_lane_skipped_no_chrome_coverage_here`) so the
 absence is visible in the battery log.
 
 **Two things that will mislead you if you assume otherwise.** Cost

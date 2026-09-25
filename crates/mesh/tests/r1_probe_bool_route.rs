@@ -16,7 +16,7 @@
 )]
 
 use geom_core::Tol;
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 
 fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
@@ -39,10 +39,7 @@ fn axis_y() -> sweep::RevolveAxis<f64> {
 /// Ball of radius r about the origin (two half-bands on one sphere).
 fn ball(r: f64) -> Result<topo::Body<f64>, String> {
     let bulge = 1.0; // semicircle
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), bulge),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), bulge), (p2(0.0, r), 0.0)]);
     revolve(
         &validated(vec![lp])?,
         axis_y(),
@@ -58,11 +55,11 @@ fn ball(r: f64) -> Result<topo::Body<f64>, String> {
 /// clears the maximal-face gate a full-revolve cylinder's split caps
 /// do not.
 fn slab(d: f64, l: f64) -> Result<topo::Body<f64>, sweep::ExtrudeError> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-l, -l), 0.0),
-        ProfileVertex::new(p2(l, -l), 0.0),
-        ProfileVertex::new(p2(l, d), 0.0),
-        ProfileVertex::new(p2(-l, d), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(-l, -l), 0.0),
+        (p2(l, -l), 0.0),
+        (p2(l, d), 0.0),
+        (p2(-l, d), 0.0),
     ]);
     let plane = SketchPlane::new(geom_core::Affine3::translation(geom_core::Vec3::new(
         0.0, 0.0, -l,

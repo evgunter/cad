@@ -33,18 +33,8 @@ workspace = true
 # construction; what it refuses is the feature on the `[dependencies]`
 # line, which would reach every production dependent.
 test-support = ["profile/test-support", "topo/test-support"]
-# Forwards geom-core's certified interval scalar so the sweep operations
-# run at `Interval` — exercised by the feature-gated test files in CI's
-# interval lane.
-interval = [
-    "geom-core/interval",
-    "geom-brep/interval",
-    "profile/interval",
-    "topo/interval",
-]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above; see geom-core's manifest
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).

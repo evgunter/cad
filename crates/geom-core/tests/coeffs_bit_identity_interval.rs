@@ -7,9 +7,7 @@
 //! the free `(coeffs, span)` and `(kv, coeffs)` spellings and is
 //! unchanged here.
 //!
-//! **Interval-gated, whole file**: it runs in the six `interval` test
-//! jobs. The default lane's coefficient digest carries no feature gate.
-#![cfg(feature = "interval")]
+//! The `f64` lane's coefficient digest is `coeffs_bit_identity.rs`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Interval;

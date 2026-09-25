@@ -7,29 +7,39 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**27.5 budget points** of dispatchable work against a ceiling of 30 (DECIDE-3 left two rows behind, 7.5 points; the derived-frame refusal row 2.5).
+**30 budget points** of dispatchable work against a ceiling of 30, at DECIDE-6's close (2026-09-25): the read's row closed and rule G's leaf-cost row (D) replaced it; the derived-frame refusal row (2.5) is open and not on this table.
 
 | pri | item | cost | title |
 |---|---|---|---|
-| P1 | `SYM-9` | H | what a refused decision may retry: the wider ring and the kept atom, measured first on the six documents |
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
-| P1 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 sixteen theorems — ten to the companion rewrite opening abs node squares, six to sqrt(R²)=|R| and the registrant's axiom (SYM-9's) |
-| P2 | `decision-read-triples-the-plate-pin-suites-wall-time` | D | the decision read's deep enclosure runs at every select and min/max node, and the plate's pin suite goes 142s to 535s in the dev profile |
-| P1 | `rule-d-reaches-the-unit-bulge-only` | D | rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10 |
+| P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget |
+| P2 | `rule-g-is-the-link-and-pads-leaf-cost` | D | rule G is the link's and the pad's leaf cost: shutting it takes the pad's release leaf 73.8s to 17.2s and the link's 8.5s to 3.8s, where shutting the decision read moves neither |
+| P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
+| P2 | `the-apothems-sign-is-a-value-read` | H | the apothem's sign: six arc-family decisions on a parameter bulge are zero exactly where the apothem L(1-b^2)/(4b) is positive, which only a value read reaches |
 
 ## Order
 
-`DECIDE-3` merged 2026-09-22 (#3039, into `props/sign-hull`; SYM-10's
-Phase 2 as Ev ruled it on #2970). `SYM-9` is next (block DECIDE-B1 slot
-1): a retry over the atoms DECIDE-3 re-keys, and it takes
-`rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` — the one
-predicate rule G costs, re-baselined and pinned on both sides per Ev's
-02:03Z correction on #3039 — and `decision-read-triples-the-plate-pin-suites-wall-time`
-with it. Then `rule-d-reaches-the-unit-bulge-only` (the ring's width
-at the boss, slot 2). `a0-leaves-max-and-min-of-constants-opaque`
-closed with DECIDE-3 (A0 decides a `min`/`max` of two rational
-constants and of one form).
+`DECIDE-3` merged 2026-09-22 (#3039) and `SYM-9` 2026-09-24 (#3083),
+both into `props/sign-hull`: rule G, the two certified reads, A0's
+constant fold, and the kept-atom retry ladder, which ships on and
+recovers the ten theorems rule G's default costs R2's link. Block
+DECIDE-B1 closed at SYM-9 with slot 2 unconsumed (the A/B protocol was
+suspended 2026-09-23). DECIDE-4 merged 2026-09-25 (#3192): Phase 1's attribution at a bulge
+that is not 1, and rule G's exact quotient, which takes the boss's last
+value-free residual. DECIDE-5 merged 2026-09-25 (#3214): Ev's route B on
+#3186, the arc carrier's span spelled `4·atan(σ·b)` from the decided
+turn. `rule-d-reaches-the-unit-bulge-only` closed with it; its ring and
+term-budget residue is the census's, and the apothem's sign is its own
+row, `the-apothems-sign-is-a-value-read`.
+DECIDE-6 merged 2026-09-25 (#3229): the decision read is not the pin
+suites' cost, and rule G is (`rule-g-is-the-link-and-pads-leaf-cost`,
+which replaces the read's row on the slate) and is DECIDE-7, dispatched
+2026-09-25 (`docs/DECIDE-7-SPEC.md`). Both P1 rows stay gated:
+the declared tangency on ROUND's open Fillet-centre row, and the revolve
+carriers on E6.
+`a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
+`coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 
 Then `declared-tangency-needs-the-registered-identity-door`, which is
 what the PATHS fillet family is waiting on (and which waits on BLEND's
@@ -40,15 +50,10 @@ on DECIDE-1's measurement (#3001) and
 
 ## Review posture
 
-Protocol v7 (`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on
-triaged-in units only, opus/opus outside it. **Answered per unit at
-spec time, and recorded here:** `SYM-8` IN (a rule of the atom
-algebra; recorded late, its dual having been dispatched under v6's
-carry-over — `work/decide/log.md`, 2026-09-21); `SYM-10` IN (a
-design decision over every atom the tier keys, H / NUMERIC, pre-draw);
-`DECIDE-1` OUT (a census and a measurement whose fix class is ratified
-— opus implementer, opus reviewer, the review FULL if Phase 2 changes a
-production site and STYLE if Phase 1 closes the row; no draw, no
-ordinal, no row). `SYM-9` and the reach rows are triaged when they are
-spec'd; the default expectation is IN for a unit that changes what the
-door answers and OUT for a measurement or a census.
+The review tiers (Ev, 2026-09-19; the dual tier 2026-09-23;
+`memories/orchestration-model.md`) replace protocol v7 from DECIDE-4
+on. Each unit's tier and its reason are recorded in `log.md` at spec
+time. Under v7, recorded at the time: `SYM-8` IN, `SYM-10` IN,
+`DECIDE-1` OUT (a single review, FULL or STYLE by what Phase 2
+touched), `SYM-9` IN. Under the tiers: `DECIDE-4` DUAL (log,
+2026-09-24).

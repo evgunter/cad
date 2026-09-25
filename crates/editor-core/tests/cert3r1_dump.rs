@@ -126,10 +126,10 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
                 println!("RSTRUCT {lane} fixture{i} ok {}", lp.vertices().len());
-                for (j, v) in lp.vertices().iter().enumerate() {
-                    scalar(&format!("{lane} fixture{i} v{j} x"), v.pos().x);
-                    scalar(&format!("{lane} fixture{i} v{j} y"), v.pos().y);
-                    scalar(&format!("{lane} fixture{i} v{j} b"), v.bulge());
+                for (j, (v, &b)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                    scalar(&format!("{lane} fixture{i} v{j} x"), v.x);
+                    scalar(&format!("{lane} fixture{i} v{j} y"), v.y);
+                    scalar(&format!("{lane} fixture{i} v{j} b"), b);
                 }
             }
             Err(_) => println!("RSTRUCT {lane} fixture{i} refused"),
@@ -150,7 +150,6 @@ fn r1_dump_f64() {
     );
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn r1_dump_interval() {
     use geom_core::{Bounds, Interval};

@@ -4,7 +4,6 @@
 //! straddle enclosing BOTH one-sided tangents, F4 interval bound
 //! enclosure, F5 post-op enclosures contain pre-op f64 samples.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 

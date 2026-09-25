@@ -488,7 +488,6 @@ fn report_the_recourse_at_a_far_scene() {
 /// the same enclosure. Under the mutant (`Core::build` calling `finish`
 /// without the stored-form read) these two doors build again, and this
 /// row prints what validation then says about each.
-#[cfg(feature = "interval")]
 #[test]
 fn report_the_interval_loops_with_the_door_read_suppressed() {
     use common::coverage_corpus;

@@ -24,7 +24,6 @@
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -77,12 +76,12 @@ fn detail_of(err: BlendError) -> String {
 fn hemisphere_on_flat_base() -> Body<f64> {
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(
+            (Point2::new(0.0, 0.0), 0.0),
+            (
                 Point2::new(1.0, 0.0),
                 (core::f64::consts::FRAC_PI_2 / 4.0).tan(),
             ),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -95,10 +94,10 @@ fn hemisphere_on_flat_base() -> Body<f64> {
 fn pole_cylinder() -> Body<f64> {
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -113,12 +112,12 @@ fn pole_cylinder() -> Body<f64> {
 fn stepped() -> Body<f64> {
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.5), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.5, 1.0), 0.0),
+            (Point2::new(0.5, 1.5), 0.0),
+            (Point2::new(0.0, 1.5), 0.0),
         ],
         Revolution::Full,
         tol(),

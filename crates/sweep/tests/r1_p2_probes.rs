@@ -42,7 +42,7 @@ use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Vec3};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use std::sync::Arc;
 use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 
@@ -52,8 +52,8 @@ use topo::{Body, FaceSurface, Pcurve, PcurveMintError};
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-scale, -scale),
             v(scale, -scale),
             v(scale, scale),
@@ -563,8 +563,8 @@ fn r1_dual_scalar_wall_seam_arm_answers_no_boundary() {
         ))
     };
     let square = || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-SCALE, -SCALE),
             v(SCALE, -SCALE),
             v(SCALE, SCALE),

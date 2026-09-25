@@ -1,11 +1,8 @@
 //! VERBS-SHELLFIX PR-2b, interval lane: the AXIAL door instantiated at
 //! the certified scalar.
 //!
-//! The door lives in `crates/topo/src/offset_axial.rs`, an ordinarily
-//! named file, so `scripts/ci-filter.py`'s path rule does not match it
-//! and the interval lane is left to the run's own draw. A drawn
-//! interval point re-runs the f64-typed suites under the interval
-//! BUILD, which never instantiates `offset_charts_together` at
+//! The door lives in `crates/topo/src/offset_axial.rs`. The f64-typed
+//! suites never instantiate `offset_charts_together` at
 //! `T = Interval` — so this row does, and every new decide site the
 //! unit added is executed at the scalar that can escalate rather than
 //! at the one that cannot:
@@ -33,11 +30,10 @@
 //! revolve, where two surfaces meet at a corner) and the SOLVED one (a
 //! partial revolve, whose meridian caps contain the axis).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -80,11 +76,11 @@ fn interval_offset_charts_together_sphere_zone() {
     let (u, v) = (p2(r, 0.0) - c, p2(r, h) - c);
     let sweep = u.perp_dot(v).atan2(u.dot(v));
     let body = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), (sweep / iv(4.0)).tan()),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), (sweep / iv(4.0)).tan()),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -137,11 +133,11 @@ fn interval_offset_charts_together_partial_wedge() {
     let tol = Tol::witness();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), iv(0.0)),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
     );
@@ -174,11 +170,11 @@ fn interval_offset_charts_together_cone_frustum() {
     let tol = Tol::witness();
     let (r0, r1, h, t) = (4.0 / 64.0, 2.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r1, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r0, 0.0), iv(0.0)),
+            (p2(r1, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );
@@ -212,11 +208,11 @@ fn interval_offset_charts_together_drum() {
     let tol = Tol::witness();
     let (r, h, t) = (3.0 / 64.0, 8.0 / 64.0, 1.0 / 128.0);
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(r, h), iv(0.0)),
-            ProfileVertex::new(p2(0.0, h), iv(0.0)),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(r, 0.0), iv(0.0)),
+            (p2(r, h), iv(0.0)),
+            (p2(0.0, h), iv(0.0)),
         ]),
         Revolution::Full,
     );

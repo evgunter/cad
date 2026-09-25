@@ -1,24 +1,27 @@
-//! **A seam junction under a declared union is named by its lines, in
-//! member space, whatever the member order.**
+//! **Where a slab crosses the merged rim of two flush-declared members,
+//! a union names the point by the rim and the slab, whatever the member
+//! order.**
 //!
 //! The pair emitter names a seam JUNCTION — the vertex where k ≥ 2 seam
 //! lines meet and no operand edge does — by the sorted run of those
-//! lines' `Seam` segments. A declared union reaches that shape whenever
-//! a slab crosses the merged edge of two flush-declared members before
-//! the second of them is folded in, and the union's collapse reads the
-//! run as ONE head: each line rewritten into member space and
-//! canonicalized, the run re-sorted.
+//! lines' `Seam` segments. A declared union's fold reaches that shape
+//! whenever a slab crosses the merged edge of two flush-declared members
+//! before the second of them is folded in; folded after them, it meets a
+//! piece of the rim instead. The merged edge lies along a member's rim,
+//! and the published table names the point from the finished body
+//! (`emit_union::cite_member_edges`): that rim, crossed by the slab's
+//! wall.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, member_face, run};
-use crate::fixture::{fname, table, vertex_of, wall};
+use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef,
+    RecipeNodeId, RoleSeg, StableName,
 };
 use geom_core::Tol;
 
@@ -86,87 +89,128 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     Fixture { doc, a, b, g, h }
 }
 
-/// **The row's fixture, `[b, g, a, h]`, fuses, and its junction is
-/// the three lines meeting at `(0.3, 1, 1)`.**
+/// The name every fused order gives the point where `g`'s `x = 0.3`
+/// wall crosses `a`'s `cap` / `y = 1` rim: that rim and that wall, in
+/// name order.
+fn crossing(union: RecipeNodeId, a: RecipeNodeId, g: RecipeNodeId, cap: CapEnd) -> StableName {
+    let rim = member_entity(
+        union,
+        a,
+        ename(
+            a,
+            RoleSeg::RimEdge(
+                cap,
+                ProfileEdgeRef {
+                    loop_index: 0,
+                    segment: 2,
+                },
+            ),
+        ),
+        EntityKind::Edge,
+    );
+    let g_x0 = member_face(union, g, fname(g, wall(3)));
+    let (lo, hi) = if rim < g_x0 { (rim, g_x0) } else { (g_x0, rim) };
+    StableName {
+        kind: EntityKind::Vertex,
+        node: union,
+        path: vec![RoleSeg::Seam {
+            a: lo.into(),
+            b: hi.into(),
+        }],
+    }
+}
+
+/// Where the vertex named `name` sits in `ev`'s union.
+fn point_of(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, name: &StableName) -> [f64; 3] {
+    let body = body_of(ev, union);
+    let vx = vertex_of(table(ev, union), "the crossing", name);
+    let p = body
+        .get_vertex(vx)
+        .and_then(|vd| body.get_point(vd.point))
+        .copied()
+        .expect("the crossing has a point");
+    [p.x, p.y, p.z]
+}
+
+/// **The row's fixture, `[b, g, a, h]`, fuses, and the point where `g`
+/// crosses the merged top / `y = 1` edge is named by `a`'s rim and `g`'s
+/// wall, not as a junction of three seams.**
 ///
-/// There, `g`'s `x = 0.3` wall crosses `a`'s top cap and `a`'s `y = 1`
-/// wall, and the merged top/`y = 1` edge of `a` and `b` passes through:
-/// no operand edge reaches the point, so the three lines name it. Each
-/// line's sides are member faces, one wrapper deep.
+/// At `(0.3, 1, 1)`, `g`'s `x = 0.3` wall crosses `a`'s top cap and
+/// `a`'s `y = 1` wall, and the merged top / `y = 1` edge of `a` and `b`
+/// passes through. No operand edge reaches the point at the step that
+/// makes it, so the fold names it by its three seam lines. The merged
+/// edge lies along `a`'s rim there, and the published table names what
+/// the finished body holds: `a`'s rim, crossed by `g`'s wall.
 #[test]
-fn a_seam_junction_in_a_declared_union_is_named_by_its_member_space_lines() {
+fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     let Fixture { doc, a, b, g, h } = fixture((0.5, 3.0), true);
     let h = h.unwrap();
     let (docx, union, _) = declared_union(doc, &[b, g, a, h], flush_pairs((a, a), (b, b)));
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
-    let body = body_of(&ev, union);
-    let v = volume(body);
+    let v = volume(body_of(&ev, union));
     // a ∪ b is 1.5; g adds 0.1 × 3 × 3 less its 0.1 × 1 × 0.5 inside
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");
-
-    let line = |x: StableName, y: StableName| RoleSeg::Seam {
-        a: x.into(),
-        b: y.into(),
-    };
-    let a_top = member_face(union, a, fname(a, RoleSeg::Cap(CapEnd::End)));
-    let a_y1 = member_face(union, a, fname(a, wall(2)));
-    let b_y1 = member_face(union, b, fname(b, wall(2)));
-    let g_x0 = member_face(union, g, fname(g, wall(3)));
-    let want = StableName {
-        kind: EntityKind::Vertex,
-        node: union,
-        path: vec![
-            line(a_top.clone(), b_y1),
-            line(a_top, g_x0.clone()),
-            line(a_y1, g_x0),
-        ],
-    };
-    let t = table(&ev, union);
-    assert_eq!(junctions(t), BTreeSet::from([want.clone()]));
-    let vx = vertex_of(t, "the junction", &want);
-    let p = body
-        .get_vertex(vx)
-        .and_then(|vd| body.get_point(vd.point))
-        .copied()
-        .expect("the junction vertex has a point");
+    assert_eq!(junctions(table(&ev, union)), BTreeSet::new());
+    let p = point_of(&ev, union, &crossing(union, a, g, CapEnd::End));
     assert!(
-        (p.x - 0.3).abs() < 1e-12 && (p.y - 1.0).abs() < 1e-12 && (p.z - 1.0).abs() < 1e-12,
-        "the junction sits where the three lines meet, not at {p:?}"
+        (p[0] - 0.3).abs() < 1e-12 && (p[1] - 1.0).abs() < 1e-12 && (p[2] - 1.0).abs() < 1e-12,
+        "the crossing sits where g's wall meets the rim, not at {p:?}"
     );
 }
 
-/// **Every order of every junction document: no emission bug, and the
-/// orders that fuse name their junctions identically.**
+/// **Every order of every such document names the crossing the same.**
 ///
-/// Three documents reach the junction: the row's four members, the
-/// same without `h`, and `g` lowered through the bottom cap. Orders
-/// that refuse for reasons of their own (a declaration that no longer
-/// resolves, an undeclared contact, a missing rule) are other rows'
-/// subjects; what is asserted of them is only that none of them is an
-/// `Emission`. At least two orders of each document fuse, so the
-/// equality is not vacuous.
+/// Three documents reach it: the row's four members, the same without
+/// `h`, and `g` lowered through the bottom cap (the crossing then on
+/// `a`'s bottom / `y = 1` rim). Orders that refuse for reasons of their
+/// own (a declaration that no longer resolves, an undeclared contact)
+/// are other rows' subjects; what is asserted of them is only that none
+/// of them is an `Emission`.
+///
+/// Whether `a` and `b` fold before `g` decides what the fold meets: a
+/// piece of `a`'s rim, or three seam lines. The published name is the
+/// same either way, and no order publishes a junction.
 #[test]
-fn a_junction_is_named_the_same_in_every_order_that_fuses() {
-    for (label, g_z, with_h) in [
-        ("four members", (0.5, 3.0), true),
-        ("three members", (0.5, 3.0), false),
-        ("through the bottom cap", (-0.5, 1.0), false),
+fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
+    for (label, g_z, with_h, cap, z) in [
+        ("four members", (0.5, 3.0), true, CapEnd::End, 1.0),
+        ("three members", (0.5, 3.0), false, CapEnd::End, 1.0),
+        (
+            "through the bottom cap",
+            (-0.5, 1.0),
+            false,
+            CapEnd::Start,
+            0.0,
+        ),
     ] {
         let Fixture { doc, a, b, g, h } = fixture(g_z, with_h);
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
-        let mut named = BTreeSet::new();
-        let mut fused = 0;
+        let (mut ab_first, mut g_between) = (0, 0);
         for order in permutations(&members) {
             let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
-                    let js = junctions(table(&ev, union));
-                    assert!(!js.is_empty(), "{label} {order:?}: no junction row");
-                    named.insert(js);
-                    fused += 1;
+                    assert_eq!(
+                        junctions(table(&ev, union)),
+                        BTreeSet::new(),
+                        "{label} {order:?}"
+                    );
+                    let p = point_of(&ev, union, &crossing(union, a, g, cap));
+                    assert!(
+                        (p[0] - 0.3).abs() < 1e-12
+                            && (p[1] - 1.0).abs() < 1e-12
+                            && (p[2] - z).abs() < 1e-12,
+                        "{label} {order:?}: the crossing is at {p:?}"
+                    );
+                    if order[..2].contains(&a) && order[..2].contains(&b) {
+                        ab_first += 1;
+                    } else {
+                        g_between += 1;
+                    }
                 }
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
@@ -174,11 +218,9 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
                 Some(_) => {}
             }
         }
-        assert!(fused >= 2, "{label}: {fused} orders fused");
-        assert_eq!(
-            named.len(),
-            1,
-            "{label}: the junction's name moved with the member order: {named:?}"
+        assert!(
+            ab_first >= 1 && g_between >= 2,
+            "{label}: {ab_first} orders fold a and b first, {g_between} do not"
         );
     }
 }

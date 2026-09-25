@@ -13,13 +13,14 @@ use crate::shared::ring::p3;
 use crate::shared::tol::band;
 use geom_brep::props::PropsError;
 use geom_brep::props::quad::nurbs_patch_face;
+use geom_core::Bounds;
 use geom_core::Tol;
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::KnotVector;
 use test_utils::vacuity;
 
 /// A mildly curved single-span biquadratic dome, my own authoring.
-fn dome() -> (KnotVector, KnotVector, Vec<[RingInterval; 3]>) {
+fn dome() -> (KnotVector, KnotVector, Vec<[Interval; 3]>) {
     let k = KnotVector::clamped(vec![0.0, 0.0, 0.0, 1.0, 1.0, 1.0], 2).unwrap();
     let mut net = Vec::new();
     for i in 0..3 {
@@ -223,7 +224,7 @@ fn r2_dome_gauge_silence_and_area_bit_invariance() {
 /// Perimeter-bound soundness anchor: a FLAT unit square patch has true
 /// boundary perimeter exactly 4. The certified lower bound must sit at
 /// or below 4 and, with straight edges (chords lie ON the curve),
-/// within ring rounding of it. Read via the R2_GAUGE_TRACE line; this
+/// within outward rounding of it. Read via the R2_GAUGE_TRACE line; this
 /// row asserts through the door only that the face certifies.
 #[test]
 fn r2_flat_square_perimeter_anchor() {
