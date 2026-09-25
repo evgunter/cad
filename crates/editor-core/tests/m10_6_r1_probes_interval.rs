@@ -157,6 +157,7 @@ fn prism(r: &mut Recorder, origin: [f64; 3], corners: &[(f64, f64)], height: f64
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(corners.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile,
@@ -478,8 +479,14 @@ fn web_plate(bound: f64, law: Distribution) -> (ProfileDoc, RecipeNodeId, Recipe
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("in range"),
@@ -613,6 +620,7 @@ fn report_key_tells_two_budgets_apart() {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("square"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -762,8 +770,14 @@ fn neck_dir(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::MinClearance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(wall_b))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, wall_b)),
+                ),
             ],
         )
         .expect("in range"),
@@ -922,8 +936,14 @@ fn a_mixed_document_is_forced_by_its_band_alone_and_split_band_masses_refuse_typ
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(0))),
-                SitedRef::new(placed, fixture::fname(solid, fixture::wall(2))),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 0)),
+                ),
+                SitedRef::new(
+                    placed,
+                    fixture::fname(solid, fixture::wall(&r.doc, solid, 2)),
+                ),
             ],
         )
         .expect("in range"),
@@ -1034,8 +1054,11 @@ fn bracket(
         Node::measure(
             MeasureExpr::primitive(MeasurePrimitive::Distance { a: 0, b: 1 }),
             vec![
-                SitedRef::new(post, fixture::fname(post_solid, fixture::wall(3))),
-                SitedRef::at_mint(fixture::fname(base, fixture::wall(3))),
+                SitedRef::new(
+                    post,
+                    fixture::fname(post_solid, fixture::wall(&r.doc, post_solid, 3)),
+                ),
+                SitedRef::at_mint(fixture::fname(base, fixture::wall(&r.doc, base, 3))),
             ],
         )
         .expect("in range"),
@@ -1228,7 +1251,7 @@ fn the_bracket_walk_through_the_public_doors() {
     }
 }
 
-fn node_named(doc: &ProfileDoc, pick: usize) -> RecipeNodeId {
+fn node_named(doc: &editor_core::ProfileDoc, pick: usize) -> RecipeNodeId {
     let mut transforms: Vec<RecipeNodeId> = doc
         .order()
         .iter()
@@ -1303,6 +1326,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
             ])
             .expect("plate"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_p,
@@ -1315,6 +1339,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
                 centre: [centre, len(0.0)],
                 radius: Expr::param(name(radius), Dimension::Length),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile: p,

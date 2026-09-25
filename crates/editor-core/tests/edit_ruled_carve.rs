@@ -68,9 +68,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileEdgeRef,
-    ProfileProgram, ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StableName,
+    CapEnd, EntityKind, EvalOptions, LoopProgram, NameRef, Node, ProfileDoc, ProfileProgram,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, RoleSeg, StableName,
 };
 // The name-table and body readers, and the name-authoring shorthands,
 // live in `fixture` — one home for what this suite and
@@ -171,6 +170,7 @@ fn carve(
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![lp],
+            ids: Vec::new(),
         }),
     );
     let (doc, rod) = fixture::insert(
@@ -182,7 +182,7 @@ fn carve(
     );
     let selection = creases
         .iter()
-        .map(|&(v, _)| lateral_edge(rod, v))
+        .map(|&(v, _)| lateral_edge(&doc, rod, v))
         .collect::<Vec<_>>();
     let (doc, fillet) = fixture::insert(
         doc,
@@ -296,47 +296,45 @@ fn fixtures() -> [Ruled; 2] {
 
 /// The extrude emitter's own names, which every band-end role's
 /// arguments are drawn from.
-fn lateral_edge(rod: RecipeNodeId, vertex: u32) -> StableName {
+fn lateral_edge(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, vertex: u32) -> StableName {
     fixture::ename(
         rod,
-        RoleSeg::LateralEdge(ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        }),
+        RoleSeg::LateralEdge(crate::fixture::vpiece(doc, rod, 0, vertex as usize)),
     )
 }
 
-fn wall(rod: RecipeNodeId, segment: u32) -> StableName {
+fn wall(doc: &editor_core::ProfileDoc, rod: RecipeNodeId, segment: u32) -> StableName {
     fixture::fname(
         rod,
-        RoleSeg::Lateral(ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        }),
+        RoleSeg::Lateral(crate::fixture::piece(doc, rod, 0, segment as usize)),
     )
 }
 
 /// Both fixtures' rods extrude ONE profile loop, so a cap entity of
 /// theirs is fixed by its cap end and its index in that loop.
-fn rim_edge(rod: RecipeNodeId, end: CapEnd, segment: u32) -> StableName {
+fn rim_edge(
+    doc: &editor_core::ProfileDoc,
+    rod: RecipeNodeId,
+    end: CapEnd,
+    segment: u32,
+) -> StableName {
     fixture::rim_edge(
         rod,
         end,
-        ProfileEdgeRef {
-            loop_index: 0,
-            segment,
-        },
+        crate::fixture::piece(doc, rod, 0, segment as usize),
     )
 }
 
-fn cap_vertex(rod: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+fn cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    rod: RecipeNodeId,
+    end: CapEnd,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         rod,
         end,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        },
+        crate::fixture::vpiece(doc, rod, 0, vertex as usize),
     )
 }
 
@@ -353,8 +351,8 @@ fn foot_name(f: &Ruled, end: CapEnd, crease: u32, support: u32) -> StableName {
         EntityKind::Vertex,
         f.fillet,
         RoleSeg::FootVertex {
-            vertex: NameRef::new(cap_vertex(f.rod, end, crease)),
-            support: NameRef::new(wall(f.rod, support)),
+            vertex: NameRef::new(cap_vertex(&f.doc, f.rod, end, crease)),
+            support: NameRef::new(wall(&f.doc, f.rod, support)),
         },
     )
 }
@@ -367,7 +365,7 @@ fn support_face(f: &Ruled, support: u32) -> StableName {
     minted(
         EntityKind::Face,
         f.fillet,
-        RoleSeg::FromTarget(NameRef::new(wall(f.rod, support))),
+        RoleSeg::FromTarget(NameRef::new(wall(&f.doc, f.rod, support))),
     )
 }
 
@@ -413,8 +411,8 @@ fn a_cut_off_arc_runs_between_the_two_feet_of_the_cap_it_closes_at() {
                     EntityKind::Edge,
                     f.fillet,
                     RoleSeg::EndArc {
-                        vertex: NameRef::new(cap_vertex(f.rod, end, crease)),
-                        edge: NameRef::new(lateral_edge(f.rod, crease)),
+                        vertex: NameRef::new(cap_vertex(&f.doc, f.rod, end, crease)),
+                        edge: NameRef::new(lateral_edge(&f.doc, f.rod, crease)),
                     },
                 );
                 let feet = supports.map(|s| vertex_of(t, &what, &foot_name(&f, end, crease, s)));
@@ -469,7 +467,7 @@ fn a_cap_foot_lies_in_the_cap_and_on_the_support_its_name_carries() {
                 let what = format!("{}: cap {end:?}, crease {crease}", f.what);
                 let z = point(
                     rod,
-                    vertex_of(source, &what, &cap_vertex(f.rod, end, crease)),
+                    vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, crease)),
                 )
                 .z;
                 for support in supports {
@@ -525,8 +523,8 @@ fn a_trimline_runs_between_the_two_feet_on_its_own_support() {
                     EntityKind::Edge,
                     f.fillet,
                     RoleSeg::TrimEdge {
-                        edge: NameRef::new(lateral_edge(f.rod, crease)),
-                        support: NameRef::new(wall(f.rod, support)),
+                        edge: NameRef::new(lateral_edge(&f.doc, f.rod, crease)),
+                        support: NameRef::new(wall(&f.doc, f.rod, support)),
                     },
                 );
                 let feet =
@@ -571,7 +569,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                 let cut = minted(
                     EntityKind::Edge,
                     f.fillet,
-                    RoleSeg::BandCut(NameRef::new(rim_edge(f.rod, end, segment))),
+                    RoleSeg::BandCut(NameRef::new(rim_edge(&f.doc, f.rod, end, segment))),
                 );
                 let want = rim_ends.map(|e| match e {
                     RimEnd::Foot(crease) => {
@@ -583,7 +581,7 @@ fn a_surviving_rim_piece_carries_the_rim_it_was_cut_from() {
                         &minted(
                             EntityKind::Vertex,
                             f.fillet,
-                            RoleSeg::FromTarget(NameRef::new(cap_vertex(f.rod, end, v))),
+                            RoleSeg::FromTarget(NameRef::new(cap_vertex(&f.doc, f.rod, end, v))),
                         ),
                     ),
                 });
@@ -670,7 +668,11 @@ fn a_coplanar_wall_is_told_from_its_twin_by_the_support_face() {
         // crease 3 on wall 2 belongs.
         let crossed = vertex_of(t, &what, &foot_name(&f, end, 4, 4));
         let p = point(body, crossed);
-        let z = point(rod, vertex_of(source, &what, &cap_vertex(f.rod, end, 3))).z;
+        let z = point(
+            rod,
+            vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, 3)),
+        )
+        .z;
         assert!(
             p.z == z && (f.residual)(2, p).abs() < NEAR,
             "{what}: the crossed foot {p:?} was expected to satisfy the plane and residual \
@@ -709,7 +711,7 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_foot_and_its_source_vertex() {
                 let what = format!("{}: cap {end:?}, crease {crease}", f.what);
                 let sv = point(
                     rod,
-                    vertex_of(source, &what, &cap_vertex(f.rod, end, crease)),
+                    vertex_of(source, &what, &cap_vertex(&f.doc, f.rod, end, crease)),
                 );
                 for support in supports {
                     let p = point(

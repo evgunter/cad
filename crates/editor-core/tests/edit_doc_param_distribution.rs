@@ -69,7 +69,7 @@ fn band() -> Distribution {
 }
 
 /// The notation a parameter is written in.
-fn notation(doc: &ProfileDoc, name: &str) -> UnitSym {
+fn notation(doc: &editor_core::ProfileDoc, name: &str) -> UnitSym {
     match doc.params()[&p(name)] {
         DocParam::Continuous { display_unit, .. } => display_unit,
         DocParam::Count { .. } => panic!("{name} is continuous"),
@@ -78,7 +78,7 @@ fn notation(doc: &ProfileDoc, name: &str) -> UnitSym {
 
 /// Whether the error analysis reads the parameter as FIXED — the
 /// consequence an annotation has, as opposed to a field going `Some`.
-fn is_fixed(doc: &ProfileDoc, name: &str) -> bool {
+fn is_fixed(doc: &editor_core::ProfileDoc, name: &str) -> bool {
     analyzed_box(doc, &AnalysisPolicy::default())
         .get(&p(name))
         .copied()

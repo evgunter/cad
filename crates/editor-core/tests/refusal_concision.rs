@@ -38,6 +38,7 @@ fn cone_block_union_refusal() -> String {
         loops: vec![
             LoopProgram::polygon([(0.5, 0.4), (1.5, 0.4), (1.5, 0.6), (0.5, 0.6)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: block_p,

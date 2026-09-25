@@ -51,6 +51,7 @@ fn section(r: &mut Recorder, z: f64, pts: [(f64, f64); 4]) -> RecipeNodeId {
     r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(pts).unwrap()],
+        ids: Vec::new(),
     }))
 }
 

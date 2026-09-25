@@ -993,19 +993,18 @@ impl<T: Real> Body<T> {
     /// at the first hop: it resolves to whatever half-edge the arena's
     /// slot holds and answers about the loop THAT half-edge names.
     ///
-    /// Every spelling in this crate that STOPS at the face and refuses
-    /// uniformly across the two hops reads through here. Six more
-    /// compose a further hop past the face (`.surface`, `Face::shell`)
-    /// and are deferred with that decision, not kept for a reason.
     /// **`None` is the only refusal this door can make**, so a caller
     /// whose own refusal distinguishes the hops — naming which key
     /// went stale — keeps its own walk: collapsing it here would
     /// replace a refusal that identifies an entity with one that does
-    /// not. That is a population, not an exception. It is sixteen
-    /// sites in this crate alone, and they are enumerated with their
-    /// postures in
-    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`;
-    /// a lane adding a seventeenth reads that list, not this sentence.
+    /// not. That is a population, not an exception.
+    ///
+    /// **No census is claimed here.** Which hand-written walks remain,
+    /// with their postures and the instrument that counted them, is
+    /// measured in
+    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`
+    /// — dated there, held true by no mechanical guard, and
+    /// re-measured by a lane rather than by this sentence.
     #[must_use]
     pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
         self.get_loop(self.get_half_edge(he)?.parent_loop)
@@ -1418,7 +1417,7 @@ mod tests {
     use super::*;
     use crate::EntityId;
     use crate::ReplaceFaceError;
-    use crate::fixtures::{mvfs_state, pillow, prov};
+    use crate::fixtures::{mvfs_state, pillow, prov, refile_shells};
     use geom_core::Tol;
 
     fn origin() -> Point3<f64> {
@@ -1509,33 +1508,6 @@ mod tests {
         assert_eq!(body.faces_of_solid(SolidKey::default()), None);
     }
 
-    /// Re-homes `minted`'s shell into `solid` at position `at` of that
-    /// solid's shell list, and retires the solid `mvfs` minted it with.
-    ///
-    /// **A solid with two shells is not constructible through the
-    /// public operators** — `mvfs` mints one solid per shell — so the
-    /// re-homing is a raw in-crate write. The arena removal is PAIRED
-    /// with its provenance removal the way `kvfs` pairs them: an arena
-    /// removal that leaves the provenance entry behind is
-    /// `LeakedProvenance`. Written once here because two rows below
-    /// need the body and the pairing is the easy half to forget; the
-    /// wider class, and whether it wants a home in `fixtures.rs`, is
-    /// `work/dup/the-same-solid-two-shell-body-is-hand-built-three-times.md`.
-    fn adopt_shell_into(
-        body: &mut Body<f64>,
-        solid: SolidKey,
-        minted: &crate::MvfsCreated,
-        at: usize,
-    ) {
-        body.get_shell_mut(minted.shell).unwrap().solid = solid;
-        body.get_solid_mut(solid)
-            .unwrap()
-            .shells
-            .insert(at, minted.shell);
-        body.solids.remove(minted.solid);
-        body.solid_provenance.remove(minted.solid);
-    }
-
     /// The door's ORDER is the ARENA's, not the shell walk's, and the
     /// two are only the same sequence while a solid has one shell.
     ///
@@ -1562,7 +1534,7 @@ mod tests {
         // One solid, two shells, the minted shell listed LAST; then
         // move `face_b` into it so the shells interleave with the
         // arena.
-        adopt_shell_into(&mut body, t.solid, &second, 1);
+        refile_shells(&mut body, second.solid, t.solid);
         body.get_shell_mut(t.shell)
             .unwrap()
             .faces
@@ -1612,14 +1584,15 @@ mod tests {
         let mut body = t.body;
         let second = body.mvfs(origin()).unwrap();
 
-        // The minted shell listed FIRST, so the solid's list runs
-        // against the arena's slot order.
-        adopt_shell_into(&mut body, t.solid, &second, 0);
+        // The pillow's shell refiled under the MINTED solid, so that
+        // solid lists its own shell first and its list runs against
+        // the arena's slot order.
+        refile_shells(&mut body, t.solid, second.solid);
 
         let arena: Vec<ShellKey> = body.shells().map(|(k, _)| k).collect();
         assert_eq!(arena, vec![t.shell, second.shell], "the arena's order");
         assert_eq!(
-            body.shells_of_solid(t.solid).unwrap(),
+            body.shells_of_solid(second.solid).unwrap(),
             [second.shell, t.shell],
             "the solid's own order, reversed against the arena"
         );

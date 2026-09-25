@@ -636,6 +636,7 @@ fn program_structure_doors_refuse_typed_at_load() {
         Node::Profile(editor_core::ProfileProgram {
             plane,
             loops: vec![editor_core::LoopProgram::circle(0.0, 0.0, 0.5).expect("finite")],
+            ids: Vec::new(),
         }),
     );
     let text = save(&doc, &[], Tol::witness()).expect("save");
@@ -732,6 +733,7 @@ fn corrupt_program_refuses_at_the_edit_door_before_any_save() {
     let unclosed = editor_core::ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![ProgramStep::Tangent])],
+        ids: Vec::new(),
     };
     match editor_core::apply(
         &doc,

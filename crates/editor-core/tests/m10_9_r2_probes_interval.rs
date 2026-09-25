@@ -150,6 +150,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outline],
+        ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let body = r.insert(Node::Extrude {
@@ -162,6 +163,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
             centre: [len(HALF_L), len(0.0)],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,
