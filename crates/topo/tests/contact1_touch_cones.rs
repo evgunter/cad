@@ -275,19 +275,27 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
 
 /// **A sliver corner whose side is in band.** A parallelepiped resting
 /// a corner on the wall `x = 1`, with a 3 cm edge off the wall and a
-/// 0.8 m edge leaving it at an elevation of `1e-7` m. Every direction
-/// of a cone is decided at its metering arm — the shortest edge at the
-/// corner, 3 cm — where the long edge stands `3.75e-9` m off the wall,
-/// inside the band `[1e-9, 1e-8]`: the rest is refused typed as in band
-/// rather than read from the far endpoint. At the base the vertex-on-
-/// face analysis read the long edge's far endpoint (`1e-7` m, definite)
-/// and cleared.
+/// 0.8 m edge leaving it at a small elevation `e`. Every direction of a
+/// cone is decided at its metering arm — the shortest edge at the
+/// corner, 3 cm — so the long edge reads `e · 0.03 / 0.8` off the wall.
+/// The fixture puts that reading at the geometric mean of the run
+/// band's two thresholds, so it is in band at every eps row, while the
+/// far endpoint itself stands `e` (about 27 × the reading, past the
+/// escalation threshold) off the wall and no sweep escalates: the rest
+/// is refused typed as in band rather than read from the far endpoint.
+/// At the base the vertex-on-face analysis read the far endpoint and
+/// cleared.
 #[test]
 fn a_sliver_corner_whose_side_is_in_band_refuses_typed() {
+    let band = Band::linear(Tol::witness()).unwrap();
+    let (arm, long) = (0.03, 0.8);
+    let reading = (band.zero() * band.escalate()).sqrt();
+    let e = reading * long / arm;
+    assert!(e > band.escalate(), "the far endpoint is definite: {e}");
     let body = bracket_with(&parallelepiped(
         [1.0, 2.0, 0.5],
-        [0.03, 0.0, 0.0],
-        [1e-7, 0.8, 0.0],
+        [arm, 0.0, 0.0],
+        [e, long, 0.0],
         [0.0, 0.0, 0.3],
     ));
     let errors = refused(&body, &ContactRecords::default());
