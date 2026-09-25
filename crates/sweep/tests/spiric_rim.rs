@@ -337,7 +337,7 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
     // only finding is the closed form's typed refusal there.
     let verdict = topo::validate_geometric_structural(&cavity, tol());
     assert!(
-        matches!(&verdict, Err(errs) if errs.iter().all(|e| matches!(
+        matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
             e,
             topo::ValidationError::VolumeUncomputable { .. }
         ))),

@@ -72,8 +72,10 @@ use geom_core::{Dual64, Tol};
 /// because the policy gate is absent, and the door a dual CAN take —
 /// the validator's `_structural` twin — refuses their product bodies at
 /// that scalar.
+///
+/// DL3's two named witnesses ARE this set today, so the row below walks
+/// it by name; a document joining or leaving it moves both rows at once.
 const DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR: [&str; 2] = ["cut_cylinder", "loft_prism"];
-const DL3_WITNESSES: [&str; 2] = ["cut_cylinder", "loft_prism"];
 
 /// The corpus documents a NAMED witness list addresses, looked up
 /// loudly: a renamed or retired witness fails here instead of
@@ -177,13 +179,13 @@ fn the_gather_opens_at_dual64_and_the_witness_set_is_pinned() {
 fn the_dl3_witnesses_are_refused_by_the_closed_form_alone_at_dual64() {
     let tol = Tol::witness();
     let docs = documents();
-    for doc in named(&docs, &DL3_WITNESSES) {
+    for doc in named(&docs, &DUAL_REFUSED_BY_THE_STRUCTURAL_DOOR) {
         let ev_d = eval::<Dual64>(&doc.doc);
         let product = product_recorded(&doc.doc, &ev_d, tol)
             .unwrap_or_else(|e| panic!("{}: must gather at Dual64: {e}", doc.name));
         let verdict = topo::validate_geometric_structural(&product.body, tol);
         assert!(
-            matches!(&verdict, Err(errs) if errs.iter().all(|e| matches!(
+            matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,
                 topo::ValidationError::VolumeUncomputable { .. }
             ))),

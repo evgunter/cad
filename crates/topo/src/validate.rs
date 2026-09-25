@@ -3513,9 +3513,11 @@ pub fn validate_geometric_structural<
 
 /// [`validate_geometric_certificate`] holding no certified lane —
 /// [`validate_geometric_structural`]'s certificate form, the
-/// [`crate::SignCertificate`] its closed-form check 7 decided on. At
-/// any scalar that certificate is a closed-form body's: every face
-/// finished at round 0, its pads `0`.
+/// [`crate::SignCertificate`] its closed-form check 7 decided on. It
+/// holds no lane, so its continuation is the closed form's own
+/// measurement — [`crate::mass_properties_structural`] on the same body,
+/// pads `0` (`topo/tests/geometric_cube.rs`'s
+/// `the_structural_certificate_continues_to_the_closed_form` pins it).
 ///
 /// # Errors
 ///
@@ -3559,23 +3561,34 @@ pub fn validate_geometric_certificate_declared_structural<
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    structural_declared_via(body, declarations, tol, None, PlusVCheck::Through(None))
+    structural_declared_via(body, declarations, tol, StructuralPhase::NoLane)
         .map(certificate_of_a_clean_verdict)
 }
 
-/// The tier-3 battery with check 2's plane × NURBS lane and check 7 as
-/// arguments — the shared body of the `_structural` doors (no lane,
-/// check 7 through the closed form) and of the composed entry's
-/// structural phase (the certified plane × NURBS lane, check 7 NOT
-/// made, because the composed entry makes it after this phase through
-/// the certified quadrature).
+/// **Which of the two callers is running the structural battery** — the
+/// one argument that decides both of the battery's injected derivations
+/// together, because they are only ever right as a pair.
+#[derive(Clone, Copy)]
+enum StructuralPhase<'l, T: geom_core::Decide> {
+    /// The `_structural` doors: no lane at all — check 2 without the
+    /// plane × NURBS lane, check 7 MADE through the closed form.
+    NoLane,
+    /// The composed [`validate_geometric`]'s first phase: check 2 through
+    /// the certified plane × NURBS lane it hands in, and check 7 NOT
+    /// made, because the composed door makes it next through the
+    /// certified quadrature.
+    BeforeCertifiedCheck7(geom_brep::NurbsLane<'l, T>),
+}
+
+/// The tier-3 battery for one [`StructuralPhase`] — the shared body of
+/// the `_structural` doors and of the composed entry's structural phase.
 ///
 /// Private, and for the same reason
 /// [`validate_geometric_certified`] is: the public doors differ in
 /// exactly what they are entitled to claim, and letting a caller pick
-/// the arguments would let it claim more than its bound allows.
+/// the phase would let it claim more than its bound allows.
 ///
-/// `Ok` carries check 7's certificate — `Some` exactly when `plus_v`
+/// `Ok` carries check 7's certificate — `Some` exactly when the phase
 /// made it ([`certificate_of_a_clean_verdict`]'s invariant).
 fn structural_declared_via<
     'b,
@@ -3584,9 +3597,12 @@ fn structural_declared_via<
     body: &'b Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
-    plus_v: PlusVCheck<T>,
+    phase: StructuralPhase<'_, T>,
 ) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
+    let (nurbs_lane, plus_v) = match phase {
+        StructuralPhase::NoLane => (None, PlusVCheck::Through(None)),
+        StructuralPhase::BeforeCertifiedCheck7(lane) => (Some(lane), PlusVCheck::NotMade),
+    };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
@@ -3843,8 +3859,7 @@ pub fn validate_geometric_certificate_declared<
         body,
         declarations,
         tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
-        PlusVCheck::NotMade,
+        StructuralPhase::BeforeCertifiedCheck7(&geom_brep::plane_nurbs_limbs::<T>),
     )?;
     validate_geometric_certified(body, tol)
 }

@@ -461,3 +461,43 @@ fn every_structural_door_judges_orientation_at_any_scalar() {
         "and the closed-form volume a dual CAN compute is the negative one"
     );
 }
+
+/// **The `_structural` certificate continues to the closed form's own
+/// measurement, pads `0`** — at `f64` and at a dual, the claim
+/// `validate_geometric_certificate_structural`'s doc makes. It holds no
+/// lane, so what it continues to is `mass_properties_structural` on the
+/// same body, compared through `Debug` (every `f64` round-trips there).
+#[test]
+fn the_structural_certificate_continues_to_the_closed_form() {
+    use geom_core::Dual64;
+    let tol = Tol::witness();
+    let mut f = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut f.body, Tol::witness());
+    let continued = topo::validate_geometric_certificate_structural(&f.body, tol)
+        .expect("the cube passes the `_structural` door")
+        .refine_to_target()
+        .expect("a closed-form certificate's continuation cannot refuse");
+    assert_eq!(
+        (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
+        (0, 0),
+        "a closed-form certificate carries pads of 0"
+    );
+    let measured =
+        topo::mass_properties_structural(&f.body, tol).expect("the closed form measures");
+    assert_eq!(format!("{continued:?}"), format!("{measured:?}"));
+
+    let mut d = geometric_cube::<Dual64>(Tol::witness());
+    describe_as_intersections(&mut d.body, Tol::witness());
+    let continued = topo::validate_geometric_certificate_structural(&d.body, tol)
+        .expect("the cube passes the `_structural` door at a dual")
+        .refine_to_target()
+        .expect("a closed-form certificate's continuation cannot refuse at a dual");
+    let measured =
+        topo::mass_properties_structural(&d.body, tol).expect("the closed form measures at a dual");
+    assert_eq!(
+        (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
+        (0, 0),
+        "and so it does at a dual"
+    );
+    assert_eq!(format!("{continued:?}"), format!("{measured:?}"));
+}

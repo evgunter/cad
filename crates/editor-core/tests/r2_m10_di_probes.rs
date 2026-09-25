@@ -648,7 +648,7 @@ fn direct_validation_door_behavior_at_dual64() {
         // this body.
         let verdict = topo::validate_geometric_structural(body_n, tol);
         assert!(
-            matches!(&verdict, Err(errs) if errs.iter().all(|e| matches!(
+            matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
                 e,
                 topo::ValidationError::VolumeUncomputable { .. }
             ))),
