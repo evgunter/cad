@@ -1,21 +1,13 @@
 //! Blinded review R2 probes for M9-2 PR-1's chart-region predicate.
 //! Adversarial only — nothing here ships; the module is `cfg(test)`.
 
-use super::tests::{band, face_of, pt, rect, sheet, xy_plane};
+use super::tests::{band, face_of, pt, rect, sheet, uv, xy_plane, xy_plane_rotated};
 use super::*;
 use crate::euler::FaceSurface;
 use crate::source::GeomSource;
 use geom_brep::Pcurve;
 use geom_core::{Point3, Vec3};
 
-/// Same plane LOCUS, a different chart frame (u_ref rotated 90°).
-fn xy_plane_rotated() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_y(),
-    }
-}
 // ---------------------------------------------------------------
 // CLAIM 1 — the structural inventory gate
 // ---------------------------------------------------------------
@@ -456,33 +448,29 @@ fn probe_seam_straddle_and_exact_full_wrap() {
         radius: 2.0,
         u_ref: Vec3::unit_x(),
     };
-    let uv = |o: Vec<Point2<f64>>| FaceUv {
-        outer: o,
-        rings: vec![],
-    };
     let tau = std::f64::consts::TAU;
     // Same branch: fine.
-    let a = uv(rect(0.1, 0.0, 1.0, 1.0));
-    let b = uv(rect(0.5, 0.0, 1.5, 1.0));
+    let a = uv(rect(0.1, 0.0, 1.0, 1.0), vec![]);
+    let b = uv(rect(0.5, 0.0, 1.5, 1.0), vec![]);
     assert!(seam_gate(&cyl, &a, &b, band()).is_ok());
     // τ apart: different pinned branches.
-    let c = uv(rect(0.1 + tau, 0.0, 1.0 + tau, 1.0));
+    let c = uv(rect(0.1 + tau, 0.0, 1.0 + tau, 1.0), vec![]);
     assert!(matches!(
         seam_gate(&cyl, &a, &c, band()),
         Err(ChartRegionError::SeamBranch)
     ));
     // EXACT full wrap: span is exactly τ ⇒ the Zero outcome passes.
-    let w = uv(rect(0.0, 0.0, tau, 1.0));
+    let w = uv(rect(0.0, 0.0, tau, 1.0), vec![]);
     assert!(seam_gate(&cyl, &w, &w, band()).is_ok());
     // A hair over τ, well outside the band at r = 2: refuses.
-    let over = uv(rect(0.0, 0.0, tau + 1e-6, 1.0));
+    let over = uv(rect(0.0, 0.0, tau + 1e-6, 1.0), vec![]);
     assert!(matches!(
         seam_gate(&cyl, &over, &over, band()),
         Err(ChartRegionError::SeamBranch)
     ));
     // A hair over τ but INSIDE the band (3e-9 rad × 2 m = 6e-9 m):
     // three-outcome honesty says this must not silently pass.
-    let inband = uv(rect(0.0, 0.0, tau + 3e-9, 1.0));
+    let inband = uv(rect(0.0, 0.0, tau + 3e-9, 1.0), vec![]);
     let got = seam_gate(&cyl, &inband, &inband, band());
     println!("in-band seam excess => {got:?}");
     assert!(matches!(got, Err(ChartRegionError::Escalated(_))));

@@ -3784,7 +3784,6 @@ mod tests {
     #[test]
     fn mate5_band_overlap_is_three_outcome_and_seam_blind() {
         let r = 1.5;
-        let uv = |outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>| FaceUv { outer, rings };
         // Misaligned seams, overlapping axial bands: the whole point
         // of the fast path — no fold, no seam gate, a certified
         // positive.
@@ -4078,11 +4077,8 @@ mod tests {
         crate::test_support_fixtures::CylFrame::canonical(radius).surface()
     }
 
-    fn uv_of(outer: Vec<Point2<f64>>) -> FaceUv<f64> {
-        FaceUv {
-            outer,
-            rings: Vec::new(),
-        }
+    pub(super) fn uv(outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>) -> FaceUv<f64> {
+        FaceUv { outer, rings }
     }
 
     #[test]
@@ -4090,19 +4086,19 @@ mod tests {
         let tau = core::f64::consts::TAU;
         let s = cyl_surface(1.0);
         // Loops a full period apart: different pinned branches.
-        let a = uv_of(rect(0.0, 0.0, 1.0, 1.0));
-        let b = uv_of(rect(tau + 0.1, 0.0, tau + 1.0, 1.0));
+        let a = uv(rect(0.0, 0.0, 1.0, 1.0), vec![]);
+        let b = uv(rect(tau + 0.1, 0.0, tau + 1.0, 1.0), vec![]);
         match seam_gate(&s, &a, &b, band()) {
             Err(ChartRegionError::SeamBranch) => {}
             other => panic!("branch-divergent pair must refuse, got {other:?}"),
         }
         // Same branch: passes.
-        let c = uv_of(rect(2.0, 0.0, 3.0, 1.0));
+        let c = uv(rect(2.0, 0.0, 3.0, 1.0), vec![]);
         seam_gate(&s, &a, &c, band()).unwrap();
         // The exact full-wrap wall (span exactly τ) is ONE closed
         // branch and passes on the Zero outcome.
-        let full = uv_of(rect(0.0, 0.0, tau, 1.0));
-        let inner = uv_of(rect(1.0, 0.2, 2.0, 0.8));
+        let full = uv(rect(0.0, 0.0, tau, 1.0), vec![]);
+        let inner = uv(rect(1.0, 0.2, 2.0, 0.8), vec![]);
         seam_gate(&s, &full, &inner, band()).unwrap();
     }
 
@@ -4180,6 +4176,16 @@ mod tests {
             origin: Point3::origin(),
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
+        }
+    }
+
+    /// Same plane LOCUS as [`xy_plane`], a different chart frame
+    /// (`u_ref` rotated 90°).
+    pub(super) fn xy_plane_rotated() -> Surface<f64> {
+        Surface::Plane {
+            origin: Point3::origin(),
+            normal: Vec3::unit_z(),
+            u_ref: Vec3::unit_y(),
         }
     }
 
@@ -4552,13 +4558,15 @@ mod tests {
             let mut a = Body::<f64>::new();
             let fa = sheet(&mut a, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
             let ka = a.get_face(fa).unwrap().surface;
-            let rotated = Surface::Plane {
-                origin: Point3::origin(),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_y(),
-            };
             let mut b = Body::<f64>::new();
-            let fb = sheet(&mut b, 1.0, 1.0, 3.0, 3.0, FaceSurface::New(rotated));
+            let fb = sheet(
+                &mut b,
+                1.0,
+                1.0,
+                3.0,
+                3.0,
+                FaceSurface::New(xy_plane_rotated()),
+            );
             let kb = b.get_face(fb).unwrap().surface;
             a.set_surface_source(ka, GeomSource::minted(3, 0)).unwrap();
             b.set_surface_source(kb, GeomSource::minted(3, 0)).unwrap();
@@ -4648,8 +4656,8 @@ mod tests {
             // One geometry, three radii: excess 3e-12 rad reads as
             // 3e-9 m (in-band), 3e-15 m (inside one branch), 3e-6 m
             // (definite branch divergence) purely through the r arm.
-            let a = uv_of(rect(0.0, 0.0, 1e-3, 1.0));
-            let b = uv_of(rect(tau - 1e-3, 0.0, tau + 3e-12, 1.0));
+            let a = uv(rect(0.0, 0.0, 1e-3, 1.0), vec![]);
+            let b = uv(rect(tau - 1e-3, 0.0, tau + 3e-12, 1.0), vec![]);
             match seam_gate(&cyl_surface(1000.0), &a, &b, band()) {
                 Err(ChartRegionError::Escalated(_)) => {}
                 other => panic!("in-band seam excess must escalate, got {other:?}"),
@@ -4773,8 +4781,8 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms {
-    use super::tests::{band, rect, sheet, xy_plane};
-    use super::{ChartOverlap, ChartRegionError, FaceUv, certified_arms, overlap_of_uv, v_window};
+    use super::tests::{band, rect, sheet, uv, xy_plane};
+    use super::{ChartOverlap, ChartRegionError, certified_arms, overlap_of_uv, v_window};
     use crate::body::Body;
     use crate::euler::FaceSurface;
     use geom::{NurbsSurface, Surface};
@@ -4812,13 +4820,16 @@ mod inf_arms {
 
     /// A bilinear chart on `[0, 1]²` mapping to the flat rectangle
     /// `[0, su] × [0, sv]`: `|S_u| = su`, `|S_v| = sv`, `S_u·S_v = 0`.
-    fn flat_chart(su: f64, sv: f64) -> Surface<f64> {
+    /// At any scalar, the corners lifted componentwise from `f64`, so
+    /// `inf_arms_interval` reads the same chart at `Interval`.
+    pub(super) fn flat_chart<T: geom_core::Real>(su: f64, sv: f64) -> Surface<T> {
         let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
+        let f = T::from_f64;
         let control = vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(0.0, sv, 0.0),
-            Point3::new(su, 0.0, 0.0),
-            Point3::new(su, sv, 0.0),
+            Point3::new(f(0.0), f(0.0), f(0.0)),
+            Point3::new(f(0.0), f(sv), f(0.0)),
+            Point3::new(f(su), f(0.0), f(0.0)),
+            Point3::new(f(su), f(sv), f(0.0)),
         ];
         Surface::Nurbs(Arc::new(
             NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
@@ -5087,12 +5098,8 @@ mod inf_arms {
         let fb = sheet(&mut bb, 0.0, 0.0, 1.0, 1.0, FaceSurface::New(xy_plane()));
         let s = sphere(2.0);
         // u spans π/2 (1.5708); v stays inside |v| ≤ 0.3.
-        let uv = |x0: f64, y0: f64, x1: f64, y1: f64| FaceUv {
-            outer: rect(x0, y0, x1, y1),
-            rings: Vec::new(),
-        };
-        let uv_a = uv(1.40, -0.30, 1.60, -0.10);
-        let uv_b = uv(1.45, -0.25, 1.65, -0.05);
+        let uv_a = uv(rect(1.40, -0.30, 1.60, -0.10), vec![]);
+        let uv_b = uv(rect(1.45, -0.25, 1.65, -0.05), vec![]);
         // The honest window is the v reach [-0.30, -0.05].
         let (v_lo, v_hi) = v_window(&uv_a, &uv_b).unwrap();
         assert_eq!((v_lo, v_hi), (-0.30, -0.05), "the SECOND channel");
@@ -5154,6 +5161,7 @@ mod inf_arms {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod inf_arms_interval {
     use super::certified_arms;
+    use super::inf_arms::flat_chart;
     use super::tests::band;
     use geom::{NurbsSurface, Surface};
     use geom_core::k_stats::decide;
@@ -5161,26 +5169,12 @@ mod inf_arms_interval {
     use geom_core::{Bounds, Interval, Margin, Point3, Real, Sign};
     use std::sync::Arc;
 
-    fn flat_chart(su: f64, sv: f64) -> Surface<Interval> {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
-        let f = Interval::from_f64;
-        let control = vec![
-            Point3::new(f(0.0), f(0.0), f(0.0)),
-            Point3::new(f(0.0), f(sv), f(0.0)),
-            Point3::new(f(su), f(0.0), f(0.0)),
-            Point3::new(f(su), f(sv), f(0.0)),
-        ];
-        Surface::Nurbs(Arc::new(
-            NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 4]).unwrap(),
-        ))
-    }
-
     /// The `(4, 1)` orthogonal chart, under the interval scalar: the
     /// per-axis infs and the assembled arms bracket the `f64` answer,
     /// and the bracket's FLOOR is what a positive claim may lean on.
     #[test]
     fn the_inf_arms_are_certified_brackets_under_the_interval_scalar() {
-        let s = flat_chart(4.0, 1.0);
+        let s = flat_chart::<Interval>(4.0, 1.0);
         let i = geom_brep::chart_stretch_inf(&s);
         // Outward rounding widens the bracket by ulps, never more.
         assert!(
@@ -5243,7 +5237,7 @@ mod inf_arms_interval {
     #[test]
     fn the_spline_pole_joint_gate_answers_all_three_ways() {
         let sup = |span: f64| {
-            geom_brep::chart_stretch_sup(&flat_chart(span, span))
+            geom_brep::chart_stretch_sup(&flat_chart::<Interval>(span, span))
                 .unwrap()
                 .0
                 .get()
@@ -5271,12 +5265,8 @@ mod r2_mate8_probes {
     //! Blinded-review probes (lane R2, PR #1472): adversarial edge
     //! cases for `decomposition_witness`'s completeness argument and
     //! its budget guard. Probe-branch only; not part of the unit.
-    use super::tests::{pt, rect};
+    use super::tests::{pt, rect, uv};
     use super::*;
-
-    fn uv(outer: Vec<Point2<f64>>, rings: Vec<Vec<Point2<f64>>>) -> FaceUv<f64> {
-        FaceUv { outer, rings }
-    }
 
     /// Strict even-odd containment of `(x, y)` in `poly`, with a
     /// straight-line boundary margin so "strictly inside" is honest.
