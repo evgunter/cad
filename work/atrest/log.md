@@ -716,3 +716,55 @@ an hour with a full `--no-fail-fast` battery (piped through `tail`,
 against the discipline), plus an orphaned 1h42m waiter, starving five
 lanes and a reviewer. Told to release it and keep measurements
 targeted; every later brief says so explicitly.
+
+## 2026-09-27 — ATREST-5 merged; three reviews adjudicated; one outage
+
+**ATREST-5 merged** (PR #3179; fix-pass run 36055931100 green at six
+`test` and five `k-lint`, read at step level). Check 9's nesting arm
+now decides the `Disc` class through `contain::disc_side` — the annular
+rim of every shelled vessel of revolution. `check-9-nesting-is-line-bounded-only`
+closed; its `ArcParity`/`NoWalk` thirds live on as
+`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`,
+parked on TANG's #1076. The review (single, full) found no MAJOR;
+all ten findings were taken, including a `rehome_rings` finding given
+its own row on REACH's slate with the reviewer's corrected class
+(`ArcParity`, not `Disc`). The vertex-only choice for disc-class rings
+was upheld: the case a two-circle test adds is a crossing, and the
+crossing is its own row (`check-9-contact-half-misses-a-crossing-and-a-tangency`).
+The landing now follows the ledger convention: the spec deleted with a
+`docs/doc-ledger/atrest-5-spec.md` note naming the SHA it is
+recoverable at, and the docs-only state-sync run cancelled rather than
+killed mid-flight at merge.
+
+**ATREST-4 reviewed** (single, full): APPROVE-WITH-FIXES, no MAJOR.
+The segment term `axis·R²(Δ−sinΔ)` was re-derived by hand and holds for
+every arc shape; the assigner's path is bit-identical. The finding that
+matters: the PR argued the sweep verbs' cap normals
+(`newell_plane(cap_points)`) always get the sign right, and the argument
+covers concave arcs only — the reviewer's C-shaped profile with a 350°
+CONVEX arc gives an apex polygon of −1.53 against a true region of
++1.44, i.e. an extruded cap whose normal points into the material. The
+fix pass MEASURES it through the public doors rather than arguing
+either way; if `extrude` produces that body, it is a P0 producer defect
+filed on the verbs' owner — and the widened check 6 is what now
+catches it at rest. Also owed: a row that pins the segment term's
+MAGNITUDE (every new row used semicircles or unit radii and asserted
+sign only), and the arc term's second home in `join.rs`.
+
+**ATREST-8 reviewed** (single, style): APPROVE-WITH-FIXES. The arms read
+far better, every re-baseline held or tightened — but the budget guard
+passed because of which samples it picked: composed at-rest renderings
+the viewer draws run to 99 words (`CensusUnsupported` over
+`ChartRegion` causes; `Containment(ArcLoopUnsupported)`; the
+`Uncertified` header at 59 words before any cause), and the guard
+hand-rolled a budget-only loop beside the shared `test_utils::refusal`
+checker that also checks arena keys and prefixes. The fix pass samples
+every composed shape the viewer can draw, adopts the shared checker,
+and takes the recourses that stopped being true once their caveats
+were cut.
+
+**Outage.** On 2026-09-24 the account's weekly usage limit killed all
+five live agents mid-work. Nothing was lost — every lane had pushed or
+held its work on disk (ATREST-4 five unpushed commits, ATREST-9 its
+trace instrumentation) — and all five were resumed with their context
+at the reset on 2026-09-27.
