@@ -404,11 +404,12 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// escalations.
 #[test]
 fn check_1_names_the_analytic_datum_that_describes_no_locus() {
+    use geom::ConventionEnd::{Lower, Upper};
     use geom::SurfaceDatum as D;
     use geom_brep::SurfaceKind as K;
     enum Verdict {
         Poisoned,
-        Unrepresentable,
+        Unrepresentable(geom::ConventionEnd),
     }
     let tol = Tol::witness();
     let o = pt(0.0, 0.0, 0.0);
@@ -446,7 +447,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(0.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, NaN half-angle",
@@ -478,7 +479,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             cylinder(-1.0),
             K::Cylinder,
             D::Radius,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cylinder, infinite radius",
@@ -492,35 +493,35 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             sphere(-2.0),
             K::Sphere,
             D::Radius,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, zero half-angle",
             cone(0.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "cone, half-angle pi/2",
             cone(core::f64::consts::FRAC_PI_2),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "cone, half-angle past pi/2",
             cone(2.0),
             K::Cone,
             D::HalfAngle,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Upper),
         ),
         (
             "torus, zero tube",
             torus(2.0, 0.0),
             K::Torus,
             D::MinorRadius,
-            Verdict::Unrepresentable,
+            Verdict::Unrepresentable(Lower),
         ),
         (
             "torus, NaN tube",
@@ -536,14 +537,67 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             D::MajorRadius,
             Verdict::Poisoned,
         ),
+        (
+            "torus, NaN major radius",
+            torus(f64::NAN, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite tube",
+            torus(2.0, f64::INFINITY),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "cone, NaN apex",
+            Surface::Cone {
+                apex: pt(0.0, f64::NAN, 0.0),
+                axis: Vec3::unit_z(),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cone,
+            D::Apex,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, infinite axis",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::new(0.0, 0.0, f64::INFINITY),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cylinder,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, NaN center",
+            Surface::Sphere {
+                center: pt(f64::NAN, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            K::Sphere,
+            D::Center,
+            Verdict::Poisoned,
+        ),
     ];
     for (name, surface, kind, datum, verdict) in cases {
         let (errs, face) = pillow_on(surface, tol);
         let expected = match verdict {
             Verdict::Poisoned => ValidationError::PoisonedSurfaceDatum { face, kind, datum },
-            Verdict::Unrepresentable => {
-                ValidationError::UnrepresentableSurfaceDatum { face, kind, datum }
-            }
+            Verdict::Unrepresentable(end) => ValidationError::UnrepresentableSurfaceDatum {
+                face,
+                kind,
+                datum,
+                end,
+            },
         };
         assert_eq!(
             errs.first(),
@@ -560,9 +614,11 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
 
 /// The control, and the boundary on the inside: surfaces whose every
 /// datum is a number inside its convention draw no datum verdict,
-/// whatever else the swap costs the body — a cone just inside either
-/// end of `(0, π/2)` and a plane whose normal underflows its length
-/// without being zero included.
+/// whatever else the swap costs the body — a cone ONE ULP inside either
+/// end of `(0, π/2)` (so a bound carrying any tolerance reds), a plane
+/// whose normal underflows its length without being zero, and a plane
+/// whose finite normal's NORM overflows (a direction, not the zero
+/// vector) included.
 #[test]
 fn datums_inside_their_conventions_draw_no_datum_verdict() {
     let tol = Tol::witness();
@@ -570,15 +626,23 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         ("unit cylinder", cylinder(1.0)),
         ("unit sphere", sphere(1.0)),
         ("cone at pi/4", cone(core::f64::consts::FRAC_PI_4)),
-        ("cone just above 0", cone(1e-9)),
+        ("cone one ulp above 0", cone(f64::from_bits(1))),
         (
-            "cone just below pi/2",
-            cone(core::f64::consts::FRAC_PI_2 - 1e-9),
+            "cone one ulp below pi/2",
+            cone(f64::from_bits(core::f64::consts::FRAC_PI_2.to_bits() - 1)),
         ),
         ("ring torus", torus(2.0, 0.5)),
         (
             "plane, normal underflowed but not zero",
             plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e160)",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e160)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e200)",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e200)),
         ),
     ];
     for (name, surface) in cases {

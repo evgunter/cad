@@ -825,6 +825,10 @@ pub enum ValidationError {
         kind: geom_brep::SurfaceKind,
         /// The datum outside its convention.
         datum: geom::SurfaceDatum,
+        /// Which end of the convention it fails: `Lower` for a radius
+        /// that is not positive or a cone closed to a line, `Upper` for
+        /// a cone opened to a plane.
+        end: geom::ConventionEnd,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
     /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
@@ -1992,12 +1996,21 @@ impl fmt::Display for ValidationError {
                     "it is not a finite number"
                 },
             ),
-            Self::UnrepresentableSurfaceDatum { face, kind, datum } => write!(
+            Self::UnrepresentableSurfaceDatum {
+                face,
+                kind,
+                datum,
+                end,
+            } => write!(
                 f,
-                "face {face:?}'s {kind} surface stores a {datum} outside its convention \
+                "face {face:?}'s {kind} surface stores a {datum} {side} of its convention \
                  (not definitely inside it), so it describes no 2-manifold a face can bound",
                 kind = kind.name(),
                 datum = datum.name(),
+                side = match end {
+                    geom::ConventionEnd::Lower => "at or below the lower end",
+                    geom::ConventionEnd::Upper => "at or above the upper end",
+                },
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -3815,6 +3828,77 @@ fn contact_marks_declared_via<
 /// getting the argument rather than two copies of the check.
 type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
 
+/// **Check 1's verdicts on one analytic surface**, in the order they
+/// are asked, each gated on the one before it having found nothing:
+///
+/// 1. **Poison** ([`poisoned_datums`]): `geom`'s totality-and-poison
+///    rule is about no particular surface kind, so a stored datum that
+///    is not a number is named here exactly as a poisoned net is named
+///    by the `Nurbs` arm. Every such datum is named, and the convention
+///    is not read over any of them — a margin of poison is poison.
+/// 2. **The convention, on REPRESENTABILITY**: each of
+///    [`geom::Surface::representability_margins`] must be definitely
+///    positive. A datum outside its variant's convention describes no
+///    2-manifold a face can bound. The first failing margin is named,
+///    with the end of the convention it fails. Why this is a bracket
+///    read that decides nothing, unmetered: the `Bounds` scope rule's
+///    entry for this file (`geom_core::real`, `bounds_allowlist`, the
+///    2026-09-02 certified at-rest entry) — one home, not restated here.
+/// 3. **The torus's ring half `R > r`**: a GEOMETRIC question — two
+///    datums of the body compared, not one against its bound — so it
+///    goes through `decide`. Asked only after `r > 0` has held, because
+///    `R − r` metered against a nonpositive `r` would quote it: at
+///    `r = −R` the difference reads `2R`, definitely positive.
+fn analytic_surface_verdicts<T: Decide + geom_core::Bounds>(
+    face: FaceKey,
+    surface: &Surface<T>,
+    band: Band,
+) -> Vec<ValidationError> {
+    let kind = geom_brep::SurfaceKind::of(surface);
+    let poisoned = poisoned_datums(surface);
+    if !poisoned.is_empty() {
+        return poisoned
+            .into_iter()
+            .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
+            .collect();
+    }
+    let unrepresentable = surface
+        .representability_margins()
+        .into_iter()
+        .flatten()
+        .find(|m| {
+            !matches!(
+                geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
+                Some(core::cmp::Ordering::Greater)
+            )
+        });
+    if let Some(m) = unrepresentable {
+        return vec![ValidationError::UnrepresentableSurfaceDatum {
+            face,
+            kind,
+            datum: m.datum,
+            end: m.end,
+        }];
+    }
+    let Surface::Torus {
+        major_radius,
+        minor_radius,
+        ..
+    } = surface
+    else {
+        return Vec::new();
+    };
+    match decide(
+        "ring_torus_convention",
+        Margin::of(*major_radius - *minor_radius),
+        band,
+    ) {
+        Ok(Sign::Positive) => Vec::new(),
+        Ok(Sign::Zero | Sign::Negative) => vec![ValidationError::DegenerateTorus { face }],
+        Err(cause) => vec![ValidationError::DegenerateTorusEscalated { face, cause }],
+    }
+}
+
 /// **Check 1's poison read of an analytic surface**: every stored datum
 /// that is not a finite number at this scalar, and a plane `normal`
 /// that is the zero vector, in field order. Empty for a surface whose
@@ -3829,17 +3913,32 @@ type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Ce
 ///
 /// The zero normal is the one direction asked for more than
 /// finiteness, because a plane's `normal` IS its chart normal: a zero
-/// one collapses `v_ref = normal × u_ref`, and the plane with it. The
-/// test is [`geom_core::is_underflowed_length`]'s arithmetic read for
-/// the case it separates out: of a finite vector, `len / witness` is
-/// the scalar's poison exactly when both are zero — the zero vector —
-/// and a finite ratio otherwise, `0` included (an underflowed length,
-/// a direction that is merely not unit).
+/// one collapses `v_ref = normal × u_ref`, and the plane with it. It is
+/// asked through [`geom_core::is_zero_length`] under that door's
+/// precondition — the length is asked [`geom_core::is_finite_length`]
+/// first — so a normal whose components are finite but whose NORM
+/// overflows (`(1e200, 0, 0)` at `f64`) is a direction, not the zero
+/// vector, and passes. Underflowed normals pass too: not unit, which is
+/// conventional and unchecked, but a direction.
+///
+/// **The two scalars answer "finite" differently on one shape**, and
+/// that is `is_finite_length`'s value-channel semantics rather than
+/// this read's: an interval ENCLOSURE whose upper end overflowed still
+/// contains its truth and answers finite, where the same computation at
+/// `f64` is `∞` and is refused. A stored datum reaches the interval
+/// scalar through `Interval::from_f64` (NaN and `±∞` become NaI, which
+/// is refused), so the difference bites only a datum that was COMPUTED
+/// at interval type; filed as
+/// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
 fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
     use geom::SurfaceDatum as D;
     use geom_core::is_finite_length as finite;
     let point = |p: &geom_core::Point3<T>| finite(p.x) && finite(p.y) && finite(p.z);
     let vector = |v: &geom_core::Vec3<T>| finite(v.x) && finite(v.y) && finite(v.z);
+    let is_zero_normal = |n: &geom_core::Vec3<T>| {
+        let len = n.norm();
+        finite(len) && geom_core::is_zero_length(len, n.norm_witness())
+    };
     let fields: Vec<(D, bool)> = match surface {
         Surface::Plane {
             origin,
@@ -3847,10 +3946,7 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
             u_ref,
         } => vec![
             (D::Origin, point(origin)),
-            (
-                D::Normal,
-                vector(normal) && finite(normal.norm() / normal.norm_witness()),
-            ),
+            (D::Normal, vector(normal) && !is_zero_normal(normal)),
             (D::URef, vector(u_ref)),
         ],
         Surface::Cylinder {
@@ -4027,98 +4123,14 @@ pub(crate) fn tier3_local_checks_marked<
             },
             // Every analytic kind: its datums first, then its
             // convention, then — for the torus — the one convention
-            // that relates two datums.
+            // that relates two datums (`analytic_surface_verdicts`).
             Some(
                 surface @ (Surface::Plane { .. }
                 | Surface::Cylinder { .. }
                 | Surface::Cone { .. }
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }),
-            ) => {
-                let kind = geom_brep::SurfaceKind::of(surface);
-                // The poison half: `geom`'s totality-and-poison rule is
-                // about no particular surface kind, so a stored datum
-                // that is not a number is named here exactly as a
-                // poisoned net is above. Every such datum is named, and
-                // the convention is not read over any of them — a
-                // margin of poison is poison, and would only say the
-                // same thing again under a worse name.
-                let poisoned = poisoned_datums(surface);
-                if !poisoned.is_empty() {
-                    errors.extend(poisoned.into_iter().map(|datum| {
-                        ValidationError::PoisonedSurfaceDatum {
-                            face: face_key,
-                            kind,
-                            datum,
-                        }
-                    }));
-                    continue;
-                }
-                // The convention half, on REPRESENTABILITY: a datum
-                // outside its variant's convention describes no
-                // 2-manifold a face can bound. The bounds are `geom`'s,
-                // written once per kind; this site only asks whether
-                // each margin is definitely positive. Whether a stored
-                // datum lies inside its convention is a fact about the
-                // DATUM, not a geometric quantity of the body, so it
-                // takes no `k_stats` name and no band — the chamfer's
-                // `NonpositiveSize` precedent — and is read off the
-                // bracket's low end — `Bounds::lo`, the one bracket read
-                // in this file, disclosed at the `Bounds` scope rule's
-                // entry for it (`geom_core::real`) — through
-                // `partial_cmp`, so the INCOMPARABLE case is an arm and
-                // not an accident. The first margin that fails is the
-                // one named: a cone's two margins name one datum.
-                let unrepresentable =
-                    surface
-                        .representability_margins()
-                        .into_iter()
-                        .find(|(_, margin)| {
-                            !matches!(
-                                geom_core::Bounds::lo(*margin).partial_cmp(&0.0),
-                                Some(core::cmp::Ordering::Greater)
-                            )
-                        });
-                if let Some((datum, _)) = unrepresentable {
-                    errors.push(ValidationError::UnrepresentableSurfaceDatum {
-                        face: face_key,
-                        kind,
-                        datum,
-                    });
-                    continue;
-                }
-                // The torus's ring half `R > r` is a GEOMETRIC question
-                // — two datums of the body compared, not one datum
-                // against its bound — so it goes through `decide`. It is
-                // asked only after `r > 0` has held, because `R − r`
-                // metered against a nonpositive `r` would quote it: at
-                // `r = −R` the difference reads `2R`, definitely
-                // positive, and the net would pass a surface that has no
-                // tube at all.
-                if let Surface::Torus {
-                    major_radius,
-                    minor_radius,
-                    ..
-                } = surface
-                {
-                    match decide(
-                        "ring_torus_convention",
-                        Margin::of(*major_radius - *minor_radius),
-                        band,
-                    ) {
-                        Ok(Sign::Positive) => {}
-                        Ok(Sign::Zero | Sign::Negative) => {
-                            errors.push(ValidationError::DegenerateTorus { face: face_key });
-                        }
-                        Err(cause) => {
-                            errors.push(ValidationError::DegenerateTorusEscalated {
-                                face: face_key,
-                                cause,
-                            });
-                        }
-                    }
-                }
-            }
+            ) => errors.extend(analytic_surface_verdicts(face_key, surface, band)),
             // Cascade discipline: a face whose surface key does not
             // resolve is tier 1's `DanglingGeometry`, already reported,
             // and the coarse gate means we never reach here in that
@@ -6791,6 +6803,95 @@ mod tests {
     use crate::seqgen;
     use crate::test_support_fixtures::declined_cube;
 
+    /// **Check 1's analytic verdicts at BOTH scalars**, one surface
+    /// lifted from `f64` to `Interval` through `Surface::map_scalar`
+    /// and handed to the same door. The rows a scalar-shaped
+    /// degradation would red: the zero normal (`[0,0]/[0,0]` is the
+    /// empty interval, poison), a NaN datum (NaI at the interval
+    /// scalar), the cone one ulp inside and exactly at `π/2` (where
+    /// `Interval::pi()` is an enclosure, not a point), and a finite
+    /// normal whose norm overflows at `f64` — a direction, refused at
+    /// neither scalar.
+    #[test]
+    fn check_1_analytic_verdicts_agree_at_f64_and_interval() {
+        use geom::{ConventionEnd, SurfaceDatum as D};
+        use geom_brep::SurfaceKind as K;
+        use geom_core::{Interval, Vec3};
+        let face = FaceKey::default();
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance is a band");
+        let plane = |normal: Vec3<f64>| Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: Vec3::unit_x(),
+        };
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
+            face,
+            kind: K::Plane,
+            datum: D::Normal,
+        }];
+        let rows: Vec<(&str, Surface<f64>, Vec<ValidationError>)> = vec![
+            (
+                "zero normal",
+                plane(Vec3::new(0.0, 0.0, 0.0)),
+                normal_verdict.clone(),
+            ),
+            (
+                "NaN normal",
+                plane(Vec3::new(f64::NAN, 0.0, 1.0)),
+                normal_verdict,
+            ),
+            (
+                "normal (1e200, 0, 0)",
+                plane(Vec3::new(1e200, 0.0, 0.0)),
+                vec![],
+            ),
+            (
+                "normal (0, 0, 1e160)",
+                plane(Vec3::new(0.0, 0.0, 1e160)),
+                vec![],
+            ),
+            (
+                "cone at pi/2",
+                cone(half_pi),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Upper,
+                }],
+            ),
+            (
+                "cone one ulp below pi/2",
+                cone(f64::from_bits(half_pi.to_bits() - 1)),
+                vec![],
+            ),
+            (
+                "cone at 0",
+                cone(0.0),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Lower,
+                }],
+            ),
+        ];
+        for (name, surface, expected) in rows {
+            let at_f64 = analytic_surface_verdicts(face, &surface, band);
+            let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+            let at_interval = analytic_surface_verdicts(face, &lifted, band);
+            assert_eq!(at_f64, expected, "{name}, at f64");
+            assert_eq!(at_interval, expected, "{name}, at Interval");
+        }
+    }
+
     fn anchor() -> Point3<f64> {
         Point3::origin()
     }
@@ -7821,6 +7922,7 @@ mod tests {
                 face: t.face_a,
                 kind: geom_brep::SurfaceKind::Cone,
                 datum: geom::SurfaceDatum::HalfAngle,
+                end: geom::ConventionEnd::Upper,
             },
             ValidationError::ApproxCertification {
                 face: t.face_a,
