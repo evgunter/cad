@@ -340,6 +340,20 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     never as a bare "there is none".
     (2026-09-20, `dup/viewer-shared-doors`; the wording is the lane's.)
 
+25. **"Done" means present at HEAD, not reported by the editor.** A
+    lane's edit script checked every anchor before writing and, on one
+    stale anchor, wrote nothing and exited cleanly; it had lost two
+    corrections that way in an earlier pass, and the lane had reported
+    both as done. Only the orchestrator's re-check against HEAD, item
+    by item, found the gap. This is item 21's failure seen from the
+    reporting side: a tool that refuses to act looks the same as one
+    that acted. **Confirm each claimed change by reading HEAD (`git
+    show`, a grep for the new text) before you report it**, and a
+    brief that asks for a list of fixes gets back a line per fix with
+    the sha that carries it.
+    (2026-09-24, `dup/shells-of-solid-door`; the lane found it itself
+    on re-check.)
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full

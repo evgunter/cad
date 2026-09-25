@@ -2046,3 +2046,61 @@ by example rather than by a new line.)
 census could not see. Found by the next lane on the same territory,
 with a whole-function scan. **A closed row is not evidence the class
 is empty; it is evidence of what one instrument could see.**
+
+## 2026-09-24 — the third sitting closes, and a fourth batch goes out
+
+A weekly API limit stopped all three third-batch lanes mid fix pass on
+2026-09-20. Each worktree was clean and pushed, and none had lost
+committed work. Resumed today, each lane first checked what it had
+actually done against HEAD. The viewer pass was complete. The
+cylinder-sheet and shells passes had landed more than their last notes
+said, but the shells lane found two earlier corrections an edit script
+had silently dropped (method item 25).
+
+While the lanes were down, main changed the tracker contract (priority
+and cost bands, track budgets, "the tracker is not comprehensive",
+`log.md` merges by union). All three branches conflicted on row
+headers, and the viewer branch also conflicted on two suites main had
+edited. Each lane merged main. Under the new contract, four filed rows
+became commits instead (a stale doc line, a shared `REACH`/`aimed_along_y`,
+`ring_delta`, `len_mm`), and one S-TINT row was deleted for the same
+reason.
+
+Merged: **#2929** (viewer doors), **#2925** (one cylinder-wall sheet in
+`topo/src`), **#2926** (`Body::shells_of_solid`), and **#3144** (method
+items 22–24). #2926's CI ran against main before #2925 landed and both
+touch `topo/src`, so the orchestrator ran clippy on the merged tree
+before merging. It was clean, and neither PR touches the door tables.
+
+- **One lane closed and reopened its PR to kick CI.** That is never
+  allowed. The run it wanted was missing because the PR conflicted, as
+  the implementer discipline now says in §2. It had no effect beyond
+  noise, and the brief now states the rule.
+- **Lint accepts a row with no `priority`/`cost`.** `REQUIRED` is still
+  `id, kind, title, status, opened`, so a green lint does not show the
+  bands are there. Two lanes noticed independently. The lanes priced
+  every row they touched anyway.
+
+### The slate
+
+`dup` measures **41/30** on the board: three P1 rows (4.5 points) and a
+P4 tail of 36.5. The contract says an over-budget track splits on its
+priority seam. **Chosen instead, for this sitting:** work the whole P1
+spine and batch the cheap P4 rows, which brings the load under budget
+without a split. A split into a P1 program and a P4 program would leave
+a P4 program still over budget on its own and a P1 program of three rows
+that are all in flight right now. If the load is still over 30 when this
+batch lands, the P4 tail is cut into its own program then.
+
+### Dispatched (fourth batch), with review tiers
+
+| branch | rows | tier, and why |
+| --- | --- | --- |
+| `dup/owner-index-divergence` | `two-spellings-of-the-face-to-solid-owner-index` (P1/D), `shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim` | single FULL: it changes what a `pub` door answers about a lone vertex |
+| `dup/scalar-lift-home` | `the-componentwise-scalar-lift-has-no-shared-home` (P1/E) | single FULL: a new public API on a `geom-core` type, folded across many crates |
+| `dup/viewer-insert-doors` | `three-doors-named-insert-mean-two-different-constructions` (P1/E), `the-rectangle-profile-is-still-written-longhand-beside-its-door` | single STYLE: a rename and a fold, readable in full |
+| `dup/topo-fixture-batch` | `the-9-3-holed-box-sequence-…`, `the-quad-sheet-helper-…`, `the-same-solid-two-shell-body-…`, `a-doors-rustdoc-carries-an-unguarded-census-sentence` | single STYLE: four mechanical folds |
+
+No unit this batch met the dual-review bar (especially tricky logic, or
+a broad design decision that would be hard to reverse). The owner-index
+choice is narrow: one entity kind, in a skeletal state, on one door.
