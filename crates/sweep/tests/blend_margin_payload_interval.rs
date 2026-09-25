@@ -1,5 +1,5 @@
 //! The blend battery's definite refusals at the CERTIFIED scalar
-//! (feature `interval`): what the margin payload says when the margin
+//!: what the margin payload says when the margin
 //! is an enclosure.
 //!
 //! At `f64` a margin is one number and a refusal can report it as one
@@ -16,13 +16,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the blend refusals' margin payload",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use crate::common::approx::band;
     use geom_core::{Interval, MarginDiag, Real, Sign};

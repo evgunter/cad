@@ -20,7 +20,7 @@
 //! `sup‖S_uu‖ ≤ √(Σ_c sup²)` = [`NurbsFaceBound::muu`], and likewise
 //! `muv`, `mvv`. Rounding: interval (ring) arithmetic end to end —
 //! including the rational arm's knot refinement, which is performed on
-//! ring enclosures of the described net rather than in `f64` — with a
+//! certification enclosures of the described net rather than in `f64` — with a
 //! final `next_up` on the square root.
 //!
 //! # The per-triangle certificate
@@ -84,7 +84,7 @@
 //!
 //! **The divisor is the cell's weight hull, argued not assumed.** On
 //! the cell, `w ∈ [w_min, w_max]` of the active weights (convex
-//! combination), and the recurrence is evaluated SIGNED in the ring —
+//! combination), and the recurrence is evaluated SIGNED in certification arithmetic —
 //! the true minus signs, divided by the whole hull, which is where the
 //! quotient rule's cancellations survive. The interval division
 //! poisons if positivity was never proven.
@@ -96,7 +96,7 @@
 //! template's trick, lifted to two parameters). The whole-domain bound
 //! is the max over cells of the per-cell sups, after the FIXED
 //! [`patch_bound::RATIONAL_CERT_SPLITS`] refinement (schedule docs
-//! there) — which is taken in the ring, so the sups bound the
+//! there) — which is taken in certification arithmetic, so the sups bound the
 //! DESCRIBED face and not the refined-`f64` one.
 //!
 //! A degree-1 direction's `Ã_dd`, `w_dd` are exactly zero, but its
@@ -177,7 +177,8 @@
 
 use geom::NurbsSurface;
 use geom_brep::patch_bound::{self, PatchBoundError};
-use geom_core::ring_interval::RingInterval;
+use geom_core::Bounds;
+use geom_core::interval::Interval;
 use topo::FaceKey;
 
 use crate::types::TessellateError;
@@ -203,7 +204,7 @@ fn face_err(fk: FaceKey, e: PatchBoundError) -> TessellateError {
 /// used to carry alongside the signed one applied the triangle
 /// inequality to the quotient rule and could not see its cancellations
 /// (issue 1006).
-fn cell_readings(c: &patch_bound::PatchCell) -> [RingInterval; 5] {
+fn cell_readings(c: &patch_bound::PatchCell) -> [Interval; 5] {
     [
         patch_bound::sq_norm(c.s_uu),
         patch_bound::sq_norm(c.s_uv),
@@ -230,7 +231,7 @@ pub(crate) struct NurbsFaceBound {
     /// a degree-1 direction's `Ã_uu` and `w_uu` are exact zeros but the
     /// cross terms are not (module docs), and even where the cross
     /// terms cancel in ℝ — a weight column constant along the
-    /// direction — the ring chain reports the width its refinement
+    /// direction — interval arithmetic chain reports the width its refinement
     /// contributed rather than zero. So a rational face's `muu` is
     /// positive dust, the degenerate arms are not taken for it, and
     /// that is correct: the assembly did not prove a zero.
@@ -511,9 +512,9 @@ pub(crate) struct CellBound {
 /// structurally-exact zero of a degree-1 direction must not leave here
 /// as subnormal dust.
 ///
-/// **The zero reaches here exact because the ring's arithmetic keeps
+/// **The zero reaches here exact because interval arithmetic's arithmetic keeps
 /// it.** `patch_bound::sq_norm` folds `acc + c.sqr()` from
-/// `RingInterval::zero()`, and the backend pads only where an
+/// `Interval::zero()`, and the backend pads only where an
 /// operation was inexact: `0 · 0` is exact by the zero-factor corner
 /// convention and `0 + 0` by the TwoSum witness
 /// (`interval_transcendentals`' `mul_lo`/`mul_hi`, `add_lo`/`add_hi`),
@@ -521,11 +522,11 @@ pub(crate) struct CellBound {
 /// `[0, 0]` and takes the arm below. An enclosure that is merely
 /// NARROW does not, and must not: it is an enclosure of something the
 /// assembly could not prove zero.
-fn cell_component(sq: RingInterval) -> f64 {
-    // The refusal is asked by name: the ring keeps it in the
+fn cell_component(sq: Interval) -> f64 {
+    // The refusal is asked by name: interval arithmetic keeps it in the
     // decoration, so a refused enclosure carries an ordinary `hi` and
     // the NaN the contract above promises has to be spelled here.
-    if sq.is_poison() {
+    if !sq.is_certified() {
         return f64::NAN;
     }
     let hi = sq.hi();
@@ -793,7 +794,7 @@ impl NurbsCellGrid {
     /// collapses per cell and takes the f64 max, and
     /// [`cell_component`] is monotone in the enclosure's `hi` — so
     /// `max_c sqrt(hi_c)` and `sqrt(max_c hi_c)` are the same f64. The
-    /// NaN asymmetry that makes the ring-level accumulation
+    /// NaN asymmetry that makes interval-level accumulation
     /// load-bearing there does not arise here: [`nurbs_cell_grid`] has
     /// already refused a face with any non-finite cell.
     ///
@@ -1276,7 +1277,7 @@ pub(crate) mod tests {
     use geom_core::Point3;
     use geom_core::Tol;
     use geom_core::spline::KnotVector;
-    use profile::RawLoop;
+    use profile::test_support::bulge_loop;
 
     /// A componentwise domination claim — every `lesser <= greater` — and
     /// the failure message of the rows that state one through it: the
@@ -1297,7 +1298,7 @@ pub(crate) mod tests {
     /// A certified sup encloses the true value of an expression; a
     /// dense `f64` evaluation of the same expression is not that
     /// value — it carries the rounding of its own tens of operations,
-    /// which the certificate never claimed to cover. While the C9 ring
+    /// which the certificate never claimed to cover. While certification arithmetic
     /// padded one representable step outward per operation the bound
     /// absorbed that rounding by accident, and a sampled `uu` sat
     /// under a certified one it exceeds in the reals by nothing at
@@ -1624,7 +1625,7 @@ pub(crate) mod tests {
     /// They are the structural zeros of two degree-1 directions, and a
     /// ceiling cannot tell the zero from dust: this row reds if the
     /// ring ever pads `0 + 0` or `0²` again, or if `sq_norm` stops
-    /// folding from the exact ring zero, either of which kills the
+    /// folding from the exact interval zero, either of which kills the
     /// `hi == 0.0` arm the split selection is decided on. `muv` keeps a
     /// ceiling because its zero is not structural — `S_uv = ΔΔP`
     /// vanishes here only because these coordinates' differences are
@@ -1811,7 +1812,7 @@ pub(crate) mod tests {
         let b = nurbs_face_bound(&s, FaceKey::default()).unwrap();
         assert!(
             b.mvv > 1e-14 && b.mvv < 1e-11,
-            "the rational degree-1 v direction's certified sup {:.17e} is not the ring \
+            "the rational degree-1 v direction's certified sup {:.17e} is not interval arithmetic \
              chain's dust in [1e-14, 1e-11]: at exactly 0.0 the split selection would \
              read it as a degenerate direction it never proved",
             b.mvv
@@ -2461,9 +2462,8 @@ pub(crate) mod tests {
     /// assembled body.
     fn pie_wall() -> NurbsSurface<f64> {
         use geom_core::{Affine3, Point2, Vec3};
-        let v = |x: f64, y: f64, bulge: f64| sweep::ProfileVertex::new(Point2::new(x, y), bulge);
-        let lp =
-            sweep::ProfileLoop::new(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
+        let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+        let lp = bulge_loop(vec![v(1.0, 0.0, 0.4), v(0.0, 1.0, 0.0), v(0.0, 0.0, 0.0)]);
         let sections = vec![vec![lp.clone()], vec![lp]];
         let places: Vec<Affine3<f64>> = [0.0, 1.0]
             .iter()
@@ -2644,7 +2644,7 @@ pub(crate) mod tests {
     /// `f64` refinement's answer was the deep-subnormal ~5e-166, which
     /// passes any ceiling written for 1e-13, so a re-pinned ceiling would
     /// have gone green on the code this unit replaced. The floor says
-    /// what the ring chain's width on `w ≡ const` actually is, so the
+    /// what interval arithmetic chain's width on `w ≡ const` actually is, so the
     /// row reds on an arithmetic that cancels it away — D300's shape,
     /// and the measurement is this tree's, not copied.
     ///
@@ -2690,7 +2690,7 @@ pub(crate) mod tests {
             .collect();
         assert!(
             escaped.is_empty(),
-            "the rational dust is not the width the ring chain contributes on a constant \
+            "the rational dust is not the width interval arithmetic chain contributes on a constant \
              weight column: {}. A figure BELOW the band is the alarming one — it means \
              the refinement cancelled exactly again, so the enclosure is of some patch \
              other than the described one",
@@ -2939,7 +2939,7 @@ pub(crate) mod tests {
         // C and D describe ONE surface at two weight scales four decades
         // apart, so what they may differ by is the arithmetic's own dust
         // and nothing else. They do differ: this assembly is not
-        // scale-invariant — the ring's rounding rides the weight
+        // scale-invariant — interval arithmetic's rounding rides the weight
         // magnitude through the quotient rule — so the claim is a bound
         // on the disagreement, which is what a scale-dependent blow-up
         // would break. Measured at ~2.6e-13 relative on the nonzero
@@ -3621,12 +3621,12 @@ pub(crate) mod tests {
             .transpose()
             .ok()?;
         let (nu, nv) = s.control_counts();
-        let zero = RingInterval::zero();
+        let zero = Interval::zero();
         let mut sq = [zero; 5];
         for c in 0..3 {
             let base = TensorNet::from_fn(nu, nv, |i, j| {
                 let p = s.control()[i * nv + j];
-                RingInterval::point(match c {
+                Interval::point(match c {
                     0 => p.x,
                     1 => p.y,
                     _ => p.z,
@@ -3668,7 +3668,7 @@ pub(crate) mod tests {
     fn cert10_the_whole_net_counterfactual_reproduces_the_pre_collapse_digits() {
         for (name, s, want) in [
             (
-                // The wavy row's `muu` moved TIGHTER with the ring's
+                // The wavy row's `muu` moved TIGHTER with interval arithmetic's
                 // arithmetic (was 10.394_094_997_048_835); the other
                 // four components are unmoved.
                 "wavy",
@@ -3923,8 +3923,8 @@ pub(crate) mod tests {
         // first-partial `mv1` still gains.
         let w = wavy();
         let bw = nurbs_face_bound(&w, FaceKey::default()).expect("covered");
-        // **Re-pinned when the C9 ring became a newtype over the
-        // backend**: the ring padded one representable step outward on
+        // **Re-pinned when certification arithmetic became a newtype over the
+        // backend**: interval arithmetic padded one representable step outward on
         // every operation and the backend pads only where the
         // operation was inexact, so the fold's `muu` came in tighter
         // (was 1.0394094997048835e1). The claim this row makes — the
@@ -3946,7 +3946,7 @@ pub(crate) mod tests {
     /// **CERT-10 red row: the rational per-cell reading is the SIGNED
     /// one.** The magnitude reading applied the triangle inequality to
     /// the quotient rule (all `+`, divide by the smallest weight); the
-    /// signed one evaluates the quotient rule itself in the ring, with
+    /// signed one evaluates the quotient rule itself in certification arithmetic, with
     /// the true minus signs and the whole weight hull as the divisor.
     /// The signed reading is strictly tighter and both are sound, so
     /// the shipped grid sizing reads the signed one.

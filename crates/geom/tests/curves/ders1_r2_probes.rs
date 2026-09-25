@@ -13,7 +13,6 @@ use std::sync::Arc;
 
 use geom::{Curve3, NurbsCurve2, NurbsCurve3};
 use geom_core::spline::{KnotVector, SpanLocate};
-#[cfg(feature = "interval")]
 use geom_core::{Bounds, Interval};
 use geom_core::{Dual64, Point2, Point3, Real, Vec3};
 
@@ -30,7 +29,6 @@ impl Bits for Dual64 {
         vec![self.value.to_bits(), self.deriv.to_bits()]
     }
 }
-#[cfg(feature = "interval")]
 impl Bits for Interval {
     fn bits(self) -> Vec<u64> {
         vec![self.lo().to_bits(), self.hi().to_bits()]
@@ -205,7 +203,6 @@ fn r2_nurbs_arm_point_scalars_bit_for_bit() {
     assert!(checked >= 200, "{checked}");
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn r2_nurbs_arm_interval_hulls_bit_for_bit() {
     let mut checked = 0usize;
@@ -315,7 +312,6 @@ fn r2_analytic_arms_dual_bit_for_bit() {
 
 /// The analytic arms at `Interval` (both bounds), on wide and
 /// degenerate intervals.
-#[cfg(feature = "interval")]
 #[test]
 fn r2_analytic_arms_interval_bit_for_bit() {
     for (kind, c) in [

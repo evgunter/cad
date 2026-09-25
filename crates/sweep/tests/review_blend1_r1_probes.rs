@@ -9,7 +9,7 @@
 
 use crate::common::approx::band;
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
 use sweep::test_support::{disc_of_arcs, sketch_from_axes};
@@ -375,7 +375,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
     // extent (≈ d / L · h). Separating them by L and h puts the
     // first definitely off zero and the second in band.
     for (d, l, h) in [(in_band(), 1.0, 1.0), (1e-6, 10.0, 0.05), (1e-6, 10.0, 0.5)] {
-        let lp = ProfileLoop::new(
+        let lp = bulge_loop(
             [
                 (0.0, 0.0),
                 (1.0, 0.0),
@@ -384,7 +384,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 (0.0, 1.0),
             ]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (p2(x, y), 0.0))
             .collect(),
         );
         let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
@@ -481,10 +481,10 @@ fn r1_two_arc_tilted_rim_builds_at_zero_escalates_in_band_and_refuses_definitely
 #[test]
 fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
     let base = {
-        let lp = ProfileLoop::new(
+        let lp = bulge_loop(
             [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
                 .into_iter()
-                .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+                .map(|(x, y)| (p2(x, y), 0.0))
                 .collect(),
         );
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -515,11 +515,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
             let th: f64 = deg.to_radians();
             p2(0.25 * th.cos(), 0.25 * th.sin())
         };
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(at(0.0), b120),
-            ProfileVertex::new(at(120.0), b120),
-            ProfileVertex::new(at(240.0), b120),
-        ]);
+        let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
         let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
         let boss = extrude(&profile, Extrusion::Distance(1.0), tol())
             .expect("a boss on a tilted plane")

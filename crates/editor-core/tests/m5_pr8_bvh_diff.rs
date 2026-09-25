@@ -19,7 +19,7 @@
 //!    comparator catches it.
 //!
 //! Rides the existing corpus lanes (`cargo test --workspace` at every
-//! ε row; the interval feature adds the `Interval` twin below) — no
+//! ε row, with the `Interval` twin below) — no
 //! new hosted CI row.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -176,7 +176,6 @@ fn corpus_boolean_operands_superset_pin() {
 
 /// The `Interval` twin of pin 2 (the interval lane's row — PERF-PLAN
 /// §4.5: differential suites run the ε rows AND the interval lane).
-#[cfg(feature = "interval")]
 #[test]
 fn corpus_evaluations_bit_equal_at_interval() {
     use geom_core::Interval;

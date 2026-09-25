@@ -1,5 +1,5 @@
 //! M6 surgery, interval lane: the composition surgery at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! One pip suffices to reach every arm — the in-place box-edge
 //! blends over a ringed face (carry-through decided by
@@ -12,13 +12,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the M6 composition surgery",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
@@ -26,7 +19,7 @@ mod certified {
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop};
+    use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
@@ -57,10 +50,8 @@ mod certified {
     fn pip_ball() -> Body<Interval> {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -PIP_R), iv(1.0)),
-            ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
-        ]);
+        let lp =
+            bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
         let profile = Profile::new(
             sketch_from_axes(
                 geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),

@@ -20,7 +20,7 @@ use core::f64::consts::TAU;
 use geom::{Curve3, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::path::{Open, Start};
-use profile::{ArcSweep, Center, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
@@ -37,10 +37,7 @@ fn tol() -> Tol {
 fn klein_elbow(r: f64) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(-r, 0.0), 1.0),
-            ProfileVertex::new(p2(r, 0.0), 1.0),
-        ])],
+        vec![bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])],
     )
     .validate(tol())
     .expect("the elbow's cross-section validates");
@@ -646,7 +643,6 @@ fn a_spiric_rim_splits_at_its_mid_parameter() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_rows {
     use geom_core::{Bounds, Interval, Real};
 
@@ -661,15 +657,15 @@ mod interval_rows {
     /// interval and f64 twins are built by one spelling.
     fn vessel_loop<T: geom_core::Real>(iv: &impl Fn(f64) -> T) -> ProfileLoop<T> {
         let p = |x: f64, y: f64| Point2::new(iv(x), iv(y));
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p(5.0 / 64.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
-            ProfileVertex::new(p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
-            ProfileVertex::new(p(0.0, 24.0 / 64.0), iv(0.0)),
+        bulge_loop(vec![
+            (p(0.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 0.0), iv(0.0)),
+            (p(5.0 / 64.0, 4.0 / 64.0), iv(0.0)),
+            (p(9.0 / 64.0, 4.0 / 64.0), iv(0.5)),
+            (p(9.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 12.0 / 64.0), iv(0.0)),
+            (p(7.0 / 64.0, 24.0 / 64.0), iv(0.0)),
+            (p(0.0, 24.0 / 64.0), iv(0.0)),
         ])
     }
 

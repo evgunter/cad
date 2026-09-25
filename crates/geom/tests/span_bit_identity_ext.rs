@@ -11,11 +11,8 @@
 //! merge base against the retired `(kv, span)` spellings, and it is
 //! unchanged here.
 //!
-//! **Interval-gated**, because half its rows are `Interval` rows: it
-//! runs in the six `interval` test jobs. The default lane's bit
-//! identity is `span_bit_identity.rs`, whose 1001 rows carry no feature
-//! gate.
-#![cfg(feature = "interval")]
+//! Half its rows are `Interval` rows. The `f64` lane's bit identity is
+//! `span_bit_identity.rs`, whose 1001 rows it does not repeat.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 use geom::{NurbsCurve2, NurbsCurve3, NurbsSurface};
 use geom_core::spline::{CoeffWindow, KnotVector, RationalWindow, Span, SpanLocate, basis};
@@ -31,13 +28,13 @@ fn bf<T: Real>(s: Span<'_>, t: T) -> Vec<T> {
 fn dbf<T: Real>(s: Span<'_>, t: T, n: usize) -> Vec<Vec<T>> {
     basis::ders_basis_funs(s, t, n)
 }
-fn sh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn sh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.hull()
 }
-fn shr(w: RationalWindow<'_, f64>) -> geom_core::RingInterval {
+fn shr(w: RationalWindow<'_, f64>) -> geom_core::Interval {
     w.hull_rational()
 }
-fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::RingInterval {
+fn dsh(w: CoeffWindow<'_, f64>) -> geom_core::Interval {
     w.derivative_hull()
 }
 fn snb(w: CoeffWindow<'_, f64>) -> f64 {
@@ -127,7 +124,7 @@ fn vd(o: &mut Rows, t: &str, p: Vec3<Dual64>) {
         o.push((format!("{t}.{n}.d"), c.deriv.to_bits()));
     }
 }
-fn ri(o: &mut Rows, t: &str, r: geom_core::RingInterval) {
+fn ri(o: &mut Rows, t: &str, r: geom_core::Interval) {
     o.push((format!("{t}.lo"), r.lo().to_bits()));
     o.push((format!("{t}.hi"), r.hi().to_bits()));
 }
@@ -438,8 +435,8 @@ const ROW_COUNT: usize = 11_151;
 
 /// FNV-1a 64 over `"{label} {bits:#018x}\n"` for every row in order.
 ///
-/// **Re-captured when the C9 ring became a newtype over the backend**
-/// (`0x606f_ae2d_7244_63e4` before): the ring padded one representable
+/// **Re-captured when certification arithmetic became a newtype over the backend**
+/// (`0x606f_ae2d_7244_63e4` before): interval arithmetic padded one representable
 /// step outward on every operation and the backend pads only where the
 /// operation was inexact. Exactly 28 of these 11 151 rows moved, all of
 /// them a `derivative_span_hull` or `derivative_domain_hull` endpoint

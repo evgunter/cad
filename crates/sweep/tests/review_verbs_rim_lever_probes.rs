@@ -61,8 +61,7 @@ test_utils::gated_to![
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{Point2, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, Convexity};
@@ -80,7 +79,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// Revolve a closed sketch loop about the sketch y-axis.
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
@@ -186,10 +185,10 @@ fn dome(r: f64, zone: f64, bore_frac: f64, rev: Revolution<f64>) -> Body<f64> {
     let bore = top_x * bore_frac;
     revolved(
         vec![
-            ProfileVertex::new(p2(bore, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge),
-            ProfileVertex::new(p2(top_x, top_y), 0.0),
-            ProfileVertex::new(p2(bore, top_y), 0.0),
+            (p2(bore, 0.0), 0.0),
+            (p2(r, 0.0), bulge),
+            (p2(top_x, top_y), 0.0),
+            (p2(bore, top_y), 0.0),
         ],
         rev,
     )
@@ -205,11 +204,11 @@ fn neck_flare(r: f64, half_angle: f64, bore_frac: f64, rev: Revolution<f64>) -> 
     let bore = r * bore_frac.min((1.0 - flare) * 0.6);
     revolved(
         vec![
-            ProfileVertex::new(p2(bore, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, r), 0.0),
-            ProfileVertex::new(p2(r - flare * r, 2.0 * r), 0.0),
-            ProfileVertex::new(p2(bore, 2.0 * r), 0.0),
+            (p2(bore, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, r), 0.0),
+            (p2(r - flare * r, 2.0 * r), 0.0),
+            (p2(bore, 2.0 * r), 0.0),
         ],
         rev,
     )
@@ -275,11 +274,11 @@ fn straight_edges_meter_bit_identically_to_the_endpoint_chord() {
         );
         let sq = Profile::new(
             SketchPlane::xy(),
-            vec![ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(w, 0.0), 0.0),
-                ProfileVertex::new(p2(w, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            vec![bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(w, 0.0), 0.0),
+                (p2(w, h), 0.0),
+                (p2(0.0, h), 0.0),
             ])],
         )
         .validate(tol())
@@ -381,10 +380,7 @@ fn co_surface_seams_still_refuse_while_transverse_rims_do_not() {
     for _ in 0..fuzz::scaled(3) {
         let r = rng.range(0.4, 2.5);
         let ball = revolved(
-            vec![
-                ProfileVertex::new(p2(0.0, -r), 1.0),
-                ProfileVertex::new(p2(0.0, r), 0.0),
-            ],
+            vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)],
             Revolution::Full,
         );
         let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));
@@ -475,11 +471,11 @@ fn closed_rims_decide_both_convexity_signs_at_diameter_levers() {
         let bulge = (((bore / r).acos() - (h / r).asin()) / 4.0).tan();
         let boss = revolved(
             vec![
-                ProfileVertex::new(p2(bore, 0.0), 0.0),
-                ProfileVertex::new(p2(2.0 * r, 0.0), 0.0),
-                ProfileVertex::new(p2(2.0 * r, h), 0.0),
-                ProfileVertex::new(p2(rim_r, h), bulge),
-                ProfileVertex::new(p2(bore, bore_y), 0.0),
+                (p2(bore, 0.0), 0.0),
+                (p2(2.0 * r, 0.0), 0.0),
+                (p2(2.0 * r, h), 0.0),
+                (p2(rim_r, h), bulge),
+                (p2(bore, bore_y), 0.0),
             ],
             Revolution::Full,
         );
@@ -585,10 +581,7 @@ fn open_arcs_approaching_a_full_turn_do_not_collapse() {
 #[test]
 fn the_tangential_refusal_prose_states_no_geometric_fact() {
     let ball = revolved(
-        vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ],
+        vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)],
         Revolution::Full,
     );
     let seam = pick_edge(&ball, false, |a, b| is_sphere(a) && is_sphere(b));

@@ -2,10 +2,12 @@
 id: group-resized-does-not-name-the-cutter-that-stopped-cutting
 kind: issue
 title: GroupResized states that a fragment group changed size but not which cutter stopped (or started) cutting it, though the prior table's Seam rows name every cutter
-status: open
+status: closed
 opened: 2026-09-23
 priority: P2
 cost: D
+closed: 2026-09-25
+pr: 3205
 ---
 
 

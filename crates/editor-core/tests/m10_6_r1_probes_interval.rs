@@ -43,7 +43,6 @@
 //! 8. The MC lane over a `min_clearance` document.
 //! 9. An end-to-end consumer walk on a bracket (post over base), through
 //!    the public doors: drive, stackup, fold, histogram, MC, budget.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

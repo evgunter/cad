@@ -1,5 +1,5 @@
 //! The cyl×cyl germ arm's BODY-LEVEL poses at the CERTIFIED scalar
-//! (feature `interval`).
+//!.
 //!
 //! **What this file pins, and what it does NOT.** Every row here drives
 //! whole BODIES through the public union door, so a row reaches a
@@ -37,7 +37,6 @@
 //! [`same_door_or_escalated`] carries the measurement and both
 //! narrowings.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;

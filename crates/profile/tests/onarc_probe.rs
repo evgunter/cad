@@ -72,10 +72,10 @@ fn mismatched_radius_continuation() {
     let anchor_idx = lp
         .vertices()
         .iter()
-        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .position(|&v| (v - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex of the final chain");
     let before = lp.vertices()[anchor_idx - 1];
-    let (run_c, run_r) = circle_from_bulge(before.pos(), p2(8.5, 0.0), before.bulge());
+    let (run_c, run_r) = circle_from_bulge(before, p2(8.5, 0.0), lp.bulges()[anchor_idx - 1]);
     assert!(
         (run_c - p2(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
         "the arrival's run rides the true carrier; got ({}, {}) r {run_r}",
@@ -85,9 +85,8 @@ fn mismatched_radius_continuation() {
     // … and the mismatched-r continuation departs the anchor on the
     // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
     // a declared joint at the anchor.
-    let anchor_v = lp.vertices()[anchor_idx];
     let next = lp.vertices()[anchor_idx + 1];
-    let (dep_c, dep_r) = circle_from_bulge(p2(8.5, 0.0), next.pos(), anchor_v.bulge());
+    let (dep_c, dep_r) = circle_from_bulge(p2(8.5, 0.0), next, lp.bulges()[anchor_idx]);
     assert!(
         (dep_c - p2(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
         "the continuation rides the derived carrier; got ({}, {}) r {dep_r}",
@@ -138,7 +137,7 @@ fn sharp_after_arc_arrival() {
     let anchor_idx = lp
         .vertices()
         .iter()
-        .position(|v| (v.pos() - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .position(|&v| (v - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex");
     // The declared set is POPULATED on this same chain — the opening
     // fillet declares its own two joints — so the absence below is a
@@ -161,7 +160,7 @@ fn sharp_after_arc_arrival() {
     // bulge by construction, so it could only restate the builder.)
     let anchor_v = lp.vertices()[anchor_idx];
     let next = lp.vertices()[(anchor_idx + 1) % lp.vertices().len()];
-    let leg = next.pos() - anchor_v.pos();
+    let leg = next - anchor_v;
     let heading = leg.y.atan2(leg.x);
     assert!(
         (heading - 2.6).abs() < 1e-9,

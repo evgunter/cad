@@ -1,13 +1,9 @@
 //! The interval lane's rows for [`geom::Curve3::param_near`].
 //!
-//! A file of its own, named so the CI filter FORCES the interval
-//! compile mode on a change to it (`scripts/ci-filter.py`'s
-//! `_forces_interval` matches `interval` in the basename) rather than
-//! sampling it. The shipped body has no interval-gated block to name —
-//! the anchored form's whole claim is that there is no fork — so this
-//! suite is the only interval-specific artifact the rule can match.
+//! The shipped body has no interval-specific block — the anchored
+//! form's whole claim is that there is no fork — so this suite is the
+//! only interval-specific artifact.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{PI, TAU};

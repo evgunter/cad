@@ -217,7 +217,6 @@ fn the_dl3_witnesses_pass_both_doors_they_can_still_reach() {
 /// side of the same pin is `r2_m10_di_probes`'s divergence row; the
 /// refusing-subject pins for every certifying arm are `topo`'s
 /// `at_rest_policy_tests`.)
-#[cfg(feature = "interval")]
 #[test]
 fn assemble_census_verdicts_match_f64_at_interval() {
     use editor_core::assemble;
@@ -345,7 +344,6 @@ fn tangent_bits_separate_keys_and_equal_channels_share_them() {
 /// impls: the derivative-enclosure scalar walks the whole door too,
 /// with its value channel — `repr_bits`, decoration included —
 /// identical to the plain `Interval` run's.
-#[cfg(feature = "interval")]
 #[test]
 fn dual_interval_evaluates_with_the_interval_value_channel() {
     use geom_core::{DualInterval, Interval};

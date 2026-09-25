@@ -2,11 +2,12 @@
 id: the-new-document-button-states-its-refusal-twice
 kind: issue
 title: The New document button's disabled reason is a literal beside a comment claiming Refusal::EmptyName backs it, and the two sentences differ
-status: open
+status: closed
 opened: 2026-09-11
 refs: [a-disabled-control-says-why-in-four-shapes]
 priority: P3
 cost: E
+closed: 2026-09-25
 ---
 
 
@@ -104,3 +105,67 @@ plausibly unreachable through the chrome. That does not weaken the
 answer; it means the button is the *only* reader that condition will
 ever have, which is the strongest reason for its words to be the
 refusal's.
+
+## Done (2026-09-20) — answer 1, as ruled
+
+Taken with `undo-and-redo-are-disabled-in-silence-over-a-refusal-that-
+has-words` as one unit. Branch `vnews/app-controls-read-their-refusals`.
+
+The census's ruling was applied unchanged and the tree had not moved
+under it: the Create button was gated on `!name.trim().is_empty()` and
+`DocSession::new_document` refused `Refusal::EmptyName` on
+`name.trim().is_empty()` — one condition, two spellings, two
+sentences.
+
+**What landed, and the one place it goes past the ruling.** The button
+shows `Refusal::EmptyName`'s own words, so the comment's claim that the
+disabled state is *backed by* a typed refusal is now true. It also
+reads the CONDITION from the same place: `Refusal::empty_name(name)`
+is `Some` exactly when the name carries no non-whitespace text, and
+both the door and the button call it. The trim was the latent half of
+the drift the row names — a button that stopped trimming would offer a
+click the door refuses — and it costs one function to put it beside the
+words rather than leave it copied.
+
+The comment was rewritten to state the invariant rather than the
+coupling it wished for. The literal *"the document id is derived from
+the name"* is gone from the button; the fact it carried survives in the
+comment above the form, where it is the reason the field exists, and in
+`Refusal::EmptyName`'s own sentence, which says it.
+
+Asserted by `crates/viewer/tests/chrome_labels.rs`'s
+`a_disabled_toolbar_control_says_what_its_own_operation_refuses`, whose
+Create half goes red if the trim leaves `empty_name`.
+
+### Amended after the review of #2960
+
+Two things in the section above no longer describe the tree.
+
+**The door is `Refusal::new_document_name`, not `Refusal::empty_name`,
+and it hands back the NAME.** The first spelling answered a verdict and
+left both callers trimming on their own — one home for the emptiness
+and three for the normalisation, which is exactly half of the drift
+this row names. `new_document_name(typed) -> Result<&str, Refusal>` is
+the whole rule: the button gates on the `Err`, shows its words, and
+pushes the `Ok` the door itself would have derived the id from.
+
+**It is named for the document on purpose.** A blank *parameter* name
+is a different question with a different answer — no door refuses one
+at all — and `pane/properties.rs`'s own Create button gates on an
+UNTRIMMED `!name.is_empty()`. A generally-named `empty_name` beside
+that would be an inviting wrong door for whoever closes
+`work/edit/no-door-refuses-a-blank-parameter-name`, which is where that
+asymmetry is recorded.
+
+**The row's assertion moved out of `crates/viewer/tests/`.** It is
+`crates/viewer/src/app.rs`'s
+`a_disabled_toolbar_control_says_what_its_own_operation_refuses`, which
+lays the real toolbar out headlessly and reads the words back off the
+painted frame. An integration row could assert the refusal a control
+was BUILT from and never which control got it — `add_enabled` and
+`on_disabled_hover_text` keep no value — and "which control got it" is
+the half a reader sees.
+
+## Closed 2026-09-25
+
+Landed in #2960 (merged 2026-09-25), with the argument and the mutation table in that PR and in the `## Done` section above. The row read `review` after the merge; closed here so the board says what `main` holds.

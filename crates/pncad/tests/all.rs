@@ -445,6 +445,9 @@ fn stale_declaration_and_ring_contact_are_matchable(
         RingContact::Vertex { .. } => "vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge",
+        RingContact::OuterVertexOnEdge { .. } => "outer_vertex_on_edge",
+        RingContact::EdgesMeet { .. } => "edges_meet",
+        RingContact::Circles { .. } => "circles",
     };
     (stale, ring)
 }
@@ -1011,15 +1014,12 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let table = [(0.0, 0.0), (2.0, 0.0), (2.0, 3.0), (0.5, 4.0), (0.0, 3.0)];
     let loop_: ProfileLoop<f64> = polygon(&table, tol).expect("the outline authors");
 
-    let want: Vec<ProfileVertex<f64>> = table
-        .iter()
-        .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-        .collect();
+    let want: Vec<(Point2<f64>, f64)> = table.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect();
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
-    for (i, (g, w)) in got.iter().zip(&want).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+    for (i, (g, (pos, bulge))) in got.iter().zip(&want).enumerate() {
+        assert_eq!((g.x, g.y), (pos.x, pos.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], *bulge, "vertex {i} bulge");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1040,8 +1040,8 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+        assert_eq!((g.x, g.y), (h.x, h.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], chain.bulges()[i], "vertex {i} bulge");
     }
     assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
@@ -1303,7 +1303,9 @@ fn the_import_answer_and_its_record_are_spellable_through_the_prelude() {
         panic!("the box re-imports as a solid, not a wireframe");
     };
     named::<Body<f64>>(body.clone());
-    named::<MassProperties<f64>>(enclosure);
+    named::<Result<MassProperties<f64>, TargetUnreached<f64>>>(enclosure.clone());
+    // A box measures, so the refusal arm is spelled here and not taken.
+    let enclosure = enclosure.expect("a box's enclosure is measurable");
     named::<f64>(eps_in);
     named::<Vec<StructureNormalization>>(normalizations.clone());
     named::<Vec<CurvePromotion>>(curve_promotions.clone());
@@ -1818,12 +1820,12 @@ fn no_arena_key_is_nameable_through_the_facade_document_surface() {
 ///    prelude.
 /// 2. Any `pub use` in `pncad`'s own source that names `RawLoop`.
 /// 3. Any construction call — `ProfileLoop::new` / `ProfileLoop::polygon`
-///    — written in façade source (comments excluded), which would mean
+///    / `bulge_loop` — written in façade source (comments excluded), which would mean
 ///    the façade itself still authors through the retired tier. This
 ///    one is matched on the source with ALL whitespace removed, so a
 ///    call broken across lines is the same pattern as a call written
 ///    on one.
-/// 4. Any `ProfileLoop`/`ProfileVertex` STRUCT LITERAL in façade
+/// 4. Any `ProfileLoop` STRUCT LITERAL in façade
 ///    source. This row's declared blind spot until the seal landed:
 ///    the fields were public, so a literal type-checked wherever the
 ///    type was nameable, and the type must stay nameable. The fields
@@ -1847,7 +1849,7 @@ fn no_raw_loop_minting_door_is_nameable_through_the_facade() {
         ["ProfileLoop::", "new("].concat(),
         ["ProfileLoop::", "polygon("].concat(),
         ["ProfileLoop", "{"].concat(),
-        ["ProfileVertex", "{"].concat(),
+        ["bulge_", "loop("].concat(),
     ];
 
     let mut violations: Vec<String> = Vec::new();
@@ -2100,9 +2102,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
     for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
-        assert_eq!(got.pos().x.to_bits(), want.pos().x.to_bits());
-        assert_eq!(got.pos().y.to_bits(), want.pos().y.to_bits());
-        assert_eq!(got.bulge().to_bits(), want.bulge().to_bits());
+        assert_eq!(got.x.to_bits(), want.x.to_bits());
+        assert_eq!(got.y.to_bits(), want.y.to_bits());
+    }
+    for (got, want) in replayed.bulges().iter().zip(authored.loop_.bulges()) {
+        assert_eq!(got.to_bits(), want.to_bits());
     }
 
     // And it evaluates as a document node.
@@ -4194,7 +4198,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
+///   `GroupCutters`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -4234,7 +4239,16 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
-///   service's own machinery behind `evaluate`.
+///   service's own machinery behind `evaluate`. `remap_name` beside
+///   them: the split's and the inline's id rewrite of one name, for a
+///   Rust caller carrying its own names across a `NodeMap`; the
+///   Python surface holds no `NodeMap`, and the names a split or an
+///   inline carries reach it already rewritten.
+///   `FragmentGroups` beside them too: the fragment-group record a node
+///   value carries for the diagnosis ladder. A consumer can hold one
+///   (`NodeValue::fragment_groups`) and make an empty one, and can read
+///   nothing from it; what it records reaches a consumer as
+///   `Diagnosis::GroupResized`'s two counts.
 ///
 ///   **`eval`, `eval_count` and `EvalError` used to be in this family
 ///   and were wrong to be.** They are not machinery behind
@@ -4370,22 +4384,18 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   scalar-free vocabulary).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
-///   behind the `interval` feature (M10-6): the driver and its box,
+///   (M10-6): the driver and its box,
 ///   the stackup and its field types, the reporting layer and the
 ///   advisory estimator. The entry that stood here said the curated
 ///   face "is the REPORTING surface — persisted, goldened stackups —
 ///   which is where the façade row lands", and M10-6 built it, so the
-///   row landed. What that cost is a conditional door on a surface
-///   that had none, and `crate::analysis` states the trade at its own
-///   head rather than here.
+///   row landed; `crate::analysis` states why at its own head rather
+///   than here.
 ///
 ///   **`SeedError` left this family**, with `ParamBoxError` beside it:
-///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, and
-///   those arms exist on every build, so both are carried
-///   UNCONDITIONALLY — `ParamBoxError` moved out of the driver's
-///   `interval` block for that reason. A payload a default-feature
-///   consumer can match and cannot name is the defect; the seams that
-///   MINT them stay interior below.
+///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, so
+///   both are carried: a payload a consumer can match and cannot name
+///   is the defect. The seams that MINT them stay interior below.
 ///
 ///   What stays interior is what a consumer of the REPORTS does not
 ///   hold: the flip evidence a refusal carries (read through the
@@ -4405,7 +4415,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 91] = [
+const NOT_CARRIED: [&str; 95] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4432,6 +4442,8 @@ const NOT_CARRIED: [&str; 91] = [
     "FlipEvidence",
     "FlipSet",
     "FlipSource",
+    "FragmentGroups",
+    "GroupCutters",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4469,6 +4481,7 @@ const NOT_CARRIED: [&str; 91] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
+    "UpstreamCause",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
@@ -4490,6 +4503,7 @@ const NOT_CARRIED: [&str; 91] = [
     "from_value",
     "param_env_over",
     "rebind_suggestions",
+    "remap_name",
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
@@ -4614,8 +4628,7 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 ///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
 ///    rather than re-exported. That root declares 34 `pub mod` at
-///    column 0, five of them behind `#[cfg(feature = "interval")]`,
-///    and no `pub` item of any other kind — so nothing type-like
+///    column 0 and no `pub` item of any other kind — so nothing type-like
 ///    escapes this scan today, held shut by the root's shape rather
 ///    than by a rule. [`root_declared_pub_names`] is the mechanism
 ///    that closes this, and closes it for the profile layer in this
@@ -6212,7 +6225,6 @@ mod the_hollowed_box_through_the_facade {
 
     /// The bracketing scalar certifies too, so the same program
     /// hollows there.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_box_hollows_at_interval() {
         use pncad::geom_core::interval::Interval;

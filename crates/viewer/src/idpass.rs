@@ -33,7 +33,7 @@ use pncad::prelude::StableName;
 
 use crate::frame::{Message, Subject};
 use crate::generation::Generation;
-use crate::pickindex::{IdMap, PickIndex};
+use crate::pickindex::{IdMap, PickError, PickIndex};
 
 /// What the viewport should do about the GPU id query this frame.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -250,18 +250,42 @@ impl Disagreement {
 /// names a face outside the set, nothing where the ray named
 /// something, or something where the ray named nothing.
 ///
+/// # A refused ray path is no verdict
+///
+/// `from_ray` is the ray path's answer OR its refusal
+/// ([`crate::pickindex::PickIndex::faces_under_cursor`]'s own
+/// `Result`), because an empty answer and a refusal are different
+/// facts: the first says nothing is under the cursor, the second says
+/// nothing about the cursor at all. A refused path made no claim for
+/// the id pass to contradict, so the two are not compared — the same
+/// answer this function gives when the id pass has no fresh claim of
+/// its own. Reading the refusal as an empty set would publish *ray
+/// nothing* on exactly the cursors the kernel declines, which are the
+/// ones the id pass is likeliest to answer with a face.
+///
+/// Declining to compare is not dropping the refusal: it is the ray
+/// path's news, not the comparison's, and it is said in the ray path's
+/// own words ([`crate::frame::pick_refusal`]) by whoever asked the ray
+/// — the pick path when it asked at this cursor, the viewport's
+/// comparison when the pick path skipped the frame. Said here as well,
+/// as a disagreement, it would be one refusal announced twice and
+/// named as something it is not.
+///
 /// `answer` is the raw channel word (`serial << 32 | id`); `expected`
 /// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
-/// outstanding, a stale answer, or the two agree.
+/// outstanding, a stale answer, a refused ray path, or the two agree.
 pub fn disagreement(
     index: &PickIndex,
     answer: u64,
     expected: Option<u32>,
-    from_ray: &[StableName],
+    from_ray: Result<&[StableName], &PickError>,
 ) -> Option<Disagreement> {
     if expected? != (answer >> 32) as u32 {
         return None;
     }
+    let Ok(from_ray) = from_ray else {
+        return None;
+    };
     let id = answer as u32;
     let from_gpu = if id == IdMap::NOTHING {
         None

@@ -935,7 +935,6 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
 
 /// A measure evaluates at `Interval` and its bracket CONTAINS the f64
 /// value — the containment claim, on the measurement channel.
-#[cfg(feature = "interval")]
 #[test]
 fn a_measure_at_interval_contains_the_f64_value() {
     use geom_core::{Bounds, Interval};

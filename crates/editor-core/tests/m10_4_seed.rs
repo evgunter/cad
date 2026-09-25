@@ -531,7 +531,6 @@ fn the_truncated_normal_sigma_is_finite_and_the_variance_floor_is_measured() {
 /// the tangent channel the seed. `Interval` plus a seed refuses on
 /// every node; `Dual64` plus a widened box keeps the degenerate-only
 /// rule and refuses through the box door.
-#[cfg(feature = "interval")]
 #[test]
 fn seed_and_box_compose_exactly_at_dual_interval() {
     use std::sync::Arc;

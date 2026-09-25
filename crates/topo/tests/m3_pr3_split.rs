@@ -560,7 +560,6 @@ fn point_in_loop_trilean() {
 /// declared/structural coincidences decide exactly (dyadic fixture
 /// coordinates ⇒ singleton enclosures), the splits land with the same
 /// structure as the f64 lane, and the degenerate refusals hold.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_lane_acceptance() {
     use geom_core::Interval;

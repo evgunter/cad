@@ -49,7 +49,7 @@
 //!
 //! # Which scalars may derive this certificate
 //!
-//! Limbs 2 and 3 are C9-ring bounds and the foot point is a bracket
+//! Limbs 2 and 3 are C9 certification bounds and the foot point is a bracket
 //! read, so the honest signature is
 //! `T: Decide + Bounds + CertifiedEnclosure`
 //! (`geom_core::Bounds`'s compound-allowlist note, M6-2), and
@@ -57,7 +57,7 @@
 //! admits `f64`, the telemetry probe and the interval scalar, and it
 //! does not admit `geom_core::Dual`, which may not certify (D1,
 //! 2026-08-19 — it carries the value channel's bracket, and that is
-//! not the right to mint a C9-ring bound). A dual does not receive a
+//! not the right to mint a C9 certification bound). A dual does not receive a
 //! refusal here; it cannot write the call. `Bounds` stays off `topo`'s
 //! default signatures because the capability is injected at a separate
 //! door ([`crate::certify::NurbsLane`]) rather than raised into the
@@ -107,6 +107,13 @@ pub struct PlaneNurbsLimbs<T: Real> {
 /// The lane's typed refusal — actionable, closed, and always carrying
 /// the measured number when one exists.
 #[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PlaneNurbsRefusalKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PlaneNurbsRefusal {
     /// The foot-point projection did not converge at a schedule
     /// sample. Never a best-effort foot.
@@ -228,7 +235,7 @@ impl core::fmt::Display for PlaneNurbsRefusal {
 /// function. The bound is the split, and a dual fails it on
 /// [`geom_core::CertifiedEnclosure`] — it has carried
 /// [`geom_core::Bounds`] since D1 (2026-08-19) and that is not the
-/// right to mint a C9-ring bound:
+/// right to mint a C9 certification bound:
 ///
 /// ```compile_fail,E0277
 /// use geom_core::{Band, Dual64};
@@ -523,11 +530,11 @@ pub const PXN_FIT_SAMPLES: u32 = 33;
 /// Measured, not assumed. Limb 2 bounds `sup_t |S(P(t)) − C(t)|` by
 /// hulling the composite per span, and that bound has two error
 /// sources — the image's own deviation from the true foot path
-/// (`O(h²·κ_uv)` at degree 1, `O(h⁴·κ_uv)` at degree 3) and the ring's
+/// (`O(h²·κ_uv)` at degree 1, `O(h⁴·κ_uv)` at degree 3) and the hull's
 /// per-span widening, which GROWS with the composite's degree. On the
 /// certifying fixture the cubic image measures `9.8e-11 m` and the
 /// piecewise-linear one `1.1e-13 m`: at the residual scales this lane
-/// exists for, the ring widening dominates and the low degree wins by
+/// exists for, the hull widening dominates and the low degree wins by
 /// ~10³. A higher-degree rung would only pay off in a residual window
 /// (`1e-10`…`1e-5`) that lies entirely above its own widening floor,
 /// so there is no second rung — one structure, fixed.
@@ -728,7 +735,6 @@ mod tests {
         ));
     }
 
-    #[cfg(feature = "interval")]
     mod interval {
         use geom_core::{Bounds, Interval};
 

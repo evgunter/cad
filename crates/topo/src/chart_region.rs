@@ -209,6 +209,12 @@ pub enum ChartOverlap {
 /// escalation arm carries `f64` margins — which is the same reason
 /// `ValidationError` has none.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ChartRegionError {
     /// The pair has no structural chart identity (rung 3 or below):
     /// C2's caveat — two descriptions of one locus may differ as
@@ -575,7 +581,8 @@ impl<T: Decide> RegionLane<T> {
 /// PASS would need the re-pointed routine to be instruction-identical
 /// to the door it replaced. `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
-/// impls in the tree, both directions.
+/// impls in the tree, both directions, and counts the tree's door
+/// values against its roster of helpers.
 #[cfg(test)]
 mod wiring_rows {
     use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
@@ -630,7 +637,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_region_doors() {
         assert_eq!(
@@ -5146,7 +5152,6 @@ mod inf_arms {
 /// rows check exactly that.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#[cfg(feature = "interval")]
 mod inf_arms_interval {
     use super::certified_arms;
     use super::tests::band;

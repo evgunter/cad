@@ -4,7 +4,7 @@ kind: issue
 title: EDIT's charter counts the load door's structured refusals among its rows, but that row went to PORT in the same sweep
 status: closed
 opened: 2026-09-15
-refs: [load-path-stringifies-structured-refusals]
+refs: [2702]
 closed: 2026-09-16
 ---
 

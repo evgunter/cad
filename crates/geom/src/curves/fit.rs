@@ -66,7 +66,7 @@
 
 use geom_core::linalg::lsq::{self, LsqError};
 use geom_core::spline::{KnotAlgebraError, KnotVector, KnotVectorIssue, SplineError, basis};
-use geom_core::{Point2, Point3};
+use geom_core::{Point2, Point3, Readable};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 
@@ -167,9 +167,10 @@ impl core::fmt::Display for FitError {
             ),
             FitError::InvalidTolerance { tolerance } => write!(
                 f,
-                "the fit's tolerance {tolerance} is invalid — the tolerance is the loop's \
+                "the fit's tolerance {} is invalid — the tolerance is the loop's \
                  acceptance budget and has to be a number to compare against: ask with a \
-                 finite tolerance strictly above zero"
+                 finite tolerance strictly above zero",
+                Readable(*tolerance)
             ),
             FitError::ParamCountMismatch { params, points } => write!(
                 f,

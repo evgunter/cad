@@ -108,11 +108,7 @@ fn boxed(box_: &Arc<ParamBox>) -> EvalOptions {
 }
 
 /// **The rows that need a widened lane**, whose whole point is that
-/// the interval bits agree while the nominals do not. Gated as one
-/// module rather than row by row: a `#[cfg]` on a bare helper is a
-/// block gate, and the interval legs run only the tests the feature
-/// adds (`scripts/check-interval-cfg-additive.py`).
-#[cfg(feature = "interval")]
+/// the interval bits agree while the nominals do not.
 mod over_a_param_box {
     use super::{FRAME, PROFILE, box_of, boxed, doc_at, p};
 

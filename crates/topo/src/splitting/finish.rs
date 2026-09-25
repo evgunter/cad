@@ -528,7 +528,13 @@ fn describe_section_boundary<T: Decide>(
                 // (`SplitJoinError::DegenerateSection`), from the
                 // mirrored pinch rerun as much as the direct run —
                 // `bool1_r1_probes` / `bool1_r2_probes`' tangent
-                // cylinder rows are the measured witnesses. So no
+                // cylinder rows are the measured witnesses. A STRAIGHT
+                // tangent contact that meets a real section in the
+                // rerun refuses there too, as a spur
+                // (`SplitJoinError::SectionSpur`); a CURVED one would
+                // not (the spur check decides straight tips only,
+                // `work/reach/split-section-spur-guard-skips-curved-spurs.md`),
+                // and no row has reached that case here. So no
                 // curved smooth pair reaches this arm, and a flush
                 // plane pair's exactly-zero jet is the
                 // under-determined regime.
