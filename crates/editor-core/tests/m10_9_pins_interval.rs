@@ -114,7 +114,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
             registered: 144,
-            symbolic_zero: 1083,
+            // One of these is the bracket's fillet run out read against
+            // its arrival carrier (`path_run_out_carrier`), a margin the
+            // tier proves zero rather than measuring it.
+            symbolic_zero: 1084,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -153,8 +156,12 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // both dials, no per-predicate split at any document's
             // nominal moves, and no ceiling on any of the eight
             // measured documents moves by a digit.
+            //
+            // Three of these are the pad's fillet run outs read against
+            // their arrival carriers (`path_run_out_carrier`), margins
+            // the tier proves zero rather than measuring them.
             registered: 128,
-            symbolic_zero: 854,
+            symbolic_zero: 857,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
