@@ -148,7 +148,7 @@ fn the_f64_seam_answers_every_public_door() {
 #[test]
 fn the_interval_seam_refuses_at_every_public_door() {
     use geom_core::{Bounds, Interval, Real};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
     let approx_f64 = geom_brep::approx_offset_surface_at(
         Arc::new(pulled_back(&planar_patch(1.0), 0.05)),
@@ -163,8 +163,8 @@ fn the_interval_seam_refuses_at_every_public_door() {
     let lifted = a.map_scalar(Interval::from_f64);
 
     let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| ProfileVertex::new(geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
+    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a square is a valid profile");
@@ -231,11 +231,11 @@ fn the_interval_seam_refuses_at_every_public_door() {
 #[test]
 fn the_interval_mint_refuses_through_the_public_offset_door() {
     use geom_core::{Bounds, Interval, Real};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
     let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| ProfileVertex::new(geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
+    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a square is a valid profile");

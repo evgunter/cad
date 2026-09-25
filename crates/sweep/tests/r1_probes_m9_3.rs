@@ -9,7 +9,7 @@
 
 use crate::common::operands::plate6;
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{
@@ -27,11 +27,7 @@ fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
         let th = deg.to_radians();
         p2(cx + r * th.cos(), 2.0 + r * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -458,10 +454,10 @@ fn lying_plane() -> SketchPlane<f64> {
     ))
 }
 
-fn lying_extrude(vertices: Vec<ProfileVertex<f64>>, tangent_joints: Vec<usize>) -> Body<f64> {
+fn lying_extrude(vertices: Vec<(Point2<f64>, f64)>, tangent_joints: Vec<usize>) -> Body<f64> {
     let profile = Profile::new(
         lying_plane(),
-        vec![ProfileLoop::new(vertices).with_tangent_joints(tangent_joints)],
+        vec![bulge_loop(vertices).with_tangent_joints(tangent_joints)],
     )
     .validate(Tol::witness())
     .unwrap();
@@ -474,10 +470,10 @@ fn quarter_round_below() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 2.0), b90),
-            ProfileVertex::new(p2(0.0, 3.0), 0.0),
+            (p2(0.0, 0.0), 0.0),
+            (p2(1.0, 0.0), 0.0),
+            (p2(1.0, 2.0), b90),
+            (p2(0.0, 3.0), 0.0),
         ],
         vec![2],
     )
@@ -487,11 +483,11 @@ fn quarter_round_above() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            ProfileVertex::new(p2(1.0, 0.5), 0.0),
-            ProfileVertex::new(p2(1.0, 2.0), -b90),
-            ProfileVertex::new(p2(2.0, 3.0), 0.0),
-            ProfileVertex::new(p2(3.0, 3.0), 0.0),
-            ProfileVertex::new(p2(3.0, 0.5), 0.0),
+            (p2(1.0, 0.5), 0.0),
+            (p2(1.0, 2.0), -b90),
+            (p2(2.0, 3.0), 0.0),
+            (p2(3.0, 3.0), 0.0),
+            (p2(3.0, 0.5), 0.0),
         ],
         vec![1, 2],
     )

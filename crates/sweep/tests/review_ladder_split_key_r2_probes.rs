@@ -20,7 +20,6 @@
 
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -264,11 +263,11 @@ fn r2_a_profile_authored_in_reverse_mints_the_same_meridian_direction() {
     // the leg (0,1.5) -> (0.5,1.0) and its bulge sign flips.
     let mut reversed2 = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 1.5), -q),
-            ProfileVertex::new(Point2::new(0.5, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(0.0, 1.5), -q),
+            (Point2::new(0.5, 1.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
         ],
         Revolution::Full,
         tol(),

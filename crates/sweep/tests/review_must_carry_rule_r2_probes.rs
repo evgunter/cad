@@ -14,7 +14,7 @@ use geom_brep::{
     EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge, tangent_certificate_lane,
 };
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -37,15 +37,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let p2 = Point2::<f64>::new;
     let q = MERIDIAN_R;
     let b = core::f64::consts::FRAC_PI_8.tan();
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(q, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0 - q, 0.0), b),
-        ProfileVertex::new(p2(1.0, q), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0 - q), b),
-        ProfileVertex::new(p2(1.0 - q, 1.0), 0.0),
-        ProfileVertex::new(p2(q, 1.0), b),
-        ProfileVertex::new(p2(0.0, 1.0 - q), 0.0),
-        ProfileVertex::new(p2(0.0, q), b),
+    let lp = bulge_loop(vec![
+        (p2(q, 0.0), 0.0),
+        (p2(1.0 - q, 0.0), b),
+        (p2(1.0, q), 0.0),
+        (p2(1.0, 1.0 - q), b),
+        (p2(1.0 - q, 1.0), 0.0),
+        (p2(q, 1.0), b),
+        (p2(0.0, 1.0 - q), 0.0),
+        (p2(0.0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -66,11 +66,11 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
     );
     let outer = shoulder.x;
     let bulge = (3.0 * core::f64::consts::FRAC_PI_4 / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(r_bore, -h), 0.0),
-        ProfileVertex::new(Point2::new(outer, -h), 0.0),
-        ProfileVertex::new(shoulder, bulge),
-        ProfileVertex::new(Point2::new(r_bore, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(r_bore, -h), 0.0),
+        (Point2::new(outer, -h), 0.0),
+        (shoulder, bulge),
+        (Point2::new(r_bore, 0.0), 0.0),
     ])
     .with_tangent_joints(vec![3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

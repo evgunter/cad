@@ -11,8 +11,7 @@
 
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -23,15 +22,12 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// The plate with a radius-0.5 hole at (2, 2): 4x4x1, z in [0, 1];
 /// the hole is two semicircular arcs with joints at 0 and 180 deg.
 fn holed_plate() -> Body<f64> {
-    let outer = ProfileLoop::new(
+    let outer = bulge_loop(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (p2(x, y), 0.0))
             .to_vec(),
     );
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.5, 2.0), 1.0),
-        ProfileVertex::new(p2(1.5, 2.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(2.5, 2.0), 1.0), (p2(1.5, 2.0), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
@@ -50,11 +46,7 @@ fn through_boss() -> Body<f64> {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(90.0), b120),
-        ProfileVertex::new(at(210.0), b120),
-        ProfileVertex::new(at(330.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(90.0), b120), (at(210.0), b120), (at(330.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())

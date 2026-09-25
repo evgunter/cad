@@ -13,15 +13,15 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI};
 use profile::RawLoop;
 
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate, validate_closed, validate_geometric};
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use revolve_common::{axis_y, p2, validated};
 
-fn v(x: f64, y: f64, b: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(p2(x, y), b)
+fn v(x: f64, y: f64, b: f64) -> (Point2<f64>, f64) {
+    (p2(x, y), b)
 }
 
 fn check(body: &Body<f64>, what: &str, volume: f64, area: f64) {
@@ -106,7 +106,7 @@ fn cup_inner_walls_match_independent_closed_forms() {
 /// A = (θ/2π)·4π²Rr + 2·πr² = π² + π/2.
 #[test]
 fn quarter_donut_wedge_matches_independent_closed_forms() {
-    let lp = ProfileLoop::new(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
+    let lp = bulge_loop(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -125,7 +125,7 @@ fn quarter_donut_wedge_matches_independent_closed_forms() {
 #[test]
 fn dome_wedge_matches_independent_closed_forms() {
     let b = (PI / 8.0).tan(); // quarter arc (1,0) → (0,1) about origin
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, 1.0, 0.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -149,7 +149,7 @@ fn dome_wedge_matches_independent_closed_forms() {
 #[test]
 fn major_arc_prism_matches_independent_closed_forms() {
     let b = (3.0 * PI / 8.0).tan();
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
+    let lp = bulge_loop(vec![v(0.0, 0.0, 0.0), v(1.0, 0.0, b), v(0.0, -1.0, 0.0)]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(1.0),
@@ -166,7 +166,7 @@ fn major_arc_prism_matches_independent_closed_forms() {
 #[test]
 fn two_hole_plate_matches_independent_closed_forms() {
     let outer = ProfileLoop::polygon([p2(-3.0, -3.0), p2(3.0, -3.0), p2(3.0, 3.0), p2(-3.0, 3.0)]);
-    let round = ProfileLoop::new(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
+    let round = bulge_loop(vec![v(-0.5, 0.0, 1.0), v(-2.5, 0.0, 1.0)]);
     let square = ProfileLoop::polygon([p2(0.5, -1.0), p2(2.5, -1.0), p2(2.5, 1.0), p2(0.5, 1.0)]);
     let t = extrude(
         &validated(vec![outer, round, square]),
@@ -358,7 +358,7 @@ fn grooved_and_bumped_washer_torus_both_interior_sides_match() {
         ]
     };
     let groove = revolve(
-        &validated(vec![ProfileLoop::new(profile(-1.0))]),
+        &validated(vec![bulge_loop(profile(-1.0))]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),
@@ -371,7 +371,7 @@ fn grooved_and_bumped_washer_torus_both_interior_sides_match() {
         25.0 * PI + 3.0 * PI * PI,
     );
     let bump = revolve(
-        &validated(vec![ProfileLoop::new(profile(1.0))]),
+        &validated(vec![bulge_loop(profile(1.0))]),
         axis_y(),
         Revolution::Full,
         Tol::witness(),

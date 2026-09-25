@@ -21,7 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, FaceSurface, LoopKey, ValidationError};
 
@@ -34,13 +34,7 @@ fn tol() -> Tol {
 fn plate(loops: &[&[(f64, f64, f64)]], h: f64) -> Body<f64> {
     let loops = loops
         .iter()
-        .map(|lp| {
-            ProfileLoop::new(
-                lp.iter()
-                    .map(|&(x, y, b)| ProfileVertex::new(Point2::new(x, y), b))
-                    .collect(),
-            )
-        })
+        .map(|lp| bulge_loop(lp.iter().map(|&(x, y, b)| (Point2::new(x, y), b)).collect()))
         .collect();
     let profile = Profile::new(SketchPlane::xy(), loops)
         .validate(tol())
@@ -305,11 +299,11 @@ fn the_silent_classes_are_silent_in_both_directions() {
 #[test]
 fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
     let (r, h, t) = (1.0, 2.0, 0.2);
-    let meridian = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(r, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(r, h), 0.0),
-        ProfileVertex::new(Point2::new(0.0, h), 0.0),
+    let meridian = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![meridian])
         .validate(tol())

@@ -37,7 +37,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, BooleanError};
 
@@ -56,9 +56,9 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart — the same one SPHSPH measured on).
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -278,9 +278,9 @@ fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(2.0, -0.3), 1.0),
-            ProfileVertex::new(Point2::new(2.0, 0.3), 1.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(2.0, -0.3), 1.0),
+            (Point2::new(2.0, 0.3), 1.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
