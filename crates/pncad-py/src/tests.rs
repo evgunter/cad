@@ -3617,17 +3617,19 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 
 /// **Every `RingContact` arm's word, built and read.**
 ///
-/// The arm table for `ring_contact_kind`, executable. The three arms
-/// are three different repairs — a shared position one vertex move
-/// clears, a ring vertex standing on an outer edge's interior, and a
-/// shared arc no single move separates — so each is pinned by name.
+/// The arm table for `ring_contact_kind`, executable. The six arms
+/// are different repairs — a shared position one vertex move clears,
+/// a vertex of either loop standing on an edge's interior in the
+/// other, a shared arc no single move separates, two edges crossing or
+/// touching at a point, and two whole circles doing so — so each is
+/// pinned by name.
 ///
-/// **None of the three is reachable from Python.** A ring meeting its
+/// **None of the six is reachable from Python.** A ring meeting its
 /// own face's outer loop is minted by raw Euler surgery on a body
 /// (the shell verb's suites glue a lifted counterpart chart on with
 /// `kfmrh` to build one); every Python door answers a body its own
 /// producer already validated, and the binding exposes no Euler
-/// operator to build one with. So the three words are pinned here,
+/// operator to build one with. So the six words are pinned here,
 /// and `tests/test_validate.py` says the gap is the DOORS' rather
 /// than the projection's.
 #[test]

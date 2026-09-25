@@ -41,7 +41,13 @@ circle-pair margins are spelled three times:
    the `arc_diameter_clearance` gate. Arm 5's `window` decides the
    direct distance to each end first, then a two-apex sum
    (`cos(w/4) + sin(w/4) ≥ 1`) that is valid up to and including a
-   whole circle, which topo loops have and profiles do not.
+   whole circle, which topo loops have and profiles do not. `window`'s
+   two-term margin is the better conditioned of the two: the ATREST-11
+   review proved by hand that its derivative per unit arc length is
+   `−(cos(|φ|/2) + sin(|φ|/2))`, magnitude at least 1 everywhere, so it
+   never compresses below the arc length it measures. seg's single
+   term compresses as `cos(θ/4)` and leans on its construction gate to
+   bound the compression. A shared home should take the two-term form.
 5. **Classification.** seg separates `Touch`, `Tangency` and `Crossing`.
    Arm 5 only answers meet / apart / unsure.
 

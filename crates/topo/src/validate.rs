@@ -5019,10 +5019,10 @@ pub(crate) fn tier3_local_checks_marked<
     // running along one of its edges, or crossing or touching it at a
     // point — is not a trim of any region; that is the DISJOINTNESS
     // half, the arms of `ring_outer_contact`. A ring that is cleanly
-    // disjoint from the outer loop but lies OUTSIDE it is not a hole either; that is the
-    // NESTING half, `ring_nesting`, and it runs on the pairs the
-    // contact arms cleared. Nothing else in this battery sees either
-    // half; `check_9_refuses_a_ring_that_lies_outside_its_outer_loop`
+    // disjoint from the outer loop but lies OUTSIDE it is not a hole
+    // either; that is the NESTING half, `ring_nesting`, and it runs on
+    // the pairs the contact arms cleared. Nothing else in this
+    // battery sees either half; `check_9_refuses_a_ring_that_lies_outside_its_outer_loop`
     // asserts that of checks 6 and 7 rather than arguing it here. It
     // is the CDT downstream that discovers the body is not
     // triangulable, which is a consumer reporting a producer's bug.
@@ -5035,23 +5035,27 @@ pub(crate) fn tier3_local_checks_marked<
     // the volume check IS gated on this one at `validate_geometric`,
     // for the reason check 8 above states in full.
     //
-    // **What the five arms match, and WHAT THEY DO NOT** (D4 honesty — an
-    // unstated blind spot is an unverified claim). Matched:
-    // vertex-on-vertex (arm 1, kind-agnostic, positions only); a vertex of
-    // EITHER loop on the interior of an edge of the other (arm 2, both
-    // directions, the trim tested on a line and an arc alike);
-    // edge-along-edge (arm 3), on `Line` and `Circle` carriers; and, on a
-    // PLANAR face, the two loops crossing or touching at a point that is a
-    // vertex of neither — a transversal crossing or a one-point tangency
-    // (circle-circle internal or external, line-circle). That last shape
-    // has two arms: two WHOLE circles (arm 4, both loops in `loop_shape`'s
-    // `Disc` class) are decided exactly by the centre distance against the
-    // radii's sum and difference, with no trim to test; every other pair
-    // of `Line` and `Circle` edges (arm 5) has its carriers' meeting
-    // points computed in closed form and each tested against both edges'
-    // trims (`window`: a line's span; an arc's distances to its ends and
-    // apexes, never an angle, which compresses near an end). Every margin
-    // escalates typed rather than reading as "disjoint".
+    // **What the five arms match, and WHAT THEY DO NOT** (D4 honesty —
+    // an unstated blind spot is an unverified claim). Five arms,
+    // reporting six `RingContact` shapes (arm 2 names which loop's
+    // vertex it found). Matched: vertex-on-vertex (arm 1,
+    // kind-agnostic, positions only); a vertex of EITHER loop on the
+    // interior of an edge of the other (arm 2, both directions, the
+    // locus and the trim decided together on a line and an arc alike);
+    // edge-along-edge (arm 3), on `Line` and `Circle` carriers; and,
+    // on a PLANAR face, the two loops crossing or touching at a point
+    // that is a vertex of neither — a transversal crossing or a
+    // one-point tangency (circle-circle internal or external,
+    // line-circle). That last shape has two arms: two WHOLE circles
+    // (arm 4, both loops in `loop_shape`'s `Disc` class) are decided
+    // exactly by the centre distance against the radii's sum and
+    // difference, with no trim to test; every other pair of `Line` and
+    // `Circle` edges (arm 5) has its carriers' meeting points computed
+    // in closed form and each tested against both edges' trims
+    // (`window`: a line's span; an arc's distances to its ends and
+    // apexes, never an angle, which compresses near an end). Every
+    // margin escalates typed rather than reading as "disjoint", and
+    // only where no gate has already cleared the pair.
     //
     // NOT matched, enumerated rather than gestured at:
     //
@@ -5262,23 +5266,6 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             }
         };
     }
-    // Strictly between an edge's two endpoints, in projection —
-    // metered as the LENGTH it is (the raw dot product is an area).
-    macro_rules! strictly_between {
-        ($p:expr, $a:expr, $b:expr) => {{
-            let span = ($b - $a).norm();
-            match decide(
-                "ring_outer_segment_side",
-                Margin::of(($p - $a).dot($p - $b) / span),
-                band,
-            ) {
-                Ok(Sign::Negative) => true,
-                Ok(_) => false,
-                Err(source) => return RingOuterVerdict::Escalated(source),
-            }
-        }};
-    }
-
     // ---- Arm 1: a ring vertex standing on an outer VERTEX. ----
     //
     // Kind-agnostic: it reads points, so no carrier kind is exempt.
@@ -5369,8 +5356,9 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     // Sharing the locus is not yet sharing an arc — two collinear
     // edges can be disjoint on a nonconvex face, and two arcs of one
     // circle can lie on opposite sides of it — so ANY of the three
-    // samples lying inside the outer edge's trim settles it: strictly
-    // between a line's ends, or inside an arc's [`window`]. Any, not
+    // samples lying inside the outer edge's trim settles it
+    // ([`edge_trim`]: strictly between a line's ends, or inside an
+    // arc's [`window`]). Any, not
     // the middle one: a partial overlap can put the middle sample past
     // the outer edge's trim while a quarter of it lies well inside.
     for &rhe in &ring_cycle {
@@ -5392,53 +5380,48 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             let Some(ogeom) = certified_carrier(body, oedge) else {
                 continue;
             };
-            let mut on_locus = true;
+            let Some((_, oseg)) = meet_segment(body, ohe) else {
+                continue; // the recorded residue: Ellipse, Spiric and Nurbs carriers
+            };
+            // The locus and the trim are two gates, and a sample
+            // definitely failing EITHER clears it: one sample
+            // definitely off the locus means no shared locus, and every
+            // sample definitely past the trim means no shared arc,
+            // whatever the other gate's band says. Only then does an
+            // in-band margin on either escalate.
+            let mut locus_unsure = None;
+            let mut off_locus = false;
             for &p in &samples {
                 let Some(gap) = locus_gap(ogeom.carrier(), p) else {
-                    on_locus = false;
-                    break; // the recorded residue: Ellipse and Nurbs carriers
-                };
-                if !coincides!("ring_outer_locus_gap", gap) {
-                    on_locus = false;
+                    off_locus = true;
                     break;
+                };
+                match decide("ring_outer_locus_gap", Margin::of(gap), band) {
+                    Ok(Sign::Zero) => {}
+                    Ok(Sign::Positive | Sign::Negative) => {
+                        off_locus = true;
+                        break;
+                    }
+                    Err(source) => locus_unsure = locus_unsure.or(Some(source)),
                 }
             }
-            if !on_locus {
+            if off_locus {
                 continue;
             }
-            let inside = match meet_segment(body, ohe) {
-                Some((_, MeetSegment::Line { a, b })) => {
-                    let mut inside = false;
-                    for &p in &samples {
-                        if strictly_between!(p, a, b) {
-                            inside = true;
-                            break;
-                        }
-                    }
-                    inside
+            let mut inside = false;
+            let mut trim_unsure = None;
+            for &p in &samples {
+                match edge_trim(oseg, p, band) {
+                    Window::In => inside = true,
+                    Window::Out => {}
+                    Window::Unsure(source) => trim_unsure = trim_unsure.or(Some(source)),
                 }
-                Some((_, arc @ MeetSegment::Arc { .. })) => {
-                    let mut unsure = None;
-                    let mut inside = false;
-                    for &p in &samples {
-                        match window(arc, p, band) {
-                            Window::In => {
-                                inside = true;
-                                break;
-                            }
-                            Window::Out => {}
-                            Window::Unsure(source) => unsure = unsure.or(Some(source)),
-                        }
-                    }
-                    if let (false, Some(source)) = (inside, unsure) {
-                        return RingOuterVerdict::Escalated(source);
-                    }
-                    inside
-                }
-                None => false,
-            };
-            if !inside {
+            }
+            if !inside && trim_unsure.is_none() {
                 continue;
+            }
+            if let Some(source) = locus_unsure.or(if inside { None } else { trim_unsure }) {
+                return RingOuterVerdict::Escalated(source);
             }
             return RingOuterVerdict::Contact(RingContact::Edge {
                 ring_edge: redge,
@@ -5452,9 +5435,10 @@ pub(crate) fn ring_outer_contact<T: Decide>(
 /// Check 9's arm 2 for one pair: the edge under `he` if the vertex
 /// point `p` of the OTHER loop stands on that edge's interior, `None`
 /// if it does not — or if the edge is an `Ellipse`, `Spiric` or NURBS
-/// carrier, the recorded residue. Two margins: `p`'s gap to the edge's
-/// locus, then, on the locus, the trim: strictly between a line's ends,
-/// or inside an arc's [`window`]. An end of the edge counts as inside
+/// carrier, the recorded residue. Two gates, decided together:
+/// `p`'s gap to the edge's locus, and the trim ([`edge_trim`]:
+/// strictly between a line's ends, or inside an arc's [`window`]). An
+/// end of the edge counts as inside
 /// an arc's trim because arm 1 has already reported a vertex standing
 /// on a vertex.
 fn vertex_on_edge_interior<T: Decide>(
@@ -5469,30 +5453,40 @@ fn vertex_on_edge_interior<T: Decide>(
     let Some(gap) = certified_carrier(body, edge).and_then(|g| locus_gap(g.carrier(), p)) else {
         return Ok(None);
     };
-    if !matches!(
-        decide("ring_outer_locus_gap", Margin::of(gap), band)?,
-        Sign::Zero
-    ) {
-        return Ok(None);
-    }
-    let inside = match segment {
-        // Strictly between the ends, in projection — metered as the
-        // LENGTH it is (the raw dot product is an area).
-        MeetSegment::Line { a, b } => matches!(
-            decide(
-                "ring_outer_segment_side",
-                Margin::of((p - a).dot(p - b) / (b - a).norm()),
-                band,
-            )?,
-            Sign::Negative
-        ),
-        MeetSegment::Arc { .. } => match window(segment, p, band) {
-            Window::In => true,
-            Window::Out => false,
-            Window::Unsure(source) => return Err(source),
+    // Two gates, and a definite miss on EITHER clears the pair: a
+    // vertex definitely off the locus is nowhere on the edge, and one
+    // definitely past the trim is nowhere on it either, however close
+    // it stands to the circle or the line the edge is cut from. Only a
+    // pair neither gate clears can escalate.
+    match decide("ring_outer_locus_gap", Margin::of(gap), band) {
+        Ok(Sign::Positive | Sign::Negative) => Ok(None),
+        on_locus => match (on_locus, edge_trim(segment, p, band)) {
+            (_, Window::Out) => Ok(None),
+            (Err(source), _) | (_, Window::Unsure(source)) => Err(source),
+            (Ok(_), Window::In) => Ok(Some(edge)),
         },
-    };
-    Ok(inside.then_some(edge))
+    }
+}
+
+/// Whether `p` lies inside `segment`'s trim as check 9's arms 2 and 3
+/// ask it: strictly between a line's two ends, in projection — metered
+/// as the LENGTH it is (the raw dot product is an area) — or inside an
+/// arc's [`window`]. A line's END is outside, because a vertex there is
+/// arm 1's; an arc's is inside, [`window`]'s own convention, which arm
+/// 1 has also already answered.
+fn edge_trim<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
+    match segment {
+        MeetSegment::Line { a, b } => match decide(
+            "ring_outer_segment_side",
+            Margin::of((p - a).dot(p - b) / (b - a).norm()),
+            band,
+        ) {
+            Ok(Sign::Negative) => Window::In,
+            Ok(Sign::Zero | Sign::Positive) => Window::Out,
+            Err(source) => Window::Unsure(source),
+        },
+        MeetSegment::Arc { .. } => window(segment, p, band),
+    }
 }
 
 /// Check 9's arms 4 and 5: do `ring` and `outer` share a POINT that
