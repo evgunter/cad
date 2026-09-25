@@ -147,7 +147,7 @@ fn r1_a_first_order_exits_verdict_on_a_hole_wall_is_contradicted_at_its_own_arm(
 /// for a corrupt or frontier-carrier run" — a sentence this PR
 /// falsifies and leaves standing.
 #[test]
-fn r1_the_planar_and_curved_ring_joins_refuse_at_different_gates() {
+fn r1_the_planar_cap_pierce_joins_and_the_curved_wall_pierce_refuses() {
     let tol = Tol::witness();
     let cap = match topo::union(
         &cyl(0.0, 0.0, 1.0, 0.0, 2.0),

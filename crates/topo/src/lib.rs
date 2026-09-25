@@ -291,6 +291,26 @@ pub mod test_support {
     pub fn arena_counts<T: Real>(body: &Body<T>) -> ArenaCounts {
         body.arena_counts()
     }
+
+    /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
+    /// planar in-face test, which the ray sweep reaches only through a
+    /// hit it decides to take — named here so a row can ask it about a
+    /// point directly: `Some(true)` inside, `Some(false)` outside,
+    /// `None` on the boundary.
+    ///
+    /// # Errors
+    ///
+    /// The walk's own [`crate::PointInSolidError`]; a face that is not
+    /// planar is `KindUnsupported`.
+    pub fn point_in_face<T: geom_core::Decide>(
+        body: &Body<T>,
+        face: crate::FaceKey,
+        p: geom_core::Point3<T>,
+        band: geom_core::Band,
+    ) -> Result<Option<bool>, crate::PointInSolidError> {
+        let (_, normal) = crate::boolean::solid_contain::face_plane(body, face)?;
+        crate::boolean::solid_contain::point_in_face(body, face, normal, p, band)
+    }
 }
 #[cfg(test)]
 mod r2_probes;

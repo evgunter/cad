@@ -131,7 +131,7 @@ fn hollow_moves<T: geom_core::Real>(body: &Body<T>, t: T) -> Vec<topo::ChartMove
 /// The sectioned vessel's cavity through the axial door — the body
 /// `shell` builds and stops on at tier 3, taken BEFORE tier 3 so its
 /// carriers can be read.
-fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
+pub(crate) fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     let quarter = vessel_quarter();
     let mut cavity = quarter.clone();
     let band = Band::linear(tol()).expect("band");

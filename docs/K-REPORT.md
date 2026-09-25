@@ -835,6 +835,31 @@ than the other five and should not be read against them. They pool with nothing:
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
 
+**Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
+names from `topo/src/splitting/containment.rs`'s `point_in_carrier_loop`,
+the in-face test `point_in_solid`'s planar arm reads a loop with circle
+or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
+(`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_segment` | `ParityRows` field |
+| `point_in_arc_loop_boundary` | `ParityRows` field |
+| `point_in_arc_loop_side` | `ParityRows` field |
+| `point_in_arc_loop_advance` | `ParityRows` field |
+| `point_in_arc_loop_arm` | a bare literal passed to `walk_schedule` |
+| `point_in_arc_loop_reach` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_span` | a bare literal at the `decide` site (once per arc edge) |
+| `point_in_arc_loop_conic_on` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_window` | a bare literal in `ConicArc::in_window` |
+| `point_in_arc_loop_conic_disc` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_advance` | a bare literal at the `decide` site |
+
+Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
+`point_in_arc_loop_*` rows. They pool with nothing: a loop of lines
+still decides under `point_in_loop_*`, so the polygon population is
+unchanged by this walk.
+
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
 the crate scan — the same carrier shape `chart_bound_gap` has):

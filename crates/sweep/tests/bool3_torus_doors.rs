@@ -397,7 +397,7 @@ fn the_minor_window_trims_the_spool_band() {
 /// quadrant and refuses the rest.
 ///
 /// The fourth quadrant — the one MIRRORED across a cap — is asked in
-/// [`issue_1076_a_revolved_disc_cap_interior_is_misread`] below, beside
+/// [`a_revolved_disc_caps_interior_is_on_the_face`] below, beside
 /// the cap reading that decides it: the quarter revolve's caps are
 /// two-arc DISCS, and the planar arm must read a hit inside one as
 /// inside the face, or the cap is transparent to the ray sweep and that
@@ -438,7 +438,7 @@ fn the_major_window_trims_the_quarter_donut() {
 /// vertices, which answered `In` here. With the cap read, the quadrant
 /// mirrored across it is not material.
 #[test]
-fn issue_1076_a_revolved_disc_cap_interior_is_misread() {
+fn a_revolved_disc_caps_interior_is_on_the_face() {
     let body = quarter_donut();
     // On the cap plane x = 0, inside the disc, off its seam diameter.
     assert_eq!(

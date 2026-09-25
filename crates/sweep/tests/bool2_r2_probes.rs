@@ -366,7 +366,7 @@ fn r2_probe_offset_clamp_saturation() {
 /// revolved rectangle is a cylinder with no cone in it, and a point in
 /// the INTERIOR of its base cap.
 #[test]
-fn r2_planar_base_cap_interior_out_of_unit() {
+fn r2_planar_base_cap_interior_is_on_the_boundary() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let cyl = revolve(
         &validated(vec![lp]),

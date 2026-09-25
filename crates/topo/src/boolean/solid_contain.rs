@@ -471,7 +471,7 @@ impl std::error::Error for PointInSolidError {}
 /// whose answer is ray-crossing parity and therefore blind to the
 /// normal's sign either way; threading here is what keeps the door's
 /// CONTRACT honest for the next consumer.
-pub(super) fn face_plane<T: Decide>(
+pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
@@ -2291,7 +2291,7 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
 /// own carriers ([`point_in_carrier_loop`]); a loop the walk can only
 /// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
 /// where `p` could land in it.
-pub(super) fn point_in_face<T: Decide>(
+pub(crate) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,

@@ -673,7 +673,12 @@ fn conic_crossings<T: Decide>(
         match k.in_window((hx / hn, hy / hn), band)? {
             Sign::Positive => crossings += 1,
             Sign::Negative => {}
-            Sign::Zero => return Ok(None), // at an arc endpoint
+            // An endpoint's neighbourhood. The endpoint is a vertex of
+            // the loop, and a ray through a vertex has already grazed on
+            // its side row, so this arm answers only where that row and
+            // this window disagree inside the band — a graze all the
+            // same, never a count.
+            Sign::Zero => return Ok(None),
         }
     }
     Ok(Some(crossings))
