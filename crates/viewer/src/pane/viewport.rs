@@ -1485,6 +1485,8 @@ mod tests {
         pane: ViewportSize,
         cursor: [f64; 2],
         named: StableName,
+        /// The id the named face is drawn under.
+        id: u32,
         serial: u32,
         answer: u64,
     }
@@ -1516,6 +1518,7 @@ mod tests {
             },
             cursor: [800.0, 450.0],
             named,
+            id,
             serial,
             answer: (u64::from(serial) << 32) | u64::from(id),
         }
@@ -1599,7 +1602,14 @@ mod tests {
         // the ray there — so it says the refusal, and the comparison
         // says nothing.
         let arrived = log.step(Some(at), subject);
-        assert!(matches!(arrived, IdStep::Ask { .. }), "{arrived:?}");
+        let serial = match arrived {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        // The id pass's answer to THIS question, naming a face: fresh,
+        // so a ray answer read as empty would be a disagreement.
+        let answer = (u64::from(serial) << 32) | u64::from(fixture.id);
         assert!(
             ray_asked_at(&actions, arrived, at),
             "the hover asks the ray"
