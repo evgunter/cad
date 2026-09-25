@@ -137,8 +137,12 @@ section.
 - **`Tone`'s header** no longer says the Features pane argues the rule
   or that no value stated it. It says the feature tree's rows follow
   the same rule, stated by `tree::RowStatus::tone` — a poisoned row is
-  `Tone::Advisory` — that both families state a tone as a value, and
-  that `app::toned` is the one place a tone becomes a colour.
+  `Tone::Advisory` — and that a badge, a row and a pane message drawn
+  through `widgets::message_toned` each hand over a `Tone` rather than
+  a style, with `app::toned` where a tone becomes one (`weak` for
+  `Advisory`, the theme's `unresolved` for `Actionable`). It names no
+  count of readers; there are more than the two families the first
+  draft said.
 - **`product_badge`'s doc** keeps its argument and changes its
   attribution: `RowStatus::tone` makes a poisoned row `Advisory`, the
   Features pane draws that value, and a badge shouting about the same

@@ -1,7 +1,7 @@
 ---
 id: crates-cite-work-view-rows-that-moved-in-the-rescope
 kind: issue
-title: 26 citations under crates/ name work/view/ rows that the 2026-09-17 re-scope moved
+title: Citations under crates/ name work/view/ rows that the 2026-09-17 re-scope moved
 status: open
 opened: 2026-09-19
 refs: [stale-file-citations-after-the-split, renamed-module-leaves-citations-in-two-other-programs]
@@ -20,8 +20,11 @@ the class reaches four further crates.
 ## The sweep and its result
 
 `grep -rno 'work/view/[a-z0-9-]*' crates/`, each id then checked for
-`work/view/<id>.md` on this tree. **36 citation sites; 10 still
-resolve; 26 do not.** VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeom`,
+`work/view/<id>.md` on this tree. **At that base, 36 citation sites:
+10 resolved and 26 did not.** Those figures are a receipt of that one
+run and are not kept current; the table below is the live population —
+a line is struck from it when its sites are repaired, and the repair is
+recorded in a dated section at the end. VIEW's re-scope of 2026-09-17 moved rows to `vnews`, `vgeom`,
 `vseam` and `vdoc` by `git mv`, and the `props` cut moved others to
 `ciw`, `guard` and `dup`; nothing repointed the in-tree citations.
 
@@ -57,7 +60,8 @@ stable-name`, `frame-module-has-eight-concerns-and-no-holds-row`,
 through-the-session`, `startup-notices-need-holding-to-badge`,
 `the-dying-seam-fakes-mirror-a-machine-they-do-not-share`,
 `the-quiet-seam-half-of-pickcache-indexing-has-no-shipped-producer` —
-eight ids still in `work/view/`, at ten citation sites.
+eight ids in `work/view/` at that base, at ten citation sites
+(`startup-notices-need-holding-to-badge` has moved since; see the end).
 
 ## What the sweep could not match
 
@@ -85,8 +89,8 @@ with announced crossings rather than a drive-by. **And the standing
 half is the more valuable one**: nothing stops the next `git mv`
 repeating this, and `work/guard/` is where a gate asserting *"every
 `work/<program>/<id>` cited under `crates/` resolves"* would live. That
-gate is cheap — the tracker is files — and would have caught all 26 the
-day they broke.
+gate is cheap — the tracker is files — and would have caught every one
+the day it broke.
 
 ## Relation to the two rows this refs
 

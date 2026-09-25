@@ -159,18 +159,22 @@ home; it is cited here rather than restated.
 
 **The doc line.** `folded_moved`'s first line now asks the question the
 value answers — *whether a folded event stream is a camera event at
-all: it applied a camera operation, or it refused one* — says a refused
-fold moved nothing and still answers `true` because `land` both applies
-a move and delivers a refusal, and says outright that the name is
-narrower than the value. The *"what this buys"* paragraph's *"calling
-it on frames where nothing moved"* became *"with no camera event"*, the
-only reading under which the guard keeps the sentence it protects.
+all: it applied a camera operation, refused one, or both* — and says
+`true` does not say whether the camera moved. **A correction to this
+row's premise, made in review:** a refused fold is not always a fold
+that moved nothing. `camera::Folded::applied` is *"a prefix of the
+input"*, so a stream that orbits and then hits a refused operation
+moved the camera AND refused, and `land` takes the camera it reached.
+Only a fold whose FIRST operation refused moved nothing; the doc says
+so. The *"what this buys"* paragraph now defends the guard in the same
+terms: `land` is where a camera event becomes application state — the
+camera the fold reached and the refusal that stopped it.
 
 **One more sibling, fixed in the same pass:** the assertion message in
 `frame.rs`'s `a_clean_fold_keeps_a_message_it_did_not_write` said *"a
 fold that moved nothing never reaches the line at all"* — false for a
-refused fold, which moved nothing and reaches the line. It now says *"a
-fold that is no camera event"*.
+fold whose first operation refused, which moved nothing and reaches the
+line. It now says *"a fold that is no camera event"*.
 
 **The rename was not taken, and this row stays open on it.** The lane's
 judgement: the rename is worth doing on the merits the adjudication
