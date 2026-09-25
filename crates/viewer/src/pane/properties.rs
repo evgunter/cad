@@ -550,27 +550,19 @@ impl ViewerBehavior<'_> {
         // same test before its own.
         let addressable = crate::display::display_check(doc, node);
         let mut shown = !self.display.hidden.contains(&node);
-        let toggle = ui.add_enabled(
-            addressable.is_ok(),
-            egui::Checkbox::new(&mut shown, "shown in viewport"),
-        );
-        if let Err(fault) = addressable {
-            // The sentence the click would have been answered with,
-            // visible under the control it governs rather than behind
-            // a hover. The probe below would refuse this very fault —
-            // `free_move_check` runs `display_check` first — so the
-            // section ends here rather than saying it a second time
-            // under a second heading.
-            ui.weak(fault.to_string());
-            return;
-        }
-        if toggle.changed() {
+        if hide_toggle(ui, &self.theme, &addressable, &mut shown) {
             self.ops.push(SessionOp::SetInstanceHidden {
                 instance: node,
                 hidden: !shown,
             });
         }
-        match free_move_check(self.session.committed_doc(), node) {
+        // The probe below would refuse this very fault —
+        // `free_move_check` runs `display_check` first — so the section
+        // ends at the toggle rather than saying it a second time.
+        if addressable.is_err() {
+            return;
+        }
+        match free_move_check(doc, node) {
             Err(fault) => {
                 // The typed ineligibility, shown where the control
                 // would be — the same sentence the op would refuse
@@ -1095,6 +1087,30 @@ fn bounds_notes(ui: &mut egui::Ui, theme: &Theme, reading: Option<&str>) -> bool
         .clicked()
 }
 
+/// **The hide toggle, offered exactly where `SetInstanceHidden` would
+/// accept it.** `addressable` is the admission test that op runs
+/// (`display::display_check`); where it refuses, the checkbox is drawn
+/// disabled and the refusal's own sentence stands under it, visible
+/// rather than behind a hover.
+///
+/// Answers whether the toggle was changed — which a refused toggle
+/// never is.
+fn hide_toggle(
+    ui: &mut egui::Ui,
+    theme: &Theme,
+    addressable: &Result<(), crate::display::AdmissionFault>,
+    shown: &mut bool,
+) -> bool {
+    let toggle = ui.add_enabled(
+        addressable.is_ok(),
+        egui::Checkbox::new(shown, "shown in viewport"),
+    );
+    if let Err(fault) = addressable {
+        crate::widgets::message_toned(ui, fault.to_string(), theme, Tone::Advisory);
+    }
+    toggle.changed()
+}
+
 /// What a range button says on hover, for a slot's and a parameter's
 /// alike.
 const PROBE_HOVER: &str =
@@ -1230,9 +1246,15 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
+    use std::cell::Cell;
+
+    use super::hide_toggle;
     use crate::app::ViewerBehavior;
+    use crate::display::AdmissionFault;
+    use crate::pane::headless::painted_after_clicking;
     use crate::props::{SlotDriver, SlotFault, SlotRow, SlotValue};
     use crate::session::Refusal;
+    use crate::theme::Theme;
     use pncad::document::{Dimension, ParamName, RecipeNodeId, SlotId};
 
     const NODE: RecipeNodeId = RecipeNodeId(4);
@@ -1302,6 +1324,59 @@ mod tests {
             rendered,
             "driven by an expression over thickness (currently 0.004) — edit the expression?"
         );
+    }
+
+    /// The fault a fused instance's display doors refuse with.
+    fn fused() -> AdmissionFault {
+        AdmissionFault::FusedGeometry {
+            instance: RecipeNodeId(0),
+            root: RecipeNodeId(2),
+            others: vec![RecipeNodeId(1)],
+        }
+    }
+
+    /// **A refused hide toggle is drawn, cannot be flipped, and carries
+    /// the door's own sentence under it** — the panel half of the fused
+    /// instance's repair, drawn headless.
+    ///
+    /// The runtime value that makes it false is a toggle gated on
+    /// anything weaker than the display doors' own test: clicked here,
+    /// it would report a change the op then refuses.
+    #[test]
+    fn a_refused_hide_toggle_is_disabled_and_says_why() {
+        let changed = Cell::new(false);
+        let painted = painted_after_clicking("shown in viewport", |ui| {
+            let mut shown = true;
+            if hide_toggle(ui, &Theme::DEFAULT, &Err(fused()), &mut shown) {
+                changed.set(true);
+            }
+        });
+        assert!(!changed.get(), "a refused toggle is not the user's to flip");
+        // Planted, not compared with another reading of the fault.
+        assert!(
+            painted.contains(
+                "instance 0's geometry is fused into node 2 together with instance(s) 1 — \
+                 a display operation cannot address it separately"
+            ),
+            "{painted}"
+        );
+    }
+
+    /// **The same click on an addressable toggle DOES flip it** — the
+    /// row that keeps the one above from passing because the harness
+    /// missed the checkbox, and that no sentence is owed where the op
+    /// would accept.
+    #[test]
+    fn an_addressable_hide_toggle_flips_and_says_nothing() {
+        let changed = Cell::new(false);
+        let painted = painted_after_clicking("shown in viewport", |ui| {
+            let mut shown = true;
+            if hide_toggle(ui, &Theme::DEFAULT, &Ok(()), &mut shown) {
+                changed.set(true);
+            }
+        });
+        assert!(changed.get(), "the click reached the checkbox");
+        assert!(!painted.contains("fused"), "{painted}");
     }
 
     /// **A slot the user can write is offered the probe**, with nothing
