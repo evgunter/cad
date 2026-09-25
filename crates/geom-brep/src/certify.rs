@@ -249,6 +249,13 @@ impl core::fmt::Display for CertCheck {
 /// not extracted into the error (no `f64`-projection of a generic `T`
 /// exists for every lane — the Dual lane in particular).
 #[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(CertifyErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum CertifyError {
     /// The collapsed conventional description's **chart image could
     /// not be derived** for this (chart, carrier) pair (D4's mint
@@ -925,10 +932,10 @@ impl<T: Decide> EdgeCurve<T> {
 /// The **injected plane × NURBS lane** — the one certification duty
 /// this module cannot discharge from `T: Decide` alone.
 ///
-/// Limb 2 and limb 3 of the plane × NURBS certificate are C9-ring hull
-/// bounds and the foot point is a bracket read, so the honest
+/// Limb 2 and limb 3 of the plane × NURBS certificate are C9
+/// certification hull bounds and the foot point is a bracket read, so the honest
 /// derivation needs `T: Decide + Bounds + CertifiedEnclosure`
-/// ([`crate::plane_nurbs_limbs`]'s own bound — since #643 the ring
+/// ([`crate::plane_nurbs_limbs`]'s own bound — the certification
 /// door is `CertifiedEnclosure`, which is what a `Dual` lacks; it has
 /// had `Bounds` since D1, 2026-08-19). Raising `certify`'s own
 /// bound would push `Bounds` through every `T: Decide` signature in

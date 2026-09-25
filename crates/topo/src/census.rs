@@ -1169,6 +1169,27 @@ fn witness<T: Real>(p: Point3<T>) -> String {
     format!("({:?}, {:?}, {:?})", p.x, p.y, p.z)
 }
 
+/// The witness of a conformal-patch finding: the chart-region verdict
+/// (`ChartOverlap::PositiveArea`) says the two faces share a region of
+/// positive area and hands back no point in it, so the slot names that
+/// region. It reads after "at" in [`ValidationError::UndeclaredContact`]'s
+/// `Display`, as a coordinate does.
+pub(crate) const CONFORMAL_REGION_WITNESS: &str = "their shared region";
+
+/// The witness of a patch record Door 1 contradicts: the verdict
+/// compares the two faces' carriers whole — the same surface, opposed
+/// senses — and hands back no point, so the slot names where the
+/// contradiction holds: everywhere. It reads after "contradicted" in
+/// [`ValidationError::ContactContradicted`]'s `Display`.
+pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both faces";
+
+/// The witness of a curve record the confirm pass contradicts: the
+/// record's witnessing edge, named as a place rather than by its arena
+/// key (the record, which carries the key, is the caller's own). It
+/// reads after "contradicted" in [`ValidationError::ContactContradicted`]'s
+/// `Display`.
+pub(crate) const CURVE_RECORD_WITNESS: &str = "along the declared edge";
+
 /// An impossible sign from a nonnegative margin — surfaced as the
 /// invalid-margin escalation (poison posture; never silent).
 fn invalid(band: Band, predicate: &'static str) -> geom_core::Indeterminate {
@@ -2080,32 +2101,23 @@ fn ee_crossing_lane<T: Decide>(
             });
         }
         CrossingBacking::Refused(verdict) => {
-            // The witness is display data (its contract), and the
-            // verdict rides it so the refusal NAMES what the sense
-            // algebra answered — same-side is interpenetration
-            // evidence (the C6 hook), undecided already escalated
-            // typed alongside this finding.
-            let name = match verdict {
+            // The witness is the POSITION; the side verdict rides after
+            // it, behind " — ", for `Debug` and the caller, and the
+            // message renders the position alone (the field's
+            // contract). Same-side is interpenetration evidence (the
+            // C6 hook); undecided is already escalated typed alongside
+            // this finding.
+            let verdict = match verdict {
                 CrossingSideVerdict::OppositeSides => unreachable!("Backed above"),
-                CrossingSideVerdict::SameSide => {
-                    "side verdict: same-side — the declared pair holds the crossing \
-                     point but the material lies on ONE side of the shared carrier: \
-                     a transverse crossing, interpenetration evidence (the C6 \
-                     declared-interpenetration class is this verdict's consumer)"
-                }
-                CrossingSideVerdict::Undecided => {
-                    "side verdict: undecided — a candidate holding the crossing did \
-                     not validly reach a side answer (an in-band margin, or the \
-                     Smooth precondition failing after the carrier screens passed); \
-                     escalated typed alongside this finding"
-                }
+                CrossingSideVerdict::SameSide => "side verdict: same-side",
+                CrossingSideVerdict::Undecided => "side verdict: undecided",
             };
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
                 },
-                witness: format!("{} — {name}", witness(q)),
+                witness: format!("{} — {verdict}", witness(q)),
             });
         }
     }
@@ -2297,20 +2309,14 @@ fn sweep_conformal_patches<T: Decide>(
                                 },
                                 verdict: crate::contact::ContactVerdict::Definite,
                             };
-                            // Rendered in the arm's own order. A
-                            // census face pair is unordered for
-                            // EQUALITY alone — the order stays in the
-                            // value, and in what `Debug` prints — and
-                            // the arm's order is a function of the
-                            // input (D9), so no run-to-run instability
-                            // exists for a normalisation to cure.
-                            // Normalising here would also disagree
-                            // with the typed pair on the finding
-                            // beside it, which is what a consumer
-                            // resolves against.
+                            // The witness names the LOCUS, not the
+                            // pair: the finding beside it carries the
+                            // pair typed, and `PositiveArea` is a
+                            // region verdict that hands back no point,
+                            // so the locus is the region itself.
                             errors.push(ValidationError::UndeclaredContact {
                                 contact: CensusContact::ConformalPatch { finding },
-                                witness: format!("{fa:?}~{fb:?}"),
+                                witness: CONFORMAL_REGION_WITNESS.to_owned(),
                             });
                         }
                     }
@@ -2772,6 +2778,189 @@ fn span_pts<T: Decide>(s: crate::boolean::boxes::SpanBox<T>) -> (Point3<T>, Poin
         Point3::new(s.x.lo, s.y.lo, s.z.lo),
         Point3::new(s.x.hi, s.y.hi, s.z.hi),
     )
+}
+
+/// **Why the cross-solid backstop left a pair undecided** — the one
+/// source of every `what` a [`ValidationError::CensusUndecidable`]
+/// carries. Each reason's sentence ends in its own recourse, or says
+/// plainly that there is none yet, because the reasons want different
+/// repairs: a standing crossing wants that crossing fixed, a damaged
+/// instance is a kernel defect, and a designed resting contact the
+/// backstop cannot place has no way through yet.
+///
+/// A raise site names a variant and never writes a sentence:
+/// `the_backstop_writes_no_sentence_of_its_own` holds that, so the
+/// enum's variants are every `what` a run can render.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// Every reason, for the samples: the roster is the enum itself.
+#[cfg_attr(any(test, feature = "test-support"), derive(strum::EnumIter))]
+pub(crate) enum Undecided {
+    /// Arm 1: faces of two solids within reach, one of them curved.
+    CurvedWithinReach,
+    /// Arm 1: a face with no sound reach bound.
+    NoSoundReach,
+    /// Arm 2: the containing instance's extent is unclaimable.
+    Unclaimable,
+    /// Arm 2: a crossing already stands against the pair.
+    Crossing,
+    /// Arm 2: an unexamined or escalated finding already stands.
+    Unexamined,
+    /// Arm 2: a touch that crosses at a lower-dimensional feature.
+    MixedTouch,
+    /// Arm 2: a touch whose side is in band.
+    TouchInBand,
+    /// Arm 2: a touch at a curved face or edge.
+    TouchUnreadable,
+    /// Arm 2: a touch with no local side analysis.
+    TouchUnanalysed,
+    /// Arm 2: a declared face-pair record backing sideless events.
+    DeclaredFacePair,
+    /// Arm 2: every vertex of the contained instance on the boundary.
+    AllOn,
+    /// Arm 2: the contained instance has no vertex.
+    NoVertex,
+    /// Arm 2: the point-in-solid door could not place a vertex near
+    /// the boundary (escalated, every ray grazed, or its loop walk).
+    WitnessTooClose,
+    /// Arm 2: an instance of (near-)zero signed volume.
+    ZeroVolume,
+    /// Arm 2: an instance whose closed-form volume is uncertified.
+    VolumeUncertified,
+    /// Arm 2: an instance with a face kind the door does not serve.
+    FaceKindUnsupported,
+    /// Arm 2: an instance whose topology the door could not walk.
+    CorruptInstance,
+}
+
+impl Undecided {
+    /// Whether arm 1 raises it, on a face pair; arm 2 raises the rest,
+    /// on a solid pair.
+    #[cfg(any(test, feature = "test-support"))]
+    pub(crate) fn on_faces(self) -> bool {
+        matches!(self, Self::CurvedWithinReach | Self::NoSoundReach)
+    }
+
+    /// The reason and its recourse, as the finding renders them.
+    ///
+    /// "Until their bounding boxes no longer overlap" is the distance
+    /// that clears a pair: arm 1 examines only faces within each
+    /// other's reach box and arm 2 only instances whose padded extents
+    /// overlap, so a recourse to move the parts is true exactly past
+    /// that — and is not offered by a reason no distance clears.
+    pub(crate) fn what(self) -> &'static str {
+        match self {
+            // Arm 1 is gated by the faces' reach boxes, so moving the
+            // parts until those boxes no longer overlap clears it; a
+            // designed contact (a boss in a hole, a cradle, an embedded
+            // cap) lands here too and has no way through yet.
+            Self::CurvedWithinReach => {
+                "a curved face of one is within reach of the other, and the kernel cannot \
+                 yet tell whether curved faces of two parts touch. There is no way through \
+                 yet for a designed contact; otherwise move the parts until their bounding \
+                 boxes no longer overlap"
+            }
+            // Neither this nor `Unclaimable` is gated by distance: a
+            // face with no sound reach bound is refused at ANY
+            // separation, so moving the parts is no way through. A
+            // placeholder surface is also reported on its own, as the
+            // kernel defect it is (`UncertifiableSurface`).
+            Self::NoSoundReach => {
+                "one face has no extent the check can bound (a placeholder surface, or an \
+                 edge whose curve has no bounds), so no distance clears it. There is no way \
+                 through yet for this shape"
+            }
+            Self::Unclaimable => {
+                "a face of one has no extent the check can bound, so where that part ends \
+                 is unknown at any distance. There is no way through yet for this shape"
+            }
+            Self::Crossing => {
+                "another finding reports their boundaries crossing, and this one cannot be \
+                 decided until that is fixed. Recourse: fix that crossing first"
+            }
+            Self::Unexamined => {
+                "another finding left their boundaries unchecked, and this one cannot be \
+                 decided until that is resolved. Recourse: resolve that finding first"
+            }
+            Self::MixedTouch => {
+                "an edge or face of one passes through a face of the other where they \
+                 touch. Recourse: move them so they touch face to face, or not at all"
+            }
+            Self::TouchInBand => {
+                "they touch, and which side of the touched face each is on is too close \
+                 to call at this tolerance. There is no way through yet for a designed \
+                 resting contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::TouchUnreadable => {
+                "they touch at a curved face or edge, and the check cannot yet tell which \
+                 side each is on. There is no way through yet for a designed resting \
+                 contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::TouchUnanalysed => {
+                "they touch at a point, along an edge or over a curved patch, and the check \
+                 cannot yet tell which side each is on. There is no way through yet for a \
+                 designed resting contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::DeclaredFacePair => {
+                "a declared contact between their faces touches only at corners the check \
+                 cannot yet place. There is no way through yet for this declared contact"
+            }
+            Self::AllOn => {
+                "every corner of one lies on the other's boundary, so the corners cannot \
+                 place it. There is no way through yet for a designed resting fit; \
+                 otherwise move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::NoVertex => {
+                "one has no corner to test, so nothing places it. There is no way through \
+                 yet for this shape; if they are not meant to meet, move them until their \
+                 bounding boxes no longer overlap"
+            }
+            Self::WitnessTooClose => {
+                "a corner of one lies too close to the other's boundary to place at this \
+                 tolerance. Recourse: move the parts until \
+                 their bounding boxes no longer overlap, or lower the tolerance"
+            }
+            Self::ZeroVolume => {
+                "one has no volume, so nothing can be inside it. Recourse: fix that part \
+                 so it encloses a volume"
+            }
+            Self::VolumeUncertified => {
+                "the check could not certify one's volume, so it cannot tell that part's \
+                 inside from its outside. Recourse: move the parts until \
+                 their bounding boxes no longer overlap"
+            }
+            Self::FaceKindUnsupported => {
+                "one has a face (a spline, or part of a sphere, cone or torus) the check \
+                 cannot yet test a point against. Recourse: move the parts until \
+                 their bounding boxes no longer overlap"
+            }
+            Self::CorruptInstance => {
+                "one part's topology could not be walked. There is no way through: this is \
+                 a kernel defect or a damaged file; report it"
+            }
+        }
+    }
+
+    /// The reason a point-in-solid refusal leaves a placement
+    /// undecided. Exhaustive, so a new refusal is placed here by hand.
+    pub(crate) fn of_point_in_solid(e: &crate::boolean::PointInSolidError) -> Self {
+        use crate::boolean::PointInSolidError as E;
+        match e {
+            E::Escalated { .. } | E::RayExhausted | E::Loop(_) => Self::WitnessTooClose,
+            E::ZeroVolumeBody => Self::ZeroVolume,
+            E::VolumeUncertified => Self::VolumeUncertified,
+            E::KindUnsupported { .. }
+            | E::PartialSphereFace { .. }
+            | E::PartialConeFace { .. }
+            | E::PartialTorusFace { .. } => Self::FaceKindUnsupported,
+            E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::SurfaceSharedOutsideSolid { .. } => {
+                Self::CorruptInstance
+            }
+        }
+    }
 }
 
 /// **The conservative loudness backstop** (M9-2 union fix F1): the
@@ -3247,20 +3436,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Face(a.face),
                         b: EntityId::Face(b.face),
-                        what: "cross-solid faces within reach, at least one of them with \
-                               a curved carrier or a curved boundary — the conformal-rest / \
-                               proximity / partial-embedding class the exclusion ring \
-                               will examine",
+                        what: Undecided::CurvedWithinReach.what(),
                     });
                 }
             } else {
                 errors.push(ValidationError::CensusUndecidable {
                     a: EntityId::Face(a.face),
                     b: EntityId::Face(b.face),
-                    what: "a cross-solid face pair one of whose faces has no sound \
-                           cheap reach bound — a placeholder surface, or a boundary \
-                           carrying a curve with no sound box — the exclusion ring \
-                           is the certified excluder",
+                    what: Undecided::NoSoundReach.what(),
                 });
             }
             if let Some(t) = trace.as_deref_mut() {
@@ -3470,38 +3653,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             Side::InPlane
         }
     };
-    const CROSSING: &str = "a crossing already stands against one of these instances, so \
-                            their boundaries are not certified crossing-free and no \
-                            witness decides the placement";
-    const UNEXAMINED: &str = "an unexamined or escalated finding already stands against \
-                              one of these instances, so their boundaries are not \
-                              certified crossing-free and no witness decides the \
-                              placement";
-    const MIXED_TOUCH: &str = "a touch between these instances is a crossing at a \
-                               lower-dimensional feature — the touching solid's edges \
-                               or faces leave the touched face's plane on both sides — \
-                               so the placement is not decided by its vertices";
-    const TOUCH_IN_BAND: &str = "a touch between these instances has an edge or face \
-                                 leaving the touched face's plane in band, so which side \
-                                 it rests on is undecided at this ε";
-    const TOUCH_UNREADABLE: &str = "a touch between these instances involves a curved \
-                                    face or edge, whose side the planar analysis does \
-                                    not read — the exclusion ring's case";
-    const TOUCH_UNANALYSED: &str = "a touch between these instances (a coincident vertex \
-                                    pair, a vertex on an edge, a collinear edge overlap \
-                                    or a conformal patch) has no local side analysis \
-                                    yet, so the placement is not decided by its vertices";
-    const DECLARED_FACE_PAIR: &str = "a declared face-pair record between these instances \
-                                      backs vertex events without a side, so the \
-                                      placement is not decided by its vertices";
     // Does anything standing void the clear for the pair? `None` = the
     // clear may stand; `Some(what)` = the refusal to push.
     let touch_verdict = |side: Side| -> Option<&'static str> {
         match side {
             Side::InPlane | Side::One => None,
-            Side::Mixed => Some(MIXED_TOUCH),
-            Side::InBand => Some(TOUCH_IN_BAND),
-            Side::Unreadable => Some(TOUCH_UNREADABLE),
+            Side::Mixed => Some(Undecided::MixedTouch.what()),
+            Side::InBand => Some(Undecided::TouchInBand.what()),
+            Side::Unreadable => Some(Undecided::TouchUnreadable.what()),
         }
     };
     let blocks =
@@ -3518,17 +3677,17 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
             for e in standing_errors {
                 let what = match e {
                     // Names no entity: it may be about this pair.
-                    ValidationError::CensusEscalated { .. } => Some(UNEXAMINED),
+                    ValidationError::CensusEscalated { .. } => Some(Undecided::Unexamined.what()),
                     ValidationError::UndeclaredContact { contact, .. } => match *contact {
                         CensusContact::EdgeFacePierce { edge, face }
                             if names(&[EntityId::Edge(edge), EntityId::Face(face)]) =>
                         {
-                            Some(CROSSING)
+                            Some(Undecided::Crossing.what())
                         }
                         CensusContact::EdgeEdgeCross { a, b }
                             if names(&[EntityId::Edge(a), EntityId::Edge(b)]) =>
                         {
-                            Some(CROSSING)
+                            Some(Undecided::Crossing.what())
                         }
                         CensusContact::VertexOnFace { vertex, face }
                             if between(EntityId::Vertex(vertex), EntityId::Face(face)) =>
@@ -3543,24 +3702,24 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                         CensusContact::VertexVertex { a, b }
                             if between(EntityId::Vertex(a), EntityId::Vertex(b)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::VertexOnEdge { vertex, edge }
                             if between(EntityId::Vertex(vertex), EntityId::Edge(edge)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::EdgeEdgeOverlap { a, b }
                             if between(EntityId::Edge(a), EntityId::Edge(b)) =>
                         {
-                            Some(TOUCH_UNANALYSED)
+                            Some(Undecided::TouchUnanalysed.what())
                         }
                         CensusContact::ConformalPatch { ref finding } => {
                             if between(
                                 EntityId::Face(finding.pair.a),
                                 EntityId::Face(finding.pair.b),
                             ) {
-                                Some(TOUCH_UNANALYSED)
+                                Some(Undecided::TouchUnanalysed.what())
                             } else {
                                 None
                             }
@@ -3569,23 +3728,25 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     },
                     ValidationError::CensusUnsupported { subject, .. }
                     | ValidationError::CensusLaneUnsupported { subject } => match subject {
-                        CensusSubject::Entity(id) if names(&[*id]) => Some(UNEXAMINED),
+                        CensusSubject::Entity(id) if names(&[*id]) => {
+                            Some(Undecided::Unexamined.what())
+                        }
                         CensusSubject::FacePair(f, g)
                             if names(&[EntityId::Face(*f), EntityId::Face(*g)]) =>
                         {
-                            Some(UNEXAMINED)
+                            Some(Undecided::Unexamined.what())
                         }
                         _ => None,
                     },
                     ValidationError::CensusUndecidable { a, b, .. } if names(&[*a, *b]) => {
-                        Some(UNEXAMINED)
+                        Some(Undecided::Unexamined.what())
                     }
                     ValidationError::CensusUndecidable { .. } => None,
                     // Nothing else is pushed ahead of this arm: the census
                     // is entered with tiers 1–3 clean and the confirm pass
                     // runs after it. Whatever does stand here is unknown to
                     // this arm and blocks.
-                    _ => Some(UNEXAMINED),
+                    _ => Some(Undecided::Unexamined.what()),
                 };
                 if what.is_some() {
                     return what;
@@ -3606,14 +3767,14 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                 .iter()
                 .any(|&(a, b)| between(EntityId::Vertex(a), EntityId::Vertex(b)))
             {
-                return Some(TOUCH_UNANALYSED);
+                return Some(Undecided::TouchUnanalysed.what());
             }
             if declared
                 .faces
                 .iter()
                 .any(|&(a, b)| between(EntityId::Face(a), EntityId::Face(b)))
             {
-                return Some(DECLARED_FACE_PAIR);
+                return Some(Undecided::DeclaredFacePair.what());
             }
             None
         };
@@ -3634,7 +3795,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
     let probe = |outer: SolidKey, inner: SolidKey| -> Probe {
         let sel = match crate::boolean::SolidFaces::of(body, outer) {
             Ok(sel) => sel,
-            Err(e) => return Probe::Refused(e.summary()),
+            Err(e) => return Probe::Refused(Undecided::of_point_in_solid(&e).what()),
         };
         let (mut refused, mut out_seen, mut any) = (None, false, false);
         for &(v, p) in geo
@@ -3648,7 +3809,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                 Ok(SolidContainment::Out) => out_seen = true,
                 Ok(SolidContainment::OnBoundary) => {}
                 Err(e) => {
-                    refused.get_or_insert(e.summary());
+                    refused.get_or_insert(Undecided::of_point_in_solid(&e).what());
                 }
             }
         }
@@ -3702,9 +3863,7 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                     errors.push(ValidationError::CensusUndecidable {
                         a: EntityId::Solid(outer),
                         b: EntityId::Solid(inner),
-                        what: "a surface kind with no cheap sound box leaves the \
-                               containing instance's extent unclaimable — the \
-                               same interference class",
+                        what: Undecided::Unclaimable.what(),
                     });
                     unclaimable = true;
                     continue;
@@ -3746,14 +3905,8 @@ fn sweep_cross_solid_backstop<T: Decide + Bounds>(
                         }
                         Probe::Clear => continue,
                         Probe::Refused(what) => what,
-                        Probe::AllOn => {
-                            "every vertex of the contained instance lies on the containing \
-                             instance's boundary — a placement its vertices do not decide"
-                        }
-                        Probe::NoVertex => {
-                            "the contained instance has no vertex to probe — a placement \
-                             no witness decides"
-                        }
+                        Probe::AllOn => Undecided::AllOn.what(),
+                        Probe::NoVertex => Undecided::NoVertex.what(),
                     };
                     clear = false;
                     errors.push(ValidationError::CensusUndecidable {
@@ -3914,7 +4067,7 @@ fn confirm_curve_and_patch_records<T: Decide>(
                         b: c.face_b,
                         class: crate::contact::ContactClass::Tangent,
                     },
-                    witness: format!("{:?}", c.witness),
+                    witness: CURVE_RECORD_WITNESS.to_owned(),
                     margin: diag,
                     steer,
                 });
@@ -3968,21 +4121,19 @@ fn confirm_curve_and_patch_records<T: Decide>(
         ) {
             Ok(verdict) => verdict,
             Err(crate::contact::ContactRefusal::Contradicted { diag, steer }) => {
-                // Rendered in the declared record's own order,
-                // which is the reader's index back into the records
-                // they supplied — not this run's arena order. A census
-                // face pair is unordered for EQUALITY alone: the order
-                // stays in the value, and normalising it here would
-                // disagree with `declaration` beside it, the same two
-                // keys in the same order and what a consumer resolves
-                // against.
+                // The declaration is carried in the record's own
+                // order, the reader's index back into the records they
+                // supplied. The witness names the LOCUS, not the pair
+                // (`declaration` carries that): Door 1 compares the two
+                // faces' carriers whole — identity and senses — and
+                // hands back no point, so the locus is the surfaces.
                 errors.push(ValidationError::ContactContradicted {
                     declaration: crate::contact::DeclaredContact {
                         a: c.face_a,
                         b: c.face_b,
                         class: crate::contact::ContactClass::Rest,
                     },
-                    witness: format!("{:?}~{:?}", c.face_a, c.face_b),
+                    witness: CARRIER_COMPARISON_WITNESS.to_owned(),
                     margin: diag,
                     steer,
                 });
@@ -4069,6 +4220,7 @@ mod tests {
     use crate::boolean::PatchContact;
     use crate::entity::FaceKey;
     use crate::euler::{FaceSurface, MefSite, MevSite};
+    use crate::test_support_fixtures::{CylFrame, CylKey, cyl_wall_sheet_keyed, unit_cyl_sheet};
     use geom::Surface;
     use geom_core::Tol;
     use geom_core::Vec3;
@@ -4077,137 +4229,64 @@ mod tests {
         Band::new(1e-9, 1e-8).unwrap()
     }
 
-    fn cyl_surface() -> Surface<f64> {
-        Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius: 1.0,
-            u_ref: Vec3::unit_x(),
-        }
-    }
-
-    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
-        Point3::new(u.cos(), u.sin(), z)
-    }
-
-    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the shared key, with the wall face's sense set.
-    fn cyl_sheet(
-        body: &mut Body<f64>,
-        cyl: Option<crate::geometry::SurfaceKey>,
-        u0: f64,
-        u1: f64,
-        z0: f64,
-        z1: f64,
-        sense: bool,
-    ) -> (FaceKey, crate::geometry::SurfaceKey) {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-        let (p00, p10, p11, p01) = (
-            cyl_pt(u0, z0),
-            cyl_pt(u1, z0),
-            cyl_pt(u1, z1),
-            cyl_pt(u0, z1),
+    /// **The backstop writes no sentence of its own**: every `what` it
+    /// raises comes from [`Undecided`], so its variants — what the
+    /// refusal-budget row renders — are every `what` a run can show. A
+    /// raise site that wrote a sentence inline would be a `what` no row
+    /// measures; this reads the function's source for a multi-word
+    /// string literal (a predicate name is one word) and reds on one.
+    ///
+    /// It reads LITERALS, not provenance: a `what` built some other way
+    /// (a `format!`, a string from another module) passes it. A type
+    /// would hold provenance, but `CensusUndecidable.what` is a
+    /// `&'static str` payload, and the refusal standard keeps payloads
+    /// as they are — accepted, and stated here.
+    #[test]
+    fn the_backstop_writes_no_sentence_of_its_own() {
+        use test_utils::source::{Region, balanced_end, code_only, keeping};
+        let src = include_str!("census.rs");
+        let code = code_only(src);
+        let at = code
+            .find("\nfn sweep_cross_solid_backstop")
+            .expect("the backstop is in this file");
+        let open = at + code[at..].find('{').expect("the backstop's body");
+        let close = balanced_end(&code, open).expect("the backstop's closing brace");
+        // Every space marked before lexing, then only the literals
+        // kept: a literal still holding a mark had a space in it — a
+        // sentence, where a predicate name is one word.
+        let marked = src[open..=close].replace(' ', "\u{1}");
+        let literals = keeping(&marked, &[Region::Literal]);
+        let sentences: Vec<String> = literals
+            .split([' ', '\n'])
+            .filter(|literal| literal.contains('\u{1}'))
+            .map(|literal| literal.replace('\u{1}', " "))
+            .collect();
+        assert!(
+            sentences.is_empty(),
+            "the backstop writes a `what` inline; name an `Undecided` reason instead: \
+             {sentences:#?}"
         );
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface()));
-        let rim = |body: &mut Body<f64>, z: f64, ccw: bool| {
-            let plane = body.add_surface(Surface::Plane {
-                origin: Point3::new(0.0, 0.0, z),
-                normal: Vec3::unit_z(),
-                u_ref: Vec3::unit_x(),
-            });
-            let (carrier, t0, t1) = if ccw {
-                (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::unit_z(),
-                        radius: 1.0,
-                        u_ref: Vec3::unit_x(),
-                    },
-                    u0,
-                    u1,
-                )
-            } else {
-                (
-                    Curve3::Circle {
-                        center: Point3::new(0.0, 0.0, z),
-                        axis: Vec3::new(0.0, 0.0, -1.0),
-                        radius: 1.0,
-                        u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
-                    },
-                    0.0,
-                    u1 - u0,
-                )
-            };
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
-                    witness: cyl_pt((u0 + u1) * 0.5, z),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
-        };
-        let bottom = rim(body, z0, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim(body, z1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
-        body.set_face_sense(face, sense).unwrap();
-        (face, cyl)
     }
 
     /// Two overlapping opposed-sense wall sheets on one cylinder key.
     fn conformal_pair() -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         (body, w1, w2)
     }
@@ -4305,8 +4384,22 @@ mod tests {
     fn a_placeholder_seed_leaves_the_containing_extent_unclaimable() {
         let refusals = |z0: f64, z1: f64| -> Vec<String> {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             census_and_certify(
                 &body,
@@ -4329,10 +4422,9 @@ mod tests {
         let near = refusals(0.3, 0.7);
         assert!(
             !near.is_empty()
-                && near.iter().all(|r| r.contains(
-                    "a surface kind with no cheap sound box leaves the containing \
-                     instance's extent unclaimable"
-                )),
+                && near
+                    .iter()
+                    .all(|r| r.ends_with(Undecided::Unclaimable.what())),
             "the placeholder seed must reach the TYPED refusal, not the in-band \
              fallout of a NaN box: {near:?}"
         );
@@ -4422,7 +4514,7 @@ mod tests {
             .collect();
         assert_eq!(whats.len(), 1, "{errors:?}");
         assert!(
-            whats[0].contains("a face kind the point-in-solid door does not serve"),
+            whats[0] == Undecided::FaceKindUnsupported.what(),
             "{whats:?}"
         );
         assert!(
@@ -4458,8 +4550,22 @@ mod tests {
     #[test]
     fn a_disjoint_patch_record_is_stale_typed() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4484,17 +4590,13 @@ mod tests {
     // ================= The `None` path, observed =================
 
     /// The sentence [`ValidationError::CensusLaneUnsupported`] renders
-    /// for `pair`, so the `None` rows below pin the `Display` and not
-    /// only the variant.
-    fn lane_unsupported_sentence(pair: (FaceKey, FaceKey)) -> String {
-        format!(
-            "tier-3′ census: this scalar has no certified chart-overlap lane, so the conformal \
-             face-pair arm could not examine the candidate {} — a fact about the RUN and not \
-             about the geometry, refused rather than skipped. Replay the body at f64, the \
-             telemetry probe or the interval scalar to get the candidate examined",
-            CensusSubject::FacePair(pair.0, pair.1)
-        )
-    }
+    /// — for any pair, since it names none — so the `None` rows below
+    /// pin the `Display` and not only the variant.
+    const LANE_UNSUPPORTED_SENTENCE: &str = "a pair of faces was not examined, \
+         because this structural check holds no certified chart-overlap lane at any scalar; \
+         nothing was decided about the geometry. Recourse: run the certified check \
+         (validate_pseudomanifold, or validate_pseudomanifold_certificate for a certificate) \
+         at a certifying scalar";
 
     /// The one [`ValidationError::CensusLaneUnsupported`] in `errors`,
     /// with its subject and `Display` pinned to `pair`.
@@ -4514,7 +4616,7 @@ mod tests {
                 subject: CensusSubject::FacePair(pair.0, pair.1),
             }
         );
-        assert_eq!(lane[0].to_string(), lane_unsupported_sentence(pair));
+        assert_eq!(lane[0].to_string(), LANE_UNSUPPORTED_SENTENCE);
     }
 
     /// **The `None` path at the conformal face-pair arm, observed.** The
@@ -4691,8 +4793,22 @@ mod tests {
         let mut body = Body::<f64>::new();
         // Overlap region u ∈ [0.4, 1.4] × z ∈ [0.5, 0.5 + 5e-9]:
         // mean width ≈ 5e-9 m, inside Band{1e-9, 1e-8}.
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 0.5 + 5e-9, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.4, 1.4, 0.5, 1.0, false);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 0.5 + 5e-9),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.4, 1.4),
+            (0.5, 1.0),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(
             &body,
@@ -4753,10 +4869,24 @@ mod tests {
     fn r1_probe_next_branch_windows_still_find_the_overlap() {
         let tau = core::f64::consts::TAU;
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         // Same locus, next periodic branch; u-nested and z-nested so
         // no strut/vertex coincidences muddy the face-pair question.
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 0.5 + tau, 1.2 + tau, 0.3, 0.7, false);
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (0.5 + tau, 1.2 + tau),
+            (0.3, 0.7),
+            false,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let arm = census_and_certify(
             &body,
@@ -4799,8 +4929,22 @@ mod tests {
         // Same key, SAME sense: aligned coincidence is containment or
         // flush material, never contact (C1) — the record lies.
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7, true);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let mut records = ContactRecords::default();
         records.patches.push(PatchContact {
@@ -4855,6 +4999,11 @@ mod tests {
     /// A wall sheet over the DIVERGENT description of the unit
     /// cylinder: `θ_world = 0.7 − u_B`, `z_world = 0.25 − v_B`. Takes
     /// the WORLD window and converts.
+    ///
+    /// The frame is [`CylFrame::opposed`] at seam `0.7` — the same
+    /// locus as [`unit_cyl_sheet`]'s and not one field in common with
+    /// it — so the pair this seeds disagrees on every field of the
+    /// description while naming one cylinder.
     fn cyl_sheet_b(
         body: &mut Body<f64>,
         th0: f64,
@@ -4863,117 +5012,17 @@ mod tests {
         z1: f64,
         sense: bool,
     ) -> FaceKey {
-        use geom::Curve3;
-        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
         let d = 0.7_f64;
-        let origin = Point3::new(0.0, 0.0, 0.25);
-        let axis = -Vec3::unit_z();
-        let u_ref = Vec3::new(d.cos(), d.sin(), 0.0);
         let (u0, u1, v0, v1) = (d - th1, d - th0, 0.25 - z1, 0.25 - z0);
-        let at = |u: f64, v: f64| -> Point3<f64> {
-            let w = axis.cross(u_ref);
-            origin + (u_ref * u.cos() + w * u.sin()) * 1.0 + axis * v
-        };
-        let (p00, p10, p11, p01) = (at(u0, v0), at(u1, v0), at(u1, v1), at(u0, v1));
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = body.add_surface(Surface::Cylinder {
-            origin,
-            axis,
-            radius: 1.0,
-            u_ref,
-        });
-        body.set_surface_source(cyl, crate::GeomSource::minted(7102, 0))
-            .unwrap();
-        let rim = |body: &mut Body<f64>, v: f64, ccw: bool| {
-            let center = origin + axis * v;
-            let plane = body.add_surface(Surface::Plane {
-                origin: center,
-                normal: axis,
-                u_ref,
-            });
-            let (carrier, t0, t1) = if ccw {
-                (
-                    Curve3::Circle {
-                        center,
-                        axis,
-                        radius: 1.0,
-                        u_ref,
-                    },
-                    u0,
-                    u1,
-                )
-            } else {
-                let s = at(u1, v) - center - axis * ((at(u1, v) - center).dot(axis));
-                (
-                    Curve3::Circle {
-                        center,
-                        axis: -axis,
-                        radius: 1.0,
-                        u_ref: s.normalize(),
-                    },
-                    0.0,
-                    u1 - u0,
-                )
-            };
-            EdgeCurveSpec {
-                description: EdgeDescriptionSpec::Intersection {
-                    s1: cyl,
-                    s2: plane,
-                    witness: at((u0 + u1) * 0.5, v),
-                },
-                carrier,
-                param_start: t0,
-                param_end: t1,
-            }
-        };
-        let bottom = rim(body, v0, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim(body, v1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
+        let (face, _) = cyl_wall_sheet_keyed(
+            body,
+            CylFrame::opposed(d),
+            CylKey::Bare,
+            Some(7102),
+            (u0, u1),
+            (v0, v1),
+            Tol::witness(),
+        );
         body.set_face_sense(face, sense).unwrap();
         face
     }
@@ -4988,7 +5037,14 @@ mod tests {
         z1: f64,
     ) -> (Body<f64>, FaceKey, FaceKey) {
         let mut body = Body::<f64>::new();
-        let (w1, cyl_a) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (w1, cyl_a) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         body.set_surface_source(cyl_a, crate::GeomSource::minted(7101, 0))
             .unwrap();
         let w2 = cyl_sheet_b(&mut body, th0, th1, z0, z1, false);
@@ -5098,8 +5154,22 @@ mod tests {
     fn n2r2_class7_face_reach_partial_box_and_census_decision() {
         let run = |z0: f64, z1: f64| -> (Vec<String>, Vec<String>) {
             let mut body = Body::<f64>::new();
-            let (_w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
-            let (_w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, z0, z1, false);
+            let (_w1, cyl) = unit_cyl_sheet(
+                &mut body,
+                None,
+                (0.2, 1.6),
+                (0.0, 1.0),
+                true,
+                Tol::witness(),
+            );
+            let (_w2, _) = unit_cyl_sheet(
+                &mut body,
+                Some(cyl),
+                (1.0, 2.4),
+                (z0, z1),
+                false,
+                Tol::witness(),
+            );
             crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
             let seeds = swap_placeholders(&mut body);
             assert_eq!(seeds.len(), 2);
@@ -5137,7 +5207,14 @@ mod tests {
     #[test]
     fn n2r2_face_box_partial_poison_prunes_on_finite_axes() {
         let mut body = Body::<f64>::new();
-        let (_w1, _cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0, true);
+        let (_w1, _cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         let seeds = swap_placeholders(&mut body);
         let b = crate::boolean::boxes::face_box(&body, seeds[0], 1e-9).unwrap();
@@ -5296,7 +5373,7 @@ mod tests {
             normal: Vec3::unit_z(),
             u_ref: Vec3::unit_x(),
         });
-        let cyl = body.add_surface(cyl_surface());
+        let cyl = body.add_surface(CylFrame::canonical(1.0).surface());
         let arc = body
             .mev(
                 MevSite::Lone {

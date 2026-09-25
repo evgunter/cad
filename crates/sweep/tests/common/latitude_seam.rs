@@ -65,15 +65,15 @@ pub fn collinear_cap_drum() -> Body<f64> {
 /// latitude `π/4`: one sphere in four faces, a same-surface seam.
 pub fn two_arc_sphere() -> Body<f64> {
     use core::f64::consts::{FRAC_PI_2, PI};
-    use profile::{ProfileLoop, ProfileVertex, RawLoop};
+    use profile::test_support::bulge_loop;
     let r = 1.0;
     let v = PI / 4.0;
     let (s, c) = v.sin_cos();
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (p2(0.0, r), 0.0),
         ]),
         Revolution::Full,
     )

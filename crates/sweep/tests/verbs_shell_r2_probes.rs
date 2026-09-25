@@ -9,7 +9,7 @@
 use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -77,19 +77,12 @@ fn try_revolved(loops: Vec<ProfileLoop<f64>>, revolution: Revolution<f64>) -> Op
 }
 
 fn poly(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    )
+    bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect())
 }
 
 /// A circle as a two-vertex bulge loop, CCW.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    RawLoop::new(vec![
-        ProfileVertex::new(p2(cx - r, cy), 1.0),
-        ProfileVertex::new(p2(cx + r, cy), 1.0),
-    ])
+    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
 }
 
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Option<Body<f64>> {

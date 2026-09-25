@@ -123,7 +123,7 @@
 use geom::NurbsCurve3;
 use geom_brep::PcurveFittedLane;
 use geom_core::{Affine3, Band, Bounds, Decide, OrthoFrame, Point2, Point3, Real, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, EdgeKey, FaceKey, LoopBoundary};
 
@@ -215,7 +215,7 @@ pub fn brick<T: Decide>(x: (f64, f64), y: (f64, f64), z: (f64, f64), tol: Tol) -
 /// from that corner, as profile vertices — the one spelling of the block
 /// outline the fixtures here build on when they need the loop rather
 /// than the body.
-fn square<T: Decide>(l: f64) -> Vec<ProfileVertex<T>> {
+fn square<T: Decide>(l: f64) -> Vec<(Point2<T>, T)> {
     corners(&[(0.0, 0.0), (l, 0.0), (l, l), (0.0, l)])
 }
 
@@ -226,9 +226,9 @@ fn square<T: Decide>(l: f64) -> Vec<ProfileVertex<T>> {
 /// Takes `f64` pairs at every scalar, like [`waisted_at`]: a fixture's
 /// outline is a set of chosen constants, and a chosen constant is an
 /// `f64` whatever the lane's arithmetic is.
-pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<ProfileVertex<T>> {
+pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<(Point2<T>, T)> {
     pts.iter()
-        .map(|&(x, y)| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
+        .map(|&(x, y)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
         .collect()
 }
 
@@ -259,7 +259,7 @@ pub fn all_links(body: &Body<f64>, tol: Tol) -> Vec<Link<f64>> {
 /// each carried a byte-identical copy of this before the fix pass; that
 /// is the S52 shape the module header names, and the copies drift.
 pub fn revolved_about_y(
-    verts: Vec<ProfileVertex<f64>>,
+    verts: Vec<(Point2<f64>, f64)>,
     rev: crate::Revolution<f64>,
     tol: Tol,
 ) -> Body<f64> {
@@ -271,11 +271,11 @@ pub fn revolved_about_y(
 /// differ in the scalar and in nothing else. The bound is the door's
 /// own (`crate::revolve`'s), carrying no bracket read of its own.
 pub fn revolved_about_y_at<T: Decide + PcurveFittedLane>(
-    verts: Vec<ProfileVertex<T>>,
+    verts: Vec<(Point2<T>, T)>,
     rev: crate::Revolution<T>,
     tol: Tol,
 ) -> Body<T> {
-    let profile = Profile::new(SketchPlane::<T>::xy(), vec![ProfileLoop::new(verts)])
+    let profile = Profile::new(SketchPlane::<T>::xy(), vec![bulge_loop(verts)])
         .validate(tol)
         .unwrap();
     let axis = crate::RevolveAxis {
@@ -296,14 +296,14 @@ pub fn dome(r: f64, tol: Tol) -> Body<f64> {
 
 /// [`dome`]'s profile, so a suite can revolve it PARTIALLY for the
 /// differential pair.
-pub fn dome_profile(r: f64) -> Vec<ProfileVertex<f64>> {
+pub fn dome_profile(r: f64) -> Vec<(Point2<f64>, f64)> {
     let a45 = core::f64::consts::FRAC_1_SQRT_2;
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     vec![
-        ProfileVertex::new(Point2::new(0.5 * r, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(r, 0.0), bulge),
-        ProfileVertex::new(Point2::new(r * a45, r * a45), 0.0),
-        ProfileVertex::new(Point2::new(0.5 * r, r * a45), 0.0),
+        (Point2::new(0.5 * r, 0.0), 0.0),
+        (Point2::new(r, 0.0), bulge),
+        (Point2::new(r * a45, r * a45), 0.0),
+        (Point2::new(0.5 * r, r * a45), 0.0),
     ]
 }
 
@@ -438,8 +438,7 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// exactly representable, so the fixture's enclosures are points at a
 /// certified scalar) through the same doors.
 pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v =
-        |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
         vec![
             v(0.0, 0.0),
@@ -474,13 +473,13 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
     let theta = (bore / big_r).acos();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(bore, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(bore, y_bore), -(theta / 4.0).tan()),
-            ProfileVertex::new(Point2::new(big_r, floor), 0.0),
-            ProfileVertex::new(Point2::new(0.0, floor), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(bore, 1.0), 0.0),
+            (Point2::new(bore, y_bore), -(theta / 4.0).tan()),
+            (Point2::new(big_r, floor), 0.0),
+            (Point2::new(0.0, floor), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -507,8 +506,8 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
 ) -> Body<T> {
     let ball = revolved_about_y_at(
         vec![
-            ProfileVertex::new(Point2::new(T::zero(), -r), T::one()),
-            ProfileVertex::new(Point2::new(T::zero(), r), T::zero()),
+            (Point2::new(T::zero(), -r), T::one()),
+            (Point2::new(T::zero(), r), T::zero()),
         ],
         crate::Revolution::Full,
         tol,
@@ -549,10 +548,10 @@ pub fn spool(rev: crate::Revolution<f64>, tol: Tol) -> Body<f64> {
     let (ex, ey) = (1.75, 0.25 * 3.0f64.sqrt());
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.5, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(2.0, 0.0), bulge),
-            ProfileVertex::new(Point2::new(ex, ey), 0.0),
-            ProfileVertex::new(Point2::new(0.5, ey), 0.0),
+            (Point2::new(0.5, 0.0), 0.0),
+            (Point2::new(2.0, 0.0), bulge),
+            (Point2::new(ex, ey), 0.0),
+            (Point2::new(0.5, ey), 0.0),
         ],
         rev,
         tol,
@@ -661,11 +660,11 @@ pub fn sketch_at<T: Decide>(z0: T) -> SketchPlane<T> {
 /// `verts`, extruded `h` along that plane's normal.
 pub fn prism_on<T: Decide>(
     plane: SketchPlane<T>,
-    verts: Vec<ProfileVertex<T>>,
+    verts: Vec<(Point2<T>, T)>,
     h: T,
     tol: Tol,
 ) -> Body<T> {
-    extruded(plane, vec![ProfileLoop::new(verts)], h, tol)
+    extruded(plane, vec![bulge_loop(verts)], h, tol)
 }
 
 /// **A prism**: one closed profile loop extruded `h` along `+z`.
@@ -674,7 +673,7 @@ pub fn prism_on<T: Decide>(
 /// what got it homed. Takes the vertices rather than a shape so the
 /// L-prism, the arc-sided prism and the turned box are all one door;
 /// panics on an invalid loop, which is a fixture bug, not an outcome.
-pub fn prism<T: Decide>(verts: Vec<ProfileVertex<T>>, h: T, tol: Tol) -> Body<T> {
+pub fn prism<T: Decide>(verts: Vec<(Point2<T>, T)>, h: T, tol: Tol) -> Body<T> {
     prism_at(verts, T::zero(), h, tol)
 }
 
@@ -682,7 +681,7 @@ pub fn prism<T: Decide>(verts: Vec<ProfileVertex<T>>, h: T, tol: Tol) -> Body<T>
 /// is extruded from `z0` up by `h`. The one home of the lifted
 /// extrusion, so a fixture that stacks a prism on or into another body
 /// does not re-spell the plane.
-pub fn prism_at<T: Decide>(verts: Vec<ProfileVertex<T>>, z0: T, h: T, tol: Tol) -> Body<T> {
+pub fn prism_at<T: Decide>(verts: Vec<(Point2<T>, T)>, z0: T, h: T, tol: Tol) -> Body<T> {
     prism_on(sketch_at(z0), verts, h, tol)
 }
 
@@ -704,10 +703,10 @@ pub fn sphere_zone(bore: f64, rev: crate::Revolution<f64>, tol: Tol) -> Body<f64
     let bulge = ((th_hi - th_lo) / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(bore, y_lo), 0.0),
-            ProfileVertex::new(Point2::new(x_lo, y_lo), bulge),
-            ProfileVertex::new(Point2::new(x_hi, y_hi), 0.0),
-            ProfileVertex::new(Point2::new(bore, y_hi), 0.0),
+            (Point2::new(bore, y_lo), 0.0),
+            (Point2::new(x_lo, y_lo), bulge),
+            (Point2::new(x_hi, y_hi), 0.0),
+            (Point2::new(bore, y_hi), 0.0),
         ],
         rev,
         tol,
@@ -726,11 +725,11 @@ pub fn lantern(tol: Tol) -> Body<f64> {
     let bulge = (0.6f64.asin() / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), bulge),
-            ProfileVertex::new(Point2::new(0.8, 0.6), 0.0),
-            ProfileVertex::new(Point2::new(0.2, 1.2), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.2), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), bulge),
+            (Point2::new(0.8, 0.6), 0.0),
+            (Point2::new(0.2, 1.2), 0.0),
+            (Point2::new(0.0, 1.2), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -1297,8 +1296,7 @@ pub fn bowl(tol: Tol) -> Body<f64> {
 /// same doors, so the interval twin differs in the scalar and nothing
 /// else.
 pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v =
-        |x: f64, y: f64| ProfileVertex::new(Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
+    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
         vec![
             v(0.0, 0.0),
@@ -1367,9 +1365,9 @@ pub fn hemisphere_on_flat_base_at<T: Decide + PcurveFittedLane>(r: T, tol: Tol) 
     let bulge = T::from_f64((core::f64::consts::FRAC_PI_2 / 4.0).tan());
     revolved_about_y_at(
         vec![
-            ProfileVertex::new(Point2::new(T::zero(), T::zero()), T::zero()),
-            ProfileVertex::new(Point2::new(r, T::zero()), bulge),
-            ProfileVertex::new(Point2::new(T::zero(), r), T::zero()),
+            (Point2::new(T::zero(), T::zero()), T::zero()),
+            (Point2::new(r, T::zero()), bulge),
+            (Point2::new(T::zero(), r), T::zero()),
         ],
         crate::Revolution::Full,
         tol,
@@ -1460,11 +1458,11 @@ pub fn boss(up: bool, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), if up { q } else { -q }),
-            ProfileVertex::new(Point2::new(0.0, if up { 1.5 } else { 0.5 }), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.5, 1.0), if up { q } else { -q }),
+            (Point2::new(0.0, if up { 1.5 } else { 0.5 }), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -1481,11 +1479,11 @@ pub fn narrowed_boss(rr: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(rr, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(rr, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.5, 1.0), q),
-            ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(rr, 0.0), 0.0),
+            (Point2::new(rr, 1.0), 0.0),
+            (Point2::new(0.5, 1.0), q),
+            (Point2::new(0.0, 1.5), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -1502,11 +1500,11 @@ pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(a, 1.0), q),
-            ProfileVertex::new(Point2::new(0.0, 1.0 + a), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(a, 1.0), q),
+            (Point2::new(0.0, 1.0 + a), 0.0),
         ],
         crate::Revolution::Full,
         tol,
@@ -1529,12 +1527,12 @@ pub fn domed_boss(a: f64, tol: Tol) -> Body<f64> {
 /// misalignment is why this fixture reaches the closed-form backstop
 /// where every coaxial one is screened first.
 pub fn bored_cylinder(a: f64, d: f64, outer_phi: f64, tol: Tol) -> Body<f64> {
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
-    let outer = ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
+    let outer = bulge_loop(vec![
         v(outer_phi.cos(), outer_phi.sin(), 1.0),
         v(-outer_phi.cos(), -outer_phi.sin(), 1.0),
     ]);
-    let inner = ProfileLoop::new(vec![v(d + a, 0.0, -1.0), v(d - a, 0.0, -1.0)]);
+    let inner = bulge_loop(vec![v(d + a, 0.0, -1.0), v(d - a, 0.0, -1.0)]);
     extruded(SketchPlane::xy(), vec![outer, inner], 1.0, tol)
 }
 
@@ -1659,7 +1657,7 @@ pub fn rod_with_flat_at(
     let disc =
         profile::circle(Point2::new(0.0, 0.0), big_r, tol).expect("the rod's disc is a valid loop");
     let rod = extruded(SketchPlane::xy(), vec![disc.into()], len, tol);
-    let square = ProfileLoop::new(
+    let square = bulge_loop(
         [
             (flat, -cutter_half),
             (cutter_half, -cutter_half),
@@ -1667,7 +1665,7 @@ pub fn rod_with_flat_at(
             (flat, cutter_half),
         ]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
         .collect(),
     );
     let cutter = extruded(sketch_at(-0.5 * len), vec![square], 2.0 * len, tol);
@@ -1716,9 +1714,9 @@ pub fn rod_d_profile_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
 pub fn rod_d_profile_of_length_at<T: Decide + PcurveFittedLane>(len: f64, tol: Tol) -> Body<T> {
     let f = T::from_f64;
     let c = rod_chord_at(ROD_FLAT);
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),
-        ProfileVertex::new(Point2::new(f(ROD_FLAT), f(-c.half)), f(0.0)),
+    let lp = bulge_loop(vec![
+        (Point2::new(f(ROD_FLAT), f(c.half)), f(c.wall_bulge)),
+        (Point2::new(f(ROD_FLAT), f(-c.half)), f(0.0)),
     ]);
     extruded(SketchPlane::<T>::xy(), vec![lp], f(len), tol)
 }
@@ -1842,8 +1840,8 @@ pub fn cylinder_of_arcs_at(
 #[must_use]
 pub fn bored_block_of_arcs(n: usize, l: f64, h: f64, r: f64, tol: Tol) -> Body<f64> {
     assert!(2.0 * r < l, "the bore must clear the block's sides");
-    let outer = ProfileLoop::new(square(l));
-    let hole = ProfileLoop::new(arc_polygon(n, r, Point2::new(l / 2.0, l / 2.0)));
+    let outer = bulge_loop(square(l));
+    let hole = bulge_loop(arc_polygon(n, r, Point2::new(l / 2.0, l / 2.0)));
     extruded(SketchPlane::xy(), vec![outer, hole], h, tol)
 }
 
@@ -1917,13 +1915,13 @@ pub fn realized(op: BooleanOp, a: &Body<f64>, b: &Body<f64>, tol: Tol) -> Body<f
 
 /// The `n` bulged vertices of a circle of radius `r` about `c`,
 /// authored as `n` equal arcs starting at azimuth 0.
-fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<ProfileVertex<f64>> {
+fn arc_polygon(n: usize, r: f64, c: Point2<f64>) -> Vec<(Point2<f64>, f64)> {
     assert!(n >= 2, "a closed loop of arcs needs at least two vertices");
     let bulge = (core::f64::consts::PI / (2.0 * n as f64)).tan();
     (0..n)
         .map(|i| {
             let th = 2.0 * core::f64::consts::PI * (i as f64) / (n as f64);
-            ProfileVertex::new(Point2::new(c.x + r * th.cos(), c.y + r * th.sin()), bulge)
+            (Point2::new(c.x + r * th.cos(), c.y + r * th.sin()), bulge)
         })
         .collect()
 }

@@ -225,7 +225,7 @@ fn r1_the_closer_mints_nothing_and_leaves_no_degenerate_segment() {
     assert_eq!(lowered.vertices().len(), 8, "no ninth vertex");
     // No consecutive duplicate anywhere on the ring (the shape the
     // DegenerateSegment refusal was reading).
-    let vs: Vec<Point2<f64>> = lowered.vertices().iter().map(|v| v.pos()).collect();
+    let vs: Vec<Point2<f64>> = lowered.vertices().to_vec();
     let n = vs.len();
     for i in 0..n {
         let a = vs[i];
@@ -537,7 +537,7 @@ fn r1_in_band_misses_accumulate_along_a_declared_run() {
         .line_to(Start, t)
         .unwrap();
     let lowered = closed.loop_;
-    let last = lowered.vertices()[n + 1].pos();
+    let last = lowered.vertices()[n + 1];
     println!(
         "R1: after {n} declared continuations each within eps={eps:e}, the run's end sits \
          {:e} m off the declared ray ({} eps)",

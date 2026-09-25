@@ -4,7 +4,7 @@
 //! `SignCertificate::refine_to_target` resumes the faces its gate left
 //! open and owes the certificate's own refusal rule: the face it names
 //! is the FIRST refusing face in arena order, resumed or already
-//! outstanding, and not merely a refusing one. `sign_certified_plus_v`
+//! outstanding, and not merely a refusing one. `sign_walk_plus_v`
 //! pins that rule and the piece-evaluation identity
 //! `gate + refine == one` at whatever width the runner happens to give
 //! it; this suite reads both at an EXPLICIT one and four threads,
@@ -48,7 +48,7 @@
 //!
 //! **No thin strip**, though it is the obvious refusing fixture and the
 //! sibling suites use it: a strip whose sign is undecided is refused by
-//! TIER 3 itself (`sign_certified_plus_v`'s
+//! TIER 3 itself (`sign_walk_plus_v`'s
 //! `an_undecided_sign_with_the_schedule_run_out_refuses`), so there is
 //! no certificate to continue from and nothing this suite can say about
 //! it. What this suite needs is a body tier 3 ADMITS whose reporting

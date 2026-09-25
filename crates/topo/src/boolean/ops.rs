@@ -2071,9 +2071,8 @@ fn apply_recuts<T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props:
             rotated.push(turned);
         }
         let keep: Vec<ShellKey> = src
-            .get_solid(solid)
+            .shells_of_solid(solid)
             .ok_or(corrupt("re-cut solid lost"))?
-            .shells
             .iter()
             .copied()
             .filter(|s| !cut_shells.contains(s))

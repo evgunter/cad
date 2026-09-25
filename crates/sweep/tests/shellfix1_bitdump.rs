@@ -11,7 +11,7 @@
 use std::fmt::Write as _;
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::euler_counts;
@@ -26,11 +26,11 @@ fn dump_dir() -> Option<std::path::PathBuf> {
 }
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), 0.0),
-        ProfileVertex::new(p2(r, h), 0.0),
-        ProfileVertex::new(p2(0.0, h), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r, 0.0), 0.0),
+        (p2(r, h), 0.0),
+        (p2(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -49,11 +49,11 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
 }
 
 fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(ri, 0.0), 0.0),
-        ProfileVertex::new(p2(ro, 0.0), 0.0),
-        ProfileVertex::new(p2(ro, h), 0.0),
-        ProfileVertex::new(p2(ri, h), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(ri, 0.0), 0.0),
+        (p2(ro, 0.0), 0.0),
+        (p2(ro, h), 0.0),
+        (p2(ri, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

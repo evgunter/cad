@@ -30,7 +30,7 @@ escalated typed refusal, never a raw comparison.
 | C6 f64 structure vs generic certification | `crates/geom-core/src/spline/`, `crates/geom/src/curves/fit.rs` |
 | C7 tangency | `crates/geom-brep/src/tangent.rs`, `enters.rs`; marks in `crates/topo/src/validate.rs` (`ContactMark`) |
 | C8 fillets | `crates/sweep/src/blend/` (see `crates/sweep/README.md`) |
-| C9 interval ring | `crates/geom-core/src/ring_interval.rs`, `spline/hull.rs`, `spline/compose/{tensor,patch}.rs` |
+| C9 certification arithmetic | `crates/geom-core/src/interval.rs` (the certification doors), `spline/hull.rs`, `spline/compose/{tensor,patch}.rs` |
 | C10 BVH | `crates/bvh` |
 | C11 NURBS substrate | `crates/geom/src/{curves,surfaces}/nurbs.rs`, `curves/fit.rs`, `*/projection.rs`; lofts in `crates/sweep/src/{loft,skin}.rs` |
 | C12 consumers | `crates/topo/src/splitting/`, `boolean/`, `merge_faces.rs`; `crates/mesh/src/curved.rs`; `crates/geom-brep/src/props/quad.rs`; `crates/geom-core/src/linalg/{svd,lsq}.rs` |
@@ -65,10 +65,11 @@ in metres for an analytic operand (`implicit.rs`); for a NURBS operand
 `|C(t) − S(u*,v*)|` at a certified foot point whose orthogonality
 residual is banded too, so a bad projection cannot launder a bad cache.
 (2) Sup-norm honesty between samples, by control-coefficient hull bounds
-in the C9 ring: `geom_core::spline::compose` composes the implicit form
-with the carrier (converted to metres exactly for plane, cylinder and
-sphere; cone and torus need a root the ring lacks, which is why their
-rung-3 arms are unretired), and `compose::tensor` encloses
+in certification arithmetic (C9): `geom_core::spline::compose` composes
+the implicit form with the carrier (converted to metres exactly for
+plane, cylinder and sphere; cone and torus need a root, and certification
+arithmetic takes none, which is why their rung-3 arms are unretired),
+and `compose::tensor` encloses
 `S(P(t)) − C(t)` as one composite for a NURBS operand so the
 cancellation that is the whole content of the claim survives into the
 bound. (3) The uniqueness tube: over a chain of boxes of certified radius
@@ -252,18 +253,19 @@ implemented.
 **C9 — Enclosures run on the in-repo interval backend.** Every enclosure
 certification needs is transcendental-free (implicit residuals are
 polynomial, de Boor is ring arithmetic, hull bounds are convexity facts),
-so `geom_core::RingInterval` provides `±`, `×`, `÷` and integer powers —
-a newtype over `interval-transcendentals`' `DInterval`, outward-rounded
-where the operation is inexact, always compiled, MIT-clean, not a
-`Real`. Its refusal is the backend's decoration (`dec < Def`), read as
-`is_poison()`, so a bracket that may not certify carries ordinary
-endpoints and a consumer asks the refusal by name. It is certification
-substrate; the evaluation scalar `geom_core::Interval` is the other
-role — the same backend, `Real`-instantiated for replay, with the
-`interval` feature gating the lane impls above `geom-core` and the
-interval test files rather than the type. No copyleft dependency exists
-in any build configuration. Certification code reads brackets through
-the `Bounds`/`Enclosure` traits.
+so certification arithmetic is `±`, `×`, `÷` and integer powers over
+`geom_core::Interval` — the evaluation scalar itself, a newtype over
+`interval-transcendentals`' `DInterval`, outward-rounded where the
+operation is inexact, always compiled, MIT-clean. Its refusal is the
+backend's decoration (`dec < Def`), read as `!is_certified()`: a bracket
+that may not certify carries ordinary endpoints, so a consumer asks the
+refusal by name, and the certification doors (`Interval::hull`,
+`clamped_to`, `contains`, `width`, `mag`) refuse it whatever its
+endpoints say. A lane scalar crosses into certification arithmetic
+through `Interval::from_certified`, which carries the certified door's
+verdict as a `Def`/`Trv` cap on the decoration. No copyleft dependency
+exists in any build configuration. Certification code reads brackets
+through `Bounds` and asks admission through `CertifiedEnclosure`.
 
 **C10 — One deterministic AABB tree, conservative-superset contract.**
 `crates/bvh`: arena-order build, median split on the longest centroid
@@ -305,7 +307,7 @@ closes its chart's full period refuses. (6) Curved tessellation
 boundary walk with certified chordal bounds from hull-bounded jets
 (`nurbs_cert.rs`); general trimmed faces with pcurve-driven trim loops
 are not implemented (`UnsupportedCurvedShape`). (7) Mass properties on
-curved-cut faces are certified quadrature in the ring (`props/quad.rs`):
+curved-cut faces are certified quadrature (C9, `props/quad.rs`):
 harmonic pcurve boundaries, polynomial and rational patch flux; rational
 pcurve channels refuse `QuadratureUnsupported`; exhaustion is
 `QuadratureBudget`, never a silent Gaussian. (8) In-house SVD and

@@ -325,7 +325,7 @@ fn f4_removal_bound_contains_realized_error_lossy_and_adversarial_weights() {
 #[test]
 fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
     let mut rng = fuzz::start("review_m5_pr3_attack::f5_knot_algebra");
-    let tol = 1e-9;
+    let tol: f64 = 1e-9;
     for case in 0..fuzz::scaled(4) {
         let p = 1 + rng.below(5);
         let interior = rng.below(3);
@@ -352,7 +352,36 @@ fn f5_insert_refine_elevate_are_evaluation_invariant_fuzzed() {
         let e2 = c.elevate_degree(2).unwrap();
         assert_eq!(e2.degree(), p + 2);
         variants.push(("elevate2".into(), e2));
+        // Elevation's floating-point agreement is CONDITIONED by the
+        // closest pair of distinct knots, so its tolerance is too.
+        // Recomposition removes each breakpoint back down through
+        // `remove_once`, whose chains divide by `α` or `1 − α`, and next
+        // to a knot a gap `g` away that divisor is about `g` over the
+        // span — rounding is amplified by ~`1/g`. Measured over 20,000
+        // curves of this generator (degrees 1-5, up to two interior
+        // knots, coordinates in ±10, weights 0.2-5), the elevate-by-2
+        // disagreement times the smallest distinct-knot gap never
+        // exceeded 5.9e-13, and was at most 6.1e-13 outright wherever
+        // that gap exceeded 0.05. Two interior knots drawn 3.8e-4 apart
+        // (`CAD_FUZZ_SEED=0x827507a3dc90eac7`) disagree by 2.0e-9, which
+        // the fixed 1e-9 read as a broken invariant. The floor keeps
+        // 1e-9 wherever the knots are not that close; below a gap of
+        // 1e-2 the cap grows as `1e-11 / g`, 17 times the measured law.
+        let gap = {
+            let mut distinct: Vec<f64> = c.knots().knots().to_vec();
+            distinct.dedup();
+            distinct
+                .windows(2)
+                .map(|w| w[1] - w[0])
+                .fold(f64::INFINITY, f64::min)
+        };
+        let elevate_tol = tol.max(1e-11 / gap);
         for (name, v) in &variants {
+            let tol = if name.starts_with("elevate") {
+                elevate_tol
+            } else {
+                tol
+            };
             // End conditions stay clamped/interpolating.
             assert!(
                 supp(v.eval(0.0), c.eval(0.0)) < tol,

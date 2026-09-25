@@ -531,7 +531,6 @@ fn sphere_cone_and_torus_cross_instance_pairs_stay_refused() {
 /// two windows a genuine HALF-PERIOD apart, where the two nearest
 /// branches are equidistant, the fold integer's enclosure spans two
 /// integers, and the arm declines typed instead of picking a branch.
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::{ChartRegionError, ContactVerdict, CylFrame, band, cyl_wall_sheet};
     use geom_core::Tol;

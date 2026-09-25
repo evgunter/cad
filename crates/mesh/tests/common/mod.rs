@@ -18,7 +18,7 @@ use geom_core::{Point2, Point3, Vec2};
 use mesh::validate::{check_mesh, signed_volume};
 use mesh::{Mesh, tessellate};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -106,8 +106,8 @@ pub fn holed_prism() -> Body<f64> {
 pub fn rounded_prism() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.5;
-    let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
-    let mut lp = ProfileLoop::new(vec![
+    let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
+    let mut lp = bulge_loop(vec![
         v(p2(r, 0.0), 0.0),
         v(p2(2.0 - r, 0.0), b),
         v(p2(2.0, r), 0.0),
@@ -126,10 +126,7 @@ pub fn rounded_prism() -> Body<f64> {
 
 /// The ball: unit half-disc revolved fully (two-band sphere, poles).
 pub fn ball() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -177,10 +174,7 @@ pub fn cone_wedge(s: f64, theta: f64) -> Body<f64> {
 /// [`cone_wedge`], and the shape that reaches `curved::pole_columns`'s
 /// sphere arm.
 pub fn sphere_wedge(theta: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -209,10 +203,7 @@ pub fn washer() -> Body<f64> {
 /// segments) revolved fully — a single torus surface, both meridians
 /// `Seam`.
 pub fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, -0.5), 1.0),
-        ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
     revolve(
         &validated(vec![lp]),
         axis_y(),

@@ -5,7 +5,6 @@
 //! Dual<Interval>; the composition `map_scalar(from_f64).map_scalar
 //! (Dual::constant)` is the hand re-spelling, bit for bit.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::curves::n1r2_fixtures;

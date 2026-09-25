@@ -41,6 +41,12 @@ pub enum FaceContainment {
 /// and [`ValidationError`](crate::ValidationError) is a cloneable,
 /// comparable value.
 #[derive(Debug, Clone, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ContainErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.
@@ -204,8 +210,8 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// [`contfp`] walks it anyway — one point's verdict, the posture
     /// it has always taken, with #1076 owning the general case. A
     /// consumer that would REFUSE a body on an `Out` must not: tier
-    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] alone
-    /// for exactly that reason.
+    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] and
+    /// [`Self::Disc`] alone for exactly that reason.
     ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
@@ -220,14 +226,19 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
 
 /// The circle a disc-class loop bounds — its own type, because three
 /// components of one datum read better named than positional.
+///
+/// Its centre and radius are readable crate-wide: tier 3's check 9
+/// decides two disc-class loops against each other from them (the
+/// centre distance against the radii's sum and difference), a question
+/// about a PAIR of loops that [`disc_side`]'s one point cannot ask.
 #[derive(Clone, Copy)]
 pub(crate) struct LoopCircle<T: geom_core::Real> {
     /// The circle's centre.
-    center: Point3<T>,
+    pub(crate) center: Point3<T>,
     /// Its plane normal (sign-free: only `cross` reads it).
     axis: Vec3<T>,
     /// Its radius, in metres.
-    radius: T,
+    pub(crate) radius: T,
 }
 
 /// **Which walk expresses this loop's region** — one carrier pass over
@@ -360,7 +371,14 @@ pub(crate) fn loop_shape<T: Decide>(
 /// Which side of a [`loop_shape`] circle `q` lies on. `q` is on the
 /// face's plane by [`contfp`]'s contract, so the in-plane radial
 /// distance is the whole question.
-fn disc_side<T: Decide>(
+///
+/// Exact on the class: one radial margin through one decide
+/// (`bool_face_disc_radius`) — `OnBoundary` on its `Zero`, an
+/// escalation on an in-band margin, never a guess. It assumes only
+/// that `q` lies in the circle's plane; that `q` is off the circle by
+/// more than the band — what [`contfp`]'s boundary pre-pass supplies —
+/// is the caller's to supply if it wants a definite answer.
+pub(crate) fn disc_side<T: Decide>(
     disc: LoopCircle<T>,
     q: Point3<T>,
     band: Band,

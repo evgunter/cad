@@ -2,10 +2,13 @@
 id: viewer-cannot-author-a-part-node
 kind: issue
 title: The viewer has no AddPart op, so a Part { Instance(i) } node — the road to a nested copy the mate tool now admits — is reachable only from a file or the Python API
-status: dispatched
+status: closed
 opened: 2026-09-06
 priority: P0
 cost: D
+branch: author/part-and-duplicate
+pr: 3052
+closed: 2026-09-24
 ---
 
 
@@ -82,3 +85,18 @@ door that authors one is CHROME's" — the door this row asks for. An
 `AddPart` op would make the face-frame seat reachable there with no
 further change to the datum path: the author projects the half, picks
 the face on the projection, and the same gate admits it.
+
+## Closed 2026-09-24 — PR 3052 merged (`2273a3a1`)
+
+`SessionOp::AddPart { of, select: PartSelectSpec }`, with the instance
+index an `i64` at the op door on `AddPattern`'s structural-slot
+precedent. The panel calls it the **projection tool**, since "part"
+already names another document in the `Add part…` chooser beside it.
+It seats a split or a pattern picked in the viewport or the tree, and
+says that projecting one body stops drawing the rest.
+
+Residue: `work/forms/a-projected-split-is-unreachable-from-the-viewport`
+(after one projection the other half is reachable only from the tree),
+the body-seat kind-vs-value disagreement now pinned as a named
+exception on `work/forms/body-seat-reads-through-the-placer-chain`, and
+`no-row-holds-that-the-create-pane-offers-the-tools-it-has`.

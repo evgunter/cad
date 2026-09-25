@@ -209,6 +209,12 @@ pub enum ChartOverlap {
 /// escalation arm carries `f64` margins — which is the same reason
 /// `ValidationError` has none.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ChartRegionErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ChartRegionError {
     /// The pair has no structural chart identity (rung 3 or below):
     /// C2's caveat — two descriptions of one locus may differ as
@@ -575,7 +581,8 @@ impl<T: Decide> RegionLane<T> {
 /// PASS would need the re-pointed routine to be instruction-identical
 /// to the door it replaced. `certified_enclosure_impl_census` counts
 /// the scalars instantiated here against the `CertifiedEnclosure`
-/// impls in the tree, both directions.
+/// impls in the tree, both directions, and counts the tree's door
+/// values against its roster of helpers.
 #[cfg(test)]
 mod wiring_rows {
     use super::{RegionLane, chart_region_overlap, declared_pair_overlap};
@@ -630,7 +637,6 @@ mod wiring_rows {
         );
     }
 
-    #[cfg(feature = "interval")]
     #[test]
     fn interval_is_wired_to_the_certified_region_doors() {
         assert_eq!(
@@ -4066,13 +4072,10 @@ mod tests {
     // The seam-branch gate (item 5).
     // ------------------------------------------------------------------
 
+    /// The canonical cylinder of `radius` these fixtures are charted
+    /// on.
     fn cyl_surface(radius: f64) -> Surface<f64> {
-        Surface::Cylinder {
-            origin: Point3::origin(),
-            axis: Vec3::unit_z(),
-            radius,
-            u_ref: Vec3::unit_x(),
-        }
+        crate::test_support_fixtures::CylFrame::canonical(radius).surface()
     }
 
     fn uv_of(outer: Vec<Point2<f64>>) -> FaceUv<f64> {
@@ -4166,8 +4169,9 @@ mod tests {
 
     use crate::euler::{FaceSurface, MefSite, MevSite};
     use crate::source::GeomSource;
+    use crate::test_support_fixtures::unit_cyl_sheet;
     use geom::Curve3;
-    use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+    use geom_brep::EdgeCurveSpec;
 
     /// The shared test plane: chart u = x, v = y (u_ref = x̂, normal =
     /// ẑ ⇒ v_ref = ẑ × x̂ = ŷ).
@@ -4329,140 +4333,25 @@ mod tests {
     // tilted-cut exclusion at body level.
     // ------------------------------------------------------------------
 
-    /// A point of the unit cylinder at azimuth `u`, height `z`.
-    fn cyl_pt(u: f64, z: f64) -> Point3<f64> {
-        Point3::new(u.cos(), u.sin(), z)
-    }
-
-    /// A forward rim-arc spec at height `z` from azimuth `u0` to `u1`
-    /// (`ccw`), or from `u1` down to `u0` (`!ccw`, carried on the
-    /// −ẑ-axis circle so the parameter still runs forward).
-    fn rim_spec(
-        body: &mut Body<f64>,
-        cyl: crate::geometry::SurfaceKey,
-        z: f64,
-        u0: f64,
-        u1: f64,
-        ccw: bool,
-    ) -> EdgeCurveSpec<f64> {
-        let plane = body.add_surface(Surface::Plane {
-            origin: Point3::new(0.0, 0.0, z),
-            normal: Vec3::unit_z(),
-            u_ref: Vec3::unit_x(),
-        });
-        let (carrier, t1) = if ccw {
-            (
-                Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::unit_z(),
-                    radius: 1.0,
-                    u_ref: Vec3::unit_x(),
-                },
-                u1,
-            )
-        } else {
-            // Clockwise: angle t measured from u1 about −ẑ reaches
-            // azimuth u1 − t; params [0, u1 − u0].
-            (
-                Curve3::Circle {
-                    center: Point3::new(0.0, 0.0, z),
-                    axis: Vec3::new(0.0, 0.0, -1.0),
-                    radius: 1.0,
-                    u_ref: Vec3::new(u1.cos(), u1.sin(), 0.0),
-                },
-                u1 - u0,
-            )
-        };
-        let t0 = if ccw { u0 } else { 0.0 };
-        let mid = cyl_pt((u0 + u1) * 0.5, z);
-        EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: cyl,
-                s2: plane,
-                witness: mid,
-            },
-            carrier,
-            param_start: t0,
-            param_end: t1,
-        }
-    }
-
-    /// An open cylinder-wall sheet `u ∈ [u0, u1] × z ∈ [z0, z1]` on
-    /// the unit cylinder about ẑ: pass `None` to mint the cylinder
-    /// surface (AFTER the seed solid exists — an unreferenced surface
-    /// is an orphan at the mvfs postcondition), `Some(key)` to share.
-    fn cyl_sheet(
-        body: &mut Body<f64>,
-        cyl: Option<crate::geometry::SurfaceKey>,
-        u0: f64,
-        u1: f64,
-        z0: f64,
-        z1: f64,
-    ) -> (FaceKey, crate::geometry::SurfaceKey) {
-        let (p00, p10, p11, p01) = (
-            cyl_pt(u0, z0),
-            cyl_pt(u1, z0),
-            cyl_pt(u1, z1),
-            cyl_pt(u0, z1),
-        );
-        let seed = body.mvfs(p00).unwrap();
-        let cyl = cyl.unwrap_or_else(|| body.add_surface(cyl_surface(1.0)));
-        let bottom = rim_spec(body, cyl, z0, u0, u1, true);
-        let e_b = body
-            .mev(
-                MevSite::Lone {
-                    r#loop: seed.r#loop,
-                },
-                p10,
-                bottom,
-                Tol::witness(),
-            )
-            .unwrap();
-        let e_r = body
-            .mev_line(
-                MevSite::Fan {
-                    he1: e_b.he_minus,
-                    he2: e_b.he_minus,
-                },
-                p11,
-                Tol::witness(),
-            )
-            .unwrap();
-        let top = rim_spec(body, cyl, z1, u0, u1, false);
-        let e_t = body
-            .mev(
-                MevSite::Fan {
-                    he1: e_r.he_minus,
-                    he2: e_r.he_minus,
-                },
-                p01,
-                top,
-                Tol::witness(),
-            )
-            .unwrap();
-        let he = body
-            .find_half_edge(seed.face, e_t.vertex, e_r.vertex)
-            .unwrap();
-        let face = body
-            .mef(
-                MefSite::Chords {
-                    he1: he,
-                    he2: e_b.he_plus,
-                },
-                EdgeCurveSpec::line_between(p01, p00),
-                FaceSurface::Shared(cyl),
-                Tol::witness(),
-            )
-            .unwrap()
-            .face;
-        (face, cyl)
-    }
-
     #[test]
     fn cylinder_walls_overlap_through_the_radius_lever() {
         let mut body = Body::<f64>::new();
-        let (w1, cyl) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
-        let (w2, _) = cyl_sheet(&mut body, Some(cyl), 1.0, 2.4, 0.3, 0.7);
+        let (w1, cyl) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
+        let (w2, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (1.0, 2.4),
+            (0.3, 0.7),
+            true,
+            Tol::witness(),
+        );
         // Without minted caches a minting chart refuses (props.rs
         // posture) — plane charts are the only derive-on-demand lane.
         match chart_region_overlap(&body, w1, &body, w2, band()) {
@@ -4475,7 +4364,14 @@ mod tests {
             ChartOverlap::PositiveArea
         );
         // Disjoint azimuth ranges answer EMPTY.
-        let (w3, _) = cyl_sheet(&mut body, Some(cyl), 3.0, 4.0, 0.0, 1.0);
+        let (w3, _) = unit_cyl_sheet(
+            &mut body,
+            Some(cyl),
+            (3.0, 4.0),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
         assert_eq!(
             chart_region_overlap(&body, w1, &body, w3, band()).unwrap(),
@@ -4489,7 +4385,14 @@ mod tests {
         // the tilted-section SINUSOID (the F5 envelope discipline
         // moved to (u, v)) refuses typed — never a chord read.
         let mut body = Body::<f64>::new();
-        let (wall, _) = cyl_sheet(&mut body, None, 0.2, 1.6, 0.0, 1.0);
+        let (wall, _) = unit_cyl_sheet(
+            &mut body,
+            None,
+            (0.2, 1.6),
+            (0.0, 1.0),
+            true,
+            Tol::witness(),
+        );
         crate::pcurves::mint_pcurves(&mut body, Tol::witness()).unwrap();
 
         // The tilted section z = 0.4·x of the unit cylinder, as its
@@ -5318,7 +5221,6 @@ mod inf_arms {
 /// rows check exactly that.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
-#[cfg(feature = "interval")]
 mod inf_arms_interval {
     use super::certified_arms;
     use geom::{NurbsSurface, Surface};

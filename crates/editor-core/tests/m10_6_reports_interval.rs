@@ -17,7 +17,6 @@
 //! - the MC lane changes no document and produces no assertion —
 //!   "never gates, never persists" checked rather than asserted in
 //!   prose.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

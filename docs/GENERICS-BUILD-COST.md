@@ -98,7 +98,7 @@ findings below more surprising, not less.
 |---|---|---|
 | `f64` | `real.rs:593` | yes |
 | `Probe` | `k_stats.rs:325` | **yes — always compiled** |
-| `Interval` | `interval.rs:234` | **yes — the impls compile in every build; what the `interval` feature gates is the lane-trait impls above this crate and the interval test files** |
+| `Interval` | `interval.rs:234` | **yes — the impls, and every lane impl above this crate, compile in every build (§11: the `interval` feature is deleted)** |
 | `Dual<T>` | `dual.rs:410` | only via tests |
 
 `Dual<T: KinkJacobian>` has two inhabitants: `Dual<f64>` and
@@ -587,6 +587,86 @@ idle box answers that without pretending to be a benchmark.
 
 ---
 
+## 11. Addendum — the `interval` feature dropped (2026-09-24)
+
+H5 ruling 1 cut (iii) (PR 2701) drops the `interval` feature at a measured
+ceiling of ~+36 % clean workspace build and ~+11 % test compile (§9 rows 3
+and 4c). RING-4 is that drop, and it measured first, against the cost gate
+its spec set (+50 % hosted build+archive over the default lane, beyond which
+the call returns to Ev).
+
+**Hosted, the reading of record** — the `build + archive` jobs of the three
+most recent green code-tier `pull_request` runs before the change, job wall
+from the Actions jobs listing and the archive step alone from the step
+listing. One sample per run, sccache off, whatever rust-cache state each
+runner restored:
+
+| run | default job | interval job | Δ job | default step | interval step | Δ step |
+|---|---|---|---|---|---|---|
+| 35947793407 | 5.3 min | 5.6 min | +6 % | 286 s | 311 s | +9 % |
+| 35947275144 | 6.6 min | 9.1 min | +38 % | 363 s | 509 s | +40 % |
+| 35946382951 | 4.2 min | 6.4 min | +52 % | 219 s | 359 s | +64 % |
+| **sum of three** | **16.1** | **21.1** | **+31 %** | **868** | **1179** | **+36 %** |
+| sum of ten (the seven before them too) | 57.5 | 66.4 | +15 % | 3099 | 3701 | +19 % |
+
+The six test rows each way, same three runs (job-minutes, summed over the
+six legs): default 4.7 / 10.7 / 5.1, interval 28.7 / 38.7 / 31.7. The
+interval rows run the WHOLE suite at the certified scalar; the default
+rows are the part a run stops paying.
+
+The gate reads the three-run aggregate — +31 % job wall, +36 % archive
+step — which is inside the ratified ~+36 % and under +50 %; one of the
+three samples reads +52 % / +64 % on its own, and the ten-run window
+around it reads +15 % / +19 %, which is the spread a single sample of a
+single job on a shared runner fleet carries. **Go.**
+
+**Local, one run each, not a measurement of record** (the box: 4 vCPU,
+15 GB, rustc 1.97.0, `CARGO_INCREMENTAL=0`, the build job's opt-level-1 and
+`line-tables-only` env, a fresh target directory per row, the machine-wide
+build slot held; another lane's test battery ran throughout, one-minute
+load 1.8 → 8):
+
+| row | seconds | target | load before → after |
+|---|---|---|---|
+| `build --workspace --lib`, default | 111.5 | 422M | 1.8 → 5.8 |
+| `build --workspace --lib --features interval` | 216.7 | 566M | 5.8 → 8.0 |
+| `build --workspace --tests`, default | 813.0 | 2.2G | 8.0 → 7.8 |
+| `build --workspace --tests --features interval` | 894.9 | 2.6G | 7.8 → 6.5 |
+
++94 % on the libs and +10 % on the tests, under a load that doubled
+between the two lib rows — the direction §9 measured (+36 % / +11 %), with
+the lib row's size set by the load as much as by the feature. Committed
+timings come from hosted CI (`memories/local-battery-scope.md`); this table
+is the spec's one local pair and nothing reads it.
+
+**What the drop changes in CI.** One compile mode, so one archive: the
+interval lane's build, lint and test rows were already the superset of the
+default lane's, and their content now runs under the default rows' names
+(`build + archive`, `clippy`, `test (eps = …, n/2)`), while the default
+rows' separate f64-only runs are gone.
+
+What a code-tier run costs after it, read on run 35979996296 (head
+`bafb21a81f`, every job green): **136.8 job-minutes**, against 133.2 /
+148.0 / 137.6 on the three runs of the table above. Its render lane's tour
+step was served from the tour-output cache (the same inputs had been walked
+on run 35978891191 minutes earlier, 7.6 job-minutes); uncached it is about
+143.8. So the fold's saving — the default lane's build, clippy and six test
+legs — is roughly spent again, not banked: the certified code now compiles
+into every build, the release tour builds included. The tessellation-budget
+sweep step reads 116 s on base run 35947793407 and 217 s here, of which
+203 s is the release build (`pncad` and `demo-tour` the long units) and
+13 s the walk; the render lane's `demo tour` step reads 116 s at the base
+and 191 s on 35978891191, its build included and not split out. Neither
+walk narrates the certified cells: they
+run in `demo-tour certified`, which only `demos tour suite` invokes.
+
+The critical path is `k-lint (gate, release-default)`, which needs only
+the change filter: 29.5 min on base run 35947793407 and 26.7 min here
+(its `demos tour suite` step 1569 s), against `build + archive` plus the
+slowest test leg at 9.0 + 15.2 = 24.2 min. The fold did not move it.
+
+---
+
 ## Reproducing
 
 The measurement scripts are not committed — they are throwaway harnesses,
@@ -597,9 +677,10 @@ and the commands they wrap are short enough to restate:
 * symbol census — `nm -S --defined-only target/debug/deps/lib<c>-*.rlib |
   grep ' [Tt] ' | awk '{print $NF}' | rustfilt`, then group by name with
   generic arguments erased
-* IR census — `cargo llvm-lines -p <crate> --lib --release
-  [--features interval]`
-* execution — `cargo nextest run --workspace [--features interval]`, with
+* IR census — `cargo llvm-lines -p <crate> --lib --release` (the rows
+  above that read `--features interval` were taken while that feature
+  existed; §11)
+* execution — `cargo nextest run --workspace`, with
   `CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL=2` for the opt-2 rows
 
 **Use nextest, not `cargo test`.** Several suites need process-per-test

@@ -9,15 +9,12 @@
 use crate::revolve_common;
 
 use geom_core::{Point3, Tol};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use revolve_common::*;
 use sweep::{Revolution, revolve};
 
 fn donut() -> sweep::Revolved<f64> {
-    let lp = profile::ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
-        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, 0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
     let vp = validated(vec![lp]);
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap()
 }

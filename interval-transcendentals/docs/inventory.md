@@ -1,7 +1,7 @@
 # Inventory: transcendental entry points of the kernel's interval lane
 
 The interval lane is the `Real` trait's `Interval` instantiation
-(`crates/geom-core/src/interval.rs`, behind the `interval` feature).
+(`crates/geom-core/src/interval.rs`, compiled in every build).
 Everything generic over `T: Real` runs at `T = Interval`, so the consumed
 surface is the `Real` trait's transcendental methods, weighted by which
 generic code calls them. This document fixes the SCOPE of the crate; it
@@ -44,8 +44,7 @@ containing zero has no sign to transfer, and the result is a hull of
 lives with the trait impl, `crates/geom-core/src/interval.rs`, built out
 of `abs`, `hull` and negation from here. It is listed because it is part
 of the exact surface an adopting kernel gets. Where it should ultimately
-live is part of the open `RingInterval`-vs-`Interval` question, not a
-thing this document settles.
+live is an open placement question, not a thing this document settles.
 
 ## Set operations — inventoried separately, and not on `Real`
 
