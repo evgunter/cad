@@ -124,3 +124,22 @@ and reports the fork. Tier: single FULL review.
 
 Also filed from 3142: `three-walks-over-the-name-carrying-edges` (P1),
 and MSOLVE's `the-solve-accepts-a-body-placed-under-two-roots`.
+
+## 2026-09-25 — the parallel node map merges; the tag-vocabulary row dispatched
+
+PR 3145 merged. Its review was a single FULL review with no MAJOR or
+MINOR. The reviewer reproduced every red-without-fix row, and both
+disclosed deviations proved load-bearing. The residue went to WIRE's
+slate (the `PartCache` lock held across a nested rayon join, P1: a
+possible deadlock that blocks turning `parallel` on) and to HELPER's
+(`on_pool` has six homes, P4).
+
+Next dispatch: `the-third-tag-vocabulary-macro-owes-a-unification-trigger`
+(`gather/tag-vocabulary-trigger`). **The orchestrator's rule for the
+trigger:** it counts a third macro that expands the same projections
+(tag enum, `ALL`, payload→tag read-back). If it has fired, unify; if
+not, write the trigger at the macros, where it can be evaluated. Tier:
+single STYLE review. It is chosen now because it is the P1 row on ground
+no live lane holds. `product-gate-says-verbatim-then-states-the-difference`
+and `three-walks-over-the-name-carrying-edges` both touch `product.rs`,
+so they wait for the split-halves lane (PR 3256).
