@@ -25,6 +25,7 @@ fn cone_block_union_refusal() -> String {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (0.4, 1.0), (0.0, 1.0)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     let axis = r.insert(axis_in_plane(plane, (0.0, 0.0), (0.0, 1.0)));
     let cone = r.insert(Node::Revolve {
