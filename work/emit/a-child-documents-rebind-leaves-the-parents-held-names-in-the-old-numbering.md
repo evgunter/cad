@@ -2,11 +2,11 @@
 id: a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering
 kind: issue
 title: A child document's rebind does not reach the parent assembly's names spelled in its numbering; UpdateReference moves the pin and rewrites no name
-status: open
+status: parked
 opened: 2026-09-24
 priority: P0
 cost: H
-needs_ev: true
+blocked_on: [profile-pieces-are-named-by-minted-step-ids]
 ---
 
 
@@ -35,6 +35,18 @@ rows) across the pin move. Either:
   the parent's held names, reporting as DM7 does; or
 - the child's rows are recorded with the version so the parent can
   replay them.
+
+## Folded into the stable-name question (2026-09-24)
+
+This row, the other `needs_ev` EMIT row on profile numbering, and EDIT's
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` share
+one cause. A profile name spells a position that is recomputed from
+current state, so any edit that moves the positions re-denotes it. All
+three are put to Ev as one question: name a profile piece
+by an id minted when its step is authored (`names/README.md`, "N1, the
+profile pieces"), or keep positions and persist a rename ledger. Under
+the id rule this row's fork does not arise, because no numbering is
+left to carry.
 
 ## Measured
 
@@ -112,3 +124,9 @@ together.
   nothing.
 - I recommend against landing it without Ev: it trades a silent P0 for a
   loud regression on every assembly update. The ledger is the fix.
+
+## Ruled (2026-09-25)
+
+Ev ruled that profile pieces are named by minted step ids (N1, "the
+profile pieces"). Under that rule nothing renumbers, so this row is
+fixed by building it: parked on `profile-pieces-are-named-by-minted-step-ids`.
