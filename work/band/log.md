@@ -41,3 +41,8 @@ Decided without Ev (sequencing, with a recommendation):
 ownership (reason in the plan), and runs after the subdivided-side
 row since both are `extrude.rs`'s lowering. `S90-impl` waits on
 SCALAR's LANE-4 (#3194).
+
+Ev, in chat the same day: the review posture is the per-unit tiers
+("it is indeed replaced by the per-unit review tiers"), and
+`Extruded` carrying the declared cusps is the close ("carrying the
+declared cusps sounds great").
