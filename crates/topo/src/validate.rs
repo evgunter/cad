@@ -5,11 +5,14 @@
 //! import are gated through), and [`ValidationError`].
 //!
 //! Each certifying tier has a **certificate form** beside it —
-//! [`validate_geometric_certificate`], its `_declared` twin,
-//! [`validate_pseudomanifold_certificate`] and its `_structural` twin —
-//! which runs the same pass and returns the [`crate::SignCertificate`]
-//! check 7 decided on instead of dropping it. Every tier-3 door makes
-//! check 7 the same way (`plus_v_by_sign`): one walk per SOLID, check
+//! [`validate_geometric_certificate`], its `_declared` twin, and
+//! [`validate_pseudomanifold_certificate`] — which runs the same pass
+//! and returns the [`crate::SignCertificate`] check 7 decided on instead
+//! of dropping it; [`validate_pseudomanifold_certificate_structural`] is
+//! the same form holding no lane, whose check 7 is the closed form's.
+//! Every tier-3 door that MAKES check 7 makes it the same way
+//! (`plus_v_by_sign`, through the lane it holds —
+//! [`validate_geometric_structural`] makes none): one walk per SOLID, check
 //! 7's subject, each stopped at the round where that solid's sign is
 //! certain, assembled into one body certificate over the face arena —
 //! one read of each face, whatever the solid count. A caller that wants
@@ -3052,13 +3055,7 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let (errors, certificate) =
-        plus_v_by_sign(body, band, tol, Some(crate::props::QuadLane::certified()));
-    if errors.is_empty() {
-        Ok(certificate_of_a_clean_verdict(certificate))
-    } else {
-        Err(errors)
-    }
+    plus_v_by_sign(body, band, tol, Some(crate::props::QuadLane::certified()))
 }
 
 /// **Check 7, the whole of it, at SIGN level** — one walk per solid
@@ -3069,10 +3066,14 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// Every door that makes check 7 makes it here — [`validate_geometric`]
 /// with [`crate::QuadLane::certified`], the tier-3′ battery with
 /// whatever lane its door holds — so no body is admitted by one tier-3
-/// door and refused by another on check 7 at the same scalar: the doors
-/// differ in the lane they hand in, and a `None` lane is the closed
-/// form, which refuses typed on every face that needed the quadrature
-/// exactly as the reporting read over the same lane does.
+/// door and refused by another on check 7 at the same LANE. Doors that
+/// hold DIFFERENT lanes can still disagree, and that is the lanes
+/// differing rather than the check: at `f64`, [`validate_geometric`]
+/// (the certified quadrature) admits a rational-walled body that
+/// [`validate_pseudomanifold_structural`] (no lane — the closed form)
+/// refuses `VolumeUncomputable`, because the closed form refuses typed
+/// on every face that needed the quadrature, exactly as the reporting
+/// read over the same lane does.
 ///
 /// ONE walk per solid, held and then handed on: the check decides on
 /// these objects and the caller receives the body certificate they
@@ -3087,23 +3088,20 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// stopped at, and the check's predicates are metered once per round
 /// rather than twice.
 ///
-/// The certificate is `Some` exactly when every solid's walk produced
-/// one — the parts then partition the face arena, which is what
-/// [`crate::SignCertificate::assembled`] asserts. A walk that refused
-/// outright has already put its `VolumeUncomputable` in the vector, so
-/// an absent certificate never co-occurs with a clean verdict.
+/// **Check 7 is clean or it is not, and the type says which**: `Ok` is
+/// the body certificate — every solid derived and passed, so the parts
+/// partition the face arena, which [`crate::SignCertificate::assembled`]
+/// asserts — and `Err` is check 7's verdicts, never empty (it is built
+/// only when one was pushed). There is no state where the check came
+/// back clean without a certificate to hand on.
 fn plus_v_by_sign<'b, T: geom_core::Decide>(
     body: &'b Body<T>,
     band: Band,
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
-) -> (
-    Vec<ValidationError>,
-    Option<crate::props::SignCertificate<'b, T>>,
-) {
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     let mut errors = Vec::new();
     let mut parts = Vec::new();
-    let mut every_solid_derived = true;
     for (solid, faces) in check7_subjects(body) {
         match crate::props::sign_walk(
             body,
@@ -3122,22 +3120,22 @@ fn plus_v_by_sign<'b, T: geom_core::Decide>(
                 errors.extend(plus_v_errors(solid, &verdict));
                 parts.push(certificate);
             }
-            Err(source) => {
-                every_solid_derived = false;
-                errors.push(ValidationError::VolumeUncomputable { solid, source });
-            }
+            Err(source) => errors.push(ValidationError::VolumeUncomputable { solid, source }),
         }
     }
-    let certificate = every_solid_derived
-        .then(|| crate::props::SignCertificate::assembled(body, band, tol, quad, parts));
-    (errors, certificate)
+    if errors.is_empty() {
+        Ok(crate::props::SignCertificate::assembled(
+            body, band, tol, quad, parts,
+        ))
+    } else {
+        Err(errors)
+    }
 }
 
 /// The certificate a CLEAN tier-3 verdict implies.
 ///
-/// INVARIANT: check 7 reports every refusal it can derive as
-/// [`ValidationError::VolumeUncomputable`] ([`plus_v_by_sign`] withholds
-/// the certificate exactly when one of its walks did), and every door
+/// INVARIANT: check 7 either hands back a certificate or puts its
+/// verdicts in the vector ([`plus_v_by_sign`]'s `Result`), and every door
 /// that reaches here gates this call on its own empty verdict vector,
 /// so an empty verdict and an absent certificate cannot co-occur. The
 /// other state is a bug in the composition above, not a reachable input
@@ -4713,9 +4711,10 @@ pub(crate) fn tier3_local_checks_marked<
         // for it — the same function `validate_geometric` makes check 7
         // through, so the two tiers cannot disagree on it at one lane.
         if let PlusVCheck::Through(quad) = plus_v {
-            let (verdicts, derived) = plus_v_by_sign(body, band, tol, quad);
-            errors.extend(verdicts);
-            certificate = derived;
+            match plus_v_by_sign(body, band, tol, quad) {
+                Ok(derived) => certificate = Some(derived),
+                Err(verdicts) => errors.extend(verdicts),
+            }
         }
     }
 

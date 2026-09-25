@@ -22,7 +22,7 @@
 //! Every row NAMES its property in the assertion message, because the
 //! rows share their expensive fixture (the aggregation rule in
 //! `memories/test-suite-cost.md`): `IDENTITY`, `ONE CERTIFICATE`,
-//! `ONE READ PER FACE`, `PLANTED`.
+//! `ONE READ PER FACE`, `ROUND SPLIT`, `PLANTED`.
 //!
 //! # ε, and why the fixture is ε-SCALED
 //!
@@ -108,27 +108,37 @@ fn arc_prism(s: f64) -> Body<f64> {
     .body
 }
 
+/// The arc prism at scale `s`, translated `dx·s` along `+x` — a solid
+/// that can share a body with one at the origin without touching it.
+fn arc_prism_at(s: f64, dx: f64) -> Body<f64> {
+    loft_body::<f64>(
+        &[arc_section(s), arc_section(s)],
+        &[0.0, 1.0]
+            .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(dx * s, 0.0, h * s))),
+        1,
+        Tol::witness(),
+    )
+    .expect("the translated arc prism lofts")
+    .body
+}
+
+/// `solids` grafted into one body, in the order given — each its own
+/// solid, so check 7 walks them apart and the certificate assembles.
+fn grafted(solids: &[Body<f64>]) -> Body<f64> {
+    let mut body = Body::new();
+    for solid in solids {
+        topo::graft_disjoint(&mut body, solid, Tol::witness()).expect("a disjoint graft");
+    }
+    body
+}
+
 /// **Two certifying prisms in one body** — [`prism`] and its twin
 /// four widths along `+x`, grafted as two solids. The multi-solid
 /// subject: check 7 decides each solid on its own faces, so the tier-3′
 /// door's certificate is two walks assembled, and whether it takes any
 /// FURTHER read of the arena is what `ONE READ PER FACE` counts.
 fn prism_pair() -> Body<f64> {
-    let s = 1.0e5 * Tol::witness().get().eps;
-    let twin = loft_body::<f64>(
-        &[arc_section(s), arc_section(s)],
-        &[0.0, 1.0]
-            .map(|h| geom_core::Affine3::translation(geom_core::Vec3::new(4.0 * s, 0.0, h * s))),
-        1,
-        Tol::witness(),
-    )
-    .expect("the translated arc prism lofts")
-    .body;
-    let mut pair = Body::new();
-    for solid in [prism(), twin] {
-        topo::graft_disjoint(&mut pair, &solid, Tol::witness()).expect("a disjoint graft");
-    }
-    pair
+    grafted(&[prism(), arc_prism_at(1.0e5 * Tol::witness().get().eps, 4.0)])
 }
 
 /// **The body the certifying row measures** — the arc prism at `1e5·ε`.
@@ -408,6 +418,102 @@ fn a_multi_solid_certificate_reads_each_face_once() {
         "ONE READ PER FACE: the assembled certificate, continued, must BE the whole-body \
          measurement: {continued:?} vs {measured:?}"
     );
+}
+
+/// **ROUND SPLIT** — a multi-solid certificate whose parts stopped at
+/// DIFFERENT rounds, assembled and continued, is the whole-body
+/// measurement: the same four fields bit for bit, or the same typed
+/// refusal naming the same face.
+///
+/// `ONE READ PER FACE`'s pair settles in round 0 and leaves nothing to
+/// continue. Here one solid is the `1e5·ε` prism (finished at round 0)
+/// and the other a `1e9·ε` prism, whose sign settles before its
+/// schedule meets the target, so the continuation genuinely resumes one
+/// part's faces and not the other's — asserted, so the row cannot pass
+/// by having nothing to split. Both graft ORDERS, because the assembly
+/// re-orders parts into arena order and an order-sensitive splice would
+/// agree on one and not the other. The third subject pairs the `1e5·ε`
+/// prism with the exhausting `1e11·ε` one: the gate admits it, and the
+/// continuation must refuse exactly as `mass_properties` does.
+///
+/// Every body is ε-scaled, so each takes the same arm at every ε row.
+#[test]
+fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() {
+    let tol = Tol::witness();
+    let eps = tol.get().eps;
+    let small = || prism();
+    let fine = || arc_prism_at(1.0e9 * eps, 3.0);
+    let exhausting = || arc_prism_at(1.0e11 * eps, 3.0);
+    for (label, body) in [
+        ("small then fine", grafted(&[small(), fine()])),
+        ("fine then small", grafted(&[fine(), small()])),
+        ("small then exhausting", grafted(&[small(), exhausting()])),
+    ] {
+        assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
+        let mut measured = None;
+        let one = quad_verdicts(|| measured = Some(topo::mass_properties(&body, tol)));
+        let measured = measured.expect("the closure ran");
+
+        let mut gated = None;
+        let gate = quad_verdicts(|| {
+            gated = Some(topo::validate_pseudomanifold_certificate(
+                &body,
+                &Default::default(),
+                tol,
+            ));
+        });
+        let gated = gated.expect("the closure ran").unwrap_or_else(|errors| {
+            panic!(
+                "ROUND SPLIT {label}: both solids' signs are definite, so tier 3′ admits the \
+                 pair: {errors:?}"
+            )
+        });
+        let mut continued = None;
+        let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
+        let continued = continued.expect("the closure ran");
+
+        match (&continued, &measured) {
+            (Ok(continued), Ok(measured)) => {
+                assert!(
+                    refine > 0,
+                    "ROUND SPLIT {label}: the fine prism's sign settles before its target, so \
+                     the continuation must resume rounds — {refine} verdicts"
+                );
+                assert_eq!(
+                    gate + refine,
+                    one,
+                    "ROUND SPLIT {label}: gate {gate} + continuation {refine} must be one \
+                     measurement's {one}"
+                );
+                assert_eq!(
+                    bits(continued),
+                    bits(measured),
+                    "ROUND SPLIT {label}: the assembled certificate, continued, must BE the \
+                     measurement: {continued:?} vs {measured:?}"
+                );
+            }
+            (Err(continued), Err(measured)) => {
+                assert!(
+                    label.contains("exhausting"),
+                    "ROUND SPLIT {label}: only the exhausting pair may refuse: {measured}"
+                );
+                assert_eq!(
+                    continued, measured,
+                    "ROUND SPLIT {label}: the continuation must refuse as the measurement \
+                     does, naming the same face"
+                );
+            }
+            _ => panic!(
+                "ROUND SPLIT {label}: the continuation and the measurement disagree on \
+                 whether the body measures: {continued:?} vs {measured:?}"
+            ),
+        }
+        assert_eq!(
+            continued.is_err(),
+            label.contains("exhausting"),
+            "ROUND SPLIT {label}: exactly the exhausting pair refuses"
+        );
+    }
 }
 
 /// **PLANTED** — no gate is weakened: the class that refuses a planted

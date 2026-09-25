@@ -1317,6 +1317,55 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     );
 }
 
+/// **A `_structural` certificate is continued at a scalar that may not
+/// certify, to the closed form's own number.**
+///
+/// `SignCertificate`'s continuation is generic over `Decide`, so the
+/// certificate the no-lane tier-3′ door hands back at a
+/// [`geom_core::Dual64`] can be asked for its number: it carries no lane,
+/// every face is closed-form and finished at round 0, and the
+/// continuation is the fold of what it holds. That fold must BE
+/// [`crate::mass_properties_structural`] on the same body — value and
+/// derivative, compared through `Debug` (which renders every `f64`
+/// round-trip exactly) — over two solids, so the assembly re-orders
+/// real parts.
+#[test]
+fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
+    use geom_core::Dual64;
+    use geom_core::Real as _;
+    let tol = Tol::witness();
+    let mut body = Body::<Dual64>::new();
+    for (ox, s) in [(0.0, 1.0), (5.0, 0.5)] {
+        crate::test_support_fixtures::cube_into(
+            &mut body,
+            move |x, y, z| {
+                Point3::new(
+                    Dual64::from_f64(ox + x * s),
+                    Dual64::from_f64(y * s),
+                    Dual64::from_f64(z * s),
+                )
+            },
+            tol,
+        );
+    }
+    assert_eq!(body.solids().count(), 2, "two boxes are two solids");
+    let continued = crate::validate_pseudomanifold_certificate_structural(
+        &body,
+        &crate::ContactRecords::default(),
+        tol,
+    )
+    .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
+    .refine_to_target()
+    .expect("a closed-form certificate's continuation cannot refuse");
+    let measured =
+        crate::mass_properties_structural(&body, tol).expect("the closed form measures two boxes");
+    assert_eq!(
+        format!("{continued:?}"),
+        format!("{measured:?}"),
+        "the continued no-lane certificate is the closed form's own measurement"
+    );
+}
+
 /// **A solid holding SEVERAL outer boundaries certifies, and that is
 /// the ratified posture rather than a gap** — the executable form of
 /// `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`.
