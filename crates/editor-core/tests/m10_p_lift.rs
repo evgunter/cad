@@ -249,6 +249,8 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     let (_, canonical) = profile::Profile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
+    // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
+    // the plane out of the parameter layer.
     let err = profile::Profile::new(plane.map(Interval::from_f64), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");

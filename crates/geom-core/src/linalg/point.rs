@@ -360,7 +360,7 @@ mod tests {
         let p2 = Point2::new(1.5, -3.0);
         let p3 = Point3::new(-2.25, 0.1, 7.0);
         let (i2, i3) = (p2.map(Interval::from_f64), p3.map(Interval::from_f64));
-        let d3 = p3.map(Dual64::from_f64);
+        let (d2, d3) = (p2.map(Dual64::from_f64), p3.map(Dual64::from_f64));
         let enclosed = [
             (i2.x, p2.x),
             (i2.y, p2.y),
@@ -372,7 +372,14 @@ mod tests {
             let bits = (got.lo().to_bits(), got.hi().to_bits());
             assert_eq!(bits, (want.to_bits(), want.to_bits()), "{want}");
         }
-        for (got, want) in [(d3.x, p3.x), (d3.y, p3.y), (d3.z, p3.z)] {
+        let constants = [
+            (d2.x, p2.x),
+            (d2.y, p2.y),
+            (d3.x, p3.x),
+            (d3.y, p3.y),
+            (d3.z, p3.z),
+        ];
+        for (got, want) in constants {
             assert_eq!(got.value.to_bits(), want.to_bits(), "{want}");
             assert_eq!(got.deriv.to_bits(), 0.0_f64.to_bits(), "{want}");
         }

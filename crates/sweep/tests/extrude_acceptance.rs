@@ -627,24 +627,18 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     // value channels equal the f64 build bitwise (tangent data never
     // decides).
     use geom_core::{Dual, Dual64};
-    let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
-        bulge_loop(
-            lp.vertices()
-                .iter()
-                .zip(lp.bulges())
-                .map(|(v, &b)| (v.map(Dual::constant), Dual::constant(b)))
-                .collect(),
-        )
-    };
     let f = extrude(
         &validated(vec![l_loop()]),
         Extrusion::Distance(1.0),
         Tol::witness(),
     )
     .unwrap();
-    let dp = Profile::new(SketchPlane::<Dual64>::xy(), vec![lift(&l_loop())])
-        .validate(Tol::witness())
-        .unwrap();
+    let dp = Profile::new(
+        SketchPlane::<Dual64>::xy(),
+        vec![l_loop().map_scalar(Dual::constant)],
+    )
+    .validate(Tol::witness())
+    .unwrap();
     let d = extrude(
         &dp,
         Extrusion::Distance(Dual::constant(1.0)),
