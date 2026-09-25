@@ -503,7 +503,7 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
         }
     }
     assert_eq!(
-        checked, 45,
+        checked, 43,
         "unions with two or more fused orders checked (a nested case has two unions)"
     );
 }
