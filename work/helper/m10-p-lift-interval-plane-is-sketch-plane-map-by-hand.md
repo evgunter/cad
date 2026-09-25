@@ -2,11 +2,12 @@
 id: m10-p-lift-interval-plane-is-sketch-plane-map-by-hand
 kind: issue
 title: editor-core/tests/m10_p_lift.rs interval_plane rebuilds a SketchPlane from twelve from_f64 calls, which is plane.map(Interval::from_f64)
-status: open
+status: closed
 opened: 2026-09-08
 refs: [2139, D385]
 priority: P3
 cost: E
+closed: 2026-09-24
 ---
 
 (EVAL orchestrator) From EVAL-1's style review (PR 2139, S2), filed
@@ -66,3 +67,12 @@ hand-lift.
 **Blind spot.** Only the named file and `D385`'s two named siblings were
 checked; no crate-wide sweep for other hand-written `from_f64` frame
 lifts was run, so this says nothing about the class's floor.
+
+## Closed (2026-09-24, `dup/scalar-lift-home`)
+
+Folded by S-DUP's componentwise-scalar-lift unit, whose census put its
+inner `Vec3` closure among the members: `interval_plane` is deleted and
+its one caller reads `plane.map(Interval::from_f64)` — the door this row
+named. `SketchPlane` is `Copy`, so the borrow went with the function.
+Closed from S-DUP's branch as a drive-by on HELPER's ground, announced
+in the PR.
