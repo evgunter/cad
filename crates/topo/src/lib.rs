@@ -171,6 +171,10 @@ pub mod instance;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;
+// The one statement of a stored planar loop's signed winding, shared by
+// the merge's role assigner and tier 3's check 6. Non-doc comment for
+// the same rustdoc reason as the sector modules below.
+pub(crate) mod loop_winding;
 pub mod merge_faces;
 pub mod movefac;
 #[cfg(test)]
@@ -245,6 +249,12 @@ mod test_support_impl;
 #[cfg(any(test, feature = "test-support"))]
 #[doc(hidden)]
 mod test_support_fixtures;
+// One `ValidationError` of every arm, for the rows that render them —
+// this crate's Display-coverage row and a downstream refusal-budget
+// row — so it sits behind the same door, on the same gate.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+mod test_support_samples;
 // VISIBILITY: the only reason to export them is a test naming them from
 // another crate, so the public door opens on the test arms alone —
 // `topo::test_support` does not resolve in a plain build of any profile.
@@ -278,6 +288,7 @@ pub mod test_support {
         straddle_seat,
     };
     pub use crate::test_support_impl::ArenaCounts;
+    pub use crate::test_support_samples::validation_error_samples;
 
     /// The topology-arena lengths of `body`. A free function because
     /// `Body::arena_counts` is `pub(crate)` — an inherent method's
@@ -321,8 +332,8 @@ pub use census::{CensusStrategy, CensusTrace, SweepPairs};
 #[cfg(feature = "sweep-testing")]
 pub use census::{census_traces, census_traces_planted};
 pub use contact::{
-    CONTACT_RECOURSE, ContactClass, ContactFinding, ContactRefusal, ContactVerdict,
-    DeclaredContact, FIT_DEFERRAL,
+    CONTACT_RECOURSE, CONTRADICTION_REASON, CONTRADICTION_RECOURSE, ContactClass, ContactFinding,
+    ContactRefusal, ContactVerdict, DeclaredContact, FIT_DEFERRAL, FIT_DEFERRAL_FOR_USERS,
 };
 pub use entity::{
     Edge, EdgeKey, EntityId, Face, FaceKey, GeomRef, HalfEdge, HalfEdgeKey, Loop, LoopBoundary,
@@ -367,8 +378,9 @@ pub use offset_together::{ChartMove, offset_planes_together};
 pub use pcurves::{PcurveMintError, chart_boundary, mint_pcurves, mint_pcurves_of, pcurve_of};
 pub use props::{
     AtRestOutcome, AtRestPolicy, MassProperties, MassPropsError, QuadLane, ShellClassification,
-    ShellClassifyError, ShellDoor, ShellRole, SignCertificate, VolumeEnclosure, classify_shells,
-    classify_shells_of, classify_shells_structural, mass_properties, mass_properties_structural,
+    ShellClassifyError, ShellDoor, ShellRole, SignCertificate, TargetUnreached, VolumeEnclosure,
+    classify_shells, classify_shells_of, classify_shells_structural, mass_properties,
+    mass_properties_structural,
 };
 pub use provenance::{Provenance, SplitLineageCycle};
 // The query VOCABULARY rides at the root like every other type;

@@ -34,7 +34,6 @@
 //! header states at length: above a small fraction of ε no node's
 //! interval replay survives, which is issue 1191's class and this
 //! unit's honest limit as much as that one's.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

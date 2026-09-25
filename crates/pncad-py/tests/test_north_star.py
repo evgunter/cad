@@ -4087,6 +4087,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `set_program` JOINED it at EDIT-PROGRAM: the whole-program
+        # edit over a live profile, the fourth door this roster sees
+        # that the census cannot. The positive form is
+        # `TestTheWholeProgramEdit` in `tests/test_document.py`.
+        #
         # `datum_point` and `datum_frame` JOINED it at LIB-GAPS-1,
         # which closed B-DATUM-DOORS: all six arms of the kernel's
         # `Datum` now have a constructor, so a Python author builds
@@ -4137,8 +4142,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "set_doc_param_distribution", "set_doc_param_unit",
                 "set_doc_param_value",
                 "set_members", "set_param",
-                "set_placement", "set_roots", "set_tolerance",
-                "update_reference",
+                "set_placement", "set_program", "set_roots",
+                "set_tolerance", "update_reference",
             ],
         )
 
@@ -4196,9 +4201,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # reach Python through the TEXT door as `ParseError` with
             # `variant == "dimension"` and the mismatch's own tag as
             # `kind` — not `LiteralError`, which has no position to
-            # put the byte offset in, and not `DimensionError`, which
-            # is the quantity boundary's own check. `load`'s route is
-            # untouched and still misrouted (issue #694).
+            # put the byte offset in, and not `QuantityOpMismatch`,
+            # which is the quantity boundary's own check. `load`'s
+            # route is the same shape: `PersistError` with `variant ==
+            # "dimension"` and the mismatch's own tag as
+            # `inner_variant`.
             #
             # What is left of G1 is the AUTHORING half, and it is a
             # SIGNATURE rather than a name — no door takes an `Expr`

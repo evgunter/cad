@@ -4,7 +4,6 @@
 //!
 //! Sweep shape ([[test-suite-cost]]): static fixtures, no seed. Rows
 //! marked EVIDENCE-ONLY print and gate nothing.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -357,10 +356,9 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
 /// parameter) at `±w / 4`, extruded by `w / 10`; the web between the
 /// holes is measured and asserted. Arcs (the hole rims), a division, a
 /// macroscopic box.
-// Read only by `m10_7_r1_census_probe`, which is gated on `probe` as
-// well as `interval`; in an interval-only build the fixture is dead and
-// saying so is cheaper than gating the function to match a sibling
-// module's cfg.
+// Read only by `m10_7_r1_census_probe`, which is gated on `probe`; in a
+// build without it the fixture is dead and saying so is cheaper than
+// gating the function to match a sibling module's cfg.
 #[cfg_attr(not(feature = "probe"), allow(dead_code))]
 pub(crate) fn bracket_pub(
     half_width: f64,

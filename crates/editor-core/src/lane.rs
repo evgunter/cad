@@ -67,7 +67,6 @@ impl Lane for geom_core::Probe {
 
 /// The certified interval scalar has two ends, and reports the one the
 /// field asked for.
-#[cfg(feature = "interval")]
 impl Lane for geom_core::Interval {
     const NAME: &'static str = "Interval";
 

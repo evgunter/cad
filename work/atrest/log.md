@@ -590,3 +590,195 @@ no position" has no spelling) landed on TOPO on 2026-09-20 while
 `validate.rs` was still TOPO's; the cut the same day made it ATREST's.
 Moved by `git mv` with its id and body; the two defective sites stay
 REACH's and CHART's as FIX's section says. Signed (TOPO orchestrator).
+
+## 2026-09-24 — resumed after the suspension; wave 1 dispatched
+
+**What changed on main.** The A/B protocol is SUSPENDED (Ev,
+2026-09-23; `docs/MODEL-AB-LOG.md`'s head): every phase runs on Opus,
+nothing draws an arm or claims an ordinal, and a unit v7 would have
+triaged IN gets two independent Opus reviewers under
+`docs/DUAL-REVIEW-PROTOCOL.md`, recorded in `docs/DUAL-REVIEW-LOG.md`.
+The tiers now live in `memories/orchestration-model.md`: orchestrator's
+read / single / dual. RING-4 deleted the `interval` feature, so a
+code-tier run is now SIX `test (eps = …)` jobs, not twelve. ATREST's
+band 6400–6499 stays claimed and unused. Ev's direction for this
+sitting: finish the program.
+
+**The slate grew to 40.5/30** while the program was idle: four rows
+filed onto `validate.rs` by other programs, including
+`atrest-refusal-prose-outgrows-the-viewer` — Ev's concision request,
+now banded **P1** (a GUI defect Ev reported) and priced D, with
+`census-witness-string-repeats-the-subject` riding along (the same
+arms' prose).
+
+**Re-homed**: `validate-passes-a-body-with-a-zero-width-slit-face` to
+TQUERY. The tiers answered correctly on those halves; what the row
+asks for is `split` validating its own outputs, which is `split.rs`'s
+posture and TQUERY's ground.
+
+**Re-stated, again: `tier-3-does-not-check-shell-roles-per-solid`.** The
+2026-09-21 reading — "a second `Outer` nested inside the solid's own
+void is unchecked" — asked tier 3 to refuse a VALID body. By winding
+number the island is material (wall `+1`, cavity `-1`, island `+1`),
+and the ZIP row it came from records the total as correct; what ZIP
+objects to is the grouping, and the kernel deliberately files
+disconnected components under one solid (the evidence that retracted
+check 10). This is the third time on this row that a headline was read
+in place of its evidence, and the same retraction applies. The real
+at-rest invariant is that a solid's shells bound winding number 0 or 1
+everywhere — a void outside every outer, or overlapping outers,
+certifies today with a positive per-solid total. Re-titled and
+re-stated to that.
+
+**Wave 1**, four lanes concurrently, on four different regions of
+`validate.rs`:
+
+| unit | carries | tier | reason |
+|---|---|---|---|
+| ATREST-3 | tier3-prime + multi-solid quadrature | **dual** | a public return-type change across crates; what every tier-3 door promises |
+| ATREST-4 | sense-inversion | single, full | a new refusal whose risk is the refusal surface; measured before landing, stop clause on any verb's output |
+| ATREST-5 | check 9 disc class | single, full | a new refusal reading CONTACT's exact decide; `ArcParity`/`NoWalk` split to a parked row on #1076 |
+| ATREST-6 | quadric datums | single, full | named refusals at check 1; the torus's representability reason extended to three kinds |
+
+CONTACT never answered the `disc_side` note of 2026-09-21; the note
+said the unit would land the `pub(crate)` itself and announce the seam
+if CONTACT did not object, and that is what ATREST-5 does.
+
+## 2026-09-24 — wave 2 specced; one row re-homed to ZIP
+
+**Re-homed**: `declared-opposite-orientation-refusal-is-unreached-by-any-row`
+to ZIP. All three consumers it wants guarded (`merge_faces.rs`,
+`boolean/join.rs`, `boolean/rest.rs`) are ZIP's ground and the owed
+rows are tests of them; it sat here from TOPO's cut because the planar
+door it names was the anchor.
+
+**Wave 2**, dispatched beside wave 1 because neither collides with
+ATREST-3's restructuring beyond a merge:
+
+| unit | carries | tier | reason |
+|---|---|---|---|
+| ATREST-7 | shell roles → the winding invariant | single, full | a new check 10 stating what a valid multi-shell solid is; refusal surface measured first, expected empty |
+| ATREST-8 | Ev's concision request + the `CensusLaneUnsupported` recourse + the census witness slot | single, style | prose at the source to CHROME's standard, plus a budget guard for `ValidationError` |
+
+`census-lane-unsupported-display-names-the-scalar-not-the-door` moved
+from the door-matrix group to ATREST-8: re-read, its verdict half is
+H5 ruling 3's letter and changes nothing — what is wrong is the
+sentence, so it is prose.
+
+**Held for wave 3**: the door matrix
+(`structural-suffix-means-two-things-across-the-six-doors`,
+`validate-rs-exports-sixteen-doors-on-an-irregular-matrix`), which
+collides head-on with ATREST-3's change to the certificate doors'
+return types and waits for it.
+
+## 2026-09-24 — ATREST-7 stopped at measure-first; the walk under it is wrong
+
+ATREST-7 (check 10, the shell-winding invariant) measured its refusal
+surface over the full corpus before landing, as specced. Every
+deliberate multi-shell product certified — `graft` onto, the coplanar
+split, `editor-core`'s islands and placed union, ZIP's hollow-operand
+subtraction — except ONE: `sweep::torax_axial::torax_the_torus_corners_survive_a_rigid_re_pose`,
+where `topo::shell` validates its own output and check 10 refuses. The
+lane stopped and diagnosed rather than landing: the cause is not a
+winding violation but `point_in_solid_faces` answering **`Out` from a
+point strictly inside** a rigidly re-posed torus-walled shell. The
+unposed body answers correctly. A false answer from a certified walk,
+not a refusal — so no "silent on `Err`" posture can absorb it, and it
+reaches the boolean's containment fallback and the census too.
+
+The stop clause is working as this program learned to write it: the
+check-10 retraction and ATREST-2's lessons were both about settling a
+claim before measuring who it refuses. This time the measurement ran
+first and found a bug one layer down instead of a false refusal
+shipped.
+
+**Ruled: ATREST claims the row and fixes the walk, as ATREST-9.** The
+row was filed for CONTACT (it owns `solid_contain.rs`), but CONTACT is
+`ready` with no orchestrator and nothing dispatched, so a P0 wrong
+answer that two programs' checks read would sit indefinitely. The
+alternative — landing check 10 with torus-walled shells declared out of
+its domain — would scope around one observed pose of a defect whose
+class nobody has measured, and leave the boolean's wrong answer with
+nobody on it. ATREST-9 reproduces without check 10, measures the kind ×
+pose class, and fixes the arm; seam announced on CONTACT's log.
+**Tier: dual** — numeric soundness in a certified walk the boolean
+trusts.
+
+ATREST-7 and its carried row are **parked** on the claimed row. The
+branch is pushed and green apart from the torax row; it resumes the
+moment ATREST-9 lands (re-run the matrix, open the PR, single full
+review as specced). Its own residue row
+(`check-10-is-silent-where-point-in-solid-refuses`) stays on that
+branch and lands with it.
+
+Operational: ATREST-3's lane held the machine-wide build mutex for over
+an hour with a full `--no-fail-fast` battery (piped through `tail`,
+against the discipline), plus an orphaned 1h42m waiter, starving five
+lanes and a reviewer. Told to release it and keep measurements
+targeted; every later brief says so explicitly.
+
+## 2026-09-27 — ATREST-5 merged; three reviews adjudicated; one outage
+
+**ATREST-5 merged** (PR #3179; fix-pass run 36055931100 green at six
+`test` and five `k-lint`, read at step level). Check 9's nesting arm
+now decides the `Disc` class through `contain::disc_side` — the annular
+rim of every shelled vessel of revolution. `check-9-nesting-is-line-bounded-only`
+closed; its `ArcParity`/`NoWalk` thirds live on as
+`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`,
+parked on TANG's #1076. The review (single, full) found no MAJOR;
+all ten findings were taken, including a `rehome_rings` finding given
+its own row on REACH's slate with the reviewer's corrected class
+(`ArcParity`, not `Disc`). The vertex-only choice for disc-class rings
+was upheld: the case a two-circle test adds is a crossing, and the
+crossing is its own row (`check-9-contact-half-misses-a-crossing-and-a-tangency`).
+The landing now follows the ledger convention: the spec deleted with a
+`docs/doc-ledger/atrest-5-spec.md` note naming the SHA it is
+recoverable at, and the docs-only state-sync run cancelled rather than
+killed mid-flight at merge.
+
+**ATREST-4 reviewed** (single, full): APPROVE-WITH-FIXES, no MAJOR.
+The segment term `axis·R²(Δ−sinΔ)` was re-derived by hand and holds for
+every arc shape; the assigner's path is bit-identical. The finding that
+matters: the PR argued the sweep verbs' cap normals
+(`newell_plane(cap_points)`) always get the sign right, and the argument
+covers concave arcs only — the reviewer's C-shaped profile with a 350°
+CONVEX arc gives an apex polygon of −1.53 against a true region of
++1.44, i.e. an extruded cap whose normal points into the material. The
+fix pass MEASURES it through the public doors rather than arguing
+either way; if `extrude` produces that body, it is a P0 producer defect
+filed on the verbs' owner — and the widened check 6 is what now
+catches it at rest. Also owed: a row that pins the segment term's
+MAGNITUDE (every new row used semicircles or unit radii and asserted
+sign only), and the arc term's second home in `join.rs`.
+
+**ATREST-8 reviewed** (single, style): APPROVE-WITH-FIXES. The arms read
+far better, every re-baseline held or tightened — but the budget guard
+passed because of which samples it picked: composed at-rest renderings
+the viewer draws run to 99 words (`CensusUnsupported` over
+`ChartRegion` causes; `Containment(ArcLoopUnsupported)`; the
+`Uncertified` header at 59 words before any cause), and the guard
+hand-rolled a budget-only loop beside the shared `test_utils::refusal`
+checker that also checks arena keys and prefixes. The fix pass samples
+every composed shape the viewer can draw, adopts the shared checker,
+and takes the recourses that stopped being true once their caveats
+were cut.
+
+**Outage.** On 2026-09-24 the account's weekly usage limit killed all
+five live agents mid-work. Nothing was lost — every lane had pushed or
+held its work on disk (ATREST-4 five unpushed commits, ATREST-9 its
+trace instrumentation) — and all five were resumed with their context
+at the reset on 2026-09-27.
+
+## Announced seam from PATHS (2026-09-25)
+
+When #3231 lands, it carries a three-arm fix to
+`crates/topo/src/validate.rs`. main had stopped compiling `topo`: the
+`Display` match for `RingMeetsOuter` (#3185) covered only `Vertex`,
+`VertexOnEdge` and `Edge`. `a3d5c47e1` added three more contact arms
+(`OuterVertexOnEdge`, `Circles`, `EdgesMeet`), and the match had no
+arms for them. The new sentences are "where a corner of the outline
+meets an edge of the hole", "where the two circles cross or touch"
+and "where two of their edges cross or touch". No test pins any of
+them. Re-word them if ATREST prefers other phrasing.
+
+Signed (PATHS orchestrator).

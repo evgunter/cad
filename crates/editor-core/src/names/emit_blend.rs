@@ -56,8 +56,9 @@
 //! row, and a name built from any tied upstream is deferred into
 //! [`super::defer::TieRows`] rather than inserted one member at a
 //! time. That is what a tie needs: its members all carry the SAME
-//! name, so the flush hands the whole candidate list to `insert_tied`
-//! at once, and `Duplicate` keeps meaning what it says — the
+//! name, so the flush hands the whole candidate list to
+//! [`super::defer::narrow_into`] at once, and `Duplicate` keeps
+//! meaning what it says — the
 //! no-silent-aliasing bug, never a legitimate N2 tie.
 //!
 //! A role that wraps SEVERAL upstream names is tie-descended when ANY
@@ -71,6 +72,7 @@ use std::sync::Arc;
 use sweep::blend::naming::{BlendNaming, RimSide};
 use topo::{Body, EdgeKey, FaceKey, VertexKey};
 
+use super::canonical;
 use super::defer::{TieRows, put as put_row, upstream_name};
 use super::emit::{NamingError, check_total, ent, name1};
 use super::role::{EntityKind, RimSupport, RoleSeg};
@@ -161,9 +163,9 @@ pub(super) fn name_blend<T: geom_core::Real>(
         )?;
     }
     for (f, edges) in &rec.bands {
-        // Canonical order = NAME order (the N3 `Merged` convention): a
-        // rim is a cycle with no first edge, so only the SET is
-        // covariant.
+        // A rim is a cycle with no first edge, so only the SET is
+        // covariant: the canonical form sorts and deduplicates it (the
+        // N3 `Merged` convention).
         let mut names = Vec::with_capacity(edges.len());
         let mut tied = false;
         for e in edges {
@@ -171,9 +173,11 @@ pub(super) fn name_blend<T: geom_core::Real>(
             tied |= e.tied;
             names.push((*e.name).clone());
         }
-        names.sort();
-        names.dedup();
-        put(EntityKey::Face(*f), RoleSeg::BandFace(names), tied)?;
+        put(
+            EntityKey::Face(*f),
+            canonical::minted_segment(RoleSeg::BandFace(names)),
+            tied,
+        )?;
     }
     for (t, e, side) in &rec.rim_trims {
         let e = up_e(*e)?;

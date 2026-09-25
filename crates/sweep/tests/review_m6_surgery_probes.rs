@@ -11,13 +11,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::PI;
-use profile::RawLoop;
 
 use geom::Surface;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::cube;
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -36,10 +35,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

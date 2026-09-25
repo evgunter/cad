@@ -19,7 +19,6 @@
 //! them has a threshold to cross, so none of them can gate; what they
 //! produce is quoted in the unit's deviations with this file named. The
 //! rows that ASSERT are NOT probe-gated and run on every merge.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 

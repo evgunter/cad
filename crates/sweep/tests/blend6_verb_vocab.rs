@@ -17,7 +17,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, BlendRefusal};
 use sweep::chamfer::chamfer_edges;
@@ -271,10 +271,7 @@ fn a_chamfer_recourse_followed_as_a_chamfer_reaches_its_promised_outcome() {
 #[test]
 fn a_chamfer_on_a_co_surface_seam_refuses_tangential_as_the_chamfer() {
     let ball = sweep::test_support::revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
-        ],
+        vec![(Point2::new(0.0, -1.0), 1.0), (Point2::new(0.0, 1.0), 0.0)],
         sweep::Revolution::Full,
         Tol::witness(),
     );
@@ -410,7 +407,7 @@ fn edge_surfaces(
 /// An L-bracket: the six-vertex L profile extruded by 1 m. Its one
 /// reflex profile corner becomes the body's one concave edge.
 fn l_bracket() -> Body<f64> {
-    let lp = ProfileLoop::new(
+    let lp = bulge_loop(
         [
             (0.0, 0.0),
             (1.0, 0.0),
@@ -420,7 +417,7 @@ fn l_bracket() -> Body<f64> {
             (0.0, 1.0),
         ]
         .into_iter()
-        .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+        .map(|(x, y)| (Point2::new(x, y), 0.0))
         .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

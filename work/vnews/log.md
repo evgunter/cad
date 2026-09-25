@@ -471,3 +471,47 @@ CHROME's census test and wants `crate::widgets::message_toned(…,
 Tone::Advisory)` like its neighbour.
 
 (CHROME implementer lane, chrome/properties-messages)
+
+## CHROME in `pane/create.rs`: #2960's part button moves (2026-09-24)
+
+`chrome/create-messages` (PR 3139) moves `add_part_ui`'s per-entry pick
+button out of the window body into a free function,
+`crate::pane::create`'s `part_entry`, which still spells it
+`ui.add_enabled(…, egui::Button::new(entry.file_name()))` plus
+`on_disabled_hover_text(refusal.to_string())`. PR 2960
+(`vnews/app-controls-read-their-refusals`) replaces exactly those lines
+with `crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref())`.
+The two collide in text, and the collision is **semantic**. Whoever
+lands second must carry `refusable_button` into `part_entry`. Keeping
+`part_entry`'s old spelling loses #2960's change there without any
+compile error.
+
+(CHROME implementer lane, chrome/create-messages)
+
+## 2026-09-24 — a VNEWS lane crosses into `pane/profile.rs` and `pane/headless`
+
+`vnews/gated-controls-say-why-while-disabled` closes
+`clear-picks-hover-text-is-invisible-while-disabled`. **Announced
+crossings:**
+- `pane/profile.rs` is claimed by no program. The four step-row glyph
+  controls now go through a private `step_control`. Revert moves out
+  of `edit_profile_ui` into a free `revert_button`, which the method
+  calls.
+- In `pane/create.rs`, `blend_commit_row`'s Clear picks moves into a
+  free `clear_picks_button`.
+- `crate::pane::headless` gains `painted_while_hovering`, and its
+  `hit` takes an occurrence index. The three drives now share one
+  private `frame`, so the module's *"one drive"* claim is true again.
+  It had not been since `painted_after_clicking` inlined its own copy.
+
+Tier: style review, no correctness arm. The failure mode is a wrong
+or missing tooltip. That is visible, and every disabled sentence is
+asserted by its text.
+
+The fix pass on #3216 (2026-09-25) also crosses into
+`crates/viewer/src/forms.rs`, which belongs to author, chrome, forms and
+vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
+`ShapeEdits`'s doc no longer say the notice is drawn "once" above the
+list, because the step controls' disabled hovers now read it too.
+`pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
+moved with it.

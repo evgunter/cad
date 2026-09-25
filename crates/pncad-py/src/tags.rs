@@ -134,8 +134,8 @@ use pncad::document::{
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
     MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
+    ProgramRefusal, ProvenanceFault, RecordedProgramError, RefusedRef, Relation, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -529,6 +529,8 @@ pub fn edit_error_tag(err: &EditError) -> &'static str {
         EditError::RepeatedDesignation { .. } => "repeated_designation",
         EditError::SelectionNotCanonical { .. } => "selection_not_canonical",
         EditError::SetMembersOnNonList { .. } => "set_members_on_non_list",
+        EditError::SetProgramOnNonProfile { .. } => "set_program_on_non_profile",
+        EditError::ProvenanceMalformed { .. } => "provenance_malformed",
         EditError::TooFewMembers { .. } => "too_few_members",
         EditError::DeleteWouldDangle { .. } => "delete_would_dangle",
         EditError::UnknownSlot { .. } => "unknown_slot",
@@ -1098,8 +1100,8 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
         NodeErrorKind::PayloadExpr { source, .. } => Some(eval_error_tag(source)),
         NodeErrorKind::MeasureSelectionKind { .. } => None,
         // The clearance engine's class name is a `&str` the engine
-        // mints behind a feature boundary, not a discriminant this
-        // crate can match; it is already the whole of the message.
+        // mints, not a discriminant this crate can match; it is already
+        // the whole of the message.
         NodeErrorKind::MeasureClearanceRefused(_) => None,
         NodeErrorKind::AssertionDimension { .. } => None,
     }
@@ -1143,6 +1145,9 @@ pub fn edit_inner_variant_tag(err: &EditError) -> Option<&'static str> {
         EditError::RepeatedDesignation { .. } => None,
         EditError::SelectionNotCanonical { .. } => None,
         EditError::SetMembersOnNonList { .. } => None,
+        EditError::SetProgramOnNonProfile { .. } => None,
+        // The provenance's shape fault is the arm.
+        EditError::ProvenanceMalformed { fault, .. } => Some(provenance_fault_tag(fault)),
         EditError::TooFewMembers { .. } => None,
         EditError::DeleteWouldDangle { .. } => None,
         EditError::UnknownSlot { .. } => None,
@@ -1546,8 +1551,12 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         // branching on this word is deciding whether to report a kernel
         // bug, and these are not one.
         NamingError::SeamVertexParentage { .. } => "seam_vertex_parentage",
+        NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::SeamLineSides { .. } => "seam_line_sides",
+        NamingError::MemberEdgeTied { .. } => "member_edge_tied",
+        NamingError::NarrowBand { .. } => "narrow_band",
         NamingError::SharedRim { found, .. } => rim_share_tag(found),
         NamingError::Band(e) => band_error_tag(e),
         NamingError::Escalated { .. } => "escalated",
@@ -1603,6 +1612,7 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Transition { .. } => "transition",
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
+        ProgramRefusal::Record { .. } => "record",
     }
 }
 
@@ -1796,6 +1806,12 @@ pub fn persist_error_tag(err: &PersistError) -> &'static str {
         PersistError::IdMismatch { .. } => "id_mismatch",
         PersistError::Parse { .. } => "parse",
         PersistError::Unreadable { .. } => "unreadable",
+        // The document layer's own refusal, crossing whole: the word
+        // here names the STAGE (a load refused), and WHICH dimension
+        // check failed rides beside it as `inner_variant`, minted from
+        // [`expr_dimension_error_tag`] — the same map the text door
+        // draws `ParseError.kind` from. One vocabulary, three doors.
+        PersistError::Dimension { .. } => "dimension",
         PersistError::Snapshot(_) => "snapshot",
         PersistError::EditReplay { .. } => "edit_replay",
         PersistError::MaintenanceFrame { .. } => "maintenance_frame",
@@ -2702,7 +2718,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::ApproxLaneUnsupported { .. } => "approx_lane_unsupported",
         ValidationError::DegenerateTorus { .. } => "degenerate_torus",
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
-        ValidationError::NonpositiveTorusTube { .. } => "nonpositive_torus_tube",
+        ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
+        ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",
@@ -2889,9 +2906,15 @@ pub fn stale_declaration_tag(declaration: &StaleDeclaration) -> &'static str {
 /// The word decides where the ring has to move: a `vertex_vertex`
 /// contact is one shared position and a nudge of one vertex clears
 /// it, a `vertex_on_edge` contact puts a ring vertex on the interior
-/// of an outer edge, and an `edge_along_edge` contact shares a
-/// positive-length arc — the two loops run together rather than
-/// touching, and no single vertex move separates them.
+/// of an outer edge (`vertex_on_ring_edge` is the mirror: an outer
+/// vertex on a ring edge's interior), and an `edge_along_edge`
+/// contact shares a positive-length arc — the two loops run together
+/// rather than touching, and no single vertex move separates them.
+/// The two point words name a meeting no vertex carries:
+/// `edge_edge_point` is a ring edge crossing or touching an outer
+/// edge, and `circle_circle` is a whole-circle ring crossing or
+/// touching a whole-circle outer loop — the circle itself has to move
+/// or shrink.
 ///
 /// The words are the census vocabulary's where the shape is the same
 /// one ([`census_contact_tag`]), because a caller reading two contact
@@ -2902,6 +2925,9 @@ pub fn ring_contact_tag(contact: &RingContact) -> &'static str {
         RingContact::Vertex { .. } => "vertex_vertex",
         RingContact::VertexOnEdge { .. } => "vertex_on_edge",
         RingContact::Edge { .. } => "edge_along_edge",
+        RingContact::OuterVertexOnEdge { .. } => "vertex_on_ring_edge",
+        RingContact::EdgesMeet { .. } => "edge_edge_point",
+        RingContact::Circles { .. } => "circle_circle",
     }
 }
 
@@ -2949,7 +2975,9 @@ pub fn subgroup_tag(subgroup: &Subgroup) -> &'static str {
 /// because the appearance store is what carries it. An
 /// `orphaned_declare` names the declaration the delete left with no
 /// consumer, on `node`, and carries no name at all: nothing is
-/// dangling there, the node is simply no longer read.
+/// dangling there, the node is simply no longer read. A `rebound`
+/// names a profile name a reshaped program moved, `name` its old
+/// spelling and `rebound_to` its new.
 pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
     match maintenance {
         Maintenance::Cluster(ClusterMaintenance::Join { .. }) => "join",
@@ -2959,6 +2987,23 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
+        Maintenance::Rebound { .. } => "rebound",
+    }
+}
+
+/// The stable tag for what is wrong with the SHAPE of a
+/// `DocEdit.set_program`'s provenance — the fault
+/// `EditError::ProvenanceMalformed` carries, published on
+/// `inner_variant` beside the edit's own word.
+pub fn provenance_fault_tag(fault: &ProvenanceFault) -> &'static str {
+    match fault {
+        ProvenanceFault::LoopCount { .. } => "loop_count",
+        ProvenanceFault::StepCount { .. } => "step_count",
+        ProvenanceFault::NoSuchOldLoop { .. } => "no_such_old_loop",
+        ProvenanceFault::NoSuchOldStep { .. } => "no_such_old_step",
+        ProvenanceFault::StepOfNewLoop { .. } => "step_of_new_loop",
+        ProvenanceFault::OldLoopContinuedTwice { .. } => "old_loop_continued_twice",
+        ProvenanceFault::OldStepContinuedTwice { .. } => "old_step_continued_twice",
     }
 }
 

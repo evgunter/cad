@@ -41,7 +41,6 @@ use core::f64::consts::PI;
 use geom::Surface;
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
@@ -57,7 +56,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
@@ -72,10 +71,10 @@ fn bored_dome() -> Body<f64> {
     let bulge = (th / 4.0).tan();
     revolved(
         vec![
-            ProfileVertex::new(p2(0.3, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), bulge),
-            ProfileVertex::new(p2(x_hi, y_hi), 0.0),
-            ProfileVertex::new(p2(0.3, y_hi), 0.0),
+            (p2(0.3, 0.0), 0.0),
+            (p2(1.0, 0.0), bulge),
+            (p2(x_hi, y_hi), 0.0),
+            (p2(0.3, y_hi), 0.0),
         ],
         Revolution::Full,
     )
@@ -87,9 +86,9 @@ fn hemisphere() -> Body<f64> {
     let quarter = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     revolved(
         vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), quarter),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+            (p2(0.0, 0.0), 0.0),
+            (p2(1.0, 0.0), quarter),
+            (p2(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
     )

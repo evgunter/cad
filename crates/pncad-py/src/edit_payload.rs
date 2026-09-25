@@ -91,10 +91,10 @@ pub struct EditPayload<'a> {
     /// entry that does not sort strictly before the one after it.
     /// Both are one index into one payload list, so they share the
     /// attribute rather than minting a second word for it.
-    pub first: Option<u32>,
+    pub first: Option<usize>,
     /// The position at which a repeat is named AGAIN — carried only by
     /// `RepeatedDesignation`, the one fault that names two entries.
-    pub again: Option<u32>,
+    pub again: Option<usize>,
     /// A refused scalar the door names in its own right — a
     /// tolerance's ε.
     pub value: Option<f64>,
@@ -249,6 +249,7 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
             ..none
         },
         EditError::SetMembersOnNonList { node }
+        | EditError::SetProgramOnNonProfile { node }
         | EditError::WitnessOnNonSketch { node }
         | EditError::DuplicateWitnessEntry { node }
         | EditError::PlacementOnNonInstance { node }
@@ -263,7 +264,8 @@ pub fn edit_payload(err: &EditError) -> EditPayload<'_> {
         // The nested refusals: `inner_variant` names the arm and the
         // fields inside it stay on that type's own door.
         EditError::ProfileProgramRefused { node, refusal: _ }
-        | EditError::MeasureMalformed { node, fault: _ } => EditPayload {
+        | EditError::MeasureMalformed { node, fault: _ }
+        | EditError::ProvenanceMalformed { node, fault: _ } => EditPayload {
             node: Some(*node),
             ..none
         },

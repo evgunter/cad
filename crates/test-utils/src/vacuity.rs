@@ -101,8 +101,8 @@
 //! condition is a `#[cfg]` and there is no running row to announce
 //! from. It has the working half this door lacks: its NAME reaches the
 //! PASS list, which is the payload a gating run actually carries.
-//! `memories/test-suite-cost.md` points at the interval spelling of that
-//! name, and no other.
+//! `memories/test-suite-cost.md` points at the viewer's `app` spelling of
+//! that name, and no other.
 //!
 //! # What a passing row prints reaches nobody on the gate
 //!
@@ -265,9 +265,9 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 ///
 /// ```ignore
 /// test_utils::loud_skip_marker!(
-///     feature = "interval",
-///     row = interval_lane_skipped_no_certified_coverage_here,
-///     absent = "certified coverage",
+///     feature = "app",
+///     row = app_lane_skipped_no_chrome_coverage_here,
+///     absent = "coverage of the chrome's labels",
 /// );
 /// ```
 ///
@@ -285,7 +285,7 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 /// never built from a lane that was deleted. The marker is the sentence
 /// that says which.
 ///
-/// # Why this is a macro and not nine copies
+/// # Why this is a macro and not a copy per file
 ///
 /// The marker's payload is split: the NAME reaches the PASS list and is
 /// read; the `println!` body is discarded on every gating run (see
@@ -300,7 +300,7 @@ pub fn stood_down(label: &str, what_is_not_asserted: &str) {
 ///
 /// Which JOB builds the feature is deliberately not named: that is
 /// `.github/workflows/ci.yml`'s to say, it is not knowable from here,
-/// and a job name written down in ten test files is the hand-kept
+/// and a job name written down in every test file is the hand-kept
 /// enumeration this macro exists to end.
 ///
 /// # What it claims about the file, and what it does not

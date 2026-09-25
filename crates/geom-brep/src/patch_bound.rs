@@ -54,7 +54,7 @@
 //!
 //! **The divisor is the cell's weight hull, argued not assumed.** On
 //! the cell `w` is a convex combination of the active weights, so
-//! `w ∈ [w_min, w_max]`; the ring's division refuses a zero-touching
+//! `w ∈ [w_min, w_max]`; interval arithmetic's division refuses a zero-touching
 //! divisor, so a net whose positivity was never proven poisons rather
 //! than answering.
 //!
@@ -68,7 +68,7 @@
 //! curves in parameter — and the recurrences carry that.
 //!
 //! **The refinement the arm performs first is itself part of the
-//! enclosure.** The homogeneous nets are refined IN THE RING from ring
+//! enclosure.** The homogeneous nets are refined IN INTERVAL ARITHMETIC from ring
 //! points of the described net
 //! ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
 //! an outward-rounded quotient of the knots it is made of, so what the
@@ -76,7 +76,7 @@
 //! it. There is no refined `f64` surface on this arm: the cell extents
 //! come from the refined knot vectors, which are exact (the inserted
 //! knots are the `f64`s the schedule chose), and a refined control
-//! point is the ring quotient `A / w`.
+//! point is interval arithmetic quotient `A / w`.
 //!
 //! # Conservatism
 //!
@@ -89,13 +89,14 @@
 //! # Poison (fail-loud, D4 ¶2)
 //!
 //! Structural refusals are typed ([`PatchBoundError`]); arithmetic
-//! failures are ring poison, and a poisoned hull fails every `≤ ε`
+//! failures are refusals, and a poisoned hull fails every `≤ ε`
 //! comparison it reaches.
 
+use geom_core::Bounds;
 use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
-use geom_core::ring_interval::RingInterval;
+use geom_core::interval::Interval;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -109,7 +110,7 @@ use geom_core::spline::{CurvePlan, KnotVector};
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
 ///
 /// **The schedule is not free of the arithmetic, which is why it is
-/// applied in the ring.** Each insertion the count buys is one more
+/// applied in certification arithmetic.** Each insertion the count buys is one more
 /// affine combination, and the count therefore also sets how much
 /// outward rounding the refined net carries. That width grows with the
 /// NUMBER of insertions rather than by a factor per insertion, which is
@@ -210,7 +211,7 @@ impl core::error::Error for PatchBoundError {}
 ///
 /// **The DESCRIBED patch, on both arms, with no carve-out.** Refinement
 /// is part of the enclosure: where an arm inserts knots it inserts them
-/// into ring enclosures of the described homogeneous net
+/// into certification enclosures of the described homogeneous net
 /// ([`geom_core::spline::net::TensorNet::refine_u`]), each Boehm ratio
 /// an outward-rounded quotient of the knots it is made of, so the
 /// insertion widens like every later step instead of rounding the net
@@ -243,15 +244,15 @@ pub struct PatchCell {
     /// Signed componentwise enclosure of `S_u` on the cell — of the
     /// DESCRIBED patch (see the type's docs, "What the enclosure
     /// encloses").
-    pub s_u: [RingInterval; 3],
+    pub s_u: [Interval; 3],
     /// Signed componentwise enclosure of `S_v` on the cell.
-    pub s_v: [RingInterval; 3],
+    pub s_v: [Interval; 3],
     /// Signed componentwise enclosure of `S_uu` on the cell.
-    pub s_uu: [RingInterval; 3],
+    pub s_uu: [Interval; 3],
     /// Signed componentwise enclosure of `S_uv` on the cell.
-    pub s_uv: [RingInterval; 3],
+    pub s_uv: [Interval; 3],
     /// Signed componentwise enclosure of `S_vv` on the cell.
-    pub s_vv: [RingInterval; 3],
+    pub s_vv: [Interval; 3],
 }
 
 /// Whether a patch is rational under the kernel's definition (any
@@ -324,7 +325,7 @@ pub fn patch_cells_refined(
 ///
 /// One schedule, two arithmetics: this is the same plan the `f64`
 /// surface refinement applies through
-/// [`geom_core::spline::CurvePlan::apply_points`], and the ring applier
+/// [`geom_core::spline::CurvePlan::apply_points`], and interval arithmetic applier
 /// re-derives each insertion ratio from the knots it is made of instead
 /// of widening the plan's `f64` `λ`.
 ///
@@ -425,7 +426,7 @@ pub fn split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
     add
 }
 
-/// A coefficient net as ring enclosures — the shared tensor assembly,
+/// A coefficient net as certification enclosures — the shared tensor assembly,
 /// homed in [`geom_core::spline::net`] (issue 1006). The alias is kept
 /// so this module's own prose and its consumers keep naming the thing
 /// they read; the differencing is not this module's any more.
@@ -446,21 +447,21 @@ pub type Net = TensorNet;
 pub fn window_tilde_hull(
     a: &Net,
     w: &Net,
-    c: RingInterval,
+    c: Interval,
     wu: &RangeInclusive<usize>,
     wv: &RangeInclusive<usize>,
-) -> RingInterval {
-    let mut acc: Option<RingInterval> = None;
+) -> Interval {
+    let mut acc: Option<Interval> = None;
     for i in wu.clone() {
         for j in wv.clone() {
             let e = a.get(i, j) - c * w.get(i, j);
             acc = Some(match acc {
                 None => e,
-                Some(h) => RingInterval::hull(h, e),
+                Some(h) => Interval::hull(h, e),
             });
         }
     }
-    acc.unwrap_or_else(RingInterval::poison)
+    acc.unwrap_or_else(Interval::poison)
 }
 
 /// The signed hull of `net[i][j]` over the window `wu × wv` —
@@ -468,14 +469,10 @@ pub fn window_tilde_hull(
 /// module's consumers already use.
 ///
 /// Distinct from [`window_tilde_hull`] with a zero centre on purpose:
-/// that spelling computes `a − 0·w`, and the ring's outward rounding
+/// that spelling computes `a − 0·w`, and interval arithmetic's outward rounding
 /// makes the subtraction widen the answer by an ulp — enough to put a
 /// CELL's bound above the whole-patch hull it is a subset of.
-pub fn window_hull(
-    net: &Net,
-    wu: &RangeInclusive<usize>,
-    wv: &RangeInclusive<usize>,
-) -> RingInterval {
+pub fn window_hull(net: &Net, wu: &RangeInclusive<usize>, wv: &RangeInclusive<usize>) -> Interval {
     net.window_hull(wu, wv)
 }
 
@@ -485,10 +482,10 @@ pub fn window_hull(
 /// magnitude is read off its signed enclosure.
 ///
 /// Fixed association (D9): channel order `x, y, z`, accumulated left
-/// to right from the ring zero. Poison in one channel poisons the sum.
+/// to right from interval arithmetic zero. Poison in one channel poisons the sum.
 #[must_use]
-pub fn sq_norm(v: [RingInterval; 3]) -> RingInterval {
-    v.iter().fold(RingInterval::zero(), |acc, c| acc + c.sqr())
+pub fn sq_norm(v: [Interval; 3]) -> Interval {
+    v.iter().fold(Interval::zero(), |acc, c| acc + c.sqr())
 }
 
 /// A span's `[knot, next knot]` extent (the caller has already
@@ -501,7 +498,7 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
     )
 }
 
-/// The three spatial channels of a control net, as ring points.
+/// The three spatial channels of a control net, as enclosure points.
 ///
 /// **The SHAPE is shared** with `offset_fit::channel`: both build a
 /// [`Net`], and the flat/nested bridge the two used to need is gone —
@@ -513,7 +510,7 @@ fn span_extent(kv: &KnotVector, span: usize) -> (f64, f64) {
 /// one extracts `w·P`; `offset_fit::channel` extracts `w·(P − c)`
 /// against a WHOLE-PATCH recentring origin, because its net feeds
 /// polynomial products formed once over the merged break structure,
-/// where the ring's rounding scales with the coordinate. This site
+/// where interval arithmetic's rounding scales with the coordinate. This site
 /// recentres too, but LATER and per cell ([`window_tilde_hull`]), off
 /// the cell's own control window — the tighter centre, available here
 /// because a cell-local hull is what is being read. So a change to one
@@ -537,13 +534,13 @@ fn comp_nets(n: &NurbsSurface<f64>, weighted: bool) -> Vec<Net> {
             Net::from_fn(nu, nv, |i, j| {
                 // Row-major layout: control[iu·nv + iv] — the net's own.
                 let p = n.control()[i * nv + j];
-                let x = RingInterval::point(match c {
+                let x = Interval::point(match c {
                     0 => p.x,
                     1 => p.y,
                     _ => p.z,
                 });
                 if weighted {
-                    RingInterval::point(n.weights()[i * nv + j]) * x
+                    Interval::point(n.weights()[i * nv + j]) * x
                 } else {
                     x
                 }
@@ -596,7 +593,7 @@ struct CellWindows {
 
 /// Assembles a cell from the five signed componentwise enclosures
 /// (`S_u, S_v, S_uu, S_uv, S_vv`, in that order).
-fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[RingInterval; 3]; 5]) -> PatchCell {
+fn cell_from(uv: ((f64, f64), (f64, f64)), signed: [[Interval; 3]; 5]) -> PatchCell {
     PatchCell {
         u: uv.0,
         v: uv.1,
@@ -616,7 +613,7 @@ fn integral_cells(n: &NurbsSurface<f64>) -> Result<Vec<PatchCell>, PatchBoundErr
 }
 
 /// [`integral_cells`] after refining every nonempty span into `splits`
-/// equal pieces, IN THE RING: an integral net's weights are unit, so the
+/// equal pieces, IN INTERVAL ARITHMETIC: an integral net's weights are unit, so the
 /// net is already homogeneous and [`refine_chain`]'s schedule applies to
 /// it directly. The cells therefore enclose the described patch, where an
 /// `f64` refinement would have them enclose the refined-`f64` one.
@@ -660,7 +657,7 @@ fn integral_cells_on(
         .iter()
         .map(|base| DNets::build(base, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
-    let zero = RingInterval::zero();
+    let zero = Interval::zero();
     let mut cells = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         let Some(span_u) = kv_u.span(su) else {
@@ -726,7 +723,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         return Err(PatchBoundError::NonPositiveWeight);
     }
     // THE REFINEMENT IS PART OF THE ENCLOSURE. The homogeneous nets `w`
-    // and `w·P` are refined IN THE RING from point intervals of the
+    // and `w·P` are refined IN INTERVAL ARITHMETIC from point intervals of the
     // DESCRIBED net, so insertion widens outward like every later step
     // and the cells enclose the described patch. An `f64` refinement
     // here would make them enclose the refined-`f64` patch instead, and
@@ -739,7 +736,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     let (nu0, nv0) = n.control_counts();
     let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
     let w_grid = refine(&Net::from_fn(nu0, nv0, |i, j| {
-        RingInterval::point(n.weights()[i * nv0 + j])
+        Interval::point(n.weights()[i * nv0 + j])
     }));
     let (nu, nv) = (w_grid.nu(), w_grid.nv());
     // Positivity survives insertion in ℝ (convex combinations); this
@@ -752,7 +749,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         for j in 0..nv {
             let w = w_grid.get(i, j);
             #[allow(clippy::neg_cmp_op_on_partial_ord)]
-            if w.is_poison() || !(w.lo() > 0.0) || !w.lo().is_finite() {
+            if !w.is_certified() || !(w.lo() > 0.0) || !w.lo().is_finite() {
                 return Err(PatchBoundError::RefinedWeightLostPositivity);
             }
         }
@@ -781,15 +778,15 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
         .iter()
         .map(|a| Net::from_fn(nu, nv, |i, j| a.get(i, j) / w_grid.get(i, j)))
         .collect();
-    let zero = RingInterval::zero();
-    let two = RingInterval::point(2.0);
+    let zero = Interval::zero();
+    let two = Interval::point(2.0);
     let mut cells: Vec<PatchCell> = Vec::new();
     for su in kv_u.first_span()..=kv_u.last_span() {
         for sv in kv_v.first_span()..=kv_v.last_span() {
             // Emptiness skip and span validation, both directions. The
             // spans come from the REFINED knot vectors rather than from
             // a refined surface: there is no refined `f64` surface on
-            // this arm any more, only refined ring nets.
+            // this arm any more, only refined enclosure nets.
             let (Some(span_u), Some(span_v)) = (kv_u.span(su), kv_v.span(sv)) else {
                 continue;
             };
@@ -804,7 +801,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let point_at = |comp: usize, i: usize, j: usize| {
                 p_nets
                     .get(comp)
-                    .map_or_else(RingInterval::poison, |p| p.get(i, j))
+                    .map_or_else(Interval::poison, |p| p.get(i, j))
             };
             // The cell centroid — a translation CHOICE, so ANY finite
             // value is sound and none of it has to be enclosed. Taken
@@ -849,22 +846,22 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
             let mut s_uv = [zero; 3];
             let mut s_vv = [zero; 3];
             for (comp, a) in a_nets.iter().enumerate() {
-                let cc = RingInterval::point(c[comp]);
+                let cc = Interval::point(c[comp]);
                 // The rational VALUE hull on the cell: positive
                 // weights make the rational basis a nonnegative
                 // partition of unity over the ACTIVE control points,
                 // so `S − c` lies in the hull of `P − c`.
-                let mut v0h: Option<RingInterval> = None;
+                let mut v0h: Option<Interval> = None;
                 for i in *w.u_val.start()..=*w.u_val.end() {
                     for j in *w.v_val.start()..=*w.v_val.end() {
                         let e = point_at(comp, i, j) - cc;
                         v0h = Some(match v0h {
                             None => e,
-                            Some(h) => RingInterval::hull(h, e),
+                            Some(h) => Interval::hull(h, e),
                         });
                     }
                 }
-                let v0s = v0h.unwrap_or_else(RingInterval::poison);
+                let v0s = v0h.unwrap_or_else(Interval::poison);
                 // Recentred homogeneous derivative hulls
                 // `Ã_kl = A_kl − c·w_kl` on the cell.
                 let at =
@@ -882,7 +879,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                     (Some(an), Some(wn), Some(wv2)) => at(an, wn, &w.u_val, wv2),
                     _ => zero,
                 };
-                // The quotient rule itself, in the ring, divided by
+                // The quotient rule itself, in certification arithmetic, divided by
                 // the whole weight hull.
                 let s1u = (a10s - v0s * w10s) / w_cell;
                 let s1v = (a01s - v0s * w01s) / w_cell;

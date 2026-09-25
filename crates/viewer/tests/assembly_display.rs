@@ -248,17 +248,18 @@ fn hiding_drops_scene_and_picks_but_keeps_tree_and_document() {
     assert_eq!(restored.stats().triangles, full.stats().triangles);
 }
 
-#[test]
-fn fused_geometry_refuses_both_display_ops_typed() {
-    // Two instances consumed by one boolean: neither can be hidden or
-    // probed separately — the drawn root fuses their material — and
-    // both ops say so typed instead of accepting and drawing nothing
-    // different (the propagation rule's refusing half).
-    let tol = Tol::witness();
-    let bench = asm::bench("fused", tol);
+/// Two instances of one part consumed by a single boolean: the drawn
+/// root fuses their material, so no display operation can address
+/// either separately. The session, the two instances and the fusing
+/// root — one fixture, because two hand-built copies of it is how two
+/// rows come to disagree about what "fused" is.
+fn fused_pair(tag: &str, tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+    let bench = asm::bench(tag, tol);
     let mut ws = pncad::workspace::Workspace::open(&bench.dir).expect("the store opens");
-    let mut doc =
-        pncad::document::ProfileDoc::empty(pncad::document::DocumentId::derive("gui4-fused"), tol);
+    let mut doc = pncad::document::ProfileDoc::empty(
+        pncad::document::DocumentId::derive(&format!("gui4-{tag}")),
+        tol,
+    );
     let a = common::insert_into(
         &mut doc,
         pncad::document::Node::instantiate_part(bench.post),
@@ -281,11 +282,21 @@ fn fused_geometry_refuses_both_display_ops_typed() {
     );
     let path = ws.create(&doc, tol).expect("the fused assembly stores");
     let mut session = DocSession::inline(
-        pncad::document::Doc::empty_derived("gui4-fused-boot", tol),
+        pncad::document::Doc::empty_derived(&format!("gui4-{tag}-boot"), tol),
         tol,
     );
     assert!(session.perform(SessionOp::Open(path)).refusal.is_none());
     session.pump();
+    (session, a, b, weld)
+}
+
+#[test]
+fn fused_geometry_refuses_both_display_ops_typed() {
+    // Neither instance can be hidden or probed separately, and both
+    // ops say so typed instead of accepting and drawing nothing
+    // different (the propagation rule's refusing half).
+    let tol = Tol::witness();
+    let (mut session, a, b, weld) = fused_pair("fused", tol);
     for (label, op) in [
         (
             "hide a",
@@ -317,6 +328,71 @@ fn fused_geometry_refuses_both_display_ops_typed() {
             other => panic!("{label}: expected FusedGeometry, got {other:?}"),
         }
     }
+}
+
+/// **The per-instance section is drawn for a fused instance and its
+/// display controls are not** — the two gates are two different tests,
+/// and the properties pane reads both.
+///
+/// `display::instance_check` is the KIND test: it decides whether
+/// there is a section at all, and a fused instance is a live instance
+/// of a part, so there is one. What the hide toggle inside it pushes
+/// runs the FULL admission test, which refuses it. A toggle gated on
+/// the section's test alone is therefore drawn usable over a refusal
+/// the op will give — the state this row pins, together with the
+/// sentence the reader gets for it.
+#[test]
+fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
+    let tol = Tol::witness();
+    let (mut session, a, b, weld) = fused_pair("fusedgate", tol);
+
+    assert!(
+        display::instance_check(session.doc(), a).is_ok(),
+        "a fused instance is still an instance, so the section has a subject"
+    );
+    let fault = display::display_check(session.doc(), a)
+        .expect_err("…and no display operation can address it separately");
+    assert!(
+        matches!(&fault, AdmissionFault::FusedGeometry { instance, root, .. }
+            if *instance == a && *root == weld),
+        "{fault:?}"
+    );
+
+    // The disabled toggle's words and the refused click's are ONE
+    // sentence: the control shows this fault, and the op answers it.
+    let refusal = session
+        .perform(SessionOp::SetInstanceHidden {
+            instance: a,
+            hidden: true,
+        })
+        .refusal
+        .expect("the op refuses a fused instance");
+    assert_eq!(
+        fault.to_string(),
+        refusal.to_string(),
+        "the pre-click sentence is the post-click one"
+    );
+    // The mapping itself, planted: what a reader is told under the
+    // disabled toggle. The coupling above survives any rewording of
+    // the fault; this line does not.
+    assert_eq!(
+        fault.to_string(),
+        format!(
+            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+             a display operation cannot address it separately",
+            a.0, weld.0, b.0
+        )
+    );
+
+    // And the free-move probe below the toggle answers the SAME fault
+    // — `free_move_check` runs the display test first — which is why
+    // the section says it once rather than under the probe's heading.
+    assert_eq!(
+        display::free_move_check(session.doc(), a)
+            .expect_err("the probe refuses it too")
+            .to_string(),
+        fault.to_string()
+    );
 }
 
 #[test]

@@ -10,8 +10,8 @@
 use crate::common::approx::band;
 use geom_core::{MarginDiag, Point2, Point3, Tol, Vec3};
 use profile::{
-    EscalationSite, Profile, ProfileError, ProfileLoop, ProfileVertex, RawLoop, SegmentRef,
-    SketchPlane, ValidatedProfile,
+    EscalationSite, Profile, ProfileError, SegmentRef, SketchPlane, ValidatedProfile,
+    test_support::bulge_loop,
 };
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -25,11 +25,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// constructible at some ε rows can *state* what the door said there
 /// instead of panicking through `prism`'s `expect` (R1-E).
 fn try_polygon(pts: &[(f64, f64)]) -> Result<ValidatedProfile<f64>, ProfileError> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
     Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness())
 }
 
@@ -488,14 +484,14 @@ fn r1f_one_curved_face_among_planars() {
     let h = 0.25;
     let r = 0.2;
     // A hexagon with ONE side replaced by an arc (bulge on that edge).
-    let vs: Vec<ProfileVertex<f64>> = (0..6)
+    let vs: Vec<(Point2<f64>, f64)> = (0..6)
         .map(|i| {
             let a = core::f64::consts::TAU * f64::from(i) / 6.0;
             let bulge = if i == 0 { 0.2 } else { 0.0 };
-            ProfileVertex::new(p2(r * a.cos(), r * a.sin()), bulge)
+            (p2(r * a.cos(), r * a.sin()), bulge)
         })
         .collect();
-    let profile = Profile::new(SketchPlane::xy(), vec![ProfileLoop::new(vs)])
+    let profile = Profile::new(SketchPlane::xy(), vec![bulge_loop(vs)])
         .validate(Tol::witness())
         .expect("the bulged hexagon validates");
     let body = extrude(&profile, Extrusion::Distance(h), Tol::witness())

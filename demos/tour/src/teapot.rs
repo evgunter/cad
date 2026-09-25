@@ -246,7 +246,7 @@
 //!    the scene meets it below: the refusal that carries no number
 //!    also drops the enclosure, so this probe cannot report the
 //!    bracket it was refused on without reaching two crates down
-//!    (`work/perf`'s
+//!    (`work/encl`'s
 //!    `budget-refusal-drops-the-enclosure-the-caller-needs`).
 //!
 //!    More budget is not the fix, and that is measured: at
@@ -2117,7 +2117,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // say is the part still worth reading: the error carries no
     // enclosure, so this probe has nothing to report the bracket from
     // even though the certificate the tier just took holds one
-    // (`work/perf`'s
+    // (`work/encl`'s
     // `budget-refusal-drops-the-enclosure-the-caller-needs`).
     //
     // Where the door DOES open, what is asserted is the bracket: the
@@ -2173,7 +2173,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              that enclosure and the enclosure excludes zero by about five orders of \
              magnitude. The tour's own volume ribbon prints that SIGN-level bracket; THIS \
              probe cannot, because the refusal carries no enclosure to print — \
-             work/perf's budget-refusal-drops-the-enclosure-the-caller-needs. The \
+             work/encl's budget-refusal-drops-the-enclosure-the-caller-needs. The \
              straightened frustum's own numbers, which do not depend on eps: \
              V = {v_spout:.9} m^3, A = {a_spout:.9} m^2"
         ),
@@ -2429,7 +2429,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              every eps and the volume ribbon prints the SIGN-level bracket where it has \
              no number to print. What is left is a consumer-side gap this probe sits in: \
              the refusal carries no enclosure, so the reading above cannot report the \
-             bracket the tier just certified -- work/perf's \
+             bracket the tier just certified -- work/encl's \
              budget-refusal-drops-the-enclosure-the-caller-needs. More budget would not \
              buy the number back and that is measured: at one more round the early exit \
              stops firing and the face then runs over half an hour without finishing. An \

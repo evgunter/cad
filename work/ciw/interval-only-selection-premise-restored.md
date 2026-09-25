@@ -2,8 +2,9 @@
 id: interval-only-selection-premise-restored
 kind: issue
 title: The interval-only selection's original premise holds again; hosted keeps the whole suite
-status: open
+status: closed
 opened: 2026-09-04
+closed: 2026-09-24
 parent: reinstate-full-configuration-runs
 refs: [1796]
 priority: P4
@@ -53,3 +54,7 @@ the eps matrix multiplying whichever way it goes.
 `local-scripts/ci-local.sh` still uses the selection and is the script's only
 caller, declared in `check-ci-mirror-parity.py`'s `MIRROR_EXEMPT` with that
 reason. Nothing about the local half changes here.
+
+## Closed (2026-09-24) — mooted by RING-4, PR 3154
+
+Moot: the interval-only selection and its script are deleted with the `interval` feature and CI's lane axis (RING-4, PR 3154); hosted runs one lane, the whole suite.

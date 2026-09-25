@@ -12,7 +12,7 @@ use core::f64::consts::PI;
 
 use geom::Curve3;
 use geom_core::{Point3, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, EdgeKey};
 
@@ -92,7 +92,7 @@ fn p3b_a_band_scale_major_radius_through_the_revolve_door() {
     for (major, minor) in [(2.0e-8, 5.0e-9), (2.0e-9, 5.0e-10), (1.0e-10, 2.0e-11)] {
         let a = p2(major + minor, 0.0);
         let b = p2(major - minor, 0.0);
-        let lp = RawLoop::new(vec![ProfileVertex::new(a, 1.0), ProfileVertex::new(b, 1.0)]);
+        let lp = bulge_loop(vec![(a, 1.0), (b, 1.0)]);
         let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
             Ok(p) => p,
             Err(e) => {
@@ -201,11 +201,11 @@ fn p4_split_edge_carries_its_childrens_pcurves() {
     // (b) The drum's cylinder seam — the operand of the PR's row 6.
     let (r, h) = (1.0, 2.0);
     let mut d = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     );
@@ -428,11 +428,11 @@ fn p6_an_independent_corpus_differential() {
     // sf2b's frustums and drums, shelled.
     for (r0, r1, h) in [(1.0, 0.5, 2.0), (1.0, 0.25, 1.0), (0.75, 0.75, 1.5)] {
         let body = revolved(
-            ProfileLoop::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(r0, 0.0), 0.0),
-                ProfileVertex::new(p2(r1, h), 0.0),
-                ProfileVertex::new(p2(0.0, h), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(r0, 0.0), 0.0),
+                (p2(r1, h), 0.0),
+                (p2(0.0, h), 0.0),
             ]),
             Revolution::Full,
         );
@@ -455,11 +455,11 @@ fn p6_an_independent_corpus_differential() {
     // the axis, so the wall surface is a sphere.
     for bulge in [0.5f64, -0.5] {
         let Some(vase) = try_revolved(
-            RawLoop::new(vec![
-                ProfileVertex::new(p2(0.0, -0.8), 0.0),
-                ProfileVertex::new(p2(0.6, -0.8), bulge),
-                ProfileVertex::new(p2(0.6, 0.8), 0.0),
-                ProfileVertex::new(p2(0.0, 0.8), 0.0),
+            bulge_loop(vec![
+                (p2(0.0, -0.8), 0.0),
+                (p2(0.6, -0.8), bulge),
+                (p2(0.6, 0.8), 0.0),
+                (p2(0.0, 0.8), 0.0),
             ]),
             Revolution::Full,
         ) else {

@@ -253,6 +253,7 @@ pub(crate) fn swept_segments<T: Real>(
                 center,
                 radius,
                 turn,
+                ..
             } => SweptKind::Arc {
                 center,
                 radius,
@@ -309,8 +310,16 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<
     mid - nhat * (len * bulge * T::from_f64(0.5))
 }
 
-/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
-/// re-inspection — never endpoint `atan2`).
+/// The arc parameter span |Δθ| = 4·atan|b|, on the bulge the segment
+/// was lowered from — never endpoint `atan2`.
+///
+/// Equal at `f64` to the canonical segment's `|sweep|` (atan is odd;
+/// at an interval that straddles zero, `|4·atan b|` and `4·atan|b|`
+/// are different enclosures), and spelled on the bulge rather than read off the sweep because the
+/// symbolic tier normalizes the two expressions differently: this one
+/// is the opaque atom `atan(|b|)` the swept span identity
+/// ([`register_span_identity`]) is stated about, and the bulge is what
+/// the `geom-brep` sketch segment beside it still carries.
 pub(crate) fn arc_span<T: Real>(bulge: T) -> T {
     T::from_f64(4.0) * bulge.abs().atan()
 }
@@ -439,8 +448,8 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// own `param_end` IS the segment's far vertex, componentwise, and
 /// this is the site that guarantees it.
 ///
-/// **The proof, and it is two lines.** The stored bulge is
-/// `b = tan(θ/4)` BY DEFINITION of the sketch representation, so the
+/// **The proof, and it is two lines.** The bulge an arc is lowered
+/// from is `b = tan(θ/4)` BY DEFINITION of the lowering, so the
 /// span `param_end = 4·atan|b|` is exactly the arc's turned angle θ
 /// (`arc_span`). The sagitta closed forms put the centre on the chord's
 /// perpendicular bisector at the apothem (`profile::seg`), so `q_from`
@@ -502,7 +511,8 @@ pub(crate) fn register_span_identity<T: Real>(
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
-/// normal, span θ = 4·atan|bulge| from the stored bulge).
+/// normal, span θ = 4·atan|b| on the bulge the segment was lowered
+/// from — see [`arc_span`]).
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base

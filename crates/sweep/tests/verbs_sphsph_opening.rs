@@ -26,16 +26,16 @@
 
 use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, BooleanError};
 
 /// A radius-`r` ball at `centre`, poles on world Y (the pip corpus's
 /// constructor chart).
 fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-        ProfileVertex::new(Point2::new(0.0, r), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

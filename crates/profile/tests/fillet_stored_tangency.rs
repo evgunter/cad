@@ -573,12 +573,13 @@ fn the_corpus_stored_loops_dump_to_the_bit() {
             let verts: Vec<String> = lp
                 .vertices()
                 .iter()
-                .map(|v| {
+                .zip(lp.bulges())
+                .map(|(v, b)| {
                     format!(
                         "{:016x},{:016x},{:016x}",
-                        v.pos().x.to_bits(),
-                        v.pos().y.to_bits(),
-                        v.bulge().to_bits()
+                        v.x.to_bits(),
+                        v.y.to_bits(),
+                        b.to_bits()
                     )
                 })
                 .collect();

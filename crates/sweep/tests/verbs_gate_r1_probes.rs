@@ -30,7 +30,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use topo::{Body, BooleanError};
 
@@ -83,13 +83,13 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
     } else {
         0.0 // straight generator: a cone with its apex on the axis
     };
-    let mut lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), cap), // bottom cap → (0.5, 0.5)
-        ProfileVertex::new(p2(0.5, 0.5), 0.0), // wall → (0.5, 1.0)
-        ProfileVertex::new(p2(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
-        ProfileVertex::new(p2(0.5, 1.5), 0.0), // wall → (0.5, 2.0)
-        ProfileVertex::new(p2(0.5, 2.0), cap), // top cap → (0, 2.5)
-        ProfileVertex::new(p2(0.0, 2.5), 0.0), // axis seam → start
+    let mut lp = bulge_loop(vec![
+        (p2(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
+        (p2(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
+        (p2(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
+        (p2(0.5, 1.5), 0.0),   // wall → (0.5, 2.0)
+        (p2(0.5, 2.0), cap),   // top cap → (0, 2.5)
+        (p2(0.0, 2.5), 0.0),   // axis seam → start
     ]);
     if sphere {
         lp = lp.with_tangent_joints(vec![1, 4]);
@@ -116,10 +116,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
 /// own self-mated seam, so neither carries a chart window.
 fn donut() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.5, 1.10), 1.0),
-        ProfileVertex::new(p2(0.5, 1.40), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.5, 1.10), 1.0), (p2(0.5, 1.40), 1.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

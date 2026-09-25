@@ -22,13 +22,13 @@ use geom::{NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec, PcurveCache};
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 use topo::{Body, FaceSurface, Pcurve};
 
 fn prism(scale: f64) -> Body<f64> {
     let square = move || -> sweep::Section {
-        let v = |x: f64, y: f64| profile::ProfileVertex::new(Point2::new(x, y), 0.0);
-        vec![profile::ProfileLoop::new(vec![
+        let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+        vec![bulge_loop(vec![
             v(-scale, -scale),
             v(scale, -scale),
             v(scale, scale),

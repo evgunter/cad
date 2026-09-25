@@ -13,10 +13,12 @@ workspace = true
 # crate and can name neither a `#[cfg(test)]` item nor a `pub(crate)`
 # one:
 #
-#   1. `RawLoop`, the vertex-table FIXTURE door. Under this feature the
-#      trait is declared `pub`; under its negation it is declared
-#      `pub(crate)`, so a shipped build has no route to it and no
-#      re-export of it compiles. Its own docs carry the argument.
+#   1. the FIXTURE doors: `RawLoop`, which takes the canonical form, and
+#      `test_support::bulge_loop`, which hands a bulge chain to the
+#      lowering. Under this feature the trait is declared `pub`; under
+#      its negation it is declared `pub(crate)`, so a shipped build has
+#      no route to it and no re-export of it compiles, and the helper's
+#      module does not exist. The trait's own docs carry the argument.
 #   2. the fillet recourse SENTENCES — the prose one `Display` arm
 #      appends. A suite asserting that a caller reads them would
 #      otherwise restate them, and a restated sentence agrees with
@@ -28,13 +30,8 @@ workspace = true
 # why none of these names is part of the surface pncad's facade
 # completeness guard watches.
 test-support = []
-# Forwards geom-core's certified interval scalar so validation runs at
-# `Interval` — exercised by the feature-gated test modules in CI's
-# interval lane.
-interval = ["geom-core/interval"]
 # Forwards geom-core's K-telemetry recording scalar so the
-# workspace-wide `--features probe` lane builds uniformly. Same shape
-# and same reason as the `interval` row above; see geom-core's manifest
+# workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it
 # monomorphizes every generic-over-`Real` body, and only the K
 # experiment consumes it).

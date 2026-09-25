@@ -273,6 +273,15 @@ fn digest() -> String {
 /// decision counts are untouched. Every verdict hash in the block is
 /// unchanged — nothing certified that refused, or refused that
 /// certified — and the pads are the whole of what moved, downward.
+///
+/// **Re-cut at all three ε when tier 3's check 6 planar arm began
+/// examining loops of `Line` and `Circle` carriers.** Both sym-session
+/// bodies have two planar caps whose loops carry an arc, and each cap
+/// loop now takes the one `bool_ring_run_winding` decision it was
+/// skipped before: on both `validate_geometric` rows the decision,
+/// shape, numeric and frozen-operand counts each rise by exactly 2,
+/// the verdicts stay `OK` / `REFUSED`, and no other line of the block
+/// moves.
 fn expected(eps: f64) -> Option<&'static str> {
     match eps {
         1e-6 => Some(include_str!("thread-count-digest/eps-1e-6.txt")),

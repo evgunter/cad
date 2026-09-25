@@ -8,7 +8,7 @@
 use crate::common::approx::band;
 use crate::common::operands;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::block;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::{EulerCounts, euler_counts};
@@ -19,11 +19,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("polygon profile");
@@ -33,11 +29,11 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 }
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), 0.0),
-        ProfileVertex::new(p2(r, h), 0.0),
-        ProfileVertex::new(p2(0.0, h), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r, 0.0), 0.0),
+        (p2(r, h), 0.0),
+        (p2(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -554,10 +550,7 @@ fn probe_late_err_leaves_body_untouched() {
     // torus through the C5 gate (the arm is implemented), reaches the
     // per-chart reanchor plan, and refuses THERE — an Err decided even
     // deeper in the plan than the route gate this row used to stop at.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-0.3, 0.0), 1.0),
-        ProfileVertex::new(p2(0.3, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(-0.3, 0.0), 1.0), (p2(0.3, 0.0), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("disc profile");

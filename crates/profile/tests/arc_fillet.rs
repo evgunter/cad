@@ -207,11 +207,11 @@ fn line_arc_internal_validates_with_declared_tangency() {
     // (0,2) → (0,0) → T1 on y = 0 → fillet arc → T2 on the circle ⤾.
     assert_eq!(lp.vertices().len(), 4);
     // T1 = (√2, 0) exactly: x² = (2−r)² − r² = 2 at r = 1/2.
-    assert!((lp.vertices()[2].pos().x - 2.0f64.sqrt()).abs() < 1e-15);
-    assert_eq!(lp.vertices()[2].pos().y, 0.0);
+    assert!((lp.vertices()[2].x - 2.0f64.sqrt()).abs() < 1e-15);
+    assert_eq!(lp.vertices()[2].y, 0.0);
     // T2 sits on the arrival carrier to rounding — tangency by
     // construction.
-    let t2 = lp.vertices()[3].pos();
+    let t2 = lp.vertices()[3];
     // The claim is that T2 lies on the carrier, so measure THAT — the
     // radial residual — and not its square. |t|² − R² is 2R times the
     // radial error, so on this R = 2 carrier the squared form silently
@@ -229,7 +229,7 @@ fn line_arc_internal_validates_with_declared_tangency() {
 fn line_arc_external_validates_with_declared_tangency() {
     let lp = line_arc_external(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
-    let t2 = lp.vertices()[5].pos();
+    let t2 = lp.vertices()[5];
     // On the arrival side's carrier (center (3,0), R = 1).
     assert!(((t2.x - 3.0).powi(2) + t2.y.powi(2) - 1.0).abs() < 1e-15);
     validates_with_declared_joints(lp, &[4, 5]);
@@ -239,19 +239,19 @@ fn line_arc_external_validates_with_declared_tangency() {
 fn arc_line_validates_with_declared_tangency() {
     let lp = arc_line(0.5).expect("the fillet fits");
     assert_eq!(lp.vertices().len(), 6);
-    let t1 = lp.vertices()[1].pos();
+    let t1 = lp.vertices()[1];
     // T1 on the incoming side's carrier (origin, R = 2).
     assert!((t1.x.powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-15);
     // T2 on the straight arrival side y = 0.
-    assert!(lp.vertices()[2].pos().y.abs() < 1e-15);
+    assert!(lp.vertices()[2].y.abs() < 1e-15);
     validates_with_declared_joints(lp, &[1, 2]);
 }
 
 #[test]
 fn arc_arc_internal_validates_with_declared_tangency() {
     let lp = arc_arc_internal(0.5).expect("the fillet fits");
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
@@ -260,8 +260,8 @@ fn arc_arc_internal_validates_with_declared_tangency() {
 #[test]
 fn arc_arc_mixed_validates_with_declared_tangency() {
     let lp = arc_arc_mixed(0.5).expect("the fillet fits");
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
@@ -307,10 +307,10 @@ fn bracket_with_an_arc_leg_validates_and_declares() {
     // arc side's anchor: (3,1), T1, T2, (1,3), (0,3), (0,0), (3,0).
     assert_eq!(lp.vertices().len(), 7);
     // T2 sits on the straight arrival side x = 1, above the corner.
-    assert_eq!(lp.vertices()[2].pos().x, 1.0);
-    assert!(lp.vertices()[2].pos().y > 1.0);
+    assert_eq!(lp.vertices()[2].x, 1.0);
+    assert!(lp.vertices()[2].y > 1.0);
     // T1 sits on the incoming side's carrier.
-    let t1 = lp.vertices()[1].pos();
+    let t1 = lp.vertices()[1];
     assert!(((t1.x - 2.0).powi(2) + (t1.y + 2.0).powi(2) - 10.0).abs() < 1e-14);
     validates_with_declared_joints(lp, &[1, 2]);
 }
@@ -617,8 +617,8 @@ fn two_corner_side_candidates_pick_the_near_one() {
     let lp = vesica_lens(p2(0.0, -s3()), p2(-1.0, 0.0), ArcSweep::Ccw, 0.5);
     // entry, T1, T2: trimmed incoming run, fillet arc, closing run.
     assert_eq!(lp.vertices().len(), 3);
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     // Tangent points exactly on their carriers (tangency by
     // construction), and in the TOP pocket — the near candidate's.
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
@@ -648,8 +648,8 @@ fn two_corner_side_candidates_pick_the_near_one() {
 fn the_far_pocket_is_authored_as_the_other_corners_near_fillet() {
     let lp = vesica_lens(p2(0.0, s3()), p2(-1.0, 0.0), ArcSweep::Cw, 0.5);
     assert_eq!(lp.vertices().len(), 3);
-    let t1 = lp.vertices()[1].pos();
-    let t2 = lp.vertices()[2].pos();
+    let t1 = lp.vertices()[1];
+    let t2 = lp.vertices()[2];
     assert!(((t1.x + 1.0).powi(2) + t1.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(((t2.x - 1.0).powi(2) + t2.y.powi(2) - 4.0).abs() < 1e-14);
     assert!(t1.y < 0.0 && t2.y < 0.0, "wrong pocket: {lp:?}");
@@ -674,9 +674,11 @@ fn symmetric_lens_pick_is_bit_deterministic_across_runs() {
     assert_eq!(a.tangent_joints(), b.tangent_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
-        assert_eq!(va.pos().x.to_bits(), vb.pos().x.to_bits());
-        assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
-        assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
+        assert_eq!(va.x.to_bits(), vb.x.to_bits());
+        assert_eq!(va.y.to_bits(), vb.y.to_bits());
+    }
+    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
+        assert_eq!(ba.to_bits(), bb.to_bits());
     }
 }
 
@@ -711,13 +713,15 @@ fn ulp_perturbed_lens_pick_is_deterministic_within_the_lane() {
     assert_eq!(a.tangent_joints(), b.tangent_joints());
     assert_eq!(a.vertices().len(), b.vertices().len());
     for (va, vb) in a.vertices().iter().zip(b.vertices()) {
-        assert_eq!(va.pos().x.to_bits(), vb.pos().x.to_bits());
-        assert_eq!(va.pos().y.to_bits(), vb.pos().y.to_bits());
-        assert_eq!(va.bulge().to_bits(), vb.bulge().to_bits());
+        assert_eq!(va.x.to_bits(), vb.x.to_bits());
+        assert_eq!(va.y.to_bits(), vb.y.to_bits());
+    }
+    for (ba, bb) in a.bulges().iter().zip(b.bulges()) {
+        assert_eq!(ba.to_bits(), bb.to_bits());
     }
     // One pocket was definitely committed to (which one is the lane's
     // own business).
-    assert!(a.vertices()[1].pos().y.abs() > 0.5);
+    assert!(a.vertices()[1].y.abs() > 0.5);
 }
 
 #[test]
@@ -1108,10 +1112,10 @@ fn fillet_leg_fit_trio_definite_and_exact() {
     assert!(lp.tangent_joints().is_empty(), "{:?}", lp.tangent_joints());
     // The entry anchor and the ray's origin survive verbatim; the fillet
     // arc springs off the origin and closes on the entry.
-    assert!((lp.vertices()[0].pos().y - 2.0).abs() < 1e-15);
-    assert_eq!(lp.vertices()[0].pos().x, 0.0);
-    assert_eq!(lp.vertices()[1].pos().x, 0.0);
-    assert_eq!(lp.vertices()[1].pos().y, 0.0);
+    assert!((lp.vertices()[0].y - 2.0).abs() < 1e-15);
+    assert_eq!(lp.vertices()[0].x, 0.0);
+    assert_eq!(lp.vertices()[1].x, 0.0);
+    assert_eq!(lp.vertices()[1].y, 0.0);
 }
 
 #[test]
@@ -1178,13 +1182,8 @@ fn the_extracted_seam_reproduces_every_corner_class_bitwise() {
     let dump = |lp: &ProfileLoop<f64>| -> Vec<VertexBits> {
         lp.vertices()
             .iter()
-            .map(|v| {
-                (
-                    v.pos().x.to_bits(),
-                    v.pos().y.to_bits(),
-                    v.bulge().to_bits(),
-                )
-            })
+            .zip(lp.bulges())
+            .map(|(v, b)| (v.x.to_bits(), v.y.to_bits(), b.to_bits()))
             .collect()
     };
     let cases: [PinnedCase; 5] = [

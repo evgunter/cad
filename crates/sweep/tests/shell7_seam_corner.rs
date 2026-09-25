@@ -21,7 +21,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom::{Curve3, Surface};
 use geom_core::Vec3;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use topo::{Body, ReplaceFaceError, ShellError};
 
@@ -37,10 +37,7 @@ fn revolved_torus(v: f64) -> Body<f64> {
     let (s, c) = v.sin_cos();
     let a = p2(R + SMALL_R * c, SMALL_R * s);
     let b = p2(R - SMALL_R * c, -SMALL_R * s);
-    revolved(
-        RawLoop::new(vec![ProfileVertex::new(a, 1.0), ProfileVertex::new(b, 1.0)]),
-        Revolution::Full,
-    )
+    revolved(bulge_loop(vec![(a, 1.0), (b, 1.0)]), Revolution::Full)
 }
 
 /// `2π²R[r² − (r − t)²]`, the volume between two coaxial tori.
@@ -547,10 +544,10 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
     let v = PI / 4.0;
     let (s, c) = v.sin_cos();
     let body = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, r), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (p2(0.0, r), 0.0),
         ]),
         Revolution::Full,
     );
@@ -630,10 +627,7 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
 fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(big_r + r, 0.0), 1.0),
-            ProfileVertex::new(p2(big_r - r, 0.0), 1.0),
-        ]),
+        bulge_loop(vec![(p2(big_r + r, 0.0), 1.0), (p2(big_r - r, 0.0), 1.0)]),
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));

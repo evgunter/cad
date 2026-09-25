@@ -239,7 +239,7 @@ impl RefusedRef {
     /// How many entities a tie holds. A mate declaration must name
     /// ONE face, and a tie is never broken by picking.
     #[getter]
-    fn width(&self) -> Option<u32> {
+    fn width(&self) -> Option<usize> {
         match self.0 {
             d::RefusedRef::Ambiguous { width } => Some(width),
             d::RefusedRef::Vanished | d::RefusedRef::ReadBelowARoot { .. } => None,

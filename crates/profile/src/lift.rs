@@ -72,9 +72,9 @@
 
 use geom_core::{Point2, Vec2};
 
-use crate::ProfileLoop;
 use crate::path::PathError;
 use crate::path::program::{ReplayError, ReplayErrorKind, Step, Target, replay};
+use crate::{ProfileLoop, Segment};
 use geom_core::Tol;
 
 /// How faithfully a lifted program reproduces its source loop, up to
@@ -306,8 +306,8 @@ fn lift_seamed(loop_: &ProfileLoop<f64>, tol: Tol) -> Result<(Vec<Step<f64>>, us
     if n < 2 {
         return Err(LiftRefusal::TooFewVertices { vertices: n });
     }
-    for (i, v) in loop_.vertices.iter().enumerate() {
-        if !(v.pos.x.is_finite() && v.pos.y.is_finite() && v.bulge.is_finite()) {
+    for (i, (v, b)) in loop_.vertices.iter().zip(&loop_.bulges).enumerate() {
+        if !(v.x.is_finite() && v.y.is_finite() && b.is_finite()) {
             return Err(LiftRefusal::NonFinite { vertex: i });
         }
     }
@@ -354,17 +354,17 @@ fn carrier_form(loop_: &ProfileLoop<f64>, tol: Tol) -> Option<(Vec<Step<f64>>, u
     let n = loop_.vertices.len();
     // Only a loop that is arcs all the way round can be one carrier;
     // this guard keeps the search off every polygon.
-    if n < 2 || loop_.vertices.iter().any(|v| v.bulge == 0.0) {
+    if n < 2 || loop_.segments.iter().any(|s| matches!(s, Segment::Line)) {
         return None;
     }
     let mut best: Option<(Vec<Step<f64>>, usize, u64)> = None;
     for r in 0..n {
         let a = loop_.vertices[r];
         let b = loop_.vertices[(r + 1) % n];
-        let Some((centre, radius)) = arc_carrier(a.pos, b.pos, a.bulge) else {
+        let Some((centre, radius)) = arc_carrier(a, b, loop_.bulges[r]) else {
             continue;
         };
-        let phase = (a.pos.y - centre.y).atan2(a.pos.x - centre.x);
+        let phase = (a.y - centre.y).atan2(a.x - centre.x);
         let want = rotated(loop_, r);
         let mut candidates = Vec::with_capacity(2);
         if n == 2 {
@@ -410,11 +410,11 @@ fn chain_form(
     let at = |k: usize| loop_.vertices[(rotation + k) % n];
     // Which SOURCE segment each step belongs to, for refusal reporting.
     let mut origin = vec![rotation];
-    let mut program = vec![Step::At(at(0).pos)];
+    let mut program = vec![Step::At(at(0))];
 
     for k in 0..n {
         let src = (rotation + k) % n;
-        let here = at(k);
+        let (here, line) = (at(k), matches!(loop_.segments[src], Segment::Line));
         // The seam joint is the one the entry cannot declare, so the
         // closing target carries its declaration instead.
         let target = if k + 1 == n {
@@ -426,10 +426,10 @@ fn chain_form(
                 Target::Start
             }
         } else {
-            Target::Point(at(k + 1).pos)
+            Target::Point(at(k + 1))
         };
         if k > 0 && declared[src] {
-            if here.bulge == 0.0 {
+            if line {
                 // A straight leg off a declared joint IS the
                 // continuation verb, and the continuation verb declares
                 // the joint it mints — so no `.tangent()` precedes it,
@@ -440,7 +440,7 @@ fn chain_form(
                 } else {
                     program.push(Step::Tangent);
                     origin.push(src);
-                    program.push(Step::Line(here.pos.distance(at(k + 1).pos)));
+                    program.push(Step::Line(here.distance(at(k + 1))));
                 }
             } else {
                 origin.push(src);
@@ -450,12 +450,12 @@ fn chain_form(
             }
         } else {
             origin.push(src);
-            program.push(if here.bulge == 0.0 {
+            program.push(if line {
                 Step::LineTo(target)
             } else {
                 Step::ArcTo(crate::path::program::ArcData::Bulge {
                     target,
-                    b: here.bulge,
+                    b: loop_.bulges[src],
                 })
             });
         }
@@ -549,22 +549,24 @@ fn is_carrier_continuation(kind: &ReplayErrorKind<f64>) -> bool {
 // Comparison
 // ------------------------------------------------------------------
 
-/// The source loop re-seamed at `rotation` — pure reindexing, so every
-/// stored bit survives.
+/// The source loop re-seamed at `rotation`: its input chain reindexed
+/// and lowered again. Each segment's lowering reads only its own chord
+/// and bulge, which the reindexing carries verbatim, so every stored
+/// bit survives.
 fn rotated(loop_: &ProfileLoop<f64>, rotation: usize) -> ProfileLoop<f64> {
     let n = loop_.vertices.len();
     if rotation == 0 || n == 0 {
         return loop_.clone();
     }
     let r = rotation % n;
-    ProfileLoop {
-        vertices: (0..n).map(|k| loop_.vertices[(r + k) % n]).collect(),
-        tangent_joints: loop_
-            .tangent_joints
-            .iter()
-            .map(|&j| (j % n + n - r) % n)
-            .collect(),
-    }
+    let input: Vec<_> = loop_.input_chain().collect();
+    let chain: Vec<_> = (0..n).map(|k| input[(r + k) % n]).collect();
+    let tangent_joints = loop_
+        .tangent_joints
+        .iter()
+        .map(|&j| (j % n + n - r) % n)
+        .collect();
+    ProfileLoop::lower(&chain, tangent_joints)
 }
 
 /// The differential verdict for one loop pair.
@@ -610,8 +612,15 @@ fn compare(want: &ProfileLoop<f64>, got: &ProfileLoop<f64>) -> Verdict {
         worst_ulps: 0,
         worst_abs: 0.0,
     };
-    for (w, g) in want.vertices.iter().zip(got.vertices.iter()) {
-        for (x, y) in [(w.pos.x, g.pos.x), (w.pos.y, g.pos.y), (w.bulge, g.bulge)] {
+    let rows = |l: &ProfileLoop<f64>| {
+        l.vertices
+            .iter()
+            .zip(&l.bulges)
+            .map(|(p, &b)| [p.x, p.y, b])
+            .collect::<Vec<_>>()
+    };
+    for (w, g) in rows(want).into_iter().zip(rows(got)) {
+        for (x, y) in w.into_iter().zip(g) {
             if x.to_bits() != y.to_bits() {
                 verdict.bit_identical = false;
             }

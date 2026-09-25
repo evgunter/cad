@@ -25,7 +25,6 @@
 //! composed through a chain of maps. That is the population this
 //! measures.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::TAU;

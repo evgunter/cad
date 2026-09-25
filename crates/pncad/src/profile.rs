@@ -84,9 +84,10 @@ pub use ::profile::path::{
 
 // The data types (nameable, not mintable) and the bulge sugar that
 // computes a single segment's parameter — sugar over ARITHMETIC, not a
-// loop-minting door.
+// loop-minting door. `Segment` is what `ProfileLoop::segments` hands
+// back.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileLoop, ProfileVertex, SketchPlane, bulge_from_center,
+    ArcSweep, FilletLegShape, Profile, ProfileLoop, Segment, SketchPlane, bulge_from_center,
     bulge_from_via,
 };
 

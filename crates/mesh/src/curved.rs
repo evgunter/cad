@@ -1126,7 +1126,9 @@ mod tests {
     use crate::sizing::MAX_ANGULAR_STEP;
     use geom_core::Tol;
     use geom_core::{Affine3, Point2, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{
+        Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
+    };
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 
     fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -1256,10 +1258,7 @@ mod tests {
     }
 
     fn ball() -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ]);
+        let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1274,10 +1273,7 @@ mod tests {
     /// walk is hardest (`revolves.rs`'s `survives_sphere_wedges_...`
     /// shape), absent from the sweep until the review asked for it.
     fn sphere_band(theta: f64) -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ]);
+        let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1313,10 +1309,7 @@ mod tests {
     }
 
     fn donut() -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(2.0, -0.5), 1.0),
-            ProfileVertex::new(p2(2.0, 0.5), 1.0),
-        ]);
+        let lp = bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -1374,8 +1367,8 @@ mod tests {
     fn rounded_prism() -> Body<f64> {
         let b = core::f64::consts::FRAC_PI_8.tan();
         let r = 0.5;
-        let v = |pos: Point2<f64>, bulge: f64| ProfileVertex::new(pos, bulge);
-        let mut lp = ProfileLoop::new(vec![
+        let v = |pos: Point2<f64>, bulge: f64| (pos, bulge);
+        let mut lp = bulge_loop(vec![
             v(p2(r, 0.0), 0.0),
             v(p2(2.0 - r, 0.0), b),
             v(p2(2.0, r), 0.0),
@@ -1414,10 +1407,7 @@ mod tests {
         )
         .unwrap()
         .body;
-        let half = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -0.5), 1.0),
-            ProfileVertex::new(p2(0.0, 0.5), 0.0),
-        ]);
+        let half = bulge_loop(vec![(p2(0.0, -0.5), 1.0), (p2(0.0, 0.5), 0.0)]);
         let ball = revolve(
             &validated(vec![half]),
             axis_y(),

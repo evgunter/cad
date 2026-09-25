@@ -2,9 +2,8 @@
 //! of the E6 driver, and the same engine run at `c = 0⁺` as the global
 //! parametric self-intersection check.
 //!
-//! Gated on `interval` for the driver's own reason: the inner
-//! subdivision excludes by interval enclosure, and without that scalar
-//! there is nothing to exclude WITH.
+//! The inner subdivision excludes by interval enclosure: the certified
+//! scalar is what it excludes WITH.
 //!
 //! Two nested subdivisions. The OUTER one is [`mod@crate::drive`]'s: it
 //! hands this module a leaf whose topology is provably the witness

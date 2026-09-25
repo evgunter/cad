@@ -712,7 +712,6 @@ fn r2_wall_verdicts_preempt_the_window_verdicts() {
 // The certified scalar.
 // ---------------------------------------------------------------
 
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Real;
     use geom_core::interval::Interval;

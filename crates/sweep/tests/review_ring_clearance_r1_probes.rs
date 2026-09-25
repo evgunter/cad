@@ -20,7 +20,7 @@
 
 use geom::Surface;
 use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -62,10 +62,7 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// `c` — so it meets a `y`-plane pole-on.
 fn ball_poled_y(r: f64, c: Vec3<f64>) -> Body<f64> {
     let b = revolved_about_y(
-        vec![
-            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-            ProfileVertex::new(Point2::new(0.0, r), 0.0),
-        ],
+        vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
         Revolution::Full,
         tol(),
     );
@@ -181,9 +178,9 @@ fn r1_the_dome_rims_material_side_is_read_off_the_body() {
 fn dimpled_plate(rho: f64, a: f64, cx: f64, cy: f64) -> Body<f64> {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
     let s = 1.0 - rho;
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     // Every joint is a line meeting a corner arc tangentially: declared.
-    let lp = ProfileLoop::new(vec![
+    let lp = bulge_loop(vec![
         v(-s, -1.0, 0.0),
         v(s, -1.0, q),
         v(1.0, -s, 0.0),
@@ -327,10 +324,7 @@ fn r1_a_bored_cylinders_off_axis_ring_reaches_the_ladder_backstop_at_the_front_d
 #[test]
 fn r1_diag_cylinder_pierces() {
     let cyl = prism(
-        vec![
-            ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
-            ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
-        ],
+        vec![(Point2::new(1.0, 0.0), 1.0), (Point2::new(-1.0, 0.0), 1.0)],
         1.0,
         tol(),
     );
@@ -386,10 +380,10 @@ fn r1_diag_cylinder_pierces() {
     );
     let mut cylr = revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(1.0, 1.0), 0.0),
-            ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -421,7 +415,7 @@ fn r1_diag_cylinder_pierces() {
 #[test]
 fn r1_print_the_coaxial_refusal_readings() {
     let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-    let v = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let v = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     let mut narrowed = revolved_about_y(
         vec![
             v(0.0, 0.0, 0.0),
@@ -475,15 +469,13 @@ fn r1_print_the_coaxial_refusal_readings() {
 mod recorded {
     use geom_core::k_stats::{self, Probe};
     use geom_core::{Point2, Tol};
-    use profile::ProfileVertex;
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{revolved_about_y_at, rim_arcs_at};
     use topo::Body;
 
     fn boss() -> Body<Probe> {
         let q = (core::f64::consts::FRAC_PI_2 / 4.0).tan();
-        let p =
-            |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(b));
+        let p = |x: f64, y: f64, b: f64| (Point2::new(Probe(x), Probe(y)), Probe(b));
         let mut b = revolved_about_y_at(
             vec![
                 p(0.0, 0.0, 0.0),
