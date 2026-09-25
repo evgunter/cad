@@ -262,10 +262,16 @@ pub(super) fn put(
 /// split do. That is [`TieRows`]'s own rule — upstream candidates
 /// that were equally admissible stay equally admissible downstream —
 /// read at the gather's scope, where the operand is the whole source
-/// list; the split across one root's output bodies is the special
-/// case a document can currently build (two roots that share a name
-/// share a strict one too, and refuse at that one first — see
-/// [`CarriedRows::finish`]).
+/// list. The merge needs every source to carry the name as a TIE, and
+/// the case a document builds is one split root's two output bodies,
+/// whose table keeps the tie across both. Two `Part` roots over the
+/// two halves do not get it: each `Part`'s table is the split's
+/// projected onto one half ([`NameTable::project`]), which narrows a
+/// half holding one candidate to `Unique`, so that half's row goes in
+/// strict and collides — here if both halves hold one, at
+/// [`CarriedRows::finish`] if the other holds several. Both are false
+/// refusals
+/// (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
 ///
 /// **Why this door knows the gather's body model.** The source-body
 /// filter and the body-0 target live here rather than in the caller
@@ -338,22 +344,21 @@ impl CarriedRows {
     /// a row the table already holds, which for the product gather
     /// means a STRICT row under the same name.
     ///
-    /// No document reaches that either, and the reason is structural
-    /// rather than an omission. Two sources agree on a name only if
-    /// both reach it VERBATIM, and verbatim is rare: every emitter but
-    /// two wraps what it carries (`FromA`/`FromB`, `Instance`,
-    /// `InPart`, `SplitFragment`), the two that do not being
-    /// `Transform` and a split's intact pass-through. So two sources
-    /// that share a name descend from one node — and then they share
-    /// that node's strictly-named VERTICES as well, because a plane
-    /// never subdivides a vertex, so every vertex of the common
-    /// ancestor reaches both tables verbatim and strictly named. At
-    /// least one strict name is therefore shared, and it collides in
-    /// [`CarriedRows::carry`] before the flush is reached. (The vertex
-    /// step, and the probe behind it — `transform(subtract)` beside
-    /// `split(subtract)` shares 59 strict names against 2 mixed — are
-    /// the T-review lane's.) The arm is the insert door's own refusal,
-    /// carried rather than unwrapped (this crate has no panic paths).
+    /// A document reaches it when one source carries the name strict
+    /// and another carries it as a tie. Two sources agree on a name
+    /// only if both reach it VERBATIM, and verbatim is rare: every
+    /// emitter but three wraps what it carries (`FromA`/`FromB`,
+    /// `Instance`, `InPart`, `SplitFragment`), the three that do not
+    /// being `Transform`, a split's intact pass-through and a `Part`'s
+    /// projection. When both sources carry a common ancestor's WHOLE
+    /// table they share its strictly-named vertices too, and collide in
+    /// [`CarriedRows::carry`] before the flush. A `Part` carries only
+    /// one half, and [`NameTable::project`] narrows a tie with one
+    /// candidate in that half to `Unique`: two `Part` roots over the
+    /// halves of a split that separates a three-candidate tie one to
+    /// two share no vertex, and meet HERE, strict against deferred.
+    /// That refusal is false
+    /// (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
     pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
         self.0.flush(into)
     }
