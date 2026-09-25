@@ -5,7 +5,6 @@
 //! the kink line, in both u and v; plus the placeholder poison at
 //! Interval (F6).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(missing_docs)]
 

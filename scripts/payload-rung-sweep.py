@@ -41,9 +41,9 @@ resolver, so a census over five lists and a sweep over four would be the same
 "no two runs agree on a number" defect one layer up. Adding a file is not the
 whole fix, because the lists are not one surface — `profile.rs` is the profile
 layer's whole presented root, the prelude is the glob surface, and
-`analysis.rs` splits into one ungated `pub use` and five behind
-`#[cfg(feature = "interval")]` that this reader cannot see as gated at all
-(blind spot (j) below) — so this script reports which list each side of a row
+`analysis.rs` splits into one scalar-free `pub use` and five for the certified
+half, and a `#[cfg]`-gated `pub use` is one this reader cannot see as gated at
+all (blind spot (j) below) — so this script reports which list each side of a row
 is on, and separates two states that a three-list run flattened into one:
 
   UNCURATED  the payload is on no list at all
@@ -521,7 +521,7 @@ def declarations(root: Path, crates: dict[str, Path]) -> dict[str, list[Decl]]:
 
     `src/` only: a type declared in a crate's `tests/` or `benches/` is not on
     anything a consumer can name. Sources are read as written, `#[cfg]`-gated
-    items included — a payload behind `#[cfg(feature = "interval")]` is a real
+    items included — a payload behind `#[cfg(feature = "probe")]` is a real
     payload in the lane that builds it, and dropping gated code would make the
     sweep's answer depend on a feature selection it does not take.
     """
@@ -861,7 +861,7 @@ _FIXTURE = {
     # unconditionally. A rung reachable only in one feature unification
     # therefore looks exactly like any other, which is why the disposition
     # tables carry that reading by hand.
-    "crates/pncad/src/analysis.rs": '#[cfg(feature = "interval")]\n'
+    "crates/pncad/src/analysis.rs": '#[cfg(feature = "probe")]\n'
                                     "pub use alpha::GatedCarrier;\n",
     "crates/alpha/Cargo.toml": '[package]\nname = "alpha"\n\n[dependencies]\nabeta = { path = "../abeta" }\n',
     "crates/alpha/src/lib.rs": _FIXTURE_ALPHA,

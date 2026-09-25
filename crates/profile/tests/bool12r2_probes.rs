@@ -22,8 +22,8 @@
 
 use geom_core::{Point2, Tol};
 use profile::{
-    Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane,
-    Start,
+    Bulge, ClosedLoop, Open, PathError, Profile, ProfileLoop, SketchPlane, Start,
+    test_support::bulge_loop,
 };
 use std::f64::consts::FRAC_PI_2;
 
@@ -367,11 +367,8 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
     let t = Tol::witness();
     for shoulder in [0.0_f64, 1.0] {
         let ring = lily_ring(shoulder);
-        let raw: ProfileLoop<f64> = RawLoop::new(
-            ring.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
-        );
+        let raw: ProfileLoop<f64> =
+            bulge_loop(ring.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
         let turns = |i: usize| {
             if shoulder == 0.0 {
                 i.is_multiple_of(2)
@@ -409,9 +406,9 @@ fn r2_lily_lattice_table_is_bit_identical_to_the_raw_table() {
             .enumerate()
         {
             assert!(
-                a.pos().x.to_bits() == b.pos().x.to_bits()
-                    && a.pos().y.to_bits() == b.pos().y.to_bits()
-                    && a.bulge().to_bits() == b.bulge().to_bits(),
+                a.x.to_bits() == b.x.to_bits()
+                    && a.y.to_bits() == b.y.to_bits()
+                    && lowered.bulges()[i].to_bits() == raw.bulges()[i].to_bits(),
                 "shoulder {shoulder} vertex {i}: {a:?} vs {b:?}"
             );
         }

@@ -53,7 +53,7 @@
 //! via [`NurbsCurve3::project_from_seed`], the raw-Newton entry that
 //! exists for exactly those fixtures and for warm-started consumers.
 
-use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Real};
+use geom_core::{Bounds, CertifiedBounds, Point2, Point3, Readable, Real};
 
 use crate::curves::{NurbsCurve2, NurbsCurve3};
 use crate::projection_policy::{
@@ -82,8 +82,11 @@ impl core::fmt::Display for ProjectionInconclusive {
         write!(
             f,
             "projection inconclusive after {} iterations at t = {} \
-             (orthogonality {:e}, distance {:e})",
-            self.iterations, self.last_t, self.last_orthogonality, self.last_distance
+             (orthogonality {}, distance {})",
+            self.iterations,
+            Readable(self.last_t),
+            Readable(self.last_orthogonality),
+            Readable(self.last_distance)
         )
     }
 }

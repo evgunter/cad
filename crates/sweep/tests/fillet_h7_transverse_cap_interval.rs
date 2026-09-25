@@ -1,4 +1,4 @@
-//! The ruled band at the CERTIFIED scalar (feature `interval`) — the
+//! The ruled band at the CERTIFIED scalar — the
 //! interval twin of `fillet_h7_transverse_cap`'s rod row and of its
 //! `fillet3_cap_transverse` trio, at the f64 sibling's depth.
 //!
@@ -19,7 +19,6 @@
 //! tilt, as the f64 twin's) refuses typed, and an in-band one escalates
 //! naming the predicate.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Curve3;

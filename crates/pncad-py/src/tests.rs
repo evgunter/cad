@@ -119,7 +119,7 @@ fn error_classes_name_the_python_hierarchy() {
             ErrorClass::Edit => "EditError",
             ErrorClass::Evaluation(_) => "EvaluationError",
             ErrorClass::Validation(_) => "ValidationError",
-            ErrorClass::Dimension => "DimensionError",
+            ErrorClass::QuantityOp => "QuantityOpMismatch",
             ErrorClass::FmtQuantity => "FmtQuantityError",
             ErrorClass::Literal => "LiteralError",
             ErrorClass::Parse => "ParseError",
@@ -160,7 +160,7 @@ fn error_classes_name_the_python_hierarchy() {
         // `validation_refusal_tag` are what pin the reasons themselves.
         ErrorClass::Evaluation(crate::errors::EvalReason::NodeFailed),
         ErrorClass::Validation(crate::errors::ValidationRefusal::Validate),
-        ErrorClass::Dimension,
+        ErrorClass::QuantityOp,
         ErrorClass::FmtQuantity,
         ErrorClass::Literal,
         ErrorClass::Parse,
@@ -375,16 +375,16 @@ fn the_measure_node_fault_tag_is_stable() {
 /// `MeasureUnavailableAt` is what the `f64` lane answers a
 /// `min_clearance` with, and the binding evaluates at `f64` — so it is
 /// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `MinClearanceRefusal` is the interval
-/// engine's own, and its ONLY producer is
-/// `impl MinClearanceLane for geom_core::Interval`, behind the
-/// `interval` feature; no Python evaluation reaches it at any feature
-/// set, because the lane and not the feature is what gates it. So this
-/// row is where the second one's tag and prose are pinned at all.
+/// through a real document. `ClearanceRefusal` is the interval
+/// engine's own, and its ONLY producer on the measure path is
+/// `impl MinClearanceLane for geom_core::Interval`; no Python
+/// evaluation reaches it, because the binding evaluates at `f64` and the
+/// lane is what gates it. So this row is where the second one's tag and
+/// prose are pinned at all.
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinClearanceRefusal};
+    use pncad::document::{ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -398,17 +398,32 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("clearance::min_separation"));
 
-    let refused = MinClearanceRefusal {
-        class: "SubdivisionBudget",
-        payload: "depth 12".to_string(),
-    };
-    assert_eq!(
-        node_error_tag(&pncad::document::NodeErrorKind::MeasureClearanceRefused(
-            refused.clone()
-        )),
-        "measure_clearance_refused"
-    );
-    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+    // The four arms `clearance::min_separation` refuses with — the
+    // only ones this carrier's producer can build — all cross as one
+    // tag.
+    let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
+    let empty = refused(ClearanceRefusal::EmptyScope);
+    let unpaired = refused(ClearanceRefusal::NoAdmittedPair);
+    let unsupported = refused(ClearanceRefusal::Unsupported {
+        carrier: "a free-form face",
+        face: FaceKey::default(),
+    });
+    let poison = refused(ClearanceRefusal::PoisonEnclosure {
+        a: FaceKey::default(),
+        b: FaceKey::default(),
+    });
+    for e in [&empty, &unpaired, &unsupported, &poison] {
+        assert_eq!(node_error_tag(e), "measure_clearance_refused", "{e}");
+    }
+    // The prose is pinned on the two arms whose rendering is a
+    // sentence. `Unsupported` and `PoisonEnclosure` print their faces
+    // as `FaceKey` `Debug` — the defect
+    // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
+    // `reads_as_prose` does not look for an arena key, so a pin there
+    // would pass and prove nothing.
+    for e in [&empty, &unpaired] {
+        assert!(crate::errors::reads_as_prose(&e.to_string()), "{e}");
+    }
 }
 
 /// LIB-B-MEASURES: an assertion's two directions, and the symbols a
@@ -1472,7 +1487,7 @@ fn declare_error_tags_are_stable() {
 /// **Scope: the literal-construction door only.** It is one of TWO
 /// doors that reach the document layer's `DimensionError`; the other
 /// is `load`, and
-/// `the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal`
+/// `the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal`
 /// below is its half. Read the two together — either alone is a
 /// premise that excludes the mode the other covers.
 #[test]
@@ -1741,24 +1756,19 @@ fn expression_evaluation_tags_are_stable() {
 /// hand-edited save file reaches the genuine dimension-mismatch arms
 /// with no new binding at all — six of them, executed here.
 ///
-/// Today they arrive in Python as `PersistError` with `variant ==
-/// "unreadable"` — the persistence door's one refusal for valid JSON
-/// its types reject, recourse attached — because the deserializer
-/// `Debug`-formats the structured refusal into a serde message and
-/// serde classifies that as data it could not place. That is a real
-/// misrouting and it is **issue #694**, not this crate's to fix: a
-/// dimension mismatch is not "vocabulary this build lacks", and a
-/// `format!("{err:?}")` message is not the "typed exception carrying
-/// the structured error" this crate's taxonomy promises.
+/// They arrive as `PersistError` with `variant == "dimension"` and the
+/// failing check's own tag as `inner_variant`, which is what this pins:
+/// the STRUCTURE crosses, not a sentence about it, and the word comes
+/// from `expr_dimension_error_tag` — the same map the expression text
+/// door draws `ParseError.kind` from.
 ///
-/// What this test is for is the DECISION the fix will force. When
-/// #694 gives these a typed class, this assertion goes red, and
-/// whoever changes it has to answer the question the three names make
-/// easy to get wrong: a dimension mismatch from the load path is not
-/// a `LiteralError` (nothing about it is a literal) and it is not the
-/// quantity boundary's `DimensionError` either.
+/// The class names the DOOR rather than the type, as it does at the
+/// other two: a save file's dimension mismatch is not a literal-value
+/// refusal and it is not the quantity boundary's operator check, and
+/// the branchable fact — which check refused — rides beside the stage
+/// in one vocabulary instead of being split across three.
 #[test]
-fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusal() {
+fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() {
     let tol = Tol::witness();
     use pncad::document::{
         Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
@@ -1808,8 +1818,12 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
 
     // Every case replaces the FIRST literal in the document, so this
     // is driven by the wire SHAPE rather than by a node id.
-    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length" } });
-    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle" } });
+    // The `unit` field is REQUIRED on the wire, and a literal written
+    // without one refuses as a missing field before the rebuild runs at
+    // all — which is a refusal about the schema, not about dimensions,
+    // and would make every case below prove the wrong thing.
+    let length = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Length", "unit": "m" } });
+    let angle = serde_json::json!({ "Literal": { "value": 1.0, "dim": "Angle", "unit": "rad" } });
     let cases = [
         ("mismatch", serde_json::json!({ "Add": [length, angle] })),
         (
@@ -1852,12 +1866,18 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_an_untyped_unreadable_refusa
             .unwrap_or_else(|| panic!("{arm}: an ill-dimensioned save file must refuse"));
         assert_eq!(
             persist_error_tag(&err),
-            "unreadable",
-            "{arm}: the load path's dimension refusal has changed class \
-             (#694). It is neither a literal-value refusal nor the \
-             quantity boundary's operator check — decide which typed \
-             class it raises, and say so on both Python classes' docs, \
-             before updating this pin"
+            "dimension",
+            "{arm}: the load path's dimension refusal must reach the door \
+             as its own arm, not as vocabulary this build lacks"
+        );
+        let pncad::document::PersistError::Dimension { error, .. } = &err else {
+            panic!("{arm}: the tag says dimension but the arm does not: {err:?}")
+        };
+        assert_eq!(
+            expr_dimension_error_tag(error),
+            arm,
+            "{arm}: the structured refusal crosses whole, so WHICH check \
+             failed is branchable from Python"
         );
     }
 }
@@ -2281,7 +2301,7 @@ fn edit_inner_variant_tags_are_stable() {
 ///
 /// The arm table, executable. `crate::edit_payload::edit_payload` is
 /// the projection Python reads its attributes off, and this pin says
-/// what each of the 58 arms puts on the wire: the exact set of
+/// what each of the 68 arms puts on the wire: the exact set of
 /// attributes it CARRIES, in publication order, with the rest `None`.
 ///
 /// It is here rather than in `tests/*.py` because most of these arms
@@ -2292,7 +2312,7 @@ fn edit_inner_variant_tags_are_stable() {
 /// can provoke it, so it is pinned where it can be provoked: by
 /// construction, on the row with no interpreter.
 ///
-/// The pin is TOTAL over the enum: all 58 arms are built here, so an
+/// The pin is TOTAL over the enum: all 68 arms are built here, so an
 /// arm whose projection is dropped shows up as a changed set rather
 /// than as an absence nobody counted. Totality of the PROJECTION is a
 /// different guarantee and a stronger one: `edit_payload`'s match is
@@ -2304,7 +2324,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
         DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        RecipeNodeId, RootFault, SlotId,
+        ProvenanceFault, RecipeNodeId, RootFault, SlotId,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2330,6 +2350,17 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::WouldCycle { at: id(1) }, &["node"]);
     carries(&E::ReadSiteMissingNode { at: id(1) }, &["node"]);
     carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
+    carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
+    carries(
+        &E::ProvenanceMalformed {
+            node: id(1),
+            fault: ProvenanceFault::LoopCount {
+                loops: 1,
+                provenance: 2,
+            },
+        },
+        &["node"],
+    );
     carries(&E::WitnessOnNonSketch { node: id(1) }, &["node"]);
     carries(&E::DuplicateWitnessEntry { node: id(1) }, &["node"]);
     carries(&E::PlacementOnNonInstance { node: id(1) }, &["node"]);
@@ -3399,17 +3430,17 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         );
     }
 
-    // The payload survives the rewording: an arena key still names
-    // each entity, so the prose is a diagnosis a caller can act on
-    // rather than a sentence that dropped its subject.
+    // The prose names what touched and where, in words — the keys
+    // ride in the typed payload a caller resolves against — and ends
+    // on the recourse.
     let message = census.to_string();
     assert!(
-        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.contains("never blessed from discovery"),
-        "the undeclared-contact recourse is the actionable half"
+        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        "the undeclared-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -3422,7 +3453,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
-/// inventory or a scalar with no certified chart-overlap lane, and
+/// inventory or a door that holds no certified chart-overlap lane
+/// (the `_structural` ones, which the binding does not expose), and
 /// the structural arms want a corrupt arena, which the public API
 /// cannot mint. Those are exactly the arms whose projection the
 /// Python suite cannot exercise, so they are constructed here and
@@ -3586,17 +3618,19 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 
 /// **Every `RingContact` arm's word, built and read.**
 ///
-/// The arm table for `ring_contact_kind`, executable. The three arms
-/// are three different repairs — a shared position one vertex move
-/// clears, a ring vertex standing on an outer edge's interior, and a
-/// shared arc no single move separates — so each is pinned by name.
+/// The arm table for `ring_contact_kind`, executable. The six arms
+/// are different repairs — a shared position one vertex move clears,
+/// a vertex of either loop standing on an edge's interior in the
+/// other, a shared arc no single move separates, two edges crossing or
+/// touching at a point, and two whole circles doing so — so each is
+/// pinned by name.
 ///
-/// **None of the three is reachable from Python.** A ring meeting its
+/// **None of the six is reachable from Python.** A ring meeting its
 /// own face's outer loop is minted by raw Euler surgery on a body
 /// (the shell verb's suites glue a lifted counterpart chart on with
 /// `kfmrh` to build one); every Python door answers a body its own
 /// producer already validated, and the binding exposes no Euler
-/// operator to build one with. So the three words are pinned here,
+/// operator to build one with. So the six words are pinned here,
 /// and `tests/test_validate.py` says the gap is the DOORS' rather
 /// than the projection's.
 #[test]
@@ -3634,6 +3668,27 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             outer_edge: Default::default(),
         }),
         Some("edge_along_edge")
+    );
+    assert_eq!(
+        word(RingContact::OuterVertexOnEdge {
+            outer_vertex: VertexKey::default(),
+            ring_edge: Default::default(),
+        }),
+        Some("vertex_on_ring_edge")
+    );
+    assert_eq!(
+        word(RingContact::EdgesMeet {
+            ring_edge: Default::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("edge_edge_point")
+    );
+    assert_eq!(
+        word(RingContact::Circles {
+            ring_loop: Default::default(),
+            outer_loop: Default::default(),
+        }),
+        Some("circle_circle")
     );
 
     // The escalated sibling carries a margin, not a shape: it is a
@@ -4357,6 +4412,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
+            "provenance_malformed",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4368,6 +4424,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "repeated_designation",
             "selection_not_canonical",
             "set_members_on_non_list",
+            "set_program_on_non_profile",
             "slot_dimension_mismatch",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
@@ -4396,6 +4453,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
+            "provenance_fault_tag",
         ],
     },
     TagEntry {
@@ -4599,6 +4657,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_rewrite",
             "join",
             "orphaned_declare",
+            "rebound",
             "split",
             "strand",
             "stranded_appearance",
@@ -4671,10 +4730,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "member_edge_tied",
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",
+            "narrow_band",
+            "seam_line_sides",
             "seam_vertex_parentage",
+            "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
         ],
@@ -4904,6 +4967,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "persist_error_tag",
         values: &[
+            "dimension",
             "display_unit",
             "distribution",
             "edit_replay",
@@ -4977,7 +5041,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "resolve", "transition", "validate"],
+        values: &["geometry", "record", "resolve", "transition", "validate"],
         delegates: &[],
     },
     TagEntry {
@@ -4988,6 +5052,19 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "provenance_fault_tag",
+        values: &[
+            "loop_count",
+            "no_such_old_loop",
+            "no_such_old_step",
+            "old_loop_continued_twice",
+            "old_step_continued_twice",
+            "step_count",
+            "step_of_new_loop",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5076,7 +5153,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "ring_contact_tag",
-        values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_on_ring_edge",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5444,7 +5528,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
-            "nonpositive_torus_tube",
             "null_edge_at_rest",
             "null_face_at_rest",
             "null_scaffold_shared",
@@ -5458,6 +5541,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "planar_boundary_residual",
             "planar_face_escalated",
             "planar_face_residual",
+            "poisoned_surface_datum",
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
@@ -5479,6 +5563,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "undeclared_contact",
             "undeclared_cusp",
             "unreachable_half_edge",
+            "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
             "volume_uncomputable",
         ],
@@ -5551,7 +5636,19 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("corrupt", 3),
     ("cosurface_escalated", 2),
     ("dangling_geometry", 2),
-    ("dimension", 2),
+    // Three, and ALL THREE are one fact: `parse_error_tag`,
+    // `persist_error_tag` and `edit_error_tag` each mean "the document
+    // layer's dimension checker refused", at the text door, the load
+    // door and the edit door, and each carries that refusal's own tag
+    // beside the word — `EditError::Dimension` holds the very same
+    // `DimensionError` the other two do
+    // (`crate::tags::edit_inner_variant_tag`). An earlier reading of
+    // this row had `edit_error_tag`'s down as a DIFFERENT question — a
+    // slot's declared dimension against the expression handed to it,
+    // which is `SlotDimensionMismatch`, a different arm — and calling
+    // them different is what made the three-door divergence in
+    // `PersistError`'s `EditReplay` projection invisible.
+    ("dimension", 3),
     ("edge", 2),
     ("empty", 2),
     ("empty_boolean", 2),
@@ -6925,6 +7022,16 @@ const ERRORS_MINTING_ITEMS: &[MintingItem] = &[
             name: "a_quantity_operator_mismatch_carries_structure_not_prose",
             holds: "the rendered message",
         }],
+    },
+    MintingItem {
+        owner: "DIMENSION_DOORS",
+        literals: 0,
+        held_by: &[Holder::Outside(
+            "nothing: it is a `#[doc(hidden)]` anchor whose whole content is a \
+             six-row prose table, and the count that table fixes was written \
+             three ways with two different numbers before it existed, which is \
+             `work/lib/the-dimension-door-table-is-prose-nothing-re-derives.md`",
+        )],
     },
     MintingItem {
         owner: "ErrorClass::class_name",

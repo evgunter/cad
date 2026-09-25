@@ -19,17 +19,11 @@ t() { local label="$1"; shift; local s e
 echo "### COMPILE cost: opt-0 (CI today) vs opt-2 (test-fast.sh config)"
 cargo clean >/dev/null 2>&1
 t "A1. clean build --all-targets            opt-0"  cargo build --workspace --all-targets
-cargo clean >/dev/null 2>&1
-t "A2. clean build --all-targets --features interval opt-0" \
-   cargo build --workspace --all-targets --features interval
 
 export CARGO_PROFILE_DEV_OPT_LEVEL=2
 export CARGO_PROFILE_TEST_OPT_LEVEL=2
 cargo clean >/dev/null 2>&1
 t "A3. clean build --all-targets            opt-2"  cargo build --workspace --all-targets
-cargo clean >/dev/null 2>&1
-t "A4. clean build --all-targets --features interval opt-2" \
-   cargo build --workspace --all-targets --features interval
 unset CARGO_PROFILE_DEV_OPT_LEVEL CARGO_PROFILE_TEST_OPT_LEVEL
 
 echo

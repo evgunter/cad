@@ -3,6 +3,7 @@
 //! deterministic f64 lane. Raw `f64` comparisons are legal throughout
 //! this file (structure selection, never a topology decision).
 
+use crate::readable::Readable;
 use core::num::NonZeroUsize;
 
 /// A typed construction failure for spline structure — fail-loud per
@@ -71,15 +72,17 @@ impl core::fmt::Display for SplineError {
             }
             SplineError::NonPositiveWeight { index, weight } => write!(
                 f,
-                "weight {index} is {weight}, not strictly positive (convex-hull invariant) — \
+                "weight {index} is {}, not strictly positive (convex-hull invariant) — \
                  every hull bound this kernel certifies stands on the convex-combination \
                  licence, so supply a strictly positive weight there rather than a zero, a \
-                 negative or a NaN"
+                 negative or a NaN",
+                Readable(*weight)
             ),
             SplineError::NonFiniteWeight { index, weight } => write!(
                 f,
-                "weight {index} is {weight}, not finite — an infinite weight passes `> 0` and \
-                 is not usable structure: supply a finite strictly positive weight there"
+                "weight {index} is {}, not finite — an infinite weight passes `> 0` and \
+                 is not usable structure: supply a finite strictly positive weight there",
+                Readable(*weight)
             ),
             SplineError::ControlCountMismatch { control, expected } => write!(
                 f,
@@ -94,9 +97,11 @@ impl core::fmt::Display for SplineError {
             ),
             SplineError::DomainInvalid { lo, hi } => write!(
                 f,
-                "the domain [{lo}, {hi}] is not a finite increasing interval of finite width \
+                "the domain [{}, {}] is not a finite increasing interval of finite width \
                  — the defect is the REQUEST's, not the vector's: ask on a domain whose ends \
-                 are finite with lo < hi and whose width does not overflow"
+                 are finite with lo < hi and whose width does not overflow",
+                Readable(*lo),
+                Readable(*hi)
             ),
         }
     }
@@ -1197,6 +1202,21 @@ mod tests {
         assert_eq!(
             domain(1.0, 0.0),
             SplineError::DomainInvalid { lo: 1.0, hi: 0.0 }
+        );
+        // A width that overflows is a domain whose ends sit near the
+        // ceiling of the range, and the refusal names them readably.
+        let e = domain(-1e308, 1e308);
+        assert_eq!(
+            e,
+            SplineError::DomainInvalid {
+                lo: -1e308,
+                hi: 1e308
+            }
+        );
+        assert!(
+            e.to_string()
+                .starts_with("the domain [-1e308, 1e308] is not a finite increasing interval"),
+            "{e}"
         );
 
         // Two distinct interior knots whose images coincide: at 1e16

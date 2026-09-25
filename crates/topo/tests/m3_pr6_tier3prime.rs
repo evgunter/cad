@@ -506,7 +506,6 @@ fn closure_consumed_base_stays_certified() {
 }
 
 // ---- Interval lane (the same generic scenarios at T = Interval). ----
-#[cfg(feature = "interval")]
 mod interval {
     use super::*;
 

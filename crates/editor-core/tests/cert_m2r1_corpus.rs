@@ -118,7 +118,6 @@ fn m2r1_corpus_dual64() {
     let _ = run::<geom_core::Dual64>("dual64", &structural());
 }
 
-#[cfg(feature = "interval")]
 #[test]
 fn m2r1_corpus_interval() {
     for (n, p) in run::<geom_core::Interval>("interval", &certified()) {

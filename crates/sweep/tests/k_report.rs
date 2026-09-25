@@ -63,7 +63,7 @@ use std::io::Write as _;
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, Probe, SampleOutcome};
 use geom_core::{Point2, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{mass_properties, validate, validate_closed, validate_geometric};
 
@@ -71,8 +71,8 @@ fn p2(x: f64, y: f64) -> Point2<Probe> {
     Point2::new(Probe(x), Probe(y))
 }
 
-fn v(x: f64, y: f64, b: f64) -> ProfileVertex<Probe> {
-    ProfileVertex::new(p2(x, y), Probe(b))
+fn v(x: f64, y: f64, b: f64) -> (Point2<Probe>, Probe) {
+    (p2(x, y), Probe(b))
 }
 
 fn validated(loops: Vec<ProfileLoop<Probe>>) -> ValidatedProfile<Probe> {
@@ -132,7 +132,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
                     p2(2.0, 2.0),
                     p2(-2.0, 2.0),
                 ]);
-                let hole = ProfileLoop::new(vec![v(1.0, 0.0, 1.0), v(-1.0, 0.0, 1.0)]);
+                let hole = bulge_loop(vec![v(1.0, 0.0, 1.0), v(-1.0, 0.0, 1.0)]);
                 extrude(
                     &validated(vec![outer, hole]),
                     Extrusion::Distance(Probe(1.0)),
@@ -147,7 +147,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
             run_shape(|| {
                 let b = (core::f64::consts::FRAC_PI_8).tan();
                 let r = 0.5;
-                let lp = ProfileLoop::new(vec![
+                let lp = bulge_loop(vec![
                     v(r, 0.0, 0.0),
                     v(2.0 - r, 0.0, b),
                     v(2.0, r, 0.0),
@@ -174,7 +174,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "ball",
             run_shape(|| {
-                let lp = ProfileLoop::new(vec![v(0.0, -1.0, 1.0), v(0.0, 1.0, 0.0)]);
+                let lp = bulge_loop(vec![v(0.0, -1.0, 1.0), v(0.0, 1.0, 0.0)]);
                 revolve(
                     &validated(vec![lp]),
                     axis_y(),
@@ -217,7 +217,7 @@ fn shapes() -> Vec<(&'static str, Vec<MarginSample>)> {
         (
             "donut",
             run_shape(|| {
-                let lp = ProfileLoop::new(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
+                let lp = bulge_loop(vec![v(2.0, -0.5, 1.0), v(2.0, 0.5, 1.0)]);
                 revolve(
                     &validated(vec![lp]),
                     axis_y(),

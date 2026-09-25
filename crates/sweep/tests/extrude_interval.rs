@@ -1,9 +1,8 @@
-//! Interval-lane extrusion (feature `interval`): the new geometry paths
+//! Interval-lane extrusion: the new geometry paths
 //! instantiated at the certified scalar — exact dyadic fixtures decide
 //! definitely from point enclosures, build end-to-end through the public
 //! op, and pass all three validation tiers.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
@@ -11,7 +10,7 @@ use geom_brep::EdgeDescription;
 use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
 
@@ -78,9 +77,9 @@ fn interval_disc_extrudes_a_shared_cylinder() {
     // through plain interval multiplication and poisoned the decoration
     // through `sqrt`; geom-core's tight per-component `powi(2)` fix
     // landed in the PR 3 fix pass and this build now certifies clean.)
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-0.5, 0.0), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(0.5, 0.0), Interval::from_f64(1.0)),
+    let lp = bulge_loop(vec![
+        (p2(-0.5, 0.0), Interval::from_f64(1.0)),
+        (p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())

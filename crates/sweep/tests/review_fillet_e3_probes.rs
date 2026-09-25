@@ -20,13 +20,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the E3 blend-refusal probes",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use crate::common::approx::band;
     use geom_core::{Decide, Interval, MarginDiag, Real, Sign, Vec3};

@@ -6,7 +6,7 @@
 //! What each block attacks is named at the block. Everything is a
 //! deterministic fixture (no sampling), so nothing here needs a seed.
 
-#![cfg(all(feature = "interval", feature = "probe"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
 
 use geom_core::interval::Interval;

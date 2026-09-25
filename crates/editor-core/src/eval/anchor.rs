@@ -1,48 +1,63 @@
-//! **Program-anchored profile naming (LIB-SWITCH §6 under the ratified
-//! resolution; PROFILES-V2 §V3 round 2).**
+//! **The profile naming anchor (PROFILES-V2 §V3).**
 //!
-//! Profile-entity naming for program loops anchors to PROGRAM-
-//! STRUCTURAL positions: `ProfileEdgeRef`/`ProfileVertexRef` indices
-//! mean "the segment/vertex the program's step order authored", not
-//! "the canonical rotation's position". Nothing geometric enters the
-//! index, so a parameter edit CANNOT renumber, by construction — the
-//! renumbering class (lex-band crossings under the canonical rotation)
-//! is eliminated for program loops. Structural edits (re-authoring the
-//! program) may renumber; the freeze doctrine (stale selections refuse
-//! Vanished, M6-5) remains that backstop, as everywhere.
+//! Profile-entity names (`ProfileEdgeRef`/`ProfileVertexRef`) index
+//! CANONICAL positions — canonical loop order (outer first, holes in
+//! authored order) and canonical traversal from each loop's AUTHORED
+//! start — and every verb that consumes a profile emits them in that
+//! one numbering. The canonical form keeps what the author wrote
+//! wherever validity allows, so a parameter edit renumbers only through
+//! the two things canonicalization decides: each loop's traversal
+//! sense, which cannot flip under a continuous edit without passing
+//! through a sliver, and which loop is the outer one (canonical loop
+//! 0), which cannot change without the loops crossing. A value edit can
+//! still move either in one jump — a hole grown until it encloses the
+//! outer loop, a vertex moved across its loop — and a document-parameter
+//! edit can also land the profile in a state whose numbering cannot be
+//! read at all (it does not replay, or its loops cannot be ordered:
+//! refusing programs may exist at rest). The edit door compares the
+//! profile's numbering before and after every value edit that reaches
+//! it: where both sides read and differ it carries every name spelled
+//! in the numbering across, and where either side cannot be read it
+//! strands them, reporting each row either way (`reanchor_report` in
+//! `edit.rs`, through `SetProgram`'s map and report). What a parameter
+//! edit CAN still
+//! do is change how many segments a step draws — a corner fillet whose
+//! runs reach a `Zero` fit emits nothing, so a radius written through
+//! `SetParam` grows or shrinks the loop and every live name after that
+//! step renumbers, reported by nothing
+//! (`work/edit/a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names.md`).
+//! Structure changes by `DocEdit::SetProgram`, which rebinds every kept
+//! name and retires the rest (DM7); the freeze doctrine (stale
+//! selections refuse `Vanished`, M6-5) backstops what a reshaping
+//! strands, as everywhere.
 //!
 //! # Mechanism
 //!
-//! `validate` still canonicalizes (its ladder is out of this unit's
-//! fence, and downstream GEOMETRY follows canonical order — exports
-//! stay byte-identical). What changes is the NAMING SUBSTRATE: the
-//! profile value carries a per-loop [`LoopAnchor`] — the exact
-//! reindexing canonicalization applied, recovered by BIT-matching the
-//! canonical f64 loop against the replayed (program-order) f64 loop —
-//! and every emitted name's profile refs are rewritten canonical →
-//! program before the table is published ([`remap_table`]). Emitters
-//! stay untouched (`names/` is fenced); the rewrite is a pure
-//! reindexing at the emission call sites.
+//! The profile value carries a per-loop [`LoopAnchor`] — which program
+//! loop a canonical loop came from and whether canonicalization
+//! reversed it, recovered by BIT-matching the canonical f64 loop
+//! against the replayed (program-order) f64 loop. Its one reader is the
+//! map from an authored step to the canonical segments it became
+//! (`ProfileProgram::profile_edges_of`), where a loop authored against
+//! its canonical sense reads `s ↦ n − 1 − s`.
 //!
 //! The match is exact: canonical loops are EXACT reindexings of their
-//! input (validate's own contract). Uniqueness needs positions AND
-//! bulges — a valid loop's vertices are pairwise distinct, which pins
-//! the offset, and the bulge sign pins the orientation parity (which
-//! positions alone cannot decide at n = 2 — see `derive_naming`).
+//! input (validate's own contract), starting at the authored vertex 0.
+//! Uniqueness needs positions AND bulges — the bulge sign pins the
+//! orientation parity, which positions alone cannot decide at n = 2
+//! (see `derive_naming`).
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-use crate::names::{Entry, NameTable, ProfileEdgeRef, ProfileVertexRef, RoleSeg, StableName};
-
 /// One canonical loop's anchor: how canonical indices map back to the
-/// program's authored order.
+/// program's authored order. Canonical vertex 0 is always program
+/// vertex 0 (the authored start), so the map is the identity or the
+/// reflection that keeps vertex 0.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct LoopAnchor {
     /// The PROGRAM loop index this canonical loop came from
     /// (description order; canonical order puts the outer loop first).
     pub program_loop: u32,
-    /// The program index of canonical vertex 0.
-    pub offset: u32,
     /// Whether canonical traversal runs OPPOSITE to authored order
     /// (validate orients outer CCW / holes CW; the author may have
     /// written either).
@@ -52,29 +67,40 @@ pub struct LoopAnchor {
 }
 
 impl LoopAnchor {
-    /// Canonical vertex `k` → program vertex index.
+    /// Canonical vertex `k` → program vertex index: `k`, or its
+    /// reflection `(n − k) mod n` on a reversed loop.
     pub fn vertex(&self, k: u32) -> u32 {
         let n = self.len;
         if self.reversed {
-            (self.offset + n - (k % n)) % n
+            (n - (k % n)) % n
         } else {
-            (self.offset + k) % n
+            k % n
         }
     }
 
     /// Canonical segment `k` (canonical vertex k → k+1) → program
     /// segment index (the segment leaving its program-order start
-    /// vertex).
+    /// vertex): `k`, or `n − 1 − k` on a reversed loop, whose canonical
+    /// segment `k` runs program vertex `n − k` back to `n − k − 1`.
     pub fn segment(&self, k: u32) -> u32 {
         let n = self.len;
         if self.reversed {
-            // Canonical segment k runs program vertex (offset − k) →
-            // (offset − k − 1): in program order that is the segment
-            // LEAVING vertex (offset − k − 1).
-            (self.offset + 2 * n - (k % n) - 1) % n
+            n - 1 - (k % n)
         } else {
-            (self.offset + k) % n
+            k % n
         }
+    }
+
+    /// Program vertex `p` → canonical vertex: the inverse of
+    /// [`LoopAnchor::vertex`], which is an involution.
+    pub fn canonical_vertex(&self, p: u32) -> u32 {
+        self.vertex(p)
+    }
+
+    /// Program segment `s` → canonical segment: the inverse of
+    /// [`LoopAnchor::segment`], which is an involution.
+    pub fn canonical_segment(&self, s: u32) -> u32 {
+        self.segment(s)
     }
 }
 
@@ -86,26 +112,15 @@ pub struct ProfileNaming {
     pub loops: Vec<LoopAnchor>,
 }
 
-impl ProfileNaming {
-    /// Whether every anchor is the identity (canonical order == program
-    /// order) — the common corpus case; callers skip the table rebuild.
-    pub fn is_identity(&self) -> bool {
-        self.loops
-            .iter()
-            .enumerate()
-            .all(|(i, a)| a.program_loop as usize == i && a.offset == 0 && !a.reversed)
-    }
-}
-
 /// The profile node's evaluated value: the validated (canonical)
-/// profile, the naming anchor that program-anchors every profile ref
-/// emitted against it, and the per-edge radius the program draws each
-/// of its segments at.
+/// profile, the naming anchor that maps its program's segments onto the
+/// canonical ones every profile ref names, and the per-edge radius the
+/// program draws each of its segments at.
 #[derive(Debug, Clone)]
 pub struct ProfileValue<T: geom_core::Real> {
     /// The validated profile downstream ops consume.
     pub validated: ValidatedProfile<T>,
-    /// The canonical→program naming anchor.
+    /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// **Which radius expression each profile edge is drawn at**, per
     /// CANONICAL loop and then per CANONICAL segment — the indexing a
@@ -174,7 +189,7 @@ pub(crate) struct ProfilePre {
     /// type rather than by a placeholder a reader could mistake for a
     /// placement.
     pub placement_f64: Option<profile::SketchPlane<f64>>,
-    /// The canonical→program naming anchor.
+    /// The canonical ↔ program naming anchor.
     pub naming: ProfileNaming,
     /// The discrete decisions this f64 pass made — the witness the
     /// lift's second pass consumes and re-verifies at its own scalar.
@@ -186,21 +201,28 @@ pub(crate) struct ProfilePre {
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
 ///
-/// The match covers vertex POSITIONS, segment BULGES, and the declared
-/// joint set. Positions alone are NOT enough (PR #291 review MAJOR-1,
-/// both reviewers, executed): on a 2-vertex loop the forward and
-/// reversed maps agree on every position (index arithmetic mod 2), so
-/// a reversed hole circle — `circle()` lowers CCW, canonicalization
-/// orients holes CW — would recover `reversed: false` and swap the two
-/// semicircles' program names. Bulges disambiguate the parity exactly:
-/// canonicalization's reversal NEGATES bulges (bit-exact sign flip)
-/// and reindexes them (canonical segment k = program segment
-/// offset−k−1 traversed backward), while rotation carries them
-/// verbatim — so the bulge condition holds for precisely one
-/// orientation whenever any segment is an arc. (An all-straight loop
-/// has ±0.0 bulges either way, but needs n ≥ 3 to close, where
-/// positions already decide.) Declared joints ride the same maps and
-/// are checked as sets.
+/// The match covers vertex POSITIONS, the BULGE each segment was
+/// lowered from, and the declared joint set. Positions alone are NOT
+/// enough (PR #291 review MAJOR-1, both reviewers, executed): on a
+/// 2-vertex loop the forward and reversed maps agree on every position
+/// (index arithmetic mod 2), so a reversed hole circle — `circle()`
+/// lowers CCW, canonicalization orients holes CW — would recover
+/// `reversed: false` and swap the two semicircles' program names.
+/// Bulges disambiguate the parity exactly: canonicalization's reversal
+/// NEGATES bulges (bit-exact sign flip) and reindexes them (canonical
+/// segment k = program segment n−1−k traversed backward), while the
+/// identity carries them verbatim — so the bulge condition holds for
+/// precisely one orientation whenever any segment is an arc. (An
+/// all-straight loop has ±0.0 bulges either way, but needs n ≥ 3 to
+/// close, where positions already decide.) The bulge is the datum
+/// matched rather than an arc's sweep because it is present on every
+/// segment of both loops: a sub-tolerance arc is a validated `Line`
+/// with no sweep. Matching positions and bulges matches the stored
+/// segments too, because every stored segment is lowered from exactly
+/// those: its kind by the exact-zero rule (a line iff its bulge is
+/// ±0, which negation preserves) and an arc's carrier and sweep from
+/// its two positions and bulge alone. Declared joints
+/// ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
@@ -211,66 +233,53 @@ pub(crate) fn derive_naming(
         let mut found = None;
         'progs: for (pi, pl) in program_loops.iter().enumerate() {
             let pv = &pl.vertices();
-            let n = pv.len();
-            if n != cv.len() || n == 0 {
+            if pv.len() != cv.len() || pv.is_empty() {
                 continue;
             }
+            // An anchor stores its loop and count as `u32`; one that
+            // does not fit is no anchor, and the derivation fails typed
+            // rather than anchoring to a wrapped loop.
+            let program_loop = u32::try_from(pi).ok()?;
+            let n = u32::try_from(pv.len()).ok()?;
             let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
-            for offset in 0..n {
-                for reversed in [false, true] {
-                    // Vertex map (canonical k → program index).
-                    let vmap = |k: usize| {
-                        if reversed {
-                            (offset + n - k) % n
-                        } else {
-                            (offset + k) % n
-                        }
-                    };
-                    // Segment map: canonical segment k starts at
-                    // canonical vertex k; forward it is program
-                    // segment (offset+k), reversed it is program
-                    // segment (offset−k−1) traversed BACKWARD.
-                    let smap = |k: usize| {
-                        if reversed {
-                            (offset + 2 * n - k - 1) % n
-                        } else {
-                            (offset + k) % n
-                        }
-                    };
-                    let positions_ok =
-                        (0..n).all(|k| bits(&cv[k].pos()) == bits(&pv[vmap(k)].pos()));
-                    if !positions_ok {
-                        continue;
-                    }
-                    // Bulges: verbatim under rotation, negated under
-                    // reversal — bit-exact either way.
-                    let bulges_ok = (0..n).all(|k| {
-                        let pb = pv[smap(k)].bulge();
-                        let want = if reversed { -pb } else { pb };
-                        cv[k].bulge().to_bits() == want.to_bits()
-                    });
-                    if !bulges_ok {
-                        continue;
-                    }
-                    // Declared joints as SETS under the vertex map
-                    // (canonical joints are canonical vertex indices).
-                    let mut mapped: Vec<usize> =
-                        vl.tangent_joints().iter().map(|&j| vmap(j)).collect();
-                    mapped.sort_unstable();
-                    let mut prog_joints = pl.tangent_joints().to_vec();
-                    prog_joints.sort_unstable();
-                    prog_joints.dedup();
-                    if mapped != prog_joints {
-                        continue;
-                    }
-                    found = Some(LoopAnchor {
-                        program_loop: pi as u32,
-                        offset: offset as u32,
-                        reversed,
-                        len: n as u32,
-                    });
-                    break 'progs;
+            for reversed in [false, true] {
+                let a = LoopAnchor {
+                    program_loop,
+                    reversed,
+                    len: n,
+                };
+                let vmap = |k: u32| a.vertex(k) as usize;
+                let smap = |k: u32| a.segment(k) as usize;
+                let positions_ok = (0..n).all(|k| bits(&cv[k as usize]) == bits(&pv[vmap(k)]));
+                if !positions_ok {
+                    continue;
                 }
+                // Bulges: verbatim forward, negated under reversal —
+                // bit-exact either way.
+                let bulges_ok = (0..n).all(|k| {
+                    let pb = pl.bulges()[smap(k)];
+                    let want = if reversed { -pb } else { pb };
+                    vl.segments()[k as usize].bulge.to_bits() == want.to_bits()
+                });
+                if !bulges_ok {
+                    continue;
+                }
+                // Declared joints as SETS under the vertex map
+                // (canonical joints are canonical vertex indices).
+                let mut mapped: Vec<usize> = vl
+                    .tangent_joints()
+                    .iter()
+                    .map(|&j| u32::try_from(j).ok().map(vmap))
+                    .collect::<Option<_>>()?;
+                mapped.sort_unstable();
+                let mut prog_joints = pl.tangent_joints().to_vec();
+                prog_joints.sort_unstable();
+                prog_joints.dedup();
+                if mapped != prog_joints {
+                    continue;
+                }
+                found = Some(a);
+                break 'progs;
             }
         }
         anchors.push(found?);
@@ -278,118 +287,181 @@ pub(crate) fn derive_naming(
     Some(ProfileNaming { loops: anchors })
 }
 
-/// Rewrites one profile ref canonical → program.
-fn remap_edge(naming: &ProfileNaming, e: ProfileEdgeRef) -> ProfileEdgeRef {
-    match naming.loops.get(e.loop_index as usize) {
-        None => e,
-        Some(a) => ProfileEdgeRef {
-            loop_index: a.program_loop,
-            segment: a.segment(e.segment),
-        },
-    }
+/// **A program's naming anchor, from its replayed loops**: validate
+/// them (at the conventional plane — validation is 2-D and the anchor
+/// is loop-derived) and bit-match the canonical form against them, the
+/// derivation the evaluation's pre-pass makes. `None` where the loops
+/// do not validate, or the match fails.
+pub(crate) fn naming_of(loops: &[ProfileLoop<f64>], tol: geom_core::Tol) -> Option<ProfileNaming> {
+    let validated = Profile::new(profile::SketchPlane::xy(), loops.to_vec())
+        .validate(tol)
+        .ok()?;
+    derive_naming(&validated, loops)
 }
 
-fn remap_vertex(naming: &ProfileNaming, v: ProfileVertexRef) -> ProfileVertexRef {
-    match naming.loops.get(v.loop_index as usize) {
-        None => v,
-        Some(a) => ProfileVertexRef {
-            loop_index: a.program_loop,
-            vertex: a.vertex(v.vertex),
-        },
-    }
-}
-
-/// Rewrites the profile-ref-bearing role segments an emitter minted
-/// DIRECTLY (extrude/revolve/loft emitters; wrapped upstream names are
-/// already program-anchored, so composition variants are untouched).
+/// **A naming anchor read off a replay alone** — for a program that
+/// replays but does not validate, whose names were published by an
+/// earlier evaluation that did. One entry per CANONICAL loop, `None`
+/// where that loop's anchor cannot be read; `None` overall where the
+/// canonical loop ORDER cannot.
 ///
-/// Not to be confused with [`crate::refactor`]'s function of the same
-/// name: that one partitions [`RoleSeg`] by whether the variant embeds
-/// a [`StableName`] and recurses into the ones that do; this one
-/// partitions it by whether the variant embeds a PROFILE LOCATOR, and
-/// does not recurse — the sentence above is why, and nothing enforces
-/// it.
-fn remap_seg(naming: &ProfileNaming, seg: RoleSeg) -> RoleSeg {
-    use RoleSeg as R;
-    match seg {
-        R::Lateral(e) => R::Lateral(remap_edge(naming, e)),
-        R::RimEdge(c, e) => R::RimEdge(c, remap_edge(naming, e)),
-        R::LateralEdge(v) => R::LateralEdge(remap_vertex(naming, v)),
-        R::CapVertex(c, v) => R::CapVertex(c, remap_vertex(naming, v)),
-        R::Band(e) => R::Band(remap_edge(naming, e)),
-        R::BandRim(v) => R::BandRim(remap_vertex(naming, v)),
-        R::BandRimPi(v) => R::BandRimPi(remap_vertex(naming, v)),
-        R::BandPi(e) => R::BandPi(remap_edge(naming, e)),
-        R::Meridian(m, e) => R::Meridian(m, remap_edge(naming, e)),
-        R::MeridianVertex(m, v) => R::MeridianVertex(m, remap_vertex(naming, v)),
-        R::Pole(v) => R::Pole(remap_vertex(naming, v)),
-        R::AxisEdge(e) => R::AxisEdge(remap_edge(naming, e)),
-        // EXHAUSTIVE on purpose (the `walk_names` rule): the arms above
-        // are exactly the variants that embed a `ProfileEdgeRef` or a
-        // `ProfileVertexRef`, and these are exactly the ones that do
-        // not. A future variant carrying a profile locator must be
-        // classified here or the compile breaks; a catch-all would let
-        // it cross a re-anchor with a stale locator, silently.
-        R::OutputBody
-        | R::Cap(..)
-        | R::RevolveCap(..)
-        | R::FromMember { .. }
-        | R::FromA(..)
-        | R::FromB(..)
-        | R::Seam { .. }
-        | R::Merged(..)
-        | R::Fragment(..)
-        | R::SplitBody(..)
-        | R::SectionFace { .. }
-        | R::SectionEdge { .. }
-        | R::SplitFragment { .. }
-        | R::CrossingVertex { .. }
-        | R::OnToolVertex { .. }
-        | R::FromTarget(..)
-        | R::BlendFace(..)
-        | R::CornerFace(..)
-        | R::TrimEdge { .. }
-        | R::FootVertex { .. }
-        | R::EndArc { .. }
-        | R::BandFace(..)
-        | R::BandTrim { .. }
-        | R::BandFoot(..)
-        | R::BandCross(..)
-        | R::BandCut(..)
-        | R::BandSlit(..)
-        | R::Inner(..)
-        | R::Rim(..)
-        | R::HoleRim { .. }
-        | R::InPart { .. }
-        | R::Instance { .. } => seg,
+/// The canonical form keeps each loop's authored start, so a loop's
+/// anchor is two facts: which canonical loop it is, and whether
+/// canonicalization reverses it. Both are read here without the
+/// validation the program fails:
+///
+/// - **Order.** The canonical order is the outer loop first, then the
+///   holes in authored order. Validation's outer loop contains every
+///   other, so on a profile that validates it is the unique loop of
+///   largest enclosed area — the rule read here. Two loops tied for
+///   the largest area (or none with any) give no order, and every name
+///   strands.
+/// - **Orientation.** The loop's signed enclosed area — shoelace plus
+///   each arc's circular segment `(r²/2)(θ − sin θ)`, `θ = 4·atan(b)`,
+///   the quantity validation's `loop_orientation` classifies — with
+///   the outer loop canonically counter-clockwise and holes clockwise.
+///   An area that is exactly zero decides no sense, and that loop's
+///   names strand.
+///
+/// On a program that validates this agrees with [`naming_of`]: the SetProgram door
+/// asserts so on every new program it admits.
+pub(crate) fn replay_naming(loops: &[ProfileLoop<f64>]) -> Option<Vec<Option<LoopAnchor>>> {
+    let areas: Vec<f64> = loops.iter().map(signed_area).collect();
+    let largest = areas.iter().map(|a| a.abs()).fold(0.0_f64, f64::max);
+    let mut at_largest = (0..loops.len()).filter(|&i| areas[i].abs() == largest);
+    let outer = at_largest.next()?;
+    if largest == 0.0 || at_largest.next().is_some() || !largest.is_finite() {
+        return None;
     }
-}
-
-fn remap_name(naming: &ProfileNaming, name: StableName) -> StableName {
-    StableName {
-        kind: name.kind,
-        node: name.node,
-        path: name
-            .path
-            .into_iter()
-            .map(|seg| remap_seg(naming, seg))
+    let order = core::iter::once(outer).chain((0..loops.len()).filter(|&i| i != outer));
+    Some(
+        order
+            .map(|li| {
+                let a = areas[li];
+                if a == 0.0 || !a.is_finite() {
+                    return None;
+                }
+                let ccw = a > 0.0;
+                Some(LoopAnchor {
+                    program_loop: u32::try_from(li).ok()?,
+                    reversed: ccw != (li == outer),
+                    len: u32::try_from(loops[li].vertices().len()).ok()?,
+                })
+            })
             .collect(),
-    }
+    )
 }
 
-/// Rewrites every name in an emitted table canonical → program (the
-/// anchor rewrite, applied at the emission call sites of the ops that
-/// mint profile refs). The rewrite is a bijection per loop, so
-/// injectivity is preserved; a collision is therefore an internal bug
-/// and surfaces as `None` (the caller refuses typed).
-pub(crate) fn remap_table(table: &NameTable, naming: &ProfileNaming) -> Option<NameTable> {
-    let mut out = NameTable::new();
-    for (name, entry) in table.iter() {
-        let new_name = remap_name(naming, name.clone());
-        match entry {
-            Entry::Unique(ent) => out.insert(new_name, *ent).ok()?,
-            Entry::Tied(ents) => out.insert_tied(new_name, ents.clone()).ok()?,
+/// The signed area a loop encloses, positive
+/// counter-clockwise — the chord polygon's shoelace about the first
+/// vertex plus each arc's signed circular segment.
+fn signed_area(lp: &ProfileLoop<f64>) -> f64 {
+    let vs = lp.vertices();
+    let Some(&o) = vs.first() else {
+        return 0.0;
+    };
+    let n = vs.len();
+    let mut twice = 0.0;
+    let mut arcs = 0.0;
+    for (k, (&a, segment)) in vs.iter().zip(lp.segments()).enumerate() {
+        let b = vs[(k + 1) % n];
+        twice += (a.x - o.x) * (b.y - o.y) - (a.y - o.y) * (b.x - o.x);
+        if let profile::Segment::Arc { .. } = segment {
+            // θ through std's `atan` on the lowering's bulge, not the
+            // stored sweep (which is `libm`'s): the two can differ in
+            // the last ulp, and this area orders the loops.
+            let theta = 4.0 * lp.bulges()[k].atan();
+            let chord2 = (b.x - a.x).powi(2) + (b.y - a.y).powi(2);
+            let half = (0.5 * theta).sin();
+            let r2 = chord2 / (4.0 * half.powi(2));
+            arcs += 0.5 * r2 * (theta - theta.sin());
         }
     }
-    Some(out)
+    0.5 * twice + arcs
+}
+
+/// **A program's naming anchor as far as it can be read**, per
+/// CANONICAL loop, off its replay alone ([`replay_naming`]); empty
+/// where the loops cannot be ordered. Where the loops validate this IS
+/// the validated anchor ([`naming_of`]) — the `SetProgram` door asserts
+/// the agreement on every program it admits — so the edit doors that
+/// carry names across a change read each side without paying for a
+/// validation: which is what a value edit would otherwise pay per
+/// profile, per edit.
+pub(crate) fn readable_naming(loops: &[ProfileLoop<f64>]) -> Vec<Option<LoopAnchor>> {
+    replay_naming(loops).unwrap_or_default()
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+    use geom_core::{Point2, Tol};
+    use profile::{Bulge, Open, Start};
+
+    /// The 2 × 2 square whose first side is `arc_to(Bulge { b })`.
+    fn zero_bulge_square(b: f64) -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .arc_to(
+                Bulge {
+                    p: Point2::new(2.0, 0.0),
+                    b,
+                },
+                t,
+            )
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// The same square with its first side split by a `tangent_arc_to`
+    /// through a point straight ahead of the incoming leg.
+    fn collinear_tangent_arc_square() -> ProfileLoop<f64> {
+        let t = Tol::witness();
+        Open.at(Point2::new(0.0, 0.0))
+            .angle(0.0, t)
+            .unwrap()
+            .line(1.0, t)
+            .unwrap()
+            .tangent()
+            .tangent_arc_to(Point2::new(2.0, 0.0), t)
+            .unwrap()
+            .line_to(Point2::new(2.0, 2.0), t)
+            .unwrap()
+            .line_to(Point2::new(0.0, 2.0), t)
+            .unwrap()
+            .line_to(Start, t)
+            .unwrap()
+            .loop_
+    }
+
+    /// A zero-bulge side encloses what the chord polygon does, and the
+    /// replay-only anchor agrees with the validated one — the agreement
+    /// the `SetProgram` door asserts on every program it admits.
+    fn reads_as_the_square(lp: ProfileLoop<f64>) {
+        assert_eq!(signed_area(&lp).to_bits(), 4.0_f64.to_bits(), "{lp:?}");
+        let loops = [lp];
+        let validated = naming_of(&loops, Tol::witness())
+            .map(|n| n.loops.into_iter().map(Some).collect::<Vec<_>>());
+        assert!(validated.is_some(), "the square validates");
+        assert_eq!(replay_naming(&loops), validated);
+    }
+
+    #[test]
+    fn a_zero_bulge_arc_to_names_as_its_square() {
+        for b in [0.0, -0.0] {
+            reads_as_the_square(zero_bulge_square(b));
+        }
+    }
+
+    #[test]
+    fn a_collinear_tangent_arc_names_as_its_square() {
+        reads_as_the_square(collinear_tangent_arc_square());
+    }
 }

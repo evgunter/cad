@@ -263,7 +263,7 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    self-intersection / minimum clearance is the interval clearance
    engine's: its body-level half — cell subdivision over
    `Body<Interval>` — lives in `editor-core` today and moves into
-   `topo` behind `interval` (SHELL-3, ruled at #1737), with the
+   `topo` (SHELL-3, ruled at #1737), with the
    parameter-box outer half above it in `editor-core`, so a verb that
    must certify a boundary embedded (`shell`'s cavity clone) runs the
    same engine at a certifying scalar and refuses typed at the door.
@@ -369,12 +369,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   ∂u × ∂v with no "outward" contract — topology carries sense. A seam
   is defined SPATIALLY (the u_ref half-plane meridian), which on
   mirror-nappe cones differs from chart u = 0.
-- **Profile format**: a profile loop is a vertex chain with bulge
-  (b = tan(θ/4) of the arc to the next vertex, DXF-compatible) — zero
-  representation-consistency conditions by construction; closed
-  carriers split into ≥ 2 vertices; winding is invisible to users
-  (roles derive from containment). Downstream re-inspection of arc
-  geometry uses the stored bulge/carrier data, never endpoint atan2.
+- **Profile format**: a profile loop is a vertex chain whose segments
+  are each a carrier plus a signed interval on it — a line (the chord
+  between its two vertices), or an arc (centre, radius and signed sweep
+  Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
+  full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
+  carrier is one edge. The form is redundant (the vertices lie on the
+  carrier, Δθ agrees with them mod 2π), and those consistency
+  conditions are verified at validate, never trusted. Bulge
+  (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
+  containment). Downstream re-inspection of arc geometry uses the
+  stored carrier data, never endpoint atan2.
 - **Declared-tangency discipline**: profiles refuse undeclared
   definite-Zero tangency at junctions (`UndeclaredTangency`, with a
   repair menu); declarations are verified, never trusted
@@ -1019,7 +1026,7 @@ Each layer depends only on the layers below it.
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
-| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the bulge-chain `Profile` and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/declared-contact machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |
@@ -1306,8 +1313,7 @@ Cross-milestone commitments; each binds at the layer named.
 - Evaluation code (evaluators, derivatives, transforms, measurements)
   is generic over a `Real` trait we define. Instantiations: `f64`,
   `Interval` (the in-house `interval-transcendentals` backend; the
-  `interval` feature gates the kernel's lane-trait impls at it and the
-  interval test files, not the type, which compiles in every build),
+  scalar and the kernel's lane impls at it compile in every build),
   `Dual<T>` (one in-house generic type; `num-dual` is a dev-only oracle
   because its std-backed transcendentals cannot satisfy the
   value-channel bit-identity contract), and `Sym`.

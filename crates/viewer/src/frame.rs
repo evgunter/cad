@@ -68,9 +68,9 @@
 //! acted.
 //!
 //! **"Held state" is the mechanical shadow of that, a strong
-//! indicator and not a decision procedure**, and the sweep that sorted
-//! eighteen writers on this paragraph needed the three ways it falls
-//! short said out loud:
+//! indicator and not a decision procedure**, and sorting the line's
+//! writers on this paragraph needs the three ways it falls short said
+//! out loud:
 //!
 //! * **It is a property of the FACT, not of a signature.**
 //!   [`unindexed_refusal`] takes a `&NotIndexed` and nothing else;
@@ -110,8 +110,10 @@
 //! clears `scene_fault` where a rebuild lands and [`crate::pane::viewport`]
 //! clears `projection_fault` where a matrix forms, which is the same
 //! work spelled as an assignment about the SEAM instead of a verdict
-//! about the chrome. [`index_badge`] needs none, because the pick
-//! cache was already holding its refusal. What the split buys is that
+//! about the chrome. [`index_badge`] needs none for its refusal,
+//! because the pick cache was already holding it; what it reads beside
+//! that — the landed evaluation, through the tree's blame — is held by
+//! the session and ends with the same landing. What the split buys is that
 //! no writer has to decide the fate of anyone else's sentence.
 //!
 //! So [`projection_badge`] is a badge — a read of the camera and the
@@ -137,15 +139,30 @@
 //! refusing a camera move and then orbiting left the refusal on the
 //! line for as long as the user navigated: navigation acts on nothing.
 //!
-//! **Seventeen of the eighteen writers now reach the line through
-//! that ranking**, and the one that does not is named below. The
-//! membership test is what the count kept getting wrong, so it is
-//! stated rather than inferred: a writer is one of these if it **can
-//! put a SENTENCE on the line that the ranking never saw**. That is
-//! not the same as reaching the field outside the ranking, and the
-//! difference is a retirement. A retirement says nothing, so there is
-//! nothing to weigh it against and nothing to join it to; ranking one
-//! is not a stricter discipline but a category error. [`apply`] is
+//! **Every writer but one reaches the line through that ranking**, and
+//! the one that does not is named below. A writer is anything that can
+//! put a sentence on the line, and it goes through the ranking by
+//! writing to the frame's notices — `ViewerApp`'s `notices`, which
+//! `ViewerBehavior` lends the panes.
+//!
+//! **Nothing enforces the "but one".** `ViewerBehavior` lends the panes
+//! the field itself too (its `status`, for the retirements below), and
+//! a pane that handed [`apply`] a [`StatusUpdate::Show`] there would put
+//! a sentence on the line the ranking never saw, with nothing going
+//! red. So this is the tree as read, not a guarantee. It gives no
+//! number: the writers are a grep rather than a type, and a row that
+//! counted them — the way `frame_policy.rs`'s
+//! `the_readme_counts_its_two_populations_correctly` counts
+//! `ViewerApp::store`'s reads — would go red at every new writer and
+//! not at a writer that bypassed the ranking, which is the defect.
+//!
+//! The membership test is stated rather than inferred: a writer is
+//! outside the ranking if it **can put a SENTENCE on the line that the
+//! ranking never saw**. That is not the same as reaching the field
+//! outside the ranking, and the difference is a retirement. A
+//! retirement says nothing, so there is nothing to weigh it against
+//! and nothing to join it to; ranking one is not a stricter discipline
+//! but a category error. [`apply`] is
 //! therefore a legitimate door and stays one — it is where a
 //! retirement belongs — and [`cursor_status`], which returns only
 //! [`StatusUpdate::Keep`] and [`StatusUpdate::Expire`], was never one
@@ -153,7 +170,7 @@
 //! [`deliver`] is the door for a policy that can answer either way:
 //! news to the frame's notices, retirement to the field.
 //!
-//! **The eighteenth is the startup initializer**, `ViewerApp::new`'s
+//! **The exception is the startup initializer**, `ViewerApp::new`'s
 //! `status: startup_notices(&notices)` — the preferences file's
 //! complaints rendered into the field before any frame has run, where
 //! the session's first accepted act silently deletes them. It cannot
@@ -161,7 +178,7 @@
 //! a read of held state, so under this module's own rule it wants a
 //! BADGE, and badging it means HOLDING it and deciding what retires
 //! it. That is a design question, tracked as
-//! `work/view/startup-notices-need-holding-to-badge.md` and not
+//! `work/vseam/startup-notices-need-holding-to-badge.md` and not
 //! asserted here as done.
 //!
 //! # The toolbar: held state, read
@@ -197,9 +214,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId, SlotId,
+    ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
+    RecipeNodeId, SlotId,
 };
-use pncad::select::HitTestError;
+use pncad::select::{HitTestError, NodePickError};
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
@@ -210,7 +228,7 @@ use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
+use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -260,7 +278,9 @@ pub enum Subject {
     /// [`crate::idpass::IdQueryLog`] already makes.
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
-    /// by the next act the document ACCEPTS.
+    /// by the next batch holding an operation [`acts`] counts: swept by
+    /// [`StatusUpdate::Clear`] when that batch refused nothing, and
+    /// replaced by the refusal when it did.
     ///
     /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
     /// which this shares with [`Self::Display`] and
@@ -657,9 +677,10 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// accurately. Making the line stop being one string — several
 /// labels, one per notice — is the better answer and is not this
 /// function's to give: it needs a value that carries several
-/// subjects, which `work/view/one-line-one-subject-loses-a-mixed-
-/// frames-expiry.md` owns and which is a design question for Ev.
-/// Until then the line is one string, and one string needs a mark.
+/// subjects, and
+/// `work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`
+/// owns that fork. Until then the line is one string, and one string
+/// needs a mark.
 pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
@@ -704,7 +725,7 @@ pub fn frame_status(
 /// line is about `Document`, which has no [`StatusUpdate::Expire`]
 /// issuer ([`SUBJECTS_WITH_AN_EXPIRY_ISSUER`]), so the camera event
 /// that would have retired the camera half no longer can. That is
-/// `work/view/one-line-one-subject-loses-a-mixed-frames-expiry.md`,
+/// `work/vnews/one-line-one-subject-loses-a-mixed-frames-expiry.md`,
 /// which owns the fork; this function is the rule it is a consequence
 /// of, and the rule is unchanged.
 fn joined_subject(notices: &[Message]) -> Subject {
@@ -860,9 +881,10 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// The frame around the faults counts where there is anything to count,
 /// and never names: every [`AdmissionFault`] names its own SUBJECT, so
 /// naming the id again in the preamble would say it twice. It does not
-/// promise a vocabulary for that subject: three of the four say
-/// "instance N" and the absent-node arm says "node N", which is that
-/// enum's own rule and the only honest wording there.
+/// promise a vocabulary for that subject: an arm about an instance says
+/// "instance N" and an arm about an id that names no instance
+/// (`NoSuchNode`, `NotAnInstance`) says "node N", which is that enum's
+/// own rule and the only honest wording there.
 ///
 /// [`crate::display::DisplayFault`]'s own arms name no id at all — they are about a
 /// gesture or a frame rather than a node — and a `Withdrawn` cannot
@@ -1025,6 +1047,80 @@ impl<'a> Withdrawal<'a> {
     }
 }
 
+/// **Every notice one operation's outcome carries**, for
+/// [`frame_status`]'s rank 2 — the ONE door from an [`OpOutcome`] to
+/// the frame's notices, and the call `app` makes per operation.
+///
+/// Two kinds of news, both provoked by the act the user just took and
+/// both true of the document it left: what the transition WITHDREW
+/// from the display state ([`Withdrawal::all`]), then what the
+/// committed edits did that the user did not ask for by name
+/// ([`maintenance_notice`], one notice per row in the outcome's own
+/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// reason: the edit that produced them was accepted, so the same
+/// frame's batch verdict is [`StatusUpdate::Clear`], which they
+/// outrank. What takes them off the line is the next frame whose batch
+/// holds any operation [`acts`] counts — [`batch_status`] answers it
+/// with [`StatusUpdate::Clear`] when nothing refused and with the
+/// refusal otherwise; a hover-only batch keeps them.
+///
+/// **Destructured rather than field-read**, so a field added to
+/// [`OpOutcome`] is E0027 here and its author decides whether the
+/// line says it. The four this does not word are not news the line
+/// owes: `committed` and `previewed` are the act itself, `minted` is
+/// an id a form reads back, and `refusal` is ranked above every
+/// notice by [`frame_status`] on its own.
+pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
+    let OpOutcome {
+        committed: _,
+        previewed: _,
+        minted: _,
+        refusal: _,
+        withdrawn,
+        maintenance,
+    } = outcome;
+    Withdrawal::all(withdrawn)
+        .map(|withdrawal| withdrawal.notice())
+        .chain(maintenance.iter().filter_map(maintenance_notice))
+}
+
+/// **One maintenance row as a notice**, or `None` for a row the line
+/// does not carry.
+///
+/// **The row's own sentence, unaltered.** Each arm of [`Maintenance`]
+/// words itself (`Display for Maintenance`), naming the carrier and
+/// what the edit removed or rewrote; nothing here composes prose about
+/// it, for the rule [`Withdrawal`]'s causes follow. One notice per row
+/// rather than one per kind joined with [`LIST_SEPARATOR`], because a
+/// strand's own sentence writes that mark and a flat join of such
+/// sentences could not be split back into its rows; the boundary mark
+/// between notices is the one no sentence can carry ([`Message::new`]).
+///
+/// **Every arm DM7 makes the door report is worded**: a stranded
+/// payload name, a stranded appearance key, a declaration left with no
+/// consumer, and a name rewritten in place. A rebound is a repair the
+/// door made rather than a loss it left, and it is worded all the
+/// same: a name that moved without a word is exactly what the report
+/// exists to end.
+///
+/// **A cluster act is not**: it re-keys the mate graph's placement
+/// registry — a gauge instance and a frame, bookkeeping the chrome
+/// names nowhere — and what it decided about where the parts sit is
+/// what the picture draws. It still rides [`OpOutcome::maintenance`],
+/// where a reader of the API sees it.
+///
+/// The match names every arm, so a sixth is a compile error here
+/// rather than a row that reaches the outcome and is never worded.
+pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+    match row {
+        Maintenance::Strand { .. }
+        | Maintenance::StrandedAppearance { .. }
+        | Maintenance::OrphanedDeclare { .. }
+        | Maintenance::Rebound { .. } => Some(Message::new(Subject::Document, row.to_string())),
+        Maintenance::Cluster(_) => None,
+    }
+}
+
 /// **Destructured rather than field-read**, so a field added to
 /// [`Withdrawal`] is E0027 here rather than joining a value whose
 /// whole job is to word itself and going unworded.
@@ -1083,9 +1179,9 @@ impl core::fmt::Display for Withdrawal<'_> {
         // [`LIST_SEPARATOR`] would nest inside it and a reader could
         // not see where one cause ends. What keeps that from being a
         // hope about wording is the element type: this joins
-        // [`AdmissionFault`]s, whose four sentences are the whole
-        // population the claim ranges over and which cannot gain a
-        // fifth without an arm there. `DisplayFault::NonRigidFrame`
+        // [`AdmissionFault`]s, whose sentences are the whole
+        // population the claim ranges over and which cannot gain one
+        // without an arm in its `Display`. `DisplayFault::NonRigidFrame`
         // writes the mark inside one sentence and is outside that
         // enum, so this join cannot reach it.
         for (position, entry) in withdrawn.iter().enumerate() {
@@ -1166,12 +1262,14 @@ pub fn cursor_status(step: IdStep) -> StatusUpdate {
 ///
 /// The toolbar's badges are drawn in two colours and the split is a
 /// real rule: `weak` for a report a reader need not act on, the
-/// theme's `unresolved` for a verdict they may. The Features pane
-/// argues it explicitly for rows — a poisoned row is deliberately
-/// QUIET so the eye goes to the failed row a reader can do something
-/// about — and until this type existed no value stated it, so four
-/// badges each picked a colour at the call site and the rule lived
-/// only in prose.
+/// theme's `unresolved` for a verdict they may. The feature tree's
+/// rows follow the same rule, stated by [`crate::tree::RowStatus::tone`]
+/// — a poisoned row is [`Tone::Advisory`], deliberately QUIET, so the
+/// eye goes to the failed row a reader can do something about. A
+/// badge, a row, and a pane message drawn through
+/// `widgets::message_toned` each hand over a `Tone` rather than a
+/// style, and `app::toned` is where a tone becomes one: `weak` for
+/// `Advisory`, the theme's `unresolved` for `Actionable`.
 ///
 /// **The colour is REDUNDANT either way**, which is
 /// [`crate::theme::Theme::unresolved`]'s own stated contract: every
@@ -1345,15 +1443,17 @@ impl Badge {
 /// refusal cannot disagree; and where one seam's refusal arrives as
 /// two types, both impls name ONE constant below, so the seam's
 /// subject is one edit and the two channels move together. That is
-/// what [`tool_news`] buys for its twelve sites by having one door,
+/// what [`tool_news`] buys for its call sites by having one door,
 /// done for a seam that needs two.
 ///
 /// **What it does not buy.** It covers a seam's own refusal TYPE, so
 /// a door whose input is not one — [`tool_news`], [`startup_notices`]
 /// — spells its subject and says so at the door. And a shared
-/// [`Subject`] is not a shared seam: the scene, the δ field and the
-/// pick index are three seams under [`Subject::Display`], which is the
-/// coarser question of what retires a fact.
+/// [`Subject`] is not a shared seam: the scene (which the δ field's
+/// doors share, [`SCENE_SEAM`]) and the pick index
+/// ([`PICK_INDEX_SEAM`]) are separate seams under
+/// [`Subject::Display`], which is the coarser question of what retires
+/// a fact.
 ///
 /// Not public: the doors below are the API, and a caller that could
 /// read this could also assign a subject without one.
@@ -1402,19 +1502,19 @@ impl SeamSubject for NotIndexed {
 // # The subject-assigning doors
 //
 // **A subject is a decision, so it lives where a decision can be
-// asserted.** The dozen writers that assign `ViewerApp::status`
-// directly all sit inside `app`-gated draw paths no headless row
-// executes, so a subject chosen at one of those sites is
-// unfalsifiable — a reviewer can change `Camera` to `Preferences` and
-// the whole suite stays green. That is the same argument `Badge` makes
-// about the `None` decision, applied to the half of a `Message` that a
-// `String` could not carry.
+// asserted.** A writer that chose its subject at its own site would
+// choose it inside an `app`-gated draw path no headless row executes,
+// where the choice is unfalsifiable — a reviewer could change `Camera`
+// to `Preferences` and the whole suite would stay green. That is the
+// same argument `Badge` makes about the `None` decision, applied to
+// the half of a `Message` that a `String` could not carry.
 //
 // So each door below answers the subject from the TYPED refusal it is
 // handed, and the writer hands its refusal over rather than picking.
 // Most are pinned twice over: the door takes one error type, so
-// calling the wrong door does not compile. `tool_news` is the
-// exception and says so.
+// calling the wrong door does not compile. A door whose input is text
+// rather than a typed refusal, such as `tool_news` or
+// `startup_notices`, is not pinned, and says so at its own doc.
 
 /// **What a pick against a missing index says** — the one seam
 /// refusal that stays on the line, and the boundary the channel test
@@ -1479,13 +1579,17 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// when it had nothing.
 ///
 /// [`Subject::Preferences`]. **Not type-pinned**: the notices arrive
-/// already rendered, from three types — [`crate::prefs::Notice`],
-/// which is what the file's own complaints AND the theme and preset
-/// resolutions both produce, [`crate::prefs::PrefsError`] when the
-/// document is not TOML at all, and [`crate::prefs::StoreError`] when
-/// the store could not be read — so what this door buys is one place
-/// the decision is made rather than a type that forbids the other
-/// answer.
+/// already rendered, as whatever `app::ViewerApp::new` collected before
+/// the first frame — at this writing the preferences file's
+/// [`crate::prefs::Notice`]s (its own complaints AND the theme and
+/// preset resolutions), a [`crate::prefs::PrefsError`] when the
+/// document is not TOML at all, a [`crate::prefs::StoreError`] when the
+/// store could not be read, and a sentence `ViewerApp::new` writes
+/// itself when the launch directory cannot be read. The door takes
+/// `&[String]`, so nothing here bounds that list and a new startup
+/// complaint joins it without touching this function. What this door
+/// buys is one place the decision is made rather than a type that
+/// forbids the other answer.
 ///
 /// # Several notices, not the items of one notice's list
 ///
@@ -1499,18 +1603,20 @@ pub fn store_refusal(error: &StoreError) -> Message {
 /// and [`LIST_SEPARATOR`] between them was its rendering.
 ///
 /// **So the guarantee is the one the outer level already holds**, and
-/// it is needed here rather than merely available. Three of
-/// [`crate::prefs::Notice`]'s four arms write a [`LIST_SEPARATOR`]
-/// inside one sentence, so a flat join on that mark made a two-notice
-/// line read as four items — reachable with no error path at all, from
-/// a file naming a theme and a preset the registries no longer hold.
-/// No second mark could have been chosen instead: two of those four
-/// arms echo a key straight out of the user's file, and a TOML quoted
-/// key may hold any character, so nothing is out of band here. What
-/// holds the line is [`Message::new`] taking the boundary mark out of
-/// every text that reaches it and [`Message::joined`] being the only
-/// thing that writes one — a claim about the door rather than about
-/// anybody's sentences.
+/// it is needed here rather than merely available. A
+/// [`crate::prefs::Notice`] arm may write a [`LIST_SEPARATOR`] inside
+/// one sentence — `WrongType`, `UnknownTheme` and `UnknownPreset` do,
+/// and so does the launch-directory sentence — so a flat join on that
+/// mark made a two-notice line read as four items, reachable with no
+/// error path at all from a file naming a theme and a preset the
+/// registries no longer hold. No second mark could have been chosen
+/// instead: `UnknownKey` and `WrongType` echo a key straight out of
+/// the user's file, and a TOML quoted key may hold any character, so
+/// nothing is out of band here. Nor can the guarantee rest on the list
+/// of sources, which nothing bounds. What holds the line is
+/// [`Message::new`] taking the boundary mark out of every text that
+/// reaches it and [`Message::joined`] being the only thing that writes
+/// one — a claim about the door rather than about anybody's sentences.
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
     let notices: Vec<Message> = notices
         .iter()
@@ -1519,18 +1625,18 @@ pub fn startup_notices(notices: &[String]) -> Option<Message> {
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
 
-/// **Where a file dialog opens**, from the three places it could: the
-/// current document's own directory, the directory the last dialog
-/// returned a path in, and the directory the viewer was launched from
-/// — in that order, the first that `is_dir` confirms.
+/// **Where a file dialog opens**, from the candidates its signature
+/// takes: the current document's own directory, the directory the last
+/// dialog returned a path in, and the directory the viewer was launched
+/// from — in that order, the first that `is_dir` confirms.
 ///
 /// The order is by how recently a person pointed at the place. The
 /// document's directory is where THIS work lives; the last dialog's is
 /// where they went most recently, and it outlives the session through
 /// the preferences (`crate::prefs::Prefs::last_dir`); the launch
 /// directory is where they were when they started. `None` — reached
-/// only when all three are absent or gone — leaves the dialog to its
-/// backend's own default, whatever that is.
+/// only when every candidate is absent or gone — leaves the dialog to
+/// its backend's own default, whatever that is.
 ///
 /// **A candidate that is not a directory falls through** rather than
 /// refusing. A remembered directory deleted since is the ordinary way
@@ -1609,13 +1715,21 @@ pub fn pick_refusal(error: &PickError) -> Message {
 
 /// **What a tool has to say** — an authoring panel's refusal, a
 /// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired by the next act the document accepts.
+/// retired the way that subject says.
 ///
-/// **The one door here that a type does not pin**, because its twelve
-/// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]
-/// and the typed forms vocabulary, and arrive as text. What it buys is
-/// that all twelve share one decision: changing the subject of one
-/// changes the subject of all twelve, and a row can see it.
+/// **A door a type does not pin**, like [`startup_notices`], because
+/// its call sites hand it text — rendered through
+/// [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`] and
+/// the typed forms vocabulary, or formatted at the site. What it buys
+/// is that every site shares one decision: changing the subject here
+/// changes it at all of them, and a row can see it.
+///
+/// The sites are every `frame::tool_news` call under
+/// `crates/viewer/src`, and no number is given for them. They are a
+/// grep over the panes and the app, not a population any type bounds;
+/// a row could count them by that grep, as `frame_policy.rs` counts
+/// `ViewerApp::store`'s reads, but it would go red at every new site,
+/// and nothing about a new site is wrong.
 pub fn tool_news(text: impl Into<String>) -> Message {
     Message::new(Subject::Document, text)
 }
@@ -1759,9 +1873,10 @@ enum BadgeSite {
 /// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
 /// cause with it, so a frame badge would say strictly less, in a
 /// louder colour, one row above a status line already reporting the
-/// same root's tessellation refusal. The Features pane goes further
-/// and draws a poisoned row deliberately QUIET, reserving
-/// [`Tone::Actionable`] for the row a reader can act on; a badge
+/// same root's tessellation refusal. The tree's own tone goes further:
+/// [`crate::tree::RowStatus::tone`] makes a poisoned row
+/// [`Tone::Advisory`], reserving [`Tone::Actionable`] for the row a
+/// reader can act on, and the Features pane draws that value; a badge
 /// shouting about the same poisoning would have the chrome saying both
 /// things at once. That is a decision about THIS chrome and not a
 /// classification of the refusal, which is why it is decided here.
@@ -1873,23 +1988,115 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// **What the chrome badges about the pick-index seam**, and `None`
 /// when the cache holds no refusal.
 ///
-/// The purest read of the three: the refusal is held by
-/// [`crate::pickcache::PickCache`] under its one-attempt-per (generation,
-/// δ) policy, so this asks the value that already knows and the badge
-/// stands for exactly as long as the policy holds the refusal.
+/// The refusal is held by [`crate::pickcache::PickCache`] under its
+/// one-attempt-per (generation, δ) policy, so the badge stands for
+/// exactly as long as the policy holds the refusal. The only other
+/// thing it reads is the landed evaluation, and only to ask the tree
+/// which row a refusal that follows from a failed node defers to (the
+/// section below); the cache clears its refusal on the landing that
+/// replaces that evaluation, so the two describe one run.
 ///
 /// It says the SEAM refused. What a pick against the missing index
 /// gets is [`unindexed_refusal`], on the line, because that is an
 /// outcome — the two carry one subject and neither states it
 /// ([`SeamSubject`]).
-pub fn index_badge(error: Option<&PickIndexError>) -> Option<Badge> {
-    error.map(|error| {
-        Badge::read(
+///
+/// # A refusal that is a consequence, drawn under its cause
+///
+/// The index is built over every root, and a root whose row the
+/// feature tree badges `Failed` or `Poisoned` has no value to index,
+/// so the build refuses on it ([`downstream_root`]). That refusal is
+/// DERIVED: the failure it follows from is already on screen, as the
+/// one [`Tone::Actionable`] row the tree draws for it. So it takes the
+/// tree's own reading of a downstream row — [`Tone::Advisory`], naming
+/// the row that carries the cause ([`crate::tree::cause_row`], spelled
+/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the tooltip, unaltered.
+///
+/// **It is placed under the cause, not dropped**, because it carries
+/// two facts the cause does not. The refusal stops EVERY pick, on the
+/// healthy roots' bodies too, and it stops the picture: the scene is
+/// drawn from the index, so the viewport keeps its last picture until
+/// the index builds. Both are in the label, and nowhere else: a pick
+/// aimed at the missing index is refused on the line
+/// ([`unindexed_refusal`]), whose sentence says only that the last
+/// build refused or nothing has been evaluated yet — it gives no reason
+/// and names no node, so without this badge the reader would not learn
+/// why.
+///
+/// **The label names where the index stopped, not everything in its
+/// way.** The build returns at the FIRST root that refuses, in
+/// `doc.roots()` order, so a later root with a refusal of its own is
+/// not reached; the label says the index waits on this row and does
+/// not promise it builds once the row is fixed.
+///
+/// **The tooltip may name a different node from the label, on
+/// purpose.** The tooltip is the index's own words, which name the
+/// root the build refused on and, for a poisoned root, the kernel's
+/// nearest failed ancestor. The label names the tree's row, which for
+/// a root a mate refusal reached is the mate the fault blames rather
+/// than the root. The label is the one that matches the row a reader
+/// can act on, and the tooltip is kept unaltered because it is another
+/// layer's refusal ([`PickIndexError`]'s `Display`).
+///
+/// Every other refusal is the index's own and stays
+/// [`Tone::Actionable`] in its own words — and so does a standing
+/// refusal the tree names no failed row for (a root that never ran,
+/// or no evaluation to read), because quieting news is only right
+/// where the louder news it defers to is actually drawn.
+pub fn index_badge(
+    error: Option<&PickIndexError>,
+    evaluation: Option<&Evaluation<f64>>,
+) -> Option<Badge> {
+    let error = error?;
+    let cause = downstream_root(error)
+        .zip(evaluation)
+        .and_then(|(root, evaluation)| crate::tree::cause_row(root, evaluation));
+    Some(match cause {
+        Some(cause) => Badge::read(
+            PickIndexError::SUBJECT,
+            format!(
+                "pick index: waits on {}, which failed — until the index builds, no pick is \
+                 answered and the picture is not redrawn",
+                crate::tree::node_number(cause)
+            ),
+            Tone::Advisory,
+        )
+        .detailed(format!("pick index: {error}")),
+        None => Badge::read(
             PickIndexError::SUBJECT,
             format!("pick index: {error}"),
             Tone::Actionable,
-        )
+        ),
     })
+}
+
+/// **The root a pick-index refusal is a consequence of**, when the
+/// refusal is the one a root with no value produces — `None` for a
+/// refusal that is the index's own.
+///
+/// Only [`NodePickError::Standing`] is that: it is how the index says
+/// the root has no `Ok` value in the evaluation. Whether that is
+/// because the root failed, was poisoned, or never ran is the tree's
+/// to read, and [`index_badge`] asks it rather than reading the
+/// standing arm here. A tessellation or indexing refusal of a root
+/// that DID evaluate is news no other surface carries.
+///
+/// Exhaustive over both enums, so a new way for the build to refuse
+/// has to decide here whether it follows from a node's failure.
+fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
+    match error {
+        PickIndexError::Node { node, error } => match error {
+            NodePickError::Standing(_) => Some(*node),
+            NodePickError::NotABody { .. }
+            | NodePickError::NoSuchBody { .. }
+            | NodePickError::Tessellate(_)
+            | NodePickError::Index(_) => None,
+        },
+        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
+            None
+        }
+    }
 }
 
 /// **What the chrome badges about a camera that cannot be
@@ -2140,7 +2347,13 @@ pub fn retype_draft(
     })
 }
 
-/// Whether a folded event stream actually moved the camera.
+/// **Whether a folded event stream is a camera event at all**: it
+/// applied a camera operation, refused one, or both — a fold stops at
+/// its first refusal and keeps what it applied before it
+/// ([`Folded::applied`] is a prefix of the input). So `true` does not
+/// say whether the camera moved: a fold whose FIRST operation refused
+/// moved nothing, and one that refused later moved as far as it got.
+/// The name is narrower than the value.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
 /// camera operation is not a camera event.
@@ -2150,10 +2363,11 @@ pub fn retype_draft(
 /// the pointer was inside the viewport. [`fold_status`] closed that at
 /// the other end, so the guard is now near-redundant behaviourally —
 /// it saves one call and a `Camera` copy. It is kept because
-/// [`crate::pane::viewport::land`] is documented as the one place a camera MOVE
-/// becomes application state, and calling it on frames where nothing
-/// moved makes that sentence false and hands any writer later added to
-/// it per-frame behaviour nobody asked for.
+/// [`crate::pane::viewport::land`] is where a camera event becomes
+/// application state — the camera the fold reached, and the refusal
+/// that stopped it — and calling it on frames with no camera event
+/// hands any writer later added to it per-frame behaviour nobody asked
+/// for.
 pub fn folded_moved(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
 }
@@ -2224,8 +2438,8 @@ mod tests {
         assert!(
             folded_moved(&folded),
             "the fold MOVED, so the frame loop lands it — a fold that \
-             moved nothing never reaches the line at all, and this row \
-             would be asserting about a case that cannot happen"
+             is no camera event never reaches the line at all, and this \
+             row would be asserting about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
@@ -2240,6 +2454,18 @@ mod tests {
         );
     }
 
+    /// **The first `apply` below is not a live composition.** No
+    /// production caller hands a [`fold_status`] `Show` to [`apply`]: a
+    /// refused fold reaches the line through [`deliver`], onto the
+    /// frame's notices, and the ranking puts it up. It is here as the
+    /// nearest way to put a camera refusal on the line, so the row can
+    /// ask what the next clean fold's `Expire` does to it — which is
+    /// `apply`'s contract and holds whoever placed the refusal.
+    /// `pane::viewport`'s
+    /// `landing_a_clean_fold_retires_the_camera_refusal_it_landed_before`
+    /// is the row on the live path, through `land` and the ranking; it
+    /// is not a duplicate of this one, and this one does not cover that
+    /// path.
     #[test]
     fn a_clean_fold_retires_the_camera_refusal_it_did_write() {
         // The item's own reproduction: refuse a camera operation, then

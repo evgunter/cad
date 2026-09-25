@@ -9,8 +9,8 @@
 
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, Step, Target,
-    lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target, lift_checked,
+    test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -70,9 +70,13 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
         .zip(crossed.vertices().iter())
         .enumerate()
     {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
+        assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
+        assert_eq!(
+            source.bulges()[i].to_bits(),
+            crossed.bulges()[i].to_bits(),
+            "vertex {i} bulge"
+        );
     }
     assert_eq!(
         crossed.tangent_joints(),
@@ -86,10 +90,10 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
 /// hold, and crossing scalars is not the place to re-adjudicate it.
 #[test]
 fn the_materialization_door_does_not_re_adjudicate_the_table() {
-    let odd: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
+    let odd: ProfileLoop<f64> = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
+        (p2(1.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![7]);
     let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
@@ -155,8 +159,13 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
     // straight side rather than an end cap. Pure reindexing: every
     // stored bit survives, which is what lets the row below ask for
     // bit-identity.
-    let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(
-        (0..n).map(|k| source.vertices()[(k + 1) % n]).collect(),
+    let reseamed: ProfileLoop<f64> = bulge_loop(
+        (0..n)
+            .map(|k| {
+                let j = (k + 1) % n;
+                (source.vertices()[j], source.bulges()[j])
+            })
+            .collect(),
     )
     .with_tangent_joints((0..n).collect());
 
@@ -230,10 +239,10 @@ fn a_declared_joint_closing_straight_lifts_beside_a_sharp_seam() {
 /// "no spelling"; this says what is wrong with the loop.
 #[test]
 fn a_false_declaration_at_the_closing_joint_is_the_drivers_refusal() {
-    let loop_: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.3),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let loop_: ProfileLoop<f64> = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.3),
+        (p2(1.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![2]);
 

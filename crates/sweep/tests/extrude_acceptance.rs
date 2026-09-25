@@ -14,7 +14,7 @@ use geom::Surface;
 use geom_brep::{EdgeDescription, newell_plane};
 use geom_core::Tol;
 use geom_core::{Band, OrthoFrame, Point2, Point3, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{
@@ -51,10 +51,7 @@ fn l_loop() -> ProfileLoop<f64> {
 /// A two-vertex circle (two semicircular arcs) centered at `(cx, cy)`
 /// with radius `r`, counterclockwise as written.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(cx - r, cy), 1.0),
-        ProfileVertex::new(p2(cx + r, cy), 1.0),
-    ])
+    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
 }
 
 /// (v, e, f, r) of a body.
@@ -293,15 +290,15 @@ fn rounded_square_exercises_tangent_line_arc_joins() {
     // declaration per joint including the closing arc's two. Each
     // vertex carries the bulge of the segment LEAVING it: the four
     // straight legs leave with 0, the four quarter-arcs with b.
-    let mut lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.25, 0.0), 0.0),
-        ProfileVertex::new(p2(0.75, 0.0), b),
-        ProfileVertex::new(p2(1.0, 0.25), 0.0),
-        ProfileVertex::new(p2(1.0, 0.75), b),
-        ProfileVertex::new(p2(0.75, 1.0), 0.0),
-        ProfileVertex::new(p2(0.25, 1.0), b),
-        ProfileVertex::new(p2(0.0, 0.75), 0.0),
-        ProfileVertex::new(p2(0.0, 0.25), b),
+    let mut lp = bulge_loop(vec![
+        (p2(0.25, 0.0), 0.0),
+        (p2(0.75, 0.0), b),
+        (p2(1.0, 0.25), 0.0),
+        (p2(1.0, 0.75), b),
+        (p2(0.75, 1.0), 0.0),
+        (p2(0.25, 1.0), b),
+        (p2(0.0, 0.75), 0.0),
+        (p2(0.0, 0.25), b),
     ]);
     lp = lp.with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let t = extrude(
@@ -399,10 +396,7 @@ fn d_profile_mixes_plane_and_cylinder_corners() {
     // Intersections.
     // The chord leaves (-1,0) straight; the closing semicircle leaves
     // (1,0) with bulge 1.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.0), (p2(1.0, 0.0), 1.0)]);
     let t = extrude(
         &validated(vec![lp]),
         Extrusion::Distance(1.0),
@@ -634,13 +628,14 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     // decides).
     use geom_core::{Dual, Dual64};
     let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
-        ProfileLoop::new(
+        bulge_loop(
             lp.vertices()
                 .iter()
-                .map(|v| {
-                    ProfileVertex::new(
-                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
-                        Dual::constant(v.bulge()),
+                .zip(lp.bulges())
+                .map(|(v, &b)| {
+                    (
+                        Point2::new(Dual::constant(v.x), Dual::constant(v.y)),
+                        Dual::constant(b),
                     )
                 })
                 .collect(),

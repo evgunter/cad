@@ -26,7 +26,6 @@
 //! file deliberately checks *decisions*, not endpoints, because
 //! decisions are what the swap was forbidden to change.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Band, Bounds, Decide, Indeterminate, Interval, MarginDiag, Real, Sign};

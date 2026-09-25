@@ -39,7 +39,6 @@
 //!   fixture and belongs with the surgery vocabulary that reads it.
 
 use geom_core::{Decide, Point2, Tol};
-use profile::ProfileVertex;
 use sweep::test_support::{block, brick, prism};
 use topo::Body;
 
@@ -110,7 +109,7 @@ pub fn rounded_plate() -> Body<f64> {
     ];
     prism(
         pts.iter()
-            .map(|&((x, y), b)| ProfileVertex::new(Point2::new(x, y), b))
+            .map(|&((x, y), b)| (Point2::new(x, y), b))
             .collect(),
         0.8,
         Tol::witness(),

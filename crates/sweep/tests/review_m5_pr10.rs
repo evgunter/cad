@@ -16,7 +16,7 @@ use geom_brep::SketchSegment;
 use geom_core::Tol;
 use geom_core::spline::KnotVector;
 use geom_core::{Affine3, Band, Point2, Point3};
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use sweep::skin::{SkinError, make_compatible, segment_curve, skin_on, skin_parameters};
 
 fn ring() -> f64 {
@@ -414,4 +414,46 @@ fn review_ragged_column_rows_get_a_shaped_refusal() {
     .to_string();
     assert!(msg.contains("wide"), "{msg}");
     assert!(!msg.contains("parameter"), "{msg}");
+}
+
+/// **A sub-tolerance arc lofts as the line validation classified it.**
+/// A section whose first side carries the bulge 1e-13 — a sagitta of
+/// 5e-14 on a unit chord, far inside the band — is a validated `Line`,
+/// and the wall's section curve is that line: degree 1, its end
+/// control points the placed vertices exactly. Built from the bulge
+/// instead, the curve is the degree-2 arc of a carrier whose centre is
+/// 2.5e12 away, whose end control points miss the vertices by 2.4e-6
+/// and 2.5e-4.
+#[test]
+fn a_sub_tolerance_arc_lofts_as_a_line() {
+    let section = || {
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, 0.0), 1e-13),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.0),
+            (Point2::new(0.0, 1.0), 0.0),
+        ])]
+    };
+    let places = [
+        Affine3::identity(),
+        Affine3::translation(geom_core::Vec3::new(0.0, 0.0, 1.0)),
+    ];
+    let geometry = sweep::skin::loft_geometry(&[section(), section()], &places, 1, Tol::witness())
+        .expect("the square lofts");
+    for (i, place) in places.iter().enumerate() {
+        let curve = &geometry.sections[0][0][i];
+        assert_eq!(curve.degree(), 1, "section {i}: {curve:?}");
+        let control = curve.control();
+        let want = [
+            place.transform_point(Point3::new(0.0, 0.0, 0.0)),
+            place.transform_point(Point3::new(1.0, 0.0, 0.0)),
+        ];
+        for (got, want) in [(control[0], want[0]), (control[control.len() - 1], want[1])] {
+            assert_eq!(
+                [got.x, got.y, got.z].map(f64::to_bits),
+                [want.x, want.y, want.z].map(f64::to_bits),
+                "section {i}: {got:?} vs {want:?}"
+            );
+        }
+    }
 }

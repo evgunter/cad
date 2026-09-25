@@ -1,5 +1,5 @@
 //! M5 S13 interval lane: the die-pips rows at the CERTIFIED scalar
-//! (feature `interval`).
+//!.
 //!
 //! What this lane is FOR here: the §1 re-cut is the first fallback
 //! path that composes metric trileans (the extent gap), a rigid
@@ -11,20 +11,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::loud_skip_marker!(
-    feature = "interval",
-    row = interval_lane_skipped_no_certified_coverage_here,
-    absent = "certified coverage of the S13 die-pip rows",
-);
-
-#[cfg(feature = "interval")]
 mod certified {
     use crate::common::operands::slab;
     use core::f64::consts::PI;
     use geom_core::Tol;
 
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::{Body, mass_properties};
 
@@ -47,10 +40,7 @@ mod certified {
     fn ball_at(r: f64, centre: Vec3<Interval>) -> Body<Interval> {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
-            ProfileVertex::new(p2(0.0, r), iv(0.0)),
-        ]);
+        let lp = bulge_loop::<Interval>(vec![(p2(0.0, -r), iv(1.0)), (p2(0.0, r), iv(0.0))]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),

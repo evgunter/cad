@@ -8,9 +8,10 @@
 //! refuses a second row under a name it already carries
 //! (`DuplicateName`, whose contract is "the no-silent-aliasing bug"),
 //! and the members of an `Entry::Tied` row all carry the SAME name. So
-//! a row whose name descends from a tie is DEFERRED here and flushed
-//! as a set at a stage boundary, where `insert_tied` can take the
-//! whole candidate list at once.
+//! a row whose name descends from a tie is DEFERRED here, and so is
+//! every candidate of a tie an op mints itself ([`mint_candidates`]);
+//! both are flushed as a set at a stage boundary, where
+//! [`narrow_into`] writes the whole candidate list at once.
 //!
 //! Rows that do not descend from a tie keep going through `insert`
 //! directly, so a genuine aliasing bug is still a typed `Duplicate` —
@@ -97,8 +98,10 @@ pub(super) fn upstream_name(
     })
 }
 
-/// Rows deferred because their name descends from an N2 tie (B1) — or,
-/// for `SectionEdge`, because the op itself mints one (A2).
+/// Rows deferred because their name descends from an N2 tie (B1), or
+/// because the op itself mints several equally-admissible candidates
+/// under one name (A2) — every such minting site defers through
+/// [`mint_candidates`].
 ///
 /// Upstream candidates that were equally admissible stay equally
 /// admissible downstream, so their same-named descendants MERGE into
@@ -137,9 +140,10 @@ impl TieRows {
 /// `graft_names` semantics): the candidates that survive an op — or a
 /// projection onto one output body — are written as `Unique` when
 /// exactly one does and as `Tied` when several do. `flush` writes a
-/// tie's downstream descendants through it, and
-/// [`NameTable::project`] writes a tie's candidates in the selected
-/// body through it, so the two doors cannot narrow differently.
+/// tie's downstream descendants through it, [`NameTable::project`]
+/// writes a tie's candidates in the selected body through it, and
+/// `emit::name_placed_union` writes the prototype candidates the fuse
+/// kept through it, so no two of those doors can narrow differently.
 ///
 /// A tie can straddle two output bodies: a pass-through entity keeps
 /// its upstream name with no side tag, and a split that separates two
@@ -161,6 +165,51 @@ pub(super) fn narrow_into(
     match ents.as_slice() {
         [one] => t.insert_ref(name, *one),
         _ => t.insert_tied_ref(name, ents),
+    }
+}
+
+/// **The one minting rule for candidates an op makes under ONE name**
+/// — the minting counterpart of [`narrow_into`]: a lone candidate is
+/// written as any row is ([`put`]: strict, or deferred when its name
+/// descends from a tie), and several are deferred together as one N2
+/// tie (A2: equally admissible, nothing covariant to tell them apart),
+/// which the flush then writes through [`narrow_into`] as `Tied`.
+/// Every emitter that ends a candidate list in a tie ends it here, so
+/// "one ⇒ strict, several ⇒ tied" has one spelling.
+///
+/// What this does NOT cover, on purpose: a lone member that its
+/// discriminator would answer trivially keeps the base name at the
+/// call site, before any discriminator runs — an `OrderAlong { 0 of 1 }`
+/// or a one-partner `SideOf` says nothing. That is a decision about
+/// the call site's own discriminator, not a minting rule. Where the
+/// several-member branch ends in a tie, it ends here.
+///
+/// An EMPTY list mints nothing and is not an error — an op with no
+/// candidate under a name has no row to write. [`narrow_into`] differs
+/// on purpose: its list is a tie's SURVIVORS, the insert door refuses
+/// an empty one, and a caller whose tie can lose every candidate skips
+/// the call itself.
+///
+/// # Errors
+///
+/// [`DuplicateName`] — a lone strict candidate's insert refused (the
+/// insert doors' own).
+pub(super) fn mint_candidates(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    from_tie: bool,
+    name: impl Into<NameRef>,
+    ents: Vec<super::table::EntityRef>,
+) -> Result<(), DuplicateName> {
+    let name = name.into();
+    match ents.as_slice() {
+        [one] => put(t, tie, from_tie, name, *one),
+        _ => {
+            for e in ents {
+                tie.push(name.clone(), e);
+            }
+            Ok(())
+        }
     }
 }
 

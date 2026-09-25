@@ -820,7 +820,7 @@ impl Scope {
             if self.built.contains(&solid) {
                 continue;
             }
-            for &shell in &body.get_solid(solid)?.shells {
+            for &shell in body.shells_of_solid(solid)? {
                 for &face in &body.get_shell(shell)?.faces {
                     self.faces.insert(face, solid);
                     let f = body.get_face(face)?;

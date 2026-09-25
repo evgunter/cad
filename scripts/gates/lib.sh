@@ -214,8 +214,7 @@ gate_matcher_marker_cleanup() {
 }
 trap gate_matcher_marker_cleanup EXIT
 
-# Gates say what they proved, like their sibling
-# `scripts/check-interval-cfg-additive.py`.
+# Gates say what they proved.
 #
 # GATE_SCAN_NOUN names what was counted. Most gates scan `crates/*/src`
 # and inherit the default; a gate whose subject is something else sets

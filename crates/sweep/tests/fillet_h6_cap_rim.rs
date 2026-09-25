@@ -24,7 +24,9 @@
 use crate::common::cap_rims::{chart_counts, description, face_across, face_edges};
 use geom_brep::{DihedralClass, EdgeDescription, classify_dihedral, edge_extent};
 use geom_core::{Band, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+use profile::{
+    Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
+};
 use sweep::test_support::sketch_from_axes;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey};
@@ -105,10 +107,7 @@ fn l_loop() -> ProfileLoop<f64> {
 /// A circle as two semicircular arcs — one cylinder wall, two
 /// near-closed rim arcs whose chord is a diameter.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(cx - r, cy), 1.0),
-        ProfileVertex::new(p2(cx + r, cy), 1.0),
-    ])
+    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
 }
 
 /// An obround: two lines closed by two semicircular arcs, every join
@@ -116,11 +115,11 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 /// its walls meet the caps as a cylinder-plane pair and a plane-plane
 /// pair at the same rim.
 fn obround_loop() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, -0.5), 0.0),
-        ProfileVertex::new(p2(1.0, -0.5), 1.0),
-        ProfileVertex::new(p2(1.0, 0.5), 0.0),
-        ProfileVertex::new(p2(-1.0, 0.5), 1.0),
+    bulge_loop(vec![
+        (p2(-1.0, -0.5), 0.0),
+        (p2(1.0, -0.5), 1.0),
+        (p2(1.0, 0.5), 0.0),
+        (p2(-1.0, 0.5), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3])
 }
@@ -129,15 +128,15 @@ fn obround_loop() -> ProfileLoop<f64> {
 /// every join tangent-continuous.
 fn stadium_corners_loop() -> ProfileLoop<f64> {
     let q = (core::f64::consts::FRAC_PI_4 / 2.0).tan();
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, -2.0), 0.0),
-        ProfileVertex::new(p2(1.0, -2.0), q),
-        ProfileVertex::new(p2(2.0, -1.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.0), q),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(-1.0, 2.0), q),
-        ProfileVertex::new(p2(-2.0, 1.0), 0.0),
-        ProfileVertex::new(p2(-2.0, -1.0), q),
+    bulge_loop(vec![
+        (p2(-1.0, -2.0), 0.0),
+        (p2(1.0, -2.0), q),
+        (p2(2.0, -1.0), 0.0),
+        (p2(2.0, 1.0), q),
+        (p2(1.0, 2.0), 0.0),
+        (p2(-1.0, 2.0), q),
+        (p2(-2.0, 1.0), 0.0),
+        (p2(-2.0, -1.0), q),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
 }
@@ -145,11 +144,11 @@ fn stadium_corners_loop() -> ProfileLoop<f64> {
 /// A concave arc leg (negative bulge): the wall cylinder's material is
 /// OUTSIDE the carrier, so the wall face carries sense `false`.
 fn concave_arc_loop() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0, 2.0), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0), -0.4),
+    bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(3.0, 0.0), 0.0),
+        (p2(3.0, 2.0), 0.0),
+        (p2(0.0, 2.0), -0.4),
     ])
 }
 
@@ -264,9 +263,9 @@ fn every_extruded_cap_rim_is_transverse() {
             "near-closed single arc rim",
             validated(
                 plane,
-                vec![ProfileLoop::new(vec![
-                    ProfileVertex::new(p2(-1e4 * tol.eps(), 0.0), 100.0),
-                    ProfileVertex::new(p2(1e4 * tol.eps(), 0.0), 0.0),
+                vec![bulge_loop(vec![
+                    (p2(-1e4 * tol.eps(), 0.0), 100.0),
+                    (p2(1e4 * tol.eps(), 0.0), 0.0),
                 ])],
             ),
             Extrusion::Distance(1.0),

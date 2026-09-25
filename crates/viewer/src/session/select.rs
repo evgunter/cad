@@ -208,6 +208,34 @@ impl Selection {
         }
     }
 
+    /// **The node a seated tool takes from this selection**: the node
+    /// itself for a tree click, and for a viewport pick the node whose
+    /// DRAWN body the ray met ([`FaceSelection::node`]).
+    ///
+    /// A different question from [`Selection::node`], and the two
+    /// answers differ exactly where it matters to a tool. The feature
+    /// that minted a face is upstream of every node that carried it:
+    /// a face on a moved copy was minted by the original's extrude
+    /// (a transform mints no name), and a flat on a filleted body by
+    /// the feature the fillet consumed. A tool fed that feature would
+    /// author against a body sitting somewhere the user did not click,
+    /// or against geometry the picture no longer shows. So the tree's
+    /// highlight and the property panel ask [`Selection::node`], and
+    /// every seated tool asks this — `crate::tools`' one pick route.
+    ///
+    /// A pick on a pattern's or a split's picture answers the PATTERN
+    /// or the SPLIT, since that is the root whose value was drawn; the
+    /// output-body index riding on the pick says which of its bodies,
+    /// and no seat reads it.
+    pub fn seat_node(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Node(id) => Some(*id),
+            Self::Face(face) => Some(face.node),
+            Self::Edge(edge) => Some(edge.node),
+            Self::None | Self::Param(_) => None,
+        }
+    }
+
     /// The picked face, when the selection is one.
     pub fn face(&self) -> Option<&FaceSelection> {
         match self {

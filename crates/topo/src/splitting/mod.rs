@@ -651,6 +651,17 @@ pub(crate) fn split_scratch<T: geom_core::Decide>(
 /// refusal — loud and typed, but attributed to the direct run (the
 /// mirror's distinct failure is not reported), at the cost of up to
 /// three pipeline runs.
+///
+/// **The rerun also receives one-sided tangencies.** A plane touching
+/// the solid along an edge from the run's above side closes a zero-area
+/// polygon too, and the refusal cannot say which of the two it is, so
+/// the mirrored run is tried for both. A tangency alone refuses again
+/// there. A tangency whose contact meets a real section elsewhere
+/// would, in the mirrored run, join that contact into the real
+/// section's loop as a zero-width spur of positive net area — a
+/// success with a slit in both halves — and the join refuses it
+/// ([`SplitJoinError::SectionSpur`]), so the direct run's
+/// `DegenerateSection` surfaces.
 /// The result's section-face normals still follow THIS
 /// call's plane convention (above face m = −n, below face m = +n)
 /// because the mirrored run's roles are the swap of ours.

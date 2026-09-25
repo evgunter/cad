@@ -21,9 +21,10 @@
 
 test_utils::gated_to![
     "crates/geom-core/src/spline/",
-    "crates/geom-core/src/ring_interval.rs",
+    "crates/geom-core/src/interval.rs",
 ];
 
+use geom_core::Bounds;
 use geom_core::spline::{KnotVector, basis};
 use test_utils::fuzz;
 
@@ -96,7 +97,7 @@ fn near_collapse_weights_never_escape_the_hull() {
             };
             let domain = pair.domain_hull_rational();
             assert!(
-                !domain.is_poison(),
+                domain.is_certified(),
                 "positive weights must not poison — {}",
                 fuzz::replay()
             );
@@ -182,7 +183,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 .collect();
             for (i, q) in qs.iter().enumerate() {
                 assert!(
-                    !q.is_poison(),
+                    q.is_certified(),
                     "degree {degree}, i {i}: poisoned — {}",
                     fuzz::replay()
                 );
@@ -197,7 +198,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 let den = i128::from(du) * 1024;
                 // Bound endpoints scaled to integers: both are dyadic
                 // multiples of 2^-shift for a shift that covers the
-                // 1/1024 and 1/64 grids plus the ring's one-ulp pads,
+                // 1/1024 and 1/64 grids plus interval arithmetic's one-ulp pads,
                 // so compare via exact f64 → rational conversion.
                 assert!(
                     cmp_bound_vs_ratio(q.lo(), num, den) != std::cmp::Ordering::Greater,
@@ -220,7 +221,7 @@ fn derivative_coefficients_are_exact_by_i128_cross_multiplication() {
                 // width where a relative width exists, an absolute cap
                 // where it does not.
                 //
-                // The absolute cap is DERIVED from the ring's pad
+                // The absolute cap is DERIVED from interval arithmetic's pad
                 // structure, not a constant a fresh seed can outgrow
                 // (#489): around zero each outward pad is one subnormal
                 // step, and the op chain `(dc) * degree / (du/64)` bounds

@@ -895,12 +895,11 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
 /// `transform_rigid` takes `&Body<T>` and works on a CLONE, so what
 /// there is to pin is that the clone is dropped rather than returned: no
 /// body comes back at all.
-#[cfg(feature = "interval")]
 #[test]
 fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     use common::approx::{planar_patch, pulled_back};
     use geom_core::{Bounds, Interval, Real};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+    use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
     let approx_f64 = geom_brep::approx_offset_surface_at(
         Arc::new(pulled_back(&planar_patch(1.0), 0.05)),
@@ -915,8 +914,8 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     let lifted = a.map_scalar(Interval::from_f64);
 
     let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| ProfileVertex::new(geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
-    let lp = ProfileLoop::new(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
+    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a square is a valid profile");

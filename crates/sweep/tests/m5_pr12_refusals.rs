@@ -12,8 +12,7 @@
 use crate::common::approx::band;
 use geom_core::Tol;
 use geom_core::{Point2, Sign, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{
     BlendRequest, chain_g1, convexity_at, corner_config, face_clearance, run_battery,
     spine_regularity,
@@ -639,10 +638,7 @@ fn trio_corner_independence() {
 /// `review_blend1_r1_probes::r1_tilted_cap_is_tier2_valid_and_tier3_names_the_tilt`
 /// and `::r1_tilted_cap_departure_is_the_meridian_reading`.
 fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.5, 0.0), 1.0),
-        ProfileVertex::new(p2(-0.5, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.5, 0.0), 1.0), (p2(-0.5, 0.0), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();

@@ -11,8 +11,9 @@ did not ask it to.
 
 | Area | Modules |
 |---|---|
-| The ring and its instantiations | `src/real.rs`, `src/dual.rs`, `src/interval.rs`, `src/sym.rs`, `src/k_stats.rs` (the `Probe` recorder), `src/ring_interval.rs` |
+| The ring and its instantiations | `src/real.rs`, `src/dual.rs`, `src/interval.rs`, `src/sym.rs`, `src/k_stats.rs` (the `Probe` recorder) |
 | Decisions and tolerance | `src/predicate.rs`, `src/tolerance.rs`, `src/bit_identity.rs` |
+| Refusal text | `src/readable.rs` (`Readable`, the one rendering of an `f64` a refusal message interpolates) |
 | Exact arithmetic | `src/exact.rs` (`two_sum`, the error-free transform a structural door decides a real identity with) |
 | Linear algebra | `src/linalg.rs`, `src/linalg/` |
 | Knot structure | `src/spline/knots.rs` (`KnotVector`, `Span`, `InteriorKnot`), `src/spline/locate.rs` (`SpanLocate`, `SpanSet`) — the S1 clause below |
@@ -77,7 +78,7 @@ clause:
 
 **Coefficients against knots take the same shape, one level down.** A
 coefficient array — whatever a fitting or composition pass produced,
-`f64`, `Interval` or `RingInterval` brackets — is a proof about the knot
+`f64` or `Interval` brackets — is a proof about the knot
 vector it was fitted against, so `hull`'s doors read it through a pair
 that borrows both, and the pair is one of **two types** according to
 the claim it licenses:

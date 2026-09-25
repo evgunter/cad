@@ -6,16 +6,10 @@
 //! where both exist" — rather than merely against "does it still
 //! poison at n.z = `[0,0]`".
 //!
-//! Run:  cargo run -p geom-core --features interval --example r2_onb_dl6
+//! Run:  cargo run -p geom-core --example r2_onb_dl6
 #![allow(clippy::print_stdout)]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-#[cfg(not(feature = "interval"))]
-fn main() {
-    println!("needs --features interval");
-}
-
-#[cfg(feature = "interval")]
 fn main() {
     use geom_core::Vec3;
     use geom_core::interval::Interval;
@@ -138,6 +132,5 @@ fn main() {
 /// `(0, 1]` at every input, so no component can be unbounded and none
 /// is decorated below `Def` by this construction." This is the direct
 /// test of that sentence.
-#[cfg(feature = "interval")]
 #[allow(dead_code)]
 fn r_claim() {}

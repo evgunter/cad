@@ -9,14 +9,6 @@
 //! of the plate would let the picture and the report drift into being
 //! about two different studies, which is the one failure a density
 //! picture cannot survive.
-//!
-//! The split is also what makes the density cell REACHABLE. The
-//! tolerance cell is behind the `interval` feature, because its whole
-//! subject is the certified scalar's leaves; the Monte-Carlo lane is
-//! pure `f64` replay and is ungated on purpose
-//! (`crates/pncad/src/analysis.rs`, and the reason is written there),
-//! so its cell must be too — and it cannot be if the only spelling of
-//! the document sits inside a gated module.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -91,12 +83,7 @@ pub struct Plate {
     pub doc: ProfileDoc,
     /// The web `Measure` node — `distance(wall_a, wall_b) − r_a − r_b`.
     pub measure: RecipeNodeId,
-    /// The `Assertion` over it. Read by [`crate::tolerance`], which is
-    /// behind the `interval` feature, so a default build legitimately
-    /// has no consumer for it — the field is part of the document
-    /// either way and a cell that dropped it would be describing a
-    /// different one.
-    #[cfg_attr(not(feature = "interval"), allow(dead_code))]
+    /// The `Assertion` over it. Read by [`crate::tolerance`].
     pub assertion: RecipeNodeId,
     /// The two hole extrudes, in the order their centres run along
     /// `−x` then `+x`. Carried because a cell that DRAWS the study

@@ -3,7 +3,6 @@
 //! `Resolution` values at both scalar types (tables agree per PR 3's
 //! invariant; verdict logs are scalar-independent; the diagnosis is a
 //! function of both plus the document pair).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
