@@ -128,3 +128,11 @@ that converge in round 0 (every NURBS-walled `step-export` fixture the
 unit measured) leave no round open and pay nothing extra. The
 per-caller priority this row carries may want re-reading with the
 import path in the set.
+
+2026-09-24 (ATREST-3 fix pass): the general mechanism, stated once —
+a face pays one setup for every round window it is entered with
+before its solid's sign settles, plus one more for the continuation
+if a caller then wants the number. Tier 3′ (every
+`validate_pseudomanifold*` and `contact_marks*` door) and `gate3` now
+carry it, so it is on the production import path; a body whose every
+face converges in round 0 pays one setup, as before.
