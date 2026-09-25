@@ -382,6 +382,16 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
     );
 }
 
+/// One in-face row: a label, the body, a point on the face's plane and
+/// its normal (which pick the face), and each probe with its verdict.
+type FaceRow<'a> = (
+    &'a str,
+    &'a Body<f64>,
+    Point3<f64>,
+    Vec3<f64>,
+    Vec<(Point3<f64>, Option<bool>)>,
+);
+
 /// The one planar face of `body` whose plane passes through `at` with
 /// normal `±normal`.
 fn plane_face(body: &Body<f64>, at: Point3<f64>, normal: Vec3<f64>) -> topo::FaceKey {
@@ -452,13 +462,7 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
         Point3::new(x, y, 1.25 - x * 0.3f64.tan())
     };
     let p = Point3::new;
-    let rows: Vec<(
-        &str,
-        &Body<f64>,
-        Point3<f64>,
-        Vec3<f64>,
-        Vec<(Point3<f64>, Option<bool>)>,
-    )> = vec![
+    let rows: Vec<FaceRow<'_>> = vec![
         (
             "two-arc disc cap",
             &disc,
