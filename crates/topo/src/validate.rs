@@ -9629,8 +9629,9 @@ mod tests {
         let disc = on_circle(o, 5.0, OUTER_DEGREES);
         let clear = 4.0 * tol.k() * tol.eps();
         let in_band = tol.eps() * tol.k().sqrt();
+        let square = square_outer();
         // (name, outer loop, outer circle, ring centre, ring radius)
-        let silent: [(&str, &[Point3<f64>], Option<Point3<f64>>, Point3<f64>, f64); 5] = [
+        let silent = [
             ("concentric annulus", &disc, Some(o), o, 2.0),
             (
                 "off-centre hole near the rim",
@@ -9648,14 +9649,14 @@ mod tests {
             ),
             (
                 "hole 4Kε from a straight edge",
-                &square_outer(),
+                &square,
                 None,
                 p(9.0 - clear, 5.0, 0.0),
                 1.0,
             ),
             (
                 "hole well clear of a straight edge",
-                &square_outer(),
+                &square,
                 None,
                 p(8.5, 5.0, 0.0),
                 1.0,
