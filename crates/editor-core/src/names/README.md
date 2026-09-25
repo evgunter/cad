@@ -72,8 +72,13 @@ so some ranks below `of` index a cell no piece of `m` holds — and `rank` is
 the first cell the piece covers. That is an ordinal along the parent's
 oriented carrier, and it moves with neither member order nor which member
 keeps a flush stretch, as far as the boolean's output is itself order-free
-(`emit_union::rank_member_edges`). A seam vertex cites such an edge whole,
-`FromMember(m, e)`, never a piece. The verdicts run through `k_stats`,
+(`emit_union::rank_member_edges`). An edge that lies along several
+members' edges, where they run flush, is a piece of the least of them in
+name order, and an edge lying along a member edge is a piece of it
+whatever the fold named it (`emit_union::Flush`). A seam vertex cites
+such an edge whole, `FromMember(m, e)`, never a piece; a vertex at a
+member vertex is that vertex, and one where a single face crosses a
+member edge is `Seam` of that edge and that face. The verdicts run through `k_stats`,
 so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
@@ -95,7 +100,9 @@ union's collapse rather than flattened (the fragment carve-out is stated once,
 at `RoleSeg::Merged`). A merged row COVERS a name when the name is a constituent
 or is a merged face all of whose faces are (`names/merged.rs`), which is how the
 offers and the union's look-through read a flat set. The
-constituents retire: referencing one fails with the merged name offered, and
+constituents retire: a name a union publishes embeds the merge a
+constituent retired into, never the constituent
+(`emit_union::retire_into_merges`); referencing one fails with the merged name offered, and
 when an edit removes the coincidence the merged name vanishes with its
 constituents offered. Numeric coplanarity never merges, so merges change only at
 recipe edits, structural parameters, or recorded flips; nothing rebinds itself.

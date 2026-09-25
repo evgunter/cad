@@ -521,7 +521,7 @@ type MemberEntity = (RecipeNodeId, StableName);
 /// The face test is what keeps two shells apart that only touch: a
 /// shell's entity lies on the other member's edge or corner, but none
 /// of its faces descends from that member.
-pub(crate) struct Flush<'a, T: geom_core::Decide> {
+struct Flush<'a, T: geom_core::Decide> {
     union: RecipeNodeId,
     body: &'a topo::Body<T>,
     members: &'a [Member<'a, T>],
@@ -688,7 +688,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
         let mut others = BTreeSet::new();
         for k in at {
             for f in self.inc.edge_faces.get(k).into_iter().flatten() {
-                if self.faces.get(f).is_some_and(|from| !from.is_disjoint(&sides)) {
+                if self
+                    .faces
+                    .get(f)
+                    .is_some_and(|from| !from.is_disjoint(&sides))
+                {
                     continue;
                 }
                 let Some(name) = self.face_names.get(f) else {
@@ -708,7 +712,11 @@ impl<'a, T: geom_core::Decide> Flush<'a, T> {
             return Ok(None);
         };
         let edge = member_name(self.union, member, &edge);
-        let (a, b) = if edge < face { (edge, face) } else { (face, edge) };
+        let (a, b) = if edge < face {
+            (edge, face)
+        } else {
+            (face, edge)
+        };
         Ok(Some(StableName {
             kind: EntityKind::Vertex,
             node: self.union,
@@ -974,9 +982,16 @@ fn cite_member_edges<T: geom_core::Decide>(
                 max: along,
             });
         }
-        insert_ranked_or_tied(&mut out, &mut tie, false, &base, &keys, &extents, bnd, |e| {
-            *e
-        })?;
+        insert_ranked_or_tied(
+            &mut out,
+            &mut tie,
+            false,
+            &base,
+            &keys,
+            &extents,
+            bnd,
+            |e| *e,
+        )?;
     }
     tie.flush(&mut out)?;
     Ok(out)
@@ -1832,7 +1847,8 @@ mod tests {
                 body: &body,
                 table: member_table,
             }];
-            let err = rank_member_edges(table, &body, &members, bnd).unwrap_err();
+            let flush = Flush::of(union, &body, &members, &table, bnd).unwrap();
+            let err = rank_member_edges(table, &body, &members, &flush, bnd).unwrap_err();
             assert!(
                 matches!(&err, NamingError::MemberEdgeTied { member, edge: e }
                     if *member == m && **e == edge),

@@ -1,13 +1,16 @@
-//! **A seam junction under a declared union is named by its lines, in
-//! member space, whatever the member order.**
+//! **Where a slab crosses the merged rim of two flush-declared members,
+//! a union names the point by the rim and the slab, whatever the member
+//! order.**
 //!
 //! The pair emitter names a seam JUNCTION — the vertex where k ≥ 2 seam
 //! lines meet and no operand edge does — by the sorted run of those
-//! lines' `Seam` segments. A declared union reaches that shape whenever
-//! a slab crosses the merged edge of two flush-declared members before
-//! the second of them is folded in, and the union's collapse reads the
-//! run as ONE head: each line rewritten into member space and
-//! canonicalized, the run re-sorted.
+//! lines' `Seam` segments. A declared union's fold reaches that shape
+//! whenever a slab crosses the merged edge of two flush-declared members
+//! before the second of them is folded in; folded after them, it meets a
+//! piece of the rim instead. The merged edge lies along a member's rim,
+//! and the published table names the point from the finished body
+//! (`emit_union::cite_member_edges`): that rim, crossed by the slab's
+//! wall.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeSet;
@@ -175,7 +178,13 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
     for (label, g_z, with_h, cap, z) in [
         ("four members", (0.5, 3.0), true, CapEnd::End, 1.0),
         ("three members", (0.5, 3.0), false, CapEnd::End, 1.0),
-        ("through the bottom cap", (-0.5, 1.0), false, CapEnd::Start, 0.0),
+        (
+            "through the bottom cap",
+            (-0.5, 1.0),
+            false,
+            CapEnd::Start,
+            0.0,
+        ),
     ] {
         let Fixture { doc, a, b, g, h } = fixture(g_z, with_h);
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
