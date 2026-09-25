@@ -15,8 +15,8 @@ Ev's standing instructions for implementation work:
   planning and design decisions stay with it; coding and reviews are
   delegated to subagents, which may spawn their own. Every phase —
   implementers, reviewers, and the design, specs and rulings — runs
-  on Opus (Ev, 2026-09-23), except the Fable half of a design-fork
-  review (below).
+  on Opus (Ev, 2026-09-23), except the Fable half of the
+  designer pair (below).
 - **Review tiers — the orchestrator's call per unit, at spec time**
   (Ev, 2026-09-19, dual tier 2026-09-23). The program's `log.md` or
   the unit's item file names the tier and its one-line reason at
@@ -51,13 +51,13 @@ Ev's standing instructions for implementation work:
   wait for sign-off**: changes to ratified DESIGN.md decisions, and open
   questions with several viable answers where Ev's preference matters.
   When unsure which kind a decision is, treat it as a fork.
-- **Before a design fork goes to Ev, two reviewers weigh it** (Ev,
+- **Before a design fork goes to Ev, two designers weigh it** (Ev,
   2026-09-24): one Opus and one Fable, dispatched concurrently, each
-  pointed at `docs/prompts/design-reviewer.md` BY PATH (read it in
+  pointed at `docs/prompts/designer.md` BY PATH (read it in
   full yourself — it binds how you frame the question too) and handed
   the same statement of the question. Neither sees the other's report
   until both are in. If they disagree, hand each the other's report
-  and/or dispatch further reviewers to weigh both, until there are
+  and/or dispatch further designers to weigh both, until there are
   clear recommendations — or a split stated so Ev can rule on it.
   Only then open the `[ev]` PR, whose body carries the
   recommendations and the argument for each. Every such fork is a row

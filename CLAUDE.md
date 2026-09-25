@@ -18,8 +18,8 @@ client over the API), functional style, fail-loud.
   relevant.
 - `docs/prompts/implementer-discipline.md`,
   `docs/prompts/reviewer-style-lane.md` and
-  `docs/prompts/design-reviewer.md` — the standing discipline handed
-  to every implementer, reviewer and design-review lane by path.
+  `docs/prompts/designer.md` — the standing discipline handed
+  to every implementer, reviewer and designer lane by path.
   **Orchestrators read all three in full**: they are the rules the orchestrator adjudicates
   against, and they bind the orchestrator's own judgement too (e.g. a
   golden or stored bit that changes is never a cost to weigh against a
@@ -53,7 +53,7 @@ question — is a PR titled `[ev] ...`, and the `work/` item that asked
 sets `needs_ev: true` ("Ev's channel" in `work/README.md`).
 
 - **A design fork is weighed first** by one Opus and one Fable
-  reviewer (`docs/prompts/design-reviewer.md`), reconciled until the
+  designer (`docs/prompts/designer.md`), reconciled until the
   recommendations are clear; the procedure is in
   `memories/orchestration-model.md`.
 

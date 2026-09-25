@@ -27,7 +27,7 @@ Both leave `docs/` when the experiment concludes.
   ([[orchestration-model]]) send to a dual is a row.
 - **Design-fork review** — `docs/DESIGN-FORK-PROTOCOL.md` (**read it
   before dispatching the pair**) and `docs/DESIGN-FORK-LOG.md`. What
-  the Opus and Fable design reviewers recommended, and what Ev then
+  the Opus and Fable designers recommended, and what Ev then
   decided; every design fork put to Ev is a row.
 
 **Suspended** (no need to read unless Ev reinstates it):
