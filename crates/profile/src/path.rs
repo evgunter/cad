@@ -1185,11 +1185,14 @@ pub enum PathError<T: Real> {
         /// The refused authored datum (bulge, angle, or length).
         value: T,
     },
-    /// A [`circle_split`] subdivision count below 2: one vertex cannot
-    /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
-    /// smallest declared subdivision of a closed carrier is two arcs —
-    /// which is [`circle`]'s own private lowering. A structural check,
-    /// not a classified one: `n` is a count, never a measured value.
+    /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
+    /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
+    /// at θ = 2π), so the smallest declared subdivision of a closed
+    /// carrier is two arcs — which is [`circle`]'s own private
+    /// lowering; and each arc is named by a `u32` piece index
+    /// ([`crate::PieceRole::Piece`]), so a count past that bound would
+    /// spell two arcs alike. A structural check, not a classified one:
+    /// `n` is a count, never a measured value.
     CircleSplitCount {
         /// The refused subdivision count.
         n: usize,
@@ -1809,9 +1812,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
-                "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
-                 carry a full turn (bulge diverges), so the smallest subdivision of a \
-                 closed carrier is two arcs"
+                "circle_split needs between 2 and {max} arcs (got n = {n}): a single vertex \
+                 cannot carry a full turn (bulge diverges), and each arc is named by a u32 \
+                 piece index",
+                max = u32::MAX
             ),
             Self::PolygonTooFewVertices { given } => write!(
                 f,
@@ -2203,6 +2207,39 @@ struct PosData<T: Real> {
     incoming: Option<Incoming<T>>,
 }
 
+/// **The carrier a fillet's run out rides** — its arrival side's: a
+/// ray for a straight arrival, a circle for a fused verb's authored
+/// arrival arc. A run out is a segment ON that carrier (N1's "two
+/// pieces on one carrier"), so only an emission of the same kind can
+/// be it; [`Core::run_out`] says why the kind is the whole test.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArrivalCarrier {
+    /// A straight arrival: the run out is a straight segment.
+    Ray,
+    /// An authored arrival arc: the run out is an arc segment.
+    Circle,
+}
+
+/// A fillet whose run out may be the next emission: the step that
+/// authored its radius, and the carrier the run rides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PendingRunOut {
+    /// The step the fillet's pieces are credited to.
+    step: usize,
+    /// The arrival carrier.
+    carrier: ArrivalCarrier,
+}
+
+impl PendingRunOut {
+    /// Whether a segment of `kind` lies on this run's carrier.
+    fn rides(&self, kind: FirstSeg) -> bool {
+        matches!(
+            (self.carrier, kind),
+            (ArrivalCarrier::Ray, FirstSeg::Line) | (ArrivalCarrier::Circle, FirstSeg::Arc)
+        )
+    }
+}
+
 /// What kind of segment leaves the entry vertex — pinned at first
 /// emission so the seam knows side 1's carrier kind structurally
 /// (never by comparing a bulge to zero).
@@ -2304,11 +2341,26 @@ pub struct Core<T: Real> {
     /// run in or its arc. `None` is the default, the current step's
     /// leg.
     claim: Option<crate::structure::Piece>,
-    /// **A fillet whose run out is the next segment**: set when a
+    /// **A fillet whose run out may be the next segment**: set when a
     /// fillet arc is emitted with something tangent following it, and
-    /// taken by the next emission — which is that run, whatever step
-    /// draws it.
-    run_out: Option<usize>,
+    /// taken by the next emission, which is that run exactly when it
+    /// lies on the fillet's arrival carrier ([`PendingRunOut::rides`]).
+    ///
+    /// The segment's kind decides that, and only the kind, because of
+    /// where a run out can be emitted. A circle run out is emitted by
+    /// the same fused-verb resolution that emits the arc, immediately
+    /// after it, so the next emission is that run. A ray run out whose
+    /// arrival verb draws the next segment itself (`line_to`, the
+    /// far-end anchor, the straight close) is the same. One whose
+    /// arrival only binds the tip (`at`, `toward`, `angle`) leaves the
+    /// tip directed along the arrival ray, and every straight segment
+    /// the chain emits from a directed tip departs along that ray: a
+    /// leg, a `to` continuation, the continuation close, or the next
+    /// fillet's run in. Whatever else can follow it draws an arc on
+    /// another carrier — `tangent_arc_to`, a fused verb's incoming
+    /// arc, a fillet arc sprung off the tip — and that segment is its
+    /// own step's piece, never this fillet's.
+    run_out: Option<PendingRunOut>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2428,17 +2480,17 @@ impl<T: Real> Core<T> {
                 });
             }
         }
-        self.attribute(self.verts.len() - 1)
+        self.attribute(self.verts.len() - 1, kind)
     }
 
     /// **Names the segment leaving vertex `segment`** as the piece it
     /// is (`crate::structure::Piece`): the fillet role a site claimed
     /// for it, or else the current step's leg — and a pending run out
-    /// competes for it either way, since the segment after a fillet's
-    /// arc is that fillet's run out whichever step draws it. A segment
-    /// named before (a closing segment re-set) keeps its earlier name
-    /// where that one outranks.
-    fn attribute(&mut self, segment: usize) -> Result<(), PathError<T>> {
+    /// competes for it when the segment rides the fillet's arrival
+    /// carrier, since that segment is the fillet's run out whichever
+    /// step draws it. A segment named before (a closing segment re-set)
+    /// keeps its earlier name where that one outranks.
+    fn attribute(&mut self, segment: usize, kind: FirstSeg) -> Result<(), PathError<T>> {
         use crate::structure::{Piece, PieceRole};
         let claimed = self.claim.take();
         let mut best = match claimed {
@@ -2450,10 +2502,11 @@ impl<T: Real> Core<T> {
         };
         let run_out = self.run_out.take();
         if best.role != PieceRole::Arc
-            && let Some(step) = run_out
+            && let Some(run) = run_out
+            && run.rides(kind)
         {
             let candidate = Piece {
-                step,
+                step: run.step,
                 role: PieceRole::RunOut,
             };
             if candidate.outranks(&best) {
@@ -3219,9 +3272,12 @@ impl<T: Decide> Core<T> {
                 }
                 self.tangent.push(0);
             }
-            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true, meta.bound_at)?,
+            ArrivalKind::Continues => {
+                self.emit_fillet_arc(&trims, Some(ArrivalCarrier::Ray), meta.bound_at)?;
+            }
             ArrivalKind::EndsAtAnchor => {
-                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive, meta.bound_at)?;
+                let follows = (trims.fit_out == Sign::Positive).then_some(ArrivalCarrier::Ray);
+                self.emit_fillet_arc(&trims, follows, meta.bound_at)?;
             }
         }
         Ok((trims.arc, trims.fit_out))
@@ -3382,7 +3438,10 @@ impl<T: Decide> Core<T> {
             // a construction.
             if kind == ArrivalKind::Continues || trims.fit_out == Sign::Positive {
                 self.declare_last();
-                self.run_out = Some(meta.bound_at);
+                self.run_out = Some(PendingRunOut {
+                    step: meta.bound_at,
+                    carrier: ArrivalCarrier::Ray,
+                });
             }
         }
         Ok((arc, trims.fit_out))
@@ -3490,20 +3549,24 @@ impl<T: Decide> Core<T> {
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
     /// its outgoing joint when something tangent actually follows it
-    /// (see [`ArrivalKind`]) — and then that something is the fillet's
-    /// run out, which the next emission is named as.
+    /// (see [`ArrivalKind`]): `follows` is that something's carrier, the
+    /// arrival side's, and the next emission on it is the fillet's run
+    /// out ([`Core::run_out`]).
     fn emit_fillet_arc(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
-        declare: bool,
+        follows: Option<ArrivalCarrier>,
         bound_at: usize,
     ) -> Result<(), PathError<T>> {
         let leaving = self.record_fillet_arc(t.arc.radius, bound_at)?;
         self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
-        if declare {
+        if let Some(carrier) = follows {
             self.declare_last();
-            self.run_out = Some(bound_at);
+            self.run_out = Some(PendingRunOut {
+                step: bound_at,
+                carrier,
+            });
         }
         Ok(())
     }
@@ -3705,7 +3768,7 @@ fn circle_split_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    if n < 2 {
+    if n < 2 || u32::try_from(n).is_err() {
         return Err(PathError::CircleSplitCount { n });
     }
     let n_t = T::from_f64(n as f64);

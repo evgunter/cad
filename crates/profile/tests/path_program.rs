@@ -1566,6 +1566,58 @@ fn a_leg_a_run_continues_keeps_the_segment() {
     pinned(closed);
 }
 
+/// `at`, `toward(+x)`, `fillet(1)`, `toward(+y)`, `at(2, 1)` — a corner
+/// fillet whose arrival point is exactly its tangent point, so the
+/// chain's next segment is the first one after the arc, drawn by
+/// whichever step comes next.
+fn corner_then() -> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
+    let t = Tol::witness();
+    Open.at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(1.0, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .at(p2(2.0, 1.0), t)
+        .unwrap()
+}
+
+/// **A fillet's run out is only a segment on its arrival carrier.** A
+/// straight leg up the arrival ray after the fillet is its run out,
+/// drawn as one segment with the leg; a tangent arc there rides a
+/// circle, so it is the tangent arc's own leg and the fillet's run out
+/// is not drawn. Crediting the arc to the fillet would let a name on it
+/// move onto whatever straight run the fillet draws once the tangent
+/// arc's step is dropped.
+#[test]
+fn a_run_out_is_only_a_segment_on_the_arrival_carrier() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let t = Tol::witness();
+    let straight = corner_then()
+        .line(1.0, t)
+        .unwrap()
+        .line_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&straight),
+        vec![(2, RunIn), (2, Arc), (2, RunOut), (6, Leg), (7, Leg)]
+    );
+    pinned(straight);
+    let arc = corner_then()
+        .tangent_arc_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&arc),
+        vec![(2, RunIn), (2, Arc), (5, Leg), (6, Leg)]
+    );
+    pinned(arc);
+}
+
 /// **A fused verb's authored arc carrier is its run**: `arc_fillet`'s
 /// incoming arc is its run in, drawn by the fused step itself.
 #[test]

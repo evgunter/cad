@@ -397,19 +397,29 @@ impl ReplayStructure {
     /// the answer is per LOOP and needs no per-segment address — the
     /// shape this record exists for is the chain, where two segments of
     /// one loop are drawn at two different radii.
-    #[must_use]
-    pub fn carrier(segments: usize) -> Self {
-        Self {
+    ///
+    /// # Errors
+    ///
+    /// [`crate::PathError::CircleSplitCount`] when `segments` does not
+    /// fit the `u32` a [`PieceRole::Piece`] stores: two segments sharing
+    /// one stored index would spell one name.
+    pub fn carrier<T: Real>(segments: usize) -> Result<Self, crate::PathError<T>> {
+        let pieces = (0..segments)
+            .map(|k| {
+                u32::try_from(k)
+                    .map(|k| Piece {
+                        step: 0,
+                        role: PieceRole::Piece(k),
+                    })
+                    .map_err(|_| crate::PathError::CircleSplitCount { n: segments })
+            })
+            .collect::<Result<_, _>>()?;
+        Ok(Self {
             fillets: Vec::new(),
             steps: vec![StepSpan::new(0, segments)],
             radii: Vec::new(),
-            pieces: (0..segments)
-                .map(|k| Piece {
-                    step: 0,
-                    role: PieceRole::Piece(u32::try_from(k).unwrap_or(u32::MAX)),
-                })
-                .collect(),
-        }
+            pieces,
+        })
     }
 }
 

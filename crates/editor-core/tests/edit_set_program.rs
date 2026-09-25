@@ -491,6 +491,93 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
     }
 }
 
+/// `At(0,0), Toward(+x), Fillet(1), Toward(+y), At(2,1)`, then `tail`:
+/// a corner fillet whose arrival `at` ends exactly at its tangent point
+/// `(2,1)`, so whatever the tail draws first is the first segment after
+/// the arc.
+fn fillet_then(tail: Vec<ProgramStep>) -> LoopProgram {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let head = vec![
+        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::Toward {
+            dx: scl(1.0),
+            dy: scl(0.0),
+        },
+        ProgramStep::Fillet(len(1.0)),
+        ProgramStep::Toward {
+            dx: scl(0.0),
+            dy: scl(1.0),
+        },
+        ProgramStep::At(pt(2.0, 1.0)),
+    ];
+    LoopProgram::Chain(head.into_iter().chain(tail).collect())
+}
+
+/// **A segment after a fillet on another carrier is its own step's
+/// piece, so dropping that step strands its names.** The tangent arc
+/// `(2,1) → (0,2)` leaves the fillet's tangent point, but on a circle,
+/// not on the fillet's arrival ray `x = 2`: it is the tangent arc's
+/// leg, and the fillet's run out is not drawn. The arc's wall is
+/// painted, and the tangent arc step is replaced by a new `line` up the
+/// ray to `(2,2)` — which IS the fillet's run out, so the new wall
+/// answers to it. The paint spelled the dropped step, so it strands
+/// (DM7) and resolves to nothing; it does not move onto the straight
+/// wall.
+#[test]
+fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let arc_after = fillet_then(vec![
+        ProgramStep::TangentArcTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile, ext) = extruded("run-out-other-carrier", vec![arc_after]);
+    let ids = ids_of(&doc, profile);
+    let arc = wall_by(ext, ids[0][5], PieceRole::Leg);
+    let fillet_run_out = wall_by(ext, ids[0][2], PieceRole::RunOut);
+    let before = corners_of(&doc, ext, &arc);
+    assert!(
+        has_corner3(&before, (2.0, 1.0, 0.0)) && has_corner3(&before, (0.0, 2.0, 0.0)),
+        "the tangent arc's leg is the arc (2,1) → (0,2): {before:?}"
+    );
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    assert!(
+        table(&ev, ext).lookup(&fillet_run_out).is_none(),
+        "the fillet's run out is not drawn: the arc after it rides another carrier"
+    );
+    let doc = paint(&doc, &arc);
+
+    // The tangent arc is dropped for a line and a new corner; the close
+    // is kept.
+    let old = ids_of(&doc, profile);
+    let keep = vec![
+        (0..5)
+            .map(|k| Some(old[0][k]))
+            .chain([None, None, Some(old[0][6])])
+            .collect(),
+    ];
+    let straight_after = fillet_then(vec![
+        ProgramStep::Line(len(1.0)),
+        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Start),
+    ]);
+    let applied = accepted(&doc, profile, vec![straight_after], keep);
+    assert_eq!(
+        applied.maintenance,
+        vec![Maintenance::StrandedAppearance { name: arc.clone() }],
+        "the paint on the dropped step's arc strands"
+    );
+    let ev = fixture::run(&applied.doc, &EvalOptions::default());
+    assert!(
+        table(&ev, ext).lookup(&arc).is_none(),
+        "the stranded paint resolves to nothing"
+    );
+    let wall = corners_of(&applied.doc, ext, &fillet_run_out);
+    assert!(
+        has_corner3(&wall, (2.0, 1.0, 0.0)) && has_corner3(&wall, (2.0, 2.0, 0.0)),
+        "the new line up the arrival ray is the fillet's run out: {wall:?}"
+    );
+}
+
 /// **A name may spell a step a `SetProgram` dropped, never one the
 /// document has not minted.** The dropped id was minted, so a frame on
 /// it inserts (and resolves to nothing, as the stranded fillet does

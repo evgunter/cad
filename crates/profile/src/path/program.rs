@@ -1791,7 +1791,7 @@ transition_table! {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::Circle {
                         centre: center,
@@ -1836,7 +1836,7 @@ transition_table! {
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
-            /// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
             /// — a one-vertex full turn has no bulge representation). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
@@ -1851,7 +1851,7 @@ transition_table! {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::CircleSplit {
                         centre: center,

@@ -368,6 +368,41 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
             panic!("segments {j} and {k} are both {p}: a locator on it would denote two walls");
         }
     }
+    assert_runs_ride_their_carriers(closed);
+}
+
+/// **A fillet's run lies on its own side's carrier**: a run in on the
+/// incoming side's, a run out on the arrival side's — straight where
+/// that side is a ray, an arc where the fused verb authored an arc
+/// carrier for it. A segment on any other carrier is the piece of the
+/// step that drew it, so a run of the wrong kind is a later step's
+/// segment credited to the fillet: a name on it would move to whatever
+/// the fillet's run becomes once that step is dropped.
+pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
+    use profile::{PieceRole, Step};
+    for (k, p) in closed.structure.pieces.iter().enumerate() {
+        let straight = closed.loop_.vertices()[k].bulge() == 0.0;
+        // (incoming side straight, arrival side straight) per fillet verb.
+        let sides = match &closed.program[p.step] {
+            Step::Fillet { .. } => (true, true),
+            Step::FilletArc { .. } => (true, false),
+            Step::ArcFillet { .. } => (false, true),
+            Step::ArcFilletArc { .. } => (false, false),
+            _ => continue,
+        };
+        let want = match p.role {
+            PieceRole::RunIn => sides.0,
+            PieceRole::RunOut => sides.1,
+            PieceRole::Leg | PieceRole::Arc | PieceRole::Piece(_) => continue,
+        };
+        assert_eq!(
+            straight,
+            want,
+            "segment {k} is {p} but is {} while that side's carrier is {}",
+            if straight { "straight" } else { "an arc" },
+            if want { "a ray" } else { "a circle" },
+        );
+    }
 }
 
 /// **The per-step segment span partitions the loop**: one span per
