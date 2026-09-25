@@ -43,3 +43,10 @@ Two more readers of the kept bulge, found in review of #3224:
   constructions build, the carrier is no longer a function of the
   chord and b, and validation needs the predicate that verifies it
   against its vertices.
+
+Found in the fixture-door migration (#3231): a loop built through the
+canonical fixture door stores its carrier as given, but `map_scalar`,
+`reversed` and the lift re-derive the carrier from the stored
+`tan(Δθ/4)` bulge. So for such loops the result can differ from the
+given carrier in the last bits. Retiring the stored bulge here removes
+that.
