@@ -339,17 +339,40 @@ fn enclose_indet(
         return Some(RingInterval::from_bounds(lo, hi));
     }
     if depth >= ENCLOSE_DEPTH {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| "depth exhausted".into());
         return None;
     }
-    let atom = atoms.get(&id)?;
-    let arg = |k: usize| enclose_form_deep(atom.args[k].as_deref()?, params, atoms, depth + 1);
+    let Some(atom) = atoms.get(&id) else {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| format!("unbracketed@{depth} opaque"));
+        return None;
+    };
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_entered(depth + 1);
+    let arg = |k: usize| {
+        let Some(f) = atom.args[k].as_deref() else {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::read_note(|| format!("unbracketed@{depth} {:?} arity", atom.op));
+            return None;
+        };
+        enclose_form_deep(f, params, atoms, depth + 1)
+    };
     let out = match atom.op {
         SymOp::Sqrt => ring_sqrt(arg(0)?),
         SymOp::Abs => ring_abs(arg(0)?),
         SymOp::Min => ring_min(arg(0)?, arg(1)?),
         SymOp::Max => ring_max(arg(0)?, arg(1)?),
-        _ => return None,
+        _ => {
+            #[cfg(feature = "sym-profile-testing")]
+            super::profile::read_note(|| format!("unbracketed@{depth} {:?}", atom.op));
+            return None;
+        }
     };
+    #[cfg(feature = "sym-profile-testing")]
+    if out.is_poison() {
+        super::profile::read_note(|| format!("poison@{depth}"));
+    }
     (!out.is_poison()).then_some(out)
 }
 
@@ -364,9 +387,18 @@ fn enclose_deep(
         let mut term = rat_enclosure(c);
         for &(id, e) in m {
             let x = enclose_indet(id, params, atoms, depth)?;
-            term = term * x.powi(i32::try_from(e).ok()?);
+            let Ok(e) = i32::try_from(e) else {
+                #[cfg(feature = "sym-profile-testing")]
+                super::profile::read_note(|| format!("exponent@{depth}"));
+                return None;
+            };
+            term = term * x.powi(e);
         }
         acc = acc + term;
+    }
+    #[cfg(feature = "sym-profile-testing")]
+    if acc.is_poison() {
+        super::profile::read_note(|| format!("poison@{depth}"));
     }
     (!acc.is_poison()).then_some(acc)
 }
@@ -378,10 +410,16 @@ fn enclose_form_deep(
     depth: usize,
 ) -> Option<RingInterval> {
     if f.poisoned {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_note(|| format!("poisoned argument@{depth}"));
         return None;
     }
     let q =
         enclose_deep(&f.num, params, atoms, depth)? / enclose_deep(&f.den, params, atoms, depth)?;
+    #[cfg(feature = "sym-profile-testing")]
+    if q.is_poison() {
+        super::profile::read_note(|| format!("poison@{depth}"));
+    }
     (!q.is_poison()).then_some(q)
 }
 
@@ -435,16 +473,34 @@ fn strip_positive_content(p: &Poly, sess: &Session) -> Poly {
 /// the caller marks the form `gated` and the discharge is counted
 /// `sign_gated`.
 pub(super) fn decision(d: &Form, sess: &Session) -> Option<bool> {
+    #[cfg(feature = "sym-profile-testing")]
+    let (t0, mark) = (super::profile::clock(), super::profile::read_enclose_mark());
+    let out = read_decision(d, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    if let Some(t0) = t0 {
+        let spent = t0.elapsed();
+        let class = instrument::classify(d, sess, out.is_some());
+        super::profile::read_done(spent, mark, d.digest(), &class);
+    }
+    out
+}
+
+fn read_decision(d: &Form, sess: &Session) -> Option<bool> {
     if d.poisoned {
         return None;
     }
     let enclose = |p: &Poly| {
-        enclose_deep(
-            &strip_positive_content(p, sess),
-            &sess.params,
-            &sess.atoms,
-            0,
-        )
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let stripped = strip_positive_content(p, sess);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_strip(t0);
+        #[cfg(feature = "sym-profile-testing")]
+        let t0 = super::profile::clock();
+        let e = enclose_deep(&stripped, &sess.params, &sess.atoms, 0);
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::read_enclose(t0);
+        e
     };
     let den = enclose(&d.den)?;
     let den_positive = if manifest::positive(&Form::poly(d.den.clone()), sess) || den.lo() > 0.0 {
@@ -475,17 +531,268 @@ pub(super) fn order(
     sess: &Session,
     budget: SymBudget,
 ) -> Option<Form> {
-    let diff = a.add(&b.neg()?, budget)?;
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let diff = b.neg().and_then(|nb| a.add(&nb, budget));
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_order(t0, diff.as_ref().is_none_or(|d| d.poisoned));
+    let diff = diff?;
     if diff.poisoned {
         return None;
     }
-    let mut out = match (op, decision(&diff, sess)?) {
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(true);
+    let le = decision(&diff, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::read_in_order(false);
+    let mut out = match (op, le?) {
         (SymOp::Max, true) | (SymOp::Min, false) => b.clone(),
         (SymOp::Max, false) | (SymOp::Min, true) => a.clone(),
         _ => return None,
     };
     out.gated = true;
     Some(out)
+}
+
+/// The read's INSTRUMENT (`sym-profile-testing` only): why one call of
+/// [`decision`] declined, whether an id-walk over its two halves could
+/// have said so before enclosing, and how deep its enclosure reaches.
+/// It re-encloses what the read enclosed, reads the refusal the
+/// enclosure noted at its own arms (`profile::read_note`), and decides
+/// nothing.
+#[cfg(feature = "sym-profile-testing")]
+mod instrument {
+    use super::super::profile::{ReadClass, read_classifying, read_noted};
+    use super::super::{Session, manifest};
+    use super::{Form, Poly, RingInterval, enclose_deep, strip_positive_content};
+
+    /// One half re-enclosed: the enclosure, the refusal it noted, and
+    /// the deepest atom level it entered.
+    fn half(p: &Poly, sess: &Session) -> (Option<RingInterval>, Option<String>, usize) {
+        read_classifying(true);
+        let e = enclose_deep(p, &sess.params, &sess.atoms, 0);
+        let (note, deepest) = read_noted();
+        read_classifying(false);
+        (e, note, deepest)
+    }
+
+    /// Whether a refusal is one an id-walk sees without an interval.
+    fn structural(note: Option<&String>) -> bool {
+        note.is_some_and(|c| {
+            c.starts_with("unbracketed") || c.starts_with("depth") || c.starts_with("poisoned")
+        })
+    }
+
+    pub(in super::super) fn classify(d: &Form, sess: &Session, settled: bool) -> ReadClass {
+        if d.poisoned {
+            return ReadClass {
+                cause: Some("poisoned form".into()),
+                prepass: false,
+                depth: None,
+            };
+        }
+        let (de, dn, dd) = half(&strip_positive_content(&d.den, sess), sess);
+        let (ne, nn, nd) = half(&strip_positive_content(&d.num, sess), sess);
+        let prepass = structural(dn.as_ref()) || structural(nn.as_ref());
+        let depth = (de.is_some() && ne.is_some()).then_some(dd.max(nd));
+        if settled {
+            return ReadClass {
+                cause: None,
+                prepass,
+                depth,
+            };
+        }
+        // The read's own order: the denominator's half first, and its
+        // sign before the numerator is looked at.
+        let unnoted = || "unnoted".to_owned();
+        let cause = match de {
+            None => dn.unwrap_or_else(unnoted),
+            Some(dv) => {
+                let signed = manifest::positive(&Form::poly(d.den.clone()), sess)
+                    || dv.lo() > 0.0
+                    || dv.hi() < 0.0;
+                if !signed {
+                    "straddle (den)".into()
+                } else if ne.is_none() {
+                    nn.unwrap_or_else(unnoted)
+                } else {
+                    "straddle (num)".into()
+                }
+            }
+        };
+        ReadClass {
+            cause: Some(cause),
+            prepass,
+            depth,
+        }
+    }
+
+    /// **Every refusal of the enclosure is noted, and named as the
+    /// enclosure made it** — at the shapes a decision form carries: an
+    /// opaque id at the top, a root chain either side of the cap over a
+    /// bracketed or an opaque leaf, `abs`, both arguments of
+    /// `min`/`max`, a missing argument, an unbracketed id in an
+    /// argument's DENOMINATOR, a poisoned argument, a root of a
+    /// negative bracket, and an atom no enclosure reaches. A refusal
+    /// arm without its note reds here as `None`.
+    #[cfg(test)]
+    #[allow(clippy::unwrap_used)]
+    mod tests {
+        use std::sync::Arc;
+
+        use super::super::super::profile::{read_classifying, read_noted};
+        use super::super::super::{AtomInfo, IndetMap, SymOp};
+        use super::super::{ENCLOSE_DEPTH, Form, Poly, enclose_deep};
+
+        const PARAM: u128 = 1;
+        const NEG: u128 = 2;
+        const OPAQUE: u128 = 999;
+        const TOP: u128 = 7;
+
+        fn f(id: u128) -> Option<Arc<Form>> {
+            Some(Arc::new(Form::poly(Poly::indet(id))))
+        }
+
+        /// `k` nested `sqrt` atoms over `leaf`, ids `100 ..`; answers
+        /// the outermost.
+        fn chain(atoms: &mut IndetMap<AtomInfo>, k: usize, leaf: u128) -> u128 {
+            let mut inner = leaf;
+            for i in 0..k {
+                let id = 100 + i as u128;
+                atoms.insert(
+                    id,
+                    AtomInfo {
+                        op: SymOp::Sqrt,
+                        payload: 0,
+                        args: [f(inner), None, None],
+                    },
+                );
+                inner = id;
+            }
+            inner
+        }
+
+        /// One atom at the top: what it is, its op, its arguments, and
+        /// the note its enclosure must make (`None`: it encloses).
+        type AtTop<'a> = (&'a str, SymOp, [Option<Arc<Form>>; 3], Option<&'a str>);
+
+        fn noted(
+            p: &Poly,
+            params: &IndetMap<(f64, f64)>,
+            atoms: &IndetMap<AtomInfo>,
+        ) -> (bool, Option<String>, usize) {
+            read_classifying(true);
+            let e = enclose_deep(p, params, atoms, 0);
+            let (note, deepest) = read_noted();
+            read_classifying(false);
+            (e.is_some(), note, deepest)
+        }
+
+        #[test]
+        fn every_refusal_of_the_enclosure_is_noted_where_it_is_made() {
+            let mut params = IndetMap::default();
+            params.insert(PARAM, (1.0, 2.0));
+            params.insert(NEG, (-2.0, -1.0));
+            // Root chains, behind a bracketed term the enclosure meets
+            // first: `(depth entered or the note)`.
+            let chains: [(usize, u128, Result<usize, &str>); 6] = [
+                (0, PARAM, Ok(0)),
+                (0, OPAQUE, Err("unbracketed@0 opaque")),
+                (2, PARAM, Ok(2)),
+                (2, OPAQUE, Err("unbracketed@2 opaque")),
+                (ENCLOSE_DEPTH, PARAM, Ok(ENCLOSE_DEPTH)),
+                (ENCLOSE_DEPTH, OPAQUE, Err("depth exhausted")),
+            ];
+            for (k, leaf, want) in chains {
+                let mut atoms = IndetMap::default();
+                let top = chain(&mut atoms, k, leaf);
+                let p = Poly::indet(PARAM).add(&Poly::indet(top)).unwrap();
+                let (encloses, note, deepest) = noted(&p, &params, &atoms);
+                match want {
+                    Ok(d) => {
+                        assert!(encloses && note.is_none(), "{k} over {leaf}: {note:?}");
+                        assert_eq!(deepest, d, "{k} over {leaf}: the depth entered");
+                    }
+                    Err(c) => {
+                        assert!(!encloses, "{k} over {leaf}");
+                        assert_eq!(note.as_deref(), Some(c), "{k} over {leaf}");
+                    }
+                }
+            }
+            // One atom at the top, by op and arguments.
+            let x = f(PARAM);
+            let o = f(OPAQUE);
+            let over = Some(Arc::new(Form::quotient(
+                Poly::indet(PARAM),
+                Poly::indet(OPAQUE),
+            )));
+            let atoms_at: [AtTop<'_>; 9] = [
+                (
+                    "abs of the parameter",
+                    SymOp::Abs,
+                    [x.clone(), None, None],
+                    None,
+                ),
+                ("max of two", SymOp::Max, [x.clone(), x.clone(), None], None),
+                (
+                    "max, opaque second",
+                    SymOp::Max,
+                    [x.clone(), o.clone(), None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "min, opaque second",
+                    SymOp::Min,
+                    [x.clone(), o, None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "min, second missing",
+                    SymOp::Min,
+                    [x.clone(), None, None],
+                    Some("unbracketed@0 Min arity"),
+                ),
+                (
+                    "sqrt over x / opaque",
+                    SymOp::Sqrt,
+                    [over, None, None],
+                    Some("unbracketed@1 opaque"),
+                ),
+                (
+                    "sqrt over poison",
+                    SymOp::Sqrt,
+                    [Some(Arc::new(Form::poison())), None, None],
+                    Some("poisoned argument@1"),
+                ),
+                (
+                    "sqrt of a negative bracket",
+                    SymOp::Sqrt,
+                    [f(NEG), None, None],
+                    Some("poison@0"),
+                ),
+                (
+                    "select over parameters",
+                    SymOp::Select,
+                    [x.clone(), x.clone(), x],
+                    Some("unbracketed@0 Select"),
+                ),
+            ];
+            for (what, op, args, want) in atoms_at {
+                let mut atoms = IndetMap::default();
+                atoms.insert(
+                    TOP,
+                    AtomInfo {
+                        op,
+                        payload: 0,
+                        args,
+                    },
+                );
+                let (encloses, note, _) = noted(&Poly::indet(TOP), &params, &atoms);
+                assert_eq!(encloses, want.is_none(), "{what}: the enclosure");
+                assert_eq!(note.as_deref(), want, "{what}: the note");
+            }
+        }
+    }
 }
 
 #[cfg(test)]

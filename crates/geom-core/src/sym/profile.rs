@@ -323,6 +323,136 @@ pub struct SymProfile {
     /// the unnamed `AxisScalar::axis`, and a drive binds its axes
     /// through `axis_named`.
     pub opaque_ids: Vec<BTreeSet<u128>>,
+    /// **The decision read's cost** ([`ReadProfile`]).
+    pub read: ReadProfile,
+}
+
+/// **The decision read's cost** (`signed::decision`, and
+/// `signed::order` in front of it at `min`/`max`): how often it is
+/// asked, what it answers, WHY it declines, and where its time goes —
+/// the measurement that says which of the cheap answers before the
+/// enclosure would pay.
+///
+/// **A decline's cause is the enclosure's own refusal**, noted at the
+/// arm of `signed::enclose_indet` / `enclose_deep` that refused it
+/// ([`read_note`]), so there is one spelling of what the enclosure
+/// reaches. The instrument re-encloses each half after the read has
+/// answered and reads the first note: an atom past the depth cap
+/// (`depth exhausted`, the cap's test coming first, as the enclosure
+/// makes it); an indeterminate with no bracket at the top of a half
+/// (`unbracketed@0`) or `k` atom levels down (`unbracketed@k`), with
+/// what it is (an atom's op, or `opaque` for an id no atom was minted
+/// for); a poisoned argument; or a poisoned bracket. Past those, the
+/// read's own order decides: the denominator's half straddles, or the
+/// numerator's.
+///
+/// `prepass` counts the declines where either half's enclosure is
+/// refused STRUCTURALLY — an unbracketed id, the cap, a poisoned
+/// argument — which an id-walk over both halves could prove before an
+/// interval is built. A half the enclosure refuses on a poisoned
+/// bracket first is not counted, so the column is a floor.
+#[derive(Clone, Debug, Default)]
+pub struct ReadProfile {
+    /// Reads asked at the `Select` door.
+    pub select: u64,
+    /// Reads asked at `min`/`max` (`signed::order`), before the
+    /// difference is built.
+    pub order: u64,
+    /// Of those, the ones whose difference `a − b` the ring or the
+    /// budget refused, so `signed::decision` was never asked. A
+    /// POISONED difference is not a second arm: `combine` answers
+    /// poison before `order` when either kid is tainted, and
+    /// `Form::add` poisons only a tainted pair.
+    pub order_refused: u64,
+    /// Time building `a − b` at `min`/`max`.
+    pub order_diff: Duration,
+    /// Reads that returned an arm.
+    pub settled: u64,
+    /// Declines, by cause (see the type's doc).
+    pub declines: BTreeMap<String, u64>,
+    /// Wall time of the read itself, every call: from entering
+    /// `signed::decision` to its answer, the instrument's own
+    /// re-enclosure and the form's digest excluded.
+    pub time: Duration,
+    /// Of it, stripping the manifestly positive content.
+    pub strip: Duration,
+    /// Of it, the enclosure (`enclose_deep`, both halves).
+    pub enclose: Duration,
+    /// Declines an id-walk over both halves could prove (see the
+    /// type's doc).
+    pub prepass: u64,
+    /// The read time of the calls in `prepass`.
+    pub prepass_time: Duration,
+    /// Of it, the enclosure alone — the most a pre-pass could save,
+    /// since it must strip the halves before it walks them, and before
+    /// its own cost.
+    pub prepass_enclose: Duration,
+    /// Reads whose decision form's digest this session had already
+    /// read — what a per-session memo keyed by the digest would hit.
+    /// The digest carries the `gated` bit, which does not move the
+    /// read, so a memo keyed without it could hit more: this is a
+    /// floor.
+    pub repeats: u64,
+    /// The read time of those repeats.
+    pub repeat_time: Duration,
+    /// Reads whose two halves both enclose, by the deepest atom level
+    /// the enclosure enters (0: parameters and π alone), with the ones
+    /// that settled beside: `(asked, settled)`.
+    pub depth: BTreeMap<usize, (u64, u64)>,
+}
+
+/// What the instrument learned about one call of the read, beside its
+/// answer.
+pub(super) struct ReadClass {
+    /// The decline's cause, `None` where the read settled.
+    pub cause: Option<String>,
+    /// Whether an id-walk could prove the decline before any enclosure.
+    pub prepass: bool,
+    /// The deepest atom level the enclosure enters, where both halves
+    /// enclose.
+    pub depth: Option<usize>,
+}
+
+impl ReadProfile {
+    /// The read's table, as text.
+    #[must_use]
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        let asked = (self.select + self.order).checked_sub(self.order_refused);
+        let declined = asked.and_then(|a| a.checked_sub(self.settled));
+        let _ = writeln!(
+            f,
+            "read: select {} order {} (a-b refused {}, built in {:?})  asked {asked:?}  \
+             settled {}  declined {declined:?}",
+            self.select, self.order, self.order_refused, self.order_diff, self.settled,
+        );
+        let _ = writeln!(
+            f,
+            "read time {:?}: strip {:?}, enclose {:?}",
+            self.time, self.strip, self.enclose
+        );
+        for (cause, n) in &self.declines {
+            let _ = writeln!(f, "  decline {cause:<34} {n}");
+        }
+        let _ = writeln!(
+            f,
+            "pre-pass-provable declines {} ({:?} of read time, {:?} of it enclosing)",
+            self.prepass, self.prepass_time, self.prepass_enclose
+        );
+        let _ = writeln!(
+            f,
+            "digest memo: {} repeats ({:?} of read time)",
+            self.repeats, self.repeat_time
+        );
+        for (d, (asked, settled)) in &self.depth {
+            let _ = writeln!(
+                f,
+                "  enclosable at depth {d}: asked {asked} settled {settled}"
+            );
+        }
+        f
+    }
 }
 
 // The install / take scaffold is `report`'s, spelled again: two
@@ -343,6 +473,20 @@ thread_local! {
     /// [`Walk::charged`], so a retry's forms land in their own buckets
     /// and the first attempt's rows are what they were.
     static ATTEMPT: Cell<u8> = const { Cell::new(0) };
+
+    /// The decision forms this session's reads have already asked, by
+    /// digest ([`ReadProfile::repeats`]).
+    static READ_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
+
+    /// Whether the read running was asked by `signed::order`.
+    static IN_ORDER: Cell<bool> = const { Cell::new(false) };
+
+    /// Whether the instrument is re-enclosing a half ([`read_note`]
+    /// records only then), the first refusal noted since it began, and
+    /// the deepest atom level entered.
+    static CLASSIFYING: Cell<bool> = const { Cell::new(false) };
+    static READ_NOTE: RefCell<Option<String>> = const { RefCell::new(None) };
+    static READ_DEEPEST: Cell<usize> = const { Cell::new(0) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -623,6 +767,7 @@ pub(super) fn trig_done(t0: Option<Instant>) {
 pub(super) fn session_start() {
     if active() {
         OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
+        READ_SEEN.with(|s| s.borrow_mut().clear());
     }
 }
 
@@ -635,6 +780,107 @@ pub(super) fn session_done(nodes: usize, atoms: usize) {
         p.atoms += atoms as u64;
         p.opaque_ids.push(opaque);
     });
+}
+
+/// `signed::order` opened (`true`) or closed (`false`) a read: the
+/// calls inside are charged to `min`/`max`.
+pub(super) fn read_in_order(on: bool) {
+    IN_ORDER.set(on);
+}
+
+/// `signed::order` built (or refused) its difference.
+pub(super) fn read_order(t0: Option<Instant>, refused: bool) {
+    with(|p| {
+        p.read.order += 1;
+        p.read.order_diff += elapsed(t0);
+        p.read.order_refused += u64::from(refused);
+    });
+}
+
+/// One half's positive content stripped.
+pub(super) fn read_strip(t0: Option<Instant>) {
+    with(|p| p.read.strip += elapsed(t0));
+}
+
+/// One half enclosed.
+pub(super) fn read_enclose(t0: Option<Instant>) {
+    with(|p| p.read.enclose += elapsed(t0));
+}
+
+/// The enclosure time so far — the mark [`read_done`] reads a call's
+/// own enclosure time against.
+pub(super) fn read_enclose_mark() -> Duration {
+    let mut d = Duration::ZERO;
+    with(|p| d = p.read.enclose);
+    d
+}
+
+/// One read finished: the read's own time, its form's digest, and
+/// what the instrument learned about it.
+pub(super) fn read_done(spent: Duration, mark: Duration, digest: u128, class: &ReadClass) {
+    let repeat = active() && !READ_SEEN.with(|s| s.borrow_mut().insert(digest));
+    let in_order = IN_ORDER.get();
+    with(|p| {
+        let r = &mut p.read;
+        if !in_order {
+            r.select += 1;
+        }
+        r.time += spent;
+        match &class.cause {
+            None => r.settled += 1,
+            Some(c) => *r.declines.entry(c.clone()).or_default() += 1,
+        }
+        if class.prepass {
+            r.prepass += 1;
+            r.prepass_time += spent;
+            r.prepass_enclose += r.enclose.saturating_sub(mark);
+        }
+        if repeat {
+            r.repeats += 1;
+            r.repeat_time += spent;
+        }
+        if let Some(d) = class.depth {
+            let e = r.depth.entry(d).or_default();
+            e.0 += 1;
+            e.1 += u64::from(class.cause.is_none());
+        }
+    });
+}
+
+/// The instrument begins (`true`) or ends (`false`) re-enclosing one
+/// half: the note and the depth start empty.
+pub(super) fn read_classifying(on: bool) {
+    CLASSIFYING.set(on);
+    READ_NOTE.with(|n| *n.borrow_mut() = None);
+    READ_DEEPEST.set(0);
+}
+
+/// **The enclosure refused, and why** — called at each refusal arm of
+/// `signed::enclose_indet` / `enclose_deep`. Records only while the
+/// instrument is re-enclosing, and keeps the FIRST note: the innermost
+/// refusal, which every enclosing level then passes up.
+pub(super) fn read_note(cause: impl FnOnce() -> String) {
+    if CLASSIFYING.get() {
+        READ_NOTE.with(|n| {
+            let mut n = n.borrow_mut();
+            if n.is_none() {
+                *n = Some(cause());
+            }
+        });
+    }
+}
+
+/// The enclosure entered an atom `level` levels down (1 for an atom at
+/// the top of a half).
+pub(super) fn read_entered(level: usize) {
+    if CLASSIFYING.get() {
+        READ_DEEPEST.set(READ_DEEPEST.get().max(level));
+    }
+}
+
+/// The note and the deepest level since [`read_classifying`] began.
+pub(super) fn read_noted() -> (Option<String>, usize) {
+    (READ_NOTE.with(|n| n.borrow().clone()), READ_DEEPEST.get())
 }
 
 /// One id the PLAIN walk put a form in its memo for — the distinct

@@ -871,6 +871,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
             let mut best = f64::INFINITY;
             let mut leaf = (false, geom_core::SymCounts::default());
             let mut held = (Vec::new(), 0);
+            let mut read = String::new();
             for _ in 0..takes.max(1) {
                 if profiled {
                     geom_core::sym::profile::start_profile();
@@ -881,6 +882,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
                 if profiled {
                     let p = geom_core::sym::profile::take_profile();
                     held = (p.retry_forms, p.nodes / p.sessions.max(1));
+                    read = p.read.render();
                 }
             }
             if profiled {
@@ -888,6 +890,9 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
                     "   {name:<20} {label}: retry memos {:?} (DAG {} nodes a session)",
                     held.0, held.1
                 );
+                // The decision read's own table (`ReadProfile`), the
+                // measurement `decide_6_read_cost_interval` takes in dev.
+                print!("{read}");
             }
             let d = leaf.1;
             println!(
