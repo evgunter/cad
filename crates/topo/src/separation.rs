@@ -7,7 +7,10 @@
 //! takes one body and proves that two of its solids cannot touch,
 //! AFTER one, in the body's own frame. Both discharge the same
 //! obligation for a different caller, and the second door's own header
-//! says why it exists.
+//! says why it exists. Beside them, [`SolidOwners`] says which solid of
+//! a body each face and vertex belongs to — a read of structure with no
+//! box rule, for a caller holding entity-keyed records that it needs to
+//! ask about at solid granularity.
 //!
 //! The recipe layer's group boolean (`PlacedUnion`) fuses N copies of one
 //! prototype into ONE body through the disjoint-graft door
@@ -507,23 +510,22 @@ impl SolidSeparation {
 /// contacts, a picked face) can ask its question at solid
 /// granularity.
 ///
-/// Built from STORED structure, reading it in opposite directions:
-/// the FACE map walks the forward ownership lists —
-/// [`Solid::shells`](crate::entity::Solid::shells) then
-/// [`Shell::faces`](crate::entity::Shell::faces) — while the VERTEX
-/// map follows back-pointers to a face from each of the two things
-/// tier 1 lets anchor a vertex: a half-edge starting at it, which
-/// names its loop and the loop its face, or the one
-/// [`LoopBoundary::Empty`](crate::entity::LoopBoundary::Empty) loop
-/// holding it as a lone vertex. Tier 1 validates both directions
-/// against each other, so this is a read of structure and never a
-/// geometric decision: no tolerance enters.
+/// Built from STORED structure by one forward walk of the ownership
+/// lists — [`Solid::shells`](crate::entity::Solid::shells), then
+/// [`Shell::faces`](crate::entity::Shell::faces), then each face's
+/// outer loop and rings — placing a loop's vertices in the solid it
+/// was reached from: the start of every half-edge of a cycle, or the
+/// lone vertex of an
+/// [`LoopBoundary::Empty`](crate::entity::LoopBoundary::Empty) loop.
+/// This is a read of structure and never a geometric decision: no
+/// tolerance enters.
 ///
 /// **A body that passes tier 1 has a total map.** Every face lies in
-/// a shell some solid lists, and every vertex is anchored by incident
-/// half-edges or by exactly one empty loop, so both maps place every
-/// entity of their kind — the lone vertex of a bare
-/// [`Body::mvfs`](crate::Body::mvfs) seed included.
+/// a shell some solid lists and every loop in a face's outer-or-rings
+/// list, and every vertex is anchored by incident half-edges — each
+/// the member of some loop's cycle — or by exactly one empty loop, so
+/// the walk places every face and every vertex, the lone vertex of a
+/// bare [`Body::mvfs`](crate::Body::mvfs) seed included.
 #[derive(Debug, Clone, Default)]
 pub struct SolidOwners {
     faces: slotmap::SecondaryMap<crate::entity::FaceKey, SolidKey>,
@@ -531,20 +533,22 @@ pub struct SolidOwners {
 }
 
 impl SolidOwners {
-    /// Builds the map in one pass over the shells, one over the
-    /// half-edge arena and one over the loop arena.
+    /// Builds the map in one walk of the solids' ownership lists.
     ///
-    /// An entity whose back-pointer chain does not resolve is simply
-    /// absent, never guessed at: the map is a lookup, and a caller that
-    /// gets `None` learns that this body does not place the entity,
-    /// which is a fact it can act on.
+    /// An entity the walk cannot resolve — a shell, face or loop key
+    /// that is stale, or a cycle that does not close — is simply
+    /// skipped, with everything it would have led to: never guessed
+    /// at. The map is a lookup, and a caller that gets `None` learns
+    /// that this body does not place the entity, which is a fact it can
+    /// act on.
     pub fn of<T: geom_core::Real>(body: &Body<T>) -> Self {
         // The crate builds this index a second time, as the working
         // set of the simultaneous offset doors
-        // (`offset_together::Scope`, whose doc says why the two stay
-        // separate doors: they refuse differently). On a tier-1-valid
-        // body they agree about every face and vertex, and
-        // `owner_index` below reds if they stop.
+        // (`offset_together::Scope`): the same walk, over named solids
+        // only, refusing where this one skips — its doc says why the
+        // two stay separate doors. On a tier-1-valid body they agree
+        // about every face and vertex, and `owner_index` below reds if
+        // they stop.
         let mut faces = slotmap::SecondaryMap::new();
         let mut vertices = slotmap::SecondaryMap::new();
         for (solid_key, solid) in body.solids() {
@@ -554,26 +558,31 @@ impl SolidOwners {
                 };
                 for &face in &shell.faces {
                     faces.insert(face, solid_key);
+                    let Some(f) = body.get_face(face) else {
+                        continue;
+                    };
+                    for r#loop in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
+                        let Some(l) = body.get_loop(r#loop) else {
+                            continue;
+                        };
+                        match l.boundary {
+                            crate::entity::LoopBoundary::Empty { vertex } => {
+                                vertices.insert(vertex, solid_key);
+                            }
+                            crate::entity::LoopBoundary::Cycle { first } => {
+                                let Some(cycle) = body.loop_cycle(first) else {
+                                    continue;
+                                };
+                                for he in cycle {
+                                    if let Some(half) = body.get_half_edge(he) {
+                                        vertices.insert(half.start, solid_key);
+                                    }
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        }
-        for (_, he) in body.half_edges() {
-            let Some(r#loop) = body.get_loop(he.parent_loop) else {
-                continue;
-            };
-            let Some(&solid) = faces.get(r#loop.face) else {
-                continue;
-            };
-            vertices.insert(he.start, solid);
-        }
-        for (_, r#loop) in body.loops() {
-            let crate::entity::LoopBoundary::Empty { vertex } = r#loop.boundary else {
-                continue;
-            };
-            let Some(&solid) = faces.get(r#loop.face) else {
-                continue;
-            };
-            vertices.insert(vertex, solid);
         }
         Self { faces, vertices }
     }
@@ -592,10 +601,10 @@ impl SolidOwners {
 #[cfg(test)]
 mod owner_index {
     //! [`SolidOwners`] against the other owner index this crate builds,
-    //! the offset scope's ([`crate::offset_together::Scope`]). The two
-    //! read the body in opposite directions — back-pointers here, the
-    //! forward ownership lists there — and a lone vertex is the entity
-    //! on which those directions part: it has no half-edge.
+    //! the offset scope's ([`crate::offset_together::Scope`]). Both
+    //! walk solids → shells → faces → loops; a lone vertex is the
+    //! entity a walk that reached vertices through half-edges alone
+    //! would miss, since it has none.
 
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
