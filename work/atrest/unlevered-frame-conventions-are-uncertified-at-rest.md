@@ -44,9 +44,14 @@ the file's ε_in and divides by the norm otherwise
 chord re-minted with `dir = 2·x̂` (parameters `0 … 0.5`) and with
 `dir = ½·x̂` (`0 … 2`): both mint and pass tier 3.
 
-**Measured frame surface (ATREST-13, CI run on the corpus instrument)**
-— see ATREST-13's PR for the per-kind maxima; no f64 frame in the
-corpus is off unit beyond rounding.
+**Measured (ATREST-13, CI run 36154432046, every `validate_geometric`
+call of the suite, the tour and the wild corpus):** the unlevered half
+is not at rounding everywhere. A demos-job body (the tour's or the wild
+montage's binary) carries a plane whose `normal` is `0.26` off unit; a
+`bool1` row (`near_flush_regimes_pin_per_band`) a plane whose `u_ref`
+is `1.6e-11` off `⊥ normal`; the wild corpus's lines are `6.4e-13` off
+unit. None is refused, and none is a different locus as check 1 now
+reads one.
 
 ## What must be decided
 
