@@ -45,12 +45,15 @@ there, so the class cannot recur, over one that makes this instance stop
 showing. Two descriptions of one thing that disagree usually point at a deeper
 design issue; say so rather than reconciling them locally.
 
-## 4. Weigh only the final state
+## 4. Weigh only the final state of the code
 
 **Disregard the cost of the change**: re-baselining, changed behaviour,
 refactoring callers, a larger diff. Compare the answers as if each were
-already landed. Ergonomics and clean layering do count — they are properties
-of the final state. If a cost is so large it changes what is feasible, say
+already landed. "Final state" means the code after the work is done, not
+only what it outputs. Two answers that return the same body, value or
+geometry are not equivalent when one of them builds something wrong and
+then repairs it. Ergonomics and clean layering do count — they are
+properties of the final state. If a cost is so large it changes what is feasible, say
 that separately; do not fold it into the ranking.
 
 Questions that tend to decide between final states here:
