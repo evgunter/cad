@@ -90,3 +90,15 @@ best made by whoever next edits two of the three.
 (`Cargo.toml` `[workspace.lints.clippy]`, D9's D2 addendum). 3142's
 reason for keeping the tie-flush arm typed is corrected to the true one:
 a document reaches it.
+
+## 2026-09-25 — Ev's #3200 narrows the member-space unit
+
+EMIT's `[ev]` PR 3200 (merged by Ev on 2026-09-25) rewrites DM4. Contact
+is judged pairwise in member space before the fold. A declared contact
+whose face the fold consumes WHOLE by containment is satisfied, not
+refused. **So containment leaves GATHER's bound.** What stays GATHER's
+is a face that survives only in pieces: one split by a later member, or
+one inside a merged row that a later step fragmented. The member-space
+lane brought main in and dropped its containment arm to match (branch
+`gather/member-space-typed-refusals`, `7271fde5e`). The pairwise
+pre-pass itself is `wire_union`'s, a WIRE/EMIT unit, and not ours.
