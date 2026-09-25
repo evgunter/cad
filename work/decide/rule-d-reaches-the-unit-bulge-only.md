@@ -8,7 +8,6 @@ refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census
 parent: SYM-3
 priority: P1
 cost: D
-needs_ev: true
 ---
 
 **Filed by M10-10's fix pass from both reviews' end-to-end probes**
@@ -450,6 +449,13 @@ the literal's" is now true of every row but that one
 (`m10_bulge_interval` pins both).
 
 ## The bulge's sign: how the tier learns it (DECIDE-4's fork)
+
+Ruled by Ev on #3186 (2026-09-25), both decisions as written below.
+Route B is DECIDE-5, its own unit, since DECIDE-4 had closed its review
+before the ruling. The apothem's sign is
+`the-apothems-sign-is-a-value-read`. This item closes when DECIDE-5
+lands. What is left then is the ring at `fl(0.4)`, which is the ring
+class and not the bulge's.
 
 DECIDE-4's Phase 1 (on `decide/4-bulge-reach` at `200123f29`, this
 item's section "What stands on DECIDE-3's and SYM-9's tree") finds the

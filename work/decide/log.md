@@ -452,3 +452,19 @@ its own item.
 Also measured, not asked: on the plate and the bracket, `restrict`'s
 sub-arcs meet no arc-family decision. That closes the sweep's blind
 spot (i) for those two documents only.
+
+## 2026-09-25 — Ev rules the bulge's sign (#3186): route B, and the apothem as its own item
+
+Ev, on #3186: "both recommendations sound good!"
+
+- **Decision 1.** The sweep spells the carrier's span from the turn it
+  already decided, `4·atan(σ·b)` in `placed_segment_spec`. DECIDE-4 had
+  merged its review cycle before the ruling, so per its spec this is its
+  own unit, DECIDE-5, cut from `props/sign-hull` once #3192 lands.
+- **Decision 2.** The apothem's sign is filed as
+  `the-apothems-sign-is-a-value-read` (P2, cost H). Its candidate is a
+  narrowed rule C behind the door, with a structural look first.
+
+`rule-d-reaches-the-unit-bulge-only` clears `needs_ev` and closes when
+DECIDE-5 lands.
+
