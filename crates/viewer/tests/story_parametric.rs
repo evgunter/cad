@@ -31,7 +31,7 @@ use crate::common;
 
 use core::f64::consts::PI;
 
-use common::{ang, body_volume, insert, len, len3, near, scl3, shape};
+use common::{ang, body_volume, len, len3, near, scl3, session_insert, shape};
 use pncad::document::{
     Axis3, BooleanOp, Dimension, Doc, DocEdit, DocParam, EditError, ParamName, ProfileProgram,
     RecipeNodeId, SlotId, StepArg,
@@ -129,7 +129,7 @@ fn drum(
     distance: f64,
 ) -> (RecipeNodeId, RecipeNodeId) {
     let plane = common::xy_frame_in(session);
-    let profile = insert(
+    let profile = session_insert(
         session,
         SessionOp::AddProfile {
             plane: ProfilePlane::Existing(plane),
@@ -143,7 +143,7 @@ fn drum(
     );
     let radius = radius_slot(session.committed_doc(), profile);
     drive(session, profile, radius, radius_expr);
-    let extrude = insert(
+    let extrude = session_insert(
         session,
         SessionOp::AddExtrude {
             profile,
@@ -274,7 +274,7 @@ fn the_parametric_living_walk() {
     // tower wall crossing the base's top cap transversally.
     let (_tower_profile, tower) = drum(&mut session, "base_r * taper", 0.055);
     drive(&mut session, tower, SlotId::Distance, "height * 2.0");
-    let tower_up = insert(
+    let tower_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: tower,
@@ -292,7 +292,7 @@ fn the_parametric_living_walk() {
         SlotId::Translation(Axis3::Z),
         "height - embed",
     );
-    let hull = insert(
+    let hull = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -343,7 +343,7 @@ fn the_parametric_living_walk() {
         12.0,
         "shown as twelve millimetres"
     );
-    let lamp_up = insert(
+    let lamp_up = session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: lamp,
@@ -361,7 +361,7 @@ fn the_parametric_living_walk() {
         SlotId::Translation(Axis3::Z),
         "height * 3.0 - embed * 2.0",
     );
-    let lighthouse = insert(
+    let lighthouse = session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
