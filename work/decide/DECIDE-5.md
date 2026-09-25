@@ -2,12 +2,13 @@
 id: DECIDE-5
 kind: unit
 title: the arc's span from the turn the profile decided: the sweep spells 4·atan(σ·b), not 4·atan|b| (Ev's route B, #3186)
-status: review
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 branch: decide/5-span-from-the-turn
 refs: [rule-d-reaches-the-unit-bulge-only, 3186]
+closed: 2026-09-25
 ---
 
 ## What
@@ -159,3 +160,33 @@ and this change to it moves both. The path is added to both.
   reverted) leaves both numeric at `{Terms: 2, Degree: 3}`.
 - **B, C, D, G, I, J**: prose, gates and doc trims (the PR body's "Fix
   pass" section lists each).
+
+## Closed (2026-09-25)
+
+Merged as #3214 into `props/sign-hull` (landing head `e9bc401b5`, run
+36113236866). The sweep spells the arc carrier's span `4·atan(σ·b)`
+(`turned_span`) from the turn the profile decided. The crate has one
+reading of a turn (`turn_negates`), used by the carrier's axis, the
+span, the material side and the tube's traversal. The value channel is
+bit-identical, and a committed guard checks that across six scalar
+channels.
+
+**What it takes.**
+- The `0.5` parameter control: `carrier_matches_mapped_source` 16 → 6
+  numeric, and a ceiling of 4.34e2 → 5.11e2·ε.
+- R2's link: `carrier_matches_mapped_source` 32 → 10.
+- The link's `carrier_on_surface_2` nets 4 fewer theorems: eight
+  theorems go to the door on the ring and four come back, and two door
+  answers go numeric, frozen on terms and degree beyond the session
+  budget. The two are on the census.
+
+**Leaf cost.** Link 19.1 → 10.7 s, pad 142.8 → 88.6 s, bracket
+3.8 → 2.9 s.
+
+**Review.** A single FULL review on `3a99b1b71` gave APPROVE-WITH-FIXES
+0/2/7:
+- the tube's copy of the `Zero` convention with the opposite arm;
+- a missed `abs`-span retraction.
+
+The fix pass A–J (`e9bc401b5`) also made the tour's caption true, with
+no golden holding the text.

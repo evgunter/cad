@@ -2,12 +2,13 @@
 id: rule-d-reaches-the-unit-bulge-only
 kind: issue
 title: rule D's reach is the unit bulge: a parameter bulge is outside the mechanism and a literal bulge other than 1 leaves residue — the next ceiling class after M10-10
-status: open
+status: closed
 opened: 2026-09-12
 refs: [2100, plate-ceiling-is-now-the-scaffold-pushforward, symbolic-tier-census]
 parent: SYM-3
 priority: P1
 cost: D
+closed: 2026-09-25
 ---
 
 **Filed by M10-10's fix pass from both reviews' end-to-end probes**
@@ -898,3 +899,20 @@ Every receipt on those leaves is unmoved but the link's, which reads
 **What is left of this item** is the ring at `fl(0.4)`: the `0.4`
 D-tabs' splits are the same under either spelling, because the ring
 stands in front of the sign.
+
+## Closed (2026-09-25)
+
+The item's title describes the tier as it was filed. Rule D's reach is
+no longer the unit bulge alone:
+- DECIDE-4's exact quotient (#3192) took the boss's last value-free
+  residual, and the boss certifies 0.73 of its real study;
+- DECIDE-5 (#3214, Ev's route B on #3186) spells the carrier's span
+  from the arc's decided turn, so a parameter bulge's sign meets the
+  pushforward's.
+
+What stands at a bulge that is not 1 is not this item's any more:
+- **the coefficient ring** at a bulge like `fl(0.4)`, and **the term
+  budget**: both on `work/tier/symbolic-tier-census`, whose reach
+  paragraph carries the D-tab and the link's two term-and-degree
+  decisions;
+- **the apothem's sign**: `work/decide/the-apothems-sign-is-a-value-read`.
