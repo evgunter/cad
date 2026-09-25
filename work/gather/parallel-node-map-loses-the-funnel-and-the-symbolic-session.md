@@ -2,12 +2,13 @@
 id: parallel-node-map-loses-the-funnel-and-the-symbolic-session
 kind: unit
 title: the evaluator's parallel node map loses the K-funnel's recordings and the symbolic session
-status: review
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: H
 branch: gather/parallel-node-map
 pr: 3145
+closed: 2026-09-25
 ---
 
 
@@ -86,3 +87,14 @@ installed — the guard `topo::props`' face walk uses
 `geom_core::sym::session_counts()`. Which one is right is a design
 question about what a session's table is scoped to, not a code change to
 pick off.
+
+## Closed (2026-09-25)
+
+Merged as PR 3145. Tier: single FULL review. The review found no MAJOR
+or MINOR, and the fix pass landed on the same PR. Recordings go into
+per-node detached frames and are spliced back in `sched.order`. The walk
+falls back to serial while a session or a shape report is installed.
+Both helpers have one home in `geom-core`. Residue filed as its own rows:
+`work/wire/part-cache-lock-held-across-a-nested-rayon-join.md` (P1),
+`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`
+(P4), and `work/helper/on-pool-thread-pool-helper-has-six-homes.md` (P4).
