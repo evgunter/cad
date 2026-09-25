@@ -1024,7 +1024,10 @@ pub enum ValidationError {
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
     /// positive-area loop never classifies `Negative` under a
-    /// tighter ε).
+    /// tighter ε). Examined on loops of `Line` and `Circle` carriers,
+    /// whose winding is exact (chord polygon plus each arc's circular
+    /// segment); a loop riding an `Ellipse`, spiric or NURBS carrier is
+    /// not examined.
     LoopRoleInverted {
         /// The face whose loop roles disagree with the windings.
         face: FaceKey,
@@ -2765,7 +2768,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
-///   outward normal, line-bounded loops). The **curved analytic**
+///   outward normal, on loops of line and circle carriers — a planar
+///   loop riding an ellipse, spiric or NURBS carrier is not examined,
+///   so such a face's sense bit is falsified by nothing at rest;
+///   `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+///   The **curved analytic**
 ///   kinds' orientation half is covered by check 6's curved arm
 ///   (M6-6: boundary material side vs the sense bit), and its NESTING
 ///   half — a ring lying inside the outer loop of its own face — by
@@ -4549,27 +4556,34 @@ pub(crate) fn tier3_local_checks_marked<
     // the same discipline as check 7's V/A below).
     // A role inversion passes every volume gate (they are
     // role-invariant) but silently corrupts tessellation/export;
-    // this closes that class structurally. Scope: LINE-BOUNDED loops
-    // only — the vertex-chord Newell functional IS the enclosed area
-    // exactly for straight boundaries.
+    // this closes that class structurally.
     //
-    // **That scope's stated REASON is retired for circle carriers, and
-    // the remaining question is a different one** (VERBS-1031B). The
-    // reason above was that a planar face bounded by arcs has chord
-    // windings that can legitimately disagree with the region's — a
-    // 270° sector's chord quad self-crosses. That disagreement is
-    // exactly what the bulge term dissolves: `2A` decomposes EXACTLY
-    // as chord Newell plus a per-conic `axis · sa·sb · (Δ − sin Δ)`,
-    // so for Line/Circle/Ellipse boundaries there is no longer a
-    // chord-vs-region gap to point at. `merge_faces::loop_winding`
-    // states that decomposition today and NURBS remains the honest
-    // remainder there. What still keeps this arm line-only is NOT the
-    // chord objection but the cost of widening a REFUSAL surface: the
-    // other two sites of this predicate ask it a question they need
-    // answered, and this one asks it in order to FAIL a body, on an
-    // in-band margin whose behaviour over real revolve output is
-    // unmeasured. Owned, with that measurement as its opening step, by
-    // `work/verbs/verbs-1031b-assigner-checker-divergence.md`.
+    // **Scope: loops of `Line` and `Circle` carriers.** A bare
+    // vertex-chord Newell sum is the enclosed area only for straight
+    // boundaries — a 270° sector's chord quad self-crosses — so an arc
+    // enters exactly: `2A` is the chord Newell plus, per arc, its
+    // circular segment `axis · R² · (Δ − sin Δ)`, odd in the signed span
+    // `Δ` and therefore carrying the traversal sign, and the perimeter
+    // lever is re-metered to the arcs' own lengths. That arithmetic has
+    // one home, `crate::loop_winding`, which the merge's role assigner
+    // (`merge_faces`) decides on as well, so the checker falsifies a
+    // role by the very functional that assigned it — so an error IN the
+    // functional moves both sides together and this arm cannot see it.
+    // The independent guard is a row whose roles come from another
+    // derivation: `m5_s10_face_sense`'s extruded washer (roles from
+    // `profile`'s containment pass, chord terms zero) and its R ≠ 1,
+    // Δ ≠ π crescent, which refuse the HONEST body under a mis-signed
+    // or mis-scaled arc term. A LINE-only loop is decided by the chord
+    // sum alone, the correction block structurally skipped.
+    //
+    // **The residue this arm does not examine**, by carrier: a loop
+    // riding an `Ellipse` (the shared winding decides it, and the merge
+    // assigns roles by it, but its lever is an arc-length upper bound;
+    // what the widening would refuse over the corpora is measured at
+    // `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`),
+    // and a loop riding a NURBS or spiric carrier, whose region has no
+    // closed-form area. A planar face bounded so carries a stored sense
+    // no at-rest check falsifies.
     //
     // **The S10 sense gate.** A face's outward normal is the chart
     // normal with `sense` folded in, so the winding is compared against
@@ -4599,58 +4613,6 @@ pub(crate) fn tier3_local_checks_marked<
         for (l, is_outer) in
             core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
-            let Some(loop_data) = body.get_loop(l) else {
-                continue; // unreachable on tier-1 input
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue; // empty ring: bounds no area
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue; // unreachable on tier-1 input
-            };
-            // Line-bounded only (banner): an arc's vertex chord is not
-            // the boundary, and its winding is not the region's.
-            // Since VERBS-1031B this skip has a live PRODUCER on the
-            // other side of it — `merge_faces::loop_winding` now
-            // ASSIGNS outer/ring roles on exactly the conic-bounded
-            // loops this arm passes over, so those roles are set by a
-            // functional check 6 cannot falsify (evidence and flip
-            // condition: `verbs-1031b-assigner-checker-divergence`).
-            let all_lines = cycle.iter().all(|&he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_edge(hd.edge))
-                    .and_then(|e| body.get_curve_geom(e.curve))
-                    .and_then(crate::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-            });
-            if !all_lines {
-                continue;
-            }
-            let point_of = |he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_vertex(hd.start))
-                    .and_then(|vd| body.get_point(vd.point).copied())
-            };
-            let Some(p0) = point_of(cycle[0]) else {
-                continue; // unreachable on tier-1 input
-            };
-            let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-            // The F4 metering lever (audit; the derivation and the
-            // three-site coherence statement live at
-            // `boolean::join::ring_run_ccw`): this loop's perimeter,
-            // accumulated with the area. Line-bounded only, so the
-            // chords ARE the boundary.
-            let mut perimeter = T::zero();
-            let mut prev = p0;
-            for &he in &cycle[1..] {
-                let Some(p) = point_of(he) else {
-                    continue;
-                };
-                newell = newell + (prev - p0).cross(p - p0);
-                perimeter = perimeter + (p - prev).norm();
-                prev = p;
-            }
-            perimeter = perimeter + (p0 - prev).norm();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -4660,12 +4622,18 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            if decide(
-                "bool_ring_run_winding",
-                Margin::over_lever(outward.dot(newell), perimeter),
+            // Line and Circle carriers (banner); an empty ring, a loop
+            // riding an ellipse, spiric or NURBS edge, and a torn
+            // lookup (unreachable on tier-1 input) are not asked.
+            let Ok(Some(winding)) = body.planar_loop_winding(
+                l,
+                outward,
                 band,
-            ) == Ok(wrong)
-            {
+                crate::loop_winding::LoopCarriers::Circular,
+            ) else {
+                continue;
+            };
+            if winding == Ok(wrong) {
                 errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,
@@ -4702,9 +4670,9 @@ pub(crate) fn tier3_local_checks_marked<
     // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
     // table: washer walls, cone laterals, sphere zones, torus bands
     // all certified green before this arm), and a whole-body-inverted
-    // washer/cone/donut even keeps its POSITIVE volume (their planar
-    // caps are arc-bounded, exempt from the Newell arm above — this
-    // arm is what refuses those bodies).
+    // washer/cone/donut even keeps its POSITIVE volume (this arm
+    // refuses their walls; the planar arm above, their arc-bounded
+    // caps).
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,

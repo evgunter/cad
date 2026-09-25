@@ -44,7 +44,8 @@ the receiver is gated. **Six are:**
 
 The other eleven sit on ungated receivers — `ui.button`, `ui.label`,
 `ui.weak` — and are not members: `pane/create.rs:241`, `:315`, `:996`,
-`pane/properties.rs:823`, `widgets.rs:870` (`delete_button`'s
+`pane/properties.rs`'s parameter `range?` button (`:909`),
+`widgets.rs:870` (`delete_button`'s
 affordance hover, on a plain `ui.button`), `app.rs:228`, `:1375`,
 `:1535`, `:1589`, `:1601`.
 
@@ -55,10 +56,12 @@ the only helper of that shape in the crate and its receiver is
 ungated, so the second blind spot is empty today.
 
 **The exemplar of the fix is in the tree**:
-`pane/properties.rs`'s `range_button` (`:767-774`) branches on its own
-`offered` and hands `on_hover_text` to the live case and
+`pane/properties.rs`'s `range_button` (`:845-856`) branches on
+whether the probe is refused — `Panel::probe_refusal`'s `Option` —
+and hands `on_hover_text` to the live case and
 `on_disabled_hover_text` to the other. Every one of the six can take
-that shape.
+that shape; what the six need is the branch, and the value the branch
+reads is whatever their own gate already computes.
 
 ## Why this is not the census's own class
 
