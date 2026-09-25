@@ -1,11 +1,14 @@
 ---
 id: ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle
 kind: issue
-title: sweep: the ruled band refuses a D-shaped through-hole's crease as BodyNotIntact instead of as a frontier
-status: open
+title: sweep: a ruled crease whose ends sit in a cap RING (a D-shaped through-hole) now carves; it refused BodyNotIntact
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
+closed: 2026-09-25
+pr: 3243
+branch: band/ruled-d-hole-ring-crease
 ---
 
 
