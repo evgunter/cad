@@ -2593,8 +2593,13 @@ mod tests {
         toolbar_drawn(
             width,
             |app| {
-                app.status = status
-                    .map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+                app.status = status.map(|text| {
+                    crate::frame::Message::new(
+                        crate::frame::Subject::Document,
+                        text,
+                        crate::frame::Retold::Again,
+                    )
+                });
             },
             status,
         )

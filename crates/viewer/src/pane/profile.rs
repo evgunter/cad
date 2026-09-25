@@ -100,14 +100,17 @@ impl ViewerBehavior<'_> {
                         base: edit.base().clone(),
                         loops,
                     }),
-                    Err(error) => self
-                        .notices
-                        .push(frame::tool_news(format!("edit profile: {error}"))),
+                    Err(error) => self.notices.push(frame::tool_news(
+                        format!("edit profile: {error}"),
+                        frame::Retold::Again,
+                    )),
                 }
             }
             if revert && let Err(error) = edit.revert(doc) {
-                self.notices
-                    .push(frame::tool_news(format!("revert profile: {error}")));
+                self.notices.push(frame::tool_news(
+                    format!("revert profile: {error}"),
+                    frame::Retold::Again,
+                ));
             }
         });
         true

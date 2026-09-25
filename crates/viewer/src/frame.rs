@@ -487,9 +487,7 @@ impl Message {
     /// any notice on it is: the field is total, and `Again` would be
     /// false of a line carrying a once-only telling.
     fn joined(subject: Subject, notices: &[Message]) -> Self {
-        let never = notices
-            .iter()
-            .any(|notice| notice.retold == Retold::Never);
+        let never = notices.iter().any(|notice| notice.retold == Retold::Never);
         Self {
             subject,
             text: notices
@@ -667,19 +665,32 @@ pub fn acts(op: &SessionOp) -> bool {
 /// answer.
 pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdate {
     match (ops.iter().any(acts), refusal) {
-        // A refusal is the document's answer to the act it was asked
-        // for, so its subject is the document: it stops being the news
-        // when the document accepts one.
-        (_, Some(refusal)) => {
-            StatusUpdate::Show(Message::new(
-                Subject::Document,
-                refusal.to_string(),
-                Retold::Again,
-            ))
-        }
+        (_, Some(refusal)) => StatusUpdate::Show(refusal_message(refusal)),
         (true, None) => StatusUpdate::Clear,
         (false, None) => StatusUpdate::Keep,
     }
+}
+
+/// **A [`Refusal`] as the line carries it** — the one place a refusal
+/// becomes a [`Message`], whichever way it reached the frame.
+///
+/// A refusal is the document's answer to an act it was asked for, so
+/// its subject is [`Subject::Document`]: it stops being the news when
+/// the document accepts one. Most arrive as an operation's outcome
+/// ([`batch_status`]); a refusal the chrome meets before any operation
+/// could carry the value — [`crate::widgets::value_field_ops`]'s typed
+/// number that [`crate::props::SlotValue::of`] refuses, the same
+/// refusal a drag of that value gets from the session's gesture door —
+/// goes onto the frame's notices through this same door, so the two
+/// routes say one sentence rather than two spellings of it.
+///
+/// [`Retold::Again`] by either route: a refusal is the answer to an act
+/// that did nothing, and the same act says it again. So a refusal that
+/// arrives as a NOTICE stays under a batch refusal in the same frame
+/// ([`frame_status`]'s rank 1), as a second refusal of one frame does
+/// under [`Refusal::preferred`].
+pub fn refusal_message(refusal: &Refusal) -> Message {
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -770,7 +781,8 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// - a pick a tool **declined** and a panel's own refusal
 ///   ([`tool_notice`]'s other arms, [`tool_news`]) — the same pick or
 ///   click says it again.
-/// - the pick, index, δ, store and fold refusals and the id pass's
+/// - a [`Refusal`] that arrives as a notice ([`refusal_message`]), and
+///   the pick, index, δ, store and fold refusals and the id pass's
 ///   disagreement — repeating the act, or the hover, says it again.
 ///
 /// **The refusal comes first** although the notices beside it can
@@ -2668,7 +2680,7 @@ mod tests {
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
-        let elsewhere = Message::new(Subject::Document, "someone else's news");
+        let elsewhere = Message::new(Subject::Document, "someone else's news", Retold::Again);
         let mut status = Some(elsewhere.clone());
         apply(&mut status, fold_status(&folded));
         assert_eq!(
@@ -2723,7 +2735,11 @@ mod tests {
             (Subject::Display, Subject::Display, false),
             (Subject::Preferences, Subject::Document, true),
         ] {
-            let mut status = Some(Message::new(held, "the sentence on the line"));
+            let mut status = Some(Message::new(
+                held,
+                "the sentence on the line",
+                Retold::Again,
+            ));
             apply(&mut status, StatusUpdate::Expire(event));
             assert_eq!(
                 status.is_some(),
@@ -2739,7 +2755,7 @@ mod tests {
         // outstanding answer still describes this cursor, so what the
         // cursor said is still about the cursor the user is pointing
         // with.
-        let disagreement = Message::new(Subject::Cursor, "picking paths disagree");
+        let disagreement = Message::new(Subject::Cursor, "picking paths disagree", Retold::Again);
         let mut status = Some(disagreement.clone());
         apply(&mut status, cursor_status(IdStep::Hold));
         assert_eq!(status, Some(disagreement));
@@ -2748,7 +2764,11 @@ mod tests {
         // leaving the pane — where the id log voids the outstanding
         // question rather than asking a new one.
         for event in [IdStep::Ask { serial: 7 }, IdStep::Void] {
-            let mut status = Some(Message::new(Subject::Cursor, "picking paths disagree"));
+            let mut status = Some(Message::new(
+                Subject::Cursor,
+                "picking paths disagree",
+                Retold::Again,
+            ));
             apply(&mut status, cursor_status(event));
             assert_eq!(status, None, "{event:?} is a cursor event");
         }
@@ -2773,15 +2793,23 @@ mod tests {
     /// contract and not an accident of how a `Vec` happens to grow.
     #[test]
     fn deliver_sends_news_to_the_notices_and_retirements_to_the_field() {
-        let held = Message::new(Subject::Camera, "camera: refused a moment ago");
-        let earlier = Message::new(Subject::Document, "extrude: refused earlier this frame");
+        let held = Message::new(
+            Subject::Camera,
+            "camera: refused a moment ago",
+            Retold::Again,
+        );
+        let earlier = Message::new(
+            Subject::Document,
+            "extrude: refused earlier this frame",
+            Retold::Again,
+        );
 
         // News. The field is left alone — the ranking has not run yet,
         // and writing it here is the defect: this frame's accepted
         // batch would clear it before the toolbar painted it.
         let mut notices = vec![earlier.clone()];
         let mut status = Some(held.clone());
-        let news = Message::new(Subject::Camera, "camera: dolly refused");
+        let news = Message::new(Subject::Camera, "camera: dolly refused", Retold::Again);
         deliver(&mut notices, &mut status, StatusUpdate::Show(news.clone()));
         assert_eq!(
             notices,
@@ -2809,7 +2837,11 @@ mod tests {
         // same reason — it takes something away, and the thing it
         // takes away is the whole line whatever the line was about.
         let mut notices = Vec::new();
-        let mut status = Some(Message::new(Subject::Document, "someone else's news"));
+        let mut status = Some(Message::new(
+            Subject::Document,
+            "someone else's news",
+            Retold::Again,
+        ));
         deliver(&mut notices, &mut status, StatusUpdate::Clear);
         assert!(notices.is_empty(), "a Clear adds nothing to the frame");
         assert_eq!(status, None, "and sweeps the line whatever it held");
@@ -2823,6 +2855,7 @@ mod tests {
         let mut notices = vec![Message::new(
             Subject::Document,
             "news from earlier this frame",
+            Retold::Again,
         )];
         let mut status = Some(held.clone());
         let before = notices.clone();
@@ -2879,7 +2912,7 @@ mod tests {
 
         // `apply`'s contract, asserted through the nearest producer to
         // hand rather than a live composition — see the doc above.
-        let mut status = Some(Message::new(Subject::Document, "older news"));
+        let mut status = Some(Message::new(Subject::Document, "older news", Retold::Again));
         apply(&mut status, fold_status(&folded));
         assert_eq!(status, Some(message));
     }
@@ -3027,11 +3060,11 @@ mod tests {
         // `Keep` is a decision, not the absence of one — the whole
         // reason every policy here answers in this vocabulary instead
         // of assigning the field.
-        let held = Message::new(Subject::Document, "held");
+        let held = Message::new(Subject::Document, "held", Retold::Again);
         let mut status = Some(held.clone());
         apply(&mut status, StatusUpdate::Keep);
         assert_eq!(status, Some(held));
-        let news = Message::new(Subject::Camera, "news");
+        let news = Message::new(Subject::Camera, "news", Retold::Again);
         apply(&mut status, StatusUpdate::Show(news.clone()));
         assert_eq!(status, Some(news));
         // `Clear` is the broad one, and deliberately: an act the
@@ -3183,7 +3216,7 @@ mod tests {
             Withdrawal::superseded(&[constrained(7, &[9])])
                 .expect("news")
                 .notice(),
-            Message::new(Subject::Document, notice.clone()),
+            Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let StatusUpdate::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
             panic!("two withdrawals are news");

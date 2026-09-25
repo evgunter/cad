@@ -85,7 +85,8 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
         shown,
         StatusUpdate::Show(frame::Message::new(
             frame::Subject::Document,
-            refusal.to_string()
+            refusal.to_string(),
+            frame::Retold::Again,
         )),
         "the document's answer to the act is about the document"
     );
@@ -111,6 +112,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let notice = frame::Message::new(
         frame::Subject::Document,
         "blend tool: the held edges are on feature 3 body 0",
+        frame::Retold::Again,
     );
 
     // The batch policy alone: the frame acted, nothing refused, so the
@@ -136,7 +138,8 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
         StatusUpdate::Show(frame::Message::new(
             frame::Subject::Document,
-            refusal.to_string()
+            refusal.to_string(),
+            frame::Retold::Again,
         ))
     );
 
@@ -162,6 +165,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     let second = frame::Message::new(
         frame::Subject::Document,
         "blend tool: an edit removed 6 of the picked edges",
+        frame::Retold::Again,
     );
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
     let StatusUpdate::Show(line) = &both else {
@@ -203,7 +207,10 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
 /// says why a count passes over text that reads as one item too many.
 #[test]
 fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
-    let nests = frame::tool_news(DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string());
+    let nests = frame::tool_news(
+        DisplayFault::NonRigidFrame { determinant: 0.5 }.to_string(),
+        frame::Retold::Again,
+    );
     let dashes = frame::tool_news(
         AdmissionFault::FusedGeometry {
             instance: RecipeNodeId(3),
@@ -211,6 +218,7 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
             others: vec![RecipeNodeId(5)],
         }
         .to_string(),
+        frame::Retold::Again,
     );
     assert!(
         nests.text().contains(frame::LIST_SEPARATOR),
@@ -248,7 +256,11 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
 /// door, because it is the one that makes the choice necessary.
 #[test]
 fn a_notice_cannot_carry_the_boundary_mark() {
-    let asked = frame::Message::new(frame::Subject::Document, "one \u{2022} two");
+    let asked = frame::Message::new(
+        frame::Subject::Document,
+        "one \u{2022} two",
+        frame::Retold::Again,
+    );
     assert!(
         !asked.text().contains(frame::NOTICE_MARK),
         "the door takes the boundary mark out: {asked}"
@@ -599,7 +611,10 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
             "a cursor action the pick index refused",
         ),
         (
-            frame::tool_news("blend: the held edges are on another body"),
+            frame::tool_news(
+                "blend: the held edges are on another body",
+                frame::Retold::Again,
+            ),
             "what a tool has to say",
         ),
     ] {
@@ -973,6 +988,7 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
     let mut status = Some(frame::Message::new(
         frame::Subject::Camera,
         format!("projection: {projection}"),
+        frame::Retold::Again,
     ));
     let acting = [SessionOp::Undo];
     assert_eq!(
@@ -1048,7 +1064,8 @@ fn the_two_policies_that_expire_are_the_two_subjects_the_roster_names() {
 #[test]
 fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     let acted = [SessionOp::Select(Selection::None)];
-    let cursor = |text: &str| frame::Message::new(frame::Subject::Cursor, text);
+    let cursor =
+        |text: &str| frame::Message::new(frame::Subject::Cursor, text, frame::Retold::Again);
 
     // Agreeing notices keep the subject, so the joined line is still
     // retired by that subject's own event.
@@ -1071,7 +1088,10 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
     // about the cursor.
     let mixed = [
         cursor("the picking paths disagree"),
-        frame::tool_news("blend: the held edges are on another body"),
+        frame::tool_news(
+            "blend: the held edges are on another body",
+            frame::Retold::Again,
+        ),
     ];
     let StatusUpdate::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
         panic!("two notices are news");
@@ -3063,9 +3083,9 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // **A refusing sibling op does not take the sentence.** The same
     // frame also carries a drag the user started on the post — which
     // the mate that just landed has made unmovable, so it refuses. The
-    // refusal is about an op that did nothing; the notice is about a
-    // placement that is GONE, which no undo returns. Both are on the
-    // line, the refusal first. The text is written out, so a rule that
+    // refusal is about an op that did nothing, and the same drag says
+    // it again; nothing will ever again say that the mate took the
+    // placement. Both are on the line, the refusal first. The text is written out, so a rule that
     // drops the loss, or reorders the two, cannot pass by comparing the
     // line with another rendering of itself.
     let drag = SessionOp::BeginFreeMove {
@@ -3097,19 +3117,20 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     assert_eq!(bench.post_b.0, 2, "the premise the literal above names");
 }
 
-/// **What rides beside a refusal is a loss, and only a loss** — the
-/// rule `frame::frame_status`'s ranking states, pinned in both
+/// **What rides beside a refusal is news nothing will say again** —
+/// the rule `frame::frame_status`'s ranking states, pinned in both
 /// directions through the doors the frame loop uses.
 ///
 /// A tool's survival drop and its declined pick arrive through ONE
-/// door (`frame::tool_notice`), and the event's arm decides: the drop
-/// took a pick the tool held, which no history holds, so it rides
-/// beside the refusal; the declined pick took nothing, and a panel's
-/// own refusal took nothing, so they stay under it. The frame and its
-/// notices are the same in both halves of the row — only the refusal
-/// differs — so what moves is the rule and nothing else.
+/// door (`frame::tool_notice`), and the event's arm decides: nothing
+/// but the drop's sentence says a held pick was taken and why, so it
+/// rides beside the refusal; the declined pick and a panel's refusal
+/// are said again by the same pick or click, so they stay under it.
+/// The frame and its notices are the same in both halves of the row —
+/// only the refusal differs — so what moves is the rule and nothing
+/// else.
 #[test]
-fn a_loss_rides_beside_a_refusal_and_a_declined_pick_does_not() {
+fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     use viewer::blend::{BlendEvent, BlendTarget};
     use viewer::seats::{Seat, SeatEvent};
     use viewer::tools::{ToolKind, ToolNotice};
@@ -3131,7 +3152,10 @@ fn a_loss_rides_beside_a_refusal_and_a_declined_pick_does_not() {
             node: RecipeNodeId(4),
         },
     });
-    let panel = frame::tool_news("mate tool: no landed evaluation to derive frames from");
+    let panel = frame::tool_news(
+        "mate tool: no landed evaluation to derive frames from",
+        frame::Retold::Again,
+    );
     let notices = [declined, dropped, panel];
     let acted = [SessionOp::Select(Selection::None)];
 
@@ -3147,7 +3171,7 @@ fn a_loss_rides_beside_a_refusal_and_a_declined_pick_does_not() {
          no landed evaluation to derive frames from"
     );
 
-    // A refusal: it, then the loss, and neither of the other two.
+    // A refusal: it, then the drop, and neither of the other two.
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
@@ -3158,5 +3182,143 @@ fn a_loss_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         line.text(),
         "nothing to undo \u{2022} revolve tool: the profile pick (node 4) is no longer in the \
          document; the tool dropped it"
+    );
+}
+
+/// **Every arm of every tool's event vocabulary answers for itself.**
+/// The row above drives two of them through the ranking; this one
+/// reads the answer off each of the six, so an arm that flips sides
+/// goes red by name rather than waiting for a frame that happens to
+/// carry it beside a refusal.
+#[test]
+fn every_tool_event_says_whether_anything_will_say_it_again() {
+    use editor_core::{Resolution, ResolveIndeterminate};
+    use pncad::document::MateSide;
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::matetool::MateToolEvent;
+    use viewer::seats::{Seat, SeatEvent};
+    use viewer::session::FaceSelection;
+    use viewer::tools::{ToolKind, ToolNotice};
+
+    let target = BlendTarget {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let face = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(3),
+        path: vec![],
+    };
+    let cases = [
+        (
+            "mate: a held pick lost",
+            ToolNotice::Mate(MateToolEvent::PickLost {
+                side: MateSide::B,
+                pick: FaceSelection {
+                    name: face.clone(),
+                    node: RecipeNodeId(3),
+                    body: 0,
+                },
+                resolution: Box::new(Resolution::Indeterminate(
+                    ResolveIndeterminate::TargetNotEvaluated {
+                        node: RecipeNodeId(3),
+                    },
+                )),
+            }),
+            frame::Retold::Never,
+        ),
+        (
+            "seated: a held pick lost",
+            ToolNotice::Seated {
+                tool: ToolKind::Boolean,
+                event: SeatEvent::PickLost {
+                    seat: Seat::OperandA,
+                    node: RecipeNodeId(3),
+                },
+            },
+            frame::Retold::Never,
+        ),
+        (
+            "blend: the target lost",
+            ToolNotice::Blend(BlendEvent::TargetLost { target, edges: 4 }),
+            frame::Retold::Never,
+        ),
+        (
+            "blend: held edges lost",
+            ToolNotice::Blend(BlendEvent::EdgesLost {
+                target,
+                names: vec![face.clone()],
+                kept: 2,
+            }),
+            frame::Retold::Never,
+        ),
+        (
+            "blend: a pick on another body declined",
+            ToolNotice::Blend(BlendEvent::OtherTarget {
+                held: target,
+                picked: BlendTarget {
+                    node: RecipeNodeId(5),
+                    body: 0,
+                },
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "blend: the all-edges door found none",
+            ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { target }),
+            frame::Retold::Again,
+        ),
+    ];
+    for (what, notice, retold) in cases {
+        assert_eq!(frame::tool_notice(&notice).retold(), retold, "{what}");
+    }
+}
+
+/// **Every kind of withdrawal rides beside a refusal**, each by its own
+/// arm: a superseded placement, a dropped hide and a killed drag are
+/// each worded once, here, and a refusal in the same frame does not
+/// take the sentence. `a_superseded_free_move_is_news_the_ranking_shows`
+/// drives one of the three on a real assembly; this one holds all
+/// three, so a kind that stopped riding goes red by name.
+#[test]
+fn every_withdrawal_kind_rides_beside_a_refusal() {
+    let gone = |node: u64| Withdrawn {
+        instance: RecipeNodeId(node),
+        cause: AdmissionFault::NoSuchNode {
+            node: RecipeNodeId(node),
+        },
+    };
+    let report = PruneReport {
+        superseded: vec![gone(4)],
+        dropped_hides: vec![gone(5)],
+        killed_gesture: Some(gone(6)),
+    };
+    let notices: Vec<frame::Message> = frame::Withdrawal::all(&report)
+        .map(|withdrawal| {
+            assert_eq!(
+                withdrawal.notice().retold(),
+                frame::Retold::Never,
+                "{:?}",
+                withdrawal.kind
+            );
+            withdrawal.notice()
+        })
+        .collect();
+    assert_eq!(notices.len(), 3, "one notice per kind");
+
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} free move: a committed placement was discarded — node 4 is \
+         not in the document \u{2022} hide: a hide was dropped with the instance it was on — \
+         node 5 is not in the document \u{2022} free move: the drag in flight was ended — node \
+         6 is not in the document"
     );
 }

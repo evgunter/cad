@@ -31,7 +31,7 @@
 
 use pncad::prelude::StableName;
 
-use crate::frame::{Message, Subject};
+use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
 use crate::pickindex::{IdMap, PickError, PickIndex};
 
@@ -214,8 +214,11 @@ impl Disagreement {
     /// cursor over THIS picture, and [`crate::frame::cursor_status`]
     /// retires it on
     /// the id log's own judgement that the question has moved on.
+    ///
+    /// [`Retold::Again`]: the same hover says it again while the
+    /// paths still disagree.
     pub fn notice(&self) -> Message {
-        Message::new(Subject::Cursor, self.to_string())
+        Message::new(Subject::Cursor, self.to_string(), Retold::Again)
     }
 }
 

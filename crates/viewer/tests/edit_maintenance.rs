@@ -140,6 +140,99 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
         session.committed_doc().node(carrier).is_some(),
         "the report is a report: the carrier is untouched"
     );
+
+    // **And the tree says it again**, on every run the strand stands:
+    // the carrier fails to evaluate on the name and its row carries
+    // the fault. This is why a strand may sit under a refusal
+    // (`frame::maintenance_notice`, `Retold::Again`) — the line is not
+    // its only telling.
+    session.pump();
+    let (landed, eval) = session.landed_pair().expect("the delete lands");
+    let row = viewer::tree::rows(landed, Some(eval))
+        .into_iter()
+        .find(|row| row.id == carrier)
+        .expect("the carrier has a row");
+    assert_eq!(
+        row.status.message(),
+        Some(
+            "node 6 failed: the derived frame's face name failed to resolve: the face name's \
+             minting node 5 is no longer in the document (node 5 was deleted) — the repair is \
+             an explicit rebind"
+        )
+    );
+    assert_eq!(
+        (carrier.0, victim.0),
+        (6, 5),
+        "the premise the literal names"
+    );
+}
+
+/// **A maintenance row rides beside a refusal exactly when nothing
+/// else will ever say it** — the rule `frame::frame_status` states,
+/// pinned both ways over every worded arm.
+///
+/// A strand's carrier fails on every run and its tree row says why
+/// (the row above), so it stays under the refusal. An orphaned
+/// declaration and a rebound name evaluate cleanly by design, and a
+/// stranded appearance key's loss is drawn nowhere in this viewer, so
+/// the line is their only telling and they ride beside it.
+#[test]
+fn a_maintenance_row_rides_beside_a_refusal_when_nothing_else_will_say_it() {
+    use viewer::session::{Refusal, Step};
+
+    let rows = [
+        Maintenance::Strand {
+            node: RecipeNodeId(3),
+            name: wall(RecipeNodeId(7), 0, 0),
+        },
+        Maintenance::StrandedAppearance {
+            name: wall(RecipeNodeId(7), 0, 2),
+        },
+        Maintenance::OrphanedDeclare {
+            declare: RecipeNodeId(5),
+        },
+        Maintenance::Rebound {
+            from: wall(RecipeNodeId(9), 0, 0),
+            to: wall(RecipeNodeId(9), 0, 1),
+        },
+    ];
+    let notices: Vec<frame::Message> = rows
+        .iter()
+        .map(|row| frame::maintenance_notice(row).expect("every arm here is worded"))
+        .collect();
+    assert_eq!(
+        notices
+            .iter()
+            .map(frame::Message::retold)
+            .collect::<Vec<_>>(),
+        [
+            frame::Retold::Again,
+            frame::Retold::Never,
+            frame::Retold::Never,
+            frame::Retold::Never,
+        ],
+        "strand, stranded appearance, orphaned declaration, rebound"
+    );
+
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} the appearance store holds an attachment under a face name \
+         minted by node 7; this edit removed what it denoted (its minting node, or the profile \
+         segment it named), so the name resolves to nothing until it is rebound or cleared \
+         \u{2022} node 5 declares contacts and this edit deleted the last node that consumed \
+         it, so no node consumes the declaration until a boolean or union names it again \
+         \u{2022} a face name minted by node 9 was rewritten in place to the face name minted \
+         by node 9 that draws the same step's segment under the reshaped profile program, so \
+         every carrier of the name still denotes what it did"
+    );
 }
 
 /// **A delete that strands an appearance key reports it** — the

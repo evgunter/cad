@@ -454,14 +454,17 @@ impl ViewerBehavior<'_> {
                                 close = true;
                             }
                             Err(error) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Mate.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Mate.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                         }
                     }
                     _ => {
                         self.notices.push(frame::tool_news(
                             ToolKind::Mate.says(&"no landed evaluation to derive frames from"),
+                            frame::Retold::Again,
                         ));
                     }
                 }
@@ -714,8 +717,10 @@ impl ViewerBehavior<'_> {
                 // no `ToolKind` to compose the prefix — the form's own
                 // name is the sentence's subject here.
                 Err(error) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add datum: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add datum: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -1009,12 +1014,16 @@ impl ViewerBehavior<'_> {
                 // condition and its commit are two pieces of code, and
                 // this one does not assume the other got it right.
                 (None, _) => {
-                    self.notices
-                        .push(frame::tool_news("add profile: no frame picked"));
+                    self.notices.push(frame::tool_news(
+                        "add profile: no frame picked",
+                        frame::Retold::Again,
+                    ));
                 }
                 (_, Err(error)) => {
-                    self.notices
-                        .push(frame::tool_news(format!("add profile: {error}")));
+                    self.notices.push(frame::tool_news(
+                        format!("add profile: {error}"),
+                        frame::Retold::Again,
+                    ));
                 }
             }
         }
@@ -1049,8 +1058,10 @@ impl ViewerBehavior<'_> {
                             distance,
                         }),
                         Err(error) => {
-                            self.notices
-                                .push(frame::tool_news(format!("extrude: {error}")));
+                            self.notices.push(frame::tool_news(
+                                format!("extrude: {error}"),
+                                frame::Retold::Again,
+                            ));
                         }
                     }
                 }
@@ -1539,15 +1550,19 @@ impl ViewerBehavior<'_> {
                         match op {
                             Some(Ok(op)) => self.ops.push(op),
                             Some(Err(error)) => {
-                                self.notices
-                                    .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                                self.notices.push(frame::tool_news(
+                                    ToolKind::Blend.says(&error),
+                                    frame::Retold::Again,
+                                ));
                             }
                             None => {}
                         }
                     }
                     Err(error) => {
-                        self.notices
-                            .push(frame::tool_news(ToolKind::Blend.says(&error)));
+                        self.notices.push(frame::tool_news(
+                            ToolKind::Blend.says(&error),
+                            frame::Retold::Again,
+                        ));
                     }
                 }
             }
@@ -1587,7 +1602,8 @@ impl ViewerBehavior<'_> {
                 match op(self.drafts) {
                     Ok(op) => self.ops.push(op),
                     Err(error) => {
-                        self.notices.push(frame::tool_news(kind.says(&error)));
+                        self.notices
+                            .push(frame::tool_news(kind.says(&error), frame::Retold::Again));
                     }
                 }
             }

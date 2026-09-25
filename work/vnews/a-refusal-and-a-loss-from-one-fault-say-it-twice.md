@@ -11,8 +11,8 @@ refs: [rank-one-discards-the-frames-other-news]
 
 
 Disclosed by `rank-one-discards-the-frames-other-news`'s fix, which
-lets a loss ride beside a refusal on one line (`frame::frame_status`,
-`# The ranking`).
+lets news nothing will say again ride beside a refusal on one line
+(`frame::frame_status`, `# The ranking`).
 
 ## What happens
 
@@ -29,7 +29,24 @@ verbatim by `crates/viewer/tests/frame_policy.rs`,
 > was discarded — instance 2 is mate-constrained (mate node(s) 3): …
 > (the same sentence again)
 
-Every word is true and the line is twice as long as what it says.
+Every word is true, and the second half carries news the first does
+not — that a committed placement was discarded. What it repeats is the
+CAUSE: the one fault, rendered in full twice, so the reader meets its
+long sentence a second time to learn one new clause.
+
+**A second instance of one cause behind both halves: a killed drag
+beside its own refusal.** A panel's edit lands while the user is
+dragging an instance it makes inadmissible; the prune kills the drag
+(`WithdrawalKind::KilledGesture`, worded with the admission fault) and
+the drag's `PreviewFreeMove` later in the same frame refuses. That
+refusal is the gesture door's "no free move in flight"
+(`DisplayState::preview_free_move` checks the held gesture and never
+re-reads admission), so here the cause is NOT said twice: the line
+reads the symptom first and the cause second, which is the reverse of
+the order a reader diagnoses in. Whether one fix answers both — the
+refusal naming what it follows from, or the line ordering a cause
+before its consequence — is the question this row carries; the
+ranking's own "refusal first" is argued at `frame_status`.
 
 ## Why it is not simply "de-duplicate"
 
