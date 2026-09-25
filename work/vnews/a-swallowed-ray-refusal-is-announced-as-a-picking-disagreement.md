@@ -8,6 +8,7 @@ priority: P2
 cost: D
 closed: 2026-09-25
 branch: vnews/ray-refusal-is-not-a-disagreement
+pr: 3221
 ---
 
 
