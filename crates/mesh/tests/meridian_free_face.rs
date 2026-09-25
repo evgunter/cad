@@ -26,7 +26,7 @@ use geom::{Curve3, Surface};
 use geom_brep::SurfaceKind;
 use geom_core::{Point3, Tol, Vec3};
 use mesh::TessellateError;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, FaceKey};
 
@@ -195,10 +195,10 @@ fn a_cone_apex_cap_and_a_one_rim_cylinder_face_refuse_by_kind() {
 
 /// The hemisphere as revolve states it: a quarter disc about +Y.
 fn dome() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), (PI / 8.0).tan()),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), (PI / 8.0).tan()),
+        (p2(0.0, 1.0), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),

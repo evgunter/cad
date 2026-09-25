@@ -19,7 +19,7 @@ use geom_core::{Point3, Vec3};
 use mesh::tessellate;
 use mesh::validate::{check_mesh, signed_volume};
 use profile::RawLoop;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::Body;
 
@@ -147,8 +147,8 @@ fn hunt_chordal_violation(body: &Body<f64>, delta: f64) {
 fn tall_thin_bar() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let r = 0.2;
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(p2(x, y), bulge);
-    let mut lp = ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (p2(x, y), bulge);
+    let mut lp = bulge_loop(vec![
         v(r, 0.0, 0.0),
         v(1.0 - r, 0.0, b),
         v(1.0, r, 0.0),
@@ -201,11 +201,11 @@ fn megaphone() -> Body<f64> {
 /// Silo: cylinder wall + quarter-arc dome cap onto the axis pole.
 fn silo() -> Body<f64> {
     let b = (core::f64::consts::FRAC_PI_8).tan(); // quarter circle
-    let mut lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0), b),
-        ProfileVertex::new(p2(0.0, 2.0), 0.0),
+    let mut lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
+        (p2(1.0, 1.0), b),
+        (p2(0.0, 2.0), 0.0),
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
@@ -225,14 +225,14 @@ fn silo() -> Body<f64> {
 fn dome() -> Body<f64> {
     let t = |theta: f64| (theta / 4.0).tan();
     let a1 = 1.0; // radians of arc per band
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), t(a1)),
-        ProfileVertex::new(p2(a1.sin(), -a1.cos()), t(a1)),
-        ProfileVertex::new(
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), t(a1)),
+        (p2(a1.sin(), -a1.cos()), t(a1)),
+        (
             p2((2.0 * a1).sin(), -(2.0 * a1).cos()),
             t(core::f64::consts::PI - 2.0 * a1),
         ),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),
