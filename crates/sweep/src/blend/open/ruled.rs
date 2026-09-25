@@ -55,12 +55,15 @@
 //! `fillet_h7_transverse_cap::the_d_profile_rod_carves_through_a_cap_arc_past_pi`)
 //! and a rod's section standing on a block's top edge (concave,
 //! `ΔV = +2·A·L`,
-//! `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`),
-//! and a block with a D-shaped through-hole, whose concave creases end
-//! in the caps' RINGS rather than their outer cycles (`ΔV = +2·A·L`,
-//! `band_ruled_d_hole::a_d_hole_fillets_both_creases_at_the_rod_closed_form`).
-//! Which of the cap's cycles the cut-off arc spans is read, not
-//! assumed: the one carrying the old vertex.
+//! `review_fillet_h7_r1_probes::a_sunk_rod_has_concave_ruled_creases_that_add_material`).
+//!
+//! **Either cap cycle.** The cut-off arc spans whichever of the cap's
+//! cycles carries the old vertex — its outer cycle, or a ring where the
+//! crease runs along a through-hole — on either material side: a
+//! D-shaped hole's concave creases (`ΔV = +2·A·L`,
+//! `band_ruled_d_hole::a_d_hole_fillets_both_creases_at_the_rod_closed_form`)
+//! and a keyhole's convex ones (`ΔV = −2·A·L`,
+//! `review_band_ruled_ring_probes::a_keyhole_fillets_its_convex_ring_creases_at_the_closed_form`).
 //! The convex side has a boolean-built twin beside it — the rod with a
 //! flat, `rod ∖ box`, at
 //! `fillet_h7_transverse_cap::the_rod_with_a_flat_fillets_both_creases_at_the_prism_closed_form`.
@@ -169,15 +172,12 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         // through by this carve. Together the two put the crease on
         // the support's OUTER cycle (a half-edge's loop is a cycle of
         // its face, and a ring-free face has one), which is where the
-        // trimline `mef` hangs ([`chord_site`]). The CAP's rings are NOT
-        // checked, deliberately: the cut-off `mef` runs on whichever of
-        // the cap's cycles carries the crease's end ([`chord_site`]) and
-        // leaves every other cycle on the old face — so a bored rod's
-        // cap keeps its bore
-        // (`review_fillet_h7_r1_probes::a_cap_carrying_a_ring_keeps_it_through_the_cut_off`),
-        // and a D-shaped through-hole, whose creases end in the caps'
-        // rings, is cut off in the ring and keeps it, rounded
-        // (`band_ruled_d_hole::a_d_hole_fillets_both_creases_at_the_rod_closed_form`).
+        // trimline `mef` hangs ([`chord_site`]). The CAP's rings are
+        // not read here: the cut-off `mef` runs on whichever of the
+        // cap's cycles carries the crease's end and leaves every other
+        // cycle on the cap, wherever it lies — including inside the
+        // region the band removes, which nothing meters
+        // (`work/band/ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver`).
         let (hp, hm) = halves_of(body, edge)
             .ok_or_else(|| not_intact(EntityId::Edge(edge), "a ruled link's edge"))?;
         for (face, half) in [(l.face_a, hp), (l.face_b, hm)] {

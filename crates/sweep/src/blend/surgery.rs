@@ -3197,16 +3197,10 @@ fn flank_in(
 }
 
 /// [`flank`] on the one cycle of `face` — its outer cycle or one of
-/// its rings — that carries the keyed half-edge: the ruled band's and
-/// the corner arc's spelling. The chord hangs in whichever cycle holds
-/// the run it cuts off, and `mef` keeps that cycle's outer/ring
-/// designation on the old face, so a cap whose crease ends sit in a
-/// ring (a D-shaped through-hole) is cut off in that ring exactly as a
-/// cap whose crease ends sit in its outer cycle is cut off there; the
-/// face's other cycles stay on the old face either way. A support's
-/// chord always finds its outer cycle: a support with a ring is refused
-/// at the ruled plan, and a corner arc's merged strip is minted
-/// ring-free.
+/// its rings — that carries the keyed half-edge: the spelling of every
+/// chord a carve hangs across a face. `mef` keeps that cycle's
+/// outer/ring designation on the old face and leaves the face's other
+/// cycles there.
 ///
 /// Refuses typed where a cycle does not walk, or where not exactly one
 /// cycle of the face carries the keyed half-edge — the key names one

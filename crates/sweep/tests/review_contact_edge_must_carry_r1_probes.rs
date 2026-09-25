@@ -320,6 +320,30 @@ fn r1_the_d_bore_crease_carves_in_its_caps_ring() {
         "the census delta of one cut-off band"
     );
     topo::validate_geometric(&out.body, tol()).expect("the carved D-bore is tier-3 valid");
+    // Cut off IN each cap's ring: the chord's and the arc's surviving
+    // pieces plus the one cut-off arc, three edges per ring.
+    let ring_edges: Vec<usize> = out
+        .body
+        .faces()
+        .flat_map(|(_, f)| f.rings.clone())
+        .map(|lp| {
+            out.body
+                .half_edges()
+                .filter(|(_, h)| h.parent_loop == lp)
+                .count()
+        })
+        .collect();
+    assert_eq!(ring_edges, [3, 3], "each cap's ring gains the cut-off arc");
+    // The concave band adds back what the same ball rolling inside the
+    // D-rod removes: `ΔV = +A·L` for the one crease.
+    let vol = |b: &Body<f64>| {
+        topo::mass_properties(b, tol())
+            .expect("closed-form props")
+            .volume
+    };
+    let dv = vol(&out.body) - vol(&body);
+    let a = sweep::test_support::rod_section_cut(0.2, 0.1, 0.1);
+    assert!((dv - a).abs() < 1e-12, "ΔV = +A·L: measured {dv} vs {a}");
 }
 
 // ---------------------------------------------------------------
