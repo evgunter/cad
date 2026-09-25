@@ -578,3 +578,44 @@ so it is not DUAL.
 
 Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
 `props/sign-hull` at `1264640fa`.
+
+## Announced seam from PATHS (2026-09-25): the carrier's span is the stored sweep signed by the turn
+
+When `geom-brep-sketch-segment-full-turn` lands on `main`, the sweep's
+arc span (`sweep::swept::arc_span`) is the segment's stored sweep Δθ
+signed by the decided turn — `Δθ` for a counterclockwise arc, `0 − Δθ`
+for a clockwise one — and no longer `4·atan|b|`. No bulge crosses into
+`geom-brep` any more, so there is no `b` to spell the span on.
+
+- **What rule D sees.** The lowering mints Δθ as `4·atan b`, and the
+  pushforward (`geom_brep::SketchSegment::eval`) turns through the same
+  stored Δθ. Carrier and pushforward therefore read ONE `atan b` atom,
+  so the two spellings meet as theorems at a parameter bulge of either
+  sign. `sym.rs`'s `rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`
+  now asserts that, where it used to pin the parameter case numeric.
+  This is Ev's route B (#3186) in the Δθ spelling. `props/sign-hull`'s
+  `turned_span` (`4·atan(σ·b)`) conflicts with it on merge-forward; the
+  resolution is the sweep form, since `b` is no longer carried.
+- **What `register_span_identity` is about.** It is stated about that
+  signed sweep. Its proof is unchanged: the span is the arc's turned
+  angle by definition of the lowering.
+- **Measured on `main`'s tier.** R2's link: 20 decisions move into the
+  door, 10 from `numeric` and 10 from `symbolic_zero` (515 → 505,
+  registered 90 → 110), at every ε row. Nothing is refused or
+  contradicted, and no ceiling moves. The plate, annulus, bracket and pad
+  are unmoved. `m10_bulge_interval`'s nominal splits are unmoved on all
+  three documents (the D-tab's forms freeze on the ring first). Every
+  pinned rule-D row passes: `m10_10_pins_interval` and `sym.rs`'s rows.
+  The parameter-bulge span now folds where it did not. The link's ten
+  lost theorems were not rendered, so whether any of them is a rule-D
+  fold is not established here.
+- **Not the span.** `sweep`'s thread-count session row
+  `sym_thin_strip` at its 32-term receipt budget reads
+  `symbolic_zero` 26 → 22. The four are `pcurve_iso_boundary`'s
+  domain-end test, outcome Zero both ways, Theorem → NumericZero, and
+  the same at a 4096-term budget. They stand with the span, the apex,
+  the description's centre and sweep, `restrict` and the loft wall's
+  centre each restored to the old spelling, so they are not attributed
+  to any of those.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).

@@ -58,3 +58,11 @@ From #3231's review:
 - `RawLoop::new` adds a carrier→bulge copy, `(sweep/4).tan()`, which
   joins `sugar.rs::bulge_from_center`'s tail and `path/verbs.rs`. All
   three go when the kept bulge retires.
+
+**From `geom-brep-sketch-segment-full-turn` (2026-09-25).** Two of the
+seven hand copies are gone. `SketchSegment::eval` reads the segment's
+stored centre and sweep. `skin::segment_curve` reads the stored centre,
+radius and sweep. Both are still `seg::arc_carrier`'s derivation,
+carried across the boundary. `ValidatedSegment::bulge` has no reader
+left in `geom-brep`, `topo` or `sweep`. Its readers are the lift
+(profile), `anchor`, the `stackup` digest and `viewer::flatten`.
