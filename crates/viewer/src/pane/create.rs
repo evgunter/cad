@@ -27,7 +27,7 @@ use crate::seats::{Seat, seat_line};
 use crate::session::{FaceFrameFault, ProfilePlane, Selection, SessionOp, face_frame_seat};
 use crate::sketch;
 use crate::theme::Theme;
-use crate::tools::ToolKind;
+use crate::tools::{ToolKind, ToolNotice};
 use crate::tree;
 use crate::widgets::{
     angle_picker, length_picker, number_field, point_fields, unit_field, unit_vec3_row, vec3_row,
@@ -1507,7 +1507,7 @@ impl ViewerBehavior<'_> {
             .and_then(|tool| tool.load_all_edges(target, eval, index));
         if let Some(event) = event {
             self.notices
-                .push(frame::tool_news(ToolKind::Blend.says(&event)));
+                .push(frame::tool_notice(&ToolNotice::Blend(event)));
         }
     }
 
