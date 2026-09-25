@@ -890,10 +890,12 @@ pub enum RoleSeg {
     /// routing door, keeps that identity through the fold's MERGES: a
     /// member's face that a declared merge has consumed resolves, at
     /// the step its pair is fed to, to the accumulation's `Merged` row
-    /// whose flat constituent set holds it. A face consumed any other way — by a
-    /// split, by containment, or inside a merged row later fragmented
-    /// — is not looked through, and a pair naming it is order-shaped
-    /// ([`crate::Node::Union`] states the bound).
+    /// whose flat constituent set holds it. A face another member
+    /// contained whole leaves no row behind, and a pair naming it is
+    /// satisfied. A face surviving only in pieces — split, or inside a
+    /// merged row later fragmented — is not looked through, and a pair
+    /// naming it is order-shaped ([`crate::Node::Union`] states the
+    /// bound).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's
