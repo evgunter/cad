@@ -57,21 +57,29 @@ set costs about 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two,
 four and eight solids. Nothing pins that — no guard, no register — so
 a regression in it is invisible.
 
-**The larger tier-1 read: the asserting setters — TOPO's, not this
-item's.** `Body::set_face_surface` and `Body::set_edge_curve` each run
-a whole-body `validate(&self)` as a postcondition
-(`crates/topo/src/attach.rs:92-97` and `:331-336`), and a door performs
-one per moved face and one per re-described edge: **18** whole-body
-tier-1 walks for a scoped planar call on a unit box (6 + 12), 16 for
-the axial door, 90 for `shell_open` on the hollow-hollow-open body and
-101 on box-beside-vessel opened. It is also a **panic, not a typed
+**The setters' tier-1 read — TOPO's, not this item's, and no longer
+per setter.** When this row was filed (2026-09-08),
+`Body::set_face_surface` and `Body::set_edge_curve` each ran a
+whole-body `validate(&self)` as a postcondition, so a door paid one per
+moved face and one per re-described edge: **18** whole-body tier-1
+walks for a scoped planar call on a unit box (6 + 12), 16 for the axial
+door, 90 for `shell_open` on the hollow-hollow-open body and 101 on
+box-beside-vessel opened. **At `a3a623755` that is no longer the
+code**: the setters call `assert_tier1_postcondition`
+(`crates/topo/src/attach.rs`), which returns early unless
+`tier1_sweep_is_mine()` (`crates/topo/src/surgery.rs`), and the door
+runs under `begin_surgery()` (`offset_together.rs`, "Mutation, on a
+clone"), so the whole-body sweep runs once, when the door's scope
+closes — per setter only under the `per-op-postcondition` feature. The
+figures above are the 2026-09-08 measurement and have not been
+re-taken. It is also a **panic, not a typed
 refusal**, and this workspace's release profile sets
 `debug-assertions = true`, so it is compiled there too. Both SHELL-10
 reviewers ruled it `attach.rs`'s finding rather than the doors' — the
 convention is the postcondition's, and every mutation door in the crate
-pays it — so it carries on as TOPO's own item,
+pays it — so it went to TOPO's own item,
 `attach-postconditions-validate-the-whole-body-and-panic`, filed by the
-orchestrator at merge. It is named here only because it is what a
+orchestrator at merge and closed since. It is named here only because it is what a
 reader of THIS item will otherwise measure and misattribute, and
 because it is why SHELL-10's structural-corruption row stops at the
 scope walk: on a body whose out-of-scope solid is malformed the door

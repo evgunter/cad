@@ -724,17 +724,17 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// [`Scope::faces_in_scope`]): the rows of the scope's faces are
 /// re-derived and no others are read or written.
 ///
-/// **Everything else a door does is still O(body), and there is a lot
-/// of it.** In decreasing order of cost:
+/// **Everything else a door does is still O(body):**
 ///
-/// - **The asserting setters.** `set_face_surface` and `set_edge_curve`
-///   each run a whole-body tier-1 [`validate`](crate::validate()) as a
-///   postcondition, and a door performs one per moved face and one per
-///   re-described edge. A scoped planar call on a unit box pays 18 of
-///   them (6 + 12); the axial door pays 16; `shell_open` on the
-///   hollow-hollow-open body pays 90, and on box-beside-vessel opened,
-///   101. This dominates, and it is not this scope's to fix — it is
-///   `attach.rs`'s postcondition convention, filed as TOPO's own.
+/// - **The tier-1 postcondition, once per door call.** The door runs
+///   its mutations under a surgery scope ([`crate::surgery`]), inside
+///   which `set_face_surface` and `set_edge_curve` check their own
+///   arena deltas and nothing else; the whole-body tier-1
+///   [`validate`](crate::validate()) runs once, when the scope closes,
+///   and it is a panic rather than a typed refusal
+///   (`scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid`).
+///   Built with the `per-op-postcondition` feature, every setter sweeps
+///   the whole body instead.
 /// - **Three whole-arena iterations in each door's decide phase**,
 ///   filtered by `holds_face` / `holds_vertex` / `holds_edge`: the
 ///   plane (or chart) sweep, the corner walk and the edge walk visit
@@ -754,11 +754,11 @@ pub(crate) fn faces_at_vertex<T: Real>(
 /// So a scoped call is **linear in the whole body, not in its scope**,
 /// and it is measured that way: the same one-solid move set costs about
 /// 0.20, 0.30, 0.51 and 1.00 ms on bodies of one, two, four and eight
-/// solids. What this unit bought is which entities are WRITTEN and
+/// solids. What the scope buys is which entities are WRITTEN and
 /// which failures are this call's — not the asymptotics. **Nothing
 /// pins that cost**: there is no guard and no register, so the numbers
 /// above are a measurement taken once, not a contract. The residue and
-/// what would close it: `work/shell/doors-still-read-the-whole-body-for-tier1.md`.
+/// what would close it: `work/offset/doors-still-read-the-whole-body-for-tier1.md`.
 ///
 /// **Tier 2 is the whole contract on the result, and it is tier 2
 /// only.** A door returns `Ok` on a body that then fails
@@ -1055,14 +1055,14 @@ mod scope_walks {
     }
 
     /// **An out-of-scope solid's structural corruption is not this
-    /// call's to find.** `Scope::whole` — the walk the doors used to
-    /// take, and still the shell verb's — refuses this body; the walk a
-    /// move set naming the SOUND solid takes accepts it.
+    /// call's to find.** `Scope::whole` — the shell verb's walk —
+    /// refuses this body; the walk a move set naming the SOUND solid
+    /// takes accepts it.
     ///
     /// **The door as a whole is not** — and the row stops at the scope
     /// deliberately. A structurally corrupt body is refused by two
-    /// arena-global reads this unit did not narrow, both downstream of
-    /// the scope: the door's own tier-1 postcondition, run once over
+    /// arena-global reads that are not scoped, both downstream of the
+    /// scope: the door's own tier-1 postcondition, run once over
     /// the staged clone when its surgery scope closes (a panic, not a
     /// refusal, and compiled into this workspace's release profile
     /// too), and the closing tier-2 check. Driving the door here would
@@ -1121,7 +1121,7 @@ mod scope_walks {
         let mut whole = body.clone();
         assert!(
             crate::pcurves::mint_pcurves(&mut whole, tol).is_err(),
-            "a whole-body mint refuses this body — the base's pass, and the base's refusal"
+            "a whole-body mint refuses this body"
         );
 
         let moves = moves_of(&body, first, 0.0);
