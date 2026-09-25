@@ -232,6 +232,25 @@ impl RowStatus {
             Self::Poisoned { message, .. } => message.as_deref(),
         }
     }
+
+    /// **The row a click on [`message`](RowStatus::message) selects**,
+    /// when that line is a pointer rather than words to read.
+    ///
+    /// The target and the affordance are one answer: a line with
+    /// somewhere to go is a link, and a line with nowhere to go is
+    /// read. So this is the only thing a surface asks to learn both,
+    /// and no second value says which of the two a line is.
+    ///
+    /// Only a poisoned row's line is a pointer — at `through`, the row
+    /// that owns the failure. A failed row's words are its own cause;
+    /// the node THEY name as the one to repair is the row's, not the
+    /// status's ([`TreeRow::repair_at`]), and gets a line of its own.
+    pub fn jump(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through, .. } => Some(*through),
+            Self::Ok | Self::Unevaluated | Self::Failed { .. } => None,
+        }
+    }
 }
 
 /// One line of the feature tree.

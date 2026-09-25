@@ -6,8 +6,9 @@
 use eframe::egui;
 use pncad::document::{Axis3, Dimension, Frame, Node, ParamName, RecipeNodeId};
 use pncad::quantity::{self, UnitDef};
+use pncad::select::Resolution;
 
-use crate::app::{ViewerBehavior, chrome, indeterminate_wording};
+use crate::app::{ViewerBehavior, indeterminate_wording, toned};
 use crate::display::free_move_check;
 use crate::forms::{FIELD_DRAG_SPEED, FieldWriting};
 use crate::frame::Tone;
@@ -400,7 +401,7 @@ impl ViewerBehavior<'_> {
                             self.ops.push(SessionOp::DeleteNode { node: *node });
                         }
                     } else {
-                        ui.colored_label(chrome(self.theme.unresolved), "deleted");
+                        ui.label(toned("deleted", &self.theme, standing.tone()));
                     }
                 });
             }
@@ -410,33 +411,22 @@ impl ViewerBehavior<'_> {
                         ui,
                         format!("parameter {} is no longer declared", name.0),
                         &self.theme,
-                        Tone::Actionable,
+                        standing.tone(),
                     );
                 }
             }
-            Standing::Face { face, resolution } => {
-                self.entity_standing_ui(
-                    ui,
-                    "face",
-                    face.feature(),
-                    resolution.as_deref(),
-                    standing.live(),
-                );
+            Standing::Face { face, .. } => {
+                self.entity_standing_ui(ui, "face", face.feature(), standing);
             }
-            Standing::Edge { edge, resolution } => {
-                self.entity_standing_ui(
-                    ui,
-                    "edge",
-                    edge.feature(),
-                    resolution.as_deref(),
-                    standing.live(),
-                );
+            Standing::Edge { edge, .. } => {
+                self.entity_standing_ui(ui, "edge", edge.feature(), standing);
             }
         }
     }
 
     /// A picked entity's header: which feature it belongs to, the
-    /// delete that feature offers, and the typed resolution verdict.
+    /// delete that feature offers, and the typed resolution verdict
+    /// ([`entity_verdict`]).
     ///
     /// **One rendering for every kind of picked entity**, taking the
     /// noun as an argument: a face and an edge differ in what they are
@@ -448,54 +438,17 @@ impl ViewerBehavior<'_> {
         ui: &mut egui::Ui,
         noun: &str,
         feature: RecipeNodeId,
-        resolution: Option<&pncad::select::Resolution>,
-        live: bool,
+        standing: &Standing,
     ) {
         ui.horizontal(|ui| {
             // The feature that MADE the entity, so the button deletes
             // what the label names.
             ui.label(format!("{noun} of {}", crate::tree::node_number(feature)));
-            if live && delete_button(ui, self.session, feature) {
+            if standing.live() && delete_button(ui, self.session, feature) {
                 self.ops.push(SessionOp::DeleteNode { node: feature });
             }
         });
-        // The typed verdict, rendered from the resolution machinery's
-        // own payload — never a sentence composed here about somebody
-        // else's refusal.
-        match resolution {
-            None => {
-                crate::widgets::message_toned(
-                    ui,
-                    "no evaluation yet to resolve this against",
-                    &self.theme,
-                    Tone::Advisory,
-                );
-            }
-            Some(pncad::select::Resolution::Resolved(_)) => {}
-            Some(pncad::select::Resolution::Failed(failure)) => {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("this {noun} is gone: {}", failure.error),
-                    &self.theme,
-                    Tone::Actionable,
-                );
-                if !failure.offers.is_empty() {
-                    // A count and a fixed literal, so a name.
-                    ui.weak(format!(
-                        "{} rebind candidate(s) offered",
-                        failure.offers.len()
-                    ));
-                }
-            }
-            Some(pncad::select::Resolution::Indeterminate(cause)) => {
-                crate::widgets::message_toned(
-                    ui,
-                    indeterminate_wording(noun, cause),
-                    &self.theme,
-                    Tone::Actionable,
-                );
-            }
-        }
+        entity_verdict(ui, &self.theme, noun, standing);
     }
 
     /// The selected instance's display controls: the hide toggle and
@@ -976,6 +929,45 @@ impl ViewerBehavior<'_> {
         if bounds_notes(ui, &self.theme, reading.as_deref()) {
             self.ops.push(SessionOp::ProbeBounds { target });
         }
+    }
+}
+
+/// **A picked entity's resolution verdict, drawn**: the typed verdict
+/// in the voice [`Standing::tone`] gives it, and the rebind count
+/// under a failure. Draws nothing for a standing that is not a picked
+/// entity, and nothing for one whose name resolved.
+///
+/// The words are the resolution machinery's own payload, composed per
+/// arm — never a sentence composed here about somebody else's refusal.
+/// How LOUD they are is not composed per arm: it is read once, off the
+/// value.
+///
+/// A free function over the `Ui` so a headless drive can reach it
+/// (`crate::pane::headless`).
+pub(crate) fn entity_verdict(ui: &mut egui::Ui, theme: &Theme, noun: &str, standing: &Standing) {
+    let (Standing::Face { resolution, .. } | Standing::Edge { resolution, .. }) = standing else {
+        return;
+    };
+    let resolution = resolution.as_deref();
+    let said = match resolution {
+        None => Some("no evaluation yet to resolve this against".to_owned()),
+        Some(Resolution::Resolved(_)) => None,
+        Some(Resolution::Failed(failure)) => Some(format!("this {noun} is gone: {}", failure.error)),
+        Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause)),
+    };
+    if let Some(said) = said {
+        crate::widgets::message_toned(ui, said, theme, standing.tone());
+    }
+    if let Some(Resolution::Failed(failure)) = resolution
+        && !failure.offers.is_empty()
+    {
+        // A count and a fixed literal, so a name. Weak as secondary
+        // text rather than as a tone: the verdict above it carries the
+        // tone, and this line only counts what that verdict offers.
+        ui.weak(format!(
+            "{} rebind candidate(s) offered",
+            failure.offers.len()
+        ));
     }
 }
 

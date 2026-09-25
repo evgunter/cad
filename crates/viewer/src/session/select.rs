@@ -13,6 +13,8 @@ use pncad::document::{ParamName, RecipeNodeId};
 use pncad::prelude::{StableName, attribute};
 use pncad::select::Resolution;
 
+use crate::frame::Tone;
+
 /// A picked face: the stable name it is, and the node whose body
 /// carried it when it was picked.
 ///
@@ -338,6 +340,52 @@ impl Standing {
             Self::Node { present, .. } | Self::Param { present, .. } => *present,
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 matches!(resolution.as_deref(), Some(Resolution::Resolved(_)))
+            }
+        }
+    }
+
+    /// **Whether what the chrome says about this selection is a
+    /// verdict a reader must act on** — the actionable-or-not rule
+    /// read off the value, as [`crate::tree::RowStatus::tone`] reads
+    /// it off a row.
+    ///
+    /// A selection that names something gone is
+    /// [`Tone::Actionable`]: a deleted node, an undeclared parameter,
+    /// a picked entity whose name failed to resolve, and one the
+    /// evaluation could not answer for. Each asks the reader to
+    /// reselect, rebind or repair the node it waits on, and each
+    /// switches off the affordances [`Standing::live`] gates.
+    ///
+    /// Everything else is [`Tone::Advisory`]: nothing selected, a
+    /// selection that still denotes, and a picked entity with no
+    /// evaluation behind it yet — "we cannot tell" is not a verdict
+    /// about the pick, and the evaluation that answers it is already
+    /// on its way.
+    ///
+    /// **Here and not on the kernel's [`Resolution`]**, which is the
+    /// resolution machinery's verdict and has no reason to know how
+    /// loud a viewer draws it. This type is where the viewer already
+    /// reads that verdict for its chrome — [`Standing::live`] and
+    /// [`Standing::unresolved`] are two readings of it — and it holds
+    /// the node and parameter arms a function keyed on `Resolution`
+    /// could not reach.
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Empty => Tone::Advisory,
+            Self::Node { present, .. } | Self::Param { present, .. } => {
+                if *present {
+                    Tone::Advisory
+                } else {
+                    Tone::Actionable
+                }
+            }
+            Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
+                match resolution.as_deref() {
+                    None | Some(Resolution::Resolved(_)) => Tone::Advisory,
+                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => {
+                        Tone::Actionable
+                    }
+                }
             }
         }
     }

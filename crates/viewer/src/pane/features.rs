@@ -89,33 +89,27 @@ pub(crate) fn failure_lines(
     theme: &Theme,
 ) -> Option<RecipeNodeId> {
     let message = row.status.message()?;
-    // Where the WORDS go, and where a line under them goes. Exhaustive
-    // on purpose: which row a status links to is decided per state.
-    let (words_to, then_to) = match &row.status {
-        RowStatus::Poisoned { through, .. } => (Some(*through), None),
-        // The words are this row's own cause; the link, when the tree
-        // drew one, is to the node those words say to repair.
-        RowStatus::Failed { .. } => (None, row.repair_at),
-        // No line to link ([`RowStatus::message`]).
-        RowStatus::Ok | RowStatus::Unevaluated => (None, None),
-    };
     let mut clicked = None;
     ui.horizontal(|ui| {
         ui.add_space(message_indent(ui, row.depth));
         // A payload's own words are a sentence, so
         // `widgets::message`, not `ui.link`/`ui.weak`.
-        match words_to {
+        match row.status.jump() {
             Some(to) => {
                 if crate::widgets::message_link(ui, message).clicked() {
                     clicked = Some(to);
                 }
             }
+            // Advisory whatever the status: how loud a row is, is its
+            // badge's, read off `RowStatus::tone` on the row above.
+            // The line under it is that verdict's words, and a failed
+            // row drawn loud twice would be the one loud row twice.
             None => {
                 crate::widgets::message_toned(ui, message, theme, frame::Tone::Advisory);
             }
         }
     });
-    if let Some(to) = then_to {
+    if let Some(to) = row.repair_at {
         ui.horizontal(|ui| {
             ui.add_space(message_indent(ui, row.depth));
             if crate::widgets::message_link(ui, tree::repair_wording(to)).clicked() {
