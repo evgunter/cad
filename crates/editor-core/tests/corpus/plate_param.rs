@@ -94,6 +94,7 @@ pub fn plate_profile(plane: RecipeNodeId) -> ProfileProgram {
             hole_loop(HOLE_CENTRES[0]),
             hole_loop(HOLE_CENTRES[1]),
         ],
+        ids: Vec::new(),
     }
 }
 
@@ -123,6 +124,7 @@ pub fn document() -> CorpusDoc {
             LoopProgram::polygon([(3.5, 1.75), (4.5, 1.75), (4.5, 2.5), (3.5, 2.5)])
                 .expect("finite tab corners"),
         ],
+        ids: Vec::new(),
     }));
     let tab = r.insert(Node::Extrude {
         profile: tab_p,

@@ -28,7 +28,7 @@ use geom_core::Tol;
 /// that are genuinely about behavior-GIVEN-verdicts stay under the
 /// idealized sweep (`m4_pr4_diff`, `m4_pr4_resolve` — see their
 /// headers); `m4_pr4_banked` pins both strategies side by side.
-fn run<T>(doc: &ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
+fn run<T>(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<T>>) -> Evaluation<T>
 where
     T: editor_core::EvalScalar,
 {

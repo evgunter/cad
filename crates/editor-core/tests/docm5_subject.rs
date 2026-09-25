@@ -40,7 +40,7 @@ use geom_core::Tol;
 use topo::Body;
 
 /// The two spellings of the registry over one document.
-fn both_ways(doc: &ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
+fn both_ways(doc: &editor_core::ProfileDoc, ev: &Evaluation<f64>) -> (ChecksReport, ChecksReport) {
     let cfg = ChecksConfig::default();
     let tol = Tol::witness();
     let wrapped = run_checks(doc, ev, &cfg, tol).expect("the registry runs over the corpus");

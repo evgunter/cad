@@ -1146,6 +1146,7 @@ mod tests {
             Node::Profile(ProfileProgram {
                 plane,
                 loops: loops.clone(),
+                ids: Vec::new(),
             }),
         );
         drafts.accepted(
@@ -1306,7 +1307,11 @@ mod tests {
             ..Drafts::default()
         };
         let loops = drafts.profile_programs().expect("the default path lowers");
-        let node = Node::Profile(ProfileProgram { plane, loops });
+        let node = Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        });
         let doc = apply(
             &doc,
             &DocEdit::InsertNode { node },

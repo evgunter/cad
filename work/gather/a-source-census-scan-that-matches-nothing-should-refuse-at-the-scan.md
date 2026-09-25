@@ -2,11 +2,13 @@
 id: a-source-census-scan-that-matches-nothing-should-refuse-at-the-scan
 kind: issue
 title: A source census whose scan matches nothing in a file that must contain its markers should refuse at the scan, not return an honest zero for an assertion to maybe catch
-status: open
+status: closed
 opened: 2026-09-14
 refs: [2480, 2501, 2517, 2555]
 priority: P3
 cost: E
+closed: 2026-09-24
+pr: 3141
 ---
 
 ## Finding
@@ -76,3 +78,39 @@ slice does not. And a sweep of the three censuses above to say, per
 scan, whether its file is *required* to contain the markers — because
 the ones that may legitimately match nothing are exactly the ones this
 change must not break.
+
+## Closed
+
+PR 3141. **The decision: refuse.** `sentinel_region` already panicked on
+a missing or inverted sentinel. The sibling it lacked was a plain needle
+scan. `test_utils::source::required_matches(text, what, needle)` is
+`match_indices` for a text that is required to carry its needle. When
+the needle matches nothing it refuses, and the refusal names the text and
+the needle. Its test is
+`source::tests::a_required_needle_that_matches_nothing_refuses_at_the_scan`.
+
+Per-census sweep (each scan: is its file required to contain the markers?):
+
+- `wire_operand_door.rs`:
+  - The `family::` / `phrase::` vocabulary scan: **required**. It now
+    uses `required_matches` per prefix, which is stricter than the old
+    union non-emptiness assert. `eval/wire.rs` carries both prefixes.
+  - `doors()` over the `OPERAND-DOOR` region: **required**. It refuses
+    inside the scan, and the call site keeps its `>= 2` floor, with the
+    message reworded.
+  - The `family_word!` arm scan: **required**. It refuses right after
+    the read and before the equality it feeds. The trailing
+    `!heads.is_empty()` assert is gone.
+  - The behavioural `phrases`/`families` floor: not a source scan, so it
+    stays.
+- `wire_entity_door.rs`:
+  - `variants()`: **required**. It refuses when there is no variant or
+    no `found:` field, and the two call-site asserts are gone.
+  - `!built.is_empty()`: deleted. Once `declared` is non-empty, the
+    `declared == built` equality already reds on an empty walk.
+- `switch_program_vocabulary.rs`: **the premise does not hold.** It has
+  no source scan (no `include_str!`). Its non-emptiness asserts guard a
+  corpus built in code, and they stay.
+
+The legitimate-zero case is still served by `str::match_indices` itself,
+and the helper's docs say so.

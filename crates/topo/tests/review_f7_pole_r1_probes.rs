@@ -5,7 +5,7 @@
 //! **ADOPTED (VERBS/F7), and RE-POLARISED.** These were written to
 //! falsify a gate exemption that has since been WITHDRAWN — the
 //! attacks succeeded, which is why it was. R1's fixture geometry and
-//! reasoning are preserved verbatim; what changed is the assertions,
+//! reasoning are preserved; what changed is the assertions,
 //! which now pin the behaviour the fixtures actually produce: every
 //! one of these bent/ordinary shapes REFUSES `NonMaximalFaces`, and
 //! that is what makes them the negative differential rows for the
@@ -29,7 +29,7 @@
 
 use crate::common;
 
-use common::{brick, prism_z};
+use common::{brick, plant_ring_face, prism_z};
 use geom_core::Tol;
 use topo::{
     Body, BooleanError, BooleanOp, FaceSurface, MefSite, MekrSite, MevSite, boolean_reduce,
@@ -148,9 +148,11 @@ fn p2_subdivided_chord_pair_still_refuses() {
 
 /// Builds the prism whose top face carries an inset coplanar PATCH:
 /// ring planted (strut + kemr), grown P→Q→R→S, closed by a mef whose
-/// membrane inherits the TOP face's own plane key. The membrane and
-/// the top face are two same-plane-key faces adjacent across all four
-/// ring edges, and all four ring vertices have valence 2.
+/// membrane inherits the TOP face's own plane key
+/// ([`common::plant_ring_face`], anchored at the top face's corner
+/// (0, 0)). The membrane and the top face are two same-plane-key faces
+/// adjacent across all four ring edges, and all four ring vertices have
+/// valence 2.
 fn inset_patch_prism() -> (
     Body<f64>,
     topo::FaceKey,        // top face
@@ -164,61 +166,29 @@ fn inset_patch_prism() -> (
         Tol::witness(),
     );
     let mut b = p.body;
-    let tol = Tol::witness();
     let pt = geom_core::Point3::new;
-    // (f) strut from corner (0,0) to P(0.5, 0.5).
     let he_a = he_at(&b, p.top_face, 0.0, 0.0, 1.0);
-    let strut = b
-        .mev_line(
-            MevSite::Fan {
-                he1: he_a,
-                he2: he_a,
-            },
+    let ring = plant_ring_face(
+        &mut b,
+        he_a,
+        &[
             pt(0.5, 0.5, 1.0),
-            tol,
-        )
-        .unwrap();
-    // (g) kill it: P is an empty ring of the top face.
-    let kill = b.kemr(strut.he_plus, strut.he_minus).unwrap();
-    // (h) grow P→Q→R→S.
-    let s_pq = b
-        .mev_line(MevSite::Lone { r#loop: kill.ring }, pt(1.5, 0.5, 1.0), tol)
-        .unwrap(); // Q
-    let s_qr = b
-        .mev_line(
-            MevSite::Fan {
-                he1: s_pq.he_minus,
-                he2: s_pq.he_minus,
-            },
+            pt(1.5, 0.5, 1.0),
             pt(1.5, 1.5, 1.0),
-            tol,
-        )
-        .unwrap(); // R
-    let s_rs = b
-        .mev_line(
-            MevSite::Fan {
-                he1: s_qr.he_minus,
-                he2: s_qr.he_minus,
-            },
             pt(0.5, 1.5, 1.0),
-            tol,
-        )
-        .unwrap(); // S
-    // (i) close: the ring becomes the patch rim; the membrane face
-    // inherits the top face's surface key (mef_chord ⇒ Inherit).
-    b.mef_chord(
-        MefSite::Chords {
-            he1: s_pq.he_plus,
-            he2: s_rs.he_minus,
-        },
-        tol,
-    )
-    .unwrap();
+        ],
+        Tol::witness(),
+    );
     (
         b,
         p.top_face,
-        [strut.vertex, s_pq.vertex, s_qr.vertex, s_rs.vertex],
-        kill.ring,
+        [
+            ring.strut.vertex,
+            ring.rim[0].vertex,
+            ring.rim[1].vertex,
+            ring.rim[2].vertex,
+        ],
+        ring.kill.ring,
     )
 }
 

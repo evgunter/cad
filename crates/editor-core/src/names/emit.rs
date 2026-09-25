@@ -1090,7 +1090,14 @@ mod pattern_tests {
             .unwrap();
         let built =
             sweep::extrude(&prof, sweep::Extrusion::Distance(1.0_f64), Tol::witness()).unwrap();
-        let table = name_extrude(node, &built).unwrap();
+        let table = name_extrude(
+            node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         (built.body, table)
     }
 
@@ -1572,9 +1579,9 @@ mod display_tests {
             node: RecipeNodeId(node),
             path: vec![RoleSeg::CapVertex(
                 super::super::role::CapEnd::End,
-                super::super::role::ProfileVertexRef {
-                    loop_index: 0,
-                    vertex: 0,
+                super::super::role::ProfileVertexRef::Piece {
+                    step: crate::node::StepId(0),
+                    role: crate::names::PieceRole::Leg,
                 },
             )],
         };
@@ -1687,10 +1694,12 @@ mod display_tests {
                     edge: Box::new(StableName {
                         kind: EntityKind::Edge,
                         node: RecipeNodeId(37),
-                        path: vec![RoleSeg::LateralEdge(super::super::role::ProfileVertexRef {
-                            loop_index: 0,
-                            vertex: 2,
-                        })],
+                        path: vec![RoleSeg::LateralEdge(
+                            super::super::role::ProfileVertexRef::Piece {
+                                step: crate::node::StepId(2),
+                                role: crate::names::PieceRole::Leg,
+                            },
+                        )],
                     }),
                 },
                 vec![

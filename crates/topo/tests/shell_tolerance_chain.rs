@@ -156,17 +156,9 @@ impl Stretch {
         let Some((open, close)) = self.sentinels else {
             return (self.source, 1);
         };
-        let start = self
-            .source
-            .find(open)
-            .unwrap_or_else(|| panic!("{}: the opening sentinel is gone", self.file));
-        let end = self
-            .source
-            .find(close)
-            .unwrap_or_else(|| panic!("{}: the closing sentinel is gone", self.file));
-        assert!(start < end, "{}: the sentinels are inverted", self.file);
-        let first_line = test_utils::source::line(self.source, start);
-        (&self.source[start..end], first_line)
+        let region = test_utils::source::sentinel_region(self.source, self.file, open, close);
+        let first_line = test_utils::source::line(self.source, region.start);
+        (&self.source[region], first_line)
     }
 }
 

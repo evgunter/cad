@@ -24,18 +24,12 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn pe(l: u32, s: u32) -> ProfileEdgeRef {
-    ProfileEdgeRef {
-        loop_index: l,
-        segment: s,
-    }
+fn pe(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, s: u32) -> ProfileEdgeRef {
+    crate::fixture::piece(doc, node, l as usize, s as usize)
 }
 
-fn pv(l: u32, v: u32) -> ProfileVertexRef {
-    ProfileVertexRef {
-        loop_index: l,
-        vertex: v,
-    }
+fn pv(doc: &editor_core::ProfileDoc, node: RecipeNodeId, l: u32, v: u32) -> ProfileVertexRef {
+    crate::fixture::vpiece(doc, node, l as usize, v as usize)
 }
 
 /// A unit-square profile + extrude prelude (xy plane).
@@ -89,15 +83,19 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
     // both cap vertices.
     for s in 0..4 {
         assert!(
-            t.lookup(&minted(EntityKind::Face, ext, RoleSeg::Lateral(pe(0, s))))
-                .is_some()
+            t.lookup(&minted(
+                EntityKind::Face,
+                ext,
+                RoleSeg::Lateral(pe(&doc, ext, 0, s))
+            ))
+            .is_some()
         );
         for end in [CapEnd::End, CapEnd::Start] {
             assert!(
                 t.lookup(&minted(
                     EntityKind::Edge,
                     ext,
-                    RoleSeg::RimEdge(end, pe(0, s))
+                    RoleSeg::RimEdge(end, pe(&doc, ext, 0, s))
                 ))
                 .is_some()
             );
@@ -105,7 +103,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     ext,
-                    RoleSeg::CapVertex(end, pv(0, s))
+                    RoleSeg::CapVertex(end, pv(&doc, ext, 0, s))
                 ))
                 .is_some()
             );
@@ -114,7 +112,7 @@ fn extrude_names_every_boundary_entity_with_the_d2_roles() {
             t.lookup(&minted(
                 EntityKind::Edge,
                 ext,
-                RoleSeg::LateralEdge(pv(0, s))
+                RoleSeg::LateralEdge(pv(&doc, ext, 0, s))
             ))
             .is_some()
         );
@@ -228,6 +226,7 @@ fn ball_doc(angle: f64) -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![meridian],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -266,19 +265,27 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
     }
     for s in 0..4 {
         assert!(
-            t.lookup(&minted(EntityKind::Face, rev, RoleSeg::Band(pe(0, s))))
-                .is_some()
+            t.lookup(&minted(
+                EntityKind::Face,
+                rev,
+                RoleSeg::Band(pe(&doc, rev, 0, s))
+            ))
+            .is_some()
         );
         assert!(
-            t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s))))
-                .is_some()
+            t.lookup(&minted(
+                EntityKind::Edge,
+                rev,
+                RoleSeg::BandRim(pv(&doc, rev, 0, s))
+            ))
+            .is_some()
         );
         for m in [MeridianEnd::Start, MeridianEnd::End] {
             assert!(
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(m, pe(0, s))
+                    RoleSeg::Meridian(m, pe(&doc, rev, 0, s))
                 ))
                 .is_some()
             );
@@ -286,7 +293,7 @@ fn partial_revolve_offset_names_bands_rims_caps_meridians() {
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     rev,
-                    RoleSeg::MeridianVertex(m, pv(0, s))
+                    RoleSeg::MeridianVertex(m, pv(&doc, rev, 0, s))
                 ))
                 .is_some()
             );
@@ -304,14 +311,22 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     assert!(
-        t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 3))))
-            .is_some()
+        t.lookup(&minted(
+            EntityKind::Edge,
+            rev,
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 3))
+        ))
+        .is_some()
     );
     // The two on-axis profile vertices are poles.
     for v in [0, 3] {
         assert!(
-            t.lookup(&minted(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
-                .is_some()
+            t.lookup(&minted(
+                EntityKind::Vertex,
+                rev,
+                RoleSeg::Pole(pv(&doc, rev, 0, v))
+            ))
+            .is_some()
         );
     }
     // Off-axis vertices carry start+end copies.
@@ -321,7 +336,7 @@ fn partial_revolve_on_axis_names_axis_edge_and_poles() {
                 t.lookup(&minted(
                     EntityKind::Vertex,
                     rev,
-                    RoleSeg::MeridianVertex(m, pv(0, v))
+                    RoleSeg::MeridianVertex(m, pv(&doc, rev, 0, v))
                 ))
                 .is_some()
             );
@@ -342,18 +357,26 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
     assert_eq!(t.len(), 17);
     for s in 0..4 {
         assert!(
-            t.lookup(&minted(EntityKind::Face, rev, RoleSeg::Band(pe(0, s))))
-                .is_some()
-        );
-        assert!(
-            t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::BandRim(pv(0, s))))
-                .is_some()
+            t.lookup(&minted(
+                EntityKind::Face,
+                rev,
+                RoleSeg::Band(pe(&doc, rev, 0, s))
+            ))
+            .is_some()
         );
         assert!(
             t.lookup(&minted(
                 EntityKind::Edge,
                 rev,
-                RoleSeg::Meridian(MeridianEnd::Seam, pe(0, s))
+                RoleSeg::BandRim(pv(&doc, rev, 0, s))
+            ))
+            .is_some()
+        );
+        assert!(
+            t.lookup(&minted(
+                EntityKind::Edge,
+                rev,
+                RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, s))
             ))
             .is_some()
         );
@@ -361,7 +384,7 @@ fn full_lamina_revolve_names_seam_chain_and_full_rims() {
             t.lookup(&minted(
                 EntityKind::Vertex,
                 rev,
-                RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, s))
+                RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(&doc, rev, 0, s))
             ))
             .is_some()
         );
@@ -407,19 +430,23 @@ fn full_holed_revolve_names_the_cavity_loop() {
     assert_eq!(t.len(), 33);
     for l in 0..2 {
         for s in 0..4 {
-            assert!(t.lookup(&band(rev, l, s)).is_some());
-            assert!(t.lookup(&band_rim(rev, l, s)).is_some());
+            assert!(t.lookup(&band(rev, pe(&doc, rev, l, s))).is_some());
+            assert!(t.lookup(&band_rim(rev, pv(&doc, rev, l, s))).is_some());
             assert!(
                 t.lookup(&minted(
                     EntityKind::Edge,
                     rev,
-                    RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s))
+                    RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, l, s))
                 ))
                 .is_some()
             );
             assert!(
-                t.lookup(&meridian_vertex(MeridianEnd::Seam, rev, l, s))
-                    .is_some()
+                t.lookup(&meridian_vertex(
+                    MeridianEnd::Seam,
+                    rev,
+                    pv(&doc, rev, l, s)
+                ))
+                .is_some()
             );
         }
     }
@@ -473,16 +500,20 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     // pole; 1 is (0, 1). Canonical segment 0 is the arc.
     for v in 0..2 {
         assert!(
-            t.lookup(&minted(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
-                .is_some(),
+            t.lookup(&minted(
+                EntityKind::Vertex,
+                rev,
+                RoleSeg::Pole(pv(&doc, rev, 0, v))
+            ))
+            .is_some(),
             "pole {v} unnamed"
         );
     }
     for seg in [
-        RoleSeg::Band(pe(0, 0)),
-        RoleSeg::BandPi(pe(0, 0)),
-        RoleSeg::Meridian(MeridianEnd::Seam, pe(0, 0)),
-        RoleSeg::Meridian(MeridianEnd::Pi, pe(0, 0)),
+        RoleSeg::Band(pe(&doc, rev, 0, 0)),
+        RoleSeg::BandPi(pe(&doc, rev, 0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Seam, pe(&doc, rev, 0, 0)),
+        RoleSeg::Meridian(MeridianEnd::Pi, pe(&doc, rev, 0, 0)),
     ] {
         let kind = match seg {
             RoleSeg::Band(_) | RoleSeg::BandPi(_) => EntityKind::Face,
@@ -495,8 +526,12 @@ fn full_revolve_of_an_all_on_axis_loop_names_both_poles() {
     }
     // The on-axis diameter sweeps to nothing: no segment-1 roles.
     assert!(
-        t.lookup(&minted(EntityKind::Face, rev, RoleSeg::Band(pe(0, 1))))
-            .is_none()
+        t.lookup(&minted(
+            EntityKind::Face,
+            rev,
+            RoleSeg::Band(pe(&doc, rev, 0, 1))
+        ))
+        .is_none()
     );
 }
 
@@ -513,19 +548,31 @@ fn partial_revolve_of_an_all_on_axis_loop_names_both_poles() {
     assert_eq!(t.len(), 9);
     for v in 0..2 {
         assert!(
-            t.lookup(&minted(EntityKind::Vertex, rev, RoleSeg::Pole(pv(0, v))))
-                .is_some(),
+            t.lookup(&minted(
+                EntityKind::Vertex,
+                rev,
+                RoleSeg::Pole(pv(&doc, rev, 0, v))
+            ))
+            .is_some(),
             "pole {v} unnamed"
         );
     }
     assert!(
-        t.lookup(&minted(EntityKind::Edge, rev, RoleSeg::AxisEdge(pe(0, 1))))
-            .is_some(),
+        t.lookup(&minted(
+            EntityKind::Edge,
+            rev,
+            RoleSeg::AxisEdge(pe(&doc, rev, 0, 1))
+        ))
+        .is_some(),
         "the on-axis diameter is the caps' shared axis edge"
     );
     assert!(
-        t.lookup(&minted(EntityKind::Face, rev, RoleSeg::Band(pe(0, 0))))
-            .is_some()
+        t.lookup(&minted(
+            EntityKind::Face,
+            rev,
+            RoleSeg::Band(pe(&doc, rev, 0, 0))
+        ))
+        .is_some()
     );
 }
 
@@ -591,7 +638,7 @@ fn split_names_sections_fragments_and_crossings() {
     // each cut wall contributes a SectionEdge.
     for side in [SplitHalf::Above, SplitHalf::Below] {
         for s in 0..4 {
-            let lateral = minted(EntityKind::Face, ext, RoleSeg::Lateral(pe(0, s)));
+            let lateral = minted(EntityKind::Face, ext, RoleSeg::Lateral(pe(&doc, ext, 0, s)));
             assert!(
                 t.lookup(&minted(
                     EntityKind::Face,
@@ -616,7 +663,11 @@ fn split_names_sections_fragments_and_crossings() {
                 .is_some(),
                 "missing section edge side={side:?} seg={s}"
             );
-            let strut = minted(EntityKind::Edge, ext, RoleSeg::LateralEdge(pv(0, s)));
+            let strut = minted(
+                EntityKind::Edge,
+                ext,
+                RoleSeg::LateralEdge(pv(&doc, ext, 0, s)),
+            );
             assert!(
                 t.lookup(&minted(
                     EntityKind::Edge,
