@@ -138,7 +138,7 @@ assert abs(body.mass_properties().volume - 2.56e-5) < 1e-18
 ```
 
 Here `25 * mm` builds a typed `Length`. Dimensions are checked: `25 *
-mm + 90 * deg` is a `DimensionError`, not a number.
+mm + 90 * deg` is a `QuantityOpMismatch`, not a number.
 
 A dimensioned slot takes an `Expr`, and `Expr.length_in(8, mm)` is how
 an authored number reaches one: the value and the unit it was written
@@ -798,8 +798,13 @@ use pncad::mesh::validate::{check_mesh, signed_volume, triangle_count};
 # let r = subtract(&u.body, &pocket, tol)?; let result = r.body().expect("difference");
 # let props = mass_properties(&result.body, tol)?;
 # let mesh = tessellate(&result.body, 0.0005, tol).expect("tessellate");
-// 1. The mesh is a closed 2-manifold — no boundary edges, no
-//    non-manifold junctions. A refusal here is fail-loud, not a hint.
+// 1. The mesh is the mesh of a SOLID: it carries triangles, every
+//    face's patch carries some, and the triangle set is closed and
+//    consistently wound — no boundary edges, no non-manifold
+//    junctions. A refusal here is fail-loud, not a hint. Emptiness is
+//    part of the contract rather than a consequence of it: every
+//    closure condition is universal over edges, so a mesh of nothing
+//    would satisfy all of them by having none.
 check_mesh(&mesh).expect("a watertight mesh");
 
 // 2. Its signed volume is positive: the winding really is outward.
@@ -2108,10 +2113,9 @@ schedules produce bit-identical reports. A band refuses the whole run
 answering an offset in the distribution's own dimension.
 
 What does NOT cross is the certified half — the E6 driver, the E4/E5
-stackup, the E10 reports — which lives behind the `interval` feature
-the wheel is not built with. That is the whole reason the advisory
-lane is un-gated in the kernel: a caller with no certified scalar
-still gets the labeled estimate.
+stackup, the E10 reports — which answers at the certified scalar, and
+the binding evaluates at `f64`. The advisory lane is pure `f64` replay,
+so a caller with no certified scalar still gets the labeled estimate.
 
 ## 4. The rest of the documentation
 

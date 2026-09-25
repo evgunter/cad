@@ -4194,7 +4194,8 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   presentation layer with no authoring door yet.
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
-///   `Diagnosis`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
+///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -4234,7 +4235,16 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   by field access already.
 /// - **Evaluation interior** (`EvalScalar`, `RunStatus`,
 ///   `ContentKey`, `apply_with_names`, `derivation_nodes`): the
-///   service's own machinery behind `evaluate`.
+///   service's own machinery behind `evaluate`. `remap_name` beside
+///   them: the split's and the inline's id rewrite of one name, for a
+///   Rust caller carrying its own names across a `NodeMap`; the
+///   Python surface holds no `NodeMap`, and the names a split or an
+///   inline carries reach it already rewritten.
+///   `FragmentGroups` beside them too: the fragment-group record a node
+///   value carries for the diagnosis ladder. A consumer can hold one
+///   (`NodeValue::fragment_groups`) and make an empty one, and can read
+///   nothing from it; what it records reaches a consumer as
+///   `Diagnosis::GroupResized`'s two counts.
 ///
 ///   **`eval`, `eval_count` and `EvalError` used to be in this family
 ///   and were wrong to be.** They are not machinery behind
@@ -4364,30 +4374,24 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `PairingViolation`; the third lane seam `MinClearanceLane`
 ///   with its `MinClearanceOperand`, which is how a `min_clearance`
 ///   measure asks the interval lane for the bracket only that lane
-///   can carry; the fourth, `ShellLane` — which scalars can form
-///   the shell door's call at all, a lane fact decided by the type: a
-///   dual does not certify, and the door validates what it built; and
-///   the identity the lane seams share, `Lane` with its `BracketEnd`,
-///   which is how a lane names itself and reads a bracket's end when a
-///   refusal's number crosses into the scalar-free vocabulary).
+///   can carry; and the identity the lane seams share, `Lane` with its
+///   `BracketEnd`, which is how a lane names itself and reads a
+///   bracket's end when a refusal's number crosses into the
+///   scalar-free vocabulary).
 ///
 ///   **The rest of this family is now CARRIED**, by `crate::analysis`
-///   behind the `interval` feature (M10-6): the driver and its box,
+///   (M10-6): the driver and its box,
 ///   the stackup and its field types, the reporting layer and the
 ///   advisory estimator. The entry that stood here said the curated
 ///   face "is the REPORTING surface — persisted, goldened stackups —
 ///   which is where the façade row lands", and M10-6 built it, so the
-///   row landed. What that cost is a conditional door on a surface
-///   that had none, and `crate::analysis` states the trade at its own
-///   head rather than here.
+///   row landed; `crate::analysis` states why at its own head rather
+///   than here.
 ///
 ///   **`SeedError` left this family**, with `ParamBoxError` beside it:
-///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, and
-///   those arms exist on every build, so both are carried
-///   UNCONDITIONALLY — `ParamBoxError` moved out of the driver's
-///   `interval` block for that reason. A payload a default-feature
-///   consumer can match and cannot name is the defect; the seams that
-///   MINT them stay interior below.
+///   they are `NodeErrorKind`'s `Seed` and `ParamBox` payloads, so
+///   both are carried: a payload a consumer can match and cannot name
+///   is the defect. The seams that MINT them stay interior below.
 ///
 ///   What stays interior is what a consumer of the REPORTS does not
 ///   hold: the flip evidence a refusal carries (read through the
@@ -4407,7 +4411,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 ///   `work/lib/certified-range-has-no-python-door`, and carrying this
 ///   family is part of what it schedules; a promise made only in this
 ///   comment would be gone the moment someone edited it.
-const NOT_CARRIED: [&str; 92] = [
+const NOT_CARRIED: [&str; 94] = [
     "AppearanceLoss",
     "AppearanceLossCause",
     "AppearanceMap",
@@ -4434,6 +4438,7 @@ const NOT_CARRIED: [&str; 92] = [
     "FlipEvidence",
     "FlipSet",
     "FlipSource",
+    "FragmentGroups",
     "Implicated",
     "Lane",
     "MeshPatchKey",
@@ -4463,7 +4468,6 @@ const NOT_CARRIED: [&str; 92] = [
     "SectionScalar",
     "SeedScalar",
     "ShadowExecRefusal",
-    "ShellLane",
     "SideVerdict",
     "StructureFlip",
     "SummaryDelta",
@@ -4472,6 +4476,7 @@ const NOT_CARRIED: [&str; 92] = [
     "SummaryFlipSet",
     "TieWitness",
     "Tombstone",
+    "UpstreamCause",
     "VerdictFlip",
     "VerdictRow",
     "VerdictSummary",
@@ -4493,6 +4498,7 @@ const NOT_CARRIED: [&str; 92] = [
     "from_value",
     "param_env_over",
     "rebind_suggestions",
+    "remap_name",
     "resolve_with_prior",
     "seed_env",
     "sensitivities",
@@ -4617,8 +4623,7 @@ fn module_pub_use_names(code: &str) -> std::collections::BTreeSet<String> {
 ///    nobody made to decide about them — rather than a leak.
 /// 2. A `pub` item written DIRECTLY in `editor-core/src/lib.rs`
 ///    rather than re-exported. That root declares 34 `pub mod` at
-///    column 0, five of them behind `#[cfg(feature = "interval")]`,
-///    and no `pub` item of any other kind — so nothing type-like
+///    column 0 and no `pub` item of any other kind — so nothing type-like
 ///    escapes this scan today, held shut by the root's shape rather
 ///    than by a rule. [`root_declared_pub_names`] is the mechanism
 ///    that closes this, and closes it for the profile layer in this
@@ -6071,6 +6076,167 @@ mod unit_vector_witness_through_the_facade {
         assert_eq!(
             UnitVec3::new(Vec3::new(0.0, 0.0, 0.0), DATUM_UNIT_NORM, band).err(),
             Some(UnitVec3Error::Degenerate)
+        );
+    }
+}
+
+/// **A hollowed box, authored and evaluated the way a user would**,
+/// entirely through the façade: plane → square profile → extrude →
+/// [`Node::shell`] with the top cap designated open. The shell door
+/// is a value the at-rest policy answers, so the same program runs
+/// at a certifying scalar and refuses TYPED at a dual — at the shell
+/// node alone, with every other node green.
+mod the_hollowed_box_through_the_facade {
+    use pncad::document::{
+        CancelToken, Datum, Dimension, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node,
+        NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, apply,
+        evaluate,
+    };
+    use pncad::geom_core::Tol;
+    use pncad::prelude::StableName;
+    use pncad::select::{CapEnd, EntityKind, RoleSeg};
+
+    fn len(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Length).unwrap()
+    }
+    fn scl(v: f64) -> Expr {
+        Expr::literal(v, Dimension::Scalar).unwrap()
+    }
+
+    fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+        let applied = apply(
+            &doc,
+            &DocEdit::InsertNode { node },
+            Tol::witness(),
+            &RefusingReach,
+        )
+        .expect("the insert applies");
+        let id = applied.record.minted.expect("a minted id");
+        (applied.doc, id)
+    }
+
+    /// The unit box with its top cap designated: the blank and the
+    /// hollowed node, in one document.
+    fn open_box() -> (ProfileDoc, RecipeNodeId) {
+        let doc = ProfileDoc::empty_derived("shell-e2e", Tol::witness());
+        let (doc, plane) = insert(
+            doc,
+            Node::Datum(Datum::Frame {
+                origin: [0.0; 3].map(len),
+                u: [1.0, 0.0, 0.0].map(scl),
+                v: [0.0, 1.0, 0.0].map(scl),
+            }),
+        );
+        let square =
+            LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap();
+        let (doc, profile) = insert(
+            doc,
+            Node::Profile(ProfileProgram {
+                plane,
+                loops: vec![square],
+            }),
+        );
+        let (doc, blank) = insert(
+            doc,
+            Node::Extrude {
+                profile,
+                distance: len(1.0),
+            },
+        );
+        let top = StableName {
+            kind: EntityKind::Face,
+            node: blank,
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        };
+        let (doc, cup) = insert(doc, Node::shell(blank, len(0.125), vec![top]));
+        (doc, cup)
+    }
+
+    // `EvalScalar` is not on the façade (it is in this file's
+    // `NOT_CARRIED` roster), so a façade consumer cannot write this
+    // helper generically at all — each scalar gets its own call, and
+    // a macro is what spares the repetition.
+    macro_rules! run {
+        ($t:ty, $doc:expr) => {
+            evaluate::<$t>(
+                $doc,
+                None,
+                &CancelToken::new(),
+                &EvalOptions::default(),
+                Tol::witness(),
+            )
+        };
+    }
+
+    /// At `f64` the whole program evaluates and the hollow measures
+    /// its closed form, `l·l·h − (l−2t)²·(h−t)`.
+    #[test]
+    fn the_box_hollows_at_f64() {
+        let (doc, cup) = open_box();
+        let ev: Evaluation<f64> = run!(f64, &doc);
+        for (id, r) in &ev.nodes {
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "node {id:?} did not evaluate: {r:?}"
+            );
+        }
+        let pncad::document::ValuePayload::Body(body) =
+            &ev.value(cup).expect("the shell has a value").payload
+        else {
+            panic!("the shell's payload is not a body");
+        };
+        let props = pncad::topo::mass_properties(body, Tol::witness()).expect("the cup measures");
+        let inner: f64 = 1.0 - 0.25;
+        let want = 1.0 - inner * inner * (1.0 - 0.125);
+        assert_eq!(props.volume, want, "the cup's volume is its closed form");
+    }
+
+    /// At a dual the same document refuses at the shell node and
+    /// nowhere else: the policy seam answers `None`, so the door is
+    /// never formed and the refusal is typed.
+    #[test]
+    fn the_box_refuses_typed_at_a_dual_and_there_alone() {
+        let (doc, cup) = open_box();
+        let ev: Evaluation<pncad::geom_core::Dual64> = run!(pncad::geom_core::Dual64, &doc);
+        let head = ev.nodes.get(&cup).expect("the shell node ran");
+        let NodeResult::Failed(e) = head else {
+            panic!("the shell did not refuse at a dual: {head:?}");
+        };
+        assert!(
+            matches!(e.kind, NodeErrorKind::ShellLaneUnsupported { lane: "Dual" }),
+            "the refusal is not the typed shell-door absence: {:?}",
+            e.kind
+        );
+        for (id, r) in &ev.nodes {
+            if *id == cup {
+                continue;
+            }
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "the refusal is not the shell's alone: {id:?} -> {r:?}"
+            );
+        }
+    }
+
+    /// The bracketing scalar certifies too, so the same program
+    /// hollows there.
+    #[test]
+    fn the_box_hollows_at_interval() {
+        use pncad::geom_core::interval::Interval;
+        let (doc, cup) = open_box();
+        let ev: Evaluation<Interval> = run!(Interval, &doc);
+        for (id, r) in &ev.nodes {
+            assert!(
+                matches!(r, NodeResult::Ok(_)),
+                "node {id:?} did not evaluate at Interval: {r:?}"
+            );
+        }
+        assert!(
+            matches!(
+                &ev.value(cup).expect("the shell has a value").payload,
+                pncad::document::ValuePayload::Body(_)
+            ),
+            "the interval hollow is a body"
         );
     }
 }

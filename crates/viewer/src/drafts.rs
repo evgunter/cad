@@ -19,12 +19,13 @@ use pncad::geom_core::Point2;
 use pncad::prelude::StableName;
 use pncad::profile::{Step, Target};
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenAngle, WrittenLength};
+use pncad::select::SplitHalf;
 
 use crate::blend::BlendKindChoice;
 use crate::combine::PatternOutputChoice;
-use crate::forms::{DatumKindChoice, PatternKindChoice, ShapeKind};
+use crate::forms::{DatumKindChoice, PartSelectChoice, PatternKindChoice, ShapeKind};
 use crate::seats::SeatError;
-use crate::session::{DatumSpec, FaceSelection, ProfileShape, SessionOp};
+use crate::session::{DatumSpec, FaceSelection, ProfilePlane, ProfileShape, SessionOp};
 use crate::sketch::{self, HeldRefusal};
 
 /// Transient text a panel is mid-edit on.
@@ -84,9 +85,12 @@ pub(crate) struct Drafts {
     /// holds no frame yet.
     ///
     /// A pick rather than a constant: a profile's plane is a document
-    /// node, so the form names one that exists instead of minting one
-    /// as a side effect of adding a profile. One submit, one node.
-    pub(crate) profile_plane: Option<RecipeNodeId>,
+    /// node, so the form names one — an existing frame, or the world
+    /// XY frame the same submit mints beside the profile
+    /// ([`ProfilePlane`]). Either way the frame a person drew on is a
+    /// node they can see and edit afterwards, and one submit is one
+    /// undo.
+    pub(crate) profile_plane: Option<ProfilePlane>,
     /// The add-datum form's kind choice.
     pub(crate) datum_kind: DatumKindChoice,
     /// The add-datum form's origin/position, metres.
@@ -144,7 +148,7 @@ pub(crate) struct Drafts {
     /// against a second document whose ids coincide. That is true of
     /// [`Self::datum_frame`] and of every other held pick on this
     /// struct, so it is the form's class rather than this seat's:
-    /// `work/chrome/a-creation-forms-held-pick-survives-a-document-swap`
+    /// `work/forms/a-creation-forms-held-pick-survives-a-document-swap`
     /// carries it.
     pub(crate) datum_face: Option<FaceSelection>,
     /// The frame-on-face form's spin, radians — sketch +x's rotation
@@ -235,6 +239,16 @@ pub(crate) struct Drafts {
     pub(crate) pattern_spacing: f64,
     /// The circular rule's angular step, radians.
     pub(crate) pattern_step: f64,
+    /// The part form's selector choice — which of the two commit
+    /// doors the button calls, and so which seat it reads.
+    pub(crate) part_select: PartSelectChoice,
+    /// Which half of a split the part form projects.
+    pub(crate) part_half: SplitHalf,
+    /// Which instance of a pattern it projects — an INTEGER all the
+    /// way from the field, for [`Drafts::pattern_count`]'s reason: the
+    /// slot it lands in is Count-typed and a number rounded on the way
+    /// could differ from the one on screen.
+    pub(crate) part_instance: i64,
     /// The blend form's kind choice — which of the two doors the
     /// commit button calls.
     pub(crate) blend_kind: BlendKindChoice,
@@ -299,8 +313,9 @@ impl<T> ProfileDoors<T> {
 /// form's pick, `None` until one is made) and its loops.
 #[derive(Clone, Debug)]
 pub(crate) struct DoorLoops {
-    /// The frame the loops are drawn on.
-    pub(crate) frame: Option<RecipeNodeId>,
+    /// The frame the loops are drawn on — an existing node, or the
+    /// world XY frame the add-profile form would mint.
+    pub(crate) plane: Option<ProfilePlane>,
     /// The loops, in description order.
     pub(crate) loops: Vec<ProfileShape>,
 }
@@ -309,7 +324,7 @@ impl DoorLoops {
     /// Whether `other` previews the same thing — the same frame and
     /// loops that lower alike ([`sketch::authors_same_loops`]).
     pub(crate) fn previews_as(&self, other: &Self) -> bool {
-        self.frame == other.frame && sketch::authors_same_loops(&self.loops, &other.loops)
+        self.plane == other.plane && sketch::authors_same_loops(&self.loops, &other.loops)
     }
 }
 
@@ -394,6 +409,7 @@ impl Default for Drafts {
     /// rectangle, a 10 mm extrude, a full-turn revolve. Everything
     /// else starts empty.
     fn default() -> Self {
+        let (_, xy_u, xy_v) = ProfilePlane::xy_numbers();
         Self {
             delta_mm: None,
             expr_target: None,
@@ -410,8 +426,13 @@ impl Default for Drafts {
             datum_kind: DatumKindChoice::Plane,
             datum_origin: [0.0; 3],
             datum_direction: [0.0, 0.0, 1.0],
-            datum_u: [1.0, 0.0, 0.0],
-            datum_v: [0.0, 1.0, 0.0],
+            // The frame form opens on the world xy frame — the SAME
+            // one the add-profile form's `NewXy` mints, taken from
+            // that choice rather than re-typed here, so the form a
+            // person edits and the frame the other door commits
+            // cannot drift apart.
+            datum_u: xy_u,
+            datum_v: xy_v,
             datum_frame: None,
             datum_in_frame_origin: Point2::origin(),
             datum_in_frame_direction: [0.0, 1.0],
@@ -441,9 +462,17 @@ impl Default for Drafts {
             pattern_kind: PatternKindChoice::Linear,
             pattern_output: PatternOutputChoice::Instances,
             pattern_count: 3,
-            pattern_direction: [1.0, 0.0, 0.0],
+            // The one home both stepping gestures open on.
+            pattern_direction: crate::combine::STEP_DIRECTION,
             pattern_spacing: 0.02,
             pattern_step: core::f64::consts::FRAC_PI_2,
+            part_select: PartSelectChoice::Half,
+            part_half: SplitHalf::Above,
+            // The FIRST instance, which is the copy rather than the
+            // original: a projection of instance 0 is the master where
+            // it already stands, so the index a person opening this
+            // form wants is the one that selects something new.
+            part_instance: 1,
             blend_kind: BlendKindChoice::Fillet,
             blend_size: 0.001,
             profile_edit: None,
@@ -505,6 +534,17 @@ impl Drafts {
     /// frame picked and the field values stay, so a second profile on
     /// the same frame starts from where the first one left off.
     ///
+    /// **[`ProfilePlane::NewXy`] becomes the frame it minted**, which
+    /// is what makes the sentence above true of that arm too. A choice
+    /// that stayed `NewXy` would mint a SECOND world xy frame on the
+    /// next submit, and two coincident frames out of two ordinary
+    /// submits is the quiet kind of wrong — nothing refuses, the
+    /// picture is identical, and the recipe has a node in it nobody
+    /// asked for. The id is `minted`'s FIRST, because that arm inserts
+    /// the frame before the profile that names it
+    /// (`DocSession::add_profile_on_new_xy`) — held by
+    /// `an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted`.
+    ///
     /// A REFUSED add leaves the drafts alone, so correcting what was
     /// refused does not cost what was typed.
     ///
@@ -514,9 +554,18 @@ impl Drafts {
     /// (`Drafts::sync_profile_edit`, at the top of the next frame) —
     /// untouched again, and still open on the node, which is where the
     /// person is still working.
-    pub(crate) fn accepted(&mut self, op: &SessionOp) {
-        if matches!(op, SessionOp::AddProfile { .. }) {
-            self.profile_shape = None;
+    pub(crate) fn accepted(&mut self, op: &SessionOp, minted: &[RecipeNodeId]) {
+        let SessionOp::AddProfile { plane, .. } = op else {
+            return;
+        };
+        self.profile_shape = None;
+        // The OP's plane, not the draft's: what settles is the choice
+        // the document accepted, and the draft is only where that
+        // choice was standing when the panel pushed it.
+        if *plane == ProfilePlane::NewXy
+            && let Some(frame) = minted.first()
+        {
+            self.profile_plane = Some(ProfilePlane::Existing(*frame));
         }
     }
 
@@ -603,11 +652,11 @@ impl Drafts {
     pub(crate) fn door_loops(&self) -> ProfileDoors<Option<DoorLoops>> {
         ProfileDoors {
             create: Some(DoorLoops {
-                frame: self.profile_plane,
+                plane: self.profile_plane,
                 loops: self.profile_loops(),
             }),
             edit: self.profile_edit.as_ref().map(|edit| DoorLoops {
-                frame: Some(edit.plane()),
+                plane: Some(ProfilePlane::Existing(edit.plane())),
                 loops: edit.shapes(),
             }),
         }
@@ -849,9 +898,99 @@ mod tests {
     use crate::seats::Seat;
     use crate::session::SessionOp;
     use crate::session::author::datum_node;
-    use crate::session::{DatumSpec, FaceSelection};
+    use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
+
+    /// **An accepted `NewXy` leaves the form on the frame it
+    /// minted**, so the next submit draws on that frame instead of
+    /// minting a second copy of it.
+    ///
+    /// The ids arrive as a VALUE — this module names no session (the
+    /// module-kinds gate holds that) — and
+    /// `creation_ops::a_new_xy_action_mints_the_frame_before_the_profile`
+    /// is the row that holds the real door to handing them over in
+    /// this order.
+    #[test]
+    fn an_accepted_new_xy_leaves_the_form_on_the_frame_it_minted() {
+        let (frame, profile) = (RecipeNodeId(1), RecipeNodeId(2));
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::NewXy),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::NewXy,
+                loops,
+            },
+            &[frame, profile],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(frame)),
+            "the frame the action minted, not the profile and not `NewXy` again"
+        );
+        assert_eq!(drafts.profile_shape, None, "the shape still rests");
+    }
+
+    /// An accepted add on an EXISTING frame leaves the pick where it
+    /// was — the arm that must not follow the rule above, since the
+    /// one id it minted is the profile.
+    #[test]
+    fn an_accepted_add_on_an_existing_frame_leaves_the_pick_alone() {
+        let (plane, profile) = (RecipeNodeId(4), RecipeNodeId(9));
+        let mut drafts = Drafts {
+            profile_plane: Some(ProfilePlane::Existing(plane)),
+            profile_shape: Some(ShapeKind::Circle),
+            ..Drafts::default()
+        };
+        let loops = drafts
+            .profile_programs()
+            .expect("the default circle lowers");
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::Existing(plane),
+                loops,
+            },
+            &[profile],
+        );
+        assert_eq!(
+            drafts.profile_plane,
+            Some(ProfilePlane::Existing(plane)),
+            "a second profile on the same frame starts where the first left off"
+        );
+    }
+
+    /// **The add-datum FRAME form opens on the frame the add-profile
+    /// form MINTS**, through the lowering rather than past it.
+    ///
+    /// Both now read `ProfilePlane::xy_numbers`, so the NUMBERS cannot
+    /// disagree. What this row still holds is the step between them:
+    /// `world_xy` lowers those triples into the slots
+    /// `Datum::Frame` takes, and a lowering that put the origin where
+    /// an axis goes would satisfy the shared constant and still author
+    /// a different frame.
+    #[test]
+    fn the_frame_forms_default_is_the_frame_the_profile_form_mints() {
+        let drafts = Drafts {
+            datum_kind: DatumKindChoice::Frame,
+            ..Drafts::default()
+        };
+        let form = drafts
+            .datum_spec(None)
+            .expect("the default frame lowers")
+            .expect("the frame kind needs no pick");
+        let mint = ProfilePlane::world_xy().expect("the mint's own numbers lower");
+        assert_eq!(
+            datum_node(form),
+            datum_node(mint),
+            "the form a person opens and the frame the profile door mints are one frame"
+        );
+    }
 
     /// **The add-datum drafts with every PICK filled**, for `kind` —
     /// the form as it stands when its button goes live.
@@ -930,7 +1069,13 @@ mod tests {
             match wanted {
                 // Made by the add-profile form and by the ops that
                 // produce bodies, not by this one.
-                NodeKindWanted::Profile | NodeKindWanted::Body => continue,
+                //
+                // The two part selectors read a split and a pattern,
+                // which no datum form authors either.
+                NodeKindWanted::Profile
+                | NodeKindWanted::Body
+                | NodeKindWanted::Split
+                | NodeKindWanted::Instances => continue,
                 NodeKindWanted::Axis
                 | NodeKindWanted::SketchAxis
                 | NodeKindWanted::Plane
@@ -983,27 +1128,33 @@ mod tests {
         };
         let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
         let mut drafts = Drafts {
-            profile_plane: Some(plane),
+            profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
             ..Drafts::default()
         };
 
         // The control: an accepted op that adds no profile leaves the
         // form composing.
-        drafts.accepted(&SessionOp::Hover(None));
+        drafts.accepted(&SessionOp::Hover(None), &[]);
         assert!(!drafts.profile_loops().is_empty(), "the draft was dropped");
 
         let loops = drafts
             .profile_programs()
             .expect("the default circle lowers");
-        let (doc, _) = insert(
+        let (doc, profile) = insert(
             &doc,
             Node::Profile(ProfileProgram {
                 plane,
                 loops: loops.clone(),
             }),
         );
-        drafts.accepted(&SessionOp::AddProfile { plane, loops });
+        drafts.accepted(
+            &SessionOp::AddProfile {
+                plane: ProfilePlane::Existing(plane),
+                loops,
+            },
+            &[profile],
+        );
         let evaluation = evaluate(
             &doc,
             None,
@@ -1151,7 +1302,7 @@ mod tests {
         let plane = *doc.order().last().expect("the frame");
         let drafts = Drafts {
             profile_shape: Some(ShapeKind::Path),
-            profile_plane: Some(plane),
+            profile_plane: Some(ProfilePlane::Existing(plane)),
             ..Drafts::default()
         };
         let loops = drafts.profile_programs().expect("the default path lowers");
@@ -1294,7 +1445,9 @@ mod tests {
         );
         drafts.profile_edit(&doc, profile).expect("held");
         let held = drafts.door_loops().edit.expect("the edit door holds loops");
-        let plane = held.frame.expect("its own frame");
+        let ProfilePlane::Existing(plane) = held.plane.expect("its own frame") else {
+            panic!("the edit door draws on the committed profile's own frame node")
+        };
         let placement = sketch::frame_placement(&doc, &evaluation, plane).expect("placed");
         let preview = sketch::preview(placement, &held.loops, tol, chord);
         assert!(

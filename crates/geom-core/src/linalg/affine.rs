@@ -450,7 +450,6 @@ mod tests {
     /// factor multiplies, which holds whatever the axis is. The row is
     /// ε-free — it measures enclosure width and asserts no tolerance, so
     /// it reads identically at every tolerance row.
-    #[cfg(feature = "interval")]
     #[test]
     fn zero_angle_anchored_rotation_carries_no_anchor_width() {
         use crate::interval::Interval;
@@ -564,7 +563,6 @@ mod tests {
     /// own ulp-scale enclosure at the point angle — 1.1e-16 against
     /// `|q|`, five orders below the smallest bound here, which is why
     /// the row does not need a floor term.
-    #[cfg(feature = "interval")]
     #[test]
     fn small_angle_anchored_rotation_width_scales_with_the_angle() {
         use crate::interval::Interval;

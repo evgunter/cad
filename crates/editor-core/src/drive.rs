@@ -159,11 +159,12 @@ pub struct DriveConfig {
     /// form every other leaf of this drive would build; the memo hands
     /// it back instead of rebuilding it, which on the M10-3 slab is a
     /// walk the tier otherwise repeats once per leaf. Every verdict and
-    /// every decision count is the same either way, and the receipt's
-    /// `frozen` column means the same thing either way — the DISTINCT
+    /// every decision count is the same either way, and so is the
+    /// `frozen` column on both receipts — the drive's is the DISTINCT
     /// nodes frozen over the drive, which the memo counts whether or
-    /// not it is serving forms (`geom_core::SymCounts::frozen` argues
-    /// the column).
+    /// not it is serving forms, and a leaf's is its NEED against that
+    /// same set, which is what it reached and not what it computed
+    /// (`geom_core::SymCounts::frozen` argues the column).
     ///
     /// Off is the differential lane the pins compare against, in
     /// `parallel`'s own mould: a dial whose effect on a document is a
@@ -244,19 +245,19 @@ pub struct DriveConfig {
 /// tier the FASTER lane — the work it saves is the subdivision it makes
 /// unnecessary. Where it cannot certify, it is pure overhead, and the
 /// worst measured case is curved geometry: 17x for nothing, because the
-/// arc family it cannot discharge (M10-8, `docs/DOC-LEDGER.md`
-/// sweep 13) means the box
+/// arc family it cannot discharge (M10-8) means the box
 /// refuses either way.
 ///
 /// Two things keep that bill down and both are measured rather than
 /// argued. A margin the numeric channel has already proved NON-ZERO
 /// is never DECIDED by its form (`geom_core::sym`'s `Decide` impl —
-/// a certified enclosure excluding zero is a proof no normal form can
-/// contradict), which is most margins on most documents; the form is
-/// still BUILT for it wherever debug assertions are on (dev, test and
-/// this workspace's release profile), by the contradiction assertion
-/// at that site — a tenth of the slab's plain forms, measured
-/// (`geom_core::sym`'s `# Cost`). And
+/// at this lane's EXACT witness a certified enclosure excluding zero
+/// is a proof no normal form can contradict), which is most margins on
+/// most documents; the form is still BUILT for it by the contradiction
+/// check at that site, which at an exact witness is a `debug_assert!`
+/// and so runs wherever debug assertions are on (dev, test and this
+/// workspace's release profile) — a tenth of the slab's plain forms,
+/// measured (`geom_core::sym`'s `# Cost`). And
 /// `Poly::mul` refuses on pre-bounds instead of building a product and
 /// discarding it, so an over-budget multiplication costs its two
 /// operands' sizes rather than their product.
@@ -635,8 +636,10 @@ pub struct CertifiedLeaf {
     /// What its replay produced.
     pub results: LeafResults,
     /// How this leaf's decisions were answered — the E12 receipt
-    /// ([`SymbolicDials`]). All zero when the tier is off, because no
-    /// session exists to count in.
+    /// ([`SymbolicDials`]), `frozen` being this leaf's NEED of the
+    /// drive's frozen set rather than the work it happened to do
+    /// (`geom_core::SymCounts::frozen`). All zero when the tier is off,
+    /// because no session exists to count in.
     pub decisions: SymCounts,
 }
 
@@ -648,7 +651,8 @@ pub struct RefusedLeaf {
     /// The typed reason.
     pub reason: RefusalReason,
     /// How this leaf's decisions were answered before it refused — the
-    /// E12 receipt ([`SymbolicDials`]).
+    /// E12 receipt ([`SymbolicDials`]), `frozen` being this leaf's NEED
+    /// of the drive's frozen set (`geom_core::SymCounts::frozen`).
     pub decisions: SymCounts,
 }
 
@@ -736,9 +740,11 @@ impl ParamBoxVerdict {
     /// `numeric`, with `frozen` beside them.
     ///
     /// **`frozen` is the odd one out**: the decision columns are sums
-    /// over the leaves, and `frozen` is the DISTINCT nodes frozen over
-    /// the drive (`geom_core::sym::DriveMemo::frozen`). `SymCounts::frozen`
-    /// is where the column's two meanings are argued.
+    /// over the leaves, and `frozen` is a SET — the DISTINCT nodes
+    /// frozen over the drive (`geom_core::sym::DriveMemo::frozen`),
+    /// which is not the sum of the leaves' own columns because those
+    /// are sets over the same nodes and they overlap.
+    /// `SymCounts::frozen` argues both receipts' column.
     ///
     /// All zero when the symbolic tier is off ([`SymbolicDials::off`]),
     /// which is not a claim that nothing decided: with no session
@@ -861,6 +867,22 @@ impl ParamBoxVerdict {
                     self.decisions.registrations_contradicted
                 );
             }
+            // The theorem channels' refusal column, by the same rule
+            // again. **It costs no schema bump because there is no
+            // schema to bump**: this text is written and never parsed.
+            // Its two consumers are `content_key`, which hashes it
+            // (derived on demand, never persisted — E10), and the rows
+            // that compare two renderings byte for byte. Neither reads
+            // a FIELD, so a key added here cannot break a reader; what
+            // the present-only-when-nonzero rule buys is that the hash
+            // and those comparisons do not move — and here the column
+            // cannot be non-zero at all, because a drive replays at
+            // `Sym<Interval>`, whose witness is EXACT, so the
+            // contradiction is asserted rather than counted
+            // (`geom_core::SymCounts::theorems_disputed`).
+            if self.decisions.theorems_disputed != 0 {
+                let _ = write!(s, " theorems_disputed={}", self.decisions.theorems_disputed);
+            }
             let _ = writeln!(s);
         }
         let _ = write!(s, "{}", self.accounting.serialize());
@@ -940,6 +962,13 @@ impl ParamBoxVerdict {
                     s,
                     "; {} registered identity/identities CONTRADICTED by a definite enclosure",
                     d.registrations_contradicted
+                );
+            }
+            if d.theorems_disputed != 0 {
+                let _ = write!(
+                    s,
+                    "; {} theorem(s) DISPUTED by an inexact value channel",
+                    d.theorems_disputed
                 );
             }
             let _ = writeln!(s, "; {} form(s) frozen", d.frozen);
@@ -2021,30 +2050,59 @@ pub fn assertion_at(
 /// The measure-refusal classes a smaller box cannot change
 /// ([`RefusalReason::MeasureRefused`]).
 ///
-/// Conservative by construction: a class is here only when refinement
-/// PROVABLY cannot alter it, and everything else keeps bisecting. The
-/// cost of being wrong in this direction is a leaf refused early
-/// (visible, priced under its own name); the cost of being wrong the
-/// other way is a leaf that could have certified and did not, which is
-/// why the list is enumerated rather than defaulted.
+/// Conservative by construction: a class is terminal only when
+/// refinement PROVABLY cannot alter it, and everything else keeps
+/// bisecting. The two mistakes are not priced alike. A class wrongly
+/// kept bisecting costs budget: the driver re-derives the same refusal
+/// down to its depth limit and prices the mass as `Budget`, visibly and
+/// under the symptom's name. A class wrongly made terminal costs a leaf
+/// that a smaller box would have certified. So the terminal classes are
+/// enumerated, and every refusal not listed bisects.
+///
+/// The clearance arm matches every [`ClearanceRefusal`] arm, but its
+/// carrier's one producer — `clearance::min_separation`, through
+/// [`MinClearanceLane`]'s interval impl — refuses with four of them:
+/// `EmptyScope`, `NoAdmittedPair`, `Unsupported` and `PoisonEnclosure`.
+/// The other seven are classed by what they mean, so the match stays
+/// exhaustive and an arm added to the enum does not compile unclassed;
+/// the carrier narrows to the measure path's own arms when the enum
+/// splits (`work/clear/SHELL-3.md`).
+///
+/// [`ClearanceRefusal`]: crate::clearance::ClearanceRefusal
+/// [`MinClearanceLane`]: crate::measure::MinClearanceLane
 fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
     match kind {
         // The selection resolved to the wrong KIND of entity. Document
         // structure; no parameter value moves it.
         NodeErrorKind::MeasureSelectionKind { .. } => Some("selection_kind"),
-        NodeErrorKind::MeasureClearanceRefused(r) => match r.class {
-            // Which faces are admitted, whether the two scopes pair at
-            // all, and whether the carrier has an implementation: all
-            // decided by the document's own topology and the engine's
-            // support table, not by the box.
-            c @ ("no_admitted_pair" | "unsupported" | "selection" | "empty_scope"
-            | "not_a_distance") => Some(c),
-            // `budget`, `sliver`, `poison_enclosure`, `witness_unverified`,
-            // `nothing_certified`, `tolerance_has_no_band`: every one of
-            // these can differ over a smaller box, so refinement is the
-            // right answer and the catch-all keeps it.
-            _ => None,
-        },
+        NodeErrorKind::MeasureClearanceRefused(r) => {
+            use crate::clearance::ClearanceRefusal as C;
+            match r {
+                // Reached: which faces are in scope, whether the two
+                // scopes pair at all, and whether the carrier has an
+                // implementation are decided by the document's own
+                // topology and the engine's support table, not by the box.
+                C::EmptyScope | C::NoAdmittedPair | C::Unsupported { .. } => Some(r.name()),
+                // Not reached from `min_separation`. The bound and the
+                // run's tolerance are fixed for the whole drive, so no
+                // sub-box changes them either.
+                C::NotADistance { .. } | C::ToleranceHasNoBand => Some(r.name()),
+                // Reached: an enclosure that did not evaluate over this
+                // box (NaI, or empty) may evaluate over a smaller one, so
+                // nothing proves it box-independent.
+                C::PoisonEnclosure { .. } => None,
+                // Not reached from `min_separation`. Each is a function
+                // of the box — a budget, an in-band decision, a witness,
+                // a certified leaf, or a selection read at one leaf's
+                // replay (a node that did not build there) — and can
+                // differ over a smaller one.
+                C::Budget(_)
+                | C::Selection(_)
+                | C::Sliver { .. }
+                | C::WitnessUnverified { .. }
+                | C::NothingCertified { .. } => None,
+            }
+        }
         _ => None,
     }
 }

@@ -174,9 +174,10 @@
 //! the advisory checks ([`checks_badge`]), the δ the display budget
 //! chose ([`delta_badge`]), the product fault ([`product_badge`]), the
 //! store that keeps no preferences ([`prefs_badge`]), the datums this
-//! view draws nothing of ([`datums_badge`]), and the three display
-//! seams that hold a refusal — the scene ([`scene_badge`]), the pick
-//! index ([`index_badge`]) and the projection ([`projection_badge`]).
+//! view draws nothing of ([`datums_badge`]), the profiles it draws
+//! nothing of ([`profiles_badge`]), and the three display seams that
+//! hold a refusal — the scene ([`scene_badge`]), the pick index
+//! ([`index_badge`]) and the projection ([`projection_badge`]).
 //! The population is every function here returning `Option<Badge>`,
 //! which `frame_policy.rs` counts against the README rather than
 //! against this sentence.
@@ -195,7 +196,10 @@
 
 use std::path::Path;
 
-use pncad::document::{ChecksReport, ParamName, ParseError, ProductError, RecipeNodeId, SlotId};
+use pncad::document::{
+    ChecksReport, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId,
+    SlotId,
+};
 use pncad::select::HitTestError;
 
 use crate::camera::CameraError;
@@ -207,7 +211,7 @@ use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
-use crate::session::{AtRestBadge, Outstanding, Refusal, SessionOp};
+use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -257,7 +261,9 @@ pub enum Subject {
     /// [`crate::idpass::IdQueryLog`] already makes.
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
-    /// by the next act the document ACCEPTS.
+    /// by the next batch holding an operation [`acts`] counts: swept by
+    /// [`StatusUpdate::Clear`] when that batch refused nothing, and
+    /// replaced by the refusal when it did.
     ///
     /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
     /// which this shares with [`Self::Display`] and
@@ -1022,6 +1028,80 @@ impl<'a> Withdrawal<'a> {
     }
 }
 
+/// **Every notice one operation's outcome carries**, for
+/// [`frame_status`]'s rank 2 — the ONE door from an [`OpOutcome`] to
+/// the frame's notices, and the call `app` makes per operation.
+///
+/// Two kinds of news, both provoked by the act the user just took and
+/// both true of the document it left: what the transition WITHDREW
+/// from the display state ([`Withdrawal::all`]), then what the
+/// committed edits did that the user did not ask for by name
+/// ([`maintenance_notice`], one notice per row in the outcome's own
+/// order). They are notices rather than a verdict for [`Withdrawal`]'s
+/// reason: the edit that produced them was accepted, so the same
+/// frame's batch verdict is [`StatusUpdate::Clear`], which they
+/// outrank. What takes them off the line is the next frame whose batch
+/// holds any operation [`acts`] counts — [`batch_status`] answers it
+/// with [`StatusUpdate::Clear`] when nothing refused and with the
+/// refusal otherwise; a hover-only batch keeps them.
+///
+/// **Destructured rather than field-read**, so a field added to
+/// [`OpOutcome`] is E0027 here and its author decides whether the
+/// line says it. The four this does not word are not news the line
+/// owes: `committed` and `previewed` are the act itself, `minted` is
+/// an id a form reads back, and `refusal` is ranked above every
+/// notice by [`frame_status`] on its own.
+pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
+    let OpOutcome {
+        committed: _,
+        previewed: _,
+        minted: _,
+        refusal: _,
+        withdrawn,
+        maintenance,
+    } = outcome;
+    Withdrawal::all(withdrawn)
+        .map(|withdrawal| withdrawal.notice())
+        .chain(maintenance.iter().filter_map(maintenance_notice))
+}
+
+/// **One maintenance row as a notice**, or `None` for a row the line
+/// does not carry.
+///
+/// **The row's own sentence, unaltered.** Each arm of [`Maintenance`]
+/// words itself (`Display for Maintenance`), naming the carrier and
+/// what the edit removed or rewrote; nothing here composes prose about
+/// it, for the rule [`Withdrawal`]'s causes follow. One notice per row
+/// rather than one per kind joined with [`LIST_SEPARATOR`], because a
+/// strand's own sentence writes that mark and a flat join of such
+/// sentences could not be split back into its rows; the boundary mark
+/// between notices is the one no sentence can carry ([`Message::new`]).
+///
+/// **Every arm DM7 makes the door report is worded**: a stranded
+/// payload name, a stranded appearance key, a declaration left with no
+/// consumer, and a name rewritten in place. A rebound is a repair the
+/// door made rather than a loss it left, and it is worded all the
+/// same: a name that moved without a word is exactly what the report
+/// exists to end.
+///
+/// **A cluster act is not**: it re-keys the mate graph's placement
+/// registry — a gauge instance and a frame, bookkeeping the chrome
+/// names nowhere — and what it decided about where the parts sit is
+/// what the picture draws. It still rides [`OpOutcome::maintenance`],
+/// where a reader of the API sees it.
+///
+/// The match names every arm, so a sixth is a compile error here
+/// rather than a row that reaches the outcome and is never worded.
+pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
+    match row {
+        Maintenance::Strand { .. }
+        | Maintenance::StrandedAppearance { .. }
+        | Maintenance::OrphanedDeclare { .. }
+        | Maintenance::Rebound { .. } => Some(Message::new(Subject::Document, row.to_string())),
+        Maintenance::Cluster(_) => None,
+    }
+}
+
 /// **Destructured rather than field-read**, so a field added to
 /// [`Withdrawal`] is E0027 here rather than joining a value whose
 /// whole job is to word itself and going unworded.
@@ -1606,7 +1686,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 
 /// **What a tool has to say** — an authoring panel's refusal, a
 /// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired by the next act the document accepts.
+/// retired the way that subject says.
 ///
 /// **The one door here that a type does not pin**, because its twelve
 /// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]
@@ -1718,6 +1798,91 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
     )
 }
 
+/// **Where the chrome reports a gather refusal**, and whether it is a
+/// refusal at all — the whole of what this crate decides about a
+/// [`ProductError`], and the answer [`product_badge`] gates on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BadgeSite {
+    /// This frame badges it: a gather-level fault no per-node badge
+    /// can carry — a naming collision across roots, a graft the kernel
+    /// refused, a validity verdict on the assembled product, an
+    /// evaluation of the wrong document.
+    Frame,
+    /// The Features pane badges it AT the node, with the typed cause,
+    /// so the frame stays silent.
+    FeatureTree,
+    /// No channel at all, because the class is one
+    /// [`ProductErrorKind::means_no_body`] claims. What that means
+    /// about the document is stated there and nowhere else.
+    NotAFault,
+}
+
+/// Which channel reports a refusal of this class, if any.
+///
+/// A `match` rather than a predicate, and that is the point: it is
+/// exhaustive over [`ProductErrorKind`], so an eleventh class reds
+/// this crate — where a reader sees the consequence — instead of being
+/// silently badged or silently declined by whichever way an expression
+/// happened to be written.
+///
+/// **The local policy is the three the feature tree owns.**
+/// [`crate::tree::RowStatus`] has exactly three non-`Ok` states —
+/// `Failed`, `Poisoned`, `Unevaluated` — and
+/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
+/// [`ProductError::UnknownNode`] are those same three states seen from
+/// the gather. That count is a MEASUREMENT of another module's enum,
+/// so it does not stand on this `match` being exhaustive:
+/// `the_tree_still_has_exactly_the_three_states_this_policy_pairs_with`
+/// is its guard, and a fourth non-`Ok` state reds there. The tree badges each AT the node and carries the typed
+/// cause with it, so a frame badge would say strictly less, in a
+/// louder colour, one row above a status line already reporting the
+/// same root's tessellation refusal. The Features pane goes further
+/// and draws a poisoned row deliberately QUIET, reserving
+/// [`Tone::Actionable`] for the row a reader can act on; a badge
+/// shouting about the same poisoning would have the chrome saying both
+/// things at once. That is a decision about THIS chrome and not a
+/// classification of the refusal, which is why it is decided here.
+///
+/// **Whether what is left is a fault at all is not this crate's to
+/// decide**, and it is not re-derived here:
+/// [`ProductErrorKind::means_no_body`] is that reading's one home, and
+/// the classes it claims reach [`BadgeSite::NotAFault`] through the
+/// call rather than by being named again. The blank viewport is
+/// already the picture of such a document.
+///
+/// They are asked in that order because they are independent, which
+/// is what [`ProductErrorKind::means_no_body`]'s contract says a
+/// `false` does and does not appoint: a class the tree already badges
+/// is the tree's, whichever way the cited rule answers it.
+///
+/// **What the compiler buys here is exhaustiveness over the classes,
+/// not liveness of the citation.** A new class cannot dodge this
+/// `match`. Moving [`ProductErrorKind::NoBodyRoots`] into the first
+/// arm would instead leave a call that can never answer `true` — a
+/// dead citation, which nothing reds on and only
+/// `the_gather_verdict_badges_only_the_faults_nothing_else_carries`
+/// catches.
+fn badge_site(kind: ProductErrorKind) -> BadgeSite {
+    match kind {
+        ProductErrorKind::RootFailed
+        | ProductErrorKind::RootPoisoned
+        | ProductErrorKind::UnknownNode => BadgeSite::FeatureTree,
+        ProductErrorKind::EvaluationOfAnotherDocument
+        | ProductErrorKind::Naming
+        | ProductErrorKind::NoBodyRoots
+        | ProductErrorKind::Graft
+        | ProductErrorKind::SolidInvalid
+        | ProductErrorKind::ProductInvalid
+        | ProductErrorKind::ContactLineage => {
+            if kind.means_no_body() {
+                BadgeSite::NotAFault
+            } else {
+                BadgeSite::Frame
+            }
+        }
+    }
+}
+
 /// **What the chrome badges about the landed product**, and `None`
 /// when there is nothing to say.
 ///
@@ -1746,42 +1911,14 @@ pub fn delta_badge(fitted: Option<&FittedDelta>) -> Option<Badge> {
 ///
 /// # The arms that stay silent, and why
 ///
-/// **A document with no body is not this channel's to report.** The
-/// class means there is nothing to gather rather than something wrong
-/// — the reading, and the documents in that state, are
-/// [`pncad::document::ProductErrorKind::means_no_body`]'s — and the
-/// blank viewport is already the picture of it. A badge here would
-/// make an ordinary state look like a failure.
-///
-/// **A per-node state the feature tree already badges is not this
-/// channel's to repeat.** [`crate::tree::RowStatus`] has exactly three
-/// non-`Ok` states — `Failed`, `Poisoned`, `Unevaluated` — and
-/// [`ProductError::RootFailed`], [`ProductError::RootPoisoned`] and
-/// [`ProductError::UnknownNode`] are those same three states seen from
-/// the gather. The tree badges each AT the node and carries the typed
-/// cause with it, so this badge would say strictly less, in a louder
-/// colour, one row above a status line already reporting the same
-/// root's tessellation refusal. The Features pane goes further and
-/// draws a poisoned row deliberately QUIET, reserving
-/// [`Tone::Actionable`] for the row a reader can act on; a badge
-/// shouting about the same poisoning would have the chrome saying both
-/// things at once.
-///
-/// What is left is what this channel is FOR: the gather-level faults no
-/// per-node badge can carry — a naming collision across roots, a graft
-/// the kernel refused, a validity verdict on the assembled product, an
-/// evaluation of the wrong document.
+/// [`badge_site`] decides it, exhaustively over the error class: a
+/// refusal another channel already carries, and a class that is no
+/// fault at all, are both `None` here, and the argument for each is
+/// there. What is left is what this channel is FOR — the
+/// gather-level faults no per-node badge can carry.
 pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
     fault
-        .filter(|fault| {
-            !(fault.kind().means_no_body()
-                || matches!(
-                    fault,
-                    ProductError::RootFailed { .. }
-                        | ProductError::RootPoisoned { .. }
-                        | ProductError::UnknownNode { .. }
-                ))
-        })
+        .filter(|fault| badge_site(fault.kind()) == BadgeSite::Frame)
         .map(|fault| Badge::read(Subject::Document, fault.to_string(), Tone::Actionable))
 }
 
@@ -1910,7 +2047,7 @@ pub fn datums_badge(vanished: usize) -> Option<Badge> {
     (vanished > 0).then(|| {
         // The noun agrees with the count: "1 datums" is the tell that
         // a sentence was assembled rather than written, and this one
-        // is read at a glance beside eight others.
+        // is read at a glance beside the others.
         let noun = if vanished == 1 { "datum" } else { "datums" };
         Badge::read(
             Subject::Camera,
@@ -2124,6 +2261,7 @@ mod tests {
 
     use crate::camera::{Camera, CameraOp, CameraOpError};
     use crate::display::AdmissionFault;
+    use crate::tree::RowStatus;
 
     /// A camera — any camera. Nothing here reads it: [`fold_status`]
     /// judges what a fold REFUSED, and [`Folded`] has to carry one.
@@ -2405,18 +2543,27 @@ mod tests {
             badge.label()
         );
 
-        // The silent arms. An empty document is not malformed, and the
-        // three per-node states are the feature tree's to badge — at
-        // the node, with the cause, one of them deliberately quiet.
-        for quiet in [
-            ProductError::NoBodyRoots,
-            ProductError::RootFailed { node },
-            ProductError::RootPoisoned {
-                node,
-                through: RecipeNodeId(1),
-            },
-            ProductError::UnknownNode { node },
+        // The silent arms, each paired with the silence it gets:
+        // `badge_site` is where the argument for both lives. (Plain
+        // backticks: a bracketed link in a `//` comment is checked by
+        // nothing, so it must not wear the spelling rustdoc gates.)
+        for (quiet, site) in [
+            (ProductError::NoBodyRoots, BadgeSite::NotAFault),
+            (ProductError::RootFailed { node }, BadgeSite::FeatureTree),
+            (
+                ProductError::RootPoisoned {
+                    node,
+                    through: RecipeNodeId(1),
+                },
+                BadgeSite::FeatureTree,
+            ),
+            (ProductError::UnknownNode { node }, BadgeSite::FeatureTree),
         ] {
+            assert_eq!(
+                badge_site(quiet.kind()),
+                site,
+                "which channel reports it: {quiet}"
+            );
             assert_eq!(
                 product_badge(Some(&quiet)),
                 None,
@@ -2424,6 +2571,80 @@ mod tests {
             );
         }
         assert_eq!(product_badge(None), None);
+
+        // And the classes this channel is FOR, by name rather than by
+        // the one sample above — the half of the policy a badge that
+        // went silent would not fail.
+        for kind in [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::Naming,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ] {
+            assert_eq!(
+                badge_site(kind),
+                BadgeSite::Frame,
+                "no per-node badge carries it: {kind:?}"
+            );
+        }
+    }
+
+    /// **The guard for the count [`badge_site`]'s doc states about
+    /// another module's enum.**
+    ///
+    /// That policy leaves a class to the Features pane because the
+    /// pane has a row status to carry it, one for one. A fourth
+    /// non-`Ok` [`RowStatus`] would be a state nothing here pairs
+    /// with, and the count in the prose would be silently wrong — so
+    /// the `match` below is exhaustive over `RowStatus` and reds on a
+    /// new variant, at the claim rather than a schedule away from it.
+    #[test]
+    fn the_tree_still_has_exactly_the_three_states_this_policy_pairs_with() {
+        let non_ok = |status: &RowStatus| match status {
+            RowStatus::Ok => 0_usize,
+            RowStatus::Failed { .. } | RowStatus::Poisoned { .. } | RowStatus::Unevaluated => 1,
+        };
+        let states: usize = [
+            RowStatus::Ok,
+            RowStatus::Failed {
+                message: String::new(),
+            },
+            RowStatus::Poisoned {
+                through: RecipeNodeId(1),
+                message: None,
+            },
+            RowStatus::Unevaluated,
+        ]
+        .iter()
+        .map(non_ok)
+        .sum();
+        // Every class, inline in the row the way this crate's suites
+        // hold a complete variant list (`crates/viewer/README.md`).
+        // It is hand-written and can be: a class cannot be added
+        // without [`badge_site`]'s `match` refusing to compile, so
+        // whoever adds one is already standing at the site that sends
+        // them here, and no schedule fires sooner than that.
+        let left_to_the_tree = [
+            ProductErrorKind::EvaluationOfAnotherDocument,
+            ProductErrorKind::UnknownNode,
+            ProductErrorKind::Naming,
+            ProductErrorKind::RootFailed,
+            ProductErrorKind::RootPoisoned,
+            ProductErrorKind::NoBodyRoots,
+            ProductErrorKind::Graft,
+            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::ProductInvalid,
+            ProductErrorKind::ContactLineage,
+        ]
+        .into_iter()
+        .filter(|kind| badge_site(*kind) == BadgeSite::FeatureTree)
+        .count();
+        assert_eq!(
+            left_to_the_tree, states,
+            "every class this policy leaves to the Features pane is left to a row the pane draws"
+        );
     }
 
     #[test]

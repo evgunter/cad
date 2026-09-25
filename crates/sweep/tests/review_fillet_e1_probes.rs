@@ -167,7 +167,6 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
 
 /// The gate at the CERTIFIED scalar: a `Bounds::lo` read over real
 /// brackets, not points.
-#[cfg(feature = "interval")]
 mod certified {
     use super::{all_edges, same_f64};
     use geom_core::{Bounds, Interval, Real, Tol};

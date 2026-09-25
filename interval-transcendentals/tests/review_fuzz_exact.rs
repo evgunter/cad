@@ -36,13 +36,13 @@
 //! reason it is not closed here is that the exact-rational comparator
 //! this file is built on **cannot serve addition**: aligning `2^1023`
 //! with `2^-1074` needs ~2100 bits and a u128 holds 128
-//! (`crates/geom-core/tests/ring_interval_fuzz.rs` reaches the same
+//! (`crates/geom-core/tests/interval_exact_fuzz.rs` reaches the same
 //! conclusion independently and generalises its own comparator to get
 //! past it).
 //!
 //! Why it earns a place in CI: it needs **no oracle library**, so it runs
 //! in the kernel's own pipeline with no C toolchain (README
-//! "Certification", ci.yml's `interval-backend` job).
+//! "Certification", interval.yml's `interval-backend` job).
 //!
 //! # Depth and seed
 //!
@@ -713,6 +713,13 @@ fn fuzz_sqrt_witness_soundness_and_containment() {
 /// The magnitudes worth naming: the extremes, the subnormal boundary and
 /// its neighbours, and the 2^-960 witness floor with the value either
 /// side of it — the boundary the original containment violation sat on.
+///
+/// The kernel keeps two lists of this shape for its own interval lanes
+/// (`crates/geom-core/tests/interval_exact_fuzz.rs`'s `edges` and
+/// `interval_backend_differential.rs`'s `CORNERS`). They are separate
+/// because this crate is its own workspace and each list is chosen for
+/// the property its lane asserts; a magnitude added here is worth
+/// carrying there by hand rather than assumed to be.
 const EDGE_MAGNITUDES: [f64; 15] = [
     f64::MAX,
     -f64::MAX,

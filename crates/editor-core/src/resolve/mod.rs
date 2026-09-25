@@ -55,19 +55,24 @@
 //! it for a line of a log. The front door N5's amended text pointed
 //! at — the recovery rung that did not exist yet — is that rung.
 //!
-//! **After the flip and doc-diff lanes come up empty**, two honest
-//! rungs remain, in order: `Cascade` when an embedded operand name
-//! itself fails to resolve, and the QUALIFIER-DELTA rung
+//! **After the path's flip and doc-diff lanes come up empty**, four
+//! honest rungs remain, in order: `Cascade` when an embedded operand
+//! name itself fails to resolve; the QUALIFIER-DELTA rung
 //! ([`qualifier_delta`]): the N2 discriminator verdicts recorded in
 //! the names themselves yield a `PredicateFlip` derived from recorded
 //! data when a same-shape sibling differs by exactly one pure-sign
-//! `SideOf` entry. If that too finds nothing, the total fallback is
-//! [`Diagnosis::cause_not_in_evidence`], which carries that reading at
-//! the value rather than in prose here.
+//! `SideOf` entry; with a prior run, the same lanes UPSTREAM of the
+//! minting node ([`Diagnosis::Upstream`]; the scope rule is at
+//! [`upstream_nodes`]); and, with a prior run, the GROUP-SIZE rung
+//! ([`group_resized`], whose docs say why a fragment name can vanish
+//! with no flip at all) answering [`Diagnosis::GroupResized`]. If
+//! that too finds nothing, the total
+//! fallback is [`Diagnosis::cause_not_in_evidence`], which carries
+//! that reading at the value rather than in prose here.
 //!
-//! The shadow rung's limits — the cancelling exchange it does not
-//! address, the collapse half it cannot, the `OrderAlong` half it has
-//! no pair for — are stated once, at [`shadow_exec_flip`].
+//! The shadow rung's one limit that no rung answers — the cancelling
+//! exchange — is stated at [`shadow_exec_flip`] and in `vdiff`'s
+//! module docs.
 
 mod hit;
 mod pick;
@@ -263,8 +268,7 @@ impl ResolveError {
 /// N5's promise is a RECORDED flip, and for every flip the engine
 /// reads out of two verdict logs that is what this says. The second
 /// arm exists because one honest case has no record to read: the
-/// realized sweep prunes candidate pairs and a collapsed fragment
-/// group re-runs none of its own probes, so a pair's population can
+/// realized sweep prunes candidate pairs, so a pair's population can
 /// be EMPTY in a run whose geometry moved underneath the name. The
 /// recovery rung re-executes that pair at diagnosis time and reports
 /// the flip it finds — a true flip of a real predicate, and one no
@@ -354,12 +358,12 @@ pub const SHADOW_EXEC_MAX_PAIRS: usize = 32;
 
 /// Why a name vanished.
 ///
-/// N5's four arms verbatim, plus two additions and one field that are
-/// NOT N5's and are marked as such wherever they are read: the
-/// reserved `WitnessBifurcation` arm (SOLVER-DESIGN W3, constructed
-/// by the M6 solver), [`Self::ShadowExecDeclined`], and
-/// [`Self::PredicateFlip`]'s `source`, which says whether the flip was
-/// read out of a log or recomputed at diagnosis time. A consumer
+/// N5's arms, including [`Self::GroupResized`], plus two additions
+/// and one field that are NOT N5's and are marked as such wherever
+/// they are read: the reserved `WitnessBifurcation` arm (SOLVER-DESIGN
+/// W3, constructed by the M6 solver), [`Self::ShadowExecDeclined`],
+/// and [`Self::PredicateFlip`]'s `source`, which says whether the flip
+/// was read out of a log or recomputed at diagnosis time. A consumer
 /// matching this enum is matching more than N5 wrote, and the
 /// difference is where a flip's provenance lives.
 #[derive(Debug, Clone, PartialEq)]
@@ -389,6 +393,24 @@ pub enum Diagnosis {
         /// Why the rung refused.
         reason: ShadowExecRefusal,
     },
+    /// At the vanished name's minting node, the group its emitter formed
+    /// from the fragment's parent held `was` entities in the last-good
+    /// run and holds `now` in this one, and no rung that names a cause
+    /// found one ([`group_resized`], which is where the reading and its
+    /// limits are stated).
+    ///
+    /// A statement about the groups the two runs recorded, nothing
+    /// more: it states how many entities descend from the parent, not
+    /// why the number changed.
+    GroupResized {
+        /// The vanished name's minting node, whose two tables were
+        /// counted.
+        node: RecipeNodeId,
+        /// The group's entity count in the last-good run.
+        was: u32,
+        /// The group's entity count now; never equal to `was`.
+        now: u32,
+    },
     /// A structural parameter changed on the derivation path.
     StructuralParam {
         /// The node whose structural parameter changed.
@@ -411,6 +433,75 @@ pub enum Diagnosis {
     /// branch selection refused (W3's payload verbatim; M6 constructs
     /// this arm).
     WitnessBifurcation(Box<WitnessBifurcation>),
+    /// Evidence UPSTREAM of the vanished name's minting node that is
+    /// NOT on its derivation path — a recorded flip, a
+    /// structural-parameter change or a recipe edit at a node that fed
+    /// the name without deciding it. A candidate cause, stated no more
+    /// strongly than that; the scope rule, and what "upstream" means
+    /// across the two runs, is stated once at [`upstream_nodes`].
+    Upstream {
+        /// The vanished name's minting node, which `cause` is upstream
+        /// of.
+        node: RecipeNodeId,
+        /// What was found there.
+        cause: UpstreamCause,
+    },
+}
+
+/// What [`Diagnosis::Upstream`] found upstream of the minting node —
+/// the three with-history lanes, each carrying the node it is AT,
+/// since that node is by construction not one the name mentions.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum UpstreamCause {
+    /// A recorded verdict flip (read out of both runs' logs).
+    PredicateFlip {
+        /// The flipped predicate's k_stats name.
+        predicate: &'static str,
+        /// The node whose log recorded the flip.
+        at: RecipeNodeId,
+        /// Its sign in the last-good run.
+        from: Sign,
+        /// Its sign now.
+        to: Sign,
+    },
+    /// A structural parameter changed.
+    StructuralParam {
+        /// The node whose structural parameter changed.
+        node: RecipeNodeId,
+        /// The structural slot.
+        param: SlotId,
+    },
+    /// A recipe edit.
+    RecipeEdit {
+        /// The edit, by its structural effect.
+        edit: RecipeEditRef,
+    },
+}
+
+// The CAUSE clause of [`Diagnosis::Upstream`]'s sentence; the arm adds
+// where it sits relative to the name.
+impl core::fmt::Display for UpstreamCause {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::PredicateFlip {
+                predicate,
+                at,
+                from,
+                to,
+            } => write!(
+                f,
+                "predicate {predicate} flipped from {from} to {to} at node {}",
+                at.0
+            ),
+            Self::StructuralParam { node, param } => write!(
+                f,
+                "a structural parameter changed at node {} (slot {})",
+                node.0,
+                param.label()
+            ),
+            Self::RecipeEdit { edit } => write!(f, "the recipe changed ({edit})"),
+        }
+    }
 }
 
 impl Diagnosis {
@@ -426,9 +517,11 @@ impl Diagnosis {
     /// blind spot (`vdiff` module docs) or through SWEEP PRUNING (the
     /// realized sweep records no verdicts for pruned pairs, so an
     /// interaction-boundary vanish can land here — ratified
-    /// 2026-07-29, NAMING-DESIGN N5 as amended). [`shadow_exec_flip`]
-    /// answers part of that case before this one is reached; its docs
-    /// say which part.
+    /// 2026-07-29, NAMING-DESIGN N5 as amended). For a fragment name,
+    /// [`shadow_exec_flip`] and [`group_resized`] answer part of that
+    /// case before this one is reached; a pruned vanish of a name with
+    /// no fragment qualifier — an operand corner fused away — still
+    /// lands here.
     pub(crate) fn cause_not_in_evidence(node: RecipeNodeId) -> Self {
         Self::RecipeEdit {
             edit: RecipeEditRef::NodeChanged { node },
@@ -463,13 +556,20 @@ impl core::fmt::Display for Diagnosis {
             } => write!(
                 f,
                 "predicate {predicate} flipped from {from} to {to} against the {partner} \
-                 — recovered by re-running the pair at diagnosis time, because neither \
-                 run recorded a verdict for it"
+                 — recovered by re-running the pair at diagnosis time, because one of the \
+                 two runs recorded no side verdict at the name's minting node"
             ),
             Self::ShadowExecDeclined { node, reason } => write!(
                 f,
-                "a run recorded no verdict for the vanished pair at node {}, and \
-                 re-running it was refused: {reason}",
+                "a run recorded no side verdict at node {}, the vanished name's minting \
+                 node, and re-running its pair was refused: {reason}",
+                node.0
+            ),
+            Self::GroupResized { node, was, now } => write!(
+                f,
+                "at node {}, the group this fragment's parent was divided into held \
+                 {was} entities in the last-good run and holds {now} now, and no verdict \
+                 flip was found that explains the change",
                 node.0
             ),
             Self::StructuralParam { node, param } => write!(
@@ -495,6 +595,12 @@ impl core::fmt::Display for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
+            Self::Upstream { node, cause } => write!(
+                f,
+                "{cause}, upstream of node {}, the name's minting node, but not on its \
+                 derivation path",
+                node.0
+            ),
         }
     }
 }
@@ -815,7 +921,18 @@ trait PriorCtx {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis>;
+    /// The upstream lanes ([`Diagnosis::Upstream`]; the scope rule is
+    /// stated at [`upstream_nodes`]).
+    fn upstream<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        name: &StableName,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis>;
     fn tombstone<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone>;
+    /// The group-size rung ([`group_resized`]): with-prior only, since
+    /// a size CHANGE needs a size to change from.
+    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis>;
 }
 
 struct NoPrior;
@@ -851,36 +968,85 @@ impl PriorCtx for NoPrior {
         None
     }
 
+    fn upstream<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _name: &StableName,
+        _path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
+        None
+    }
+
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, _name: &StableName) -> Option<Tombstone> {
+        None
+    }
+
+    fn group_resized<T: Decide>(
+        &self,
+        _new: RunCtx<'_, T>,
+        _name: &StableName,
+    ) -> Option<Diagnosis> {
         None
     }
 }
 
+impl<U: Decide> Prior<'_, U> {
+    /// The LANE TABLE: the three with-history lanes over one node set,
+    /// in their fixed order — a recorded flip, then a structural
+    /// parameter, then a recipe edit — answering the first evidence
+    /// found. Both scopes run exactly this; what differs between them
+    /// is the node set and the arm the evidence is wrapped in, and
+    /// the path scope's extra rungs ahead of it (the name's own
+    /// qualifier vocabulary), which this table deliberately does not
+    /// know about: a `name_frag_*` flip at an upstream node
+    /// re-qualified some OTHER name.
+    fn lanes<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        flips: &FlipSet,
+        nodes: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Evidence> {
+        if let Some((node, f)) = flips.flips_on_nodes(nodes).first() {
+            return Some(Evidence::Flip(*node, *f));
+        }
+        let ddiff = self.doc().diff(new.doc);
+        if let Some((node, param)) =
+            structural_param_change(self.doc(), new.doc, &ddiff, Some(nodes))
+        {
+            return Some(Evidence::Param(node, param));
+        }
+        recipe_edit_change(self.doc(), new.doc, &ddiff, Some(nodes)).map(Evidence::Edit)
+    }
+}
+
+/// One lane's find ([`Prior::lanes`]), before a scope wraps it in the
+/// arm that states where it was found.
+enum Evidence {
+    Flip(RecipeNodeId, VerdictFlip),
+    Param(RecipeNodeId, SlotId),
+    Edit(RecipeEditRef),
+}
+
 impl<U: Decide> PriorCtx for Prior<'_, U> {
-    /// The with-history diagnosis ladder (deterministic; first honest
-    /// evidence wins): path-restricted verdict flips, then structural
-    /// parameters on the path, then recipe edits on the path, then
-    /// the same three globally (geometry-mediated effects still land
-    /// their flips at the deciding node, so the global lanes are the
-    /// honesty fallback, not the common case).
+    /// The PATH scope (the scope rule: [`upstream_nodes`]): the lane
+    /// table over [`derivation_nodes`], answering `PredicateFlip`,
+    /// `StructuralParam` or `RecipeEdit`, with the name's own
+    /// qualifier vocabulary ahead of it:
     ///
-    /// Attribution among several path flips, in order:
-    ///
-    /// 1. **A recorded `name_frag_*` flip wins** — those predicates
-    ///    are the name's OWN qualifier vocabulary, so a discriminator
-    ///    flip is definitionally the flip that re-qualified the
-    ///    fragment.
+    /// 1. **A recorded `name_frag_*` flip on the path wins** — those
+    ///    predicates are the name's OWN qualifier vocabulary, so a
+    ///    discriminator flip is definitionally the flip that
+    ///    re-qualified the fragment.
     /// 2. **The shadow-exec rung** ([`shadow_exec_flip`], issue 134),
     ///    which recovers a discriminator flip the run never recorded.
-    ///    It sits HERE, above the generic fallback and not below it,
-    ///    for the same reason rung 1 does: a recovered
-    ///    `name_frag_side_of` flip is the name's own vocabulary, and
-    ///    an incidental `bool_*` flip at the same node — the
-    ///    containment walk re-deciding when two operands come apart —
-    ///    is not. Ranking the incidental flip first would answer "why
-    ///    did this fragment name vanish" with a sentence about the
-    ///    boolean's interior.
-    /// 3. Otherwise the first flip in deterministic order.
+    ///    It sits HERE, above the lane table, for the same reason
+    ///    rung 1 does: a recovered `name_frag_side_of` flip is the
+    ///    name's own vocabulary, and an incidental `bool_*` flip at
+    ///    the same node — the containment walk re-deciding when two
+    ///    operands come apart — is not. Ranking the incidental flip
+    ///    first would answer "why did this fragment name vanish" with
+    ///    a sentence about the boolean's interior.
+    /// 3. The lane table ([`Prior::lanes`]) over the path.
     ///
     /// This is a consumer-side attribution choice — the diff engine
     /// itself stays cause-agnostic and unspecialized.
@@ -890,50 +1056,59 @@ impl<U: Decide> PriorCtx for Prior<'_, U> {
         name: &StableName,
         path: &BTreeSet<RecipeNodeId>,
     ) -> Option<Diagnosis> {
-        let recorded = |flips: &[(RecipeNodeId, VerdictFlip)], family_only: bool| {
-            let mut it = flips.iter();
-            let hit = if family_only {
-                it.find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY))
-            } else {
-                it.next()
-            };
-            hit.map(|(_, f)| Diagnosis::PredicateFlip {
-                predicate: f.predicate,
-                from: f.from,
-                to: f.to,
-                source: FlipSource::VerdictLog,
-            })
-        };
         let flips = diff_verdicts(self.ctx.eval, new.eval);
-        let on_path = flips.flips_on_nodes(path);
-        if let Some(d) = recorded(&on_path, true) {
-            return Some(d);
+        let family = flips
+            .flips_on_nodes(path)
+            .into_iter()
+            .find(|(_, f)| f.predicate.starts_with(crate::names::FAMILY));
+        let flip = |f: VerdictFlip| Diagnosis::PredicateFlip {
+            predicate: f.predicate,
+            from: f.from,
+            to: f.to,
+            source: FlipSource::VerdictLog,
+        };
+        if let Some((_, f)) = family {
+            return Some(flip(f));
         }
         if let Some(d) = shadow_exec_flip(new, self.ctx, name, self.tol) {
             return Some(d);
         }
-        if let Some(d) = recorded(&on_path, false) {
-            return Some(d);
-        }
-        let ddiff = self.doc().diff(new.doc);
-        if let Some((node, param)) =
-            structural_param_change(self.doc(), new.doc, &ddiff, Some(path))
-        {
-            return Some(Diagnosis::StructuralParam { node, param });
-        }
-        if let Some(edit) = recipe_edit_change(self.doc(), new.doc, &ddiff, Some(path)) {
-            return Some(Diagnosis::RecipeEdit { edit });
-        }
-        // Global fallbacks (off-path evidence, in the same order).
-        let global = flips.report();
-        if let Some(d) = recorded(&global, true).or_else(|| recorded(&global, false)) {
-            return Some(d);
-        }
-        if let Some((node, param)) = structural_param_change(self.doc(), new.doc, &ddiff, None) {
-            return Some(Diagnosis::StructuralParam { node, param });
-        }
-        recipe_edit_change(self.doc(), new.doc, &ddiff, None)
-            .map(|edit| Diagnosis::RecipeEdit { edit })
+        Some(match self.lanes(new, &flips, path)? {
+            Evidence::Flip(_, f) => flip(f),
+            Evidence::Param(node, param) => Diagnosis::StructuralParam { node, param },
+            Evidence::Edit(edit) => Diagnosis::RecipeEdit { edit },
+        })
+    }
+
+    /// The UPSTREAM scope ([`upstream_nodes`]): the lane table over the
+    /// minting node's ancestors that are not on the path, each find
+    /// wrapped in [`Diagnosis::Upstream`] with the node it is at.
+    fn upstream<T: Decide>(
+        &self,
+        new: RunCtx<'_, T>,
+        name: &StableName,
+        path: &BTreeSet<RecipeNodeId>,
+    ) -> Option<Diagnosis> {
+        let nodes = upstream_nodes(self.doc(), new.doc, name.node, path);
+        let flips = diff_verdicts(self.ctx.eval, new.eval);
+        let cause = match self.lanes(new, &flips, &nodes)? {
+            Evidence::Flip(at, f) => UpstreamCause::PredicateFlip {
+                predicate: f.predicate,
+                at,
+                from: f.from,
+                to: f.to,
+            },
+            Evidence::Param(node, param) => UpstreamCause::StructuralParam { node, param },
+            Evidence::Edit(edit) => UpstreamCause::RecipeEdit { edit },
+        };
+        Some(Diagnosis::Upstream {
+            node: name.node,
+            cause,
+        })
+    }
+
+    fn group_resized<T: Decide>(&self, new: RunCtx<'_, T>, name: &StableName) -> Option<Diagnosis> {
+        group_resized(self.ctx.eval, new.eval, name)
     }
 
     fn tombstone<T: Decide>(&self, _new: RunCtx<'_, T>, name: &StableName) -> Option<Tombstone> {
@@ -1012,6 +1187,15 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             Some((_, Entry::Unique(_))) => offers.push(base),
             None => {}
         }
+    } else if let Some(base) = unqualified(name)
+        // The same collapse for a side-discriminated fragment: the
+        // undivided survivor is offered for an explicit `Rebind`,
+        // never bound. There is no over-tie to widen to here — a
+        // `SideOf` tie is a row of the QUALIFIED name, which step 2
+        // already answered.
+        && matches!(lookup(new.eval, &base), Some((_, Entry::Unique(_))))
+    {
+        offers.push(base);
     }
 
     // 4. The minting node's standing decides Vanished vs
@@ -1059,8 +1243,17 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
             // single-run resolve — the N2 discriminator verdicts
             // recorded IN the names themselves are still evidence.
             .or_else(|| qualifier_delta(new.eval, name))
+            // The upstream scope ([`upstream_nodes`]): below every
+            // rung that names a cause ON the path, qualifier delta
+            // included, because a path cause decided the name and an
+            // upstream one only fed it.
+            .or_else(|| prior.upstream(new, name, &path))
+            // The group-size rung (`group_resized`'s docs).
+            .or_else(|| prior.group_resized(new, name))
             // Every rung above came up empty: no verdict flip, no doc
-            // delta, no recorded qualifier delta.
+            // delta, no recorded qualifier delta, and no group-size
+            // change the rung could state (unchanged, or too large to
+            // count).
             .unwrap_or_else(|| Diagnosis::cause_not_in_evidence(name.node))
     };
     let last_good = prior.tombstone(new, name);
@@ -1147,30 +1340,14 @@ fn resolve_impl<T: Decide, P: PriorCtx>(
 /// calibrate against the record; and **no partner's verdict
 /// changed**.
 ///
-/// # The two halves of the SideOf vanish, and only one is recovered
+/// # What it answers
 ///
-/// The last two cases are the COLLAPSE half, and it is a limit, not a
-/// gap. A fragment group stops being multi-fragment whenever the
-/// partner walls stop CUTTING the face — the bar lands short of the
-/// far edge, or withdraws on the side it was already on — and the
-/// walls have not crossed the fragment, so every side verdict is what
-/// it was and the survivor still satisfies the vanished name's own
-/// vector. There is no flip; the rung finds none and the vanish rests
-/// on the later rungs. What this rung recovers is the half where a
-/// side MOVED: the partner crossed, the sweep pruned the pair, and
-/// the verdict that re-qualified the name was never written down.
-/// Pruning the pair and re-qualifying the name are different events,
-/// and only the second is a flip.
-///
-/// The `OrderAlong` half of the same issue is not recovered either,
-/// for a different reason: `Qualifier::OrderAlong { rank, of }`
-/// records an ordinal and a group size and NO partner, so the pair it
-/// was ranked against cannot be read back out of the name — and the
-/// pruned run has no sibling left to rank against, a single-member
-/// group running zero `name_frag_order_along` pairs. Recovering it
-/// needs the naming vocabulary to carry the partner, which is the
-/// names lane's design surface. This is the one statement of that
-/// limit; the sites that need it point here.
+/// The case where a side MOVED: the partner crossed, the sweep pruned
+/// the pair, and the verdict that re-qualified the name was never
+/// written down. The last two decline cases are the vanishes where no
+/// side moved — a collapse, and every `OrderAlong` vanish, whose
+/// qualifier has no partner to re-probe — and [`group_resized`]
+/// answers those; its docs say why no flip exists there.
 ///
 /// # The trigger is node-granular, which is a narrowing
 ///
@@ -1246,8 +1423,8 @@ fn shadow_exec_flip<T: Decide, U: Decide>(
             verdict_sign(recorded),
         ) else {
             // `Mixed` on a side: definite probes both ways is not one
-            // sign, and this is where the COLLAPSE half lands — the
-            // survivor is still cut by the wall, so it has no side.
+            // sign, and this is where a collapse lands — the survivor
+            // is still cut by the wall, so it has no side.
             continue;
         };
         // THE CALIBRATION, and the D9 replay statement at the pair.
@@ -1286,27 +1463,39 @@ fn shadow_exec_flip<T: Decide, U: Decide>(
     None
 }
 
-/// A fragment name without its trailing qualifier — what the SAME
-/// group is called once it stops being multi-fragment, and therefore
-/// the current-run counterpart of a vanished fragment.
+/// A fragment name's BASE: the name without its trailing `Fragment`
+/// qualifier, of either kind — what its group's rows are spelled from.
+/// `None` when the name has no fragment tail, or when popping it
+/// would leave an empty path (never emitted: a qualifier always
+/// follows a parent-bearing segment, N2).
 ///
-/// Not [`widened_base`], which pops a trailing `OrderAlong` for a
-/// different purpose (the over-tie widening reads the row the
-/// reference actually tied against). The operations look alike and the
-/// questions are not: that one asks which ROW a ranked reference
-/// landed on and must refuse a `SideOf` tail; this one asks which FACE
-/// a discriminated fragment became and must refuse an `OrderAlong`
-/// tail. Neither can answer the other's question.
-fn unqualified(name: &StableName) -> Option<StableName> {
-    if !matches!(
-        name.path.last(),
-        Some(RoleSeg::Fragment(Qualifier::SideOf(_)))
-    ) {
+/// The one spelling of the pop. [`unqualified`] and [`widened_base`]
+/// are this, restricted to one qualifier kind each, and
+/// [`group_resized`] is this unrestricted.
+fn fragment_base(name: &StableName) -> Option<StableName> {
+    if !matches!(name.path.last(), Some(RoleSeg::Fragment(_))) {
         return None;
     }
     let mut base = name.clone();
     base.path.pop();
     (!base.path.is_empty()).then_some(base)
+}
+
+/// A `SideOf` fragment name's base ([`fragment_base`]) — what the SAME
+/// group is called once it stops being multi-fragment, and therefore
+/// the current-run counterpart of a vanished fragment.
+///
+/// Not [`widened_base`]: that one asks which ROW a ranked reference
+/// landed on and must refuse a `SideOf` tail; this one asks which FACE
+/// a discriminated fragment became and must refuse an `OrderAlong`
+/// tail. Same pop, different questions, so different filters.
+fn unqualified(name: &StableName) -> Option<StableName> {
+    matches!(
+        name.path.last(),
+        Some(RoleSeg::Fragment(Qualifier::SideOf(_)))
+    )
+    .then(|| fragment_base(name))
+    .flatten()
 }
 
 /// The body and face key `partner` denotes AT `node`'s operand in
@@ -1423,6 +1612,124 @@ fn qualifier_delta<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Option
     None
 }
 
+/// The GROUP-SIZE rung ([`Diagnosis::GroupResized`]): the vanished
+/// name's fragment group, counted in the minting node's table in the
+/// last-good run and in this one, changed size.
+///
+/// # Why a fragment name can vanish with no flip
+///
+/// This is the one statement of it; the sites that need it point
+/// here. A fragment qualifier exists only while its group has two or
+/// more members (N2), and `OrderAlong` spells the group's size into
+/// the name as `of`. So a fragment name vanishes whenever its group
+/// changes size, and that event need not flip any discriminator: a
+/// `SideOf` group that stops being divided keeps every side verdict it
+/// had — the walls still stand where they stood relative to the
+/// survivor — and an `OrderAlong` group ranks its members against
+/// EACH OTHER, so a group of one runs no pair and a shadow execution
+/// has nothing to re-run. What remains in evidence is the count.
+///
+/// # What is counted
+///
+/// The group is the one the minting node's emitter FORMED, read from
+/// the record it keeps beside its name table
+/// ([`crate::names::FragmentGroups`]) under the name's BASE
+/// ([`fragment_base`]): the entities of that node's output that descend
+/// from the group's parent by the emitter's own descent, however each
+/// is spelled. A member passing
+/// through undivided under its upstream name counts, and so does an N3
+/// `Merged` face the parent survives in. At a UNION the output is the
+/// published body, so a group a fold step formed counts the DISTINCT
+/// published entities that descend from its parent within it, the
+/// descent followed by entity through every later step: a member a
+/// later step swallows counts 0, one it divides counts each piece, and
+/// a later merged face holding two pieces counts once. Whichever step
+/// spelled the base, the count is that one number. Both records are
+/// the MINTING node's own (`name.node`), because the group is what
+/// that node's emission divided. A piece a later step re-mints under a
+/// seam name of its own (a `Seam` edge zipped along the piece's line)
+/// is not the parent's descendant by that descent and is not counted.
+///
+/// Two TIED parents share one base. Where the emitter groups by parent
+/// ENTITY — a face or an edge by the operand entity it descends from,
+/// a split face by its face and side — each forms its own group, the
+/// tie lane gives their members' rows one set of names, and each group
+/// is counted on its own: `was` and `now` are one parent's group, never
+/// the tie's sum. Where it groups by parent NAMES — a seam edge or seam
+/// vertex by its two faces' names — tied parents' pieces land in one
+/// group, no one parent's count is on record, and the rung declines.
+///
+/// `now == 0` says no entity of the node's output is in that group:
+/// none descends from the parent there by the emitter's descent, or — for a split, whose group
+/// is a face AND a side — none on that side.
+///
+/// # When it answers, and when it declines
+///
+/// It answers when the last-good minting table CARRIED the name — a
+/// name the prior run never minted did not vanish by its group
+/// changing — and the current count differs. It declines, to the
+/// evidence-free fallback, when the name has no fragment tail, when
+/// either run has no value at the minting node, when the prior record
+/// holds no group under the base, when a group under the base was
+/// formed by tied parents' names or the groups a tie shares a base
+/// among are not all one size (there is then no one parent's count to
+/// state), when a union's record cannot be read in its published space
+/// or two of one fold step's bases publish as one, when either count
+/// does not fit the diagnosis's `u32` (a saturated size could make two
+/// different groups read as one), and when the size did NOT change: a
+/// group that re-qualified at the same size is a different event, about
+/// which the records say nothing.
+///
+/// # Why it sits last: cause before effect
+///
+/// Every rung above it that answers names a CAUSE — a recorded or
+/// shadow-executed flip names a predicate whose verdict changed, the
+/// qualifier delta recovers one from the names, the doc-diff lanes
+/// name an edit, and [`Diagnosis::Upstream`] names one of those three
+/// at a node that fed the name. This rung states an EFFECT, a structural change whose
+/// cause the evidence does not hold. When both are present — the bar
+/// slid, a predicate flipped, and the group resized as a consequence —
+/// the cause is the answer and the resize is its symptom, so this rung
+/// runs only once every cause-naming rung has come up empty, and
+/// before the fallback, which states nothing at all. Diagnosis-time
+/// only; two table scans; nothing reaches any log.
+fn group_resized<U: Decide, T: Decide>(
+    prior: &Evaluation<U>,
+    new: &Evaluation<T>,
+    name: &StableName,
+) -> Option<Diagnosis> {
+    let base = fragment_base(name)?;
+    let prior_value = prior.value(name.node)?;
+    prior_value.name_table.lookup(name)?;
+    let was = match group_size(&prior_value.fragment_groups, &base)? {
+        0 => return None,
+        was => was,
+    };
+    let now = group_size(&new.value(name.node)?.fragment_groups, &base)?;
+    (was != now).then_some(Diagnosis::GroupResized {
+        node: name.node,
+        was,
+        now,
+    })
+}
+
+/// One parent's group size under `base` in one run's record
+/// ([`group_resized`]'s count): `0` when no group is recorded there,
+/// `None` when the groups sharing the base (a tie's) differ in size,
+/// when the record cannot be read, or when the size does not fit the
+/// diagnosis's `u32` — the rung declines rather than report a
+/// saturated size two different groups would share.
+fn group_size(groups: &crate::names::FragmentGroups, base: &StableName) -> Option<u32> {
+    match groups.sizes(base)?.as_slice() {
+        [] => Some(0),
+        [one, rest @ ..] => rest
+            .iter()
+            .all(|s| s == one)
+            .then(|| u32::try_from(*one).ok())
+            .flatten(),
+    }
+}
+
 /// The (from, to) sign pair iff `new` differs from `old` by exactly
 /// one pure-sign `SideOf` entry ([`qualifier_delta`] docs).
 fn single_pure_sideof_delta(old: &StableName, new: &StableName) -> Option<(Sign, Sign)> {
@@ -1516,14 +1823,12 @@ fn lookup_unique<T: Decide>(
 /// its trailing `Fragment(OrderAlong)` qualifier (the row the emitter
 /// ties when the group over-ties).
 fn widened_base(name: &StableName) -> Option<StableName> {
-    match name.path.last() {
-        Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. })) => {
-            let mut base = name.clone();
-            base.path.pop();
-            Some(base)
-        }
-        _ => None,
-    }
+    matches!(
+        name.path.last(),
+        Some(RoleSeg::Fragment(Qualifier::OrderAlong { .. }))
+    )
+    .then(|| fragment_base(name))
+    .flatten()
 }
 
 /// N3's structural offers: the merged name a retired constituent
@@ -1703,6 +2008,10 @@ pub fn apply_with_names<T: Decide>(
         DocEdit::DeleteNode { .. }
         // A list of node ids carries no name.
         | DocEdit::SetMembers { .. }
+        // A program and its provenance carry no name; the names a
+        // reshaping moves are the document's own, rewritten at the
+        // door.
+        | DocEdit::SetProgram { .. }
         | DocEdit::SetParam { .. }
         | DocEdit::SetStructuralParam { .. }
         | DocEdit::SetExpression { .. }
@@ -1749,6 +2058,35 @@ pub fn derivation_nodes(name: &StableName) -> BTreeSet<RecipeNodeId> {
     nodes
 }
 
+/// The UPSTREAM node set of a name minted at `node`, and THE SCOPE
+/// RULE of the with-history lanes, stated here once.
+///
+/// The lanes read two scopes, in order. The PATH is
+/// [`derivation_nodes`] (N1: the nodes the name mentions); evidence
+/// there is a cause that DECIDED the name, answered as
+/// `PredicateFlip`, `StructuralParam` or `RecipeEdit`, whose sentences
+/// say "on the derivation path". UPSTREAM is this set: every node
+/// that is a strict ancestor of `node` in the last-good document OR
+/// in the current one, each walked within its own document, minus the
+/// path; evidence there FED the name without deciding it, answered as
+/// [`Diagnosis::Upstream`], whose sentence says so. A node in neither
+/// set is never read — no edit there reaches this name in either run.
+///
+/// The two documents are walked separately and then united, never
+/// walked together: a chain that crosses from an old edge to a new
+/// one reaches nodes that fed the minting node in NEITHER run.
+fn upstream_nodes(
+    old: &Doc<ProfileProgram>,
+    new: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    path: &BTreeSet<RecipeNodeId>,
+) -> BTreeSet<RecipeNodeId> {
+    let mut nodes = crate::roots::strict_ancestors(old, node);
+    nodes.append(&mut crate::roots::strict_ancestors(new, node));
+    nodes.retain(|n| !path.contains(n));
+    nodes
+}
+
 /// Whether a name walk visits `SideOf` discriminator PARTNERS.
 /// Partners are discrimination references — an edit at a partner's
 /// node can re-qualify the name (N7 localization, cascade), but the
@@ -1770,7 +2108,7 @@ enum Partners {
 /// [`Qualifier`] variant embedding names must be
 /// classified here or the compile breaks — or, if it embeds no name,
 /// added to [`crate::names::name_free_seg`], which is the one place
-/// that answer is written for this and its two sibling matches.
+/// that answer is written for every match that shares it.
 /// (Review Finding 7 — no fail-quiet wildcard.)
 fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {
     fn visit<'a>(n: &'a StableName, partners: Partners, f: &mut impl FnMut(&'a StableName)) {

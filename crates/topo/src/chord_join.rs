@@ -194,17 +194,36 @@ pub enum SplitJoinError {
     /// residue (rule (b) adjudication record): no degenerate body is
     /// ever emitted.
     ///
-    /// Per RUN this fires iff the pinched pieces lie on the NEGATIVE
-    /// side of the run's plane normal (the below side, where the
-    /// ch. 14 insertion mints no vertex copies). Since M3 PR 6a (D7)
-    /// the public [`crate::splitting::split`] consumes this refusal as the pinch
-    /// trigger and reruns under the mirrored plane — where the
-    /// pinched fans are ABOVE runs and mint their copies — so op
-    /// success is orientation-independent; the error still surfaces
-    /// from [`crate::splitting::split`] when BOTH orientations refuse (a genuine
-    /// both-sided zero-area residue) and from the join lane directly
-    /// (e.g. [`crate::splitting::plane_section`], which has no sides to swap).
+    /// A run reaches it two ways: a below-side PINCH (pieces meeting
+    /// at a tip line on the NEGATIVE side of the run's plane normal,
+    /// where the ch. 14 insertion mints no vertex copies), and a
+    /// one-sided TANGENCY (the plane touches the solid along an edge
+    /// or at a point, and the contact's null edges close a polygon of
+    /// their own). Since M3 PR 6a (D7) the public
+    /// [`crate::splitting::split`] consumes this refusal as the pinch
+    /// trigger and reruns under the mirrored plane — where pinched
+    /// fans are ABOVE runs and mint their copies — so a pinch's
+    /// success is orientation-independent. The rerun cannot tell a
+    /// tangency from a pinch, so it reruns a tangency too; a tangency
+    /// alone refuses again there, and one whose contact meets a real
+    /// section refuses [`Self::SectionSpur`]. The error surfaces from
+    /// [`crate::splitting::split`] when the mirror run also refuses,
+    /// and from the join lane directly (e.g.
+    /// [`crate::splitting::plane_section`], which has no sides to
+    /// swap).
     DegenerateSection {
+        /// The completed null face.
+        face: FaceKey,
+    },
+    /// A completed section polygon of positive area carries a SPUR: its
+    /// loop runs out along a straight edge the plane only touches and
+    /// straight back. The spur is a one-sided tangency's contact joined
+    /// into a real section's polygon instead of closing one of its own;
+    /// it would leave a zero-width slit in both halves, with two copies
+    /// of every vertex along it on one side. Refused, as the tangency
+    /// standing alone is ([`Self::DegenerateSection`]); no degenerate
+    /// body is ever emitted.
+    SectionSpur {
         /// The completed null face.
         face: FaceKey,
     },
@@ -328,72 +347,119 @@ impl From<PointInLoopError> for SplitJoinError {
     }
 }
 
+/// The recourse the section join's escalations carry. The join runs
+/// under a split, which takes no declarations, and under a Boolean,
+/// which does; the levers true at both are the geometry and the
+/// tolerance, and `BooleanError::Join` adds the declaration.
+use geom_core::NO_DECLARATION_RECOURSE as JOIN_RECOURSE;
+
 impl core::fmt::Display for SplitJoinError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.render(f, JOIN_RECOURSE)
+    }
+}
+
+/// A [`SplitJoinError`] as a Boolean shows it: the Boolean takes
+/// declarations, so its escalations offer the shared
+/// [`geom_core::COINCIDENCE_RECOURSE`] where the join's own `Display`
+/// (which a split shares) offers only the geometry and the tolerance.
+pub(crate) struct UnderBoolean<'a>(pub(crate) &'a SplitJoinError);
+
+impl core::fmt::Display for UnderBoolean<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.0.render(f, geom_core::COINCIDENCE_RECOURSE)
+    }
+}
+
+impl SplitJoinError {
+    /// The sentence, with the recourse every ill-conditioned arm
+    /// states supplied by the caller that knows which levers its reader
+    /// has: [`JOIN_RECOURSE`] under a split, the shared coincidence
+    /// recourse under a Boolean ([`UnderBoolean`]).
+    fn render(&self, f: &mut core::fmt::Formatter<'_>, recourse: &str) -> core::fmt::Result {
         match self {
-            Self::OrderEscalated { diag } => {
-                write!(f, "split join: lexicographic order escalated: {diag}")
-            }
-            Self::Escalated { face, diag } => {
-                write!(f, "split join: escalated at face {face:?}: {diag}")
-            }
-            Self::DegenerateSection { face } => write!(
+            Self::OrderEscalated { diag } => write!(
                 f,
-                "split join: section polygon at {face:?} bounds zero area — one-sided \
-                 tangency: the degenerate side has no real material (refused, never \
-                 emitted); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                "the order of two section points is too close to call ({}). Recourse: \
+                 {recourse}",
+                diag.payload()
             ),
-            Self::RingHoming(e) => write!(f, "split join: ring re-homing: {e}"),
-            Self::RingHomingAmbiguous { ring } => write!(
+            Self::Escalated { diag, .. } => write!(
                 f,
-                "split join: ring {ring:?} sits ON the divided face's outer loop — \
-                 containment undecidable (ill-conditioned operand)"
+                "where a section runs across a face is too close to call ({}). Recourse: \
+                 {recourse}",
+                diag.payload()
+            ),
+            Self::DegenerateSection { .. } => write!(
+                f,
+                "a section is degenerate: it bounds zero area (a one-sided tangency), so \
+                 one side has no real material. Recourse: {recourse}"
+            ),
+            Self::SectionSpur { .. } => write!(
+                f,
+                "the plane touches the solid along an edge — within the sliver band of it, \
+                 or exactly tangent to it — while cutting it elsewhere; a grazing contact \
+                 is refused, and an exact tangency would need to be declared. Recourse: \
+                 {recourse}"
+            ),
+            Self::RingHoming(e) => match e {
+                crate::splitting::PointInLoopError::Escalated { diag, .. } => write!(
+                    f,
+                    "which piece a hole loop falls in is too close to call ({}). Recourse: \
+                     {recourse}",
+                    diag.payload()
+                ),
+                crate::splitting::PointInLoopError::RayExhausted { .. } => write!(
+                    f,
+                    "every test ray grazed a hole loop, so which piece holds it is \
+                     ill-conditioned at this tolerance. Recourse: {recourse}"
+                ),
+                crate::splitting::PointInLoopError::CorruptLoop { .. } => {
+                    write!(f, "re-homing a hole loop refused: {e}")
+                }
+            },
+            Self::RingHomingAmbiguous { .. } => write!(
+                f,
+                "a hole loop sits on the divided face's outer boundary, so which piece \
+                 holds it cannot be decided. Recourse: {recourse}"
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
-                "split join: {count} loose null-edge halves survived the sweep (kernel bug)"
+                "{count} loose null-edge halves survived the join sweep (kernel bug)"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
-                "split join: null face {face:?} has a side-mixed section loop (kernel bug)"
+                "null face {face:?} has a side-mixed section loop (kernel bug)"
             ),
             Self::CutInvariant { edge } => write!(
                 f,
-                "split join: neither face flanking null edge {edge:?} is a sliver (kernel bug)"
+                "neither face flanking null edge {edge:?} is a sliver (kernel bug)"
             ),
             Self::Corrupt { entity } => {
-                write!(f, "split join: traversal failed at {entity} (corrupt body)")
+                write!(f, "the join's traversal failed at {entity} (corrupt body)")
             }
-            Self::Band(e) => write!(f, "split join: invalid band: {e}"),
-            Self::Euler(e) => write!(f, "split join: euler operation refused: {e}"),
-            Self::Section { face, source } => {
-                write!(f, "split join: section chord in face {face:?}: {source}")
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Euler(e) => write!(f, "an Euler operation refused: {e}"),
+            Self::Section { source, .. } => {
+                write!(f, "the section through a curved face refused: {source}")
             }
-            Self::SectionArcWindow { face, case, band } => {
+            Self::SectionArcWindow { case, band, .. } => {
                 write!(
                     f,
-                    "split join: section chord in face {face:?}: arc-side selection \
-                     refused — {case}"
+                    "the section through a curved face has no arc to take: {case}"
                 )?;
                 if case.is_containment_verdict() {
                     write!(
                         f,
-                        "; predicate 'split_arc_window' classified definite against the band \
-                         (zero = {:e}, escalate = {:e}) — the same margin inside that band \
-                         escalates instead, and it is the same ill-conditioning either way; {}",
+                        " ('split_arc_window', band ({:e}, {:e})). Recourse: {recourse}",
                         band.zero(),
                         band.escalate(),
-                        geom_core::COINCIDENCE_RECOURSE
                     )?;
                 }
                 Ok(())
             }
             Self::SectionInvariant { face, what } => {
-                write!(
-                    f,
-                    "split join: curved-section invariant at face {face:?}: {what}"
-                )
+                write!(f, "curved-section invariant at face {face:?}: {what}")
             }
         }
     }
@@ -2516,22 +2582,15 @@ mod tests {
         assert_eq!(diag.predicate, Some("split_arc_window"));
 
         for msg in [definite.to_string(), escalated.to_string()] {
-            assert_eq!(
-                msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-                1,
-                "{msg}"
-            );
+            assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+            assert!(!msg.contains("declare"), "{msg}");
             assert!(msg.contains("split_arc_window"), "{msg}");
             assert!(msg.contains("1e-9") && msg.contains("1e-8"), "{msg}");
         }
         // The sub-case that classified nothing must NOT carry the
         // recourse — there is no ill-conditioned margin behind it.
         let no_run = spec_with(&[]).unwrap_err().to_string();
-        assert_eq!(
-            no_run.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            0,
-            "{no_run}"
-        );
+        assert_eq!(no_run.matches(JOIN_RECOURSE).count(), 0, "{no_run}");
     }
 
     /// Seam-placement independence, at the unit: the whole construction
@@ -2557,16 +2616,26 @@ mod tests {
     /// S6 (two-tolerance, D4 ¶1 addendum): the split-join pair —
     /// exactly-zero section area (`DegenerateSection`) and in-band
     /// (`Escalated`) — is one user situation; both arms carry the
-    /// shared recourse fragment.
+    /// join's one recourse ([`JOIN_RECOURSE`]), which offers no
+    /// declaration because the join takes none.
     #[test]
     fn section_area_pair_carries_the_shared_recourse() {
         let face = FaceKey::default();
         let msg = SplitJoinError::DegenerateSection { face }.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
+
+        // The spur arm carries the same recourse. It names a declaration
+        // only as what an EXACT tangency would need (Ev, 2026-09-24),
+        // not as a lever the join offers, and it does not claim the
+        // zero area its section does not have.
+        let msg = SplitJoinError::SectionSpur { face }.to_string();
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(
+            msg.contains("exact tangency would need to be declared"),
             "{msg}"
         );
+        assert!(!msg.contains("zero area"), "{msg}");
 
         let msg = SplitJoinError::Escalated {
             face,
@@ -2577,11 +2646,8 @@ mod tests {
             },
         }
         .to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
+        assert_eq!(msg.matches(JOIN_RECOURSE).count(), 1, "{msg}");
+        assert!(!msg.contains("declare"), "{msg}");
     }
 
     /// **The anti-re-fork row for the arc-side rule.** Each of the
@@ -2673,7 +2739,6 @@ mod tests {
     /// **Consults no tolerance.** The widths are widths; the band below
     /// is the ordinary one the site's own margins need in order to run
     /// at all, and no assertion here reads it.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_window_relative_start_keeps_its_width_when_the_start_straddles_the_edge() {
         use geom_core::{Bounds, Interval, Real};
@@ -2758,7 +2823,6 @@ mod tests {
     /// than 0, an off-axis chord end, a 2.5-radian window. The unit's
     /// committed row uses the zero azimuth, where several quantities
     /// are exactly representable; this one is not so friendly.
-    #[cfg(feature = "interval")]
     #[test]
     fn cert4r2_the_window_edge_straddle_off_axis() {
         use geom_core::{Bounds, Interval, Real};
@@ -2823,7 +2887,6 @@ mod tests {
 /// window's antipode.
 ///
 /// Consults no tolerance: the widths asserted are widths.
-#[cfg(feature = "interval")]
 #[test]
 fn cert4r1_the_centred_anchoring_widens_at_its_own_jump_for_a_near_whole_window() {
     use geom_core::{Bounds, Interval, Real};

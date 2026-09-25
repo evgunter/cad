@@ -246,7 +246,6 @@ fn a_general_circle_sphere_cache_survives_the_at_rest_pass() {
 /// refuses definitely — so the row asserts whichever of the three the
 /// run's tolerance selects rather than claiming one unconditionally.
 /// Either way it is the evidence the lane genuinely left `f64`.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Tol;
     use geom_core::interval::Interval;
@@ -272,7 +271,15 @@ mod certified {
     /// route at `f64` bounds the same limb well under 1e-12, which is
     /// why the at-rest `f64` row is unaffected: the ring data widens
     /// with the scalar the coefficients are held in.
-    const HULL_SUP_AT_INTERVAL: f64 = 1.7993939406448348e-12;
+    /// **Re-measured when the C9 ring became a newtype over
+    /// `interval-transcendentals`' `DInterval`** (`1.7993939406448348e-12`
+    /// before): the ring padded one representable step outward on
+    /// every operation and the backend pads only where the operation
+    /// is inexact, so the hull limb's bound came in TIGHTER. The
+    /// route's honesty is what this row asserts and it is unmoved —
+    /// the bound still lands inside the open sliver band, and the
+    /// three arms below still partition ε the same way.
+    const HULL_SUP_AT_INTERVAL: f64 = 1.7985010297969555e-12;
 
     /// This route is **honest at every ε**, and which of three things
     /// that means depends on where ε sits relative to

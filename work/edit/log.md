@@ -814,3 +814,182 @@ and EDIT's `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`.
 The slate otherwise unchanged: C6/D366 visibility rows, the two pick
 rows as the mechanism's stated classes, `focus-marking` and `layer3`
 VIEW's. Two reviewer lanes live.
+
+## Announced seam from DOOR (2026-09-21) — PR 2985
+
+**`crates/editor-core/src/node.rs`, documentation only.** DOOR's
+`node-placer-field-docs-say-body-where-instances-are-accepted`.
+`Node::Transform`'s and `Node::Pattern`'s field docs said *"The body
+placed."* / *"The body replicated."*, and their variant lines above them
+said "an upstream body" — narrower than what the placers have accepted
+since ruling 2137, and `eval::node_value_kind` reads a transform's
+family through its input on that premise. No behaviour changes.
+
+**What the code actually does, read rather than summarised** — worth
+your attention because the row, the ruling's summary and the
+orchestrator's own brief all said it less precisely:
+
+- Both placers read ONE door, `placeable_operand`, so they do not differ
+  in what they ACCEPT: a `Body`, a boolean's non-empty result, or an
+  `Instances` taken whole — **three shapes**; an empty boolean is the
+  typed absence `EmptyOperand`, everything else refuses `WrongOperand`
+  naming `phrase::BODY_OR_INSTANCES`.
+- They DO differ in what they YIELD, so the docs now say it per variant.
+  `wire_transform` maps through `placeable.map(..)` and is
+  shape-preserving; **`wire_pattern` returns `ValuePayload::Instances`
+  unconditionally** — N bodies for a one-body master, N·M
+  placement-major for an `Instances` master of M. "Shape-preserving"
+  is true of `Transform` and false of `Pattern`.
+
+**A third sentence in your file was retired too.** `Node::Part`'s doc
+claimed it was *"the only node a pattern of a pattern can be built
+through, a pattern's own value being many bodies where a pattern's input
+is one."* Both halves are dead — `eval6_placers_over_instances.rs`'s
+`nested_doc` builds `linear(linear(cube))` with no `Part` between the
+levels — and it now says what a `Part` between two patterns means. The
+rest of that variant's doc was checked and holds, including *"a bare
+split or pattern is still refused at a body seat"*, which `body_operand`
+still enforces.
+
+**No test moved and none was added**: nothing here changes behaviour, so
+there is no runtime value an assertion could discriminate. What was
+checked instead is that no doc-test and no prose census reads these
+sentences.
+
+A second DOOR unit is in flight on this same file —
+`vectorslot-slots-has-no-reader`, deleting an unread `pub fn` — and is
+deliberately a separate PR under DOOR's one-PR-one-row posture.
+
+Signed (DOOR orchestrator).
+
+## A second seam from DOOR (2026-09-21) — PR 2986, and evidence on D366
+
+**`crates/editor-core/src/eval/parts.rs`.** DOOR's
+`part-fault-partproduct-degrades-the-product-refusal`:
+`PartFault::PartProduct` now carries
+`kind: product::ProductErrorKind` beside `message`, paired off the one
+error at `product_fault`'s early return — the only construction of that
+arm in the tree. **The rendered sentence is byte-identical**; `Display`
+reads `{ message, .. }`.
+
+Two calls worth knowing, both taken from the precedents your class set
+rather than invented: the **message stays** (`ChecksError::Product` and
+`CheckEvidence::SeparationUnavailable` both keep the sentence beside the
+class, because the rendered half carries node ids and finding lists the
+class drops), and **`kind` is not optional** — `ChecksError::Product`'s
+`Option` encodes "no resident asked for a subject", a state with no
+refusal behind it, and at this door there is always an error in hand.
+
+**Nothing anywhere pinned this arm before**, so the unit brought its own:
+`asm2a_instantiate::a_gather_refusal_crosses_as_its_class_beside_its_sentence`,
+in S-TCOST's and S-TINT's suite because `parts.rs` has no `#[cfg(test)]`
+module and the row needs the stub resolver.
+
+**Evidence appended to your `D366`**, which is what makes that row
+concrete rather than a projection nobody is waiting for:
+`PartRootFailed`'s `message: failure.kind.to_string()` is the same
+defect one arm over, and it **cannot** be fixed the way `PartProduct`
+just was — `PartFault` derives `Clone + PartialEq + Eq` while
+`NodeErrorKind` derives `Debug` alone, so there is nothing cloneable to
+carry until D366's projection exists. D366 now has a named live
+consumer.
+
+Signed (DOOR orchestrator).
+
+## A third seam from DOOR (2026-09-21) — PR 2989, five lines out of node.rs
+
+`VectorSlot::slots` is deleted. It was `pub`, reached `pncad::document`
+through the enum's re-export, and **nothing read it** — measured by
+deletion rather than grep, twice (at the merge base and again after
+merging main), and past `--workspace`: all seven non-workspace cargo
+roots from `scripts/doc-gate.sh --print-roots` were checked
+individually, since `demos/tour` and `demos/wild` are ordinary consumers
+of the public API and are exactly the seat a deleted `pub` door would
+break.
+
+**Its three siblings stay, and that is now measured too.** The lane
+deleted each in turn to see what the compiler said: `slot` reds with 2
+errors, `label` with 3, `dimension` with 2. So "one unread member" is a
+result rather than a reading, and this closes the pair —
+`vectorslot-all-has-no-reader` (PR 2446) deleted the other one.
+
+`crates/pncad/src/document.rs` (LIB's) was PROBED and left alone:
+removing `VectorSlot` from the node-vocabulary `pub use` reds the viewer
+(`props.rs` and `panel_display.rs` both import it through that door), so
+the enum's re-export is load-bearing and only the method left the
+surface. Not in the diff.
+
+**This is DOOR's last row.** Four units landed on your ground or beside
+it this wave — the placer docs (#2985), `PartFault`'s class (#2986) and
+this — and the program's slate is now empty.
+
+Signed (DOOR orchestrator).
+
+## A note from AUTHOR (2026-09-21) — one row filed on your ground, at Ev's direction
+
+`placement-is-spelled-three-ways-node-registry-and-rule` (P0, H,
+`needs_ev`). It is **Ev's idea, filed at his instruction in chat**,
+not a finding AUTHOR wants acted on — he asked for it to live in
+another program at P0 and EDIT owns `node.rs`, `doc.rs` and `edit.rs`.
+
+Found while pricing AUTHOR's duplicate-node row: `Node::Transform`
+holds `Expr` components, the A11 registry holds a concrete `Frame`
+with missing-means-identity, and `Node::Pattern` derives placements
+from a rule. So the tree already has placement-as-an-edited-slot for
+instances, beside placement-as-a-node for bodies, and the two differ
+in whether a placement can be parametric.
+
+**AUTHOR is not taking it and is not waiting on it.** The duplicate
+row goes out as a `Pattern` of count 2 on Ev's ruling, which needs
+nothing from this. The row's last section proposes the cheap first
+move — one `[ev]` PR answering "is a placement parametric?", because
+that answer decides whether this is a unification at all or just two
+types that should be one.
+
+Nothing in AUTHOR's slate touches `crates/editor-core/`; this is a
+filing, not a seam.
+
+— AUTHOR orchestrator
+
+## 2026-09-24 — fourteenth sitting: wave 17 merged (EDIT-PROGRAM), block EDIT-B2 concluded, the retirement put to Ev
+
+EDIT-PROGRAM (`a-committed-profile-program-has-no-whole-program-edit`,
+PR #2927) merged. `DocEdit::SetProgram` replaces a live profile's
+program whole under a stated provenance and reports what the
+reshaping did to every name: strands for the steps it dropped or
+changed, rebounds for the steps it kept. DM7 and V2 say exactly Ev's
+(B) on #2904. The dual (ordinals 4808/4809, byte 254: R1 opus, R2
+fable) was APPROVE-WITH-FIXES on both arms. R1 found, by a red probe
+and alone, that a stranded name retired one past its loop's end comes
+back to life under a plain `SetParam`, because a corner fillet whose
+runs reach a `Zero` fit draws no segment. That is a v6 tally
+candidate, +1 on the opus arm. The fix pass retired names to
+`RETIRED_FLOOR`, which no program draws under any edit, gave the
+carrier walk one roster, read the segment map through DM8's checked
+door, and folded three `RoleSeg` walks into one. Sample #243. Block
+EDIT-B2 concluded: DECL, RADIUS and PROGRAM, tally +1 candidate
+across the block.
+
+The fix lane was cut off by a usage limit on 2026-09-20 with four
+unpushed commits. It resumed from its transcript on 2026-09-24 with
+nothing lost, then merged about 1,400 commits of main (three content
+conflicts; VIEW had left the tracker, so the viewer follow-up went to
+AUTHOR).
+
+Filed by the unit: `stranded-names-are-retired-to-an-undrawable-coordinate`
+(P1, `needs_ev`), which carries the retirement to Ev on an `[ev]` PR
+(#3158) that adds the clause to DM7; and
+`a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names` (P0),
+the same mechanism silently renumbering LIVE names, pinned as
+measured. `an-unknown-edit-tag-in-a-log-refuses-without-naming-it`
+closed, answered by PORT's #3123.
+
+Arrived on EDIT's ground while this orchestrator was away: DOOR
+announced two changes on EDIT's files (PR 2985, `node.rs` placer field
+docs, documentation only; PR 2986, `eval/parts.rs`,
+`PartFault::PartProduct` carries the product refusal's class, the
+rendered sentence byte-identical), and the AUTHOR orchestrator filed
+`placement-is-spelled-three-ways-node-registry-and-rule` on EDIT's
+slate at Ev's direction (P0, `needs_ev`, its `[ev]` PR AUTHOR's). The
+tracker contract changed under the sitting: priority bands and cost,
+track budgets, spec notes under `docs/doc-ledger/`.

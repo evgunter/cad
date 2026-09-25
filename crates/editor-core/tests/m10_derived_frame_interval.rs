@@ -34,12 +34,12 @@
 //! `failures`, the budget constants — is copied across the `m10_*`
 //! family; the class is
 //! `work/sym/interval-test-preamble-is-copied-across-the-m10-files`.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;
 
 use crate::fixture::{self, Recorder, ang, len, scl};
+use crate::m10_8_harness::head;
 
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DEFAULT_SYM_MAX_DEGREE, DEFAULT_SYM_MAX_TERMS};
@@ -304,16 +304,6 @@ fn m10_the_transform_lifted_shape_with_an_extrude_above_it() {
 // ---------------------------------------------------------------
 // Phase 1 — the measurement
 // ---------------------------------------------------------------
-
-/// The first `n` characters of a rendering — a form that reaches the
-/// budget renders to megabytes, and what a reader needs is its head.
-fn head(s: &str, n: usize) -> String {
-    if s.chars().count() <= n {
-        return s.to_owned();
-    }
-    let cut: String = s.chars().take(n).collect();
-    format!("{cut}… [{} chars]", s.chars().count())
-}
 
 /// The FROZEN lines of an explanation with the ancestors that lead to
 /// them — the normalisation chain, without the thousands of lines that

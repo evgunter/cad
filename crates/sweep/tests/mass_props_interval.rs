@@ -4,7 +4,6 @@
 //! independent analytic closed form, and the f64-lane value lies
 //! within the enclosure's width of it.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};

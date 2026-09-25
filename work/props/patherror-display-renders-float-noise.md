@@ -5,7 +5,7 @@ title: `PathError`'s Display arms render scalars with `{:?}`, so refusal sentenc
 status: open
 opened: 2026-08-30
 github: 1282
-refs: [1267, num-relative-tolerance-collides-above-a-decimetre]
+refs: [1267]
 priority: P1
 cost: E
 ---
@@ -180,3 +180,149 @@ Two facts this row can now use:
   `StructureRefusal`, `ReplayError` and the vocabulary enums render
   only indices, counts and words — no scalars. What is left of this row
   is entirely outside `crates/profile/`.
+
+## The shape this actually takes (2026-09-20, read against the tree)
+
+**Do not mint a third helper.** The "where does the helper belong"
+question the section above leaves open is already answered twice in the
+tree, and the job is to unify those two rather than add to them.
+
+**The kernel already has one.** `path::num`
+(`crates/profile/src/path.rs`, used by `profile::validate`) is the
+helper PR #1267 added, and **FIX owns its history** — three rows closed
+on it: `path-error-numbers-below-1e-9-render-as-zero` (PR #2366, which
+removed a `.max(1.0)` pinning the tolerance ABSOLUTE at 1e-9 for
+`|x| <= 1` and so rendered every sub-nanometre margin as `0` — exactly
+the margins these messages exist to report), `verb-and-dimension-render-through-debug`
+(PR #2347), and `num-relative-tolerance-collides-above-a-decimetre`.
+The purely relative form is right at the small end and must stay.
+
+**The GUI already has the fuller one.** `viewer::readout::number`
+(`crates/viewer/src/readout.rs`) is declared a *vocabulary* module: one
+pure function over `f64` plus two constants. Its rule is **the shortest
+decimal spelling that reads back as this value**, with a scientific form
+when no decimal spelling does, bounded by `REL_TOLERANCE` — which is not
+a taste but the four-significant-figure scientific form's own worst
+case. Its doc states the property that makes it the right thing to
+lower: *"Nothing here is a threshold, so there is no magnitude to go
+stale against a format."* It is read-back fidelity, not an epsilon
+cutoff. Its two doors are `scene::DisplayTolerance::render_mm` (the
+delta-facing one, the millimetre conversion and nothing else) and
+`widgets::number_text` (the editable fields').
+
+**Ev's steer, in chat 2026-09-20:** the GUI's display policy is relevant
+to any user-facing render and could plausibly be lowered into the
+kernel; it crosses program lines and that is fine, the conflict risk
+there being low.
+
+Scope correction (2026-09-21, from the FIX evidence section above):
+`crates/profile/src/` is now **clean of the class**, so what is left of
+this row is entirely outside it — and the sweep must look for plain
+`f64` fields, not only `T: Real` ones, since `FilletLegCarrier` reached
+the identical defect with concretely-typed scalars.
+
+So the unit is: **one vocabulary module, kernel-side, and two spellings
+retired onto it** — then every `Display` arm carrying a scalar payload
+re-pointed at it, across `PathError`, `ProfileError` and the other
+doors' error types. It stays low-risk in the sense that matters (nothing
+branches on the string; payloads keep the exact scalar; no predicate, no
+comparand, no verdict moves), but it is **not the cost-E row the front
+matter claims** — it is a three-owner consolidation.
+
+### Seams to announce before landing
+
+- **FIX — CLOSED, so this seam has no owner to announce to.** Corrected
+  2026-09-21 on merge: FIX swept out at sweep 18 and `work/fix/` is
+  deleted, `docs/DOC-LEDGER.md` being its done-state of record. Its three
+  rows on `path::num` still bind as *constraints* even though no program
+  holds them: the purely relative small-end form must stay, and PR
+  #2366's removal of a `.max(1.0)` — which had pinned the tolerance
+  ABSOLUTE at 1e-9 for `|x| <= 1` and so rendered every sub-nanometre
+  margin as `0` — is the row a careless unification would most easily
+  undo. Whoever takes this row inherits those without a counterparty to
+  ask, so they are written out here rather than left as a pointer.
+- **VIEW / VIEWER** — owns `readout.rs`, `DisplayTolerance::render_mm`
+  and `widgets::number_text`. Lowering the module must leave those two
+  doors working, and `number_text` is on a COMMIT path (an
+  `egui::DragValue` seeds its keyboard edit with the text it last showed
+  and writes the parse back on blur), so `REL_TOLERANCE` bounds what
+  gets committed and not only what gets shown.
+- **PROPS** — this row, and the `Display` arms themselves.
+
+### Review posture
+
+DOOR's, which Ev set in-chat at that program's opening: **no A/B row**,
+light style review by default, full correctness review only where a row
+has real risk of being wrong. That is the right posture here and is also
+what the A/B hold of 2026-09-20 requires.
+
+## Correction: the "Re-homed to DOOR" paragraph above is STALE
+
+That paragraph records the 2026-09-11 cut. It was superseded by
+`272f2c038` ("door: re-home every design decision to the track that owns
+it"), which moved this row back OUT of DOOR and into `work/props/`,
+where it is now. The row is PROPS'. The DOOR paragraph is left in place
+rather than deleted because it is the record of a real move; this
+heading is what makes it not read as current.
+## Reference note (FIX's sweep, 2026-09-21)
+
+`num-relative-tolerance-collides-above-a-decimetre` was dropped from this row's `refs` because the row closed with **FIX**, which left the tracker at sweep 18 — `work/fix/` is deleted and `docs/DOC-LEDGER.md` is its done-state of record. The finding is unchanged and still readable: `git show 6f0e04ce1534:work/fix/num-relative-tolerance-collides-above-a-decimetre.md`.
+
+## The second CRATE consumer has landed (2026-09-22, VGEOM, `vgeom/render-grid`)
+
+**This row's trigger has fired.** Its question is *"where the `num`
+helper lives once a second CRATE consumes it"*, and the 2026-09-21
+entry above records that the `validate.rs` consumer did not count
+because it is inside `crates/profile`. This one is outside it:
+`crates/viewer/src/readout.rs` now computes `num`'s grid.
+
+**What was adopted, exactly.** `readout`'s private `tolerance(value)`
+is `EPS_CAP.min(value.abs() * REL_TOLERANCE)` with
+`EPS_CAP = DEFAULT_EPS * 0.1` — the same two-armed shape as
+`path::num`'s `(DEFAULT_EPS * 0.1).min(x.abs() * 1e-9)`, the same
+`min`, the same compile-time `DEFAULT_EPS` rather than the run's live
+`Tolerance::eps()`, and the same refusal to put a FLOOR under it. The
+reason is the one `num`'s doc gives and this row's body preserves: ε
+is a length, a purely relative rule crosses it and is coarser above
+the crossing, and the cap is what makes a difference the kernel can
+decide a difference the render spells.
+
+**Nothing was unified, deliberately.** `num` is `pub(crate)` in
+PATHS's ground and its named home is `crates/geom-core/src/real.rs`,
+which is this program's. The viewer lane was fenced out of both. It
+put the grid in ONE private function, called from one predicate, so
+a consolidation is a deletion rather than a rewrite, and it marked the
+three differences at that function's own doc so a later lane can tell
+a decision from drift.
+
+**The three differences, and which are decisions:**
+
+| | `profile::path::num` | `viewer::readout` | decision? |
+|---|---|---|---|
+| notation | follows the `Debug` form's own choice; only shortens the mantissa Rust already picked | chooses: shortest decimal that reads back, scientific when none does | **decision** — a refusal sentence quotes a magnitude nobody chose; a chrome value is in a notation the person chose, and a length written in millimetres wants to read back in millimetres |
+| relative arm | `1e-9` | `5e-4` (`readout::REL_TOLERANCE`, the four-figure scientific form's own worst case) | **decision** — see below |
+| character bound | none | `readout::MAX_CHARS`, 22 | **decision** — `readout`'s texts go in boxes and a clipped render reads as a different value; a refusal sentence is as wide as it needs to be |
+
+**The relative arm is the one a consolidation must not resolve by
+accident.** Neither site derives it from ε, and they cannot: the arms
+cross at `EPS_CAP / relative`, and below that crossing the relative
+arm is finer than the cap by construction, so the cap has already
+guaranteed ε-separation and the relative arm decides only how many
+figures a sub-crossing value is spelled to. `num` can afford ten
+because it has no width bound; `readout` keeps four because below its
+crossing (2·10⁻⁷ of a display unit) a length is below ε in every
+notation the chrome writes one in, and a fifth figure there is
+precision no probe established — the false-precision defect
+`readout::number` exists to cut, arriving by the other door. **So a
+shared helper takes the arm as a parameter, or takes one of the two
+knowingly and says which.** Taking `1e-9` silently would put nine
+figures into every GUI label below a tenth of a display unit.
+
+**One thing this evidence adds to the sweep the row's second half
+asks for.** `readout`'s grid is a LENGTH grid (ε is a length) and the
+chrome renders angles and scalars through the same door; that is
+filed as VGEOM's
+`the-render-grids-cap-is-a-length-and-angles-go-through-it`. A shared
+kernel-side helper inherits the same question the day a non-length
+payload reaches it, and `ProfileError` and the other doors' error
+types — this row's remaining half — carry angles.

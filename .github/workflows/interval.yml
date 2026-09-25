@@ -1,0 +1,195 @@
+name: interval backend
+
+# THE INTERVAL BACKEND CRATE'S TWO JOBS, called from ci.yml's `interval:` key.
+#
+# WHAT IS HERE. `interval-backend` and `oracle-certify` test
+# `interval-transcendentals/`, which is its own workspace root and the
+# certified scalar's backend. Neither job ever read the kernel's `interval`
+# cargo feature, and neither changed when that feature was deleted.
+#
+# WHAT LEFT (RING-4, H5 ruling 1 cut (iii)). This file held the interval
+# LANE too: `build-interval`, `lint-interval` and `test-interval`, which
+# compiled, linted and ran the kernel with `--features interval`. That lane
+# was already the superset of the default one — it ran the WHOLE suite, not
+# the interval-only difference — so when the feature was deleted its content
+# became what ci.yml's `build`, `clippy` and `test` jobs run, and its three
+# jobs went. The two named editor-core rows it carried
+# (`persistence save/load/replay-identity (interval)`, `band 4 corpus
+# (interval)`) are steps of ci.yml's `test` job now.
+#
+# WHY THESE TWO STAY IN A CALLED WORKFLOW rather than moving back into
+# ci.yml: nothing about them changed, and every `HOSTED MIRROR` citation in
+# local-scripts/ci-local.sh still resolves — `check-ci-mirror-parity.py`'s
+# claims 8 and 9 read EVERY workflow file in .github/workflows/. Their check
+# names report as `interval / <job name>`, as they have since the lane was
+# lifted out of ci.yml (2026-09-17); `gate ok` reads the run's job list
+# through `scripts/check-run-jobs.py`, which sees a called workflow's jobs
+# like any other.
+
+on:
+  workflow_call:
+    inputs:
+      # THE CHANGE FILTER'S ANSWERS, PASSED DOWN. Named for the outputs they
+      # carry so a reader holding ci.yml and this file open sees one word,
+      # not two. Every one is a string: `workflow_call` has no boolean the
+      # filter's `true`/`false` words would survive the call as.
+      run_interval_backend:
+        type: string
+        required: true
+      run_interval_oracle:
+        type: string
+        required: true
+
+jobs:
+
+  interval-backend:
+    name: interval backend crate
+    runs-on: ubuntu-latest
+    # Tier `closure` never reaches this: interval-transcendentals/ is its
+    # own workspace, so ANY change under it is tier `all`.
+    if: github.event_name != 'push' && inputs.run_interval_backend == 'true'
+    # The interval scalar's backend lives in its own workspace
+    # (interval-transcendentals/), so the kernel's workspace rows never
+    # build its tests. Its pad tripwire therefore had no CI at all until
+    # M5 PR 1's review asked for one — and it catches what the kernel's
+    # own lane-agreement tests provably cannot, both lanes there sharing
+    # the round-to-nearest chain.
+    #
+    # WHAT THIS ROW CATCHES, by direction, because the two are not the
+    # same job. A pad WIDENED: every operation, via pad_contract.rs,
+    # which bounds each endpoint's distance from the backend's own value
+    # by the derived pad — no oracle needed, since the comparison is
+    # against libm, not against truth. A pad DROPPED: division,
+    # multiplication and sqrt only, via review_fuzz_exact.rs, which
+    # computes the true value in exact u128 rational arithmetic.
+    #
+    # NOT `+` and `-`: their truth is exactly computable but not with a
+    # u128 comparator (aligning 2^1023 with 2^-1074 needs ~2100 bits),
+    # and mutating add_lo/add_hi to bare round-to-nearest leaves this
+    # whole row green — only certify_arith reds. NOT the seven
+    # transcendentals: their truth needs a multi-precision reference at
+    # all. Both belong to oracle-certify below, which fires on changes
+    # under interval-transcendentals/{src,tests}/, Cargo.toml or
+    # Cargo.lock (ci-filter.py's ORACLE_PATHS — four paths, not the whole
+    # directory: docs/ is NOT among them, so editing the derivation that
+    # sets PAD_ULPS does not by itself re-certify). That is a trigger
+    # set, not a convention.
+    #
+    # This row is deliberately the crate's DEFAULT feature set: without
+    # `oracle-inari` there is no inari/gmp-mpfr-sys and no C toolchain in
+    # the graph, so it takes seconds. See the crate README's
+    # "Certification" section.
+    steps:
+      - uses: actions/checkout@v4
+      # STRUCTURAL: hosted CI must not depend on LOCAL-ONLY TOOLING —
+      # local-scripts/ (the local half of the tooling split) and .claude/
+      # (agent session config: the SessionStart hook that provisions a
+      # Claude Code on the web container, and its settings). Deleting both
+      # here means a workflow that grows a reference to either fails
+      # loudly on the very next run instead of silently coupling the gate
+      # to a developer's machine or to an agent's container.
+      # This is also what lets scripts/ci-filter.py treat changes under
+      # either tree as non-triggering (its _is_docs).
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-backend
+          workspaces: interval-transcendentals
+      - name: fmt + clippy
+        working-directory: interval-transcendentals
+        run: cargo fmt --check && cargo clippy --all-targets -- -D warnings
+      - name: tests (default features — the oracle stack must stay out)
+        working-directory: interval-transcendentals
+        run: cargo test
+      # Tripwire on the tripwire: the dev-oracle stack (inari and its
+      # gmp/MPFR C build) belongs to `--features oracle-inari` only. If
+      # anything ever makes it reachable from the default feature set,
+      # fail loudly here rather than silently reintroducing a C build.
+      - name: assert the oracle stack stays out of the default graph
+        working-directory: interval-transcendentals
+        run: |
+          # THE PRODUCER IS TESTED BEFORE ITS OUTPUT IS. `cargo tree | grep`
+          # takes grep's verdict, and grep handed no input finds no match — so
+          # a resolver failure, an unbuildable manifest or a missing subcommand
+          # all read as "the oracle stack is out", which is this tripwire
+          # announcing a pass it never checked. Captured first, so a dead
+          # producer is loud and only a real listing is searched.
+          if ! TREE=$(cargo tree); then
+            echo "ERROR: \`cargo tree\` failed — this tripwire has nothing to search, and an unread graph is not a clean one"
+            exit 1
+          fi
+          if printf '%s\n' "$TREE" | grep -iE 'inari|gmp-mpfr-sys|rug'; then
+            echo "ERROR: the default feature set reaches the gmp stack"
+            exit 1
+          fi
+
+  # The differential certification lane: `certify.rs` against inari+MPFR as
+  # oracle, asserting `oracle ⊆ ours` on millions of drawn cases. It was a
+  # by-hand gate until now, for a good reason and a bad one.
+  #
+  # The good reason is cost: it builds GMP and MPFR from C source, measured
+  # at 234s of a ~250s job on a hosted runner (#480). It is keyed on the
+  # PATHS under interval-transcendentals/ rather than on the tier, because
+  # that crate is its own workspace and so every change to it lands in
+  # TIER=all — which is most merges. See ci-filter.py's ORACLE_PATHS.
+  # Measured churn: 2 of the last 400 first-parent merges, both during the
+  # crate's creation. Order of eight runner-minutes a year.
+  #
+  # The bad reason is that "run it by hand when the pads change" is a
+  # convention with no enforcement, and it had already failed silently:
+  # the tier did not BUILD at all (the README's x86-64-v3 floor was retired
+  # out from under it, #480) and nobody noticed, because nothing ran it.
+  oracle-certify:
+    name: interval oracle (certify vs inari+MPFR)
+    runs-on: ubuntu-latest
+    if: github.event_name != 'push' && inputs.run_interval_oracle == 'true'
+    # inari's rounding primitives sit behind
+    # cfg(all(target_feature = "avx", target_feature = "fma")) and it raises
+    # a compile_error! without them. The repo sets no target-cpu floor
+    # (.cargo/config.toml, deliberately), so the flag is supplied HERE, on
+    # the one lane that needs it, leaving the kernel's codegen untouched.
+    env:
+      RUSTFLAGS: "-C target-cpu=x86-64-v3"
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          key: interval-oracle
+          workspaces: interval-transcendentals
+      # Assert the runner can execute what -C target-cpu=x86-64-v3 emits
+      # BEFORE spending four minutes building GMP for it. Exactly the sort
+      # of thing that holds on one runner generation and not the next.
+      - name: the x86-64-v3 floor holds on this runner
+        run: |
+          grep -q avx2 /proc/cpuinfo || { echo "NO AVX2 — the v3 floor does not hold here"; exit 1; }
+          grep -q fma /proc/cpuinfo || { echo "NO FMA"; exit 1; }
+      # gmp-mpfr-sys needs a C toolchain plus m4; ubuntu-latest carries
+      # build-essential but m4 is worth asserting rather than assuming.
+      # Through scripts/apt-install.sh, `exec`'d, at that script's bound —
+      # see its header for both.
+      - name: m4 for the gmp build
+        timeout-minutes: 8
+        run: exec scripts/apt-install.sh m4
+      # Depth is nearly free on this lane and that is the whole reason to
+      # spend it. The build above is a fixed ~234s; the cases are ~7s at
+      # effort 1 (measured hosted, #480) and scale linearly — 8.2x measured
+      # locally from effort 1 to 8. So effort 8 buys 32M cases per firing
+      # for about 52s on top of a 250s job.
+      #
+      # Together with the varying seed this is the point of the exercise:
+      # a lane that fires twice a year with a pinned seed re-certifies one
+      # fixed sample forever, however deep it is. Fresh millions each
+      # firing is worth more than the same millions faster.
+      - name: certify against the oracle
+        working-directory: interval-transcendentals
+        env:
+          CAD_FUZZ_EFFORT: "8"
+        run: |
+          t0=$SECONDS
+          cargo test --release --features oracle-inari -- --nocapture
+          echo "CASES_SECONDS=$((SECONDS - t0))"

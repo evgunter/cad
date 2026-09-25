@@ -90,8 +90,8 @@ fn the_recorded_band_trim_counts_are_executable() {
     );
     assert_eq!(
         got.len() - nonzero.len(),
-        26,
-        "twenty-six registered documents carry no band trimline at all: {got:?}"
+        27,
+        "twenty-seven registered documents carry no band trimline at all: {got:?}"
     );
 }
 

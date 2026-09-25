@@ -2511,7 +2511,7 @@ class TestTeapot(unittest.TestCase):
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
     variant name `CurvedPairUnsupported` is not in the text and what
-    the row pins instead is the germ pair the gate named, which is the
+    the row pins instead is the face pair the gate named, which is the
     same fact the Rust wall matches on.
     """
 
@@ -3247,13 +3247,12 @@ class TestTeapot(unittest.TestCase):
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        # The GERM-PAIR sentence, whole. `assertIn("(sphere)")` would
-        # match any parenthesised word in ~800 characters of recourse
-        # prose; this is the clause that names the pair with no seam
-        # lane, and it names it in order.
-        self.assertIn("no seam lane for the (torus, sphere) germ pair", text)
+        # The PAIR sentence, whole: it names the torus face and the
+        # sphere face it may meet, in that order, each by its operand.
         self.assertRegex(
-            text, r"is a torus and its box MAY INTERSECT face \S+ \(sphere\)"
+            text,
+            r"the (first|second) operand's torus face may meet "
+            r"the (first|second) operand's sphere face",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's
@@ -3270,12 +3269,12 @@ class TestTeapot(unittest.TestCase):
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        self.assertRegex(
-            text, r"edge \S+ of operand B has a rung-3 \(Nurbs\) carrier"
+        self.assertIn(
+            "an edge of the second operand is a spline (NURBS) curve", text
         )
         # NOT the pair rung any more, and this is the half that would
         # go quietly wrong if it were only asserted positively.
-        self.assertNotIn("germ pair", text)
+        self.assertNotIn("may meet", text)
 
 
 class TestTorusvessel(unittest.TestCase):
@@ -4088,6 +4087,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
         # `tests/test_union.py` and `TestTheVDegreeParamBinding`
         # above.
         #
+        # `set_program` JOINED it at EDIT-PROGRAM: the whole-program
+        # edit over a live profile, the fourth door this roster sees
+        # that the census cannot. The positive form is
+        # `TestTheWholeProgramEdit` in `tests/test_document.py`.
+        #
         # `datum_point` and `datum_frame` JOINED it at LIB-GAPS-1,
         # which closed B-DATUM-DOORS: all six arms of the kernel's
         # `Datum` now have a constructor, so a Python author builds
@@ -4138,8 +4142,8 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
                 "set_doc_param_distribution", "set_doc_param_unit",
                 "set_doc_param_value",
                 "set_members", "set_param",
-                "set_placement", "set_roots", "set_tolerance",
-                "update_reference",
+                "set_placement", "set_program", "set_roots",
+                "set_tolerance", "update_reference",
             ],
         )
 
@@ -4197,9 +4201,11 @@ class TestNamedGapsAreStillGaps(unittest.TestCase):
             # reach Python through the TEXT door as `ParseError` with
             # `variant == "dimension"` and the mismatch's own tag as
             # `kind` — not `LiteralError`, which has no position to
-            # put the byte offset in, and not `DimensionError`, which
-            # is the quantity boundary's own check. `load`'s route is
-            # untouched and still misrouted (issue #694).
+            # put the byte offset in, and not `QuantityOpMismatch`,
+            # which is the quantity boundary's own check. `load`'s
+            # route is the same shape: `PersistError` with `variant ==
+            # "dimension"` and the mismatch's own tag as
+            # `inner_variant`.
             #
             # What is left of G1 is the AUTHORING half, and it is a
             # SIGNATURE rather than a name — no door takes an `Expr`

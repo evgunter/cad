@@ -369,7 +369,7 @@ fn hollow_wall_and_shared_refusal_doors() {
         TubeError::WallGapCollapsed { eps: 1e-9 },
     ] {
         let msg = e.to_string();
-        assert!(msg.starts_with("tube_along_arc_hollow: "), "{msg}");
+        assert!(msg.starts_with("the hollow tube's "), "{msg}");
     }
 
     // The solid door's own doors, unchanged through the hollow one.
@@ -437,7 +437,6 @@ fn hollow_wall_and_shared_refusal_doors() {
 
 /// **The interval row**: the hollow tube at the certified scalar —
 /// build, tier 3, and both closed forms inside the enclosure.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::Real;
     use geom_core::interval::Interval;

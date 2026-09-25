@@ -341,7 +341,7 @@ fn two_spellings_of_one_quotient_key_one_atom() {
 /// coefficient keeps that sign. Scaling by `1/s` instead would flip
 /// both halves whenever the pivot is negative, and the rules that read
 /// a form's SYNTAX would then be reading the pivot's sign rather than
-/// the form: `trig::manifestly_nonneg` calls a polynomial non-negative
+/// the form: `manifest::nonneg` calls a polynomial non-negative
 /// when every coefficient is, and `signed::poly_sqrt` looks for an
 /// exact square, and a canonicalisation that manufactures either by
 /// choosing a scale has made the rule above it an accident.
@@ -392,11 +392,10 @@ fn the_scale_step_keeps_the_sign_of_both_halves() {
         l, "theorem",
         "neither half is non-negative BY SYNTAX, so rule D's A1 fold must not fire: \
          if this reads `theorem` the scale step has flipped the signs and \
-         `manifestly_nonneg` is reading the pivot rather than the form"
+         `manifest::nonneg` is reading the pivot rather than the form"
     );
 }
 
-#[cfg(feature = "interval")]
 mod gated {
     //! **The clause-3 gate survives the cancellation.** Rule C
     //! (`signed`, dial-off in the shipped set) folds `sqrt(R²)` to `R`

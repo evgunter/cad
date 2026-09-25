@@ -14,6 +14,7 @@
 use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
+use geom_core::Bounds;
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -90,7 +91,7 @@ fn sweep(name: &'static str, n: &NurbsSurface<f64>, per_cell: usize) -> Sweep {
                     for (c, iv) in bnd.iter().enumerate() {
                         let x = comp(*t, c);
                         let iv = *iv;
-                        assert!(!iv.is_poison(), "{name}: poison bound in {}", labels[k]);
+                        assert!(iv.is_certified(), "{name}: poison bound in {}", labels[k]);
                         let (lo, hi) = (iv.lo(), iv.hi());
                         let out = (lo - x).max(x - hi);
                         if out <= 0.0 {
@@ -400,6 +401,55 @@ fn cert10r1_the_residual_is_f64_knot_refinement_not_the_recurrence() {
     );
 }
 
+/// **The structural zero, as a claim rather than a caveat.** The
+/// quarter cylinder's weights and its `z` control coordinates are both
+/// affine in `v` over a single degree-1 span, so the described surface
+/// is affine in `v` and its true `S_vv` is IDENTICALLY ZERO in every
+/// channel — a fact about the description, not about any arithmetic.
+///
+/// A cell enclosure that encloses the described patch must therefore
+/// contain `0` on every cell and every channel. The row above records
+/// why an enclosure of the REFINED-`f64` patch need not: `f64` knot
+/// insertion does not reproduce equal weights bitwise, so `w_v`'s
+/// coefficient hull is a tiny nonzero and `s_vv` comes out as a narrow
+/// interval strictly off zero. That makes this row the one a consumer
+/// reading a structural predicate off the rational arm stands on.
+#[test]
+fn cert10r1_the_rational_arm_contains_the_structural_zero_of_s_vv() {
+    let cells: Vec<PatchCell> = patch_cells(&quarter_cylinder()).expect("patch_cells");
+    let mut excluding = Vec::new();
+    let mut worst = 0.0f64;
+    for (ci, cell) in cells.iter().enumerate() {
+        for (c, iv) in cell.s_vv.iter().enumerate() {
+            assert!(iv.is_certified(), "cell {ci} ch{c}: poison s_vv");
+            if !iv.contains(0.0) {
+                worst = worst.max(iv.lo().abs().min(iv.hi().abs()));
+                excluding.push(format!(
+                    "cell {ci} ch{c}: [{:.17e}, {:.17e}]",
+                    iv.lo(),
+                    iv.hi()
+                ));
+            }
+        }
+    }
+    println!(
+        "[cert10r1] s_vv enclosures excluding the structural zero: {} of {} \
+         (cells x 3 channels), worst distance from zero {worst:e}",
+        excluding.len(),
+        cells.len() * 3
+    );
+    assert!(
+        excluding.is_empty(),
+        "the described patch's S_vv is exactly zero and these enclosures exclude it: {}",
+        excluding
+            .iter()
+            .take(6)
+            .cloned()
+            .collect::<Vec<_>>()
+            .join("; ")
+    );
+}
+
 // ---------------------------------------------------------------
 // The FOLD's soundness premise: "the cell windows COVER the net".
 // The PR argues the fold is tighter-or-equal from this premise, but
@@ -520,7 +570,7 @@ struct FaceBound {
 
 /// `sqrt(sum_c sup_c^2)`, rounded up — `mesh::nurbs_cert::cell_component`
 /// applied to `patch_bound::sq_norm`.
-fn component(v: [geom_core::RingInterval; 3]) -> f64 {
+fn component(v: [geom_core::Interval; 3]) -> f64 {
     let sq = geom_brep::patch_bound::sq_norm(v);
     let hi = sq.hi();
     if hi == 0.0 { 0.0 } else { hi.sqrt().next_up() }

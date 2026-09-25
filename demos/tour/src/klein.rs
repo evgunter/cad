@@ -107,8 +107,9 @@
 //!    only where its BOX may meet a face of the other body, so both
 //!    refusals now name the germ PAIR and both faces, and they are
 //!    DIFFERENT pairs. `union` refuses
-//!    `CurvedPairUnsupported { kind: Cone, other_kind: Plane }` — the
-//!    flare against a plane of the loop, and NOT the coincident
+//!    `CurvedPairUnsupported { kind: Torus, other_kind: Torus }` — the
+//!    first pair in arena order whose boxes may meet, a tube wall of
+//!    the bulb against one of the loop's, and NOT the coincident
 //!    annular mate the model cares about. `subtract` refuses
 //!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
 //!    bulb's own tube wall against the descending neck's, which IS
@@ -226,7 +227,7 @@ use core::f64::consts::PI;
 
 use pncad::authoring::{p2, p3, v2, v3, validated};
 use pncad::geom_brep::SurfaceKind;
-use pncad::geom_core::{Affine3, CertifiedBounds, Mat3, OrthoFrame, Point3, Tol};
+use pncad::geom_core::{Affine3, Mat3, OrthoFrame, Point3, Tol};
 use pncad::prelude::{Open, ProfileLoop, Start, SurfaceKindSet, circle, query};
 use pncad::profile::SketchPlane;
 use pncad::sweep::blend::{BlendError, fillet_edges};
@@ -741,14 +742,11 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
 
 /// The bottle's frontier, run live (the lily's rule): every shape
 /// this model wanted and the kernel would not state, attempted for
-/// real and pinned by its own typed refusal.
-///
-/// `CertifiedBounds` beyond [`Scalar`] because wall 6's retirement is
+/// real and pinned by its own typed refusal. Wall 6's retirement is
 /// asserted through `validate_geometric`, whose +V invariant reads a
-/// certified volume enclosure — the tour runs this at `f64` and
-/// `Probe`, both of which certify, so the extra term costs the caller
-/// nothing and states what the assertion needs.
-pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
+/// certified volume enclosure — [`Scalar`] certifies, so the bound is
+/// already the one that assertion needs.
+pub fn wall_probes<S: Scalar>(tol: Tol) {
     println!("\n-- the Klein bottle's walls: what a non-orientable surface asks for --");
     let m = meridian();
     let [bulb_body, over, into] = bottle::<S>(tol);
@@ -811,12 +809,13 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on
     // coincident annular faces — the declared REST mate — and the
-    // union refuses at a pair that is NOT that mate: the bulb's
-    // CONE (the flare) against a plane of the loop. The gate is
-    // pair-scoped now, so the refusal names the two faces whose
-    // boxes may meet, and this is the first such pair in arena
-    // order. It is a MAY: box overlap over-approximates, and the
-    // flare's own slab is what reaches.
+    // union refuses at a pair that is NOT that mate: a TORUS wall of
+    // the bulb against a torus wall of the loop. The gate is
+    // pair-scoped, so the refusal names the two faces whose boxes may
+    // meet, and this is the first such pair in arena order — which
+    // the bodies' minting order decides, and with it which of the
+    // several reaching pairs is named. It is a MAY: box overlap
+    // over-approximates.
     crate::walls::wall(
         "bottle",
         3,
@@ -828,8 +827,8 @@ pub fn wall_probes<S: Scalar + CertifiedBounds>(tol: Tol) {
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             )
@@ -1136,12 +1135,12 @@ mod verbs_gate_r1_probes {
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Cone,
-                    other_kind: SurfaceKind::Plane,
+                    kind: SurfaceKind::Torus,
+                    other_kind: SurfaceKind::Torus,
                     ..
                 }
             ),
-            "wall 3 must name the flare against a plane of the loop: {joined:?}"
+            "wall 3 must name a tube wall of the bulb against one of the loop's: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)

@@ -557,7 +557,7 @@ fn an_underflowed_pattern_direction_refuses_as_underflow_not_as_zero_length() {
                  length: {said}"
             );
             assert!(
-                said.contains("scale the geometry into the session's range"),
+                said.contains(geom_core::RANGE_RECOURSE),
                 "and the recourse that works — the overflow arm's: {said}"
             );
         }
@@ -651,7 +651,6 @@ fn a_zero_and_a_merely_small_pattern_direction_keep_the_zero_refusal() {
 /// against the band, which for this input answers zero. Pinning that
 /// is what separates a point-scalar gate from one that started
 /// reading brackets.
-#[cfg(feature = "interval")]
 #[test]
 fn an_underflowed_pattern_direction_still_decides_zero_at_the_interval_scalar() {
     use geom_core::Interval;
@@ -897,7 +896,6 @@ fn the_kernel_refusal_maps_onto_every_arm_of_this_layers_door() {
 /// refusal comes from is named here in prose rather than asserted,
 /// because it belongs to certification and moves when certification
 /// moves; that the document is refused at all does not.
-#[cfg(feature = "interval")]
 #[test]
 fn a_non_finite_pattern_direction_mints_nothing_at_the_interval_scalar() {
     use editor_core::{CancelToken, EvalOptions, evaluate};

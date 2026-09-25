@@ -21,7 +21,7 @@
 //!
 //! ```sh
 //! CAD_TOLERANCE_EPS=1e-9 CAD_K_REPORT_OUT=/tmp/driver-eps-1e-9.csv \
-//!   cargo test -p editor-core --features probe,interval --test all -- \
+//!   cargo test -p editor-core --features probe --test all -- \
 //!   m10_3_driver_k_probe_interval:: --ignored --nocapture
 //! ```
 //!
@@ -40,13 +40,12 @@
 //! is a K conversation and not a coverage one. The funnel row is the
 //! deliverable here; the K verdict is not.
 //!
-//! Both features are needed, and that is inherent: `Probe` is the
-//! `probe` feature's scalar and the driver is the `interval` feature's
-//! service. The k-lint gate's probe-gated build row DOES build this
-//! pair on every hosted run (`--features probe,interval --no-run`), so
+//! The `probe` feature is needed, and that is inherent: `Probe` is its
+//! scalar. The k-lint gate's probe-gated build row DOES build this
+//! file on every hosted run (`--features probe --no-run`), so
 //! a compile break here reds every PR — the row below also runs
 //! locally and under `local-scripts/ci-local.sh`.
-#![cfg(all(feature = "probe", feature = "interval"))]
+#![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

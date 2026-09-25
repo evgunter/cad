@@ -30,7 +30,7 @@
 //!
 //! ```text
 //! cargo check --workspace --exclude pncad --exclude pncad-py \
-//!   --exclude viewer --features interval --target wasm32-unknown-unknown
+//!   --exclude viewer --target wasm32-unknown-unknown
 //! ```
 //!
 //! — a NON-dev compile of the kernel plus `editor-core` on every code

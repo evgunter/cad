@@ -112,14 +112,8 @@
 //! constructed at exactly one site in `clearance.rs` and reachable in
 //! principle — but it IS a gap, stated here rather than papered over.
 //!
-//! The basename carries `interval` deliberately: the whole suite is
-//! `#![cfg(feature = "interval")]`, which is what actually selects it
-//! into the interval legs (`scripts/interval-only-selection.py` derives
-//! that set from the two `nextest list` archives, never from a name);
-//! the name is the ADVISORY half — `_advises_interval` in
-//! `scripts/ci-filter.py` reads every changed basename to suggest the
-//! lane pin.
-#![cfg(feature = "interval")]
+//! The basename carries `interval` because the suite's subject is the
+//! certified scalar.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

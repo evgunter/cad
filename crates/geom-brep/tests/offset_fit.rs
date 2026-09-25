@@ -35,6 +35,7 @@ use geom_brep::offset_fit::{
 };
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
+use geom_core::Bounds;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -316,7 +317,7 @@ fn the_collapse_meter_brackets_the_sphere_s_known_curvature() {
     }
     let cells = patch_cells_refined(&base, OFFSET_METER_LADDER[1]).unwrap();
     {
-        use geom_core::ring_interval::RingInterval as RI;
+        use geom_core::interval::Interval as RI;
         let dot3 = |a: &[RI; 3], b: &[RI; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
         let nsq = |a: &[RI; 3]| a[0].sqr() + a[1].sqr() + a[2].sqr();
         let mut worst: Option<(f64, String)> = None;
@@ -561,10 +562,19 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 ///
 /// ```text
 /// round 0   1.8219683e-5   (144 cells)
-/// round 1   6.5173322e-8   (224 cells)
-/// round 5   6.0173184e-9   (782 cells)
-/// round 6   1.0707700e-8   — the budget face, HIGHER than round 5
+/// round 1   6.5173320e-8   (224 cells)
+/// round 5   6.0173058e-9   (782 cells)
+/// round 6   8.3524739e-9   — the budget face, HIGHER than round 5
 /// ```
+///
+/// **Re-read when certification arithmetic became the backend's**
+/// (rounds 1, 5 and 6 were `6.5173322e-8`, `6.0173184e-9` and
+/// `1.0707700e-8`): the retired arithmetic padded one representable step outward on
+/// every operation of `cell_bound`'s assembly and the backend pads
+/// only where the operation is inexact, so every rung came in tighter
+/// and round 0 by less than its own printed precision. The SHAPE the
+/// row is about is unmoved — round 6 is still higher than round 5, and
+/// still the lone non-improving round.
 ///
 /// Round 6 is the non-improving one, and it is a LONE one: round 5
 /// came in under `1e-8` where round 4 did not, so round 5 improved,
@@ -584,7 +594,7 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
             assert_eq!(budget, OFFSET_FIT_BUDGET);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
-                (achieved - 1.0707700e-8).abs() < achieved * 1e-5,
+                (achieved - 8.3524739e-9).abs() < achieved * 1e-5,
                 "the budget face carries {achieved:e}"
             );
             eprintln!("budget face: grid={grid:?} achieved={achieved:.7e}");
@@ -597,7 +607,7 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let (_, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
         .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
     assert!(
-        prev.rounds == 5 && (prev.hull_sup - 6.0173184e-9).abs() < prev.hull_sup * 1e-5,
+        prev.rounds == 5 && (prev.hull_sup - 6.0173058e-9).abs() < prev.hull_sup * 1e-5,
         "the ladder moved: round {} carries {:e}",
         prev.rounds,
         prev.hull_sup
@@ -626,10 +636,16 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
 }
 
 /// **What the floor on `‖E‖` reaches on a non-analytic base.** The
-/// bumpy patch at `d = 1e-6` certifies at `7.610e-10` on the third
+/// bumpy patch at `d = 1e-6` certifies at `5.059e-10` on the third
 /// round's 609 cells — three orders below `|d|`, on a patch with no
 /// closed form to check against, which is why the row pins the
 /// digits rather than a ratio.
+///
+/// **Re-pinned when certification arithmetic became a newtype over the backend**
+/// (`7.6102e-10` before): interval arithmetic padded one representable step
+/// outward on every operation of `cell_bound`'s assembly and the
+/// backend pads only where the operation is inexact, so the same
+/// certificate on the same 609 cells comes in a third tighter.
 #[test]
 fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
     let base = bumpy_patch();
@@ -637,7 +653,7 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
         .unwrap_or_else(|e| panic!("the bumpy patch refused a 1e-9 request: {e}"));
     assert_eq!((cert.rounds, cert.cells), (3, 609));
     assert!(
-        (cert.hull_sup - 7.6102e-10).abs() < cert.hull_sup * 1e-3,
+        (cert.hull_sup - 5.0593e-10).abs() < cert.hull_sup * 1e-3,
         "the bumpy patch certifies at {:e}",
         cert.hull_sup
     );
@@ -652,9 +668,15 @@ fn the_bumpy_patch_certifies_a_micron_offset_below_a_nanometre() {
 /// face says there is no number, and prints none.
 ///
 /// One decade up the face is not reached: `d = 1e-7` certifies at
-/// `5.855e-7` on the fifth round's 1144 cells. The row pins that
+/// `5.8508e-7` on the fifth round's 1144 cells. The row pins that
 /// boundary, because the two faces are one decade apart and a change
 /// that moved either would otherwise move it silently.
+///
+/// **Re-pinned when certification arithmetic became a newtype over the backend**
+/// (`5.8550e-7` before): the retired unconditional one-step pad per
+/// operation is gone from `cell_bound`'s assembly. The boundary this
+/// row draws is unmoved — `1e-8` and `1e-9` still never become
+/// finite, and this decade still certifies.
 #[test]
 fn a_bound_that_never_became_finite_refuses_with_no_number() {
     let base = quarter_cylinder(1.0, 1.0);
@@ -662,7 +684,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
         .unwrap_or_else(|e| panic!("d = 1e-7 no longer certifies: {e}"));
     assert_eq!((cert.rounds, cert.cells), (5, 1144));
     assert!(
-        (cert.hull_sup - 5.8550e-7).abs() < 5e-11,
+        (cert.hull_sup - 5.8508e-7).abs() < 5e-11,
         "d = 1e-7 certifies at {:e}",
         cert.hull_sup
     );

@@ -21,11 +21,11 @@ use std::sync::Arc;
 
 use editor_core::{
     CancelToken, ContentPin, DocEdit, DocRef, DocumentId, EditError, EvalOptions, Evaluation,
-    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError, ProfileDoc,
-    RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg, SnapshotError, StableName, content_pin,
-    evaluate, load, product, product_named, save,
+    Frame, Node, NodeErrorKind, NodeResult, PartFault, PartResolver, PersistError,
+    ProductErrorKind, ProfileDoc, RecipeNodeId, ResolveFailure, ResolveFault, RoleSeg,
+    SnapshotError, StableName, content_pin, evaluate, load, product, product_named, save,
 };
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{ang, insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 
 // ---- The stub store ----
@@ -391,11 +391,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 730 is the part's, on its own nodes — its
+    // the placed body); 726 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, decided once (the
     // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 730, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 726, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----
@@ -1049,6 +1049,87 @@ fn r1_a_broken_part_names_its_failing_root_and_cause() {
     assert!(
         rendered.contains("product root") && rendered.contains("did not resolve"),
         "it names the root AND the reason: {rendered}"
+    );
+}
+
+/// The gather's OTHER refusals cross the seam as a CLASS beside their
+/// sentence, so a consumer branches instead of substring-matching.
+///
+/// Two documents refuse the gather for two different reasons, and both
+/// arrive as [`PartFault::PartProduct`]: the prose differs, which is
+/// all a caller used to have, and the classes differ too — including
+/// on `means_no_body`, the one reading every consumer of a gather
+/// refusal draws. `RootFailed` is the arm that does NOT come here (it
+/// chains, typed, above).
+#[test]
+fn a_gather_refusal_crosses_as_its_class_beside_its_sentence() {
+    let missing = DocRef {
+        id: DocumentId::derive("asm2a-class-missing"),
+        pin: ContentPin([9u8; 32]),
+    };
+    let mut store = StubStore::default();
+
+    // Nothing denotes a body: the one class that is an ABSENCE rather
+    // than a fault.
+    let empty = store.insert(
+        ProfileDoc::empty(DocumentId::derive("asm2a-class-empty"), Tol::witness()),
+        Tol::witness(),
+    );
+    // A root that never ran, poisoned through a failed ancestor: a
+    // refusal, and NOT the absence above.
+    let poisoned = {
+        let doc = ProfileDoc::empty(DocumentId::derive("asm2a-class-poisoned"), Tol::witness());
+        let (doc, inner) = insert(doc, Node::instantiate_part(missing));
+        let (doc, _) = insert(
+            doc,
+            Node::Transform {
+                input: inner,
+                translation: [len(0.0), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        doc
+    };
+    let poisoned = store.insert(poisoned, Tol::witness());
+
+    let opts = with_resolver(store);
+    let (doc, ids) = assembly("asm2a-class-asm", &[empty, poisoned]);
+    let ev = run(&doc, &opts);
+
+    let kind_of = |fault: &PartFault| match fault {
+        PartFault::PartProduct { kind, message } => {
+            assert!(
+                message.starts_with("product: "),
+                "the gather's own sentence travels beside the class: {message}"
+            );
+            *kind
+        }
+        other => panic!("expected PartProduct, got {other:?}"),
+    };
+
+    let empty_fault = part_fault(&ev, ids[0]);
+    let empty_kind = kind_of(&empty_fault);
+    assert_eq!(empty_kind, ProductErrorKind::NoBodyRoots);
+    assert!(
+        empty_kind.means_no_body(),
+        "a body-less document reads as an absence"
+    );
+    assert!(
+        empty_fault.to_string().contains("no body product"),
+        "and the sentence says so: {empty_fault}"
+    );
+
+    let poisoned_fault = part_fault(&ev, ids[1]);
+    let poisoned_kind = kind_of(&poisoned_fault);
+    assert_eq!(poisoned_kind, ProductErrorKind::RootPoisoned);
+    assert!(
+        !poisoned_kind.means_no_body(),
+        "a poisoned root is a fault, not an absence"
+    );
+    assert_ne!(
+        empty_kind, poisoned_kind,
+        "the two refusals are distinguishable without reading either sentence"
     );
 }
 

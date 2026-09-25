@@ -151,7 +151,6 @@ fn the_f64_route_certifies_at_a_1e_12_band_at_any_process_eps() {
 /// route escalates at the same band, and the refusal carries a REAL
 /// enclosure — not a poison and not a hole. This is the reviewed row's
 /// content, made unconditional on the run's ε.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
     use geom_core::interval::Interval;
@@ -194,7 +193,7 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
         "the consumer-visible text must name the enclosure: {shown}"
     );
     assert!(
-        shown.contains("zero = ") && shown.contains("escalate = "),
+        shown.contains("ambiguity band ("),
         "and the band it was judged against: {shown}"
     );
     assert!(
@@ -218,15 +217,8 @@ fn the_interval_route_escalates_with_a_legible_enclosure_at_any_process_eps() {
 /// far slower than the span, because at `T = Interval` it is dominated
 /// by the width the ring data carries rather than by the span, which is
 /// the honest version of the PR's claim.
-#[cfg(feature = "interval")]
 #[test]
 fn the_interval_hull_bound_is_span_dependent() {
-    // AMENDED (fix pass): this helper was a `#[cfg(feature = "interval")]`
-    // bare `fn`, which `check-interval-cfg-additive.py` rejects in
-    // `tests/` — only whole items (`mod`/`use`/`impl`/`type`) and
-    // `#[test]` rows may be gated there, so that a test name cannot
-    // mean two different things in the two builds. Nested inside its
-    // only caller, which is already a gated row, it needs no gate.
     /// The `ssi_hull_sup` bound this route certifies at the interval
     /// scalar, for an arc of `1/div` of a quarter turn — `None` when the
     /// route certifies instead.
@@ -319,7 +311,6 @@ fn a_structural_tube_refusal_reports_an_honest_typed_shape() {
 /// tighter band, which is the at-rest pass a consumer runs. The
 /// question is whether the margin survives that layer or is
 /// re-flattened.
-#[cfg(feature = "interval")]
 #[test]
 fn the_margin_is_legible_through_the_public_topo_door() {
     use geom_core::Tol;
@@ -403,7 +394,7 @@ fn the_margin_is_legible_through_the_public_topo_door() {
          value: {shown:?}"
     );
     assert!(
-        shown.iter().any(|s| s.contains("zero = ")),
+        shown.iter().any(|s| s.contains("ambiguity band (")),
         "the band must survive the public door with the margin: {shown:?}"
     );
     assert!(
@@ -420,7 +411,6 @@ fn the_margin_is_legible_through_the_public_topo_door() {
 /// refuses definitely instead, which the row's arm does not admit. This
 /// probe names what the door actually does there, at an explicit band
 /// so it does not depend on the run's ε.
-#[cfg(feature = "interval")]
 #[test]
 fn below_the_band_the_route_refuses_definitely_not_by_escalation() {
     use geom_core::interval::Interval;

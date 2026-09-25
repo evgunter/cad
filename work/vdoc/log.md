@@ -79,3 +79,211 @@ README's *"composed six ways across five modules"* does not say whether
 it counts ways or sites, so AUTH-1's new recourse-composing site
 neither confirms nor breaks it. Three sibling rows on this slate are
 the same shape and are named on it.
+
+## 2026-09-21 — VDOC-counts: five count rows closed, one filed
+
+**`vdoc/readme-counts`.** Five `status: open` P4 rows, one class: a
+number stated in prose that does not re-derive under its own stated
+rule. Four are `crates/viewer/README.md` and are fixed there; the
+fifth is not the README at all and is closed on a verification.
+
+- **`viewer-readme-driver-count-says-two-over-a-roster-of-eleven`** —
+  *Two* over eleven rows. The table counts MODULES and the rule counts
+  DRIVERS; the prose now says which answers to which, with the
+  `//! Module kind: **driver**` scan beside it. **Eleven**, and
+  `viewer-module-kinds.sh` says the same in its OK line. The ratified
+  *exactly two drivers* clause is untouched, so this is not an Ev PR.
+- **`census-table-in-the-viewer-readme-is-not-its-own-population`** —
+  nine rows over a population of ten. Re-derived rather than topped up:
+  **22 destructuring binds**, four `Debug` dumps, four parameter
+  unpacks, **thirteen censuses**. Four rows added
+  (`PruneReport::is_empty`, `PickCache::forget`, `Display for Unusable`,
+  `Unusable::refusal`). Three counts in the same paragraphs moved with
+  it: *two of the eight* → three of the thirteen, *five Displays of 36,
+  other 31* → six of 41, other 35, and the `Debug` walk's *22
+  `.field(…)` calls* → 21.
+- **`viewer-readme-multi-field-write-sweep-count-does-not-reproduce`** —
+  the count is **retired**, which is the repair the row itself
+  proposed. Three instruments, three answers (23/24/28), two of them
+  over one tree: the rule does not determine which `fn` a write belongs
+  to. *None is a census* is what carried the weight and it stays.
+- **`viewer-readme-recourse-count-does-not-say-what-it-counts`** — it
+  counts **shapes**, settled by the section's own claim and by
+  `aba7ee8ef3`'s log entry (*"six shapes across five modules"*). Since a
+  shape has no grep, the enumeration rule is the LIST, now written into
+  the section with every site. Still six — but `AtRestBadge` moves
+  INSIDE the count, so the population changed where the digit did not.
+- **`the-citation-receipts-summary-numbers-are-not-re-derivable`** —
+  **the premise the dispatch carried was wrong and the row's four
+  numbers live in VIEW's tracker, not in this crate's README.** #2089's
+  own fix pass had already repaired all four; nobody had checked it.
+  Re-derived here by reading the line at `bc44531e1` and on `main`:
+  *60* has its rule and its trees, *six move by −13* is five (the sixth
+  was a three-line span already wrong on `main`), *twelve lines* is ten
+  for the block and eight for the paragraph, *two public items* is
+  three, and 51/51 is now 51 → 47. The class sweep the row asks for
+  runs over VIEW's item files, which `program.md`'s `keep_out` forbids
+  editing from here; the one other row it names (#2083's) was checked
+  and is whole. One residue disclosed on the row.
+
+**One row filed**,
+`viewer-readme-session-refuse-row-predates-the-face-frame-vocabulary`
+(P4, this slate): the `session::refuse` `Holds` cell names three
+composers and not `FaceFrameFault`, `face_frame_seat` or
+`NO_FACE_PICKED`, which AUTH-1 put in that module.
+
+**No `.rs` file is touched and no behaviour changes** — the charter's
+own test. `scripts/ci-filter.py --base origin/main` reads `TIER=docs`.
+
+## 2026-09-21 — the census rule did not reproduce, and the shape it failed in has a name now
+
+**Caught in review of #2998, in the repair rather than in the defect.**
+The census section printed
+
+    rg -U --no-heading -o 'let\s+&?[A-Z]\w*\s*\{[^}]*\}\s*=' crates/viewer/src
+
+and told the reader to *"read for the lines that begin `let`"*. Without
+`-n`, `--no-heading` prefixes each match with `path:`, so **no output
+line begins with `let`** and a reader following the page literally gets
+**0** against a stated 22. The PR body's receipt carried the `-n` form
+and got 22; the page did not. **A rule that yields zero where the prose
+says twenty-two is worse than the bare number it replaced, because it
+reads as a receipt.** This unit's own class, inside this unit's own fix.
+
+**The tell, and it is general.** All three instances of this shape today
+— a whitespace-row literal re-minted after its author last saw it, the
+un-mergeable-PR signature listing four symptoms of which three fire on
+healthy runs, and this — are **a receipt that was never run in the form
+it was written down in**. And in all three the sentence gives itself
+away the same way: **the rule is stated as a DESCRIPTION OF THE OUTPUT
+rather than as the command that produces the answer.** *"Read for the
+lines that begin `let`"*, *"lists eleven files"*, *"summed"* — each
+puts a step between the command and the number, and that step is where
+the drift lives, because nobody runs it.
+
+So the standing practice this leaves: **print a command whose output IS
+the number, then run the exact text you printed, out of the file, and
+quote it with its exit code.** Every command `crates/viewer/README.md`
+now prints was extracted from the page with `sed -n Np` and run through
+`bash -c` — drivers `| wc -l` → `11`, censuses `| wc -l` → `24`,
+`Display` impls `| wc -l` → `41`, all exit 0.
+
+**And re-deriving under the corrected rule moved a population.** The
+old pattern demanded `[A-Z]` immediately after `let`, so it could not
+see a qualified path; widening it to `([a-z_]\w*::)*[A-Z]` finds
+`pane::viewport`'s `let egui::Modifiers { … }` and `let egui::Vec2
+{ … }`, and the census population is **24 binds**, not 22. Both new
+members carry a completeness argument and neither is a row: the
+declaration they are held to is the toolkit's, so a field arriving
+there is a version bump's news rather than one of this crate's values
+falling behind its own account. The thirteen censuses are unchanged.
+
+**Two rulings recorded from the same review.** `crates/viewer/README.md`
+is **not ratified text** — `docs/DESIGN.md:33` calls it *"the
+implementation record, which the program maintains itself"* — so a
+change to what one of its sentences decides is this program's to make
+and owes no `[ev]` PR. And no SHA goes into these pages: CLAUDE.md has
+them present-tense-only, a SHA in prose is a second number to keep
+stale, and the rule is what makes a count checkable at any tree. The
+commit each number was derived at lives on the item rows, here, and in
+the PR.
+
+## 2026-09-21 — four attributions, and the one the re-derivation turned into a live CI hole
+
+**`vdoc/readme-attributions`.** Four P4 rows, one class: the README
+states a fact about the code and attributes it to the wrong site, or
+states a population and omits a member that has since arrived. Sibling
+of the count class #2998 closed this morning — there the defect was in
+the number, here in the citation. No `.rs` file is touched and no
+behaviour changes; `scripts/ci-filter.py --base origin/main` reads
+`TIER=docs`.
+
+- **`attributes-the-tone-rule-to-the-pane`** — the rule that a poisoned
+  row stays `Advisory` is a `match` arm in `tree::RowStatus::tone`, not
+  an argument at `pane::features`, whose own comment says so in as many
+  words. Cited by symbol. `rg -n -- "-> (crate::frame::|frame::)?Tone\b"
+  crates/viewer/src` prints 2, and the second is `Badge::tone`, an
+  accessor — so the sentence's *one decider outside `frame`* is
+  falsifiable. `app::toned` is now named beside `app::draw_badge` as
+  the single tone-to-chrome mapping.
+- **`cross-crate-link-list-cites-display-rs-at-a-line-that-never-held-
+  it`** — the twelve hand-written line numbers are gone and the bullet
+  prints the sweep rule as a command, extracted back out of the page
+  with `sed -n Np` and run: **15** sites, exit 0, with the `use`-alias
+  blind spot stated at the sentence. **The conclusion moved.** Fourteen
+  target `pncad`; the fifteenth is
+  `session/refuse.rs:151`'s ``[`editor_core::edit::UNDECLARED_PARAM_RECOURSE`]``,
+  and `editor-core` is not in `VIEWER_TOOLKIT_SEEDS`. So the bullet's
+  *"that case is empty today"* is false and the ungated-link hole is
+  open rather than theoretical. Three further citations in the same
+  bullet were re-derived with it (`ci-filter.py:1428`→`:1436`,
+  `ci.yml:1833-1836`→`:1890-1894`, and the owning row's path, which
+  moved from `work/view/` to `work/mirror/` with CIW's cut);
+  `nightly.yml:291-293` was checked and is right.
+- **`two-marks-section-does-not-say-what-is-not-a-consumer`** — the
+  section now states the membership TEST and disposes both look-alikes,
+  `seats::seat_line` and `pane::create`'s mate panel, rather than
+  naming one and minting a second wrong population. Both printed
+  commands were run out of the file: `rg -n '"; "'` → 3, which cannot
+  see the mate panel's mark inside a format string, and
+  `rg -n '"[^"]*; '` → 43, which is every semicolon in the crate.
+  There is no pattern for *joins its own items* between them, which is
+  why the deliverable is a test.
+- **`session-refuse-row-predates-the-face-frame-vocabulary`** — the
+  cell leads with the rule (*every refusal vocabulary a session door
+  raises, with its `Display`, its payloads and predicates, and the
+  recourse text it spends*) and then names the two it produces:
+  `Refusal` and `FaceFrameFault`, with `face_frame_seat` and
+  `NO_FACE_PICKED`. **A neighbouring cell was behind the same way** and
+  was fixed with it: `session::op` omitted `ValueGestureName`,
+  `FreeMoveName`, `GestureName` and `CancelDoor`, and its reader list
+  named seven modules where `rg -l -e SessionOp -e OpOutcome
+  crates/viewer/src` gives 27. The other four cells were re-derived and
+  are whole.
+
+**One row filed, on MIRROR's slate**,
+`renderer-free-link-to-editor-core-opens-the-ungated-hole`: the parent
+row `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` says
+the hole is empty today and it no longer is. Filed beside it rather
+than added to it, because this program's `keep_out` forbids editing
+another program's item files.
+
+**What this unit is evidence for.** A citation fix that only repoints a
+number cannot find any of this. Three of the four rows moved something
+larger than an address — a rule's home, a population's size, and a
+bullet's conclusion — and the fourth's whole content was a negative
+that no number could carry.
+
+## 2026-09-22 — announced seam from VGEOM: `crates/viewer/tests/` moved by the render-grid unit
+
+(VGEOM orchestrator. Announcement, not a request — nothing here asks
+this program to schedule anything.)
+
+`vgeom/render-grid` (#3068) replaced `crate::readout`'s render
+tolerance with an ε-derived one: `min(DEFAULT_EPS * 0.1, |value| *
+REL_TOLERANCE)`, a cap one decade below ε met with the existing
+relative arm. `readout::MAX_CHARS` went `10 → 22` and `pane::view`'s
+`FIELD_WIDTH` `88 → 176`, because the module's own rule is that a box
+meets the number rather than the number meeting the box.
+
+**What that did to `crates/viewer/tests/`, which is this program's
+ground:**
+
+- `display_budget.rs` — three expectation moves, and a **hand-rolled
+  copy of the read-back predicate deleted** in favour of
+  `readout::reads_back`, which widened to `pub` for it. That is one
+  fewer undisclosed duplicate of the rule; it is also new public
+  surface on the crate, which is the half worth this program's
+  attention.
+- `panel_display.rs`, `valid_range.rs` — expectation moves only.
+
+**Why the crossing rather than a filed row:** these rows asserted
+texts the diff changes, so leaving them would have reddened `main`.
+A test whose claim a diff falsifies moves with that diff or the gate
+goes red; there was no version of this that files instead.
+
+**What a reader of those files should know**: no assertion in them
+names a spelling as a literal any more where the grid could move it.
+The property that survives at the widget seam is that a drag's text
+parses back to exactly the value the drag commits, asserted over
+about 9000 magnitudes in `widgets.rs`'s own module.

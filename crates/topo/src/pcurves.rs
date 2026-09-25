@@ -83,9 +83,11 @@
 //!
 //! Caches are minted at construction and are immutable with the body;
 //! there is no general invalidation machinery, and what stands in for
-//! one is per door: a door declares its posture below, and the three
-//! that move a whole loop between charts dispose of the moved rows
-//! themselves ([`crate::Body::drop_rows_on_chart_change`]).
+//! one is per door: a door declares its posture below, and the doors
+//! that change which chart a row is stated in — the three that move a
+//! whole loop between charts, the two that move a run of half-edges
+//! between two faces' loops, and the setter that re-charts a face in
+//! place — dispose of those rows themselves ([`crate::Body::drop_rows`]).
 //! Content-keyed cache transfer stays banked (C4). Persistence (M4 PR 6 / D6.1) is
 //! **recipe-level**: a document stores its edit list, and loading
 //! re-evaluates it — so a round-trip **re-mints** pcurves from the same
@@ -182,23 +184,39 @@
 //! is stated in while changing no key. Each carries the moved loop's
 //! rows where the two faces are on one CHART
 //! ([`crate::Body::same_chart`]) and drops them where they are not,
-//! deriving nothing — [`crate::Body::drop_rows_on_chart_change`]
-//! carries the whole argument, including what the drop gives up: every
-//! rowless CURVED target, through every one of the three doors, trades
-//! a loud reading (the moved rows re-certified against the target's
-//! chart and refused) for a silent one (a face this pass says nothing
-//! about). Their `Neither` reading was the one the guard's table could
-//! not see: no posture makes a claim about what a row MEANS, and these
-//! doors changed nothing else.
+//! deriving nothing — [`crate::Body::drop_rows`] carries the whole
+//! argument, including what the drop gives up: every rowless CURVED
+//! target, through every door that drops, trades a loud reading (the
+//! moved rows re-certified against the target's chart and refused)
+//! for a silent one (a face this pass says nothing about). Their
+//! `Neither` reading was the one the guard's table could not see: no
+//! posture makes a claim about what a row MEANS, and these doors
+//! changed nothing else. Two more doors move a RUN of half-edges
+//! between two faces' loops rather than a whole loop —
+//! [`crate::Body::mef`]'s chord surgery and [`crate::Body::kef`]'s
+//! unsplice — and take the same answer over the run;
+//! `staleness_posture::DECLARED` carries each door's note.
+//!
+//! [`crate::Body::set_face_surface`] reaches the same posture from the
+//! other side: nothing moves, and the CHART moves under every row the
+//! face stores at once. It carries them across a swap onto the same
+//! chart and drops them on any other
+//! ([`crate::Body::drop_face_rows`]), which is what makes its own
+//! declaration below true as written — a swap onto a plane or a
+//! placeholder used to leave a COMPLETE row set stated in the chart
+//! the face left, and this pass skips exactly that face.
+//! Its sibling [`crate::Body::set_edge_curve`] is NOT the same case
+//! and stays `Neither`: a carrier swap moves neither the row's key nor
+//! its chart, and pass 2 re-derives every row's agreement from the
+//! edge's current carrier, so what it stales is refused loud on a
+//! COMPLETE face — and on a half-minted one this pass measures no
+//! stored row at all, which is its property everywhere and not that
+//! door's
+//! (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`).
 //!
 //! **Neither clears nor re-mints** — the remaining Euler operators and
 //! kill ops. These are primitives, and they are what the stale-row
-//! consequence below is about. Two of them move half-edges between
-//! loops of DIFFERENT faces rather than a whole loop
-//! ([`crate::Body::mef`]'s moved run, [`crate::Body::kef`]'s remnant),
-//! so the rows on those halves change chart exactly as a re-parented
-//! loop's do and are left saying the old face's chart
-//! (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
+//! consequence below is about.
 //!
 //! The consequence is bounded but real: a `SecondaryMap` row outlives
 //! its key until the slot is reused, so surgery on a body that already
@@ -364,31 +382,26 @@ impl core::fmt::Display for PcurveMintError {
         match self {
             Self::Corrupt => write!(
                 f,
-                "pcurve minting: the body is structurally corrupt (a key did not resolve) \
-                 — the structural validators own this diagnosis: read the tier-1 report \
-                 and repair the reference it names; this pass refuses to guess rather \
-                 than minting past a broken one"
+                "the body is structurally corrupt (a key did not resolve), so its faces \
+                 cannot be parametrized; read the structural validators' report and repair \
+                 the reference it names"
             ),
-            Self::Certify { half_edge, error } => {
-                write!(f, "pcurve minting at half-edge {half_edge:?}: {error}")
-            }
+            Self::Certify { half_edge, error } => write!(
+                f,
+                "the pcurve of half-edge {half_edge:?} failed certification: {error}"
+            ),
             Self::LoopDiscontinuity { half_edge } => write!(
                 f,
-                "pcurve minting: half-edge {half_edge:?} does not meet its predecessor in \
-                 the chart — the loop's single-branch unwrap is discontinuous there \
-                 (a branch is chosen once per loop and certified, never per sample). \
-                 Re-mint the body if it was edited after minting: surgery leaves stale \
-                 rows and this pass is their backstop. If a fresh mint refuses here too, \
-                 the loop's edges do not meet through the chart and the face's boundary \
-                 is what to repair"
+                "the pcurve of half-edge {half_edge:?} does not meet its predecessor's in \
+                 its face's chart. \
+                 Recourse: re-mint the body if it was edited after minting; if a fresh mint \
+                 refuses too, repair the face's boundary"
             ),
             Self::LoopNotClosed { face } => write!(
                 f,
-                "pcurve minting: the chart walk of a loop of face {face:?} did not close \
-                 (its azimuth advance is neither zero nor one full period) — re-mint \
-                 after any surgery on an already-minted body, and if a fresh mint refuses \
-                 the same way repair the loop itself: the walk never closes a gap by \
-                 choosing a branch"
+                "the pcurves of a loop of face {face:?} do not close in its chart (the \
+                 azimuth advance is neither zero nor one full period). Recourse: re-mint the body after any \
+                 surgery; if a fresh mint refuses too, repair the loop"
             ),
             Self::SingularChartJoint {
                 face,
@@ -396,43 +409,34 @@ impl core::fmt::Display for PcurveMintError {
                 half_edge,
             } => write!(
                 f,
-                "chart boundary: loop {lp:?} of face {face:?} meets a chart singularity at \
-                 half-edge {half_edge:?} (a sphere pole or a cone apex), where the first \
-                 chart channel has no lever and the boundary has no chord polygon — valid \
-                 input, unbuilt lane: the joint's azimuth is whatever the derivation \
-                 produced and no branch choice makes it a vertex, so ask for the \
-                 description on a face whose loops stay clear of the singularity (a sphere \
-                 or cone face that does describes normally); there is nothing in the body \
-                 to repair"
+                "loop {lp:?} of face {face:?} meets a sphere pole or cone apex at half-edge \
+                 {half_edge:?}, where no face description is built yet; there is nothing in \
+                 the body to repair. Recourse: ask for the description of a face whose loops \
+                 stay clear of the pole or apex"
             ),
             Self::OuterSpansPeriod => write!(
                 f,
-                "chart boundary: the outer loop's chart span exceeds the chart's period, so \
-                 the face wraps onto itself and its region is not periodic within its own \
-                 outer — the ring lifts are then lifts of nothing and no honest description \
-                 exists to return, so hold the producer to an outer within one period (a \
-                 revolve's angle headroom is that guard) and describe a face that wraps \
-                 further as sub-period pieces"
+                "the outer loop spans more than one period of its chart, so the face wraps \
+                 onto itself and has no description. Recourse: describe it as pieces within \
+                 one period (a revolve's angle headroom holds this)"
             ),
             Self::LoopWraps { face, r#loop: lp } => write!(
                 f,
-                "chart boundary: the chart walk of loop {lp:?} of face {face:?} closes one \
-                 whole period off — it lifts the chart rather than bounding a chart polygon. \
-                 No constructor in the tree is known to produce such a loop, so report the \
-                 body that reached this rather than repairing one"
+                "loop {lp:?} of face {face:?} closes one whole period off, so it bounds no \
+                 region of its chart; no constructor is known to produce this, so report \
+                 the body that reached it"
             ),
             Self::MissingCache { half_edge } => write!(
                 f,
-                "pcurve minting: half-edge {half_edge:?} bounds a face whose chart mints \
-                 pcurve caches, but carries none at rest — the face's cache set is \
-                 half-minted: re-mint the body, and repair the op that returned a mutated \
-                 already-minted body without clearing or re-minting, which is what leaves one"
+                "half-edge {half_edge:?} carries no pcurve although its face's chart mints \
+                 them: the body changed after minting. Recourse: re-mint the \
+                 body, and report the op that returned it"
             ),
             Self::Escalated { half_edge, cause } => write!(
                 f,
-                "pcurve minting at half-edge {half_edge:?} escalated: {cause}"
+                "the pcurve at half-edge {half_edge:?} escalated: {cause}"
             ),
-            Self::Band(e) => write!(f, "pcurve minting: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
         }
     }
 }
@@ -2613,9 +2617,15 @@ pub(crate) mod staleness_posture {
         /// half-edge's fresh key, or the two keys a parameter split
         /// leaves where one edge was — and drops what no key can
         /// carry, including a row whose key never moved but whose
-        /// chart did (the loop-re-parenting doors). What a door in
-        /// this bucket never does is return with a row that says
-        /// something the body no longer holds.
+        /// chart did (the loop-re-parenting doors, the run `mef`'s
+        /// chord surgery or `kef`'s unsplice moves between two faces'
+        /// loops, and the surface setter, under which a face's whole
+        /// row set changes chart at once). What a door in this bucket
+        /// never does is return with a row that says something the
+        /// body no longer holds. It says nothing about rows a door
+        /// never HELD: whether a half-edge a door mints gets a row at
+        /// the mint site is the minting posture, decided elsewhere and
+        /// not by this bucket.
         Transfers,
         /// Leaves the map exactly as it found it — a primitive, or a
         /// write the map is not keyed on. What this bucket rests on is
@@ -2624,9 +2634,7 @@ pub(crate) mod staleness_posture {
         /// whose rows no longer certify; it is silent about a complete
         /// face whose rows were stated in another chart and certify
         /// against this one, and about any face on a chart
-        /// [`super::chart_mints`] refuses. Two entries here are known
-        /// to leave rows in that blind spot
-        /// (`work/topo/mef-and-kef-move-half-edge-runs-between-charts-and-leave-their-rows`).
+        /// [`super::chart_mints`] refuses.
         Neither,
     }
 
@@ -2746,17 +2754,20 @@ pub(crate) mod staleness_posture {
             ),
             // ---- Neither: the primitives. Their stale rows are what
             // the tier-3 pcurve pass exists to catch. ----
+            (
+                "cyl_wall_sheet_keyed",
+                Neither,
+                "a fixture builder composed of `Neither` operators, minting no row of its \
+             own; `cyl_wall_sheet` is the door that runs the pass over what it grew",
+            ),
             ("mvfs", Neither, "Euler operator"),
             ("mev", Neither, "Euler operator"),
             ("mev_line", Neither, "Euler operator (sugar over `mev`)"),
             ("mev_null", Neither, "Euler operator"),
-            ("mef", Neither, "Euler operator"),
-            ("mef_chord", Neither, "Euler operator (sugar over `mef`)"),
             ("mekr", Neither, "Euler operator"),
             ("mekr_chord", Neither, "Euler operator (sugar over `mekr`)"),
             ("kemr", Neither, "Euler operator"),
             ("kev", Neither, "kill op"),
-            ("kef", Neither, "kill op"),
             ("kvfs", Neither, "kill op"),
             // ---- Transfers: the loop-re-parenting doors, which carry
             // a moved loop's rows onto the target face and drop them
@@ -2789,6 +2800,29 @@ pub(crate) mod staleness_posture {
                 "ring surgery: re-parents a ring, mints no half-edge, and carries or drops \
              the ring's rows by whether the two faces are on one chart — see `kfmrh`",
             ),
+            // ---- Transfers: the two doors that move a RUN of
+            // half-edges between two faces' loops, and dispose of the
+            // run's rows the way the loop doors dispose of a loop's. ----
+            (
+                "mef",
+                Transfers,
+                "Euler operator, and a run re-parenting: the run `[he1 .. he2)` it moves onto \
+             the new face keeps its rows where that face is on the old face's chart \
+             (`Body::same_chart`) and loses them where it is not (`Body::drop_rows`). The \
+             two halves it mints carry no row on either face — the minting posture \
+             (`work/topo/half-edge-minting-euler-ops-leave-a-minted-curved-face-incomplete`), \
+             which this entry does not decide",
+            ),
+            ("mef_chord", Transfers, "Euler operator (sugar over `mef`)"),
+            (
+                "kef",
+                Transfers,
+                "kill op, and a run re-parenting: the dying loop's remnant keeps its rows \
+             where the surviving face is on the dying face's chart (`Body::same_chart`) and \
+             loses them where it is not (`Body::drop_rows`); the surviving loop's own rows \
+             are untouched, and the two killed halves' rows outlive their keys as every kill \
+             op's do",
+            ),
             (
                 "movefac",
                 Neither,
@@ -2810,17 +2844,27 @@ pub(crate) mod staleness_posture {
             ("detach_pcurve", Neither, "drops ONE row the caller chose"),
             (
                 "set_face_surface",
-                Neither,
-                "a surface swap is content staleness, not a key the map can lose — and the \
-             tier-3 pass re-certifies against the new surface only where that surface \
-             mints: a swap onto a plane or a placeholder leaves a COMPLETE row set stated \
-             in the chart the face left, which this pass skips \
-             (`work/topo/set-face-surface-leaves-a-complete-face-certified-against-the-chart-it-left`)",
+                Transfers,
+                "re-charts a face in place, which changes what every row the face stores is \
+             ABOUT while changing no key: the rows are kept across a swap onto the same \
+             chart (`Body::same_chart`) and dropped on any other (`Body::drop_face_rows`). \
+             Content staleness alone would be \
+             the tier-3 pass's, but only where the NEW surface mints — a swap onto a plane \
+             or a placeholder left a COMPLETE row set stated in the chart the face left, \
+             which that pass skips entirely",
             ),
             (
                 "set_edge_curve",
                 Neither,
-                "a carrier swap is content staleness the tier-3 pass re-certifies against",
+                "a carrier swap is content staleness the tier-3 pass re-certifies against, \
+             and NOT the surface setter's case: neither the row's key nor its chart moves, \
+             and pass 2 re-derives each row's agreement from the edge's current carrier, so \
+             a staled row is refused per half-edge on a COMPLETE face. A face whose chart \
+             mints nothing stores no minted row to stale; a HALF-MINTED one does, and this \
+             pass re-certifies nothing on it \
+             (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`) — \
+             the pass's property for every content staleness, which dropping rows here \
+             would trade for a re-mint on every swap that certifies",
             ),
             (
                 "set_edge_curve_nurbs_lane",

@@ -422,3 +422,68 @@ say.** Groups 3, 4, part of 5 and `document-news-has-no-home` all edit
 file at once is a conflict bought for nothing, so **at most one
 `frame.rs` lane runs at a time**, whatever the group order allows in
 parallel elsewhere.
+
+## A note from VIEW (2026-09-21) — one rank row re-homed here
+
+`a-derived-pick-index-failure-outshouts-its-cause` (P1, Ev's report of
+2026-09-17) moved by `git mv`, id, body and history unchanged. Ev
+approved the move in chat. VIEW is winding down and does not dispatch.
+
+**Why this program and not VSEAM or CHROME.** The row's finding is
+that a pick-index failure CAUSED by a failed node is the loud banner
+while the node's own Boolean refusal is the quiet line below it — *a
+downstream effect of a failure the user already has in front of them
+should not outrank that failure*. That is a rank defect, and your
+§Charter names `rank-one-discards-the-frames-other-news` as a member
+of exactly this class. Nothing it touches survives the frame.
+
+A second half rides it: the two messages name different nodes (root 11
+versus the node that actually failed, 13), so a reader cannot tell
+they are about one event. The two sites are `viewer`'s `pickindex.rs`
+(the *"could not be tessellated or indexed"* arm) and `editor-core`'s
+`resolve/hit.rs` (*"no name table to invert"*) — the second is EDIT's
+ground and a hand-off rather than a diff from here.
+
+**Live-ground note**: `pickindex.rs` is claimed by VGEOM, VSEAM and
+FIT as well, and VGEOM has a live lane on it (`vgeom/pick-distance`,
+PR #3007's fix pass). Worth a check before dispatching.
+
+Signed (VIEW orchestrator).
+
+## 2026-09-23 — a CHROME lane touched `pane/properties.rs` under #2961
+
+`chrome/properties-messages` (CHROME's P0,
+`messages-in-the-creation-and-properties-panes-still-draw-past-their-row`)
+edits `crates/viewer/src/pane/properties.rs`, which
+`vnews/properties-controls-read-their-refusals` (#2961) edits too.
+Functions touched: `properties_ui`, `feature_rows_ui`, `add_param_ui`
+(its offer line and its already-declared arm, now the free function
+`exists_notice`), `standing_ui`, `entity_standing_ui`, `instance_ui`
+(the `free_move_check` fault line only), `slot_value_ui` (its fault
+line is removed; it is said under the row now), `slot_notes_ui` (now a
+wrapper over the free function `slot_notes`) and `param_bounds_ui`
+(now a wrapper over `bounds_notes`). New at the end of the file: the
+three free functions and a `#[cfg(test)] mod layout_tests`, beside
+#2961's `mod tests`. The diff is per site. Merging it into #2961 is
+mechanical except in one place: #2961's new `ui.weak(fault.to_string())`
+in `instance_ui`, under the disabled hide toggle, is a sentence under
+CHROME's census test and wants `crate::widgets::message_toned(…,
+Tone::Advisory)` like its neighbour.
+
+(CHROME implementer lane, chrome/properties-messages)
+
+## CHROME in `pane/create.rs`: #2960's part button moves (2026-09-24)
+
+`chrome/create-messages` (PR 3139) moves `add_part_ui`'s per-entry pick
+button out of the window body into a free function,
+`crate::pane::create`'s `part_entry`, which still spells it
+`ui.add_enabled(…, egui::Button::new(entry.file_name()))` plus
+`on_disabled_hover_text(refusal.to_string())`. PR 2960
+(`vnews/app-controls-read-their-refusals`) replaces exactly those lines
+with `crate::app::refusable_button(ui, entry.file_name(), refusal.as_ref())`.
+The two collide in text, and the collision is **semantic**. Whoever
+lands second must carry `refusable_button` into `part_entry`. Keeping
+`part_entry`'s old spelling loses #2960's change there without any
+compile error.
+
+(CHROME implementer lane, chrome/create-messages)

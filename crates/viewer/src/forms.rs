@@ -40,6 +40,7 @@
 use pncad::document::{BooleanOp, Dimension, MatePrimitive};
 use pncad::profile::{ArcMode, TargetKind};
 use pncad::quantity::UnitDef;
+use pncad::select::SplitHalf;
 
 use crate::props;
 use crate::session::DatumSpec;
@@ -204,6 +205,46 @@ partial_mirror! {
         FaceFrame { .. } => FaceFrame,
     ],
     absent [],
+}
+
+vocabulary! {
+    /// The part form's selector choice — which of
+    /// [`crate::session::PartSelectSpec`]'s two arms the commit button
+    /// authors, an enum for the reason [`PatternKindChoice`] is one.
+    ///
+    /// It also says which SEAT the commit reads: a half comes out of
+    /// the split seat and an index out of the pattern seat, so the
+    /// choice picks the door exactly as the pattern form's rule choice
+    /// does.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(crate) enum PartSelectChoice {
+        /// A named half of the picked split.
+        Half = "half of a split",
+        /// One instance of the picked pattern, by index.
+        Instance = "instance of a pattern",
+    }
+
+    /// Both selectors with their radio labels, in form order.
+    pub(crate) const ALL;
+}
+
+/// The word the part form shows for a half of the KERNEL's
+/// [`SplitHalf`], whose `ALL` the radio row offers.
+///
+/// **A match, not a table**, for the reason [`boolean_op_label`] is:
+/// the enum is declared in `topo`, so no list written here can be
+/// projected from its declaration — but it publishes `SplitHalf::ALL`,
+/// and the form draws one button per entry. A third half would arrive
+/// with no membership edit here and could not arrive silently, because
+/// it has no word until this match gives it one.
+///
+/// The words are the kernel's own sides — the plane's normal decides
+/// which is which, and the form does not paraphrase that.
+pub(crate) fn split_half_label(half: SplitHalf) -> &'static str {
+    match half {
+        SplitHalf::Above => "above",
+        SplitHalf::Below => "below",
+    }
 }
 
 vocabulary! {
@@ -379,7 +420,7 @@ pub(crate) fn drag_tick(dimension: Dimension) -> f64 {
 /// this module, which holds the four constants and [`drag_tick`]
 /// beside this type; what is still open is those hand-picked call
 /// sites, which sit in `widgets`, [`crate::pane::create`] and
-/// [`crate::pane::properties`] (`work/chrome/drag-tick-has-three-homes.md`).
+/// [`crate::pane::properties`] (`work/forms/drag-tick-has-three-homes.md`).
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct FieldWriting {
     /// The unit the field shows and authors in — [`props::rendering_unit`]'s

@@ -37,7 +37,12 @@ use geom_core::{Band, Point2, Point3, Real, Vec3};
 /// The interval lane's measured `ssi_hull_sup` bound for this fixture
 /// (the PR row's constant). Probe 3 uses it as a STRICT ceiling for
 /// the f64 lane's own bound; probe 1 uses it to pick the arm.
-const HULL_SUP_AT_INTERVAL: f64 = 1.799_393_940_644_834_8e-12;
+/// **Re-measured when the C9 ring became a newtype over
+/// `interval-transcendentals`' `DInterval`**
+/// (`1.799_393_940_644_834_8e-12` before): the backend pads only where
+/// an operation is inexact, so the bound is tighter. Probe 3's
+/// strict-ceiling claim and probe 1's arm selection are unmoved.
+const HULL_SUP_AT_INTERVAL: f64 = 1.798_501_029_796_955_5e-12;
 
 fn sphere<T: Real>() -> Surface<T> {
     Surface::Sphere {
@@ -234,7 +239,6 @@ fn the_f64_siblings_hull_bound_sits_strictly_under_the_interval_constant() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::interval::Interval;
 
@@ -300,13 +304,13 @@ mod interval_lane {
                 "the margin must render as an enclosure, not a value or a hole: {text}"
             );
             assert!(
-                text.contains("zero = ") && text.contains("escalate = "),
+                text.contains("ambiguity band ("),
                 "an escalation must render the band it was judged against: {text}"
             );
             // Both endpoints of the degenerate enclosure — rendered
             // twice, since lo == hi.
             assert_eq!(
-                text.matches("1.7993939406448348e-12").count(),
+                text.matches("1.7985010297969555e-12").count(),
                 2,
                 "both enclosure endpoints must be visible: {text}"
             );

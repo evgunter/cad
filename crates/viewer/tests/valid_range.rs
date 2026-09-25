@@ -130,6 +130,47 @@ fn a_bound_too_fine_for_four_decimals_is_still_said() {
     );
 }
 
+/// **A bound the NOTATION cannot name is said as that, never as an
+/// infinity.**
+///
+/// Writing a canonical bound in millimetres multiplies it up by a
+/// thousand, so from `f64::MAX * MILLI` up there is no millimetre
+/// value — and `inf mm` in this sentence is a bracket claiming the
+/// search reached infinity, which is the one overclaim
+/// `Bounds::wording`'s whole doc comment exists to refuse. The value
+/// is a perfectly ordinary `f64`; it is the pair of it and `mm` that
+/// names nothing.
+///
+/// **The pair, because neither half says anything alone.** The second
+/// bound is one decade below the overflow and has to come back as a
+/// number with its symbol, so a `wording` that refused on magnitude —
+/// or that stopped writing bounds in units at all — fails here.
+#[test]
+fn a_bound_with_no_millimetre_value_is_not_worded_as_infinity() {
+    let reading = Bounds {
+        origin: 1.0e304,
+        low: Bound::Edge {
+            valid: 1.0e304,
+            invalid: 1.0e303,
+        },
+        high: Bound::Open { probed: 1.0e306 },
+        samples: 9,
+    };
+    let words = reading.wording(props::rendering_unit(Dimension::Length, Some(MM.def())));
+    assert!(
+        !words.contains("inf"),
+        "a bound with no millimetre value was spelled as one: {words}"
+    );
+    assert!(
+        words.contains("no mm reading"),
+        "and the sentence has to say which notation could not name it: {words}"
+    );
+    assert!(
+        words.contains("9.999999999999999e306 mm"),
+        "the bound a decade below the overflow is an ordinary number: {words}"
+    );
+}
+
 /// **The value the field has now is valid by construction**, so a
 /// direction with no room at all still answers — with a bracket that
 /// starts at the origin rather than with a panic or an empty range.
@@ -228,8 +269,7 @@ fn the_session_probes_a_real_slots_range() {
         &doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal_with_unit(0.008, Dimension::Length, MM.def())
-                .expect("8 mm is a length"),
+            distance: common::len_mm(0.008),
         },
         tol,
     );

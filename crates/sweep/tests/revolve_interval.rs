@@ -1,11 +1,10 @@
-//! Interval-lane revolve (feature `interval`): the acceptance shapes
+//! Interval-lane revolve: the acceptance shapes
 //! REQUIRED to build tier-valid at the certified scalar (the lane is
 //! fully live post-B1 — refusals here are defects, not honesty).
 //! Trigonometry (rotation matrices, full-period rim samples) runs in
 //! enclosures throughout; the full-period-is-identity convention keeps
 //! the seam coincidences exact at Interval too.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;

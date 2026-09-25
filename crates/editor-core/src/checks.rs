@@ -47,10 +47,7 @@ use std::sync::Arc;
 use core::fmt;
 
 use geom_core::{BandError, CertifiedBounds, Decide, Tol};
-use topo::{
-    AtRestPolicy, Body, ContactRecords, PropsQuadLane, ShellClassifyError, ShellRole,
-    classify_shells,
-};
+use topo::{AtRestPolicy, Body, ContactRecords, ShellClassifyError, ShellRole, classify_shells};
 
 use crate::doc::Doc;
 use crate::eval::Evaluation;
@@ -263,7 +260,6 @@ impl ChartCoherenceLane for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl ChartCoherenceLane for geom_core::interval::Interval {
     fn examine_chart_coherence(
         _body: &topo::Body<Self>,
@@ -576,9 +572,9 @@ impl crate::finding::Finding for CheckFinding {
             ),
             CheckEvidence::StaleExpectation { expected } => write!(
                 f,
-                "an expectation of {expected} component(s) has no subject — the body \
-                 vanished (a boolean may have consumed the whole part) or the key names \
-                 no root output; remove the ChecksConfig::expected_components entry or \
+                "an expectation of {expected} component(s) has no subject: the body \
+                 vanished (a boolean may have consumed the part) or the key names no root \
+                 output. Recourse: remove the ChecksConfig::expected_components entry, or \
                  fix the root"
             ),
             CheckEvidence::NotSeparated {
@@ -586,15 +582,13 @@ impl crate::finding::Finding for CheckFinding {
                 other_output,
             } => write!(
                 f,
-                "not certifiably disjoint from root {} output {other_output}: the \
-                 product gathers both, so any space they share is gathered twice",
+                "not certifiably disjoint from root {} output {other_output}, so any space \
+                 they share is gathered twice",
                 other_root.0
             ),
-            CheckEvidence::SeparationUnavailable { reason, .. } => write!(
-                f,
-                "no pair of this product's solids could be checked for separation: \
-                 {reason}"
-            ),
+            CheckEvidence::SeparationUnavailable { reason, .. } => {
+                write!(f, "separation could not be checked: {reason}")
+            }
             CheckEvidence::ChartCoherence { finding } => {
                 let what = match finding.condition {
                     topo::CoherenceCondition::MeridianClosure { .. } => {
@@ -610,8 +604,8 @@ impl crate::finding::Finding for CheckFinding {
                 };
                 write!(
                     f,
-                    "{what} {:e} m apart (gap {:e} chart units x lever {:e} m, band {:e} m)",
-                    finding.metres, finding.gap, finding.lever, finding.eps
+                    "{what} {:e} m apart (band {:e} m)",
+                    finding.metres, finding.eps
                 )
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => {
@@ -637,8 +631,7 @@ impl crate::finding::Finding for CheckFinding {
                 }
             }
             CheckEvidence::ChartCoherenceUnavailable => f.write_str(
-                "this evaluation's decision lane carries no chart-coherence examination, \
-                 so this body's chart coordinates were not read at all",
+                "this evaluation's lane does not examine chart coherence, so nothing was read",
             ),
         }
     }
@@ -646,34 +639,27 @@ impl crate::finding::Finding for CheckFinding {
     fn recourse(&self) -> &str {
         match &self.evidence {
             CheckEvidence::Connectedness { .. } => {
-                "a stray component usually means a boolean that did not reach its operand \
-                 or an instance placed nowhere; if the disjoint body is deliberate, state \
-                 the expected count for this root output in ChecksConfig::expected_components"
+                "Recourse: a stray component usually means a boolean that missed its operand \
+                 or an instance placed nowhere; if it is deliberate, state the expected count \
+                 in ChecksConfig::expected_components"
             }
             CheckEvidence::Escalated { .. } => {
-                "a shell's volume is too close to zero for a certified outer/void \
-                 orientation read; thicken or remove the degenerate geometry, or lower \
-                 the tolerance"
+                "Recourse: thicken or remove the degenerate geometry, or lower the tolerance"
             }
             CheckEvidence::NotSeparated { .. } => {
-                "usually a recipe that grew a second sink by accident: a feature left \
-                 dangling when its consumer was rewired is still a product root, so \
-                 delete it or feed it into the root downstream of it. Two roots meant \
-                 to TOUCH want a mate, whose declaration the assembly door certifies; \
-                 two meant to INTERPENETRATE want a boolean, not a gather"
+                "Recourse: usually a feature left dangling as a second product root, so \
+                 delete it or feed it downstream; roots meant to TOUCH want a mate, and \
+                 roots meant to INTERPENETRATE want a boolean"
             }
             CheckEvidence::ChartCoherence { .. } => {
-                "the body states one chart coordinate twice and the two statements differ \
-                 by this many metres. It is a MEASUREMENT and nothing refuses on it: read \
-                 the metres against the band and decide whether this source is stated \
-                 finely enough for what you are doing with it — an imported part usually \
-                 wants re-exporting at more digits, a minted one is a kernel finding"
+                "a MEASUREMENT, not a refusal: judge the metres against the band; an \
+                 imported part usually wants re-exporting at more digits, and a minted one \
+                 is a kernel finding"
             }
             CheckEvidence::ChartCoherenceUnexamined { unexamined } => match unexamined.why {
                 topo::Unexaminable::Corrupt { .. } => {
-                    "a structural read failed on this loop; topo::validate is the door that \
-                     names the defect in its own vocabulary, and this resident only reports \
-                     that it could not get past it"
+                    "the body's structural validation names the defect this read could not \
+                     get past"
                 }
                 // A scaffolding edge and a trimmed face are lane
                 // boundaries, not defects: the report names them so
@@ -683,9 +669,8 @@ impl crate::finding::Finding for CheckFinding {
                 | topo::Unexaminable::NonIsoCarrier { .. } => "",
             },
             CheckEvidence::ChartCoherenceUnavailable => {
-                "the examination is defined at the f64 lane; evaluate the document at f64 \
-                 to measure it, or turn this check off rather than reading its silence as \
-                 a clean body"
+                "Recourse: evaluate the document at f64 to measure it, or turn this check \
+                 off rather than reading its silence as a clean body"
             }
             CheckEvidence::Unsupported { .. }
             | CheckEvidence::StaleExpectation { .. }
@@ -1082,7 +1067,7 @@ pub fn run_checks_on<P, T: Decide + AtRestPolicy + CertifiedBounds + ChartCohere
 /// The connectedness resident's own pass (I1(0b)) — [`run_checks`]'s
 /// body before the registry grew a second resident, moved out
 /// unchanged so each resident is independently `Off`-able.
-fn connectedness<P, T: Decide + PropsQuadLane>(
+fn connectedness<P, T: Decide + CertifiedBounds>(
     doc: &Doc<P>,
     ev: &Evaluation<T>,
     cfg: &ChecksConfig,

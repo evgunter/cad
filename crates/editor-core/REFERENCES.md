@@ -10,8 +10,8 @@ in chat on 2026-09-04; DM4 gained its member-space declaration channel
 on 2026-09-06 and was bounded at DOCM-8's review (2026-09-07); DM7 and
 DM8 were ruled on EDIT's `[ev]` PR of 2026-09-16. The page
 was `docs/DOCM-REFERENCES-DESIGN.md` until DOCM's exit on 2026-09-13,
-when it moved beside the code it governs; `docs/DOC-LEDGER.md` carries
-the history. Identity across time is the companion page
+when it moved beside the code it governs. Identity across time is the
+companion page
 `crates/editor-core/IDENTITY.md`. Mechanics here are measured, not
 assumed; where a file:line has drifted, the name beside it is the
 stable half.
@@ -119,8 +119,7 @@ sketch +x the carrier's u-reference rotated by `spin`.
   is two inserts in one committed action (`commit_action`); "on this
   face" mints one `FaceFrame` and one profile the same way.
 
-*Record: built by DOCM-1 (PR 1829), with DM1a, DM1b and DM2; history
-in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-1 (PR 1829), with DM1a, DM1b and DM2.*
 
 ## DM2 — A carrier-kind read is a value, not a verdict
 
@@ -140,7 +139,7 @@ intent is stored. `select_where` filters on `SurfaceKind` exactly
 - The chrome offers DM1's frame only for a planar carrier; DM1b is
   the kernel's own refusal when a caller bypasses the offer.
 
-*Record: built by DOCM-1 (PR 1829); history in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-1 (PR 1829).*
 
 ## DM3 — A part of a multi-body value is selected by a projection node
 
@@ -167,7 +166,7 @@ so every downstream selector spells what it already spells.
   keeps asserting that a bare split or pattern is refused at a body
   seat; the Part node is how a user says which body they meant.
 
-*Record: built by DOCM-2 (PR 1860); history in `docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-2 (PR 1860).*
 
 ## DM4 — Flat operators before splice: an n-ary union
 
@@ -275,8 +274,7 @@ the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
-History in `docs/DOC-LEDGER.md`.*
+`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).*
 
 ## DM5 — A node's inputs are pairwise distinct
 
@@ -292,8 +290,7 @@ a hand-written snapshot never passes an edit door. Refusal:
 `EditError::DuplicateInput { node, input }` at the edit doors, the
 validator's own `SnapshotError` arm at load.
 
-*Record: built by DOCM-3 (PR 1803) with DM4; history in
-`docs/DOC-LEDGER.md`.*
+*Record: built by DOCM-3 (PR 1803) with DM4.*
 
 ## DM6 — Splice is not added
 
@@ -306,18 +303,33 @@ operator cannot flatten and that a user needs to edit from the middle
 stays the delete for a node with consumers.
 
 *Record: ruled with DM4's build, DOCM-3 (PR 1803), which is what makes
-the die's chain unnecessary; history in `docs/DOC-LEDGER.md`.*
+the die's chain unnecessary.*
 
-## DM7 — A stranded name is reported at the delete, never refused
+## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
-`DeleteNode` stays legal when a payload name (`Node::payload_names`)
-names the node being deleted: a name is not a DAG edge, and the
-carve-out in §0 stands. What the door owes is a report: every
-`(node, name)` pair whose minting node the edit removed rides the
-accepted edit's `Applied.maintenance`, typed, computed at the door by
-the same payload walk the insert door checks with. The strand is loud
-where it happens rather than at the next evaluation; `NodeGone` and
-`Rebind` remain the diagnosis and the repair.
+The edit that removes a name's referent — `DeleteNode`, and
+`SetProgram` for the steps it drops or changes — stays legal when a
+payload name (`Node::payload_names`) names what is being removed: a
+name is not a DAG edge, and the carve-out in §0 stands. What the door
+owes is a report: every `(node, name)` pair whose referent the edit
+removed rides the accepted edit's `Applied.maintenance`, typed,
+computed at the door by the same payload walk the insert door checks
+with. The strand is loud where it happens rather than at the next
+evaluation; the N5 ladder's rungs — `NodeGone` for a deleted minting
+node, `Vanished` for a name that denotes nothing — and `Rebind` remain
+the diagnosis and the repair. A reshaping has one more thing to say, which a delete
+never has: a name on a step it KEPT is rewritten in place to the
+coordinates the segment sits at now and reported `Rebound { from, to
+}`, so a moved name is visible in the accepted edit and never silently
+re-denotes (`crates/profile/README.md` V2). The same holds for an edit
+that moves the numbering a name is spelled in rather than its referent:
+a value edit (`SetParam`, `SetExpression`, `SetStructuralParam`,
+`SetDocParam`, `SetDocParamValue`) that changes which loop of a profile
+is outer or which way a loop runs is a reshaping with every step kept.
+The names spelled in that profile's numbering are rewritten and reported
+`Rebound` through the same map, and where either side's numbering cannot
+be read they are reported stranded, as a reshaping reports a program
+whose spans cannot be read (`reanchor_report` in `edit.rs`).
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
@@ -347,6 +359,10 @@ carriers; the store is the other carrier.
 row names. The appearance-key widening was ruled by Ev on EDIT's third
 `[ev]` PR of 2026-09-16
 (`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
+it. The subject's widening from the delete to the edit that removes a
+name's referent, with the reshaping's rebound arm, was ruled by Ev on
+EDIT's seventh `[ev]` PR, #2904 (2026-09-20,
+`a-committed-profile-program-has-no-whole-program-edit`), which builds
 it.*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
@@ -359,18 +375,25 @@ span and its per-radius emission (fields of `crates/profile`'s
 `ReplayStructure`, beside its fillet decisions) give the answer — the
 span for a step, the emission for a radius, since the step a radius is
 authored on is not always the step its arc is credited to — in the
-program's own step order —
-the numbering the published names carry, since `eval/anchor.rs`
-renumbers every emitted ref canonical → program before the name table
-is published — and canonicalization's `reversed` and `start` on
-`LoopCanonical` are checked against the naming anchor's record of the
-same permutation, never applied. A disagreement between those two
-records is the evaluation contradicting itself and asserts. The door
-refuses typed where a record is absent or of the wrong shape rather
-than guessing. It is derived from the structure record the geometry
-came from, so it cannot disagree with the geometry, and it is not
-persisted. For a loft the published anchoring is section 0's
-(`work/wire/loft-anchors-every-section-with-section-zeros-map`).
+program's own step order, and the profile's naming anchor carries it
+into the numbering every published name carries: the CANONICAL one.
+The canonical form keeps what the author wrote wherever validity
+allows — each loop's authored start and the authored hole order, with
+only the traversal sense normalized (outer counterclockwise, holes
+clockwise) — so the published segment is the program's own for a loop
+authored in its canonical sense and its reflection `s ↦ n − 1 − s` for
+one authored against it, and every verb that consumes a profile
+publishes that one numbering. A loft is no exception: it pairs
+canonical segment `k` of every section into one wall, so the wall's one
+ref is every section's own canonical segment `k`, and the door answers
+any section through that section's own anchor. The anchor is checked
+against canonicalization's `reversed` and `start` on `LoopCanonical`,
+its own record of the same permutation, before it is read. A
+disagreement between those two records is the evaluation contradicting
+itself and asserts. The door refuses typed where a record is absent or
+of the wrong shape rather than guessing. It is derived from the
+structure record the geometry came from, so it cannot disagree with
+the geometry, and it is not persisted.
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -389,7 +412,10 @@ checked rather than applied, a disagreement asserting — was ruled by
 Ev on EDIT's third `[ev]` PR of 2026-09-16
 (`dm8-names-canonical-segments-but-the-published-refs-are-program-anchored`),
 after the unit that built the door measured the original clause's
-composition wrong.*
+composition wrong. The canonical numbering — authored start and hole
+order, orientation normalized, one numbering for every verb — was ruled
+by Ev on PR 3102's thread (2026-09-23)
+(`loft-section-correspondence-is-authored`).*
 
 ## What this doc does not touch
 

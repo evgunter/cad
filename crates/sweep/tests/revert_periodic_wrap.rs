@@ -163,7 +163,9 @@ fn assert_reparked(label: &str, body: &Body<f64>) {
     let reverted = body.revert().expect("revert");
     assert_eq!(
         topo::validate_geometric(&reverted, tol()),
-        Err(vec![ValidationError::NegativeVolume]),
+        Err(vec![ValidationError::NegativeVolume {
+            solid: reverted.solids().next().expect("one solid").0
+        }]),
         "{label}: a reverted body bounds the complement and nothing else fails"
     );
     assert_eq!(rows(&reverted), rows(body), "{label}: no row moves");

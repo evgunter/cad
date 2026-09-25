@@ -19,7 +19,6 @@
 //! them has a threshold to cross, so none of them can gate; what they
 //! produce is quoted in the unit's deviations with this file named. The
 //! rows that ASSERT are NOT probe-gated and run on every merge.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 
@@ -317,8 +316,7 @@ fn r2_the_ceiling_on_an_arc_bearing_bracket() {
 /// with a bisection of R2's own and to more places than the unit's row
 /// pins, plus what bounds it: the over-band SET at the refusing end of
 /// the bracket (ceiling + δ), never a first refusal at a wider box
-/// (M10's closed `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-/// `docs/DOC-LEDGER.md` sweep 13).
+/// (M10's closed `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
 ///
 /// EVIDENCE-ONLY.
 #[test]

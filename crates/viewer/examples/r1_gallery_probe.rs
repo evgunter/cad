@@ -28,19 +28,30 @@
 //! cargo run -p viewer --example r1_gallery_probe -- /tmp/gal
 //! ```
 
-/// The drawn triangle count under the session's current display view,
-/// or `None` when the scene will not build.
-fn index_triangles(session: &viewer::session::DocSession) -> Option<usize> {
+/// The pick index for the session's landed evaluation, at this probe's
+/// own coarse δ — the gallery is all planes, and nothing here reads a
+/// facet count.
+///
+/// This probe cannot reach `tests/common`'s door (an example is not a
+/// test target), so the construction lives here once rather than at
+/// each reader below.
+fn probe_index(session: &viewer::session::DocSession) -> Option<viewer::pickindex::PickIndex> {
     let (doc, eval) = session.landed_pair()?;
     let generation = session.landed_generation()?;
     let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pickindex::PickIndex::build(
+    viewer::pickindex::PickIndex::build(
         doc,
         eval,
         viewer::pickindex::PictureKey::of(generation, delta),
         session.tol(),
     )
-    .ok()?;
+    .ok()
+}
+
+/// The drawn triangle count under the session's current display view,
+/// or `None` when the scene will not build.
+fn index_triangles(session: &viewer::session::DocSession) -> Option<usize> {
+    let index = probe_index(session)?;
     Some(
         index
             .scene_for(&session.display_view())
@@ -52,16 +63,7 @@ fn index_triangles(session: &viewer::session::DocSession) -> Option<usize> {
 
 /// How many drawn parts carry the probe marking.
 fn probe_parts(session: &viewer::session::DocSession) -> Option<usize> {
-    let (doc, eval) = session.landed_pair()?;
-    let generation = session.landed_generation()?;
-    let delta = viewer::scene::DisplayTolerance::new(1.0e-3).ok()?;
-    let index = viewer::pickindex::PickIndex::build(
-        doc,
-        eval,
-        viewer::pickindex::PictureKey::of(generation, delta),
-        session.tol(),
-    )
-    .ok()?;
+    let index = probe_index(session)?;
     Some(
         index
             .scene_for(&session.display_view())

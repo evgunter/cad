@@ -504,6 +504,7 @@ fn the_sectioned_vessel_stops_at_the_props_door() {
                     source: geom_brep::PropsError::Unimplemented,
                     ..
                 },
+                ..
             }]
         ),
         "check 7 at a cap's loop area, got {errors:?}"
@@ -645,7 +646,6 @@ fn a_spiric_rim_splits_at_its_mid_parameter() {
     );
 }
 
-#[cfg(feature = "interval")]
 mod interval_rows {
     use geom_core::{Bounds, Interval, Real};
 

@@ -30,7 +30,6 @@ use crate::common;
 use common::{chain, profile, quarter_bulge, rect, tol};
 // `lift` re-instantiates a fixture at another scalar; the only
 // remaining consumer here is the interval-lane totality test.
-#[cfg(feature = "interval")]
 use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
@@ -132,71 +131,71 @@ fn two_arc_circle_is_ccw_and_winding_invisible() {
 
 // --------------------------------------------- canonicalization attacks --
 
-/// 1-ulp-separated lex-min candidates: two leftmost vertices with
-/// x = 1.0 and x = 1.0 + ulp. The exact-order band must order them
-/// definitely and rotation/reversal-invariantly.
+/// 1-ulp-separated leftmost vertices: two corners with x = 1.0 and
+/// x = 1.0 + ulp. The canonical start is the AUTHORED one whichever of
+/// them the author starts from — no ordering between the two is
+/// consulted for it — and reversal leaves the canonical form
+/// byte-identical at every start.
 #[test]
-fn one_ulp_lex_min_tie_is_deterministic() {
+fn one_ulp_leftmost_tie_keeps_the_authored_start() {
     let x_lo = 1.0f64;
     let x_hi = 1.0f64.next_up(); // 1 + 2^-52
     let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
-    let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos();
-    assert_eq!(v0.x.to_bits(), x_lo.to_bits(), "lex-min must be x = 1.0");
     for r in 0..4 {
-        for reversed in [false, true] {
-            let n = base.vertices().len();
-            let rotated = ProfileLoop::new(
-                (0..n)
-                    .map(|k| base.vertices()[(r + k) % n])
-                    .collect::<Vec<_>>(),
-            );
-            let lp = if reversed {
-                rotated.reversed()
-            } else {
-                rotated
-            };
-            let vp = ok(&profile(vec![lp]));
-            assert_eq!(
-                format!("{canon:?}"),
-                format!("{vp:?}"),
-                "rot {r} rev {reversed}"
-            );
-        }
+        let n = base.vertices().len();
+        let rotated = ProfileLoop::new(
+            (0..n)
+                .map(|k| base.vertices()[(r + k) % n])
+                .collect::<Vec<_>>(),
+        );
+        let canon = ok(&profile(vec![rotated.clone()]));
+        let v0 = canon.loops()[0].vertices()[0].pos();
+        let want = rotated.vertices()[0].pos();
+        assert_eq!(
+            (v0.x.to_bits(), v0.y.to_bits()),
+            (want.x.to_bits(), want.y.to_bits()),
+            "rot {r}: the canonical start is the authored one"
+        );
+        let vp = ok(&profile(vec![rotated.reversed()]));
+        assert_eq!(format!("{canon:?}"), format!("{vp:?}"), "rot {r} reversed");
     }
 }
 
-/// Symmetric square centered at the origin: automorphisms do not break
-/// canonical-start uniqueness (vertices are distinct points).
+/// Symmetric square centered at the origin: every authored start is
+/// kept (vertices are distinct points, so each start is a different
+/// canonical form), and the traversal direction is invisible.
 #[test]
-fn origin_centered_square_canonicalizes_uniquely() {
+fn origin_centered_square_keeps_each_authored_start() {
     let base = ProfileLoop::polygon([p2(-1.0, -1.0), p2(1.0, -1.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
-    let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos();
-    assert_eq!((v0.x, v0.y), (-1.0, -1.0));
+    let mut starts = Vec::new();
     for r in 0..4 {
-        for reversed in [false, true] {
-            let n = base.vertices().len();
-            let rotated = ProfileLoop::new(
-                (0..n)
-                    .map(|k| base.vertices()[(r + k) % n])
-                    .collect::<Vec<_>>(),
-            );
-            let lp = if reversed {
-                rotated.reversed()
-            } else {
-                rotated
-            };
-            let vp = ok(&profile(vec![lp]));
-            assert_eq!(format!("{canon:?}"), format!("{vp:?}"));
-        }
+        let n = base.vertices().len();
+        let rotated = ProfileLoop::new(
+            (0..n)
+                .map(|k| base.vertices()[(r + k) % n])
+                .collect::<Vec<_>>(),
+        );
+        let canon = ok(&profile(vec![rotated.clone()]));
+        let v0 = canon.loops()[0].vertices()[0].pos();
+        let want = rotated.vertices()[0].pos();
+        assert_eq!((v0.x, v0.y), (want.x, want.y), "rot {r}");
+        starts.push((v0.x.to_bits(), v0.y.to_bits()));
+        let vp = ok(&profile(vec![rotated.reversed()]));
+        assert_eq!(format!("{canon:?}"), format!("{vp:?}"), "rot {r} reversed");
     }
+    starts.sort_unstable();
+    starts.dedup();
+    assert_eq!(
+        starts.len(),
+        4,
+        "four authored starts, four canonical starts"
+    );
 }
 
 /// A loop that revisits a coordinate exactly (pinch at a bit-identical
 /// non-adjacent vertex) is rejected by simplicity, so validated loops
-/// can never contain two bit-identical vertices and lex-min stays
-/// unique.
+/// can never contain two bit-identical vertices and the containment
+/// representative (the lexicographic minimum) stays unique.
 #[test]
 fn self_pinch_at_repeated_vertex_is_rejected() {
     // Hourglass revisiting (1, 1).
@@ -515,8 +514,8 @@ fn near_full_arc_with_chord_closure_validates() {
     let bulge = (theta / 4.0).tan();
     let lp = chain(&[(a.x, a.y, bulge), (b.x, b.y, 0.0)]);
     let vp = ok(&profile(vec![lp]));
-    // Canonical start is the lex-min vertex (bit-identical x tie on
-    // cos(delta), broken by least y => b), so the arc is segment 1.
+    // The canonical start is the authored one, `a`, so the arc is
+    // segment 0; the search below does not depend on it.
     let arc = vp.loops()[0]
         .segments()
         .iter()
@@ -563,7 +562,6 @@ fn hair_thin_near_full_arc_is_refused_but_mislabeled() {
 /// Interval-lane totality on poisoned input: NaN coordinates lift to
 /// NaI enclosures and must produce a typed error, never a panic or an
 /// accept.
-#[cfg(feature = "interval")]
 #[test]
 fn interval_nan_totality() {
     use geom_core::Interval;

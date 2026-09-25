@@ -1228,14 +1228,20 @@ impl core::ops::Neg for Probe {
 
 #[cfg(feature = "probe")]
 impl Real for Probe {
+    /// **INEXACT**, `f64`'s verbatim: the recording scalar's value
+    /// channel IS an `f64` and every comparison it makes is that
+    /// `f64`'s.
+    const WITNESS: crate::real::Witness = <f64 as Real>::WITNESS;
+
     fn from_f64(x: f64) -> Self {
         Self(x)
     }
 
     /// The recording scalar's value channel IS an `f64`, so the
     /// registered-identity witness is `f64`'s verbatim
-    /// ([`Real::register_equal`]) — inexact, so its refusal is
-    /// `Disputed` and it never answers `Contradicted`.
+    /// ([`Real::register_equal`]) — inexact ([`Real::WITNESS`] above
+    /// is `f64`'s too), so its refusal is `Disputed` and it never
+    /// answers `Contradicted`.
     fn register_equal(self, other: Self, tol: Tol) -> crate::sym::SymRegistration {
         self.0.register_equal(other.0, tol)
     }

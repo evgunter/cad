@@ -14,7 +14,6 @@
 //! `extruded`) rather than sharing them — a probe file must not depend
 //! on the suite it is probing. Same reasons for the ε-scaled box: no
 //! node's interval replay builds over a wider one (issue 1191's class).
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

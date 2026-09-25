@@ -47,9 +47,9 @@
 //! body, the SIGN it used to be given** — recorded at the doors and
 //! pinned by `topo/tests/geometric_cube.rs`'s
 //! `the_structural_half_does_not_judge_orientation_at_any_scalar`. The
-//! verdict is still reachable at a dual through the mixed passes that
-//! keep their lanes (`validate_pseudomanifold`, `contact_marks`,
-//! `mass_properties`).
+//! verdict is still reachable at a dual through the `_structural`
+//! passes (`validate_pseudomanifold_structural`, `contact_marks_structural`,
+//! `mass_properties_structural`).
 //!
 //! # What the memo rows assert
 //!
@@ -217,7 +217,6 @@ fn the_dl3_witnesses_pass_both_doors_they_can_still_reach() {
 /// side of the same pin is `r2_m10_di_probes`'s divergence row; the
 /// refusing-subject pins for every certifying arm are `topo`'s
 /// `at_rest_policy_tests`.)
-#[cfg(feature = "interval")]
 #[test]
 fn assemble_census_verdicts_match_f64_at_interval() {
     use editor_core::assemble;
@@ -345,7 +344,6 @@ fn tangent_bits_separate_keys_and_equal_channels_share_them() {
 /// impls: the derivative-enclosure scalar walks the whole door too,
 /// with its value channel — `repr_bits`, decoration included —
 /// identical to the plain `Interval` run's.
-#[cfg(feature = "interval")]
 #[test]
 fn dual_interval_evaluates_with_the_interval_value_channel() {
     use geom_core::{DualInterval, Interval};

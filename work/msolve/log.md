@@ -611,6 +611,49 @@ without the string compare; the aim-count row at two per mate. Spec
 into the ledger at the unit head. Closes the three items; two rows
 filed here. Next: MSOLVE-9 waits on Ev's word on PR 2895; MSOLVE-10
 (the static clocking refusal at `AddMate`) specs next.
+## MSOLVE-10 reviews adjudicated; fix pass to the lane (2026-09-20)
+
+Lane's head `7534c8854` on PR 2913, CI green. Style review (nineteen
+findings, six MAJOR) and a correctness arm whose probe rows the
+orchestrator ran after the arm hung on its own cargo call: C1 the
+door's fault equals the solve's on a bypass road to the bit (arm
+`0x400b988e1409212e`), C4 a rider asks the reach once per part in
+document order and every other row asks nothing, the band's edges
+agree at mid-band, zero and escalate, `Rebind` onto a non-member is
+admitted and the solve refuses `DanglingHead` after it (N5, as the
+PR said). Rulings. (1) "Never enters the document" is retired: the
+load door's snapshot walk asks only the non-finite predicate, and it
+stays that way — THE DOORS DECIDE EDITS AND THE SOLVE DECIDES STATES;
+a state that comes to hold a per-mate fault (a rebind-stranded head,
+a shrunk pattern, a doctored snapshot) is the solve's at evaluation,
+and a `save` that refused states the doors produced would be a trap.
+Every sentence becomes "refused at the insert door", the A11 clause
+with it (so worded it elaborates and lands with the unit), one row
+pins the snapshot road, the lane's Band finding is re-premised.
+(2) The pair the fold never reads — two members over one instance,
+the copies pair — carries a datum the solve never decides and the
+door now refuses; ruled the door's (which pairs the fold reads is a
+cluster fact), not the stop clause, disclosed in the corpus row and
+the claim text. A loop-closing mate IS read (measured: door equals
+solve). (3) The viewer's second match over the table's static gaps
+goes; one `table_gap` beside `class_admission` in `mate.rs`, read by
+`mate_coset` and the tool — the fence widened by that one pub fn.
+(4) `admit_mate` restated the solve's first loop and `admit_pair`'s
+self-mate arm was dead at the fold — one shared per-reference prefix.
+(5) Three comments called `Maintain::Never` the re-apply arm; it
+refuses at the maintenance and `Recorded` re-applies — the two replay
+rules stated together, the lever's answer a named type. Nine MINOR.
+## MSOLVE-9 ratified by Ev (2026-09-20, PR 2895)
+
+Ev's word on the `[ev]` PR ("lgtm"): A11 rule 5's inputs sentence —
+the solve's inputs are the document plus its mated parts'
+evaluations, two answers crossing one door asked lazily per pair, the
+extent as the lever and a `FromFace` frame as the face's canonical
+pose in part coordinates, nothing stored twice — and
+`docs/MSOLVE-9-SPEC.md` are on main at `5530c0633`. The unit
+dispatches from main once MSOLVE-10 merges (PR 2913 in its fix-pass
+CI), since both rewrite `mate/solve.rs`. LIB's
+`no-door-mints-mate-frame-from-face` follows by announcement.
 
 ## MSOLVE-10 MERGED (2026-09-20, PR 2913)
 
@@ -635,3 +678,111 @@ unit head. Closes `mate-clocking-has-no-gui-path` (both halves
 recorded); files `mate-band-fault-unreachable-on-a-mate`. Next:
 MSOLVE-9 dispatches from main; the exit walk's rows 10–11 close.
 
+
+## MSOLVE-9 dispatched (2026-09-20)
+
+Lane on `msolve/9-from-face` from main at `354ba67f6` (MSOLVE-10
+in), spec as ratified on PR 2895, with the orchestrator's notes on
+what MSOLVE-10 changed under it: a `FromFace` side is resolved at the
+insert door through the reach the door holds before `mate_coset`
+reads the frame and before the lever is formed, and DECLINED on
+replay exactly as the rider's lever is (the datum alone decided, the
+next solve decides the face); a face that moves or vanishes after
+insert is the solve's at evaluation (the doors decide edits, the
+solve decides states). Exit walk: row 11 MET on PR 2913, row 10 in
+flight. The walk goes to Ev as PROPOSED when MSOLVE-9 merges.
+
+## Announced seam from DOOR (2026-09-21) — PR 2984
+
+**`crates/editor-core/src/mate/member.rs`, one line.** DOOR's
+`the-third-datum-axis-phrase-lives-in-mate-member`: `axis_datum`'s
+`expected:` was the literal `"datum axis"` and is now
+`crate::eval::phrase::DATUM_AXIS`, the const composed at compile time
+from the family word so the phrase and the `found:` word beside it
+cannot drift. WIRE retired its two copies onto it earlier; **this was
+the third and last in the tree**, re-derived as a measurement rather
+than inherited from the row.
+
+**No refusal text moves.** The const expands to exactly `"datum axis"`,
+verified through `concat!(family_word!(datum), " axis")` before the
+change landed, so every assertion on that sentence stays green by
+construction — including your `msolve3_placer_refused` rows.
+
+**One thing to know about your unit tests in that module.** Four of
+`member.rs`'s eight rows build their expectation from the const while
+the source held a literal, so they were discriminating the gap between
+the two — proved by mutation: drifting the literal turned exactly those
+four red. **That gap is now closed, so those four no longer discriminate
+the phrase's value**; both sides are the same const. This is correct and
+is the point of one home, but it means the only things in the tree still
+pinning the user-visible sentence are two literals in
+`crates/editor-core/tests/` (`lib_tube_node.rs`'s `expected: "datum
+axis"` pattern and `msolve3_placer_refused.rs`'s `contains` check).
+**Those must stay literals** — a test naming the const could never catch
+a change to the const's expansion. The `phrase` module's rule is about
+construction sites and does not reach test assertions.
+
+`found:` is untouched and was already right — it comes from
+`crate::eval::node_value_kind`. The row explicitly fenced off the
+`node_operand`/`axis_datum` refactor, and the lane did not widen into
+it; the residue is filed on WIRE's slate as
+`node-operand-has-one-consumer-where-axis-datum-is-the-same-door`, where
+it records that the two doors **disagree about the seat** —
+`node_operand` drops what `node_value_kind` answers with, `axis_datum`
+carries it per MSOLVE-7. Worth your read, since half of it is your file.
+
+Signed (DOOR orchestrator).
+
+## MSOLVE-9 resumed on Opus; the wire amended; review tier DUAL (2026-09-24)
+
+The MSOLVE-9 lane stopped on a usage limit on 2026-09-20 with PR 2934
+open at `24643410b` and its run red four ways, all the unit's: the
+tour's `FromFace` insert through a refusing reach, an unswept
+`lever_arm()` caller behind `interval`, the float-lint gate on
+`mate.rs`, one ruff error. The branch also conflicts with main in
+`mate/solve.rs` and the MSOLVE-10 rows. A fresh lane carries it on
+Opus (Ev, 2026-09-23: every phase runs on Opus), from the pushed head
+and the PR body.
+
+**The spec's wire sentence is amended on the unit branch**
+(`bc3b8c55a`): `MateFrame` is externally tagged, no reader accepts the
+pre-arm bare frame, and the tracked documents that carry a mate are
+regenerated. The untagged read the spec cited as precedent was retired
+by Ev's ruling on PR 3123 (backward compatibility with older files is
+a reason to remove code), and PR 2702's `persist-no-backtracking` gate
+refuses the attribute under `editor-core`. PORT filed it here;
+it rides with MSOLVE-9. The spec is this program's, not text Ev
+signed: #2895 ratified A11 rule 5's sentence, and said the spec rode
+along for reading.
+
+**Review tier: DUAL** (`memories/orchestration-model.md`, protocol
+`docs/DUAL-REVIEW-PROTOCOL.md`). The unit changes a public type, the
+save format of every document that holds a mate, and the memo key's
+format; that is broad and hard to undo.
+
+Triage of three rows routed here while the orchestrator was idle:
+the untagged-wire row rides with MSOLVE-9; PROPS's escalation row and
+CHROME's `PlacerRefused` siting row become MSOLVE-11, specced after
+MSOLVE-9 merges (`plan.md` items 17–18). DOOR's note on
+`mate/member.rs` read: no refusal text moved, and the two literal
+assertions it names stay literals.
+
+The exit walk's draft leaves the orchestrator branch before this
+state-sync merges, since a draft walk on main would carry the status
+line Ev ruled out of diffs (2026-09-21). It stands at `b9e6ca0ebf8bf62eed493ab65f25584ca86486b1`
+(rows 1–9 and 11 MET, row 10 in flight) and returns in the `[ev]`
+PR that asks for its ratification once MSOLVE-9 and MSOLVE-11 merge.
+
+## MSOLVE-11 specced (2026-09-24)
+
+`docs/MSOLVE-11-SPEC.md`, written while the MSOLVE-9 lane works. Two
+measurements shaped it. `k_stats::Detached` is deliberately not
+`Clone`, so each solve decision gets exactly one home: the mate whose
+answer it decided. The fold's additions go to the added mate, and a
+pair's own verdicts go to the mate `Under` already names. And
+`coset::parallel`'s hand-minted escalation is reached only by a
+non-finite lever arm, since `|u × v · arm| ≤ arm` for unit witnesses.
+That arm skews every levered predicate silently, so the fix is a
+finite arm by construction at its one formation door, and the minted
+`Indeterminate` becomes unreachable rather than re-routed. Review
+tier: single, full.

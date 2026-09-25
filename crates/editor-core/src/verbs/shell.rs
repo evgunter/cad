@@ -27,23 +27,25 @@
 //! its four literals, and reading them off a struct is what keeps the
 //! lowering free of a shell-specific spelling.
 //!
-//! # The lane door
+//! # The door value
 //!
 //! The kernel door validates what it built with a CERTIFIED claim
 //! (`topo::shell_open`'s last act is the certified at-rest validator),
 //! so it is formed only at a scalar with certification rights — and
 //! not every evaluation scalar has them: a dual does not certify (the
 //! DL3 ruling), so no `Body<Dual<_>>` can be handed to the door at all.
-//! [`ShellLane`] is that fact as a trait, the `MinClearanceLane` shape:
-//! the certifying scalars run the seat's door, and a scalar without
-//! rights answers `None`, which the lowering refuses TYPED rather than
-//! building an unvalidated hollow.
+//! That fact is a VALUE and not a trait here: [`topo::ShellDoor`] is
+//! the door, its one constructor is bounded on the right, and
+//! [`topo::AtRestPolicy::shell_door`] is the one seam each scalar
+//! writes its answer at. The lowering reads that seam, hands the door
+//! to the seat, and refuses TYPED on [`None`] rather than building an
+//! unvalidated hollow.
 //!
 //! # The refusal fold
 //!
 //! `ShellError<T>` is the first kernel refusal reaching the document
 //! layer that carries lane scalars, and `NodeErrorKind` is scalar-free
-//! by construction. [`ShellLane::witness`] is the TOTAL fold to `f64`,
+//! by construction. [`fold_shell_error_at`] is the TOTAL fold to `f64`,
 //! arm by arm through every nested generic payload — no wildcard
 //! anywhere, so a new arm in any of the four kernel enums is a compile
 //! error here and never a silently dropped number. Each numeric field
@@ -54,10 +56,10 @@
 //! wrapped scalar the base's. Nothing here decides on the number — it
 //! is displayed and tagged — so no lane needs a bracket bound.
 
-use geom_core::{Decide, Real, Tol};
+use geom_core::Real;
 use std::sync::Arc;
 use topo::{Body, FaceKey, ReplaceFaceError, ShellError, ShellNaming};
-use verbs::{ScalarParam, Verb, VerbError, VerbOut, VerbRecord};
+use verbs::{ScalarParam, Verb, VerbRecord};
 
 use super::SlotJoin;
 use crate::lane::{BracketEnd, Lane};
@@ -143,119 +145,17 @@ pub(crate) fn shell<T: geom_core::Real>() -> ShellVerb<T> {
     }
 }
 
-/// **Which evaluation scalars can run the shell door**, as a trait
-/// (module docs): the seat's `run_shell` is formed only at a scalar
-/// with certification rights, and this is where each scalar says
-/// whether it has them — and, through [`Lane`], what its refusals'
-/// numbers read as.
+/// **The `f64` witness of a shell refusal at any scalar**: the total
+/// fold below, every field read at the end it declares through that
+/// scalar's own [`Lane::end`].
 ///
-/// `None` is an answer and never a fallback: it says this scalar
-/// cannot form the call, so the lowering refuses typed. Running the
-/// door is the whole of what a certifying scalar does here — every
-/// check and every refusal stays the kernel's.
-pub trait ShellLane: Lane {
-    /// Run the hollowing verb against its operand, or `None` at a
-    /// scalar that cannot certify.
-    fn run_shell(
-        verb: &Verb<Self>,
-        operand: &Body<Self>,
-        tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>>;
-
-    /// **This lane's `f64` witness of a shell refusal**: the total fold
-    /// (module docs), every field read at the end it declares through
-    /// this lane's own [`Lane::end`]. Provided once, because the arms
-    /// are the kernel's and the same at every lane; what differs per
-    /// lane is the end reading, and that is declared beside the lane's
-    /// rights.
-    fn witness(error: ShellError<Self>) -> ShellError<f64> {
-        fold_shell_error(error, Self::end)
-    }
-}
-
-impl ShellLane for f64 {
-    fn run_shell(
-        verb: &Verb<Self>,
-        operand: &Body<Self>,
-        tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
-        Some(verb.run_shell(operand, tol))
-    }
-}
-
-/// The recording scalar is `f64` with a sink attached, so it carries
-/// exactly what `f64` carries — here, the door.
-#[cfg(feature = "probe")]
-impl ShellLane for geom_core::Probe {
-    fn run_shell(
-        verb: &Verb<Self>,
-        operand: &Body<Self>,
-        tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
-        Some(verb.run_shell(operand, tol))
-    }
-}
-
-/// The certified interval scalar runs the door: its brackets are what
-/// the validator's certified claim is made of.
-#[cfg(feature = "interval")]
-impl ShellLane for geom_core::Interval {
-    fn run_shell(
-        verb: &Verb<Self>,
-        operand: &Body<Self>,
-        tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
-        Some(verb.run_shell(operand, tol))
-    }
-}
-
-/// **The symbolic tier over a certifying scalar** runs the door at
-/// `Sym<T>` itself, for the reason `PropsQuadLane` gives at its `Sym`
-/// impl: the tier changes how an identically-zero margin decides and
-/// nothing else, so wrapping a certifying base must not demote a
-/// certifying lane to a refusing one — the driver's leaf replay would
-/// otherwise stop hollowing the bodies it certifies.
-// `Sym<T>: Lane` is a predicate on the WRAPPER, stated rather than
-// derived from a bound on `T`: the lane identity is the wrapper's own
-// (`Lane` for `Sym<T>` reads its base), and keeping `T`'s one bound
-// the certification right is what keeps this record a sole bracket
-// bound rather than a compound one.
-impl<T> ShellLane for geom_core::Sym<T>
-where
-    T: geom_core::CertifiedBounds,
-    geom_core::Sym<T>: Decide + topo::PropsQuadLane + Lane,
-{
-    fn run_shell(
-        verb: &Verb<Self>,
-        operand: &Body<Self>,
-        tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
-        Some(verb.run_shell(operand, tol))
-    }
-}
-
-/// **A dual does not certify** (the DL3 ruling, unmoved), and the shell
-/// door's last act is a certified validation of what it built, so the
-/// call cannot be formed at any `Dual<T>` — the signature refuses it,
-/// not a run-time arm. The whole family answers `None`, and a document
-/// evaluated for sensitivities meets a typed refusal at its shell node
-/// rather than an unvalidated hollow.
-///
-/// Its witness is total for the same reason its door is absent: a dual
-/// never forms the call, so it never holds a `ShellError<Dual<_>>` to
-/// fold — the provided fold reads the value channel and is unreachable
-/// rather than a panic.
-impl<T: Lane> ShellLane for geom_core::Dual<T>
-where
-    geom_core::Dual<T>: Lane,
-{
-    fn run_shell(
-        _verb: &Verb<Self>,
-        _operand: &Body<Self>,
-        _tol: Tol,
-    ) -> Option<Result<VerbOut<Self>, VerbError<Self>>> {
-        None
-    }
+/// A free function and not a per-scalar method, because there is
+/// nothing per-scalar left to say: the arms are the kernel's and the
+/// same at every lane, and the end reading is already declared once,
+/// at [`Lane`]. A scalar that never forms the shell call still folds —
+/// it simply never holds a `ShellError` of its own to fold.
+pub(crate) fn fold_shell_error_at<T: Lane>(error: ShellError<T>) -> ShellError<f64> {
+    fold_shell_error(error, T::end)
 }
 
 /// **The total fold of a shell refusal to `f64`** (module docs), with
@@ -507,17 +407,16 @@ mod tests {
     fn the_fold_at_f64_is_the_identity_on_display() {
         let e: ShellError<f64> = ShellError::Thickness { thickness: -0.25 };
         let text = e.to_string();
-        assert_eq!(<f64 as ShellLane>::witness(e).to_string(), text);
+        assert_eq!(fold_shell_error_at(e).to_string(), text);
     }
 
     /// **Which end each field reports**, pinned on brackets whose two
     /// ends differ: the refused thickness and a clearance gap at their
     /// infimum, the needed wall at its supremum. A fold that read one
     /// end everywhere would red here on the field it got wrong.
-    #[cfg(feature = "interval")]
     #[test]
     fn the_interval_witness_reports_the_end_each_field_declares() {
-        use geom_core::{Interval, Point2};
+        use geom_core::{Interval, Point2, Tol};
         use profile::RawLoop;
         // The keys are carried verbatim by the fold; any two faces of
         // any body serve, so a unit cube's first two are read.
@@ -545,7 +444,7 @@ mod tests {
             gap: Interval::from_bounds(0.9, 1.1),
             needed: Interval::from_bounds(1.2, 1.3),
         };
-        match <Interval as ShellLane>::witness(e) {
+        match fold_shell_error_at(e) {
             ShellError::WallClearance { gap, needed, .. } => {
                 assert_eq!(gap, 0.9, "the gap reports its infimum");
                 assert_eq!(needed, 1.3, "the needed wall reports its supremum");
@@ -555,7 +454,7 @@ mod tests {
         let e: ShellError<Interval> = ShellError::Thickness {
             thickness: Interval::from_bounds(-0.2, 0.1),
         };
-        match <Interval as ShellLane>::witness(e) {
+        match fold_shell_error_at(e) {
             ShellError::Thickness { thickness } => {
                 assert_eq!(thickness, -0.2, "the thickness reports its infimum");
             }

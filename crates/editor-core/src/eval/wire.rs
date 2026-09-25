@@ -69,7 +69,7 @@ use topo::{
     DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
-use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
+use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
@@ -103,6 +103,9 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
+    /// The fragment groups the op's emitter formed
+    /// (`names::FragmentGroups`); empty for an op that forms none.
+    pub groups: Arc<names::FragmentGroups>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all — the same
@@ -118,9 +121,17 @@ impl<T: Decide> OpOut<T> {
         Self {
             payload,
             names,
+            groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
+    }
+}
+
+impl<T: Decide> OpOut<T> {
+    /// This output with the fragment groups its emitter formed.
+    fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
+        Self { groups, ..self }
     }
 }
 
@@ -216,7 +227,7 @@ where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + super::SectionScalar
-        + crate::verbs::shell::ShellLane,
+        + crate::lane::Lane,
 {
     match node {
         Node::Datum(d) => Ok(OpOut::plain(
@@ -412,7 +423,7 @@ where
         + crate::analysis::SeedScalar
         + crate::measure::MinClearanceLane
         + super::SectionScalar
-        + crate::verbs::shell::ShellLane,
+        + crate::lane::Lane,
 {
     let part = env
         .parts
@@ -484,6 +495,7 @@ where
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
+        groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
     })
@@ -630,7 +642,7 @@ fn compose_placed<T: Decide>(
 ///
 /// The kernel's own [`topo::transform::TransformError`] as
 /// [`NodeErrorKind::Transform`].
-fn place<T: Decide + geom_brep::PcurveFittedLane>(
+fn place<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
     body: &Body<T>,
     map: Option<&Affine3<T>>,
     by: RecipeNodeId,
@@ -1531,8 +1543,7 @@ fn wire_datum<T: Decide>(
 /// program replays through `profile::replay` — the driver, the ONLY
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
-/// yields the canonical form the program-anchor naming map is derived
-/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// yields the canonical form the naming anchor is derived from). Runs inside the node's verdict frame (`eval_node`) ahead of
 /// the op: structure decisions, the successor of the stored f64 bits,
 /// logged as the node's own. The validated form is kept: under the
 /// pinned lift it IS the op's value, lifted (`wire_profile`), so the
@@ -1601,9 +1612,9 @@ pub(crate) fn prepare_profile(
 /// still zero, and until seeding lands the capability is exercised one
 /// door down, at the program-resolve seam this function calls, which is
 /// where `editor-core`'s `m10_p_lift` suite drives it.
-/// The naming is pass 1's verbatim (PP4): names are program-structural
-/// indices, and the canonical permutation they hang off is pinned by
-/// the record, so `T`-valued geometry changes no name.
+/// The naming is pass 1's verbatim (PP4): names are canonical indices,
+/// and the canonical permutation they hang off is pinned by the record,
+/// so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     plane: profile::SketchPlane<T>,
@@ -1703,15 +1714,14 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
-/// `ProfileProgram::segment_radii`'s answer re-addressed from program
-/// segments to CANONICAL ones, which is what a wall record is keyed by.
+/// `ProfileProgram::segment_radii`'s answer laid out per CANONICAL loop
+/// and segment, which is what a wall record is keyed by.
 ///
-/// The hop is the anchor's, and only the anchor's: `LoopAnchor::segment`
-/// is the canonical → program reindexing the published names were
-/// rewritten through, so asking it for canonical segment `k` names the
-/// program segment the door answered about. Nothing here re-derives a
-/// permutation; the door already checked the evaluation's two records
-/// of this one against each other.
+/// The door already answers in canonical refs — the numbering every
+/// published name carries — so this is a lookup by position: canonical
+/// loop `l`, segment `k` is the ref `(l, k)`. Nothing here re-derives a
+/// permutation; the door checked the evaluation's two records of it
+/// against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
 /// records were minted from this program by the same pre-pass, so
@@ -1728,7 +1738,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
     pre.naming
         .loops
         .iter()
-        .map(|anchor| {
+        .enumerate()
+        .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
                 .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
                 .unwrap_or_else(|e| {
@@ -1744,8 +1755,9 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
             (0..anchor.len)
                 .map(|k| {
                     let want = ProfileEdgeRef {
-                        loop_index: anchor.program_loop,
-                        segment: anchor.segment(k),
+                        loop_index: u32::try_from(canonical_loop)
+                            .unwrap_or_else(|_| unreachable!("a profile's loop count fits in u32")),
+                        segment: k,
                     };
                     // FIRST match: one segment carries at most one
                     // emission, because each arc's bulge is set once
@@ -1761,24 +1773,6 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .collect()
         })
         .collect()
-}
-
-/// Applies the program-anchor rewrite to an emitted table (identity
-/// anchors skip the rebuild). A collision is an internal bug (the
-/// rewrite is a bijection per loop), refused typed.
-fn anchored(
-    table: Arc<NameTable>,
-    naming: &ProfileNaming,
-) -> Result<Arc<NameTable>, NodeErrorKind> {
-    if naming.is_identity() {
-        return Ok(table);
-    }
-    match anchor::remap_table(&table, naming) {
-        Some(t) => Ok(Arc::new(t)),
-        None => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "program-anchor rewrite collided (bijection invariant broken)",
-        })),
-    }
 }
 
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
@@ -1807,8 +1801,9 @@ fn anchored(
 /// # What it writes
 ///
 /// The body (moved out of the record), the name table (emitted from the
-/// record, then program-anchor rewritten — canonical → program indices,
-/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// record, its profile refs in canonical numbering — the one numbering
+/// every profile-consuming verb publishes), the provenance stamp on
+/// everything the sweep minted,
 /// and the per-edge parameter sources the verb's flow declares.
 // The 8th argument is the verb's correspondence — the parameter that
 // REMOVES duplication rather than adding a duty, exactly as
@@ -1816,7 +1811,11 @@ fn anchored(
 // the descent chain the attached tokens' scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_swept<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
     A,
 >(
     verb: &crate::verbs::sweep::ProfileVerb<T, A>,
@@ -1844,7 +1843,7 @@ fn wire_swept<
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, verb.foreign_record)?;
-    let table = anchored(out.table, &vp.naming)?;
+    let table = out.table;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
     // (D1/N6).
@@ -1874,7 +1873,11 @@ fn wire_swept<
 /// **Extrudes a profile along its sketch normal** — the distance slot
 /// read, and the generic lowering from there.
 fn wire_extrude<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -1924,7 +1927,11 @@ fn written_against(
 // for the frame rule and the operand profile's own expressions.
 #[allow(clippy::too_many_arguments)]
 fn wire_revolve<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     id: RecipeNodeId,
     profile: RecipeNodeId,
@@ -2192,7 +2199,7 @@ fn wire_hollow_tube<T: Decide + geom_brep::PcurveFittedLane>(
 /// undeclared-coincidence menu lift needs the operands'
 /// naming context, so [`refusal_menu`] intercepts it and delegates
 /// everything else here.
-fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
+fn verb_refused<T: crate::lane::Lane>(refusal: verbs::VerbError<T>) -> NodeErrorKind {
     match refusal {
         verbs::VerbError::Blend(sweep::blend::BlendRefusal { verb, error }) => {
             NodeErrorKind::Blend { verb, error }
@@ -2206,9 +2213,11 @@ fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>)
         // The kernel's error is generic over the lane scalar and this
         // enum is scalar-free, so the carriage is a TOTAL fold — every
         // arm, every nested payload, every number — declared by the
-        // lane beside its rights (`ShellLane::witness`), never a
-        // rendering or a drop.
-        verbs::VerbError::Shell(error) => NodeErrorKind::Shell(Box::new(T::witness(*error))),
+        // lane's own end reading (`crate::verbs::shell::
+        // fold_shell_error_at`), never a rendering or a drop.
+        verbs::VerbError::Shell(error) => {
+            NodeErrorKind::Shell(Box::new(crate::verbs::shell::fold_shell_error_at(*error)))
+        }
     }
 }
 
@@ -2279,7 +2288,11 @@ fn verb_refused<T: crate::verbs::shell::ShellLane>(refusal: verbs::VerbError<T>)
 // environment, read for the descent chain the token's scope is.
 #[allow(clippy::too_many_arguments)]
 fn wire_blend<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::blend::BlendVerb<T>,
     id: RecipeNodeId,
@@ -2348,7 +2361,7 @@ fn wire_blend<
 /// ([`crate::verbs::shell`]): resolve the frozen, ORDERED list of open
 /// faces through the target's name table into face keys, evaluate the
 /// thickness slot to `T`, build the kernel verb, run it through the
-/// seat's lane door, emit names from the birth record under THIS
+/// seat's shell door, emit names from the birth record under THIS
 /// node's id.
 ///
 /// # Refusals
@@ -2378,7 +2391,13 @@ fn wire_blend<
 // The 9 arguments are the blend lowering's: the correspondence, the
 // node and its operand, the payload, and the evaluation environment.
 #[allow(clippy::too_many_arguments)]
-fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
+fn wire_shell<
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
+>(
     verb: &crate::verbs::shell::ShellVerb<T>,
     id: RecipeNodeId,
     target: RecipeNodeId,
@@ -2397,11 +2416,14 @@ fn wire_shell<T: Decide + crate::verbs::shell::ShellLane>(
     // The verb's own declaration of where its scalar lands, read off
     // the value the correspondence just built (VERB-SEAT-DESIGN V1).
     let flow = built.param_flow();
-    let out = T::run_shell(&built, &body, tol)
-        .ok_or(NodeErrorKind::ShellLaneUnsupported {
+    // The door is the scalar's own answer, read at the ONE seam that
+    // holds it; a scalar that may not certify has none and refuses
+    // here rather than at an unvalidated hollow.
+    let door =
+        <T as topo::AtRestPolicy>::shell_door().ok_or(NodeErrorKind::ShellLaneUnsupported {
             lane: <T as crate::lane::Lane>::NAME,
-        })?
-        .map_err(verb_refused)?;
+        })?;
+    let out = built.run_shell(&body, tol, door).map_err(verb_refused)?;
     let rec = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
     let table = (verb.emitter)(id, target, &target_table, &out.body, &rec)
         .map_err(NodeErrorKind::Naming)?;
@@ -3070,7 +3092,11 @@ fn wire_assertion<T: Decide>(
 /// inside the kernel door and is reached through the verb door
 /// unchanged; nothing here re-derives the plane or its orientation.
 fn wire_split<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::split::SplitVerb<T>,
     id: RecipeNodeId,
@@ -3115,7 +3141,7 @@ fn wire_split<
     };
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let (ab, bb) = (as_body(&above), as_body(&below));
-    let table = (verb.emitter)(
+    let emitted = (verb.emitter)(
         id,
         ab.as_deref(),
         bb.as_deref(),
@@ -3127,7 +3153,10 @@ fn wire_split<
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+    Ok(
+        OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))),
+    )
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -3232,7 +3261,11 @@ fn wire_part<T: Decide>(
 // per pair verb: the verb constructor and the naming emitter.
 #[allow(clippy::too_many_arguments)] // one parameter per named input; strategy is the §4.4 door
 fn wire_boolean<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
@@ -3291,7 +3324,7 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let table = (verb.emitter)(
+            let emitted = (verb.emitter)(
                 id,
                 &out.body,
                 &naming,
@@ -3318,8 +3351,9 @@ fn wire_boolean<
                     kind,
                     contacts: Arc::new(contacts),
                 }),
-                table,
-            ))
+                emitted.table,
+            )
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))))
         }
     }
 }
@@ -3359,7 +3393,11 @@ fn wire_boolean<
 // named input, and the declare edge is one of them.
 #[allow(clippy::too_many_arguments)]
 fn wire_union<
-    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + crate::verbs::shell::ShellLane,
+    T: Decide
+        + geom_core::Bounds
+        + geom_brep::PcurveFittedLane
+        + crate::lane::Lane
+        + topo::AtRestPolicy,
 >(
     verb: &crate::verbs::boolean::PairVerb<T>,
     id: RecipeNodeId,
@@ -3399,6 +3437,8 @@ fn wire_union<
         Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
     };
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
+    let mut step_groups = Vec::with_capacity(rest.len());
     for (step, member) in rest.iter().enumerate() {
         let member_body = body_operand(results, *member)?;
         let member_table = Arc::new(
@@ -3413,9 +3453,15 @@ fn wire_union<
         // The accumulation is presented COLLAPSED. Its own rows are
         // `FromA`/`FromB`-headed, which is the fold's internal space and
         // denotes nothing outside it; a declaration answers what this
-        // node's refusal named, and a refusal names published rows
+        // node's refusal named, and a refusal names collapsed rows
         // (`union_refusal`). So the door reads the accumulation in the
-        // one space a caller can write.
+        // one space a caller can write. The collapse is not the whole of
+        // what the published table gets: `names::name_union` then
+        // renumbers the pieces of member EDGES over the finished body,
+        // which a step that has not finished does not have. A declared
+        // pair cannot name an edge at all: `declared_step` admits face
+        // and vertex pairs only, and refuses any other
+        // (`DeclareUnsupportedPair`).
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
@@ -3470,7 +3516,7 @@ fn wire_union<
                 // tables are the member-keyed views, so an error this
                 // step raises about an operand is about a row in this
                 // node's space.
-                acc_table = (verb.emitter)(
+                let emitted = (verb.emitter)(
                     id,
                     &out.body,
                     &naming,
@@ -3487,11 +3533,34 @@ fn wire_union<
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                acc_table = emitted.table;
+                step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
             }
         }
     }
-    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    // The members' own bodies and tables: where each member edge the
+    // published table ranks pieces of is defined (`name_union`).
+    let member_bodies = members
+        .iter()
+        .map(|&m| {
+            Ok((
+                m,
+                body_operand(results, m)?,
+                &value_of(results, m)?.name_table,
+            ))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let member_views: Vec<names::UnionMember<'_, T>> = member_bodies
+        .iter()
+        .map(|(node, body, table)| names::UnionMember {
+            node: *node,
+            body,
+            table,
+        })
+        .collect();
+    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
+        .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body, and not per fold step: the stamp
     // numbers a node's minted descriptions from zero, so a second pass
@@ -3525,7 +3594,8 @@ fn wire_union<
             contacts,
         }),
         table,
-    ))
+    )
+    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
 }
 
 /// One declared pair as the recipe carries it: the two SITED
@@ -3829,9 +3899,18 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
-/// [`names::collapse_name`], the same rewrite the node's own table gets
-/// from `name_union`, so a refusal denotes member-space entities and
-/// nothing else.
+/// [`names::collapse_name`], the collapse the node's own table gets from
+/// `name_union`, so a refusal denotes member-space entities and nothing
+/// else.
+///
+/// The collapse is not all `name_union` does: it then numbers the
+/// pieces of each member EDGE by the cells the finished body cuts it
+/// into, and has seam vertices cite member edges whole. A refusal is
+/// raised before there is a finished body, so a member-edge piece it
+/// carried would keep the fold's rank, which no published table holds.
+/// So one refuses as an emission bug ([`UNION_REFUSAL_FOLD_RANKED_EDGE`])
+/// rather than being handed out; today none reaches it, since
+/// `refusal_menu` resolves face keys and a flush finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was
@@ -3855,7 +3934,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// emission bug. The emission arm below is reached only when the
 /// COLLAPSE itself refuses, which is the fold's own table being
 /// malformed.
-fn union_refusal<T: crate::verbs::shell::ShellLane>(
+fn union_refusal<T: crate::lane::Lane>(
     id: RecipeNodeId,
     members: &[RecipeNodeId],
     a_table: &crate::names::NameTable,
@@ -3889,6 +3968,15 @@ fn union_refusal<T: crate::verbs::shell::ShellLane>(
     // so there is nothing for the sited arm below to carry.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
+            // A piece of a member edge here carries the FOLD's rank,
+            // which the published table renumbers over the finished
+            // body: handing it out would name nothing. No flush finding
+            // names an edge today; if one ever does, it refuses loudly.
+            if names::is_fold_ranked_member_edge(row) {
+                return NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                });
+            }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
                 diag,
@@ -4011,6 +4099,10 @@ fn sited_member(
     })
 }
 
+/// A union's refusal named a piece of a member edge by the fold's rank.
+const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's rank, which no published table holds";
+
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
     "a union fold's refusal names a row the member-keying rule cannot collapse";
@@ -4038,7 +4130,7 @@ const UNION_REFUSAL_FOREIGN: &str =
 /// ids: the n-ary union folds the same verb over an ACCUMULATION that
 /// is no node's result, and the menu reads nothing else about an
 /// operand.
-fn refusal_menu<T: crate::verbs::shell::ShellLane>(
+fn refusal_menu<T: crate::lane::Lane>(
     a: (RecipeNodeId, &crate::names::NameTable),
     b: (RecipeNodeId, &crate::names::NameTable),
     err: verbs::VerbError<T>,
@@ -4579,7 +4671,7 @@ pub(crate) fn transform_map<T: Decide>(
 /// `Instances` this holds body by body because a row's output-body
 /// index is the instance index and the i-th output body is the i-th
 /// input body placed. Stamps: [`compose_placed`].
-fn wire_transform<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_transform<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     results: &Results<T>,
@@ -4711,7 +4803,7 @@ fn stepped_map<T: Decide>(
 /// arithmetic is [`names::flat_body_index`], which the name table is
 /// keyed by too: every master name wraps `Instance(j)` per placement
 /// (A8/N1), and key-stability means instance keys equal master keys.
-fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
+fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane + topo::AtRestPolicy>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4781,7 +4873,9 @@ fn wire_pattern<T: Decide + geom_brep::PcurveFittedLane>(
 /// node, which may hand back the prototype verbatim for its identity
 /// instance, a placed union has no reason to special-case a map that an
 /// explicit rule need not make the identity.
-fn wire_placed_union<T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane>(
+fn wire_placed_union<
+    T: Decide + geom_core::Bounds + geom_brep::PcurveFittedLane + topo::AtRestPolicy,
+>(
     id: RecipeNodeId,
     input: RecipeNodeId,
     kind: &PatternKind,
@@ -4899,7 +4993,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -4924,8 +5018,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // the same C6/D9 pipeline the profile node runs. The profile's own
     // validation door still runs first, so a bad section reads as a
     // profile error at the NODE (the §2 compatibility contract) before
-    // the library door re-gates it — and the f64 canonical form yields
-    // the program-anchor naming map for the loft emitter's refs.
+    // the library door re-gates it.
     let resolved = program
         .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
@@ -4980,7 +5073,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
-    Ok((pre.profile_f64.loops, place, pre.naming))
+    Ok((pre.profile_f64.loops, place))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -5004,23 +5097,10 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    let mut first_naming = ProfileNaming::default();
-    for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
+    for pid in profiles {
+        let (chain, place) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        if i == 0 {
-            // The loft emitter's profile refs are canonical (loop,
-            // segment) indices of the SECTION combinatorics; sections
-            // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table. PINNED LIMITATION
-            // (reported; review NOTE): a later section authored
-            // rotated/reversed relative to section 0 anchors to
-            // section 0's map, not its own — acceptable while the
-            // kernel requires corresponding sections; revisit if loft
-            // ever accepts per-section reparametrization.
-            first_naming = naming;
-        }
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5031,9 +5111,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
-    // structural handoff is dropped (the extrude idiom).
+    // structural handoff is dropped (the extrude idiom). The refs are
+    // canonical (loop, segment) indices, and the skin paired canonical
+    // segment `k` of every section into wall `k`: canonical traversal
+    // from each loop's AUTHORED start, so wall `k` is every section's
+    // own canonical segment `k` — the numbering every verb publishes.
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),

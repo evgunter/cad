@@ -3,7 +3,8 @@
 the name table a verb emits, and the names that vanish from it
 
 Opened 2026-09-20 by WIRE's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size). Picked up by an orchestrator on
+2026-09-23.
 
 ## The slate
 
@@ -35,8 +36,8 @@ twice. The two `E` rows are drive-bys in `names/emit.rs`.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. WIRE inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+No A/B arm for this program's dispatches (Ev, in chat, 2026-09-23: the
+account running it has no Fable usage left). Implementer and reviewer
+lanes are both Opus; every unit gets one reviewer lane carrying claims
+to falsify plus `docs/prompts/reviewer-style-lane.md`. No band ordinals
+are consumed from 8300-8399 while this holds.

@@ -8,8 +8,10 @@
 //! Module kind: **vocabulary** — it names no driver type and no
 //! `app`-only crate (`crates/viewer/README.md`, Module boundaries).
 
-use pncad::document::{Datum, Expr, Node, ProfileProgram, RecipeNodeId};
+use pncad::document::{Datum, Dimension, DimensionError, Expr, Node, ProfileProgram, RecipeNodeId};
 use pncad::prelude::StableName;
+use pncad::profile::SketchPlane;
+use pncad::select::SplitHalf;
 
 /// The literal payload of one add-datum form (GAUTH-1): plain numbers
 /// in canonical units. The SESSION mints the `Expr` literals and
@@ -101,6 +103,106 @@ pub enum DatumSpec {
     },
 }
 
+/// **Which frame an add-profile form draws on**: one that already
+/// exists, or the world XY frame the same submit mints.
+///
+/// A CHOICE ON THE PICK, not a second creation op, because the two
+/// arms differ in exactly one thing — whether the id the profile
+/// names has to be checked. [`Self::Existing`] is a pick like every
+/// other and is gated `WrongNodeKind` at the door;
+/// [`Self::NewXy`] names an id the same action minted a line earlier,
+/// so there is no pick to be wrong and nothing to gate. A second
+/// [`super::SessionOp`] would have re-declared `loops` and the whole
+/// insert-door refusal contract beside the one that has it, and would
+/// have had to answer the three exhaustive matches over the op
+/// vocabulary twice.
+///
+/// **What [`Self::NewXy`] must not become is an implicit frame.** It
+/// inserts an ordinary [`pncad::document::Datum::Frame`] node — visible
+/// in the tree, editable in the property panel, pickable by the next
+/// profile — and the profile that follows it names it by id. The two
+/// inserts are ONE committed action and therefore one undo.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ProfilePlane {
+    /// A `Datum::Frame` or `Datum::FaceFrame` node the document
+    /// already holds.
+    Existing(RecipeNodeId),
+    /// The world XY frame, minted by the same action: origin `(0, 0,
+    /// 0)`, sketch +x along world +x, sketch +y along world +y.
+    NewXy,
+}
+
+impl ProfilePlane {
+    /// **The one statement of which plane [`Self::NewXy`] means**: the
+    /// placement the chrome previews on, and the frame whose numbers
+    /// the same submit commits.
+    ///
+    /// The kernel's own mint ([`SketchPlane::xy`]), read back through
+    /// its four accessors — which that type's docs say project the
+    /// stored frame bitwise rather than recomputing it. So the preview
+    /// and the node are not two agreeing statements of the world xy
+    /// frame; they are one, and [`Self::world_xy`] below is a
+    /// transcription of it into `Expr`s rather than a second copy of
+    /// the numbers.
+    pub fn xy_placement() -> SketchPlane<f64> {
+        SketchPlane::xy()
+    }
+
+    /// The same plane as the `[f64; 3]` triples a FORM edits — the
+    /// add-datum frame form opens on these
+    /// (`Drafts::default`), and `world_xy` lowers them.
+    ///
+    /// Three triples rather than a `SketchPlane` because a form's
+    /// fields are numbers a person drags, and because the add-datum
+    /// form authors `u` and `v` and never a normal.
+    pub fn xy_numbers() -> ([f64; 3], [f64; 3], [f64; 3]) {
+        let plane = Self::xy_placement();
+        let (origin, u, v) = (plane.origin(), plane.u(), plane.v());
+        (
+            [origin.x, origin.y, origin.z],
+            [u.x, u.y, u.z],
+            [v.x, v.y, v.z],
+        )
+    }
+
+    /// The world XY frame as [`Self::NewXy`] commits it: the numbers
+    /// above, lowered to the literals [`Datum::Frame`]'s slots take.
+    ///
+    /// Spelled here rather than at the form, for [`DatumSpec`]'s
+    /// reason: the numbers a form authors are the vocabulary's, and
+    /// the session mints the literals. `Length` origin, `Scalar`
+    /// axes — the dimensions the node's own slots take.
+    ///
+    /// # Errors
+    ///
+    /// Never, in practice: every component is `0.0` or `1.0`, and
+    /// [`Expr::literal`] refuses only a non-finite one. It is a
+    /// `Result` so that "is this number authorable" keeps ONE home,
+    /// the expression door, rather than an `unwrap` here.
+    pub fn world_xy() -> Result<DatumSpec, DimensionError> {
+        let (origin, u, v) = Self::xy_numbers();
+        let lengths = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+            Ok([
+                Expr::literal(v[0], Dimension::Length)?,
+                Expr::literal(v[1], Dimension::Length)?,
+                Expr::literal(v[2], Dimension::Length)?,
+            ])
+        };
+        let scalars = |v: [f64; 3]| -> Result<[Expr; 3], DimensionError> {
+            Ok([
+                Expr::literal(v[0], Dimension::Scalar)?,
+                Expr::literal(v[1], Dimension::Scalar)?,
+                Expr::literal(v[2], Dimension::Scalar)?,
+            ])
+        };
+        Ok(DatumSpec::Frame {
+            origin: lengths(origin)?,
+            u: scalars(u)?,
+            v: scalars(v)?,
+        })
+    }
+}
+
 /// **The add-profile door's loop vocabulary**, re-exported from the
 /// module that owns it.
 ///
@@ -137,6 +239,33 @@ pub enum PatternRuleSpec {
         /// Angular step between instances (`Angle`).
         step: Expr,
     },
+}
+
+/// **Which body of a multi-body value one part form selects** — the
+/// authoring counterpart of [`pncad::document::PartSelect`], beside
+/// [`PatternRuleSpec`] for its reason: it names what a form authors,
+/// in the numbers a form holds.
+///
+/// **The index is an `i64`, not an `Expr`**, which is the whole
+/// difference from the node's own enum and the reason this type
+/// exists. `SlotId::Instance` is Count-typed and STRUCTURAL (spec D3),
+/// exactly as `SlotId::Count` is: it is edited afterwards through
+/// `SetStructuralParam` and never through the continuous door, so an
+/// authoring door that carried an `Expr` would be the one place a
+/// structural slot could be written continuously. The session mints
+/// the `Expr::count` literal ([`crate::combine::part_node`]), which is
+/// the same division of labour [`super::SessionOp::AddPattern`]'s
+/// count already takes.
+///
+/// One shape for BOTH selections rather than two ops, because the two
+/// arms differ in what is selected and in nothing else — the pick, the
+/// door and the node are one apiece.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PartSelectSpec {
+    /// The named half of a `Node::Split` value.
+    SplitHalf(SplitHalf),
+    /// The `i`-th instance of a `Node::Pattern` value.
+    Instance(i64),
 }
 
 /// Lower one datum spec to its node.

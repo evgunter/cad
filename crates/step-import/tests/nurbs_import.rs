@@ -446,6 +446,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                             source: geom_brep::props::PropsError::QuadratureBudget { .. },
                             ..
                         },
+                        ..
                     }]
                 ),
                 "the only surviving verdict is the fixed schedule's budget: {errors:?}"

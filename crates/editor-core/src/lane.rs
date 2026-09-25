@@ -2,11 +2,13 @@
 //! name, and how a bracket it carries reads as one `f64` when a
 //! refusal has to cross into the scalar-free document vocabulary.
 //!
-//! Every per-scalar capability seam — `MinClearanceLane`, `ShellLane`
-//! — needs both, and each used to spell the name for itself; this is
-//! the one home, so `"f64"`, `"Probe"`, `"Interval"`, `"Sym"` and
-//! `"Dual"` are written once and a refusal that names a lane cannot
-//! disagree with its neighbour about what the lane is called.
+//! Every per-scalar capability seam — `MinClearanceLane`, and the
+//! shell's refusal fold (`crate::verbs::shell::fold_shell_error_at`,
+//! a function over this trait rather than a seam of its own) — needs
+//! both, and each used to spell the name for itself; this is the one
+//! home, so `"f64"`, `"Probe"`, `"Interval"`, `"Sym"` and `"Dual"` are
+//! written once and a refusal that names a lane cannot disagree with
+//! its neighbour about what the lane is called.
 //!
 //! # The bracket end, declared by the field and read by the lane
 //!
@@ -65,7 +67,6 @@ impl Lane for geom_core::Probe {
 
 /// The certified interval scalar has two ends, and reports the one the
 /// field asked for.
-#[cfg(feature = "interval")]
 impl Lane for geom_core::Interval {
     const NAME: &'static str = "Interval";
 

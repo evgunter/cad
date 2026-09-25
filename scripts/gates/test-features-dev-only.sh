@@ -50,7 +50,7 @@
 # sits in, while the tables that matter nest arbitrarily deep
 # (`[target.'cfg(unix)'.dependencies]`, `[workspace.dependencies]`). A
 # grep would have to reconstruct the section context it just discarded.
-# stdlib-only python3, like check-interval-cfg-additive.py.
+# stdlib-only python3, like check-cache-prime-parity.py.
 #
 # THE ROUTES. This gate's self-test is derived from an enumeration of
 # every way a feature can be switched on for a non-dev edge, NOT from

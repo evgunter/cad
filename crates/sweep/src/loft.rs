@@ -194,45 +194,40 @@ impl fmt::Display for SlabPair {
 impl fmt::Display for LoftError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Self::Band(e) => write!(f, "loft: {e}"),
-            Self::Skin(e) => write!(f, "loft geometry: {e}"),
-            Self::Euler(e) => write!(f, "loft assembly: {e}"),
-            Self::CapPlane(e) => write!(f, "loft cap plane: {e}"),
-            Self::Pcurve(e) => write!(f, "loft pcurve mint: {e}"),
+            Self::Band(e) => write!(f, "{e}"),
+            Self::Skin(e) => write!(f, "{e}"),
+            Self::Euler(e) => write!(f, "an Euler operation of the assembly refused: {e}"),
+            Self::CapPlane(e) => write!(f, "an end cap is not planar: {e}"),
+            Self::Pcurve(e) => write!(f, "{e}"),
             Self::SeamStructure { source } => write!(
                 f,
-                "loft seam: a wall's boundary iso-curve failed to re-wrap (corrupt \
-                 skinned surface — kernel bug, not an input fault): {source}"
+                "a wall's boundary curve failed to re-wrap (kernel bug, not an input \
+                 fault): {source}"
             ),
             Self::SectionStructure => write!(
                 f,
-                "loft assembly: a section's loop/segment structure disagrees with the \
-                 skinned geometry, or two sections disagree with each other (kernel \
-                 bug, not an input fault)"
+                "a section's loop or segment structure disagrees with the skinned \
+                 geometry or with another section (kernel bug, not an input fault)"
             ),
             Self::ReversedStacking { slab } => write!(
                 f,
-                "loft {} definitely stack AGAINST section {slab}'s plane normal — the \
-                 builder orients caps and walls by forward stacking and does not guess. \
-                 The fold stopped at this pair and did not examine any later slab, so \
-                 it cannot say whether the rest of the list runs backwards too: inspect \
-                 the named pair. A wholly reversed list is named at slab 0, and \
-                 reordering it lofts the same solid",
+                "loft {} stack AGAINST section {slab}'s plane normal, and a loft does not \
+                 guess its direction. Recourse: reorder the sections so they stack \
+                 forward; this is the first reversed pair, and a wholly reversed list \
+                 lofts the same solid once reversed",
                 SlabPair(*slab)
             ),
             Self::DegenerateStacking { slab } => write!(
                 f,
-                "loft {} have a stacking displacement coincident with zero at tolerance \
-                 — a sliver-thin or in-plane slab has no orientable assembly",
+                "loft {} are not apart at tolerance (a sliver-thin or in-plane slab), so \
+                 the loft has no direction. Recourse: move the sections apart",
                 SlabPair(*slab)
             ),
-            Self::StackingEscalated { slab, source } => {
-                write!(
-                    f,
-                    "loft stacking classification escalated at {}: {source}",
-                    SlabPair(*slab)
-                )
-            }
+            Self::StackingEscalated { slab, source } => write!(
+                f,
+                "whether loft {} stack forward is too close to call: {source}",
+                SlabPair(*slab)
+            ),
         }
     }
 }
@@ -253,7 +248,7 @@ impl From<EulerOpError> for LoftError {
 /// The section was validated once, at the geometry door, and that
 /// verdict is what the walls were skinned from
 /// ([`LoftGeometry::canonical`]). Deciding the canonical form again
-/// here — loop roles, traversal sense, the lex-min start vertex, each
+/// here — loop roles, traversal sense, the start vertex, each
 /// segment's classification, each declared joint's tangency — would
 /// make the caps a SECOND canonicalization of the same data, agreeing
 /// with the walls' by determinism rather than by construction; and at
@@ -700,30 +695,19 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
 /// skinning degree in the section direction. Structure is `f64`
 /// (C6); the produced body is at `T`, lifted exactly.
 ///
-/// # Correspondence — read this before authoring a rotated section
+/// # Correspondence — the vertex order you wrote
 ///
-/// Sections are paired **by index over the CANONICAL loops**, not over
-/// the vertex order you wrote: [`profile::Profile::validate`] rotates every loop
-/// to its lex-min vertex first, and it is those loops
-/// [`loft_geometry`] matches like to like. Both halves are deliberate
-/// and each is documented at its own door; the consequence of the pair
-/// is not obvious and is worth stating here, because it is silent —
-/// the body builds and certifies at every tier.
-///
-/// **A section rotated relative to its neighbour can therefore be
-/// re-anchored, and the roll of the built body is the angle between
-/// CANONICAL loops rather than the angle you authored.** Worked
-/// example, executed rather than reasoned: the turning-orientation
-/// suite's authored-roll row lofts a square onto the same square
-/// rotated by `theta` about its own centre, and for `theta` in
-/// `(0, pi/2)` the rotation moves which vertex is lex-min, so the body
-/// rolls by `theta - pi/2` — a quarter turn nobody wrote.
-///
-/// If the correspondence matters to you, author it: place the sections
-/// so their canonical starts agree, or choose the vertex order that
-/// survives canonicalization. There is no argument to this door that
-/// states a pairing, by design — *"no honest way to guess a
-/// correspondence that was not given"* ([`loft_geometry`]).
+/// Sections are paired **by index over the canonical loops**, and the
+/// canonical form keeps each loop's AUTHORED start
+/// ([`profile::Profile::validate`] normalizes only the traversal sense),
+/// so segment `j` of every section is counted from the vertex you wrote
+/// first ([`loft_geometry`], "The correspondence is the author's").
+/// **A section rotated relative to its neighbour rolls the body by the
+/// angle you authored**: the turning-orientation suite's authored-roll
+/// row lofts a square onto the same square rotated by `theta` about its
+/// own centre, each written from the image of the other's start, and
+/// the body rolls by `theta`. To change the twist, start the section at
+/// a different vertex.
 ///
 /// **And the vertex order decides more than the pairing**: the whole
 /// surface's v-parameterization is the FIRST STRIP's, so a section
@@ -758,9 +742,9 @@ pub fn loft_body<T: Decide + geom_brep::PcurveFittedLane>(
 ///
 /// [`loft_body`]'s paragraph of that name applies, and lands softly
 /// here for a reason worth knowing: every section is the SAME profile,
-/// so canonicalization re-anchors all of them identically and the
-/// index pairing is the identity whatever the profile's vertex order
-/// was. What the canonical start still decides is which wall of the
+/// so every section canonicalizes identically and the index pairing is
+/// the identity whatever the profile's vertex order was. What the
+/// authored start still decides is which wall of the
 /// built body is which — the segment order the returned
 /// [`Lofted::side_faces`] is keyed in, and, through the first strip,
 /// the surface's v-parameterization ([`loft_body`]). The body's roll

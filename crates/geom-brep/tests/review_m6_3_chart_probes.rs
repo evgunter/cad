@@ -13,6 +13,7 @@
 
 use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::num::NonZeroUsize;
+use geom_core::Bounds;
 
 use crate::shared::tol::band;
 use geom::Curve3;
@@ -260,18 +261,12 @@ fn probe_sphere_envelope_dominates_a_corrupted_meridian() {
 #[test]
 fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     use geom_brep::props::quad::nurbs_patch_face;
-    use geom_core::RingInterval;
+    use geom_core::Interval;
     use geom_core::spline::KnotVector;
     let band = band();
     let eps = 1e-9;
     let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
-    let p = |x: f64, y: f64, z: f64| {
-        [
-            RingInterval::point(x),
-            RingInterval::point(y),
-            RingInterval::point(z),
-        ]
-    };
+    let p = |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
     // 4x4 cubic Bezier net, z warped hard (amplitude 3 on a unit
     // footprint - slopes of order 10).
     let z = [

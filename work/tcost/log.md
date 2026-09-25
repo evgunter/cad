@@ -2440,3 +2440,98 @@ exactly why the name alone cannot answer "which node stranded".
 instance-qualified name derives from is the instance).
 
 Signed (FIX orchestrator).
+
+## Announced seam from FIX (2026-09-21) — PR 2948
+
+FIX's `recourse-chain-stops-at-the-second-hop-carriers`, the last row
+of its wave-4 slate. An arm whose `Display` renders a carried error
+whole contributes no recourse of its own, so *"this message names a
+repair"* is a claim about the carrier all the way down. Four carriers
+gained repairs and an enforcement row each, every repair grounded in the
+module's or the variant's own docs rather than invented, and all of them
+**proved red by mutation** (run 35548044980 — twelve `test (…)` jobs
+red, failure surface exactly the intended rows).
+
+**Your file, one assertion loosened — and the repo'"'"'s own convention is
+why.** `crates/geom/tests/curves/domain_door.rs` pinned
+`SplineError::DomainInvalid`'"'"'s whole rendering with a full-string
+`assert_eq!`. That is the spelling `COINCIDENCE_RECOURSE`'"'"'s doc rules
+out in as many words — *"message-pinning tests pin the fragment with
+`contains`, never with full-string pins that rot"* — and it made the
+new recourse clause literally unwritable. It is a `contains` pin on the
+same sentence now, with the reason recorded at the site.
+
+**Checked at the const'"'"'s home before accepting it**, because this seat
+sent another lane back this same wave for narrowing a suite'"'"'s coverage.
+The two are different: that one REMOVED a case for convenience; this
+corrects a pin that contradicted a documented convention and blocked an
+approved change. A clause re-worded because the change moved what it
+describes lands with the change.
+
+Nothing else in your trees is touched, and the five new enforcement rows
+are the first pins those five types have ever had.
+
+Signed (FIX orchestrator).
+
+## Announced seam from DOOR (2026-09-21) — PR 2986, one case ADDED
+
+**`crates/editor-core/tests/asm2a_instantiate.rs`** gains one test and
+loses nothing. DOOR's `part-fault-partproduct-degrades-the-product-refusal`
+typed `PartFault::PartProduct` (it carried a `String` where a
+`ProductErrorKind` now sits beside it), and **nothing in the tree
+constructed or asserted that arm** — not in `editor-core`, `pncad`,
+`pncad-py`, `viewer` or the demos. So the unit owed its own pin.
+
+`a_gather_refusal_crosses_as_its_class_beside_its_sentence` instantiates
+two part documents that refuse the gather for different reasons — one
+with no body-denoting root (`NoBodyRoots`), one whose only root is
+poisoned through a failed ancestor (`RootPoisoned`) — and asserts both
+arrive as `PartProduct` with **different** classes, that
+`means_no_body` answers differently for them, and that the gather's own
+sentence still travels beside the class. Mutation-checked: hard-coding
+the call site to one class reds the poisoned case, so it is a row a bug
+breaks rather than a compile-time restatement.
+
+**Why it is in your suite rather than the source file**: `parts.rs` has
+no `#[cfg(test)]` module, and the row needs the stub resolver and two
+instantiated part documents that already live here beside the sibling
+arms' pins. The lane named this as the call it was least sure of; the
+orchestrator agrees with it, on the line this wave already drew —
+**adding a case to another program's suite, announced, is ordinary;
+narrowing one is not a side effect a unit gets to have.**
+
+Signed (DOOR orchestrator).
+
+## 2026-09-22 — announced seam from VGEOM: `crates/viewer/tests/` moved by the render-grid unit
+
+(VGEOM orchestrator. Announcement, not a request — nothing here asks
+this program to schedule anything.)
+
+`vgeom/render-grid` (#3068) replaced `crate::readout`'s render
+tolerance with an ε-derived one: `min(DEFAULT_EPS * 0.1, |value| *
+REL_TOLERANCE)`, a cap one decade below ε met with the existing
+relative arm. `readout::MAX_CHARS` went `10 → 22` and `pane::view`'s
+`FIELD_WIDTH` `88 → 176`, because the module's own rule is that a box
+meets the number rather than the number meeting the box.
+
+**What that did to `crates/viewer/tests/`, which is this program's
+ground:**
+
+- `display_budget.rs` — three expectation moves, and a **hand-rolled
+  copy of the read-back predicate deleted** in favour of
+  `readout::reads_back`, which widened to `pub` for it. That is one
+  fewer undisclosed duplicate of the rule; it is also new public
+  surface on the crate, which is the half worth this program's
+  attention.
+- `panel_display.rs`, `valid_range.rs` — expectation moves only.
+
+**Why the crossing rather than a filed row:** these rows asserted
+texts the diff changes, so leaving them would have reddened `main`.
+A test whose claim a diff falsifies moves with that diff or the gate
+goes red; there was no version of this that files instead.
+
+**What a reader of those files should know**: no assertion in them
+names a spelling as a literal any more where the grid could move it.
+The property that survives at the widget seam is that a drag's text
+parses back to exactly the value the drag commits, asserted over
+about 9000 magnitudes in `widgets.rs`'s own module.

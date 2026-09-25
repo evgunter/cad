@@ -4,7 +4,6 @@
 //! reviews found these re-derived five times over (their Q1); a copy
 //! per suite is a copy per suite of whatever a future change to the
 //! drive's whole-box shape has to be made in.
-#![cfg(feature = "interval")]
 #![allow(dead_code)]
 
 use std::time::Instant;
@@ -102,8 +101,15 @@ pub(crate) fn ceiling(
 
 /// **THE PER-PREDICATE SPLIT of one replay**: `predicate -> [theorem,
 /// sign-gated, registered, numeric]`, every predicate that decided at
-/// all. The one spelling of the table the pins, the evidence rows and
-/// the probes read; a pin asserts it whole (`assert_split`).
+/// all. The spelling of the DISCHARGE table that the pins, the
+/// evidence rows and the probes read; a pin asserts it whole
+/// (`assert_split`).
+///
+/// It collapses everything the numeric channel answered into one
+/// column, which is the right shape for a claim about what the TIER
+/// discharged and the wrong shape for a claim about what BLOCKED:
+/// [`blocked`] is that table, and the two are siblings over the same
+/// `shapes` rather than one table with a column nobody reads.
 pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]> {
     let mut table: BTreeMap<&'static str, [u64; 4]> = BTreeMap::new();
     for s in shapes {
@@ -116,6 +122,44 @@ pub(crate) fn split(shapes: &[DecisionShape]) -> BTreeMap<&'static str, [u64; 4]
         }] += 1;
     }
     table
+}
+
+/// **THE PER-PREDICATE BLOCKED TABLE of one replay**: for every
+/// predicate the numeric channel could not decide at least once,
+/// `(invalid, indeterminate, all)` — a clause-1 domain violation
+/// (`Decide for Sym<T>`'s `Invalid` arm, where the tier is never
+/// asked), an enclosure the band could not classify, and how many
+/// decisions that predicate made in all.
+///
+/// The `all` column is what keeps a zero honest: a replay escalates at
+/// its first blocked predicate and STOPS, so an `invalid` of zero is
+/// zero over the decisions that were seen, not over the document.
+pub(crate) fn blocked(shapes: &[DecisionShape]) -> BTreeMap<&'static str, (usize, usize, usize)> {
+    let mut table: BTreeMap<&'static str, (usize, usize, usize)> = BTreeMap::new();
+    for s in shapes {
+        let row = table.entry(s.predicate).or_default();
+        row.2 += 1;
+        match s.outcome {
+            ShapeOutcome::Invalid => row.0 += 1,
+            ShapeOutcome::Indeterminate => row.1 += 1,
+            _ => {}
+        }
+    }
+    table.retain(|_, (invalid, indeterminate, _)| *invalid > 0 || *indeterminate > 0);
+    table
+}
+
+/// The first `n` CHARACTERS of a rendering, with the full length said:
+/// a form that reaches the budget renders to megabytes, and what a
+/// reader needs is its head. Counted in characters at both ends — a
+/// residual carries `·`, `√` and `−`, so a byte length beside a
+/// character cut is two different numbers.
+pub(crate) fn head(s: &str, n: usize) -> String {
+    if s.chars().count() <= n {
+        return s.to_owned();
+    }
+    let cut: String = s.chars().take(n).collect();
+    format!("{cut}… [{} chars]", s.chars().count())
 }
 
 /// The split of `doc`'s NOMINAL replay under `rules` ([`split`] over
@@ -252,4 +296,61 @@ pub(crate) fn render_over_band(set: &[OverBand]) -> String {
         })
         .collect::<Vec<_>>()
         .join("\n")
+}
+
+/// How many `copysign(`/`abs(`/`sqrt(` atoms a rendered form spells,
+/// and how many of its TOP-LEVEL terms carry one — arithmetic on the
+/// render, which is what the census of a frozen kid's terms is.
+pub(crate) fn atom_census(rendered: &str) -> String {
+    let terms: Vec<&str> = rendered.split(" + ").collect();
+    let carrying = |needle: &str| terms.iter().filter(|t| t.contains(needle)).count();
+    format!(
+        "copysign {} in {} terms | abs {} in {} terms | sqrt {} | terms(top) {}",
+        rendered.matches("copysign(").count(),
+        carrying("copysign("),
+        rendered.matches("abs(").count(),
+        carrying("abs("),
+        rendered.matches("sqrt(").count(),
+        terms.len()
+    )
+}
+
+/// The DISTINCT `<name>(…)` atoms a render spells, each with its
+/// argument to the render's own nesting depth — balanced on the
+/// parentheses, so `copysign(1, (1) / (sqrt(…)))` comes back whole;
+/// one cut open by the render's width is kept as it stands and marked.
+/// What "the fold never fires" is READ from: an atom still standing in
+/// a rule-F-ON render is one the predicate declined, and its argument
+/// is the form it declined.
+pub(crate) fn distinct_atoms(rendered: &str, name: &str) -> Vec<String> {
+    let needle = format!("{name}(");
+    let mut out: Vec<String> = Vec::new();
+    let mut from = 0;
+    while let Some(i) = rendered[from..].find(&needle) {
+        let start = from + i;
+        let mut depth = 0usize;
+        let mut end = None;
+        for (j, ch) in rendered[start..].char_indices() {
+            match ch {
+                '(' => depth += 1,
+                ')' => {
+                    depth -= 1;
+                    if depth == 0 {
+                        end = Some(start + j + ch.len_utf8());
+                        break;
+                    }
+                }
+                _ => {}
+            }
+        }
+        let (atom, end) = match end {
+            Some(end) => (rendered[start..end].to_owned(), end),
+            None => (format!("{}…[cut]", &rendered[start..]), rendered.len()),
+        };
+        if !out.contains(&atom) {
+            out.push(atom);
+        }
+        from = end;
+    }
+    out
 }

@@ -52,6 +52,8 @@ mod bool_bodies;
 mod booleans;
 mod bossplate;
 mod bud;
+mod chain;
+mod chaintol;
 mod checks;
 mod crosslap;
 mod curvedcut;
@@ -66,6 +68,7 @@ mod klein;
 mod letterforms;
 mod lily;
 mod mate7a_r2_probes;
+mod mcchain;
 mod mcplate;
 mod plate;
 #[cfg(feature = "probe")]
@@ -78,7 +81,6 @@ mod skinned;
 mod teapot;
 #[cfg(feature = "budget")]
 mod tessbudget;
-#[cfg(feature = "interval")]
 mod tolerance;
 mod torusvessel;
 mod tube;
@@ -445,9 +447,7 @@ fn run_body(
     // tier 3's is the sign and a continuation.
     let measured = match &sb.contacts {
         Some(contacts) if sb.at_rest => {
-            match pncad::topo::validate_pseudomanifold_certificate_certified(
-                &sb.body, contacts, tol,
-            ) {
+            match pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol) {
                 Ok(props) => {
                     println!("   [{label}] tier-3' at rest: every declaration certified");
                     Measured::Number(props)
@@ -468,7 +468,7 @@ fn run_body(
             }
         }
         Some(contacts) => Measured::Number(
-            pncad::topo::validate_pseudomanifold_certificate_certified(&sb.body, contacts, tol)
+            pncad::topo::validate_pseudomanifold_certificate(&sb.body, contacts, tol)
                 .unwrap_or_else(|e| {
                     panic!("{label}: tier-3' (declared-contact) validation failed: {e:?}")
                 }),
@@ -962,20 +962,9 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     );
     checks::narration(tol);
 
-    // The tolerance cell (M10-6 §6): narration-only, and behind the
-    // `interval` feature because its whole subject is the certified
-    // scalar's leaves. A tour built without the feature says so rather
-    // than silently walking one scene fewer.
-    #[cfg(feature = "interval")]
-    {
-        println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
-        tolerance::narration(tol);
-    }
-    #[cfg(not(feature = "interval"))]
-    println!(
-        "\n-- the two-hole plate (M10/E10) is SKIPPED: build with `--features interval`, \
-         whose certified scalar is the cell's entire subject --"
-    );
+    // The plate's certified tolerance cell is not walked here: it runs in
+    // `demo-tour certified` ([`certified_cells`]), which
+    // `tests/eps_regression.rs` runs at every ε row.
 
     println!(
         "\n-- the bench (the assembly layer: pinned part documents, patterns, mates, \
@@ -986,13 +975,24 @@ fn walk_tour(visit: &mut dyn FnMut(&Stop), work: &std::path::Path, tol: Tol) {
     }
 }
 
+/// The two certified cells: the plate's tolerance study (M10-6 §6) and
+/// the chain on the certified lane (E6/E12). Narration only, and off
+/// the scene walk — their subject is the certified scalar's leaves, not
+/// a body, and they cost minutes where the walk's scenes cost seconds.
+fn certified_cells(tol: Tol) {
+    println!("\n-- the two-hole plate (M10/E10: a tolerance study, certified and advisory) --");
+    tolerance::narration(tol);
+    println!("\n-- the chain on the certified lane (E6/E12: one leaf per link count, measured) --");
+    chaintol::narration(tol);
+}
+
 fn main() {
     // The tour is an entry point: it mints the run's tolerance witness
     // once, here, and hands it to every scene it walks.
     let tol = Tol::witness();
     let outdir = std::env::args().nth(1).expect(
         "usage: demo-tour <outdir> | demo-tour gallery [dir] | \
-                 demo-tour die-corpus <file> | \
+                 demo-tour certified | demo-tour die-corpus <file> | \
                  demo-tour k-probe [out.csv] | \
                  demo-tour tess-budget [out.csv] [--deviation]",
     );
@@ -1015,6 +1015,11 @@ fn main() {
     // replays at every CI ε row, so this door writes the empty
     // document plus the whole model as an edit log (the derivation and
     // its exactness assert live at `corpus_text`).
+    // The certified cells ([`certified_cells`]) and nothing else.
+    if outdir == "certified" {
+        certified_cells(tol);
+        return;
+    }
     if outdir == "die-corpus" {
         let path = std::env::args()
             .nth(2)
@@ -1109,6 +1114,22 @@ fn main() {
         mc_path.display(),
         svg.len()
     );
+
+    // The chain's density cell (`mcchain`), beside the plate's and for
+    // the same reason: a second 2-D picture the tour draws itself.
+    println!("\n-- the MC density chain (E11.1: four links, an angular error at every joint) --");
+    let chain_svg = mcchain::narration(tol);
+    let chain_path = mc_dir.join("chain-density.svg");
+    std::fs::write(&chain_path, &chain_svg).expect("write the chain density sheet");
+    println!(
+        "   wrote {} ({} bytes) — compose with demos/render-mc.sh",
+        chain_path.display(),
+        chain_svg.len()
+    );
+
+    // The chain's certified half runs in `demo-tour certified`
+    // ([`certified_cells`]), which `tests/eps_regression.rs` runs at every
+    // ε row.
 
     let json = format!("[\n{}\n]\n", scenes.join(",\n"));
     std::fs::write(format!("{outdir}/scenes.json"), json).expect("write scenes.json");

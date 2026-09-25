@@ -4,7 +4,6 @@
 //!
 //! Sweep shape ([[test-suite-cost]]): static fixtures, no seed. Rows
 //! marked EVIDENCE-ONLY print and gate nothing.
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
@@ -129,8 +128,7 @@ fn r1_slab_ceiling_and_first_refusal() {
     // bracket (ceiling + δ) — never a drive's first refusal at a wider
     // box, where several predicates are over the band at once and the
     // name is evaluation order (M10's closed
-    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`,
-    // `docs/DOC-LEDGER.md` sweep 13).
+    // `first-refusal-at-twice-the-ceiling-is-an-order-artefact`).
     // The wider boxes are read the same way, as SETS, labelled by
     // their half-width: the regimes the widening finding names.
     for half in [hi, 0.5, 0.75, 0.999] {
@@ -358,10 +356,9 @@ fn r1_the_levers_datum_term_is_pure_and_has_no_floor() {
 /// parameter) at `±w / 4`, extruded by `w / 10`; the web between the
 /// holes is measured and asserted. Arcs (the hole rims), a division, a
 /// macroscopic box.
-// Read only by `m10_7_r1_census_probe`, which is gated on `probe` as
-// well as `interval`; in an interval-only build the fixture is dead and
-// saying so is cheaper than gating the function to match a sibling
-// module's cfg.
+// Read only by `m10_7_r1_census_probe`, which is gated on `probe`; in a
+// build without it the fixture is dead and saying so is cheaper than
+// gating the function to match a sibling module's cfg.
 #[cfg_attr(not(feature = "probe"), allow(dead_code))]
 pub(crate) fn bracket_pub(
     half_width: f64,

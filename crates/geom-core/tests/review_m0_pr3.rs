@@ -210,7 +210,7 @@ fn display_messages_and_error_objects() {
         zero: 1.0,
         escalate: 0.5,
     });
-    assert!(boxed_band.to_string().contains("invalid band"));
+    assert!(boxed_band.to_string().contains("the band's"));
 }
 
 #[test]
