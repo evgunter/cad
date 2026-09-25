@@ -9,7 +9,7 @@
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec3};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanResult, BooleanResultKind, subtract, union};
 
@@ -88,11 +88,11 @@ fn revolve_y() -> sweep::RevolveAxis<f64> {
 /// (V2 E2 F2), the seam meridian and its π copy as `Circle` carriers,
 /// the poles as ordinary vertices. Exact volume 4π/3.
 pub fn ball() -> Body<f64> {
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     use sweep::{Revolution, revolve};
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -125,11 +125,11 @@ pub fn cone() -> Body<f64> {
 /// fully — a single `Surface::Torus`, both meridians `Seam`. Exact
 /// volume 2π²Rr² = π².
 pub fn donut() -> Body<f64> {
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     use sweep::{Revolution, revolve};
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(2.0, -0.5), 1.0),
-        ProfileVertex::new(Point2::new(2.0, 0.5), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -232,11 +232,11 @@ pub fn washer() -> Body<f64> {
 /// the corpus's only ELLIPSE carrier. Exact volume π·1.25 (the tilted
 /// plane passes through the axis midpoint, so it halves the cylinder).
 pub fn cut_cylinder() -> Body<f64> {
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     use topo::splitting::{SplitPart, SplitPlane, split};
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-1.0, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(1.0, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 1.0),
+        (Point2::new(1.0, 0.0), 1.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -263,7 +263,7 @@ pub fn cut_cylinder() -> Body<f64> {
 /// face. Exact volume 16 + π·0.25·0.6.
 pub fn boss_union() -> Body<f64> {
     use geom_core::Affine3;
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     let plate_loop = ProfileLoop::polygon([
         Point2::new(0.0, 0.0),
         Point2::new(4.0, 0.0),
@@ -282,11 +282,7 @@ pub fn boss_union() -> Body<f64> {
         let th: f64 = deg.to_radians();
         Point2::new(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let boss_loop = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let boss_loop = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
     let boss_profile = Profile::new(sketch, vec![boss_loop])
         .validate(Tol::witness())
@@ -309,11 +305,11 @@ pub fn notched() -> Body<f64> {
     let b = core::f64::consts::FRAC_PI_8.tan();
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), b),
-        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(2.0, 1.5), -b),
-        ProfileVertex::new(Point2::new(0.0, 1.5), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     extrude(
         &validated(SketchPlane::xy(), lp),
@@ -335,7 +331,7 @@ pub fn two_stub_complement() -> Body<f64> {
     use core::f64::consts::PI;
 
     use geom_core::Affine3;
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     let plate = extrude(
         &validated(
             SketchPlane::xy(),
@@ -357,7 +353,7 @@ pub fn two_stub_complement() -> Body<f64> {
         let th = 2.0 * PI / 3.0 * i as f64;
         Point2::new(1.2 + r * th.cos(), 1.7 + r * th.sin())
     };
-    let boss_loop = ProfileLoop::new((0..3).map(|i| ProfileVertex::new(at(i), bulge)).collect());
+    let boss_loop = bulge_loop((0..3).map(|i| (at(i), bulge)).collect());
     let sketch = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let boss = extrude(
         &Profile::new(sketch, vec![boss_loop])
@@ -529,7 +525,7 @@ pub fn die_pips() -> Body<f64> {
     use core::f64::consts::PI;
 
     use geom_core::Affine3;
-    use profile::ProfileVertex;
+    use profile::test_support::bulge_loop;
     use sweep::{Revolution, RevolveAxis, revolve};
     use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 
@@ -540,9 +536,9 @@ pub fn die_pips() -> Body<f64> {
 
     // A radius-PIP_R ball at the origin, poles on the sketch axis.
     let unit_ball = || -> Body<f64> {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(0.0, -PIP_R), 1.0),
-            ProfileVertex::new(Point2::new(0.0, PIP_R), 0.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(0.0, -PIP_R), 1.0),
+            (Point2::new(0.0, PIP_R), 0.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())
