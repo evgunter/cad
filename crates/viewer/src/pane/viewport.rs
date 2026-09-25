@@ -906,20 +906,20 @@ mod tests {
         viewer_button, viewer_modifiers,
     };
     use crate::camera::{Camera, CameraOp, fold_recorded};
+    use crate::display::DisplayView;
     use crate::frame::{self, product_badge};
     use crate::idpass;
     use crate::input::{self, InputMap, PointerButton, ViewportEvent, ViewportSize};
     use crate::marks;
     use crate::pickcache::{self, NotIndexed};
-    use crate::display::DisplayView;
     use crate::pickindex::{IdMap, PickError, PickIndex, PickKinds, PictureKey};
-    use pncad::select::HitTestError;
     use crate::props::SlotValue;
     use crate::scene::{self, DisplayTolerance};
     use crate::session::{DocSession, SessionOp};
     use crate::sketch::PreviewLoop;
     use pncad::document::SlotId;
     use pncad::geom_core::Tol;
+    use pncad::select::HitTestError;
 
     fn framed() -> Camera {
         Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("the plate frames")
@@ -1381,9 +1381,13 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report =
-            idpass::disagreement(&index, nothing, Some(serial), Ok(std::slice::from_ref(&named)))
-                .expect("nothing-under-the-cursor against a named face is a disagreement");
+        let report = idpass::disagreement(
+            &index,
+            nothing,
+            Some(serial),
+            Ok(std::slice::from_ref(&named)),
+        )
+        .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(report.from_gpu, None, "the id pass answered nothing");
         assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
