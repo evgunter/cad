@@ -42,58 +42,77 @@ fn volume(ev: &editor_core::Evaluation<f64>, id: RecipeNodeId) -> f64 {
 }
 
 // ---------------------------------------------------------------------
-// A union's refusal against a MERGED row of the accumulation.
+// A contact against a MERGED row of the accumulation.
 // ---------------------------------------------------------------------
 
-/// **A contact against a merged CAP is refused sited at a
-/// constituent.** `a` and `c` fuse at step 1 (declared), so the
-/// accumulation's top is one `Merged({a.capEnd, c.capEnd})` row; `d`
-/// rests on that merged row at step 2, undeclared. The merged row is
-/// the fold's own and has no site, so the refusal takes the
-/// constituent whose member comes first in the list and carries the
-/// whole set beside it.
+/// **A contact against what the fold merges is refused pairwise, naming
+/// two member faces.** `a` and `c` are declared flush, so the fold
+/// merges their tops into one `Merged({a.capEnd, c.capEnd})` row; `d`
+/// rests on both, undeclared. Contact is judged between members before
+/// the fold (DM4), so in every order the refusal names `a`'s top and
+/// `d`'s bottom, the first touching pair by node id, and carries no
+/// merged set: no refusal names a row the fold minted.
 #[test]
-fn a_union_refusal_against_a_merged_cap_is_sited_at_a_constituent() {
+fn a_contact_against_a_merged_cap_is_refused_between_two_members() {
     let doc = ProfileDoc::empty_derived("r1_merged_refusal", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
-    let pairs = flush_pairs(&doc, (a, a), (c, c));
-    let (doc, union, _) = declared_union(doc, &[a, c, d], pairs);
-    let ev = run(&doc);
-    let got = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclaredContact {
-        finding, merged, ..
-    }) = got
-    else {
-        panic!(
-            "a user's undeclared contact against a merged row is not reported as an \
-             UndeclaredContact finding: {got:?}"
-        )
-    };
-    assert_eq!(
-        merged.0.iter().map(|r| r.at).collect::<Vec<_>>(),
-        vec![a, c],
-        "the constituents, in member order"
-    );
-    assert_eq!(finding.pair.0, merged.0[0]);
-    assert_eq!(finding.pair.1.at, d);
+    for order in [[a, c, d], [d, c, a], [c, d, a]] {
+        let (doc, union, _) =
+            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (c, c)));
+        let ev = run(&doc);
+        let got = failure(&ev, union);
+        let Some(NodeErrorKind::UndeclaredContact {
+            finding, merged, ..
+        }) = got
+        else {
+            panic!("{order:?}: expected the pairwise refusal, got {got:?}")
+        };
+        assert_eq!(
+            finding.pair.0,
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            "{order:?}"
+        );
+        assert_eq!(
+            finding.pair.1,
+            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
+            "{order:?}"
+        );
+        assert!(
+            merged.0.is_empty() && merged.1.is_empty(),
+            "{order:?}: {merged:?}"
+        );
+    }
 }
 
-/// **Declaring the contact through a CONSTITUENT of the merged row,
-/// sited at its member, resolves through the look-through** — which
-/// is what makes the refusal above actionable.
+/// **Both member contacts declared, the fold resolves them through the
+/// merge**: at `d`'s step `a`'s and `c`'s tops are one merged row, and
+/// each declaration rewrites to it (the look-through). Declaring only
+/// `(c, d)` leaves `(a, d)` undeclared, and that refuses.
 #[test]
-fn a_merged_row_contact_is_declared_through_a_constituent() {
+fn a_merged_row_contact_is_declared_through_its_constituents() {
     let doc = ProfileDoc::empty_derived("r1_merged_declared", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, d) = block(doc, (0.2, 1.3), (0.2, 0.8), 1.0, 0.5);
+    let rests = |m: RecipeNodeId| {
+        (
+            SitedRef::new(m, fname(m, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
+        )
+    };
     let mut pairs = flush_pairs(&doc, (a, a), (c, c));
-    pairs.push((
-        SitedRef::new(c, fname(c, RoleSeg::Cap(CapEnd::End))),
-        SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
-    ));
+    pairs.push(rests(c));
+    let (only_c, union, _) = declared_union(doc.clone(), &[a, c, d], pairs.clone());
+    let ev = run(&only_c);
+    assert!(
+        matches!(failure(&ev, union), Some(NodeErrorKind::UndeclaredContact { finding, .. })
+            if finding.pair.0.at == a && finding.pair.1.at == d),
+        "{:?}",
+        failure(&ev, union)
+    );
+    pairs.push(rests(a));
     let (doc, union, _) = declared_union(doc, &[a, c, d], pairs);
     let ev = run(&doc);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));

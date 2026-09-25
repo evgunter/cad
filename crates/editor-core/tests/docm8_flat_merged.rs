@@ -364,31 +364,58 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 // `a_declared_pair_side_that_is_a_bare_name_does_not_load` is what
 // stands in its place.
 
-/// **A member face the fold consumed WITHOUT a merge keeps the
-/// vanished refusal.** `a`'s x = 1 wall lies inside `big` and is gone
-/// after step 1 — in no table and in no merged row's set — so a pair
-/// naming it at step 2 is refused as the vanished name it is, exactly
-/// as before the look-through existed.
+/// **A member face another member contains whole satisfies its declared
+/// pair, and a declaration the geometry contradicts refuses in every
+/// order.** `a`'s x = 1 wall lies inside `big` and is gone after
+/// `big`'s step, in no table and in no merged row's set, with no
+/// fragment descending from it.
+///
+/// Against `touch`, whose x = 1 wall rests on it inside `big`, the
+/// pair is a real contact, certified pairwise, and the fold has nothing
+/// left to back it with: satisfied, and the union fuses.
+///
+/// Against `far`, whose x = 6 wall is nowhere near, the declaration
+/// claims a contact the geometry contradicts. The pair is judged before
+/// the fold although the two boxes are disjoint, because it carries a
+/// declaration, so it refuses as the pair boolean does in every order,
+/// including the ones where `big` has consumed `a`'s wall first.
 #[test]
-fn a_member_face_in_no_table_and_no_merged_row_keeps_the_vanished_refusal() {
+fn a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refuses() {
     let doc = ProfileDoc::empty_derived("docm8_vanished", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
+    let (doc, touch) = block(doc, (1.0, 1.2), (0.2, 0.8), 0.2, 0.4);
     let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let named = vec![(
-        SitedRef::new(a, fname(a, wall(&doc, a, 1))),
-        SitedRef::new(far, fname(far, wall(&doc, far, 3))),
-    )];
-    let (doc, union, _) = declared_union(doc, &[a, big, far], named);
-    let ev = run(&doc);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { .. })
-        ),
-        "expected the vanished refusal, got {:?}",
-        failure(&ev, union)
-    );
+    let against = |m: RecipeNodeId| {
+        vec![(
+            SitedRef::new(a, fname(a, wall(&doc, a, 1))),
+            SitedRef::new(m, fname(m, wall(&doc, m, 3))),
+        )]
+    };
+    let (docx, union, _) = declared_union(doc.clone(), &[a, big, touch], against(touch));
+    let ev = run(&docx);
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    for order in [
+        [a, big, far],
+        [a, far, big],
+        [big, a, far],
+        [big, far, a],
+        [far, a, big],
+        [far, big, a],
+    ] {
+        let (docx, union, _) = declared_union(doc.clone(), &order, against(far));
+        let ev = run(&docx);
+        assert!(
+            matches!(
+                failure(&ev, union),
+                Some(NodeErrorKind::Boolean(
+                    topo::BooleanError::ContactContradicted { .. }
+                ))
+            ),
+            "{order:?}: expected the contradiction, got {:?}",
+            failure(&ev, union)
+        );
+    }
 }
 
 // ---------------------------------------------------------------------
@@ -654,27 +681,24 @@ fn a_member_face_split_by_a_later_member_is_still_order_shaped() {
     }
 }
 
-/// **A union's undeclared contact against a row its own FOLD minted
-/// refuses `UndeclarableContact`, typed** — the arm that exists
-/// because a sited declaration cannot name such a row.
+/// **A union's undeclared contact against a face the fold FRAGMENTS is
+/// refused between the two members, and is declarable.**
 ///
 /// `s` pokes through `a`'s end cap, so folding it in FRAGMENTS that
 /// cap: the accumulation's rows for it are `[FromMember(a), Fragment]`
 /// pairs, which the member-keying rule does not collapse to a member's
-/// entity and no merge retired. `d` then rests flush on one of those
-/// fragments, undeclared. There is no `SitedRef` for that side, so the
-/// refusal says so in its own arm rather than degrading to an emission
-/// bug — which would blame this crate for a document a user wrote.
+/// entity and no merge retired. `d` rests flush on `a`'s cap,
+/// undeclared. Contact is judged pairwise before the fold (DM4), so the
+/// refusal names `a`'s cap and `d`'s bottom, both member faces, rather
+/// than the fragment the fold would have met: no refusal names a row
+/// the fold minted, and `UndeclarableContact` is not reached.
 ///
-/// **Only the fragment case is reachable for a FACE.** The other two
-/// fold-minted shapes a contact refusal could in principle name are
-/// not faces: `RoleSeg::Seam` mints edges (face × face) and vertices
-/// (edge × face), never a face, and `RoleSeg::OutputBody` names the
-/// body. A contact refusal resolves a FACE key pair through the two
-/// operand tables (`wire.rs`'s `face_name`), so a seam row and the
-/// body row cannot reach it at all.
+/// Declared, the pair is fed to `d`'s step, where `a`'s cap survives
+/// only in pieces; which of them carry the contact is
+/// `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
+/// question, and the declaration refuses there as a vanished name.
 #[test]
-fn a_contact_against_a_fold_minted_fragment_is_undeclarable() {
+fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     let doc = ProfileDoc::empty_derived("docm8_fragment_refusal", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
@@ -688,22 +712,32 @@ fn a_contact_against_a_fold_minted_fragment_is_undeclarable() {
             SitedRef::new(s, fname(s, wall(&doc, s, k))),
         ));
     }
-    let (doc, union, _) = declared_union(doc, &[a, s, d], pairs);
-    let ev = run(&doc);
+    let (docx, union, _) = declared_union(doc.clone(), &[a, s, d], pairs.clone());
+    let ev = run(&docx);
     let what = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclarableContact { row, .. }) = what else {
-        panic!("expected the undeclarable arm, got {what:?}")
+    let Some(NodeErrorKind::UndeclaredContact {
+        finding, merged, ..
+    }) = what
+    else {
+        panic!("expected the pairwise refusal, got {what:?}")
     };
-    // The row is a fragment of `a`'s end cap, in the union's own
-    // published space: the member edge is there, and a `Fragment`
-    // segment after it, which is what makes it the fold's and not a
-    // member's.
-    assert_eq!(row.node, union, "{row}");
+    assert_eq!(
+        finding.pair,
+        (
+            SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            SitedRef::new(d, fname(d, RoleSeg::Cap(CapEnd::Start))),
+        )
+    );
+    assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
+    pairs.push(finding.pair.clone());
+    let (docx, union, _) = declared_union(doc, &[a, s, d], pairs);
+    let ev = run(&docx);
     assert!(
         matches!(
-            row.path.as_slice(),
-            [RoleSeg::FromMember { member, .. }, RoleSeg::Fragment(_)] if *member == a
+            failure(&ev, union),
+            Some(NodeErrorKind::DeclareResolve { .. })
         ),
-        "{row}"
+        "expected the vanished name at d's step, got {:?}",
+        failure(&ev, union)
     );
 }

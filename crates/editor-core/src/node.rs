@@ -2041,9 +2041,16 @@ pub enum Node<P> {
     ///
     /// # The `declare` field, and why it records no position
     ///
-    /// Members that touch refuse `UndeclaredContact` exactly as a pair
-    /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// Contact is judged pairwise, before the fold: every two members
+    /// whose boxes meet, or between which a pair is declared, are
+    /// evaluated as the two-member union of just those two, with the
+    /// pairs declared between them, and two members
+    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// exactly as a pair boolean's operands do. That holds in every
+    /// member order, and for a contact a third member covers too. The
+    /// fold then builds the body and judges no contact of its own. The
+    /// recourse is the pair boolean's: a [`Node::Declare`] input. Its
+    /// pairs name SITED entities
     /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
     /// with that member beside it. A declaration therefore says "this
     /// face of member `m` meets that face of member `n`" while naming
@@ -2085,12 +2092,15 @@ pub enum Node<P> {
     /// `c` to `d`) fuses in every order of the three, with
     /// `Merged({a, c, d})` as the fused cap's row in each.
     ///
-    /// Merges are the whole of it. A member face the fold consumed
-    /// otherwise — split by a later member, swallowed by containment,
-    /// or inside a merged row that was later fragmented — is not
-    /// looked through, and a pair naming it resolves only in the
-    /// orders that reach it while it is still a row
-    /// (`work/wire/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// A declared pair authorizes its contact wherever the fold meets
+    /// it, and does not demand that the fold meet it: a pair one of
+    /// whose faces another member contained whole before the pair's
+    /// step, so that no row descends from it, is satisfied. A member
+    /// face that survives only in pieces — split by another member, or
+    /// inside a merged row that was later fragmented — is not looked
+    /// through, and a pair naming it resolves only in the orders that
+    /// reach it while it is still a row
+    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

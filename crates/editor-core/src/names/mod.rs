@@ -81,6 +81,7 @@ pub use role::{
     SplitHalf, StableName, band, band_pi, band_rim, carried, meridian_vertex,
 };
 pub(crate) use role::{SegRewrite, inert_seg, locator_seg};
+pub(crate) use seam_pair::face_descends_from;
 pub use select::{NamePat, OpGroup, SegPat, SegTag, Selector, Side, TagPat, select, select_where};
 pub use table::{DuplicateName, EntityKey, EntityRef, Entry, NameTable};
 

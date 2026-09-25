@@ -3,11 +3,11 @@
 the blend and rim bands: what a roll builds over a rim, and what it may call the result
 
 Opened 2026-09-20 by CARVE's priority-seam cut
-(`work/README.md`, Track size). Nothing dispatched.
+(`work/README.md`, Track size).
 
 ## The slate
 
-**27 budget points** of dispatchable work against a ceiling of 30.
+**30 budget points** of dispatchable work against a ceiling of 30.
 
 | pri | item | cost | title |
 |---|---|---|---|
@@ -20,25 +20,43 @@ Opened 2026-09-20 by CARVE's priority-seam cut
 | P1 | `cap-rim-smooth-arm-decides-by-argument-not-by-the-rule` | D | sweep: the cap-rim smooth arm decides a description by an in-code argument, not by the must-carry rule |
 | P1 | `corner-config-recourse-and-policy-assert-a-default-for-any-tag` | D | blend: CornerConfig's recourse and policy tables assert an answer for any tag added later |
 | P1 | `every-escalation-carries-the-coincidence-recourse-first` | E | blend: every Escalated renders the coincidence recourse BEFORE the routed one, and no blend door takes a declaration |
+| P1 | `in-band-corner-verdicts-route-to-the-corner-configuration-recourse` | E | blend: an in-band corner-independence or cap-transverse verdict is routed to FILLET3_CORNER_RECOURSE, which the refused corner already satisfies |
 
 ## Order
 
-`ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` first: a
-D-shaped through-hole is an ordinary feature and the ruled band refuses
-its crease outright. `blend-slit-name-collides-when-two-rims-share-a-meridian`
-is the second refusal and independent of it, so the two can run at
-once.
+Four P0 rows first, three at once where their ground is disjoint:
 
-`S90-impl` (tightening the blend seam's three doors to
-`CertifiedBounds`) is the ruled row and the largest; it is specified
-from Ev's ruling rather than re-argued. The three recourse/policy rows
-are one unit: they are the same fact — a table asserting an answer
-where the question was not asked — at three sites.
+- `ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` — the ruled
+  plan (`blend/open/ruled.rs`).
+- `blend-slit-name-collides-when-two-rims-share-a-meridian` — the blend
+  name record and its emitter (`blend/naming.rs`,
+  `editor-core/src/names/{role,emit_blend}.rs`).
+- `subdivided-profile-side-coplanar-walls-gate` — measure first, then
+  the lowering or the refusal.
+- `sweep-emits-no-contact-record-for-declared-cusps` follows the
+  subdivided-side row, because both are `extrude.rs`'s lowering. The
+  row offers two closes; the one taken is `Extruded` carrying the
+  declarations its profile authored (and `Lofted` beside it): a
+  declaration the author wrote that a verb drops is the defect, and
+  "the caller re-derives the face pairing" is not an API an outside
+  consumer can use.
+
+Then the P1 rows. The three recourse rows
+(`corner-config-recourse-and-policy-assert-a-default-for-any-tag`,
+`every-escalation-carries-the-coincidence-recourse-first`,
+`in-band-corner-verdicts-route-to-the-corner-configuration-recourse`)
+are one unit: a table asserting an answer where the question was not
+asked, at three sites of `blend/mod.rs`. `annulus-rim-phase-…` and
+`cap-rim-smooth-arm-…` are small and independent.
+
+`S90-impl` waits on SCALAR's LANE-4 (PR #3194, `PcurveFittedLane`
+folds into a `FittedLane` door value), which is the lane-trait split
+the row says the tightening turns on; it is re-read against the tree
+when that lands, not before.
 
 ## Review posture
 
-OPEN, for this program's first dispatch. CARVE inherits protocol v7
-(`docs/MODEL-AB-LOG.md`, Ev 2026-09-19): the dual on triaged-in units
-only, opus/opus outside it. Nobody has re-asked the triage question for
-this slate, so the first orchestrator answers it here rather than
-inheriting an answer.
+Per unit, by the review tiers in `memories/orchestration-model.md`;
+the model A/B the opening text inherited is suspended, so there is no
+triage question left to answer. Each dispatch names its tier in the
+log.
