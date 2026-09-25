@@ -389,12 +389,16 @@ enum LoopEdge<T: geom_core::Real> {
     Unrowed { center: Point3<T>, reach: T },
 }
 
+/// A loop's vertices in cycle order, and each edge (vertex `i` to `i + 1`)
+/// on its own carrier.
+type CarrierLoop<T> = (Vec<Point3<T>>, Vec<LoopEdge<T>>);
+
 /// The loop's vertices and its edges on their carriers.
 fn carrier_loop<T: Decide>(
     body: &Body<T>,
     r#loop: LoopKey,
     band: Band,
-) -> Result<(Vec<Point3<T>>, Vec<LoopEdge<T>>), PointInLoopError> {
+) -> Result<CarrierLoop<T>, PointInLoopError> {
     let corrupt = || PointInLoopError::CorruptLoop { r#loop };
     let LoopBoundary::Cycle { first } = body.get_loop(r#loop).ok_or_else(corrupt)?.boundary else {
         return Err(corrupt());
