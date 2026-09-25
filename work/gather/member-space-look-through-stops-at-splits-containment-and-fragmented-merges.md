@@ -1,7 +1,7 @@
 ---
 id: member-space-look-through-stops-at-splits-containment-and-fragmented-merges
 kind: unit
-title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
+title: A member-space declaration on a face the fold left in pieces, split or inside a fragmented merged row, refuses naming the composition instead of an order-shaped Vanished
 status: review
 opened: 2026-09-07
 refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
@@ -47,9 +47,16 @@ DOCM-8 reviews on head `6d433b6f`:
 
 ## Where it contradicts what is written
 
-Nothing now. The three prose sites (`wire.rs` `route_declarations`,
-`node.rs` `Node::Union`, `names/role.rs` `RoleSeg::FromMember`) and
-N3 state the bound — merges only — and name this file.
+Nothing, once this unit lands. The prose sites (`wire.rs`
+`route_declarations` and `look_through_fold`, `node.rs` `Node::Union`,
+`names/role.rs` `RoleSeg::FromMember`) and DM4 in
+`crates/editor-core/REFERENCES.md` state all three cases: a merge is
+looked through, a face consumed whole is satisfied (#3213), and a face
+the fold left in pieces refuses with `ConsumedByFold` naming the split
+or the fragmented merge — including the non-monotone case where a
+face split and then contained in every piece fuses. The look-through
+was `look_through_merges` when the sections below were written; it is
+`look_through_fold` now, because it also refuses.
 
 ## What a look-through into fragmented rows would need
 

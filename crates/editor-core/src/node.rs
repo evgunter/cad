@@ -2107,7 +2107,11 @@ pub enum Node<P> {
     /// meant is a geometric question the routing step does not ask.
     /// Which composition it was is read off the accumulation's rows.
     /// The pair still resolves in the orders that feed it while the
-    /// face is a row.
+    /// face is a row. A face split and then contained whole in every
+    /// piece before the pair's step has no piece left, and its pair is
+    /// satisfied, so the refusal is not monotone in what later members
+    /// cover: a pair on a cap `s` split refuses when a later member
+    /// contains one piece of it, and fuses when one contains both.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

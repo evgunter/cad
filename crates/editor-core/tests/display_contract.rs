@@ -1540,8 +1540,9 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
     }
 }
 
-/// A fold consumption names the union and says WHICH composition
-/// consumed the entity, in words a reader can tell apart — a split and
+/// A fold consumption points at the union that minted the name and
+/// says WHICH composition consumed the entity, in words a reader can
+/// tell apart — a split and
 /// a merge split later are two different sentences — and says why
 /// nothing is offered in its place.
 #[test]
@@ -1562,11 +1563,12 @@ fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
             ][..],
         ),
     ] {
-        let d = Diagnosis::ConsumedByFold {
-            union: RecipeNodeId(9),
-            by,
-        };
-        assert_f6(&d, &[&["the union at node 9"][..], wants].concat(), &banned);
+        let d = Diagnosis::ConsumedByFold { by };
+        assert_f6(
+            &d,
+            &[&["the union that minted it"][..], wants].concat(),
+            &banned,
+        );
     }
 }
 

@@ -638,9 +638,9 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
         Some(NodeErrorKind::DeclareResolve { error }) => match &**error {
             ResolveError::Vanished {
                 name,
-                diagnosis: Diagnosis::ConsumedByFold { union: at, by },
+                diagnosis: Diagnosis::ConsumedByFold { by },
                 last_good: None,
-            } if *at == union => Outcome::Consumed(name.clone(), *by),
+            } if name.node == union => Outcome::Consumed(name.clone(), *by),
             other => panic!("a declare refusal that names no composition: {other:?}"),
         },
         Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
@@ -707,6 +707,48 @@ fn a_member_face_split_by_a_later_member_refuses_as_a_split() {
             assert!((v - 1.6).abs() < 1e-9, "{order:?}: volume {v}");
         }
     }
+}
+
+/// **A split face contained whole in EVERY piece is satisfied; one with
+/// a piece left still refuses as a split** — so the refusal is not
+/// monotone in what the later members cover.
+///
+/// `s` splits `a`'s top cap, and `p` rests on the piece at x > 0.4,
+/// declared against the cap. Folded in between, `big` contains both
+/// pieces and `half` only the one at x < 0.2. After `big` no row
+/// descends from the cap, so its pair is satisfied like any face
+/// consumed whole; after `half` the piece `p` rests on is still a
+/// fragment row, and which piece the pair meant is the question the
+/// routing step does not ask.
+#[test]
+fn a_split_face_contained_in_every_piece_is_satisfied_and_one_with_a_piece_left_refuses() {
+    let doc = ProfileDoc::empty_derived("docm8_split_then_contained", Tol::witness());
+    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
+    let (doc, big) = block(doc, (-1.0, 2.0), (-1.0, 2.0), 0.8, 1.4);
+    let (doc, half) = block(doc, (-1.0, 0.3), (-1.0, 2.0), 0.8, 1.4);
+    let (doc, p) = block(doc, (0.6, 0.9), (0.2, 0.8), 1.0, 0.2);
+    let mut pairs = Vec::new();
+    for k in [0, 2] {
+        pairs.push((
+            SitedRef::new(a, fname(a, wall(&doc, a, k))),
+            SitedRef::new(s, fname(s, wall(&doc, s, k))),
+        ));
+    }
+    pairs.push((
+        SitedRef::new(a, fname(a, RoleSeg::Cap(CapEnd::End))),
+        SitedRef::new(p, fname(p, RoleSeg::Cap(CapEnd::Start))),
+    ));
+    let (docx, union, _) = declared_union(doc.clone(), &[a, s, big, p], pairs.clone());
+    assert_eq!(outcome(&run(&docx), union), Outcome::Fused);
+    let (docx, union, _) = declared_union(doc, &[a, s, half, p], pairs);
+    assert_eq!(
+        outcome(&run(&docx), union),
+        Outcome::Consumed(
+            member_face(union, a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            FoldConsumption::Split
+        )
+    );
 }
 
 /// **What a member order does to `capped`'s end cap**, when two cap
@@ -836,9 +878,8 @@ fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
 /// the fold minted, and `UndeclarableContact` is not reached.
 ///
 /// Declared, the pair is fed to `d`'s step, where `a`'s cap survives
-/// only in pieces; which of them carry the contact is
-/// `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
-/// question, and the declaration refuses there as a vanished name.
+/// only in pieces; which of them carry the contact is not decidable
+/// from the names, and the declaration refuses there naming the split.
 #[test]
 fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     let doc = ProfileDoc::empty_derived("docm8_fragment_refusal", Tol::witness());
@@ -873,13 +914,11 @@ fn a_contact_against_a_fold_minted_fragment_is_refused_between_members() {
     assert!(merged.0.is_empty() && merged.1.is_empty(), "{merged:?}");
     pairs.push(finding.pair.clone());
     let (docx, union, _) = declared_union(doc, &[a, s, d], pairs);
-    let ev = run(&docx);
-    assert!(
-        matches!(
-            failure(&ev, union),
-            Some(NodeErrorKind::DeclareResolve { .. })
-        ),
-        "expected the vanished name at d's step, got {:?}",
-        failure(&ev, union)
+    assert_eq!(
+        outcome(&run(&docx), union),
+        Outcome::Consumed(
+            member_face(union, a, fname(a, RoleSeg::Cap(CapEnd::End))),
+            FoldConsumption::Split
+        )
     );
 }

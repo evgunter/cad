@@ -465,10 +465,12 @@ pub enum Diagnosis {
     /// ([`FoldConsumption`]). A refusal carrying this diagnosis offers
     /// no replacement, because none is unique: a split and a
     /// fragmented merge leave several candidates.
+    ///
+    /// The union is not a field: the name this diagnoses is a
+    /// member-space name, minted by that union, so it is the name's own
+    /// minting node, and the refusal carrying the name already says so.
     ConsumedByFold {
-        /// The union whose fold consumed the entity.
-        union: RecipeNodeId,
-        /// How it did.
+        /// How the fold consumed it.
         by: FoldConsumption,
     },
 }
@@ -927,11 +929,10 @@ impl core::fmt::Display for Diagnosis {
             Self::WitnessBifurcation(refusal) => {
                 write!(f, "{}", crate::witness::BranchSelectionRefused(refusal))
             }
-            Self::ConsumedByFold { union, by } => write!(
+            Self::ConsumedByFold { by } => write!(
                 f,
-                "the union at node {} consumed it before the step its declared pair is fed \
-                 to: {by}",
-                union.0
+                "the union that minted it consumed it before the step its declared pair is \
+                 fed to: {by}"
             ),
             Self::Upstream { node, cause } => write!(
                 f,

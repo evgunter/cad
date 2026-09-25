@@ -32,7 +32,7 @@
 //! so something must decide which step of the fold each pair belongs
 //! to and which side of that step each of its two sites takes. That is
 //! [`side_by_operand`] for the pair boolean, [`route_declarations`]
-//! and [`look_through_merges`] for the union, and the refusal menu
+//! and [`look_through_fold`] for the union, and the refusal menu
 //! beneath them, in a vocabulary of their own (buckets, sides,
 //! look-through). No
 //! kernel op is behind any of it: the kernel takes a
@@ -3549,7 +3549,7 @@ fn wire_union<
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
-        // (`look_through_merges`) before the door runs, and one the fold
+        // (`look_through_fold`) before the door runs, and one the fold
         // split, or left in a merge it later fragmented, refuses there,
         // naming the composition. A pair whose accumulation-side face
         // the fold consumed whole is satisfied and leaves the bucket
@@ -3561,8 +3561,7 @@ fn wire_union<
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let resolved =
-                drop_consumed(look_through_merges(&buckets[step], &acc_view)?, &acc_view);
+            let resolved = drop_consumed(look_through_fold(&buckets[step], &acc_view)?, &acc_view);
             resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)
@@ -3794,14 +3793,14 @@ const PAIRWISE_SITE_UNROUTED: &str =
 ///
 /// Consumed whole means no face row of the accumulation descends from
 /// the face: it is not a row itself, not a constituent of a merged row
-/// (those [`look_through_merges`] has already rewritten), and not the
+/// (those [`look_through_fold`] has already rewritten), and not the
 /// parent of a fragment, bare, through a pass-through wrapper or inside
 /// a merged row's set ([`names::face_descends_from`], the one reading
 /// of "descends" the pair emitter's seam rule uses too). Another member
 /// contains it, so the contact has nothing left to back.
 ///
 /// A face that survives only in pieces never reaches here:
-/// [`look_through_merges`] has already refused it, naming the split or
+/// [`look_through_fold`] has already refused it, naming the split or
 /// the fragmented merge, because which of its pieces carry the contact
 /// is not decidable from the names.
 ///
@@ -3854,7 +3853,7 @@ type SidedPair<'n> = (
 /// `NodeGone` above the site question is the same check the landing
 /// needs — carried, not paid twice. A union's operand tables are
 /// member-keyed views, so [`route_declarations`] mints a NEW name
-/// ([`names::member_name`]) and [`look_through_merges`] may mint
+/// ([`names::member_name`]) and [`look_through_fold`] may mint
 /// another; rung 1 on the AUTHORED name is paid at the routing door,
 /// and the minted name pays its own.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -3986,7 +3985,7 @@ fn declared_pairs<T: Decide>(
 /// the pair boolean's own resolver runs on a union's pairs exactly as
 /// it runs on its own. A member face the fold has MERGED away is
 /// rewritten again, at the step it is fed to, by
-/// [`look_through_merges`], and one the fold split, or left inside a
+/// [`look_through_fold`], and one the fold split, or left inside a
 /// merge it later fragmented, refuses there, naming the composition and
 /// offering nothing (DM4). A pair whose face another member contained
 /// whole leaves the bucket as satisfied ([`drop_consumed`]).
@@ -4055,11 +4054,12 @@ fn member_site(
     ))
 }
 
-/// **A member-space name the fold has merged away, rewritten to the
-/// merged row that holds it; one the fold split, or left in a merge it
-/// later fragmented, refused naming the composition** — one step's bucket, read against
-/// the accumulation's table, before the pair boolean's own door
-/// ([`resolve_declarations`]) sees the pair.
+/// **A member-space name read through the fold's compositions**, one
+/// step's bucket against the accumulation's table, before the pair
+/// boolean's own door ([`resolve_declarations`]) sees the pair: a name
+/// the fold MERGED away is rewritten to the merged row that holds it,
+/// and one the fold left only in PIECES — split, or inside a merge it
+/// later fragmented — refuses, naming the composition.
 ///
 /// A member's face merged at an earlier step is no longer an operand
 /// row; the pair naming it still says what it said, and the face is
@@ -4077,18 +4077,18 @@ fn member_site(
 ///
 /// - fragments of the name itself, bare or inside a later merge's set
 ///   — a later member [split](FoldConsumption::Split) it;
-/// - fragments of a merged row whose set covers it — the merge was
+/// - fragments of a merged row whose set covers it, bare or inside a
+///   later merge's set — the merge was
 ///   [split after it](FoldConsumption::FragmentedMerge).
 ///
-/// A name NOTHING in the accumulation descends from is left alone, and
-/// the door refuses it as a vanished name. That covers a face another
-/// member contains, whose declared pair DM4 makes satisfied rather than
-/// refused (Ev on #3200); that rests on the pairwise pre-pass
-/// `union-contact-is-judged-pairwise-before-the-fold` builds, and it is
-/// that unit's to change here, not a composition this refusal names.
-/// And a pair whose two names
-/// land on ONE row is handed to the door as such, and refuses there by
-/// the door's own rule.
+/// A name NOTHING in the accumulation descends from is handed on as
+/// written. Either another member consumed it whole, and
+/// [`drop_consumed`] then drops its pair as satisfied (DM4); or it is
+/// in no table at all, and the door refuses it as a vanished name. A
+/// face split and then consumed whole in every piece is the first
+/// case, not a split: no piece is left to be ambiguous about. And a
+/// pair whose two names land on ONE row is handed to the door as such,
+/// and refuses there by the door's own rule.
 ///
 /// Only the ACCUMULATION side looks through, which is why the joining
 /// member's table is not a parameter: no composition the fold has
@@ -4101,10 +4101,17 @@ fn member_site(
 /// (a merged face's constituents retire, and a merge over it lists
 /// them in the new row's set and drops the old row — the several
 /// FRAGMENTS of one merged row are not that shape, and read as a
-/// fragmented merge), and a face whose descendants disagree about
+/// fragmented merge), and a face whose descendant ROWS disagree about
 /// which composition consumed it (the first composition retires the
-/// bare name, so every later row descends through that one).
-fn look_through_merges<'n>(
+/// bare name, so every later row descends through that one). The
+/// second is read across rows only: [`fold_descent`] answers one
+/// composition per row, the first constituent of a merged row that
+/// descends from the name deciding, and a bare merged row covering the
+/// name returns before any descendant is read. A merged row whose
+/// constituents disagree, and a bare merged row beside a fragment, are
+/// the same bug in shapes the mint cannot produce either, and are not
+/// told apart from the answer the first reading gives.
+fn look_through_fold<'n>(
     bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
@@ -4132,6 +4139,9 @@ fn look_through_merges<'n>(
             }
             (None, _) => {}
         }
+        // Disagreement is read ACROSS rows: one row answers one
+        // composition, and the bare-merge hit above returned before any
+        // descendant was read (the bound is the doc's last paragraph).
         let mut ways = acc_table
             .iter()
             .filter_map(|(row, _)| fold_descent(row, name));
@@ -4147,10 +4157,7 @@ fn look_through_merges<'n>(
         Err(NodeErrorKind::DeclareResolve {
             error: Box::new(crate::resolve::ResolveError::Vanished {
                 name: name.clone(),
-                diagnosis: crate::resolve::Diagnosis::ConsumedByFold {
-                    union: name.node,
-                    by,
-                },
+                diagnosis: crate::resolve::Diagnosis::ConsumedByFold { by },
                 last_good: None,
             }),
         })
@@ -4172,21 +4179,37 @@ fn look_through_merges<'n>(
 /// **How `row` descends from the member-space `name`**, when it does:
 /// the composition that consumed the name, read off the row's SHAPE.
 ///
+/// Only a row [`names::face_descends_from`] accepts is classified, so
+/// every row this answers for is one [`drop_consumed`] also sees as a
+/// descendant: a face refused here is never one that reads as consumed
+/// whole there, and the two compose without an order between them. The
+/// two stay two predicates because they ask different questions.
+/// `face_descends_from` asks WHETHER anything of the face survives, and
+/// so accepts every descent — the face's own row, a bare merged row
+/// covering it (the look-through's, not a consumption), any
+/// discriminator tail, and the pass-through wrappers other ops mint.
+/// This asks which composition left it in pieces, and a piece is a
+/// `Fragment` tail; a descendant with no such tail is not a piece, and
+/// is `None` here.
+///
 /// A row is a head followed by zero or more `Fragment` qualifiers. A
 /// fragmented head equal to the name is a fragment of it — a
 /// [split](FoldConsumption::Split). A fragmented `Merged` head whose
 /// set covers the name is a fragment of a merge that consumed it — a
 /// [fragmented merge](FoldConsumption::FragmentedMerge). A `Merged`
 /// head that does not cover the name descends from it through a
-/// constituent, when one does, and says what that constituent says: a
+/// constituent, and says what the first such constituent says: a
 /// fragment of the name merged later was still consumed by the split
 /// that made it a fragment.
 ///
 /// A BARE merged row covering the name is the look-through's, not a
-/// consumption, and is `None` here; [`look_through_merges`] reads it
+/// consumption, and is `None` here; [`look_through_fold`] reads it
 /// before this is asked.
 fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<FoldConsumption> {
     use crate::names::RoleSeg;
+    if !names::face_descends_from(row, name) {
+        return None;
+    }
     let tail = row
         .path
         .iter()
@@ -4195,7 +4218,11 @@ fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<Fol
         .count();
     let head = &row.path[..row.path.len() - tail];
     let fragmented = tail > 0;
-    if fragmented && row.node == name.node && head == name.path.as_slice() {
+    // No node or kind test: a row whose head IS the name's path passes
+    // the guard above only as the name's own node and kind, because the
+    // guard's other routes descend into names nested inside that path,
+    // and no name can descend from a name that contains it.
+    if fragmented && head == name.path.as_slice() {
         return Some(FoldConsumption::Split);
     }
     let [RoleSeg::Merged(set)] = head else {
@@ -4232,7 +4259,7 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// certified one is fed to its step, left the bucket as satisfied
 /// ([`drop_consumed`]), or refused at that step, as a vanished name or
 /// naming the composition that left it in pieces
-/// ([`look_through_merges`]). So a step that refuses `UndeclaredContact` or
+/// ([`look_through_fold`]). So a step that refuses `UndeclaredContact` or
 /// `UndeclarableContact` would be telling a caller to declare a contact
 /// the judgement already passed, and it refuses as a bug instead. Every
 /// other refusal passes through as [`union_refusal`] gave it.
@@ -4294,7 +4321,7 @@ const UNION_FOLD_CONTACT_VERDICT: &str =
 /// A member's own face is handed back verbatim; a face the fold MERGED
 /// is handed back as a constituent of that merge, which declares the
 /// same contact because a declaration resolves through the fold's
-/// merges ([`look_through_merges`]); and a row the fold minted that no
+/// merges ([`look_through_fold`]); and a row the fold minted that no
 /// member stands for is refused
 /// [`NodeErrorKind::UndeclarableContact`] — typed, because a sited
 /// declaration cannot name a row that does not exist before the union.
@@ -4388,7 +4415,7 @@ enum DeclarationSubject {
     /// A face the fold MERGED. The row itself has no site — the union
     /// minted it — but every CONSTITUENT of its flat set (N3) is a
     /// member's entity, and a declaration written at any one of them
-    /// resolves back to this row through [`look_through_merges`]. The
+    /// resolves back to this row through [`look_through_fold`]. The
     /// set is ordered by the constituent's member in the union's own
     /// MEMBER ORDER (D9), so taking the first is a deterministic
     /// choice rather than an arbitrary one.
@@ -5603,7 +5630,7 @@ mod route_tests {
     #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
     use super::{
-        NodeErrorKind, RecipeNodeId, SidedName, SidedPair, SitedRef, look_through_merges,
+        NodeErrorKind, RecipeNodeId, SidedName, SidedPair, SitedRef, look_through_fold,
         resolve_declarations, route_declarations,
     };
     use crate::names::{
@@ -5937,10 +5964,11 @@ mod route_tests {
 
     /// The rewrite touches ONE shape: an ACCUMULATION-side member face
     /// that is no row and sits in a merged row's set goes to that row.
-    /// A face the accumulation still holds, and one in no row that its
-    /// member does not derive either, are handed on as written — and the JOINING member's side never
-    /// looks through, because no merge the fold has performed could
-    /// have consumed a face of a member that has not joined yet.
+    /// A face the accumulation still holds, and a face no row holds or
+    /// descends from, are handed on as written — and the JOINING
+    /// member's side never looks through, because no merge the fold has
+    /// performed could have consumed a face of a member that has not
+    /// joined yet.
     #[test]
     fn look_through_rewrites_only_an_accumulated_member_face_inside_a_merged_row() {
         let (_doc, union, ms) = doc_with_members(4);
@@ -5989,7 +6017,7 @@ mod route_tests {
                 (Operand::B, f(ms[3], CapEnd::Start)),
             ),
         ];
-        let out = look_through_merges(&bucket, &acc).unwrap();
+        let out = look_through_fold(&bucket, &acc).unwrap();
         assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide)));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
@@ -6012,7 +6040,7 @@ mod route_tests {
             (Operand::A, f(ms[1], CapEnd::End)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let out = look_through_merges(std::slice::from_ref(&p), &acc).unwrap();
+        let out = look_through_fold(std::slice::from_ref(&p), &acc).unwrap();
         assert_eq!(out[0], p);
     }
 
@@ -6050,7 +6078,7 @@ mod route_tests {
             (Operand::A, f(ms[0], CapEnd::Start)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let refused = look_through_merges(std::slice::from_ref(&p), &acc);
+        let refused = look_through_fold(std::slice::from_ref(&p), &acc);
         assert!(
             matches!(
                 refused,
@@ -6090,14 +6118,14 @@ mod route_tests {
     /// reports it for.
     fn consumed_by(
         refused: Result<Vec<SidedPair<'_>>, NodeErrorKind>,
-    ) -> (StableName, RecipeNodeId, FoldConsumption) {
+    ) -> (StableName, FoldConsumption) {
         match refused {
             Err(NodeErrorKind::DeclareResolve { error }) => match *error {
                 ResolveError::Vanished {
                     name,
-                    diagnosis: Diagnosis::ConsumedByFold { union, by },
+                    diagnosis: Diagnosis::ConsumedByFold { by },
                     last_good: None,
-                } => (name, union, by),
+                } => (name, by),
                 other => panic!("not a fold consumption: {other:?}"),
             },
             other => panic!("not a declare refusal: {other:?}"),
@@ -6157,18 +6185,86 @@ mod route_tests {
             ),
         ];
         for (label, acc, want) in cases {
-            let refused = look_through_merges(std::slice::from_ref(&pair), &acc);
-            assert_eq!(
-                consumed_by(refused),
-                (named.clone(), union, want),
-                "{label}"
-            );
+            let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
+            assert_eq!(consumed_by(refused), (named.clone(), want), "{label}");
         }
+    }
+
+    /// **Every piece merged again still names the composition that made
+    /// the pieces.** With no bare fragment left, only the descent
+    /// through a merged row's constituents reaches the name, and it
+    /// reports what the constituent says — the split, or the fragmented
+    /// merge — never the later merge it was read through.
+    ///
+    /// No real document has been built that reaches this shape: the
+    /// step that merges a fragment again is fed a declared pair naming
+    /// a face that fragment descends from, and that pair meets the bare
+    /// fragment and refuses first.
+    #[test]
+    fn every_piece_merged_again_still_names_the_composition_that_made_it() {
+        let (_doc, union, ms) = doc_with_members(4);
+        let f = |m, e| member_face(union, m, e);
+        let named = f(ms[0], CapEnd::End);
+        let pair = routed(
+            (Operand::A, named.clone()),
+            (Operand::B, f(ms[3], CapEnd::End)),
+        );
+        let merged_u = |set| StableName {
+            node: union,
+            ..merged(set)
+        };
+        let inner = || merged_u(vec![named.clone(), f(ms[1], CapEnd::End)]);
+        let cases = [
+            (
+                "every fragment of the name merged later",
+                table_of(vec![
+                    merged_u(vec![fragment(named.clone(), 0), f(ms[1], CapEnd::End)]),
+                    merged_u(vec![fragment(named.clone(), 1), f(ms[2], CapEnd::End)]),
+                ]),
+                FoldConsumption::Split,
+            ),
+            (
+                "every fragment of a merge over it merged again",
+                table_of(vec![
+                    merged_u(vec![fragment(inner(), 0), f(ms[2], CapEnd::End)]),
+                    merged_u(vec![fragment(inner(), 1), f(ms[2], CapEnd::Start)]),
+                ]),
+                FoldConsumption::FragmentedMerge,
+            ),
+        ];
+        for (label, acc, want) in cases {
+            let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
+            assert_eq!(consumed_by(refused), (named.clone(), want), "{label}");
+        }
+    }
+
+    /// **A fragment of the name under another node is not a piece of
+    /// it.** A row carrying the name's path under ANOTHER node — a
+    /// different union's member-space name for the same member face —
+    /// fragmented, does not descend from the name: nothing consumed the
+    /// name, so the pair is handed on as written, and the door refuses
+    /// it as a vanished name.
+    #[test]
+    fn a_fragment_of_another_nodes_name_is_not_a_piece_of_it() {
+        let (_doc, union, ms) = doc_with_members(4);
+        let f = |m, e| member_face(union, m, e);
+        let named = f(ms[0], CapEnd::End);
+        let pair = routed(
+            (Operand::A, named.clone()),
+            (Operand::B, f(ms[3], CapEnd::End)),
+        );
+        let elsewhere = StableName {
+            node: ms[1],
+            ..named
+        };
+        let acc = table_of(vec![fragment(elsewhere.clone(), 0), fragment(elsewhere, 1)]);
+        let out = look_through_fold(std::slice::from_ref(&pair), &acc);
+        assert_eq!(out.unwrap(), vec![pair]);
     }
 
     /// Rows that descend from one member face by two compositions — a
     /// table the retiring mint cannot produce — refuse as the emission
-    /// bug they are, never as whichever composition was met first.
+    /// bug they are, never as whichever of the two rows was read first.
     #[test]
     fn a_member_face_consumed_two_ways_refuses_as_an_emission_bug() {
         let (_doc, union, ms) = doc_with_members(4);
@@ -6185,7 +6281,7 @@ mod route_tests {
             ),
         ]);
         let pair = routed((Operand::A, named), (Operand::B, f(ms[3], CapEnd::End)));
-        let refused = look_through_merges(std::slice::from_ref(&pair), &acc);
+        let refused = look_through_fold(std::slice::from_ref(&pair), &acc);
         assert!(
             matches!(
                 refused,
