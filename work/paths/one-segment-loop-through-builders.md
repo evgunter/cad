@@ -7,7 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: H
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [geom-brep-sketch-segment-full-turn]
+blocked_on: [store-constructed-carriers]
 ---
 
 

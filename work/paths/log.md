@@ -244,3 +244,25 @@ Declined, with reasons:
 Also on this PR: main's `topo` stopped compiling (the `RingMeetsOuter`
 `Display` was missing three `RingContact` arms after #3185 met
 `a3d5c47e1`). The fix is ported here and announced on ATREST's log.
+
+## 2026-09-25 — #3231 merged; resequenced; unit 2 dispatched
+
+`fixture-door-takes-canonical-segments` merged as #3231. It also
+carried the fix for main's `topo` compile break (announced on ATREST's
+log).
+
+**Order now.** The review of #3231 showed that re-lowering from
+(chord, kept bulge) turns a one-segment circle's carrier into NaN. So
+the order is:
+1. `geom-brep-sketch-segment-full-turn` (unit 2, dispatched now);
+2. `store-constructed-carriers` (unit 5; moved ahead, because it makes
+   re-lowering carry the stored carrier);
+3. `one-segment-loop-through-builders` (unit 3);
+4. `circle-lowers-to-one-segment` (unit 4);
+5. `pncad-surface-for-canonical-segments` (unit 6).
+
+The rows' `blocked_on` fields are updated to match.
+
+**Unit 2's tier: dual.** It is the shared numeric representation of
+every profile-built edge, and it is expected to move bits in ulps. Its
+spec forbids any decision flip.

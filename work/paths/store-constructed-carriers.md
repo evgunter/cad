@@ -7,7 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [circle-lowers-to-one-segment]
+blocked_on: [geom-brep-sketch-segment-full-turn]
 ---
 
 
