@@ -326,6 +326,7 @@ pub(crate) fn d_tab_at(
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![outline],
+        ids: Vec::new(),
     }));
     let thickness = len(1.0e-3);
     let tab = r.insert(Node::Extrude {
@@ -341,6 +342,7 @@ pub(crate) fn d_tab_at(
             ],
             radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
         }],
+        ids: Vec::new(),
     }));
     let hole = r.insert(Node::Extrude {
         profile: hole_profile,

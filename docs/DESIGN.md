@@ -355,7 +355,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   holes in its one shell.
 - **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
   makes a one-band wire sweep unrepresentable, so axis-touching full
-  revolves sweep two π-bands and poles have valence 2.
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
   complete loci; an edge's bounds derive from its vertices via the

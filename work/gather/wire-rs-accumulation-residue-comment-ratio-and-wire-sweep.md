@@ -1,11 +1,11 @@
 ---
 id: wire-rs-accumulation-residue-comment-ratio-and-wire-sweep
 kind: issue
-title: wire.rs's two accumulation findings survive the header fix: 41% comment ratio, and wire_sweep exists to fail
+title: eval/wire.rs is about 47% comment by line and nothing decides whether that is wanted: a ratio budget or an editorial pass
 status: open
 opened: 2026-09-12
 priority: P4
-cost: E
+cost: D
 ---
 
 
@@ -64,3 +64,23 @@ same thing nothing else in this project's process does — and measured:
 dead in the reachability sense: the `Node::Sweep` arm of the wiring
 dispatch calls it, which is what makes the recipe doors it runs first
 real. The row's question is unchanged.
+
+## Read against the tree (2026-09-24)
+
+**The `wire_sweep` half is done in PR 3141.** Its recipe doors now run as
+statements (`need_count(...)?;`, `section_of(...)?;`) under one comment
+that says each runs for its refusal alone, with no reader for what it
+answers. The `let _`/`_stations` bindings that made the body look
+abandoned are gone. The behaviour is unchanged.
+
+**The comment-ratio half is left open, and it is not an E fix.**
+Re-measured with the row's instrument, on the span before the first
+`#[cfg(test)]`, counting a line as comment when its trimmed text starts
+with `//`: the span is 4959 of the file's 5708 lines, with **2320 comment
+lines against 2639 code lines, or 46.8%**. That is flat against the
+2026-09-15 reading (46.6 to 46.9%). No single site is wrong. The row's
+question is whether a ratio budget, or an editorial pass over about 2300
+lines of `eval/wire.rs` commentary, is wanted at all. That pass is well
+over E, and the budget is a choice about process, not a code fix. The
+row should be re-priced (D or H) or deferred with a cited ruling rather
+than dispatched as E.

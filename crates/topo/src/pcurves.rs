@@ -2925,6 +2925,22 @@ pub(crate) mod staleness_posture {
                 Neither,
                 "`prism_ops` at the unit square then `describe_as_intersections`",
             ),
+            (
+                "plant_ring_face",
+                Neither,
+                "`mev_line`, `kemr` and `mef_chord`, every one of them already sorted above",
+            ),
+            (
+                "drill_hole",
+                Neither,
+                "`plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh`, every one of \
+                 them already sorted above",
+            ),
+            (
+                "plane_every_face",
+                Neither,
+                "`set_face_surface` per face, on that entry's terms",
+            ),
         ]
     };
 

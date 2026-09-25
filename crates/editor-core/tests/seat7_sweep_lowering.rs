@@ -118,6 +118,7 @@ fn circle_on_frame(
                 centre: [len(0.0), len(0.0)],
                 radius,
             }],
+            ids: Vec::new(),
         }),
     );
     (doc, plane, profile)
@@ -182,6 +183,7 @@ fn both_sweeps() -> BothSweeps {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: frame,
         loops: vec![square_loop],
+        ids: Vec::new(),
     }));
     let extruded = r.insert(Node::Extrude {
         profile,
@@ -197,6 +199,7 @@ fn both_sweeps() -> BothSweeps {
     let rev_profile = r.insert(Node::Profile(ProfileProgram {
         plane: rev_frame,
         loops: vec![LoopProgram::polygon(square(0.0, -2.0, 0.5)).unwrap()],
+        ids: Vec::new(),
     }));
     let axis = r.insert(axis_in_plane(rev_frame, (0.0, 0.0), (1.0, 0.0)));
     let revolved = r.insert(Node::Revolve {
@@ -289,11 +292,11 @@ fn both_sweeps_evaluate_in_one_document() {
 #[test]
 fn the_sweep_documents_evaluate_to_their_committed_digests() {
     let rows: [(&str, u64); 5] = [
-        ("die", 0x6049_75e9_75f5_d9ed),
-        ("corner_table", 0x01cf_cc62_a3f3_d986),
-        ("cut_cylinder", 0xc6b0_1428_95b9_7df2),
-        ("boss_union", 0x20b0_1a38_9e81_1bbd),
-        ("kitchen_sink", 0x8826_0b67_1ded_0c08),
+        ("die", 0x591f_47ce_aa59_12e9),
+        ("corner_table", 0x82f6_6598_1367_177a),
+        ("cut_cylinder", 0x6b92_0ace_eeb8_c896),
+        ("boss_union", 0x784f_5dfd_4f52_16f3),
+        ("kitchen_sink", 0x6e3a_8472_c4c9_c90b),
     ];
     let mut moved: Vec<String> = Vec::new();
     for (name, want) in rows {
@@ -456,6 +459,7 @@ fn a_polygon_profile_attaches_nothing() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::polygon(square(0.0, 0.0, 0.5)).unwrap()],
+            ids: Vec::new(),
         }),
     );
     let (doc, cube) = insert(
@@ -508,6 +512,7 @@ fn a_revolved_circle_sources_its_minor_radius_only() {
                 centre: [len(0.0), len(-3.0)],
                 radius: param("r"),
             }],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
@@ -582,6 +587,7 @@ fn a_revolve_over_an_on_axis_edge_attaches_by_position() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(doc, axis_in_plane(plane, (0.0, 0.0), (1.0, 0.0)));
@@ -707,7 +713,14 @@ fn extruded(
             v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
     );
-    let (doc, profile) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, body) = insert(
         doc,
         Node::Extrude {
@@ -863,7 +876,7 @@ fn every_wall_of_a_split_carrier_carries_the_loops_one_radius() {
 }
 
 /// One evaluation, optionally served from a prior one.
-fn memo_eval(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn memo_eval(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

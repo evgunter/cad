@@ -72,6 +72,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane: plate_plane,
         loops: vec![plate_loop],
+        ids: Vec::new(),
     }));
     let plate = r.insert(Node::Extrude {
         profile: plate_p,
@@ -87,6 +88,7 @@ fn boss_union_doc() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>, RecipeNodeId) 
     let boss_p = r.insert(Node::Profile(ProfileProgram {
         plane: boss_plane,
         loops: vec![boss_loop],
+        ids: Vec::new(),
     }));
     let boss = r.insert(Node::Extrude {
         profile: boss_p,
@@ -229,6 +231,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![lp],
+        ids: Vec::new(),
     }));
     let ex = r.insert(Node::Extrude {
         profile: p,

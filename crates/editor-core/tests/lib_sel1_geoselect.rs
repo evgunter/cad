@@ -615,7 +615,7 @@ fn the_geometric_selector_materializes_the_authored_die_composed_selection() {
     materialized.sort();
     materialized.dedup();
 
-    let mut authored = corpus::die_composed::selection(cube, ball, pipped);
+    let mut authored = corpus::die_composed::selection(&doc.doc, cube, ball, pipped);
     authored.sort();
     authored.dedup();
     assert_eq!(authored.len(), 14, "the document's own count");

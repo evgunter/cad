@@ -2,11 +2,12 @@
 id: a-value-edits-last-published-numbering-is-not-recipe-state
 kind: issue
 title: A profile's last published numbering is not recipe state, so a value edit through an unreadable state strands names it could carry
-status: parked
+status: closed
 opened: 2026-09-24
 priority: P1
 cost: D
-blocked_on: [profile-pieces-are-named-by-minted-step-ids]
+closed: 2026-09-25
+pr: 3223
 ---
 
 
