@@ -268,8 +268,8 @@ class ValidationFinding:
       it says which record to withdraw or re-seat, and withdrawing
       another one leaves the refusal standing.
     - `ring_contact_kind` — how a ring meets its face's own outer loop
-      (`"vertex_vertex"`, `"vertex_on_edge"`, `"edge_along_edge"`,
-      `"edge_edge_point"`, `"circle_circle"`). The word says where the
+      (`"vertex_vertex"`, `"vertex_on_edge"`, `"vertex_on_ring_edge"`,
+      `"edge_along_edge"`, `"edge_edge_point"`, `"circle_circle"`). The word says where the
       ring has to move: a shared position one vertex clears, a shared
       arc no single vertex move separates, or a crossing or touching
       point no vertex carries.

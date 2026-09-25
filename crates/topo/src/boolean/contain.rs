@@ -570,12 +570,8 @@ fn boundary_pre_pass<T: Decide>(
 /// row F8 — is stated once at
 /// [`super::solid_contain::point_on_wall_in_face`] and shared by all
 /// three of its sites.
-///
-/// Visible to the crate because tier 3's check 9 asks the same
-/// question of a point where a ring edge and an outer edge meet: is
-/// it inside the arc's window, or past its trim?
 #[allow(clippy::too_many_arguments)] // one arc datum, each argument named
-pub(crate) fn point_on_arc<T: Decide>(
+pub(super) fn point_on_arc<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
     axis: Vec3<T>,

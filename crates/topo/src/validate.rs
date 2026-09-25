@@ -2441,7 +2441,7 @@ impl fmt::Display for ValidationError {
 impl std::error::Error for ValidationError {}
 
 /// How a ring meets its face's outer loop
-/// ([`ValidationError::RingMeetsOuter`]) — the five shapes check 9's
+/// ([`ValidationError::RingMeetsOuter`]) — the six shapes check 9's
 /// contact arms can find.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RingContact {
@@ -2474,6 +2474,16 @@ pub enum RingContact {
         /// The outer loop's edge it runs along.
         outer_edge: EdgeKey,
     },
+    /// A vertex of the OUTER loop stands on the interior of an edge of
+    /// the ring — [`Self::VertexOnEdge`] with the roles swapped, the
+    /// touch a reflex corner of the outer boundary makes against the
+    /// hole.
+    OuterVertexOnEdge {
+        /// The outer loop's vertex.
+        outer_vertex: VertexKey,
+        /// The ring's edge it stands on.
+        ring_edge: EdgeKey,
+    },
     /// The ring and the outer loop are two WHOLE circles — both in
     /// [`crate::boolean::LoopShape`]'s disc class — that cross or
     /// touch: their centre distance lies between the difference of
@@ -2487,9 +2497,8 @@ pub enum RingContact {
         outer_loop: LoopKey,
     },
     /// An edge of the ring and an edge of the outer loop share a POINT
-    /// the three shapes above do not name: a transversal crossing, a
-    /// one-point tangency, or a vertex of the outer loop on the ring
-    /// edge's interior. Found by intersecting the two edges' `Line`
+    /// that is a vertex of neither loop: a transversal crossing or a
+    /// one-point tangency. Found by intersecting the two edges' `Line`
     /// and `Circle` carriers and testing each meeting point against
     /// both edges' trims.
     EdgesMeet {
@@ -2523,6 +2532,13 @@ impl fmt::Display for RingContact {
             } => write!(
                 f,
                 "{ring_edge:?} runs along the outer loop's {outer_edge:?}"
+            ),
+            Self::OuterVertexOnEdge {
+                outer_vertex,
+                ring_edge,
+            } => write!(
+                f,
+                "the outer loop's {outer_vertex:?} stands on the interior of {ring_edge:?}"
             ),
             Self::Circles {
                 ring_loop,
@@ -5042,8 +5058,8 @@ pub(crate) fn tier3_local_checks_marked<
     // stands on the outer loop — sharing a vertex position with it,
     // running along one of its edges, or crossing or touching it at a
     // point — is not a trim of any region; that is the DISJOINTNESS
-    // half, the five arms of `ring_outer_contact`. A ring that is cleanly disjoint from the
-    // outer loop but lies OUTSIDE it is not a hole either; that is the
+    // half, the arms of `ring_outer_contact`. A ring that is cleanly
+    // disjoint from the outer loop but lies OUTSIDE it is not a hole either; that is the
     // NESTING half, `ring_nesting`, and it runs on the pairs the
     // contact arms cleared. Nothing else in this battery sees either
     // half; `check_9_refuses_a_ring_that_lies_outside_its_outer_loop`
@@ -5059,21 +5075,22 @@ pub(crate) fn tier3_local_checks_marked<
     // the volume check IS gated on this one at `validate_geometric`,
     // for the reason check 8 above states in full.
     //
-    // **What the five arms match, and WHAT THEY DO NOT** (D4 honesty
-    // — an unstated blind spot is an unverified claim). Matched:
-    // vertex-on-vertex (kind-agnostic, positions only);
-    // vertex-on-edge-interior; edge-along-edge, on `Line` and `Circle`
-    // carriers; and, on a PLANAR face, the two loops meeting at a
-    // point no vertex arm names — a transversal crossing, a one-point
-    // tangency (circle-circle internal or external, line-circle), or
-    // an outer vertex on a ring edge's interior. That last shape has
-    // two arms: two WHOLE circles (arm 4, both loops in
-    // `loop_shape`'s `Disc` class) are decided exactly by the centre
-    // distance against the radii's sum and difference, with no trim to
-    // test; every other pair of `Line` and `Circle` edges (arm 5) has
-    // its carriers' meeting points computed in closed form and each
-    // tested against both edges' trims — a line's span, an arc's
-    // window by `boolean::contain::point_on_arc`. Every margin
+    // **What the five arms match, and WHAT THEY DO NOT** (D4 honesty — an
+    // unstated blind spot is an unverified claim). Matched:
+    // vertex-on-vertex (arm 1, kind-agnostic, positions only); a vertex of
+    // EITHER loop on the interior of an edge of the other (arm 2, both
+    // directions, the trim tested on a line and an arc alike);
+    // edge-along-edge (arm 3), on `Line` and `Circle` carriers; and, on a
+    // PLANAR face, the two loops crossing or touching at a point that is a
+    // vertex of neither — a transversal crossing or a one-point tangency
+    // (circle-circle internal or external, line-circle). That last shape
+    // has two arms: two WHOLE circles (arm 4, both loops in `loop_shape`'s
+    // `Disc` class) are decided exactly by the centre distance against the
+    // radii's sum and difference, with no trim to test; every other pair
+    // of `Line` and `Circle` edges (arm 5) has its carriers' meeting
+    // points computed in closed form and each tested against both edges'
+    // trims (`window`: a line's span; an arc's distances to its ends and
+    // apexes, never an angle, which compresses near an end). Every margin
     // escalates typed rather than reading as "disjoint".
     //
     // NOT matched, enumerated rather than gestured at:
@@ -5112,8 +5129,9 @@ pub(crate) fn tier3_local_checks_marked<
     // which the contact arms CHECK wherever every edge of both loops
     // is a `Line` or a `Circle`, and which is assumed on the carriers
     // they are silent on; `ring_nesting`'s doc is the premise's one
-    // home, and says why a circular ring gets no second instrument. The queries lie in the face's plane
-    // because check 5 above certifies that they do
+    // home, and says why a circular ring gets no second instrument.
+    // The queries lie in the face's plane because check 5 above
+    // certifies that they do
     // (`planar_boundary_residual`), which is both instruments' stated
     // precondition.
     //
@@ -5248,7 +5266,7 @@ pub(crate) enum RingOuterVerdict {
 }
 
 /// The first contact between `ring` and the outer loop `outer` of the
-/// same face, in the five shapes the arms below can decide
+/// same face, in the six shapes the arms below can decide
 /// ([`RingContact`]).
 ///
 /// Shared with the shell verb, which runs it as a PRECONDITION of the
@@ -5332,50 +5350,51 @@ pub(crate) fn ring_outer_contact<T: Decide>(
         }
     }
 
-    // ---- Arm 2: a ring vertex standing on an outer EDGE's interior.
+    // ---- Arm 2: a vertex of either loop standing on an edge's
+    // interior in the other. ----
     //
-    // The shape arm 1 cannot see and arm 3 cannot either: a ring that
-    // touches the outer boundary at a point that is a vertex of one
-    // loop and an interior point of the other. Two margins, both
-    // already needed elsewhere here: the point's gap to the outer
-    // edge's LOCUS, and — on a `Line`, whose locus is unbounded either
-    // side of the trim — whether it lies strictly between the edge's
-    // endpoints. On a `Circle` the second is unnecessary and
-    // deliberately absent: a ring vertex on the same circle as an
-    // outer edge already means the hole reaches the face's boundary
-    // circle, whatever sub-arc that edge is trimmed to.
-    for &rhe in &ring_cycle {
-        let Some(rv) = body.half_edges.get(rhe).map(|h| h.start) else {
-            continue;
-        };
-        let Some(rp) = vertex_point(body, rv) else {
-            continue;
-        };
-        for &ohe in &outer_cycle {
-            let Some(oedge) = body.half_edges.get(ohe).map(|h| h.edge) else {
+    // The shape arm 1 cannot see and arm 3 cannot either: the two loops
+    // touching at a point that is a vertex of one and an interior
+    // point of the other. Asked in BOTH directions — a ring vertex on
+    // an outer edge, then an outer vertex on a ring edge — because
+    // either loop's vertex can be the one that touches, and nothing
+    // after this arm computes a meeting point at a vertex. Two margins
+    // per pair ([`vertex_on_edge_interior`]): the point's gap to the
+    // edge's LOCUS, and whether it lies inside the edge's TRIM — a
+    // line's by lying strictly between its ends, an arc's by the
+    // distance test [`window`] spells. The trim is asked on an arc as
+    // on a line: a vertex on an arc's circle but past its ends is
+    // nowhere on that edge.
+    for (vertex_cycle, edge_cycle, ring_vertex) in [
+        (&ring_cycle, &outer_cycle, true),
+        (&outer_cycle, &ring_cycle, false),
+    ] {
+        for &vhe in vertex_cycle {
+            let Some(v) = body.half_edges.get(vhe).map(|h| h.start) else {
                 continue;
             };
-            let Some(ogeom) = certified_carrier(body, oedge) else {
+            let Some(vp) = vertex_point(body, v) else {
                 continue;
             };
-            let Some(gap) = locus_gap(ogeom.carrier(), rp) else {
-                continue; // the recorded residue: Ellipse and Nurbs carriers
-            };
-            if !coincides!("ring_outer_locus_gap", gap) {
-                continue;
-            }
-            if let geom::Curve3::Line { .. } = ogeom.carrier() {
-                let Some((a, b)) = edge_endpoints(body, ohe) else {
-                    continue;
-                };
-                if !strictly_between!(rp, a, b) {
-                    continue;
+            for &ehe in edge_cycle {
+                match vertex_on_edge_interior(body, ehe, vp, band) {
+                    Ok(None) => {}
+                    Ok(Some(edge)) => {
+                        return RingOuterVerdict::Contact(if ring_vertex {
+                            RingContact::VertexOnEdge {
+                                ring_vertex: v,
+                                outer_edge: edge,
+                            }
+                        } else {
+                            RingContact::OuterVertexOnEdge {
+                                outer_vertex: v,
+                                ring_edge: edge,
+                            }
+                        });
+                    }
+                    Err(source) => return RingOuterVerdict::Escalated(source),
                 }
             }
-            return RingOuterVerdict::Contact(RingContact::VertexOnEdge {
-                ring_vertex: rv,
-                outer_edge: oedge,
-            });
         }
     }
 
@@ -5387,12 +5406,13 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     // distinct circles, meet in at most two, so agreement at three
     // interior samples is a shared LOCUS rather than a crossing.
     //
-    // On a `Line`, sharing the locus is not yet sharing an arc — two
-    // collinear edges can be disjoint on a nonconvex face — so ANY of
-    // the three samples lying strictly between the outer edge's
-    // endpoints settles it. Any, not the middle one: a partial overlap
-    // can put the middle sample past the outer edge's trim while a
-    // quarter of it lies well inside.
+    // Sharing the locus is not yet sharing an arc — two collinear
+    // edges can be disjoint on a nonconvex face, and two arcs of one
+    // circle can lie on opposite sides of it — so ANY of the three
+    // samples lying inside the outer edge's trim settles it: strictly
+    // between a line's ends, or inside an arc's [`window`]. Any, not
+    // the middle one: a partial overlap can put the middle sample past
+    // the outer edge's trim while a quarter of it lies well inside.
     for &rhe in &ring_cycle {
         let Some(redge) = body.half_edges.get(rhe).map(|h| h.edge) else {
             continue;
@@ -5426,20 +5446,39 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             if !on_locus {
                 continue;
             }
-            if let geom::Curve3::Line { .. } = ogeom.carrier() {
-                let Some((a, b)) = edge_endpoints(body, ohe) else {
-                    continue;
-                };
-                let mut inside = false;
-                for &p in &samples {
-                    if strictly_between!(p, a, b) {
-                        inside = true;
-                        break;
+            let inside = match meet_segment(body, ohe) {
+                Some((_, MeetSegment::Line { a, b })) => {
+                    let mut inside = false;
+                    for &p in &samples {
+                        if strictly_between!(p, a, b) {
+                            inside = true;
+                            break;
+                        }
                     }
+                    inside
                 }
-                if !inside {
-                    continue;
+                Some((_, arc @ MeetSegment::Arc { .. })) => {
+                    let mut unsure = None;
+                    let mut inside = false;
+                    for &p in &samples {
+                        match window(arc, p, band) {
+                            Window::In => {
+                                inside = true;
+                                break;
+                            }
+                            Window::Out => {}
+                            Window::Unsure(source) => unsure = unsure.or(Some(source)),
+                        }
+                    }
+                    if let (false, Some(source)) = (inside, unsure) {
+                        return RingOuterVerdict::Escalated(source);
+                    }
+                    inside
                 }
+                None => false,
+            };
+            if !inside {
+                continue;
             }
             return RingOuterVerdict::Contact(RingContact::Edge {
                 ring_edge: redge,
@@ -5450,24 +5489,70 @@ pub(crate) fn ring_outer_contact<T: Decide>(
     ring_outer_meeting(body, outer, ring, &ring_cycle, &outer_cycle, band)
 }
 
+/// Check 9's arm 2 for one pair: the edge under `he` if the vertex
+/// point `p` of the OTHER loop stands on that edge's interior, `None`
+/// if it does not — or if the edge is an `Ellipse`, `Spiric` or NURBS
+/// carrier, the recorded residue. Two margins: `p`'s gap to the edge's
+/// locus, then, on the locus, the trim: strictly between a line's ends,
+/// or inside an arc's [`window`]. An end of the edge counts as inside
+/// an arc's trim because arm 1 has already reported a vertex standing
+/// on a vertex.
+fn vertex_on_edge_interior<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+    p: geom_core::Point3<T>,
+    band: Band,
+) -> Result<Option<EdgeKey>, Indeterminate> {
+    let Some((edge, segment)) = meet_segment(body, he) else {
+        return Ok(None);
+    };
+    let Some(gap) = certified_carrier(body, edge).and_then(|g| locus_gap(g.carrier(), p)) else {
+        return Ok(None);
+    };
+    if !matches!(
+        decide("ring_outer_locus_gap", Margin::of(gap), band)?,
+        Sign::Zero
+    ) {
+        return Ok(None);
+    }
+    let inside = match segment {
+        // Strictly between the ends, in projection — metered as the
+        // LENGTH it is (the raw dot product is an area).
+        MeetSegment::Line { a, b } => matches!(
+            decide(
+                "ring_outer_segment_side",
+                Margin::of((p - a).dot(p - b) / (b - a).norm()),
+                band,
+            )?,
+            Sign::Negative
+        ),
+        MeetSegment::Arc { .. } => match window(segment, p, band) {
+            Window::In => true,
+            Window::Out => false,
+            Window::Unsure(source) => return Err(source),
+        },
+    };
+    Ok(inside.then_some(edge))
+}
+
 /// Check 9's arms 4 and 5: do `ring` and `outer` share a POINT that
 /// arms 1–3 of [`ring_outer_contact`] do not name — a transversal
-/// crossing, a one-point tangency, or a vertex of the outer loop on a
-/// ring edge's interior?
+/// crossing, or a one-point tangency, at a point that is a vertex of
+/// neither loop?
 ///
 /// Run only after arms 1–3 have cleared the pair, and that order is
-/// what lets both arms read a CLOSED edge: once no ring vertex stands
-/// on an outer vertex, a point the two loops share is the loops
-/// meeting whichever edge's end it sits at, so an endpoint
-/// neighbourhood counts as inside a trim rather than being handed
-/// back to a vertex arm that has already spoken.
+/// what lets both arms read a CLOSED edge: once no vertex of either
+/// loop stands on the other loop (arms 1 and 2, both directions), a
+/// point the two loops share is the loops meeting whichever edge's
+/// end it sits at, so a candidate within the band of an edge's
+/// ACTUAL end, measured as a distance, counts as inside that trim.
 ///
 /// - **Arm 4, both loops whole circles** ([`crate::boolean::LoopShape::Disc`]
 ///   on each): [`circle_pair`], exact without any trim.
 /// - **Arm 5, every other pair of `Line` and `Circle` edges**
 ///   ([`segments_meet`]): the carriers' meeting points, each tested
-///   against both edges' trims — a line's by its span, an arc's by
-///   [`crate::boolean::point_on_arc`].
+///   against both edges' trims ([`window`]) — a line's by its span, an
+///   arc's by distances to its ends and to its two apexes.
 ///
 /// Both run in the plane of `outer`'s face and are silent off one: a
 /// non-planar face has no plane to intersect in, and an `Ellipse`,
@@ -5514,15 +5599,17 @@ fn ring_outer_meeting<T: Decide>(
     }
 
     // ---- Arm 5: an edge pair meeting at a point. ----
+    // Resolved once: the pair loop below is O(ring × outer).
+    let outer_segments: Vec<(EdgeKey, MeetSegment<T>)> = outer_cycle
+        .iter()
+        .filter_map(|&ohe| meet_segment(body, ohe))
+        .collect();
     let mut escalated: Option<Indeterminate> = None;
     for &rhe in ring_cycle {
         let Some((ring_edge, rseg)) = meet_segment(body, rhe) else {
             continue; // the recorded residue: Ellipse, Spiric and Nurbs carriers
         };
-        for &ohe in outer_cycle {
-            let Some((outer_edge, oseg)) = meet_segment(body, ohe) else {
-                continue;
-            };
+        for &(outer_edge, oseg) in &outer_segments {
             match segments_meet(rseg, oseg, normal, band) {
                 EdgePair::Apart => {}
                 EdgePair::Meet => {
@@ -5739,10 +5826,13 @@ fn segments_meet<T: Decide>(
             let d = w.norm();
             if tangent {
                 // Concentric within the band with radii equal within
-                // it is one circle, whose shared arcs arm 2 has
-                // already reported: every ring vertex stands on its
-                // locus. The direction to the touching point is
-                // undefined there, so it is settled before dividing.
+                // it is ONE circle, and two arcs of one circle share a
+                // point only if an end of one lies in the other's
+                // trim — a vertex on a vertex (arm 1) or on an edge's
+                // interior (arm 2, both directions), all reported
+                // before this arm runs. So the pair is apart; the
+                // direction to a touching point is undefined there
+                // anyway, and this is settled before dividing by it.
                 match decide("ring_outer_meet_centres", Margin::of(d), band) {
                     Ok(Sign::Positive) => {}
                     Ok(Sign::Zero | Sign::Negative) => return EdgePair::Apart,
@@ -5870,10 +5960,34 @@ fn meet_at<T: Decide>(
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
-/// spoken ([`ring_outer_meeting`]). A line's by the two signed spans
-/// from its ends; an arc's by [`crate::boolean::point_on_arc`], whose
-/// endpoint neighbourhood and whole-circle answers (`None`) are both
-/// inside.
+/// spoken ([`ring_outer_meeting`]).
+///
+/// A line's trim is its two signed spans from its ends, each a length
+/// at unit speed. An arc's is decided as DISTANCES, in two steps, and
+/// never through the radial band: `p` is a point on the carrier (or a
+/// candidate whose distance from it the caller has already decided),
+/// so its distance from the circle says nothing about the trim, and
+/// deciding it first let an in-band radius escalate a point half a
+/// turn away from the arc.
+///
+/// 1. **At an end**: `p` within the band of either end point,
+///    measured as `|p − end|`, is inside. That is the ONLY way an
+///    endpoint neighbourhood counts: an angular window compresses
+///    arc length near an end by `sin(w/2)`, so on a short arc (and by
+///    `sin` of the complement on a near-full one) its `Zero` reaches
+///    `ε / sin(w/2)` along the carrier, a hundred times `ε` at
+///    `w = 0.02`.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
+///    is an end, `m` the arc's apex and `m′` its complement's. Chord
+///    length is monotone in angular distance up to a half turn, so
+///    each term is positive exactly on the arc; near an end they
+///    move as `cos(w/4)` and `sin(w/4)` times the arc length, whose
+///    sum is at least 1, so the margin is never compressed below the
+///    distance it measures — on a short arc, a near-full one, or a
+///    whole circle (where `m′` is the end and every point is inside).
+///    Its `Zero` is therefore within the band of an end, which step 1
+///    has already answered, and reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -5898,18 +6012,35 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
             u_ref,
             t0,
             t1,
-        } => match crate::boolean::point_on_arc(p, center, axis, radius, u_ref, t0, t1, band) {
-            Ok(Some(true) | None) => Window::In,
-            Ok(Some(false)) => Window::Out,
-            Err(ContainError::Escalated(source)) => Window::Unsure(source),
-            // `point_on_arc` escalates and does nothing else; a walk
-            // error it grew later is not a verdict on the trim.
-            Err(_) => Window::Unsure(Indeterminate {
-                margin: geom_core::MarginDiag::Invalid,
-                band,
-                predicate: Some("ring_outer_meet_arc"),
-            }),
-        },
+        } => {
+            let carrier = geom::Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            };
+            let (a, b) = (carrier.eval(t0), carrier.eval(t1));
+            let ends = [
+                decide("ring_outer_arc_end", Margin::of((p - a).norm()), band),
+                decide("ring_outer_arc_end", Margin::of((p - b).norm()), band),
+            ];
+            if ends.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+                return Window::In;
+            }
+            if let Some(source) = ends.iter().find_map(|e| e.err()) {
+                return Window::Unsure(source);
+            }
+            let mid = (t0 + t1) * T::from_f64(0.5);
+            let apex = carrier.eval(mid);
+            let anti = carrier.eval(mid + T::pi());
+            let margin =
+                ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm());
+            match decide("ring_outer_arc_trim", Margin::of(margin), band) {
+                Ok(Sign::Positive | Sign::Zero) => Window::In,
+                Ok(Sign::Negative) => Window::Out,
+                Err(source) => Window::Unsure(source),
+            }
+        }
     }
 }
 
@@ -6018,10 +6149,12 @@ enum RingNestingVerdict {
 /// it — whatever curve joins its vertices, arcs and whole circles
 /// included. The premise is not checked BY this arm; it is checked
 /// FOR it, by the contact arms that run first: on a planar face whose
-/// two loops carry only `Line` and `Circle` edges, a crossing or a
-/// touching point is a `RingMeetsOuter` (arm 4 for two whole circles,
-/// arm 5 for every other edge pair), so this function never runs on
-/// a pair that crosses. The premise is ASSUMED only where a loop
+/// two loops carry only `Line` and `Circle` edges, any point the two
+/// loops share is a `RingMeetsOuter` — at a vertex of either loop
+/// (arms 1 and 2, arm 2 in both directions), along a shared arc
+/// (arm 3), or at a point that is a vertex of neither (arm 4 for two
+/// whole circles, arm 5 for every other edge pair) — so this function
+/// never runs on a pair that crosses. The premise is ASSUMED only where a loop
 /// carries an `Ellipse`, `Spiric` or NURBS edge, which arm 5 has no
 /// meeting point for (check 9's banner lists it in the residue).
 ///
@@ -9730,6 +9863,18 @@ mod tests {
     /// between its two stored end points that is under a half turn —
     /// the certified arc a sketch would have minted there.
     fn recarry_as_arc(body: &mut Body<f64>, edge: EdgeKey, center: Point3<f64>, tol: Tol) {
+        recarry_as_sweep(body, edge, center, false, tol);
+    }
+
+    /// [`recarry_as_arc`], or with `long` the arc OVER a half turn —
+    /// the other way round the same circle.
+    fn recarry_as_sweep(
+        body: &mut Body<f64>,
+        edge: EdgeKey,
+        center: Point3<f64>,
+        long: bool,
+        tol: Tol,
+    ) {
         let stored = body.get_edge(edge).unwrap().clone();
         let (start, end) = edge_endpoints(body, stored.he_plus).unwrap();
         let radius = (start - center).norm();
@@ -9745,9 +9890,9 @@ mod tests {
                 };
                 let t0 = angle(start);
                 let t1 = t0 + (angle(end) - t0).rem_euclid(std::f64::consts::TAU);
-                (t1 - t0 < std::f64::consts::PI).then_some((axis, t0, t1))
+                ((t1 - t0 < std::f64::consts::PI) != long).then_some((axis, t0, t1))
             })
-            .expect("one sense of the circle is the short arc");
+            .expect("one sense of the circle is the arc asked for");
         let carrier = geom::Curve3::Circle {
             center,
             axis,
@@ -10010,9 +10155,20 @@ mod tests {
         ring: &[Point3<f64>],
         arcs: &[(Point3<f64>, Point3<f64>, Point3<f64>)],
     ) -> (Vec<ValidationError>, FaceKey) {
+        let arcs: Vec<_> = arcs.iter().map(|&(a, b, c)| (a, b, c, false)).collect();
+        words_with_sweeps(outer, ring, &arcs)
+    }
+
+    /// [`words_with_arcs`], each arc's fourth field asking for the arc
+    /// over a half turn ([`recarry_as_sweep`]).
+    fn words_with_sweeps(
+        outer: &[Point3<f64>],
+        ring: &[Point3<f64>],
+        arcs: &[(Point3<f64>, Point3<f64>, Point3<f64>, bool)],
+    ) -> (Vec<ValidationError>, FaceKey) {
         let tol = Tol::witness();
         let (mut body, face) = lamina_with_ring(outer, ring, tol);
-        for &(from, to, centre) in arcs {
+        for &(from, to, centre, long) in arcs {
             let edge = body
                 .edges
                 .iter()
@@ -10022,7 +10178,7 @@ mod tests {
                 })
                 .map(|(k, _)| k)
                 .expect("the named edge");
-            recarry_as_arc(&mut body, edge, centre, tol);
+            recarry_as_sweep(&mut body, edge, centre, long, tol);
         }
         (check_9_words(&body, Band::linear(tol).unwrap(), tol), face)
     }
@@ -10093,7 +10249,14 @@ mod tests {
             let (body, face) = lamina_with_circular_ring(&outer, None, centre, 2.0, tol);
             let got = check_9_words(&body, band, tol);
             let ok = if touches {
-                matches!(got.as_slice(), [ValidationError::RingMeetsOuter { face: f, .. }] if *f == face)
+                matches!(
+                    got.as_slice(),
+                    [ValidationError::RingMeetsOuter {
+                        face: f,
+                        contact: RingContact::OuterVertexOnEdge { .. },
+                        ..
+                    }] if *f == face
+                )
             } else {
                 matches!(got.as_slice(), [ValidationError::RingContactEscalated { face: f, .. }] if *f == face)
             };
@@ -10139,6 +10302,187 @@ mod tests {
         assert!(
             got.is_empty(),
             "a hole on the outer arc's circle drew {got:?}"
+        );
+    }
+
+    /// **A SHORT arc and a NEAR-FULL arc near a wall are decided three
+    /// ways**, the controls the trim's conditioning owes: an angular
+    /// window compresses arc length near an arc's end by `sin(w/2)`,
+    /// which is small on both. Each is placed `4·K·ε` from the square's
+    /// wall `x = 10` (silent), `ε·√K` from it (escalated, never read as
+    /// clear), and `1e-4` through it (refused by its edges).
+    ///
+    /// - The short arc: radius 10, a 0.02-rad sweep centred on 0°, its
+    ///   middle nearest the wall, closed by a vertex behind it.
+    /// - The near-full arc: radius 1, a 350° sweep whose 10° mouth faces
+    ///   away from the wall, closed by two lines into its centre.
+    #[test]
+    fn short_and_near_full_arcs_near_a_wall_are_decided_three_ways() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let clear = 4.0 * tol.k() * tol.eps();
+        let in_band = tol.eps() * tol.k().sqrt();
+        let short = |gap: f64| {
+            let c = p(-gap, 5.0, 0.0);
+            let h = 0.01_f64;
+            let a = p(c.x + 10.0 * h.cos(), 5.0 + 10.0 * h.sin(), 0.0);
+            let b = p(c.x + 10.0 * h.cos(), 5.0 - 10.0 * h.sin(), 0.0);
+            words_with_sweeps(
+                &square_outer(),
+                &[a, b, p(9.0, 5.0, 0.0)],
+                &[(a, b, c, false)],
+            )
+        };
+        let near_full = |gap: f64| {
+            let c = p(9.0 - gap, 5.0, 0.0);
+            let h = 5.0_f64.to_radians();
+            let a = p(c.x - h.cos(), 5.0 + h.sin(), 0.0);
+            let b = p(c.x - h.cos(), 5.0 - h.sin(), 0.0);
+            words_with_sweeps(&square_outer(), &[a, b, c], &[(a, b, c, true)])
+        };
+        for (name, build) in [
+            (
+                "short arc",
+                &short as &dyn Fn(f64) -> (Vec<ValidationError>, FaceKey),
+            ),
+            ("near-full arc", &near_full),
+        ] {
+            let (got, _) = build(clear);
+            assert!(got.is_empty(), "[{name}, clear] got {got:?}");
+            let (got, face) = build(in_band);
+            assert!(
+                matches!(got.as_slice(), [ValidationError::RingContactEscalated { face: f, .. }] if *f == face),
+                "[{name}, in band] got {got:?}"
+            );
+            let (got, face) = build(-1e-4);
+            assert!(
+                matches!(
+                    got.as_slice(),
+                    [ValidationError::RingMeetsOuter {
+                        face: f,
+                        contact: RingContact::EdgesMeet { .. },
+                        ..
+                    }] if *f == face
+                ),
+                "[{name}, through] got {got:?}"
+            );
+        }
+        // The near-full arc's MOUTH facing the wall, its carrier poking
+        // through inside the mouth — 0.14 rad either side of 0°, where
+        // the 0.6-rad mouth has no arc — and its ends clear inside.
+        let c = p(9.01, 5.0, 0.0);
+        let h = 0.3_f64;
+        let a = p(c.x + h.cos(), 5.0 + h.sin(), 0.0);
+        let b = p(c.x + h.cos(), 5.0 - h.sin(), 0.0);
+        let (got, _) = words_with_sweeps(&square_outer(), &[a, c, b], &[(a, b, c, true)]);
+        assert!(got.is_empty(), "[mouth facing the wall] got {got:?}");
+    }
+
+    /// **A ring LINE crossing an outer ARC is a meeting** — arm 5 with
+    /// the line as the ring's edge: a square hole whose right side pokes
+    /// out of a disc face of radius 5.
+    #[test]
+    fn a_ring_line_crossing_an_outer_arc_is_refused() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let o = p(0.0, 0.0, 0.0);
+        let outer = on_circle(o, 5.0, OUTER_DEGREES);
+        let ring = vec![
+            p(3.0, -1.0, 0.0),
+            p(6.0, -1.0, 0.0),
+            p(6.0, 1.0, 0.0),
+            p(3.0, 1.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        let outer_loop = body.get_face(face).unwrap().outer;
+        recarry_loop(&mut body, outer_loop, o, tol);
+        assert_meets("ring line × outer arc", &body, face, |c| {
+            matches!(c, RingContact::EdgesMeet { .. })
+        });
+    }
+
+    /// An arc of the `z = 0` circle `(center, radius)` from `from` to
+    /// `to` degrees, counter-clockwise, as arm 5 reads it.
+    fn arc_segment(center: Point3<f64>, radius: f64, from: f64, to: f64) -> MeetSegment<f64> {
+        MeetSegment::Arc {
+            center,
+            axis: geom_core::Vec3::new(0.0, 0.0, 1.0),
+            radius,
+            u_ref: geom_core::Vec3::new(1.0, 0.0, 0.0),
+            t0: from.to_radians(),
+            t1: to.to_radians(),
+        }
+    }
+
+    /// **Arm 5's branches no body in the rows above reaches first**,
+    /// asked of the pair function directly (the arms before it answer
+    /// these shapes on a real loop pair, which is the argument for the
+    /// branches, not a test of them).
+    ///
+    /// - Two collinear lines: overlapping, touching end to end, and
+    ///   apart along their common line.
+    /// - Two arcs of ONE circle with disjoint trims: apart
+    ///   (`ring_outer_meet_centres`).
+    /// - Two crossing circles whose arcs hold one of the two meeting
+    ///   points each (a meeting), or hold neither (apart).
+    #[test]
+    fn arm_5_decides_the_branches_the_loop_rows_cannot_reach() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let p = Point3::new;
+        let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
+        let line = |a: (f64, f64), b: (f64, f64)| MeetSegment::Line {
+            a: p(a.0, a.1, 0.0),
+            b: p(b.0, b.1, 0.0),
+        };
+        for (name, second, meets) in [
+            ("collinear overlap", line((2.0, 0.0), (5.0, 0.0)), true),
+            ("collinear end to end", line((3.0, 0.0), (5.0, 0.0)), true),
+            ("collinear apart", line((4.0, 0.0), (5.0, 0.0)), false),
+        ] {
+            let got = segments_meet(line((0.0, 0.0), (3.0, 0.0)), second, n, band);
+            assert_eq!(matches!(got, EdgePair::Meet), meets, "[{name}]");
+            assert!(!matches!(got, EdgePair::Unsure(_)), "[{name}] decided");
+        }
+        let o = p(0.0, 0.0, 0.0);
+        assert!(
+            matches!(
+                segments_meet(
+                    arc_segment(o, 2.0, 0.0, 90.0),
+                    arc_segment(o, 2.0, 180.0, 270.0),
+                    n,
+                    band
+                ),
+                EdgePair::Apart
+            ),
+            "two arcs of one circle, disjoint trims"
+        );
+        // Circles about the origin and (2, 0), both radius 2: they meet
+        // at (1, ±√3), i.e. at 60° and 300° on the first and at 120°
+        // and 240° on the second.
+        let c2 = p(2.0, 0.0, 0.0);
+        assert!(
+            matches!(
+                segments_meet(
+                    arc_segment(o, 2.0, 30.0, 90.0),
+                    arc_segment(c2, 2.0, 100.0, 170.0),
+                    n,
+                    band
+                ),
+                EdgePair::Meet
+            ),
+            "the upper meeting point is in both trims"
+        );
+        assert!(
+            matches!(
+                segments_meet(
+                    arc_segment(o, 2.0, 30.0, 90.0),
+                    arc_segment(c2, 2.0, 200.0, 260.0),
+                    n,
+                    band
+                ),
+                EdgePair::Apart
+            ),
+            "each arc holds a different meeting point"
         );
     }
 

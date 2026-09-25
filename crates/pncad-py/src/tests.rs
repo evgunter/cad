@@ -3666,6 +3666,27 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
         }),
         Some("edge_along_edge")
     );
+    assert_eq!(
+        word(RingContact::OuterVertexOnEdge {
+            outer_vertex: VertexKey::default(),
+            ring_edge: Default::default(),
+        }),
+        Some("vertex_on_ring_edge")
+    );
+    assert_eq!(
+        word(RingContact::EdgesMeet {
+            ring_edge: Default::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("edge_edge_point")
+    );
+    assert_eq!(
+        word(RingContact::Circles {
+            ring_loop: Default::default(),
+            outer_loop: Default::default(),
+        }),
+        Some("circle_circle")
+    );
 
     // The escalated sibling carries a margin, not a shape: it is a
     // ring contact that could not be decided, so there is no way the
@@ -5133,6 +5154,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "edge_along_edge",
             "edge_edge_point",
             "vertex_on_edge",
+            "vertex_on_ring_edge",
             "vertex_vertex",
         ],
         delegates: &[],
