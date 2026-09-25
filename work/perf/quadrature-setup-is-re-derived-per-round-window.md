@@ -16,7 +16,7 @@ PERF-6 made the certified face lanes enterable over a `RoundWindow`
 the round its sign settles and a caller wanting the number can continue
 from there. The ROUNDS compose exactly — a face run as `0..=k` then
 `k+1..=...` evaluates the pieces an uninterrupted run evaluates, once
-each, which `crates/sweep/tests/sign_certified_plus_v.rs` counts through
+each, which `crates/sweep/tests/sign_walk_plus_v.rs` counts through
 `k_stats` (`gate + refine == one`).
 
 What does NOT compose is everything a lane does BEFORE its round loop.

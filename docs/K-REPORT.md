@@ -786,7 +786,7 @@ the day it has one:
 **Why (1) is needed and a printed note would not have been.** The
 metre rules see nothing on the refusal side: a large negative margin
 is decisive and passes both. And a refusal does not surface elsewhere
-either — `crates/topo/src/props.rs`'s `sign_certified` says *"A face
+either — `crates/topo/src/props.rs`'s `sign_walk` says *"A face
 that refuses on BUDGET is different — it has an enclosure, and the sum
 keeps it — so the refusal rides on the certificate, and whether it is
 REPORTED is the caller's decision, taken by `last_word`"*, and

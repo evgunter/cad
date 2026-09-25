@@ -261,7 +261,7 @@ fn bits(m: &MassProperties<f64>) -> [u64; 4] {
 /// together are the measurement's count exactly. A caller that gated a
 /// body and then measured it used to pay twice the unit; it pays it
 /// once. That the gate is sometimes STRICTLY cheaper is the claim of
-/// `sign_certified_plus_v`, which rosters bodies whose schedules run
+/// `sign_walk_plus_v`, which rosters bodies whose schedules run
 /// past round 0; this prism's do not, and a strict inequality asserted
 /// here would be asserting a property of the fixture.
 #[test]

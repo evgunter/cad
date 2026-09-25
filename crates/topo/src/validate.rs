@@ -2891,7 +2891,7 @@ pub fn validate_geometric<
 /// **What is evidence for that, and at which scalar.** At `f64` the
 /// identity is measured on real rational-walled bodies —
 /// `sweep`'s `tcost_k3_certificate` compares all four fields as raw
-/// bits, and `sign_certified_plus_v` does it over a roster whose
+/// bits, and `sign_walk_plus_v` does it over a roster whose
 /// schedules run past round 0, where the gate and the continuation
 /// genuinely split the rounds between them. At the other certifying
 /// scalars it rests on one fact about one value: the measurement door
