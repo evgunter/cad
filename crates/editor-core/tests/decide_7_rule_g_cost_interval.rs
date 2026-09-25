@@ -16,8 +16,9 @@
 //! `|X|² = X²`, the magnitude door, the exact quotient) — which say
 //! whose cost a replay's time is — then profiled under the shipped set
 //! and under rule G shut, with the node join between the two. The
-//! pad's leaf returns in dev on a four-core box, so a full run costs
-//! about forty minutes; `CAD_DECIDE_7_DOCS` (`link_leaf`, `pad_leaf`,
+//! pad's leaf returns in dev on a four-core box (133.9 s shipped with
+//! the per-node reduction memoised), and a full run is seven pad
+//! replays and the rest; `CAD_DECIDE_7_DOCS` (`link_leaf`, `pad_leaf`,
 //! `bracket_leaf`) and `CAD_DECIDE_7_COLUMNS` (`shipped`, `G off`,
 //! `abs_square off`, `magnitude off`, `quotient off`, `profiled`) name
 //! subsets. Run it:

@@ -15,9 +15,10 @@
 //! rule G shut and with both (the differential that says whose cost a
 //! replay's time is), then once more under the shipped rules with the
 //! profile installed. The pad's leaf is in it and returns in dev on a
-//! four-core box (280.6 s at `2.4990e3·ε`, the certifying end
-//! `m10_10_pins_interval` replays), so a full run costs about half an
-//! hour; `CAD_DECIDE_6_DOCS` and `CAD_DECIDE_6_COLUMNS` (`shipped`,
+//! four-core box (133.9 s at `2.4990e3·ε`, the certifying end
+//! `m10_10_pins_interval` replays, with the per-node reduction
+//! memoised), and a full run is five of those and change;
+//! `CAD_DECIDE_6_DOCS` and `CAD_DECIDE_6_COLUMNS` (`shipped`,
 //! `read off`, `rule G off`, `both off`, `profiled`) name subsets.
 //! Run it:
 //!

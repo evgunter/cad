@@ -196,6 +196,8 @@
 //! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`
 //! the numbers.
 
+use std::sync::Arc;
+
 use super::form::{Form, Mono, Poly, exp_of, mono_div};
 use super::rational::Rat;
 
@@ -291,8 +293,24 @@ fn den_pivot(d: &Poly) -> Option<&Rat> {
 /// a shape the rule does not reach comes back unchanged — and never
 /// grows the form.
 pub(super) fn cancel(f: &Form) -> Form {
+    cancelled(f).unwrap_or_else(|| f.clone())
+}
+
+/// [`cancel`] over a SHARED form: the same `Arc` back where the rule
+/// has nothing to do, so a walk memo and the per-node reduction's memo
+/// (`sym::reduce_per_node`) can hold one allocation of a form rule E
+/// leaves alone.
+pub(super) fn cancel_shared(f: Arc<Form>) -> Arc<Form> {
+    match cancelled(&f) {
+        Some(g) => Arc::new(g),
+        None => f,
+    }
+}
+
+/// [`cancel`]'s work, `None` on the no-op paths.
+fn cancelled(f: &Form) -> Option<Form> {
     if f.poisoned || f.num.is_zero() || f.den.is_zero() {
-        return f.clone();
+        return None;
     }
     let g = shared(&content(&f.num), &content(&f.den));
     // **The no-op path is free.** Most nodes of a walk have nothing to
@@ -305,7 +323,7 @@ pub(super) fn cancel(f: &Form) -> Form {
     // 0.358, the link 2.53 → 2.43.
     let pivot_is_unit = den_pivot(&f.den).is_some_and(|s| s.abs() == Rat::one());
     if g.is_empty() && pivot_is_unit && constant_ratio(&f.num, &f.den).is_none() {
-        return f.clone();
+        return None;
     }
     let (num, den) = if g.is_empty() {
         (f.num.clone(), f.den.clone())
@@ -337,19 +355,19 @@ pub(super) fn cancel(f: &Form) -> Form {
         None => (num, den),
     };
     if let Some(r) = constant_ratio(&num, &den) {
-        return Form {
+        return Some(Form {
             num: Poly::constant(r),
             den: Poly::one(),
             poisoned: false,
             gated: f.gated,
-        };
+        });
     }
-    Form {
+    Some(Form {
         num,
         den,
         poisoned: false,
         gated: f.gated,
-    }
+    })
 }
 
 #[cfg(test)]

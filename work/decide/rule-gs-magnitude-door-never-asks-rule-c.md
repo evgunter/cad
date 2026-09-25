@@ -15,8 +15,13 @@ refs: [rule-g-is-the-link-and-pads-leaf-cost, DECIDE-7]
 `manifest::magnitude` first, and on `Some` returns it. Only on `None`
 does it go on to rule C's certified fold (`signed::fold`, under
 `signed_root`) and then `magnitude_atom`. But `manifest::magnitude`
-never answers `None` for a form with a non-zero constant denominator,
-and every `Form` has one:
+has one way to answer `None`: its constant branch's `d.recip()?`,
+which refuses only a zero or unrepresentable denominator. The
+argument `magnitude_of_root` hands it is
+`sign_normalised(Form::poly(r))`, and that denominator is the
+constant one, so the refusal cannot happen here. (Forms in general
+have polynomial denominators; this one does not.) The three answers
+it can give:
 - a constant folds to its magnitude;
 - a manifestly non-negative form is its own magnitude;
 - anything else mints the `Abs` atom over the argument as written.
@@ -36,6 +41,11 @@ DECIDE-7's profile agrees without proving it. The magnitude door ran
 204 times on the pad's dev leaf, and 24 of those folded to `R`
 (`RootProfile::parts`). The instrument does not count the arms after
 it.
+
+**By execution** (DECIDE-7's review, on `decide/7-review`): a
+`panic!` planted after the manifest step never fired. That covers
+`geom-core`'s lib tests (382) and the release leaf instrument's 7
+scales × 5 ladder variants.
 
 ## What to decide
 

@@ -66,71 +66,85 @@ fn one_minus_cos_squared(arg: &Form, payload: u64) -> Option<Form> {
     Some(Form::poly(Poly::one().add(&cos2)?))
 }
 
+/// **The indeterminates `f` carries to a power past one**, once per
+/// occurrence, numerator first — the one home of "what a reduction
+/// could substitute". [`find_square`] looks up exactly these in the
+/// atom table and nothing else, so a form none of whose squared ids is
+/// in the table is its own reduction.
+pub(super) fn squared(f: &Form) -> impl Iterator<Item = u128> + '_ {
+    [&f.num, &f.den]
+        .into_iter()
+        .flat_map(Poly::monos)
+        .flat_map(|m| m.iter())
+        .filter(|&&(_, e)| e >= 2)
+        .map(|&(id, _)| id)
+}
+
 /// The first reduction any enabled rule can apply to `f` — a `sqrt`
 /// atom (rule A) or a `sin` atom (rule B) appearing to an EVEN power.
-/// `None` when no rule reaches an even-power atom of `f`.
+/// `None` when no rule reaches an even-power atom of `f`. Every id it
+/// looks up and finds ABSENT from the table is pushed to `absent` —
+/// the one read of the table whose answer can change later in the
+/// session (an atom minted after this call).
 fn find_square(
     f: &Form,
     rules: SymRules,
     atoms: &IndetMap<AtomInfo>,
     budget: SymBudget,
+    absent: &mut Vec<u128>,
 ) -> Option<Square> {
-    for poly in [&f.num, &f.den] {
-        for mono in poly.monos() {
-            for &(id, e) in mono {
-                if e < 2 {
-                    continue;
-                }
-                let Some(info) = atoms.get(&id) else { continue };
-                let Some(arg) = info.args[0].as_ref() else {
+    for id in squared(f) {
+        let Some(info) = atoms.get(&id) else {
+            absent.push(id);
+            continue;
+        };
+        let Some(arg) = info.args[0].as_ref() else {
+            continue;
+        };
+        match info.op {
+            SymOp::Sqrt if rules.sqrt_square => {
+                return Some(Square {
+                    id,
+                    x: (**arg).clone(),
+                });
+            }
+            // `|X|² = X²` — the same rewrite as rule A's, at
+            // the atom rule G leaves where the argument of a
+            // root was a perfect square. Without it a root
+            // that USED to reduce through `sqrt(R²)² → R²`
+            // stops reducing the moment it is spelled `|R|`,
+            // and the residual keeps a square it can cancel.
+            //
+            // **Behind three dials — rule A's, rule G's and
+            // its own (`SymRules::abs_square`)**, read as one
+            // conjunction. Rule G's, because nothing mints an
+            // `Abs` where a root used to stand until rule G
+            // does, so a tier with `canonical_root` off that
+            // carried this arm would be a tier that never
+            // existed — and every differential taken against it
+            // would measure two rules at once. Its own, because
+            // it is the half of rule G whose trade on R2's link
+            // is measured apart, and a retry needs a bit to
+            // shut it by.
+            SymOp::Abs if rules.sqrt_square && rules.canonical_root && rules.abs_square => {
+                // A budget refusal on the squared argument is
+                // not an answer about the FORM: skip this atom
+                // and keep looking, the way a rule that can
+                // only fail to find a cancellation must. The
+                // `Sqrt` arm cannot refuse, so there is nothing
+                // to make consistent there.
+                let Some(x) = arg.mul(arg, budget) else {
                     continue;
                 };
-                match info.op {
-                    SymOp::Sqrt if rules.sqrt_square => {
-                        return Some(Square {
-                            id,
-                            x: (**arg).clone(),
-                        });
-                    }
-                    // `|X|² = X²` — the same rewrite as rule A's, at
-                    // the atom rule G leaves where the argument of a
-                    // root was a perfect square. Without it a root
-                    // that USED to reduce through `sqrt(R²)² → R²`
-                    // stops reducing the moment it is spelled `|R|`,
-                    // and the residual keeps a square it can cancel.
-                    //
-                    // **Behind three dials — rule A's, rule G's and
-                    // its own (`SymRules::abs_square`)**, read as one
-                    // conjunction. Rule G's, because nothing mints an
-                    // `Abs` where a root used to stand until rule G
-                    // does, so a tier with `canonical_root` off that
-                    // carried this arm would be a tier that never
-                    // existed — and every differential taken against it
-                    // would measure two rules at once. Its own, because
-                    // it is the half of rule G whose trade on R2's link
-                    // is measured apart, and a retry needs a bit to
-                    // shut it by.
-                    SymOp::Abs if rules.sqrt_square && rules.canonical_root && rules.abs_square => {
-                        // A budget refusal on the squared argument is
-                        // not an answer about the FORM: skip this atom
-                        // and keep looking, the way a rule that can
-                        // only fail to find a cancellation must. The
-                        // `Sqrt` arm cannot refuse, so there is nothing
-                        // to make consistent there.
-                        let Some(x) = arg.mul(arg, budget) else {
-                            continue;
-                        };
-                        return Some(Square { id, x });
-                    }
-                    SymOp::Sin if rules.pythagoras => {
-                        return Some(Square {
-                            id,
-                            x: one_minus_cos_squared(arg, info.payload)?,
-                        });
-                    }
-                    _ => {}
-                }
+                return Some(Square { id, x });
             }
+            SymOp::Sin if rules.pythagoras => {
+                return Some(Square {
+                    id,
+                    x: one_minus_cos_squared(arg, info.payload)?,
+                });
+            }
+            _ => {}
         }
     }
     None
@@ -243,12 +257,29 @@ pub(super) fn reduce_steps(
     atoms: &IndetMap<AtomInfo>,
     steps: usize,
 ) -> Option<Form> {
+    reduce_noting(f, rules, budget, atoms, steps, &mut Vec::new())
+}
+
+/// [`reduce_steps`], pushing to `absent` every id the reduction looked
+/// up in the atom table and did not find. The answer is a function of
+/// the arguments and of those lookups alone: a record that IS in the
+/// table never changes (atoms are inserted once, under a content key),
+/// so the only way a later call on the same form can differ is an id in
+/// `absent` minted since.
+pub(super) fn reduce_noting(
+    f: &Form,
+    rules: SymRules,
+    budget: SymBudget,
+    atoms: &IndetMap<AtomInfo>,
+    steps: usize,
+    absent: &mut Vec<u128>,
+) -> Option<Form> {
     if f.poisoned || !(rules.sqrt_square || rules.pythagoras) {
         return Some(f.clone());
     }
     let mut cur = f.clone();
     for _step in 0..steps {
-        let Some(sq) = find_square(&cur, rules, atoms, budget) else {
+        let Some(sq) = find_square(&cur, rules, atoms, budget, absent) else {
             return Some(cur);
         };
         let Some(next) = apply(&cur, &sq, budget) else {

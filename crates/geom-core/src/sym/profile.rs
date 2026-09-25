@@ -293,18 +293,29 @@ pub struct SymProfile {
     /// Every freeze, in order.
     pub freezes: Vec<FreezeSite>,
     /// `Rat` additions and multiplications.
+    ///
+    /// Not comparable across the per-node reduction's memo
+    /// (`sym::reduce_per_node`): a reduction the memo answers runs no
+    /// ring operation at all.
     pub rat_ops: u64,
     /// `Int` operations that ran on the heap integer — an operand was
     /// already `Big`, or the `i128` path overflowed.
+    ///
+    /// Not comparable across the per-node reduction's memo
+    /// (`sym::reduce_per_node`): a reduction the memo answers runs no
+    /// ring operation at all.
     pub big_ops: u64,
     /// Of those, PROMOTIONS: both operands `Small` and the checked
-    /// `i128` operation overflowed.
+    /// `i128` operation overflowed. Not comparable across the reduction
+    /// memo, as [`Self::big_ops`].
     pub promotions: u64,
     /// The widest integer (bits) any coefficient KEPT carried — at most
-    /// `COEFF_BITS`.
+    /// `COEFF_BITS`. A reduction the memo answers widens nothing, as
+    /// [`Self::rat_ops`] says.
     pub widest_bits: u64,
     /// The widest integer (bits) the ring REFUSED at the coefficient
-    /// bound — zero when nothing was refused.
+    /// bound — zero when nothing was refused. As [`Self::widest_bits`]
+    /// across the reduction memo.
     pub widest_refused_bits: u64,
     /// The per-node rule A/B reduction in the early walk
     /// (`algebra::reduce_steps` under `SymRules::early_ab`).
@@ -316,11 +327,18 @@ pub struct SymProfile {
     /// an even power before it ran.
     pub reduce_by: BTreeMap<(&'static str, &'static str), Timed>,
     /// The per-node reductions asked over a form this session had
-    /// already reduced (by the form's digest, the rules and the ring
-    /// held fixed within a session's first attempt), by outcome — what a
-    /// per-session memo of the reduction keyed by its input would
-    /// answer.
+    /// already been asked over, by the form's digest ALONE and across
+    /// every retry attempt of the session, by outcome. The memo
+    /// (`sym::reduce_per_node`) also keys the rules and the ring bound,
+    /// so a repeat across attempts is counted here and missed there:
+    /// this is the ceiling of what the memo can answer, and
+    /// [`Self::reduce_hits`] is what it did.
     pub reduce_repeats: BTreeMap<&'static str, Timed>,
+    /// The per-node reductions the session's memo answered.
+    pub reduce_hits: Timed,
+    /// **The reduction memo's size** — the most entries one session's
+    /// memo held as it ended (`sym::REDUCTION_FORMS` is set against it).
+    pub reduction_memo: usize,
     /// The per-node reductions that REFUSED, by cause — the ring or a
     /// product refused a step, a step's result was past the budget, the
     /// step cap ran out, or the call site's budget check refused a form
@@ -615,9 +633,11 @@ thread_local! {
     /// and the first attempt's rows are what they were.
     static ATTEMPT: Cell<u8> = const { Cell::new(0) };
 
-    /// The decision forms this session's reads have already asked, by
-    /// digest ([`ReadProfile::repeats`]).
-    static READ_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
+    /// **What this session has already seen, by digest**, one set per
+    /// [`Seen`] kind, emptied together as a session starts
+    /// ([`seen_before`]).
+    static SEEN: RefCell<[BTreeSet<u128>; 3]> =
+        const { RefCell::new([BTreeSet::new(), BTreeSet::new(), BTreeSet::new()]) };
 
     /// Whether the read running was asked by `signed::order`.
     static IN_ORDER: Cell<bool> = const { Cell::new(false) };
@@ -630,26 +650,39 @@ thread_local! {
     static READ_DEEPEST: Cell<usize> = const { Cell::new(0) };
 
     /// How deep inside rule G the thread is ([`RootProfile::own`]
-    /// clocks the outermost entry), the branch the call running last
-    /// named, and the argument digests this session's `canonical` has
-    /// seen ([`RootProfile::repeats`]).
+    /// clocks the outermost entry), and the branch the call running
+    /// last named.
     static ROOT_DEPTH: Cell<u32> = const { Cell::new(0) };
 
-    /// Why the last per-node reduction refused, and at which step
-    /// ([`reduce_exit`]).
+    /// Why the per-node reduction running refused, and at which step
+    /// ([`reduce_exit`]), and whether the session's memo answered it —
+    /// both emptied as each reduction begins ([`reduce_begin`]).
     static REDUCE_EXIT: Cell<Option<(&'static str, usize)>> = const { Cell::new(None) };
+    static REDUCE_HIT: Cell<bool> = const { Cell::new(false) };
 
     /// The substitution step running (`algebra`'s `site!`), and the
     /// label [`reduce_exit`] builds from it and the refusal's note.
     static REDUCE_SITE: Cell<&'static str> = const { Cell::new("") };
     static REDUCE_LABELS: RefCell<BTreeMap<RefusalKey, &'static str>> =
         const { RefCell::new(BTreeMap::new()) };
-
-    /// The forms this session's per-node reductions were asked over, by
-    /// digest ([`SymProfile::reduce_repeats`]).
-    static REDUCE_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
     static ROOT_BRANCH: Cell<Option<&'static str>> = const { Cell::new(None) };
-    static ROOT_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
+}
+
+/// The kinds of form a session's instrument asks "seen before?" of.
+#[derive(Clone, Copy)]
+enum Seen {
+    /// A decision read's form ([`ReadProfile::repeats`]).
+    Read,
+    /// A per-node reduction's input ([`SymProfile::reduce_repeats`]).
+    Reduce,
+    /// Rule G's argument ([`RootProfile::repeats`]).
+    Root,
+}
+
+/// Whether this session has already seen `digest` as a `kind`, noting
+/// it; `false` while the profile is not installed.
+fn seen_before(kind: Seen, digest: u128) -> bool {
+    active() && !SEEN.with(|s| s.borrow_mut()[kind as usize].insert(digest))
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -958,6 +991,29 @@ pub(super) fn reduce_site(site: &'static str) {
     }
 }
 
+/// **A per-node reduction begins**: the refusal note and the memo's
+/// hit flag start empty, so neither can carry over from the last one.
+#[inline]
+pub(super) fn reduce_begin() {
+    if active() {
+        REDUCE_EXIT.set(None);
+        REDUCE_HIT.set(false);
+    }
+}
+
+/// The session's reduction memo answered the reduction running.
+#[inline]
+pub(super) fn reduce_hit() {
+    if active() {
+        REDUCE_HIT.set(true);
+    }
+}
+
+/// The reduction memo's size as a session ends ([`SymProfile::reduction_memo`]).
+pub(super) fn reduction_memo(entries: usize) {
+    with(|p| p.reduction_memo = p.reduction_memo.max(entries));
+}
+
 /// One per-node reduction finished, classified ([`SymProfile::reduce_by`]),
 /// and a refusal by its cause and the step it came at
 /// ([`SymProfile::reduce_refusals`]).
@@ -966,17 +1022,20 @@ pub(super) fn reduce_outcome(
     input: u128,
     outcome: &'static str,
     powers: &'static str,
-    hit: bool,
 ) {
+    let hit = REDUCE_HIT.get();
     let exit = if hit {
         Some(("answered by the session's reduction memo", 0))
     } else {
-        REDUCE_EXIT.take()
+        REDUCE_EXIT.get()
     };
-    let repeat = active() && !REDUCE_SEEN.with(|s| s.borrow_mut().insert(input));
+    let repeat = seen_before(Seen::Reduce, input);
     with(|p| {
         timed(&mut p.reduce, t0);
         timed(p.reduce_by.entry((outcome, powers)).or_default(), t0);
+        if hit {
+            timed(&mut p.reduce_hits, t0);
+        }
         if repeat {
             timed(p.reduce_repeats.entry(outcome).or_default(), t0);
         }
@@ -1004,9 +1063,7 @@ pub(super) fn trig_done(t0: Option<Instant>) {
 pub(super) fn session_start() {
     if active() {
         OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
-        READ_SEEN.with(|s| s.borrow_mut().clear());
-        ROOT_SEEN.with(|s| s.borrow_mut().clear());
-        REDUCE_SEEN.with(|s| s.borrow_mut().clear());
+        SEEN.with(|s| s.borrow_mut().iter_mut().for_each(BTreeSet::clear));
     }
 }
 
@@ -1057,7 +1114,7 @@ pub(super) fn read_enclose_mark() -> Duration {
 /// One read finished: the read's own time, its form's digest, and
 /// what the instrument learned about it.
 pub(super) fn read_done(spent: Duration, mark: Duration, digest: u128, class: &ReadClass) {
-    let repeat = active() && !READ_SEEN.with(|s| s.borrow_mut().insert(digest));
+    let repeat = seen_before(Seen::Read, digest);
     let in_order = IN_ORDER.get();
     with(|p| {
         let r = &mut p.read;
@@ -1191,7 +1248,7 @@ pub(super) fn root_canonical_done(t0: Option<Instant>, arg: u128, out: Option<&F
     let dt = start.elapsed();
     let outermost = root_end();
     let branch = ROOT_BRANCH.take().unwrap_or("unnoted");
-    let repeat = !ROOT_SEEN.with(|s| s.borrow_mut().insert(arg));
+    let repeat = seen_before(Seen::Root, arg);
     let size = out.map(|f| (size_of(f), f.den.as_constant().is_none()));
     with(|p| {
         let r = &mut p.root;
@@ -1537,6 +1594,11 @@ impl SymProfile {
                 t.calls, t.time
             );
         }
+        let _ = writeln!(
+            f,
+            "  reduction memo: {} hits in {:?}; at most {} entries a session",
+            self.reduce_hits.calls, self.reduce_hits.time, self.reduction_memo
+        );
         for (outcome, t) in &self.reduce_repeats {
             let _ = writeln!(
                 f,

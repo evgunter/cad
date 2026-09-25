@@ -262,3 +262,7 @@ pre-bound. That residue is filed on the sym slate as
 
 The reading that rule G's magnitude door never reaches rule C is
 filed as `work/decide/rule-gs-magnitude-door-never-asks-rule-c`.
+
+The door walk re-derives the early walk's forms node by node, and it
+still does. The memo absorbs that repetition at the reduction, which
+is where its cost was, and not at the walk.
