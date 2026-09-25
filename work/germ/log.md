@@ -117,3 +117,14 @@ Orchestrator-side actions from the reports:
   one annulus).
 - The `UndeclaredCoincidence` diag's `margin: Invalid` rides
   `germ/torus-doors` as a drive-by (already in that brief).
+
+## 2026-09-25 — Ev's steer on the full-revolve fork
+
+Ev asked on the `[ev]` PR why the revolve does not "just emit the right
+thing to begin with". It can: the two-band split is owed only by curved
+walls (pole or apex valence). The PR was reworked in place: the full revolve
+CONSTRUCTS each planar wall as one face, and F7 is unchanged. Both designers
+had called "build maximal" and "merge at the end" the same final body and
+preferred the merge. Ev's reading is the cleaner one, and it removes the F7
+edit altogether. Still open for Ev: the `Band(s)` naming, and parking the
+π revolve.
