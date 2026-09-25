@@ -5344,14 +5344,14 @@ fn ring_outer_meeting<T: Decide>(
                 continue;
             };
             match segments_meet(rseg, oseg, normal, band) {
-                Meet::Apart => {}
-                Meet::Meet => {
+                EdgePair::Apart => {}
+                EdgePair::Meet => {
                     return RingOuterVerdict::Contact(RingContact::EdgesMeet {
                         ring_edge,
                         outer_edge,
                     });
                 }
-                Meet::Unsure(source) => escalated = escalated.or(Some(source)),
+                EdgePair::Unsure(source) => escalated = escalated.or(Some(source)),
             }
         }
     }
@@ -5467,7 +5467,7 @@ fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, Me
 }
 
 /// Whether two edges share a point, as arm 5 decides it.
-enum Meet {
+enum EdgePair {
     /// Definitely not.
     Apart,
     /// Definitely: a point lies on both carriers and inside both trims.
@@ -5496,7 +5496,7 @@ fn segments_meet<T: Decide>(
     second: MeetSegment<T>,
     normal: geom_core::Vec3<T>,
     band: Band,
-) -> Meet {
+) -> EdgePair {
     match (first, second) {
         (MeetSegment::Line { a: a0, b: a1 }, MeetSegment::Line { a: b0, b: b1 }) => {
             lines_meet(a0, a1, b0, b1, normal, band)
@@ -5511,7 +5511,7 @@ fn segments_meet<T: Decide>(
             let half_chord = ((radius - h) * (radius + h)).max(T::zero()).sqrt();
             let (existence, candidates) =
                 match decide("ring_outer_meet_reach", Margin::of(radius - h), band) {
-                    Ok(Sign::Negative) => return Meet::Apart,
+                    Ok(Sign::Negative) => return EdgePair::Apart,
                     Ok(Sign::Positive) => {
                         (None, vec![foot + e * half_chord, foot - e * half_chord])
                     }
@@ -5550,7 +5550,7 @@ fn segments_meet<T: Decide>(
             },
         ) => {
             let (existence, tangent) = match circle_pair(c1, r1, c2, r2, band) {
-                Ok(CirclePair::Apart | CirclePair::Nested) => return Meet::Apart,
+                Ok(CirclePair::Apart | CirclePair::Nested) => return EdgePair::Apart,
                 Ok(CirclePair::Crossing) => (None, false),
                 Ok(CirclePair::ExternallyTangent | CirclePair::InternallyTangent) => (None, true),
                 Err(source) => (Some(source), true),
@@ -5565,8 +5565,8 @@ fn segments_meet<T: Decide>(
                 // undefined there, so it is settled before dividing.
                 match decide("ring_outer_meet_centres", Margin::of(d), band) {
                     Ok(Sign::Positive) => {}
-                    Ok(Sign::Zero | Sign::Negative) => return Meet::Apart,
-                    Err(source) => return Meet::Unsure(existence.unwrap_or(source)),
+                    Ok(Sign::Zero | Sign::Negative) => return EdgePair::Apart,
+                    Err(source) => return EdgePair::Unsure(existence.unwrap_or(source)),
                 }
             }
             // The radical line's foot on the centre line, and the
@@ -5575,7 +5575,7 @@ fn segments_meet<T: Decide>(
             // asked too, as on a line.
             let u = w.normalize();
             let v = normal.cross(u);
-            let a = (d * d + r1 * r1 - r2 * r2) / (d * T::from_f64(2.0));
+            let a = (d.powi(2) + r1.powi(2) - r2.powi(2)) / (d * T::from_f64(2.0));
             let half_chord = ((r1 - a) * (r1 + a)).max(T::zero()).sqrt();
             let foot = c1 + u * a;
             let candidates = if tangent {
@@ -5601,7 +5601,7 @@ fn lines_meet<T: Decide>(
     b1: geom_core::Point3<T>,
     normal: geom_core::Vec3<T>,
     band: Band,
-) -> Meet {
+) -> EdgePair {
     let ea = (a1 - a0).normalize();
     let eb = (b1 - b0).normalize();
     let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
@@ -5620,10 +5620,10 @@ fn lines_meet<T: Decide>(
         )
     };
     if separated(&on_a) || separated(&on_b) {
-        return Meet::Apart;
+        return EdgePair::Apart;
     }
     if let Some(&Err(source)) = on_a.iter().chain(&on_b).find(|r| r.is_err()) {
-        return Meet::Unsure(source);
+        return EdgePair::Unsure(source);
     }
     let collinear =
         |pair: &[Result<Sign, Indeterminate>; 2]| matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)]);
@@ -5638,9 +5638,9 @@ fn lines_meet<T: Decide>(
         let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
         let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
         match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
-            Ok(Sign::Positive | Sign::Zero) => Meet::Meet,
-            Ok(Sign::Negative) => Meet::Apart,
-            Err(source) => Meet::Unsure(source),
+            Ok(Sign::Positive | Sign::Zero) => EdgePair::Meet,
+            Ok(Sign::Negative) => EdgePair::Apart,
+            Err(source) => EdgePair::Unsure(source),
         }
     };
     if collinear(&on_a) {
@@ -5648,7 +5648,7 @@ fn lines_meet<T: Decide>(
     } else if collinear(&on_b) {
         overlap(b0, b1, eb, a0, a1)
     } else {
-        Meet::Meet
+        EdgePair::Meet
     }
 }
 
@@ -5665,7 +5665,7 @@ fn meet_at<T: Decide>(
     first: MeetSegment<T>,
     second: MeetSegment<T>,
     band: Band,
-) -> Meet {
+) -> EdgePair {
     let mut open: Option<Indeterminate> = None;
     for &p in candidates {
         let wa = window(first, p, band);
@@ -5675,7 +5675,7 @@ fn meet_at<T: Decide>(
         let diag = match (wa, window(second, p, band)) {
             (_, Window::Out) => continue,
             (Window::In, Window::In) => match existence {
-                None => return Meet::Meet,
+                None => return EdgePair::Meet,
                 Some(source) => source,
             },
             (Window::Unsure(source), _) | (_, Window::Unsure(source)) => {
@@ -5685,7 +5685,7 @@ fn meet_at<T: Decide>(
         };
         open = open.or(Some(diag));
     }
-    open.map_or(Meet::Apart, Meet::Unsure)
+    open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
