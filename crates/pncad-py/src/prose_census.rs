@@ -1703,9 +1703,9 @@ const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[(
     "VoidInsertError",
     "e",
     1,
-    "`RevertError` carries struct variants. Found BY this census;\
-         reachability into `typed_err` not traced, so severity is undecided and\
-         the site is disclosed rather than claimed",
+    "`RevertError` carries struct variants. Found BY this census; \
+     reachability into `typed_err` not traced, so severity is undecided and \
+     the site is disclosed rather than claimed",
 )];
 
 /// The blind spot, written down WITH ITS REASON.

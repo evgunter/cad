@@ -72,8 +72,10 @@ row's own mutation, where the second spec's target is always resolved at
 arrival-target slots (steps 20, 21, 32 and 33).
 
 The Q7 half is done too. `res_target` takes `second: bool` in place of two
-positional roles. `target_slots`, `target2_slots` and `res_target` now all
-read one assignment, `target_roles(second)` in
-`crates/editor-core/src/program.rs`, so the target pair is spelled once.
-The other roles are still spelled in both `res_spec` and `spec_slots`, and
-the new test is what holds them together.
+positional roles. `target_slots`, `target2_slots`, `res_target` and both accessor macros
+(through `target_coord`) now all read one assignment,
+`target_roles(second)` in `crates/editor-core/src/program.rs`, so the
+target pair is spelled once. Every other role is still spelled three
+times, in the resolvers, the enumeration and the accessor macros. The new
+test is what holds them together, and the residue is filed as
+`step-arg-roles-are-spelled-in-three-homes`.

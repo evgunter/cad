@@ -906,6 +906,13 @@ pub fn plain_string_literal(text: &str) -> Option<&str> {
 /// **A `;` inside the declaration's own TYPE ends it early**, which an
 /// array type (`[&str; 3]`) has and a scalar one does not; a caller
 /// whose `decl` stops before a type of that shape wants its own walk.
+///
+/// **An empty answer is legitimate here, and not refused**, unlike
+/// [`required_matches`]: the callers ask one file at a time for a
+/// declaration that lives in only one of them, so most reads are empty
+/// by construction. A caller that needs exactly one declaration refuses
+/// on the count it gathers, as [`sole_initializer`] does over one view
+/// and `refusal_concision_chains`' constant read does across a tree.
 #[must_use]
 pub fn initializers(view: &str, decl: &str) -> Vec<std::ops::Range<usize>> {
     view.match_indices(decl)

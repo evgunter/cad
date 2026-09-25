@@ -1,11 +1,11 @@
 ---
 id: wire-rs-accumulation-residue-comment-ratio-and-wire-sweep
 kind: issue
-title: wire.rs's two accumulation findings survive the header fix: 41% comment ratio, and wire_sweep exists to fail
+title: eval/wire.rs is about 47% comment by line and nothing decides whether that is wanted: a ratio budget or an editorial pass
 status: open
 opened: 2026-09-12
 priority: P4
-cost: E
+cost: D
 ---
 
 

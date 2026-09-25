@@ -1148,7 +1148,7 @@ fn every_enumerated_slot_addresses_a_distinct_expression() {
 }
 
 /// **A refusal reports at the slot the census enumerates.** The
-/// enumeration (`spec_slots` / `step_expr`) and the resolution
+/// enumeration (`spec_slots` / `step_slots`) and the resolution
 /// (`res_step` / `res_spec` / `res_target`) each assign a role to every
 /// expression a step carries, and the bijection census above reads only
 /// the first. So each enumerated slot's expression is replaced, one at

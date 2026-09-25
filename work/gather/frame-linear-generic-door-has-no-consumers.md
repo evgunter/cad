@@ -2,12 +2,13 @@
 id: frame-linear-generic-door-has-no-consumers
 kind: issue
 title: A CLASS - public generic doors with zero production call sites, kept alive by their own tests: Frame::linear<T> is DELETED; the two profile map_scalar rungs (PR 2409) are the half still open
-status: open
+status: parked
 opened: 2026-09-11
 refs: [2375, 2409, 2475, 2487]
 pr: 2487
 priority: P4
 cost: E
+blocked_on: [the-scalar-lift-convention-mints-doors-faster-than-consumers]
 ---
 
 

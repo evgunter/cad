@@ -471,20 +471,17 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // "output body 0" names nothing here, so there is no home to
         // read from and none is invented.
         //
-        // The index narrows through `names::output_body`, the one home
-        // of that narrowing, and cannot refuse here: an instance list
-        // is minted only by the pattern op, which put every flat index
-        // through the same door (`NodeErrorKind::Naming` on overflow)
-        // before the value existed, and a placer maps it one body for
-        // one. A refusal met here is that invariant broken — a kernel
-        // bug, loud rather than a saturated index aliasing two bodies.
+        // Cannot refuse: an instance list is minted by the pattern op,
+        // which refuses any index `names::output_body` does not fit, or
+        // by `Placeable::map`, which rebuilds an existing list one body
+        // for one.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
                 .map(|(i, body)| {
                     let ix = crate::names::output_body(i).unwrap_or_else(|e| {
-                        unreachable!("instance {i} of a minted pattern value: {e}")
+                        unreachable!("instance {i} outlived its minting op's index refusal: {e}")
                     });
                     (ix, Arc::clone(body), none(), norows())
                 })
