@@ -56,7 +56,8 @@ messages and other recovery. `grep -rn 'solids()\.next()'` over
 (`crates/topo/tests/void_door.rs` alone has eleven, and
 `crates/topo/src/instance.rs`, `movefac.rs`, `separation.rs`,
 `offset_together.rs`, `crates/sweep/src/blend/surgery.rs` and
-`crates/editor-core/src/product.rs` are the non-test homes). A door
+`crates/editor-core/src/product.rs` are the homes outside `tests/`,
+some of them `#[cfg(test)]` modules in `src/`). A door
 would want all 56, not the 20 that share a string. (Still 56 on
 2026-09-24, same instrument: `shell10_r2_probes.rs`'s copy left with
 that module, and `separation.rs`'s `owner_index` fixture arrived.)
