@@ -224,15 +224,27 @@ So the chain goes, not the link:
   Every two members that touch are a contact. This holds whatever the
   other members are and whatever the member order, so the union's
   contacts are the contacts of its member pairs.
-  - Before the fold, each pair of members whose closed bounding boxes
-    meet is judged by the pair verb, as the two-member union `m ∪ n`,
-    with the declared pairs whose sites are `m` and `n`. Pairs whose
-    boxes are disjoint cannot touch, so they are not judged.
+  - Before the fold, each pair of members is judged by the pair verb,
+    as the two-member union `m ∪ n`, with the declared pairs whose
+    sites are `m` and `n`. A pair carrying a declaration is judged
+    whatever its boxes: the declaration is a claim to verify, so its
+    names resolve at their sites and a contradicted one refuses
+    `ContactContradicted` in every member order. Only an undeclared
+    pair whose closed bounding boxes are disjoint is skipped, because
+    it cannot touch. The judgement costs up to n(n−1)/2 two-member
+    unions, bounded by pruning the undeclared pairs that cannot touch;
+    if it becomes a measured performance problem, it is raised to Ev
+    to be revisited, not optimized around the rule.
   - A pair that touches with the contact undeclared refuses
     `UndeclaredContact` exactly as the two-member union's operands do.
     It refuses in every member order.
   - A declared pair that the geometry contradicts refuses as the pair
     boolean does.
+  - Any other refusal the pair verb raises on a judged pair is the
+    union's refusal too, and so is order-free: a pair whose contact
+    the pair verb cannot decide inside the tolerance grey band refuses
+    `Escalated` in every member order, even where a third member
+    covers it.
   - A declared pair that survives the judgement is certified.
 
   A certified pair authorizes its contact wherever the fold meets it.
@@ -302,11 +314,13 @@ So the chain goes, not the link:
   names. No refusal names a row the fold minted, such as a `Fragment`
   (a `Seam` mints edges and vertices, never a face). A fold step never
   meets an undeclared contact, because every contact the fold meets
-  was certified pairwise. So a step that refuses on a fold-minted row
-  is holding a certified pair the routing could not hand it (the look-
-  through's bound above). It refuses typed, `UndeclarableContact`,
-  rather than degrading into an emission bug that blames the crate for
-  a document the user wrote. The refusal menu of
+  was judged pairwise: a certified pair is fed to its step, satisfied
+  because its face was consumed whole, or refused at that step, as a
+  vanished name or naming the composition that left it in pieces
+  (above). A fold step that refuses a contact anyway is an
+  emission bug, because the fold mints no contact verdict, and a
+  contact refusal from it would tell the user to declare a pair the
+  judgement already passed. The refusal menu of
   `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
   `UndeclaredContact`.
 
@@ -321,8 +335,10 @@ refusal past the merges applies Ev's ruling on PR 2677
 The contact rule (every pairwise contact is judged before the fold and
 must be declared, a covered contact included; a declared contact is
 satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
-PR #3200 (2026-09-25), and is built by the unit
-`union-contact-is-judged-pairwise-before-the-fold`.*
+PR #3200 (2026-09-25), and built by the unit
+`union-contact-is-judged-pairwise-before-the-fold` (PR 3213), where Ev
+also ruled that a declared pair is judged whatever its boxes and that
+a fold step's contact refusal is a bug assertion.*
 
 ## DM5 — A node's inputs are pairwise distinct
 

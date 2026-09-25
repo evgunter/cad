@@ -2031,9 +2031,16 @@ pub enum Node<P> {
     ///
     /// # The `declare` field, and why it records no position
     ///
-    /// Members that touch refuse `UndeclaredContact` exactly as a pair
-    /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// Contact is judged pairwise, before the fold: every two members
+    /// whose boxes meet, or between which a pair is declared, are
+    /// evaluated as the two-member union of just those two, with the
+    /// pairs declared between them, and two members
+    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// exactly as a pair boolean's operands do. That holds in every
+    /// member order, and for a contact a third member covers too. The
+    /// fold then builds the body and judges no contact of its own. The
+    /// recourse is the pair boolean's: a [`Node::Declare`] input. Its
+    /// pairs name SITED entities
     /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
     /// with that member beside it. A declaration therefore says "this
     /// face of member `m` meets that face of member `n`" while naming
@@ -2075,19 +2082,22 @@ pub enum Node<P> {
     /// `c` to `d`) fuses in every order of the three, with
     /// `Merged({a, c, d})` as the fused cap's row in each.
     ///
+    /// A declared pair authorizes its contact wherever the fold meets
+    /// it, and does not demand that the fold meet it: a pair one of
+    /// whose faces another member contained whole before the pair's
+    /// step, so that no row descends from it, is satisfied.
+    ///
     /// Merges are the only consumption looked through, because a merge
-    /// is the only one with a unique successor. A member face split by
-    /// a later member, or inside a merged row that was later
-    /// fragmented, has none, and a pair naming it at a step after that
-    /// refuses: `Vanished`, with a [`crate::Diagnosis::ConsumedByFold`]
-    /// saying which of the two it was, and no replacement offered,
-    /// since which fragment the pair meant is a geometric question the
-    /// routing step does not ask. Which composition it was is read off
-    /// the accumulation's rows. The pair still resolves in the orders
-    /// that feed it while the face is a row. A face the fold consumed
-    /// WHOLE — one another member contains — leaves no row descending
-    /// from it, and its pair is the contact rule's (DM4, above), not
-    /// this refusal's.
+    /// is the only one with a unique successor. A member face that
+    /// survives only in pieces — split by another member, or inside a
+    /// merged row that was later fragmented — has none, and a pair
+    /// naming it at a step after that refuses: `Vanished`, with a
+    /// [`crate::Diagnosis::ConsumedByFold`] saying which of the two it
+    /// was, and no replacement offered, since which fragment the pair
+    /// meant is a geometric question the routing step does not ask.
+    /// Which composition it was is read off the accumulation's rows.
+    /// The pair still resolves in the orders that feed it while the
+    /// face is a row.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

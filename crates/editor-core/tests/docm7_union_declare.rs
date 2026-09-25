@@ -1011,56 +1011,48 @@ fn a_declared_unions_document_replays_in_document_order() {
 // The refusal against a row the fold minted.
 // ---------------------------------------------------------------------
 
-/// **A union's undeclared contact against a MERGED row is refused
-/// `UndeclaredContact` sited at a CONSTITUENT of that merge**, with
-/// the whole flat set beside it.
+/// **A union's undeclared contact against what the fold merges is
+/// refused between two MEMBERS, and declaring each refusal verbatim
+/// fuses the document.**
 ///
 /// Two placements of one prototype are declared flush, so their y=0
 /// walls fuse into one `Merged` row; a third block rests flush under
-/// that merged wall, undeclared. The merged row is the union's own,
-/// so no `SitedRef` names it — but every constituent is a member's
-/// face, and declaring the contact at any of them resolves back to
-/// the merged row through the look-through. The refusal therefore
-/// carries a pair the caller can declare verbatim, and names the
-/// constituents it chose between.
+/// that merged wall, undeclared. Contact is judged pairwise before the
+/// fold (DM4), so the refusal names a face of `m3` and a face of one
+/// placement, never the merged row, and carries no merged set. Each
+/// placement touches `m3`, so there are two refusals to answer; with
+/// both declared, each resolves to the merged row through the
+/// look-through at `m3`'s step.
 #[test]
-fn a_union_refusal_against_a_merged_wall_is_sited_at_a_constituent() {
+fn a_union_refusal_against_a_merged_wall_names_two_members() {
     let doc = ProfileDoc::empty_derived("rv_r2_merged_refusal", Tol::witness());
     let (doc, proto) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, m1) = placed(doc, proto, 0.0);
     let (doc, m2) = placed(doc, proto, 0.5);
     // Flush under the merged y=0 wall (x 0..1.5 once m1 and m2 fuse).
     let (doc, m3) = block(doc, (0.0, 1.5), (-1.0, 0.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(doc, &[m1, m2, m3], flush_pairs((m1, proto), (m2, proto)));
-    let ev = run(&doc);
-    let what = failure(&ev, union);
-    let Some(NodeErrorKind::UndeclaredContact {
-        finding, merged, ..
-    }) = what
-    else {
-        panic!("the refusal a caller can act on, got {what:?}")
-    };
-    // The merged side is the ACCUMULATION's: the constituents are the
-    // two placements' own walls, in member order, and the finding's
-    // side is the first of them.
-    assert_eq!(
-        merged.0.iter().map(|r| r.at).collect::<Vec<_>>(),
-        vec![m1, m2],
-        "the constituents, in member order"
-    );
-    assert!(merged.1.is_empty(), "the joining member's side is its own");
-    assert_eq!(finding.pair.0, merged.0[0], "the finding takes the first");
-    assert_eq!(
-        finding.pair.1.at, m3,
-        "the other side is the joining member"
-    );
-    // Declared verbatim, the same document fuses: any constituent
-    // names the merged row through the look-through.
     let mut pairs = flush_pairs((m1, proto), (m2, proto));
-    pairs.push((finding.pair.0.clone(), finding.pair.1.clone()));
-    let (doc, again, _) = declared_union(doc.clone(), &[m1, m2, m3], pairs);
-    let ev = run(&doc);
-    assert!(failure(&ev, again).is_none(), "{:?}", failure(&ev, again));
+    let mut refused = Vec::new();
+    loop {
+        let (docx, union, _) = declared_union(doc.clone(), &[m1, m2, m3], pairs.clone());
+        let ev = run(&docx);
+        match failure(&ev, union) {
+            None => break,
+            Some(NodeErrorKind::UndeclaredContact {
+                finding, merged, ..
+            }) => {
+                assert!(
+                    merged.0.is_empty() && merged.1.is_empty(),
+                    "a pairwise refusal carries no merged set: {merged:?}"
+                );
+                refused.push((finding.pair.0.at, finding.pair.1.at));
+                assert!(refused.len() <= 2, "{refused:?}");
+                pairs.push((finding.pair.0.clone(), finding.pair.1.clone()));
+            }
+            other => panic!("the refusal a caller can act on, got {other:?}"),
+        }
+    }
+    assert_eq!(refused, [(m1, m3), (m2, m3)]);
 }
 
 /// **The site is the OPERAND, not the minting node** — through a

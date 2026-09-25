@@ -890,8 +890,10 @@ pub enum RoleSeg {
     /// routing door, keeps that identity through the fold's MERGES: a
     /// member's face that a declared merge has consumed resolves, at
     /// the step its pair is fed to, to the accumulation's `Merged` row
-    /// whose flat constituent set holds it. A face split by a later
-    /// member, or inside a merged row later fragmented, has no one
+    /// whose flat constituent set holds it. A face another member
+    /// contained whole leaves no row behind, and a pair naming it is
+    /// satisfied. A face surviving only in pieces — split by a later
+    /// member, or inside a merged row later fragmented — has no one
     /// entity to resolve to, and a pair naming it refuses, saying which
     /// of the two consumed it ([`crate::Node::Union`] states the rule).
     ///

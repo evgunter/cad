@@ -158,8 +158,11 @@ look-through is a strict improvement and is not what is being undone.
 Ev's contact ruling on #3200 came after PR 2677 and supersedes it for
 containment: a declared pair whose face the fold consumed whole is
 SATISFIED, not refused (DM4, `crates/editor-core/REFERENCES.md`). That
-case is built by `union-contact-is-judged-pairwise-before-the-fold`, on
-top of its pairwise pre-pass. This row builds only the split and the
-fragmented merge. A face nothing in the accumulation descends from keeps
-the door's plain `Vanished` until that unit lands, pinned by
-`docm8_flat_merged::a_member_face_inside_a_later_member_keeps_the_vanished_refusal`.
+case is built by `union-contact-is-judged-pairwise-before-the-fold`
+(PR 3213), on top of its pairwise pre-pass: `drop_consumed` drops such a
+pair after `look_through_merges`, pinned by
+`docm8_flat_merged::a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refuses`.
+This row builds only the split and the fragmented merge. The two compose
+because a face `drop_consumed` treats as consumed whole has, by
+`names::face_descends_from`, no descendant row, and `fold_descent`
+classifies only descendant rows.

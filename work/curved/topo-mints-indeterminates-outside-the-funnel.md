@@ -125,9 +125,10 @@ minting site.
 `declared_rung`'s `Contradicted` arm (`bool_plane_offset`
 `Ok(Positive | Negative)`) is user-visible through a union too. R2's
 `r2_p7` declares `a`'s x = 1 wall Rest against `far`'s x = 6 wall.
-In the four member orders that feed the pair while the wall is still a
-row, the union refuses `ContactContradicted`, and the refusal reads
+The union refuses `ContactContradicted` in every member order (the
+pairwise pre-pass judges a declared pair whatever the order), and the
+refusal reads
 *"… contradicted by predicate 'bool_plane_offset' indeterminate: margin
 is invalid (NaN or a poisoned enclosure) …"* about two planes 5 units
 apart whose offset DECIDED nonzero. Pinned (by kind, not text) in
-`docm8_flat_merged::a_member_face_inside_a_later_member_keeps_the_vanished_refusal`.
+`docm8_flat_merged::a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refuses`.
