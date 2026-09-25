@@ -1598,8 +1598,7 @@ fn between_edge_in_plane<T: Decide>(
             })
         }
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-            let (t0, t1) = curve.params();
-            let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
+            let mid = curve.mid_point();
             match lane {
                 JoinLane::Planar { plane } | JoinLane::Split(SectionCtx { plane, .. }) => {
                     let margin = Margin::of((mid - plane.origin).dot(plane.normal));
@@ -2407,8 +2406,9 @@ mod tests {
 
     /// The plane×plane lane's adjacency question on a conic between
     /// edge (a cylinder cap's rim, which a planar divided face carries),
-    /// answered against the partner germ plane both ways, and by the
-    /// same test the split lane runs. The rim is the upper semicircle
+    /// answered against the partner germ plane, by the same test the
+    /// split lane runs: the reachable belly verdict, and the coplanar
+    /// verdict the arm keeps. The rim is the upper semicircle
     /// of the unit circle in z = 0, from (1, 0, 0) to (−1, 0, 0).
     #[test]
     fn planar_lane_decides_a_conic_between_edge_against_its_section_plane() {
@@ -2432,8 +2432,10 @@ mod tests {
         // centre (y = 0, a lap through the axis): the rim bellies to
         // y = 1, so it is no section segment and the chord is minted.
         assert_eq!(verdict(Vec3::unit_y()), (Some(false), Some(false)));
-        // The section plane holding the whole rim (z = 0): the rim IS
-        // the section, and the chord is skipped.
+        // The section plane holding the whole rim (z = 0) guards the
+        // arm's plane-coplanar answer, Zero → skip. No plane×plane germ
+        // reaches it: a partner plane holding the divided face's rim is
+        // the divided face's own plane, a coincidence, not a germ.
         assert_eq!(verdict(Vec3::unit_z()), (Some(true), Some(true)));
     }
 

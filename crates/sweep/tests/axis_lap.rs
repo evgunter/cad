@@ -28,12 +28,16 @@
 //!   way take the same arm with an ellipse arc, mint their chords, and
 //!   refuse one door later, where the containment door cannot measure
 //!   an obliquely trimmed wall in closed form.
+//! - a flat cutter with a thin half-rod on the axis leaves role
+//!   resolution only the rim's CHORD midpoint to probe, which is on
+//!   neither flanking region, and the join refuses `SectionLoopMixed`
+//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::PI;
 
-use geom_core::{Point2, Point3, Tol, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
@@ -215,4 +219,41 @@ fn an_oblique_cap_flats_through_its_ellipse_arc() {
         ),
         "{err:?}"
     );
+}
+
+/// **Role resolution's chord-midpoint probe is unsound on a curved
+/// edge.** The cutter is the half-space `y ≥ 0` over the rod's whole
+/// length, with a thin half-rod (`r = 0.1`) on the axis, bulging either
+/// way. Every rod vertex sits on the cutter's boundary, so role
+/// resolution falls to its `Anchor::EdgeMidpoint` chord midpoints, and
+/// a rim semicircle's is the circle's centre — a point on neither
+/// flanking region, whose one verdict both loops then take. The join
+/// refuses `SectionLoopMixed` rather than resolving. Pinned at that
+/// outcome; the fix is
+/// `work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`.
+#[test]
+fn a_chord_midpoint_probe_reads_both_loops_alike() {
+    for bulge in [1.0, -1.0] {
+        let cutter = extruded(
+            SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -1.0))),
+            bulge_loop(vec![
+                (Point2::new(-1.0, 0.0), 0.0),
+                (Point2::new(-0.1, 0.0), bulge),
+                (Point2::new(0.1, 0.0), 0.0),
+                (Point2::new(1.0, 0.0), 0.0),
+                (Point2::new(1.0, 1.0), 0.0),
+                (Point2::new(-1.0, 1.0), 0.0),
+            ]),
+            6.0,
+        );
+        let r = topo::subtract(&rod(), &cutter, tol());
+        assert!(
+            matches!(
+                r,
+                Err(BooleanError::Join(SplitJoinError::SectionLoopMixed { .. }))
+            ),
+            "bulge {bulge}: {:?}",
+            r.err()
+        );
+    }
 }

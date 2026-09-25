@@ -1,62 +1,66 @@
 ---
 id: role-resolution-interior-tiers-certify-only-planar-region-faces
 kind: issue
-title: Role resolution's region-interior and vertex-chord tiers read the region face through the planar-only face_plane, so a curved region face refuses KindUnsupported naming a kind the containment door does have an arm for
+title: Role resolution probes a curved edge at its chord midpoint, which is on neither flanking region and reads both loops alike (SectionLoopMixed); its region-interior tiers read a curved region through the planar-only face_plane
 status: open
 opened: 2026-09-25
-priority: P1
-cost: D
+priority: P0
+cost: H
 ---
 
 
-Found by CONTACT-2's sweep for the planar-carrier premise.
+Found by CONTACT-2 (PR 3250) and its review.
 
-## What
+`boolean/join.rs` `resolve_roles_geometric` decides which loop of a
+completed section polygon is the IN copy by probing the regions flanking
+the seam against the other operand, tier by tier (`Anchor::Vertex`,
+`Anchor::EdgeMidpoint`, `Anchor::EdgeOnCarrier`, `Anchor::RegionInterior`,
+`Anchor::RegionVertexChord`). Two defects sit in it.
 
-`boolean/join.rs` `resolve_roles_geometric` probes the regions flanking
-a seam in four anchor tiers. Tiers 3 and 4 (`Anchor::RegionInterior`,
-`Anchor::RegionVertexChord`) certify a candidate interior to its region
-face through `point_in_face`, taking the projection normal from
-`solid_contain::face_plane` — which answers only for a `Plane` and
-returns `PointInSolidError::KindUnsupported { kind }` for anything else.
-A curved region face that reaches tier 3 therefore refuses
-`Containment(KindUnsupported { kind: Cylinder })`, and
-`KindUnsupported`'s own docs say the containment door HAS a cylinder
-arm, so the sentence sends a reader to the wrong capability.
+## 1. `Anchor::EdgeMidpoint` is unsound on a curved edge (reproduced)
 
-## Reproducer
+The tier probes each region edge's CHORD midpoint (`lerp` of its ends)
+uncertified, as if it lay on the region. For a curved edge it does not:
+a rim semicircle's chord midpoint is the circle's centre, a point on
+neither flanking region, and its one verdict is taken by both loops.
 
-On CONTACT-2's tree with only its chord-join fix,
-`rod − brick((-1, 1), (0, 1), (-1, 5))` — rod `r = 0.5` over
-`z ∈ [0, 4]`, an extruded circle — reached it: every vertex and every
-chord midpoint of the flanking regions sat on the cutter's face `y = 0`
-(a semicircle's chord midpoint is the circle's centre). CONTACT-2 added
-a tier between the chord midpoints and tier 3 that probes each CURVED
-edge at its carrier's parameter midpoint (`Anchor::EdgeOnCarrier`),
-which resolves that pose, so the tree has no reproducer now; tiers 3–4
-are still planar-only for any curved region whose earlier candidates
-all read `OnBoundary`.
+**Reproducer**, `crates/sweep/tests/axis_lap.rs`
+`a_chord_midpoint_probe_reads_both_loops_alike`: rod `r = 0.5` about `z`
+over `z ∈ [0, 4]` (an extruded circle) minus a cutter extruded over
+`z ∈ [−1, 5]` from the half-plane `y ≥ 0` with a half-rod bump
+`r = 0.1` on the axis, bulging either way. Every rod vertex is
+`OnBoundary`, so the chord-midpoint tier decides, and both loops read
+the centre alike: `Join(SectionLoopMixed)` for both bulge signs, on
+CONTACT-2's head and on its base. The loud guard fires, so no wrong
+body ships, but a legal pose refuses as a kernel invariant.
 
-## A second premise beside it
-
-Tier 2 probes a curved edge's CHORD midpoint uncertified, as if it were
-on the region boundary; for a conic it is not (it is inside the
-operand for a convex arc, outside it for a concave one). CONTACT-2
-first replaced it with the on-carrier point and three rows moved to the
-tier-3 refusal (`curved_mergedoor`
+Swapping the chord midpoint for the on-carrier one is not the fix by
+itself: CONTACT-2 tried it and three rows moved to the refusal in §2
+(`curved_mergedoor`
 `floating_and_mid_bore_pegs_refuse_at_the_zip_seam_chord_today` and
 `consumed_side_of_the_pair_is_gone_and_one_record_ships`,
-`r1_probes_m9_3` `probe_partial_engagement_never_silent`): there the
-rim lies ON the other body's bore wall, so the on-carrier point reads
-`OnBoundary`, and it is the off-edge chord midpoint that decides. So
-the chord midpoint was kept and the on-carrier tier added after it. The
-question for the taker is whether an off-region point is a sound
-witness for the region's role — the tier docs promise "never
-classification by guess".
+`r1_probes_m9_3` `probe_partial_engagement_never_silent`). There the rim
+lies ON the other body's bore wall, so the on-carrier point reads
+`OnBoundary`, and today the off-region chord midpoint decides them —
+by the same unsound read. CONTACT-2 kept the tier and added
+`Anchor::EdgeOnCarrier` after it.
+
+## 2. The region-interior tiers are planar-only
+
+`Anchor::RegionInterior` and `Anchor::RegionVertexChord` certify a
+candidate interior to its region face through `point_in_face`, taking
+the projection normal from `solid_contain::face_plane`, which answers
+only for a `Plane` and returns `PointInSolidError::KindUnsupported`
+otherwise. A curved region reaching them refuses
+`Containment(KindUnsupported { kind: Cylinder })`, and
+`KindUnsupported`'s docs say the containment door HAS a cylinder arm.
+Reached on CONTACT-2's tree before `Anchor::EdgeOnCarrier` landed by
+`rod − brick((-1, 1), (0, 1), (-1, 5))`, and by the three rows above
+with the chord-midpoint tier replaced; no row reaches it today.
 
 ## What the taker owes
 
-A curved-face interior certificate for tiers 3–4 (a chart-space
-`point_in_face`), or a typed refusal of their own that names the region
-kind as the tier's gap rather than as the containment door's; and a
-ruling on tier 2's off-edge witness for curved edges.
+A sound curved-edge anchor — the chord-midpoint tier fenced to straight
+edges, with the rows it decides today resolved by a certified point (a
+chart-space `point_in_face` for curved regions answers §2 as well) — or
+a typed refusal naming the gap. The reproducer row flips when it lands.

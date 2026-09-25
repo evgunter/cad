@@ -30,7 +30,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Point2, Tol, Vec3};
+use crate::common::approx::band;
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::{BlendError, fillet_edges};
 use sweep::test_support::{
@@ -215,6 +216,52 @@ fn the_boolean_refuses_the_groove_and_builds_a_short_sunk_rod() {
         "the sunk rod's volume: {} vs {expect}",
         volume(&sunk)
     );
+}
+
+/// **The short sunk rod, checked without trusting the union.** Its
+/// volume must equal block + cylinder − (block ∩ cylinder), and
+/// block + (cylinder ∖ block), each computed by a DIFFERENT boolean;
+/// and six probes say which points it holds: inside the rod's segment
+/// above the block (in), past either end cap (out), outside the rod's
+/// wall and above its crown (out), and inside the block (in).
+#[test]
+fn the_short_sunk_rod_agrees_with_its_intersection_and_difference() {
+    let cyl = cylinder(0.2, 0.6);
+    let v = |b: &Body<f64>| mass_properties(b, tol()).unwrap().volume;
+    let body = |r: Result<topo::BooleanResult<f64>, topo::BooleanError>| {
+        r.unwrap().body().unwrap().body.clone()
+    };
+    let u = body(topo::union(&block(), &cyl, tol()));
+    let i = body(topo::intersect(&block(), &cyl, tol()));
+    let s = body(topo::subtract(&cyl, &block(), tol()));
+    assert!(
+        (v(&u) - (2.0 + v(&cyl) - v(&i))).abs() < 1e-12,
+        "union {} vs block + cylinder − intersection {}",
+        v(&u),
+        2.0 + v(&cyl) - v(&i)
+    );
+    assert!(
+        (v(&u) - 2.0 - v(&s)).abs() < 1e-12,
+        "union {} vs block + (cylinder ∖ block) {}",
+        v(&u),
+        2.0 + v(&s)
+    );
+    for (q, inside) in [
+        ((0.0, 0.15, 0.5), true),
+        ((0.0, 0.15, 0.1), false),
+        ((0.0, 0.15, 0.9), false),
+        ((0.45, 0.1, 0.5), false),
+        ((0.0, 0.25, 0.5), false),
+        ((0.9, -0.5, 0.5), true),
+    ] {
+        let r = topo::point_in_solid(&u, Point3::new(q.0, q.1, q.2), band(), tol()).unwrap();
+        let expect = if inside {
+            topo::SolidContainment::In
+        } else {
+            topo::SolidContainment::Out
+        };
+        assert_eq!(r, expect, "at {q:?}");
+    }
 }
 
 /// **A groove milled along a block** (extrude door): the lip creases
