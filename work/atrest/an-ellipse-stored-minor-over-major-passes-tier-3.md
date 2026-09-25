@@ -32,7 +32,14 @@ its minor axis — so this is not a representability refusal. What reads
 the ordering: `topo::loop_winding::conic_segment_term`'s perimeter lever
 was `|Δ|·major`, an arc-length UPPER bound only when `major` is the
 larger semi-axis; ATREST-13 made it `|Δ|·max(major, minor)` because
-check 6 now winds ellipse-bounded loops. `geom`'s `Ellipse` docs used to
+check 6 now winds ellipse-bounded loops. **A second reader, not fixed**:
+`geom_brep::certify::edge_extent` — certification's transversality arm,
+re-used verbatim by tier 3's check 4 dihedral pass — takes the fold at
+`minor` as a LOWER bound on the arc's diameter because "the ellipse
+dominates its minor-radius circle"; with `minor > major` stored, the
+circle at `minor` dominates the ellipse instead, the arm can exceed the
+honest extent, and a larger arm is the unsafe direction (it can decide
+where it should escalate). `geom`'s `Ellipse` docs used to
 say tier 3 owns the ordering at rest; ATREST-13 corrected them to what
 is checked.
 
