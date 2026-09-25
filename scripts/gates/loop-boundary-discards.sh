@@ -196,6 +196,9 @@ REGISTER=(
   "crates/topo/src/replace_face.rs|boundary_edges_into||1|unaudited"
   "crates/topo/src/revert.rs|revert||1|audited: the discarded variant is a lone vertex — no half-edge, no cycle, so no anchor for the reversal to move; the same map leaves that vertex's emanating anchor untouched (it is None on an empty loop, the validated invariant), so the loop travels unchanged, as the module docs say every loop's membership does"
   "crates/topo/src/review_m1_pr4.rs|some_single_op_reaches||1|unaudited"
+  # `SolidOwners::of`'s loop-arena pass places lone vertices only; a
+  # cycle's vertices are placed by the half-edge-arena pass above it.
+  "crates/topo/src/separation.rs|of||1|audited: the discarded variant is a cycle, and every vertex a cycle holds is the start of one of its half-edges, which the half-edge-arena pass in the same fn places through the same loop's face"
   "crates/topo/src/seqgen.rs|first_empty_ring_site||2|unaudited"
   "crates/topo/src/seqgen.rs|mef_chords_candidates||1|unaudited"
   # The generator's copy of the per-shell glue walk. Its arm is
