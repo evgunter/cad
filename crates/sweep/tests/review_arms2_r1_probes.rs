@@ -16,7 +16,6 @@ use std::fmt::Write as _;
 
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::pappus::{pappus_volume, sector, segment, triangle};
@@ -27,12 +26,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn body_of(verts: Vec<ProfileVertex<f64>>) -> Body<f64> {
+fn body_of(verts: Vec<(Point2<f64>, f64)>) -> Body<f64> {
     revolved_about_y(verts, Revolution::Full, tol())
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 fn band_torus(body: &Body<f64>, face: topo::FaceKey) -> (f64, f64, f64) {

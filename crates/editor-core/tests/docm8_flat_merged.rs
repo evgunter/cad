@@ -350,43 +350,6 @@ fn a_boolean_over_a_boolean_mints_a_flat_merged_row_and_replays() {
 // `a_declared_pair_side_that_is_a_bare_name_does_not_load` is what
 // stands in its place.
 
-/// **A member name in no row that its member does not derive either
-/// keeps the plain vanished refusal**: the fold consumed nothing, so no
-/// composition is named. `a`'s block has four walls and the pair names
-/// a fifth; it is fed at `far`'s step, on the accumulation side.
-#[test]
-fn a_member_name_its_member_never_derived_keeps_the_vanished_refusal() {
-    let doc = ProfileDoc::empty_derived("docm8_vanished", Tol::witness());
-    let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, far) = block(doc, (6.0, 7.0), (0.0, 1.0), 0.0, 1.0);
-    let (doc, union, _) = declared_union(
-        doc,
-        &[a, far],
-        vec![(
-            SitedRef::new(a, fname(a, wall(4))),
-            SitedRef::new(far, fname(far, wall(3))),
-        )],
-    );
-    let ev = run(&doc);
-    let Some(NodeErrorKind::DeclareResolve { error }) = failure(&ev, union) else {
-        panic!(
-            "expected the vanished refusal, got {:?}",
-            failure(&ev, union)
-        )
-    };
-    let ResolveError::Vanished {
-        name, diagnosis, ..
-    } = &**error
-    else {
-        panic!("expected the vanished refusal, got {error:?}")
-    };
-    assert_eq!(*name, member_face(union, a, fname(a, wall(4))));
-    assert!(
-        !matches!(diagnosis, Diagnosis::ConsumedByFold { .. }),
-        "{diagnosis:?}"
-    );
-}
-
 // ---------------------------------------------------------------------
 // N3's offer over a flat set, and the mint's second consumer shapes.
 // ---------------------------------------------------------------------
@@ -595,6 +558,9 @@ enum Outcome {
     /// The declaration channel refused a member face the fold consumed
     /// before its pair's step: which face, and by what.
     Consumed(StableName, FoldConsumption),
+    /// The declaration channel refused a name the accumulation holds
+    /// nothing of, as the plain vanished name N5 says it is.
+    Vanished(StableName),
     /// The emitter has no naming rule for the construction the order
     /// reached (`tests/wire_legal_union_refusals.rs`).
     SeamVertexNoRule,
@@ -612,7 +578,12 @@ fn outcome(ev: &Evaluation<f64>, union: RecipeNodeId) -> Outcome {
                 diagnosis: Diagnosis::ConsumedByFold { union: at, by },
                 last_good: None,
             } if *at == union => Outcome::Consumed(name.clone(), *by),
-            other => panic!("a declare refusal that names no composition: {other:?}"),
+            ResolveError::Vanished {
+                name, diagnosis, ..
+            } if !matches!(diagnosis, Diagnosis::ConsumedByFold { .. }) => {
+                Outcome::Vanished(name.clone())
+            }
+            other => panic!("an unexpected declare refusal: {other:?}"),
         },
         Some(NodeErrorKind::Naming(NamingError::SeamVertexParentage { .. })) => {
             Outcome::SeamVertexNoRule
@@ -798,15 +769,21 @@ fn the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge() {
     );
 }
 
-/// **A member face a later member CONTAINS refuses as contained**, and
-/// the orders that feed the pair while the face is still a row reach
-/// the kernel, which contradicts it. R2's `r2_p7`: `a`'s x = 1 wall
-/// lies inside `big`, and is declared against `far`'s x = 6 wall —
-/// which it does not touch, so where the pair is read at all it is
-/// contradicted. Nothing descends from the wall once `big` has joined,
-/// so there is nothing to offer.
+/// **A member face a later member CONTAINS keeps the plain vanished
+/// refusal**, and the orders that feed the pair while the face is still
+/// a row reach the kernel, which contradicts it. R2's `r2_p7`: `a`'s
+/// x = 1 wall lies inside `big`, and is declared against `far`'s x = 6
+/// wall, which it does not touch, so where the pair is read at all it
+/// is contradicted.
+///
+/// Containment is NOT a fold consumption this channel names: DM4 as
+/// ruled on #3200 makes a declared pair whose face the fold consumed
+/// whole SATISFIED, which rests on the pairwise pre-pass that
+/// `union-contact-is-judged-pairwise-before-the-fold` builds. Until
+/// then the name is the vanished name it looks like, and this row pins
+/// that it is not reported as a split or a fragmented merge.
 #[test]
-fn a_member_face_inside_a_later_member_refuses_as_contained() {
+fn a_member_face_inside_a_later_member_keeps_the_vanished_refusal() {
     let doc = ProfileDoc::empty_derived("docm8_contained", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, big) = block(doc, (0.5, 3.0), (-1.0, 2.0), -1.0, 3.0);
@@ -820,10 +797,7 @@ fn a_member_face_inside_a_later_member_refuses_as_contained() {
         let ev = run(&docx);
         let pos = |m| order.iter().position(|x| *x == m).unwrap();
         let want = if pos(big) < pos(far) && pos(a) < pos(far) {
-            Outcome::Consumed(
-                member_face(union, a, fname(a, wall(1))),
-                FoldConsumption::Contained,
-            )
+            Outcome::Vanished(member_face(union, a, fname(a, wall(1))))
         } else {
             Outcome::Contradicted
         };

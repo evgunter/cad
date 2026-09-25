@@ -128,9 +128,9 @@ pub mod oracles;
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
-use profile::RawLoop;
 use profile::{Profile, SketchPlane};
-use sweep::{ProfileLoop, ProfileVertex, Section};
+use profile::{RawLoop, test_support::bulge_loop};
+use sweep::{ProfileLoop, Section};
 use topo::Body;
 
 /// The placement a path sweep starts from, read off the path's start:
@@ -163,8 +163,8 @@ pub fn quad(pts: [(f64, f64); 4]) -> Section {
 /// `s` — three lines and one bulge-0.25 arc, so the skin exercises
 /// the rational lane.
 pub fn chain(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x * s, y * s), bulge);
-    vec![ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x * s, y * s), bulge);
+    vec![bulge_loop(vec![
         v(0.0, 0.0, 0.0),
         v(2.0, 0.0, 0.25),
         v(2.0, 1.0, 0.0),
@@ -187,8 +187,8 @@ pub fn chain(s: f64) -> Section {
 /// cross-crate constant deduplication is LIB-U6's territory, which
 /// this module's routing rule says is deliberately not built here.
 pub fn arc_section(s: f64) -> Section {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    vec![bulge_loop(vec![
         v(-s, -s, 0.0),
         // tan(π/8): a quarter-circle bulge-out.
         v(s, -s, 0.4142135623730951),
@@ -290,9 +290,9 @@ pub fn arc_prism() -> Body<f64> {
 /// verb can produce (their walls carry iso boundaries and take the
 /// closed forms).
 pub fn tilted_cut_upper() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(-0.5, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(0.5, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
     ]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -362,7 +362,7 @@ pub fn band_midpoint(tol: Tol) -> f64 {
 /// fewer.
 ///
 /// Here rather than in a suite because three suites count the same
-/// thing (`tcost_k3_certificate`, `sign_certified_plus_v`, and
+/// thing (`tcost_k3_certificate`, `sign_walk_plus_v`, and
 /// `step-import`'s import-path row across the crate boundary), and a
 /// counter that drifts between them is two different instruments
 /// reporting one number. The routing rule above does not have a slot
@@ -447,16 +447,16 @@ pub fn channels(r: &geom_core::k_stats::Recorded) -> String {
 pub fn strip_section(s: f64, delta: f64, reversed: bool) -> Section {
     // tan(π/8): a quarter-circle bulge-out, as `arc_section` uses.
     let b = 0.414_213_562_373_095_1;
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     if reversed {
-        return vec![ProfileLoop::new(vec![
+        return vec![bulge_loop(vec![
             v(-s, 0.0, 0.0),
             v(-s, delta, b),
             v(s, delta, 0.0),
             v(s, 0.0, -b),
         ])];
     }
-    vec![ProfileLoop::new(vec![
+    vec![bulge_loop(vec![
         v(-s, 0.0, b),
         v(s, 0.0, 0.0),
         v(s, delta, -b),

@@ -17,7 +17,6 @@
 test_utils::gated_to![
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/interval.rs",
-    "crates/geom-core/src/ring_interval.rs",
     "interval-transcendentals/src/",
 ];
 
@@ -163,7 +162,6 @@ fn r1_onb_frame_is_orthonormal_at_vertical_normals() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use geom_core::interval::Interval;
     use geom_core::{Bounds, Real, Vec3};

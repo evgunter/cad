@@ -151,7 +151,6 @@ fn n2r2_dual_value_versus_derivative_poison() {
     assert!(e.x.value.is_nan() && e.y.value.is_finite());
 }
 
-#[cfg(feature = "interval")]
 mod interval_lane {
     use super::*;
     use geom_core::Interval;

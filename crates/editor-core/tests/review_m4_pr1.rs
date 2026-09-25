@@ -783,7 +783,6 @@ fn r6_nonfinite_doors_closed() {
 /// confident finite enclosure. (Source sweep: editor-core contains no
 /// `x*x` self-multiplication anywhere — checked by grep, noted in the
 /// review report; powi discipline is geom-core's.)
-#[cfg(feature = "interval")]
 #[test]
 fn r8_interval_lane_representative_and_zero_divisor() {
     use editor_core::eval;

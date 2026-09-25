@@ -546,6 +546,36 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
     }
 }
 
+/// **The row this tree sends a reader to for `id`'s failure**: `id`
+/// itself when its row is `Failed`, the row it points at when it is
+/// `Poisoned`, and `None` when it is `Ok` or never ran.
+///
+/// Read off [`status_of`], so a surface reporting a CONSEQUENCE of a
+/// node's failure names the same row the tree badges `Failed` —
+/// blame through a poisoning and through a mate refusal included —
+/// rather than re-deriving the blame from the evaluation and drawing
+/// it differently.
+///
+/// **Every `Some` is a row the tree draws `Failed`.** A `Poisoned` row
+/// carries its pointer only when its chain ends at a failure
+/// ([`poisoned_through`]); the `message: None` arm is the broken
+/// invariant reported as absence, and it answers `None` here too, so a
+/// caller that says "feature N, which failed" cannot be handed an `N`
+/// the tree does not badge failed. That arm is not expected to be
+/// reachable — the evaluation names a failed ancestor as `through` —
+/// and it is refused rather than assumed for the same reason the tree
+/// reports it as absence.
+pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
+    match status_of(id, Some(evaluation)) {
+        RowStatus::Failed { .. } => Some(id),
+        RowStatus::Poisoned {
+            through,
+            message: Some(_),
+        } => Some(through),
+        RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated => None,
+    }
+}
+
 /// What a downstream row says: WHERE the failure is, never what it
 /// was.
 ///

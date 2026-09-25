@@ -69,7 +69,7 @@ use topo::{
     DATUM_UNIT_NORM, FacePairDeclaration, GeomSource, VfContact, VvContact,
 };
 
-use super::anchor::{self, ProfileNaming, ProfilePre, ProfileValue};
+use super::anchor::{self, ProfilePre, ProfileValue};
 use super::slots::{self, SlotValues};
 use super::{BooleanValue, DatumValue, NodeErrorKind, NodeResult, SplitSide, ValuePayload};
 use crate::names::{self, NameTable, ProfileEdgeRef, SplitHalf};
@@ -104,6 +104,9 @@ type Results<T> = BTreeMap<RecipeNodeId, NodeResult<T>>;
 pub(crate) struct OpOut<T: Decide> {
     pub payload: ValuePayload<T>,
     pub names: Arc<NameTable>,
+    /// The fragment groups the op's emitter formed
+    /// (`names::FragmentGroups`); empty for an op that forms none.
+    pub groups: Arc<names::FragmentGroups>,
     pub contacts: Arc<topo::ContactRecords>,
     /// Whose mate authored each of those records, and which mates of
     /// the documents below could not be minted at all — the same
@@ -119,9 +122,17 @@ impl<T: Decide> OpOut<T> {
         Self {
             payload,
             names,
+            groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(crate::assembly::CarriedDeclarations::default()),
         }
+    }
+}
+
+impl<T: Decide> OpOut<T> {
+    /// This output with the fragment groups its emitter formed.
+    fn grouped(self, groups: Arc<names::FragmentGroups>) -> Self {
+        Self { groups, ..self }
     }
 }
 
@@ -485,6 +496,7 @@ where
     Ok(OpOut {
         payload: ValuePayload::Body(Arc::new(placed)),
         names: table,
+        groups: Arc::default(),
         contacts: Arc::clone(&part.contacts),
         carried: Arc::new(carried),
     })
@@ -1528,12 +1540,25 @@ fn wire_datum<T: Decide>(
     }))
 }
 
+/// The program-order coordinates of a profile's `n` loops, as the
+/// `u32` a program loop is addressed by (a program edit's `loop_`, a
+/// profile name's `loop_index`), or a naming refusal when `n` loops do
+/// not fit: past `u32::MAX` a loop's coordinate would name another
+/// loop's.
+fn loop_coordinates(n: usize) -> Result<core::ops::Range<u32>, NodeErrorKind> {
+    names::to_u32(
+        n,
+        "a profile holds more loops than a u32 loop index addresses",
+    )
+    .map(|n| 0..n)
+    .map_err(NodeErrorKind::Naming)
+}
+
 /// The profile node's F64 PRECOMPUTE (LIB-SWITCH §4b): the resolved
 /// program replays through `profile::replay` — the driver, the ONLY
 /// path from steps to geometry — then the assembled `Profile<f64>`
 /// validates at f64 (the C6 structure-selection gate, which also
-/// yields the canonical form the program-anchor naming map is derived
-/// from). Runs inside the node's verdict frame (`eval_node`) ahead of
+/// yields the canonical form the naming anchor is derived from). Runs inside the node's verdict frame (`eval_node`) ahead of
 /// the op: structure decisions, the successor of the stored f64 bits,
 /// logged as the node's own. The validated form is kept: under the
 /// pinned lift it IS the op's value, lifted (`wire_profile`), so the
@@ -1554,13 +1579,9 @@ pub(crate) fn prepare_profile(
     let plane = placement.unwrap_or_else(profile::SketchPlane::xy);
     let mut loops = Vec::with_capacity(resolved.len());
     let mut replay_records = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
-        let (lp, record) = profile::replay_recording(steps, tol).map_err(|error| {
-            NodeErrorKind::ProfileReplay {
-                loop_: li as u32,
-                error,
-            }
-        })?;
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(resolved) {
+        let (lp, record) = profile::replay_recording(steps, tol)
+            .map_err(|error| NodeErrorKind::ProfileReplay { loop_: li, error })?;
         loops.push(lp);
         replay_records.push(record);
     }
@@ -1602,9 +1623,9 @@ pub(crate) fn prepare_profile(
 /// still zero, and until seeding lands the capability is exercised one
 /// door down, at the program-resolve seam this function calls, which is
 /// where `editor-core`'s `m10_p_lift` suite drives it.
-/// The naming is pass 1's verbatim (PP4): names are program-structural
-/// indices, and the canonical permutation they hang off is pinned by
-/// the record, so `T`-valued geometry changes no name.
+/// The naming is pass 1's verbatim (PP4): names are canonical indices,
+/// and the canonical permutation they hang off is pinned by the record,
+/// so `T`-valued geometry changes no name.
 fn lane_profile<T: Decide + geom_core::Bounds>(
     program: &ProfileProgram,
     plane: profile::SketchPlane<T>,
@@ -1616,7 +1637,7 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         .resolve(lane.params)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
     let mut loops = Vec::with_capacity(resolved.len());
-    for (li, steps) in resolved.iter().enumerate() {
+    for (li, steps) in loop_coordinates(resolved.len())?.zip(&resolved) {
         // One record per program loop, by construction of pass 1.
         //
         // The fallback is an EMPTY record, and what that buys depends on
@@ -1629,10 +1650,15 @@ fn lane_profile<T: Decide + geom_core::Bounds>(
         // break either way; this comment says which half of the
         // vocabulary is actually holding the line, because the other
         // half is the shape check in `replay_guided`, not this.
-        let record = pre.structure.replay.get(li).cloned().unwrap_or_default();
+        let record = pre
+            .structure
+            .replay
+            .get(li as usize)
+            .cloned()
+            .unwrap_or_default();
         let lp = profile::replay_guided(steps, &record, tol).map_err(|error| {
             NodeErrorKind::ProfileLaneReplay {
-                loop_: li as u32,
+                loop_: li,
                 step: error.step,
                 structure: match error.kind {
                     profile::ReplayErrorKind::Path(profile::PathError::Structure(r)) => Some(r),
@@ -1704,15 +1730,14 @@ fn wire_profile<T: Decide + geom_core::Bounds>(
 }
 
 /// **The per-edge radius expressions, in the sweep's own indexing** —
-/// `ProfileProgram::segment_radii`'s answer re-addressed from program
-/// segments to CANONICAL ones, which is what a wall record is keyed by.
+/// `ProfileProgram::segment_radii`'s answer laid out per CANONICAL loop
+/// and segment, which is what a wall record is keyed by.
 ///
-/// The hop is the anchor's, and only the anchor's: `LoopAnchor::segment`
-/// is the canonical → program reindexing the published names were
-/// rewritten through, so asking it for canonical segment `k` names the
-/// program segment the door answered about. Nothing here re-derives a
-/// permutation; the door already checked the evaluation's two records
-/// of this one against each other.
+/// The door already answers in canonical refs — the numbering every
+/// published name carries — so this is a lookup by position: canonical
+/// loop `l`, segment `k` is the ref `(l, k)`. Nothing here re-derives a
+/// permutation; the door checked the evaluation's two records of it
+/// against each other.
 ///
 /// **A refusal here is the evaluation contradicting itself.** The
 /// records were minted from this program by the same pre-pass, so
@@ -1729,7 +1754,8 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
     pre.naming
         .loops
         .iter()
-        .map(|anchor| {
+        .enumerate()
+        .map(|(canonical_loop, anchor)| {
             let by_program_segment = program
                 .segment_radii(&pre.structure, &pre.naming, anchor.program_loop)
                 .unwrap_or_else(|e| {
@@ -1745,8 +1771,9 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
             (0..anchor.len)
                 .map(|k| {
                     let want = ProfileEdgeRef {
-                        loop_index: anchor.program_loop,
-                        segment: anchor.segment(k),
+                        loop_index: u32::try_from(canonical_loop)
+                            .unwrap_or_else(|_| unreachable!("a profile's loop count fits in u32")),
+                        segment: k,
                     };
                     // FIRST match: one segment carries at most one
                     // emission, because each arc's bulge is set once
@@ -1762,24 +1789,6 @@ fn edge_radii(program: &ProfileProgram, pre: &ProfilePre) -> Vec<Vec<Option<crat
                 .collect()
         })
         .collect()
-}
-
-/// Applies the program-anchor rewrite to an emitted table (identity
-/// anchors skip the rebuild). A collision is an internal bug (the
-/// rewrite is a bijection per loop), refused typed.
-fn anchored(
-    table: Arc<NameTable>,
-    naming: &ProfileNaming,
-) -> Result<Arc<NameTable>, NodeErrorKind> {
-    if naming.is_identity() {
-        return Ok(table);
-    }
-    match anchor::remap_table(&table, naming) {
-        Some(t) => Ok(Arc::new(t)),
-        None => Err(NodeErrorKind::Naming(names::NamingError::Emission {
-            what: "program-anchor rewrite collided (bijection invariant broken)",
-        })),
-    }
 }
 
 /// **The profile-operand verbs' ONE lowering**, driven by the verb's
@@ -1808,8 +1817,9 @@ fn anchored(
 /// # What it writes
 ///
 /// The body (moved out of the record), the name table (emitted from the
-/// record, then program-anchor rewritten — canonical → program indices,
-/// LIB-SWITCH §6), the provenance stamp on everything the sweep minted,
+/// record, its profile refs in canonical numbering — the one numbering
+/// every profile-consuming verb publishes), the provenance stamp on
+/// everything the sweep minted,
 /// and the per-edge parameter sources the verb's flow declares.
 // The 8th argument is the verb's correspondence — the parameter that
 // REMOVES duplication rather than adding a duty, exactly as
@@ -1849,7 +1859,7 @@ fn wire_swept<
     // Eager N4 emission from the emitter's own maps, inside the reader,
     // BEFORE the structural handoff is taken apart.
     let out = (verb.read)(id, record, verb.foreign_record)?;
-    let table = anchored(out.table, &vp.naming)?;
+    let table = out.table;
     let mut body = out.body;
     // The sweep's own surfaces, curves and points are minted HERE
     // (D1/N6).
@@ -2569,7 +2579,7 @@ mod ladder {
         /// Exactly one entity carries the name.
         Unique(EntityRef),
         /// The name is a tie row of this width.
-        Tied(u32),
+        Tied(usize),
         /// This table does not carry the name.
         Absent,
     }
@@ -2604,7 +2614,7 @@ mod ladder {
     pub(super) fn landing(live: &Live<'_>, table: &NameTable) -> Landing {
         match table.lookup(live.0) {
             Some(Entry::Unique(ent)) => Landing::Unique(*ent),
-            Some(Entry::Tied(ents)) => Landing::Tied(ents.len() as u32),
+            Some(Entry::Tied(ents)) => Landing::Tied(ents.len()),
             None => Landing::Absent,
         }
     }
@@ -2876,8 +2886,9 @@ fn wire_measure<T: Decide + crate::measure::MinClearanceLane>(
     // about a carrier, and both are read off the one ladder walk below.
     let mut selections: Vec<Option<Selected<'_, T>>> = Vec::with_capacity(refs.len());
     for (index, r) in refs.iter().enumerate() {
-        let index = u32::try_from(index).unwrap_or(u32::MAX);
-        if !read.contains(&index) {
+        // A primitive names a reference by a `u32` index, so one at a
+        // position past `u32::MAX` is one no primitive reads.
+        if !u32::try_from(index).is_ok_and(|i| read.contains(&i)) {
             carriers.push(super::measure::Carrier::Unread);
             selections.push(None);
             continue;
@@ -3147,7 +3158,7 @@ fn wire_split<
     };
     let target_table = Arc::clone(&value_of(results, target)?.name_table);
     let (ab, bb) = (as_body(&above), as_body(&below));
-    let table = (verb.emitter)(
+    let emitted = (verb.emitter)(
         id,
         ab.as_deref(),
         bb.as_deref(),
@@ -3159,7 +3170,10 @@ fn wire_split<
         tol,
     )
     .map_err(NodeErrorKind::Naming)?;
-    Ok(OpOut::plain(ValuePayload::Split { above, below }, table))
+    Ok(
+        OpOut::plain(ValuePayload::Split { above, below }, emitted.table)
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))),
+    )
 }
 
 /// **The projection node** (DM3): ONE body out of a split's or a
@@ -3327,7 +3341,7 @@ fn wire_boolean<
                 contacts,
                 naming,
             } = crate::verbs::read_record(out.record, verb.record, verb.foreign_record)?;
-            let table = (verb.emitter)(
+            let emitted = (verb.emitter)(
                 id,
                 &out.body,
                 &naming,
@@ -3354,8 +3368,9 @@ fn wire_boolean<
                     kind,
                     contacts: Arc::new(contacts),
                 }),
-                table,
-            ))
+                emitted.table,
+            )
+            .grouped(Arc::new(names::FragmentGroups::minted(&emitted.groups))))
         }
     }
 }
@@ -3439,6 +3454,8 @@ fn wire_union<
         Some(d) => route_declarations(id, members, declared_pairs(results, d)?, doc)?,
     };
     let mut last: Option<(topo::BooleanResultKind, Arc<topo::ContactRecords>)> = None;
+    // Each step's fragment groups, in fold order (`FragmentGroups::folded`).
+    let mut step_groups = Vec::with_capacity(rest.len());
     for (step, member) in rest.iter().enumerate() {
         let member_body = body_operand(results, *member)?;
         let member_table = Arc::new(
@@ -3453,9 +3470,15 @@ fn wire_union<
         // The accumulation is presented COLLAPSED. Its own rows are
         // `FromA`/`FromB`-headed, which is the fold's internal space and
         // denotes nothing outside it; a declaration answers what this
-        // node's refusal named, and a refusal names published rows
+        // node's refusal named, and a refusal names collapsed rows
         // (`union_refusal`). So the door reads the accumulation in the
-        // one space a caller can write.
+        // one space a caller can write. The collapse is not the whole of
+        // what the published table gets: `names::name_union` then
+        // renumbers the pieces of member EDGES over the finished body,
+        // which a step that has not finished does not have. A declared
+        // pair cannot name an edge at all: `declared_step` admits face
+        // and vertex pairs only, and refuses any other
+        // (`DeclareUnsupportedPair`).
         //
         // A member-space name the fold has already merged away is
         // rewritten to the accumulation's `Merged` row that holds it
@@ -3469,10 +3492,7 @@ fn wire_union<
             BooleanDeclarations::none()
         } else {
             let acc_view = names::collapse_table(id, &acc_table).map_err(NodeErrorKind::Naming)?;
-            let member_derives = |m: RecipeNodeId, of: &names::StableName| {
-                Ok(value_of(results, m)?.name_table.lookup(of).is_some())
-            };
-            let resolved = look_through_merges(&buckets[step], &acc_view, &member_derives)?;
+            let resolved = look_through_merges(&buckets[step], &acc_view)?;
             resolve_declarations(&resolved, doc, &acc_view, &member_table)?
         };
         match (verb.build)(BooleanOp::Union, decls)
@@ -3514,7 +3534,7 @@ fn wire_union<
                 // tables are the member-keyed views, so an error this
                 // step raises about an operand is about a row in this
                 // node's space.
-                acc_table = (verb.emitter)(
+                let emitted = (verb.emitter)(
                     id,
                     &out.body,
                     &naming,
@@ -3531,11 +3551,34 @@ fn wire_union<
                     tol,
                 )
                 .map_err(NodeErrorKind::Naming)?;
+                acc_table = emitted.table;
+                step_groups.push(emitted.groups);
                 acc_body = Arc::new(out.body);
             }
         }
     }
-    let table = names::name_union(id, &acc_body, &acc_table).map_err(NodeErrorKind::Naming)?;
+    // The members' own bodies and tables: where each member edge the
+    // published table ranks pieces of is defined (`name_union`).
+    let member_bodies = members
+        .iter()
+        .map(|&m| {
+            Ok((
+                m,
+                body_operand(results, m)?,
+                &value_of(results, m)?.name_table,
+            ))
+        })
+        .collect::<Result<Vec<_>, NodeErrorKind>>()?;
+    let member_views: Vec<names::UnionMember<'_, T>> = member_bodies
+        .iter()
+        .map(|(node, body, table)| names::UnionMember {
+            node: *node,
+            body,
+            table,
+        })
+        .collect();
+    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
+        .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body, and not per fold step: the stamp
     // numbers a node's minted descriptions from zero, so a second pass
@@ -3569,7 +3612,8 @@ fn wire_union<
             contacts,
         }),
         table,
-    ))
+    )
+    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
 }
 
 /// One declared pair as the recipe carries it: the two SITED
@@ -3734,9 +3778,9 @@ fn declared_pairs<T: Decide>(
 /// the pair boolean's own resolver runs on a union's pairs exactly as
 /// it runs on its own. A member face the fold has MERGED away is
 /// rewritten again, at the step it is fed to, by
-/// [`look_through_merges`], and one the fold consumed any other way —
-/// split, contained, or inside a merge later fragmented — refuses
-/// there, naming the composition and offering nothing (DM4).
+/// [`look_through_merges`], and one the fold split, or left inside a
+/// merge it later fragmented, refuses there, naming the composition and
+/// offering nothing (DM4).
 ///
 /// A site the member list does not hold — the state `SetMembers`
 /// creates by removing a declared member — refuses through the N5
@@ -3788,8 +3832,8 @@ fn route_declarations(
 }
 
 /// **A member-space name the fold has merged away, rewritten to the
-/// merged row that holds it; one the fold consumed any other way,
-/// refused naming the composition** — one step's bucket, read against
+/// merged row that holds it; one the fold split, or left in a merge it
+/// later fragmented, refused naming the composition** — one step's bucket, read against
 /// the accumulation's table, before the pair boolean's own door
 /// ([`resolve_declarations`]) sees the pair.
 ///
@@ -3800,8 +3844,8 @@ fn route_declarations(
 /// flat set. That is the one consumption with a unique successor, so
 /// it is the one looked through.
 ///
-/// Every other way the fold consumes a face breaks *one name denotes
-/// one entity* with no unique successor, so the pair refuses
+/// A split, and a merge a later step fragmented, each break *one name
+/// denotes one entity* with no unique successor, so the pair refuses
 /// `Vanished` with [`crate::resolve::Diagnosis::ConsumedByFold`] and
 /// nothing is re-pointed. Which composition it was is read off the
 /// rows that DESCEND from the name ([`fold_descent`]), never by
@@ -3810,14 +3854,15 @@ fn route_declarations(
 /// - fragments of the name itself, bare or inside a later merge's set
 ///   — a later member [split](FoldConsumption::Split) it;
 /// - fragments of a merged row whose set covers it — the merge was
-///   [split after it](FoldConsumption::FragmentedMerge);
-/// - no row at all, while the member's own table still derives the
-///   entity — nothing of it reached the boundary
-///   ([`FoldConsumption::Contained`]).
+///   [split after it](FoldConsumption::FragmentedMerge).
 ///
-/// A name in no table that its member does not derive either is left
-/// alone, and the door refuses it as the vanished name it is: the fold
-/// did not consume what was never there. And a pair whose two names
+/// A name NOTHING in the accumulation descends from is left alone, and
+/// the door refuses it as a vanished name. That covers a face another
+/// member contains, whose declared pair DM4 makes satisfied rather than
+/// refused (Ev on #3200); that rests on the pairwise pre-pass
+/// `union-contact-is-judged-pairwise-before-the-fold` builds, and it is
+/// that unit's to change here, not a composition this refusal names.
+/// And a pair whose two names
 /// land on ONE row is handed to the door as such, and refuses there by
 /// the door's own rule.
 ///
@@ -3838,7 +3883,6 @@ fn route_declarations(
 fn look_through_merges<'n>(
     bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
-    member_derives: &dyn Fn(RecipeNodeId, &names::StableName) -> Result<bool, NodeErrorKind>,
 ) -> Result<Vec<SidedPair<'n>>, NodeErrorKind> {
     use crate::names::RoleSeg;
     let merged_row_of = |(op, sided): &(topo::Operand, SidedName<'n>)| -> Result<
@@ -3874,12 +3918,7 @@ fn look_through_merges<'n>(
                     what: MEMBER_FACE_CONSUMED_TWO_WAYS,
                 }));
             }
-            None => match name.path.as_slice() {
-                [RoleSeg::FromMember { member, of }] if member_derives(*member, of)? => {
-                    FoldConsumption::Contained
-                }
-                _ => return Ok(None),
-            },
+            None => return Ok(None),
         };
         Err(NodeErrorKind::DeclareResolve {
             error: Box::new(crate::resolve::ResolveError::Vanished {
@@ -3969,9 +4008,18 @@ const UNION_STEP_EMPTY: &str = "a union fold step returned empty from two non-em
 /// internal space: no published table holds it, [`mod@crate::resolve`]
 /// cannot look it up, and a selector written against it matches
 /// nothing. Every name the refusal carries is therefore put through
-/// [`names::collapse_name`], the same rewrite the node's own table gets
-/// from `name_union`, so a refusal denotes member-space entities and
-/// nothing else.
+/// [`names::collapse_name`], the collapse the node's own table gets from
+/// `name_union`, so a refusal denotes member-space entities and nothing
+/// else.
+///
+/// The collapse is not all `name_union` does: it then numbers the
+/// pieces of each member EDGE by the cells the finished body cuts it
+/// into, and has seam vertices cite member edges whole. A refusal is
+/// raised before there is a finished body, so a member-edge piece it
+/// carried would keep the fold's rank, which no published table holds.
+/// So one refuses as an emission bug ([`UNION_REFUSAL_FOLD_RANKED_EDGE`])
+/// rather than being handed out; today none reaches it, since
+/// `refusal_menu` resolves face keys and a flush finding names faces.
 ///
 /// A name that will not collapse is an emission bug in the fold's own
 /// table, and it is raised as one rather than swallowed: the union was
@@ -4029,6 +4077,15 @@ fn union_refusal<T: crate::lane::Lane>(
     // so there is nothing for the sited arm below to carry.
     for subject in [&a, &b] {
         if let DeclarationSubject::FoldMinted(row) = subject {
+            // A piece of a member edge here carries the FOLD's rank,
+            // which the published table renumbers over the finished
+            // body: handing it out would name nothing. No flush finding
+            // names an edge today; if one ever does, it refuses loudly.
+            if names::is_fold_ranked_member_edge(row) {
+                return NodeErrorKind::Naming(names::NamingError::Emission {
+                    what: UNION_REFUSAL_FOLD_RANKED_EDGE,
+                });
+            }
             return NodeErrorKind::UndeclarableContact {
                 row: Box::new(row.clone()),
                 diag,
@@ -4150,6 +4207,10 @@ fn sited_member(
         _ => DeclarationSubject::FoldMinted(collapsed),
     })
 }
+
+/// A union's refusal named a piece of a member edge by the fold's rank.
+const UNION_REFUSAL_FOLD_RANKED_EDGE: &str = "a union fold's refusal names a piece of a member \
+     edge by the fold's rank, which no published table holds";
 
 /// A union's refusal named a row its own fold table cannot collapse.
 const UNION_REFUSAL_FOREIGN: &str =
@@ -5041,7 +5102,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     id: RecipeNodeId,
     lane: LaneEnv<'_, T>,
     tol: Tol,
-) -> Result<(sweep::Section, Affine3<f64>, ProfileNaming), NodeErrorKind> {
+) -> Result<(sweep::Section, Affine3<f64>), NodeErrorKind> {
     let program = node_operand(doc, id, super::family::PROFILE, |n| match n {
         Node::Profile(program) => Some(program),
         _ => None,
@@ -5066,8 +5127,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // the same C6/D9 pipeline the profile node runs. The profile's own
     // validation door still runs first, so a bad section reads as a
     // profile error at the NODE (the §2 compatibility contract) before
-    // the library door re-gates it — and the f64 canonical form yields
-    // the program-anchor naming map for the loft emitter's refs.
+    // the library door re-gates it.
     let resolved = program
         .resolve(lane.nominal)
         .map_err(|(slot, source)| NodeErrorKind::Expr { slot, source })?;
@@ -5122,7 +5182,7 @@ fn section_of<T: Decide + geom_core::Bounds + super::SectionScalar>(
     // The sections are the REPLAYED loops (program order — exactly
     // the stored-loop handoff LIB-U3 established, one derivation
     // earlier): positions, bulges, declared joints verbatim.
-    Ok((pre.profile_f64.loops, place, pre.naming))
+    Ok((pre.profile_f64.loops, place))
 }
 
 /// A structural (Count) slot, refused typed when absent or unusable.
@@ -5146,23 +5206,10 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
     let v_degree = need_count(vals, SlotId::VDegree)?;
     let mut sections = Vec::with_capacity(profiles.len());
     let mut places = Vec::with_capacity(profiles.len());
-    let mut first_naming = ProfileNaming::default();
-    for (i, pid) in profiles.iter().enumerate() {
-        let (chain, place, naming) = section_of::<T>(doc, results, *pid, lane, tol)?;
+    for pid in profiles {
+        let (chain, place) = section_of::<T>(doc, results, *pid, lane, tol)?;
         sections.push(chain);
         places.push(place);
-        if i == 0 {
-            // The loft emitter's profile refs are canonical (loop,
-            // segment) indices of the SECTION combinatorics; sections
-            // must correspond, so the FIRST section's anchor is the
-            // rewrite for the emitted table. PINNED LIMITATION
-            // (reported; review NOTE): a later section authored
-            // rotated/reversed relative to section 0 anchors to
-            // section 0's map, not its own — acceptable while the
-            // kernel requires corresponding sections; revisit if loft
-            // ever accepts per-section reparametrization.
-            first_naming = naming;
-        }
     }
     // The geometry/profile doors keep their historical node-error
     // shapes (the §2 compatibility contract predates the builder);
@@ -5173,9 +5220,12 @@ fn wire_loft<T: Decide + geom_brep::PcurveFittedLane + geom_core::Bounds + super
             other => NodeErrorKind::Loft(other),
         })?;
     // Eager N4 emission from the builder's own maps, BEFORE the
-    // structural handoff is dropped (the extrude idiom).
+    // structural handoff is dropped (the extrude idiom). The refs are
+    // canonical (loop, segment) indices, and the skin paired canonical
+    // segment `k` of every section into wall `k`: canonical traversal
+    // from each loop's AUTHORED start, so wall `k` is every section's
+    // own canonical segment `k` — the numbering every verb publishes.
     let table = names::name_loft(id, &built).map_err(NodeErrorKind::Naming)?;
-    let table = anchored(table, &first_naming)?;
     stamp_minted(&mut built.body, id);
     Ok(OpOut::plain(
         ValuePayload::Body(Arc::new(built.body)),
@@ -5661,15 +5711,15 @@ mod route_tests {
                 (Operand::A, f(ms[1], CapEnd::End)),
                 (Operand::B, f(ms[3], CapEnd::Start)),
             ),
-            // In no table and in no set, and its member does not derive
-            // it: untouched, and the door below refuses it as the
-            // vanished name it is.
+            // In no table and in no set, and nothing descends from it:
+            // untouched, and the door below refuses it as a vanished
+            // name.
             routed(
                 (Operand::A, f(ms[2], CapEnd::End)),
                 (Operand::B, f(ms[3], CapEnd::Start)),
             ),
         ];
-        let out = look_through_merges(&bucket, &acc, &underived).unwrap();
+        let out = look_through_merges(&bucket, &acc).unwrap();
         assert_eq!(out[0].0, (Operand::A, SidedName::Rewritten(wide)));
         assert_eq!(out[1], bucket[1]);
         assert_eq!(out[2], bucket[2]);
@@ -5692,7 +5742,7 @@ mod route_tests {
             (Operand::A, f(ms[1], CapEnd::End)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let out = look_through_merges(std::slice::from_ref(&p), &acc, &underived).unwrap();
+        let out = look_through_merges(std::slice::from_ref(&p), &acc).unwrap();
         assert_eq!(out[0], p);
     }
 
@@ -5730,7 +5780,7 @@ mod route_tests {
             (Operand::A, f(ms[0], CapEnd::Start)),
             (Operand::B, f(ms[3], CapEnd::Start)),
         );
-        let refused = look_through_merges(std::slice::from_ref(&p), &acc, &underived);
+        let refused = look_through_merges(std::slice::from_ref(&p), &acc);
         assert!(
             matches!(
                 refused,
@@ -5739,17 +5789,6 @@ mod route_tests {
             ),
             "{refused:?}"
         );
-    }
-
-    /// A member table that derives none of the names asked about: a
-    /// name in no row is then one the fold never consumed.
-    fn underived(_: RecipeNodeId, _: &StableName) -> Result<bool, NodeErrorKind> {
-        Ok(false)
-    }
-
-    /// A member table that derives every name asked about.
-    fn derived(_: RecipeNodeId, _: &StableName) -> Result<bool, NodeErrorKind> {
-        Ok(true)
     }
 
     /// The `rank`-th fragment of `name`, as a fold step mints one.
@@ -5802,8 +5841,7 @@ mod route_tests {
     /// Split: the name's own fragments, bare or merged later.
     /// Fragmented merge: fragments of a merged row whose set covers it
     /// — the several fragments of ONE merge, which is not the two-merges
-    /// emission bug. Contained: no descendant, while the member still
-    /// derives it.
+    /// emission bug.
     #[test]
     fn a_member_face_consumed_other_than_by_a_merge_refuses_naming_the_composition() {
         let (_doc, union, ms) = doc_with_members(4);
@@ -5847,14 +5885,9 @@ mod route_tests {
                 ])]),
                 FoldConsumption::FragmentedMerge,
             ),
-            (
-                "no descendant",
-                table_of(vec![f(ms[1], CapEnd::End)]),
-                FoldConsumption::Contained,
-            ),
         ];
         for (label, acc, want) in cases {
-            let refused = look_through_merges(std::slice::from_ref(&pair), &acc, &derived);
+            let refused = look_through_merges(std::slice::from_ref(&pair), &acc);
             assert_eq!(
                 consumed_by(refused),
                 (named.clone(), union, want),
@@ -5882,7 +5915,7 @@ mod route_tests {
             ),
         ]);
         let pair = routed((Operand::A, named), (Operand::B, f(ms[3], CapEnd::End)));
-        let refused = look_through_merges(std::slice::from_ref(&pair), &acc, &derived);
+        let refused = look_through_merges(std::slice::from_ref(&pair), &acc);
         assert!(
             matches!(
                 refused,
@@ -5971,5 +6004,32 @@ mod route_tests {
                 "{row}"
             );
         }
+    }
+}
+
+#[cfg(test)]
+mod loop_coordinates_tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{NodeErrorKind, loop_coordinates};
+    use crate::names::NamingError;
+
+    /// Every loop a `u32` addresses gets its own coordinate; one loop
+    /// more refuses the profile rather than wrapping onto loop 0.
+    #[test]
+    fn addresses_every_loop_and_refuses_one_past_the_bound() {
+        assert_eq!(loop_coordinates(3).ok(), Some(0..3));
+        let max = usize::try_from(u32::MAX).expect("a 32-bit or wider usize");
+        assert_eq!(loop_coordinates(max).ok(), Some(0..u32::MAX));
+        let Some(past) = max.checked_add(1) else {
+            return; // a 32-bit usize holds no count past the bound
+        };
+        assert!(
+            matches!(
+                loop_coordinates(past),
+                Err(NodeErrorKind::Naming(NamingError::Emission { .. }))
+            ),
+            "one loop past u32::MAX is refused"
+        );
     }
 }

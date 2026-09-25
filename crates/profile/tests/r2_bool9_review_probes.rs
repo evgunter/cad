@@ -8,7 +8,7 @@
 //!    crossing is the identity — so it measures the walk and not the
 //!    conversion. These rows re-spell BOTH retired walks verbatim and
 //!    compare, on a loop with arcs, bulges, declared joints and a
-//!    reversed orientation, at `f64` and (under `--features interval`)
+//!    reversed orientation, at `f64` and
 //!    at the certified interval scalar.
 //! 2. The door census's writer pattern is a fixed needle list. This
 //!    row replays that list against a call spelling the tree actually
@@ -46,7 +46,8 @@
 use crate::common::rounded_rect;
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, lift_checked,
+    test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -58,11 +59,11 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// declaration order that is not sorted, and read back reversed so the
 /// walk meets a different index order than it was authored in.
 fn awkward() -> ProfileLoop<f64> {
-    let raw: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.41421356237309503),
-        ProfileVertex::new(p2(3.0, 0.25), -0.13165249758739583),
-        ProfileVertex::new(p2(2.5, 2.0), 0.0),
-        ProfileVertex::new(p2(0.125, 1.75), 0.0),
+    let raw: ProfileLoop<f64> = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.41421356237309503),
+        (p2(3.0, 0.25), -0.13165249758739583),
+        (p2(2.5, 2.0), 0.0),
+        (p2(0.125, 1.75), 0.0),
     ])
     .with_tangent_joints(vec![2, 0]);
     raw.reversed()
@@ -74,10 +75,11 @@ fn awkward() -> ProfileLoop<f64> {
 
 /// `crates/sweep/src/loft.rs::end_profile`'s retired walk, verbatim.
 fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    <ProfileLoop<T> as RawLoop<T>>::new(
+    bulge_loop::<T>(
         lp.vertices()
             .iter()
-            .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
+            .zip(lp.bulges())
+            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -87,13 +89,14 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// walk, verbatim — note it spelled the position crossing out
 /// coordinate by coordinate rather than through `Point2::map`.
 fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    <ProfileLoop<T> as RawLoop<T>>::new(
+    bulge_loop::<T>(
         lp.vertices()
             .iter()
-            .map(|vx| {
-                ProfileVertex::new(
-                    Point2::new(T::from_f64(vx.pos().x), T::from_f64(vx.pos().y)),
-                    T::from_f64(vx.bulge()),
+            .zip(lp.bulges())
+            .map(|(vx, &b)| {
+                (
+                    Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
+                    T::from_f64(b),
                 )
             })
             .collect(),
@@ -104,11 +107,11 @@ fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 fn same_bits(a: &ProfileLoop<f64>, b: &ProfileLoop<f64>, what: &str) {
     assert_eq!(a.vertices().len(), b.vertices().len(), "{what}: length");
     for (i, (x, y)) in a.vertices().iter().zip(b.vertices().iter()).enumerate() {
-        assert_eq!(x.pos().x.to_bits(), y.pos().x.to_bits(), "{what}: v{i}.x");
-        assert_eq!(x.pos().y.to_bits(), y.pos().y.to_bits(), "{what}: v{i}.y");
+        assert_eq!(x.x.to_bits(), y.x.to_bits(), "{what}: v{i}.x");
+        assert_eq!(x.y.to_bits(), y.y.to_bits(), "{what}: v{i}.y");
         assert_eq!(
-            x.bulge().to_bits(),
-            y.bulge().to_bits(),
+            a.bulges()[i].to_bits(),
+            b.bulges()[i].to_bits(),
             "{what}: v{i}.bulge"
         );
     }
@@ -149,7 +152,6 @@ fn r2_embed_carries_the_declaration_list_unnormalised() {
 /// `from_f64` is no longer the identity — the arm the unit's receipt
 /// does not reach, and the one both production callers actually use
 /// (`loft`'s `Decide` scalar, `embed_profile`'s evaluation scalar).
-#[cfg(feature = "interval")]
 #[test]
 fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
     use geom_core::{Bounds, Interval};
@@ -163,46 +165,19 @@ fn r2_embed_is_both_retired_walks_at_the_interval_scalar() {
     for (i, v) in door.vertices().iter().enumerate() {
         for (name, other) in [("loft", &loft), ("anchor", &anchor)] {
             let w = other.vertices()[i];
-            assert_eq!(
-                v.pos().x.lo().to_bits(),
-                w.pos().x.lo().to_bits(),
-                "{name} v{i}.x.lo"
-            );
-            assert_eq!(
-                v.pos().x.hi().to_bits(),
-                w.pos().x.hi().to_bits(),
-                "{name} v{i}.x.hi"
-            );
-            assert_eq!(
-                v.pos().y.lo().to_bits(),
-                w.pos().y.lo().to_bits(),
-                "{name} v{i}.y.lo"
-            );
-            assert_eq!(
-                v.pos().y.hi().to_bits(),
-                w.pos().y.hi().to_bits(),
-                "{name} v{i}.y.hi"
-            );
-            assert_eq!(
-                v.bulge().lo().to_bits(),
-                w.bulge().lo().to_bits(),
-                "{name} v{i}.b.lo"
-            );
-            assert_eq!(
-                v.bulge().hi().to_bits(),
-                w.bulge().hi().to_bits(),
-                "{name} v{i}.b.hi"
-            );
+            assert_eq!(v.x.lo().to_bits(), w.x.lo().to_bits(), "{name} v{i}.x.lo");
+            assert_eq!(v.x.hi().to_bits(), w.x.hi().to_bits(), "{name} v{i}.x.hi");
+            assert_eq!(v.y.lo().to_bits(), w.y.lo().to_bits(), "{name} v{i}.y.lo");
+            assert_eq!(v.y.hi().to_bits(), w.y.hi().to_bits(), "{name} v{i}.y.hi");
+            let (vb, wb) = (door.bulges()[i], other.bulges()[i]);
+            assert_eq!(vb.lo().to_bits(), wb.lo().to_bits(), "{name} v{i}.b.lo");
+            assert_eq!(vb.hi().to_bits(), wb.hi().to_bits(), "{name} v{i}.b.hi");
         }
         // And the crossing is exact: every interval is a point.
+        assert_eq!(v.x.lo().to_bits(), v.x.hi().to_bits(), "v{i}.x is thin");
         assert_eq!(
-            v.pos().x.lo().to_bits(),
-            v.pos().x.hi().to_bits(),
-            "v{i}.x is thin"
-        );
-        assert_eq!(
-            v.bulge().lo().to_bits(),
-            v.bulge().hi().to_bits(),
+            door.bulges()[i].lo().to_bits(),
+            door.bulges()[i].hi().to_bits(),
             "v{i}.b is thin"
         );
     }
@@ -239,6 +214,7 @@ fn r2_the_door_census_reads_the_qualified_spelling_and_says_what_it_cannot() {
         "    let t = ProfileLoop::<f64>::new(Vec::new());",
         "    let m = xs.map(ProfileLoop::new);",
         "    ProfileLoop::new(Vec::new())",
+        "    let lp = profile::test_support::bulge_loop(chain);",
     ];
     for line in caught {
         assert!(

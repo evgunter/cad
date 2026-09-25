@@ -56,7 +56,6 @@ use crate::common::oracles::sigma;
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::arms::{Meridian, SupportTrace, sheet_center};
 use sweep::blend::build::fillet_edges;
@@ -69,8 +68,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 // ------------------------------------------------------------------

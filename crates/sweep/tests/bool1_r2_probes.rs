@@ -8,7 +8,7 @@
 
 use geom_brep::EdgeDescription;
 use geom_core::{Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, ValidationError};
 
@@ -213,10 +213,7 @@ fn restated_edges_keep_carrier_bits() {
 fn tangent_plane_split_of_a_cylinder_never_reaches_the_smooth_arm() {
     // Full circle profile (two semicircular arcs) of radius 1 at the
     // origin, extruded: a cylinder barrel with planar caps.
-    let circle = ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(-1.0, 0.0), 1.0),
-        profile::ProfileVertex::new(p2(1.0, 0.0), 1.0),
-    ]);
+    let circle = bulge_loop(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)]);
     let body = extruded(vec![circle], 1.0);
     // Plane y = 1 is tangent to the barrel along the line (0,1,z).
     let attempt = topo::split(

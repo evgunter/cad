@@ -30,7 +30,7 @@
 //!
 //! ```text
 //! cargo check --workspace --exclude pncad --exclude pncad-py \
-//!   --exclude viewer --features interval --target wasm32-unknown-unknown
+//!   --exclude viewer --target wasm32-unknown-unknown
 //! ```
 //!
 //! — a NON-dev compile of the kernel plus `editor-core` on every code
@@ -307,6 +307,8 @@ pub(crate) fn is_writer(line: &str) -> bool {
         "RawLoop>::polygon",
         // The declaration verb, on any receiver.
         ".with_tangent_joints",
+        // The bulge-chain fixture helper, which reaches the lowering.
+        "bulge_loop",
     ]
     .iter()
     .any(|m| normal.contains(m))
@@ -612,7 +614,14 @@ fn the_types_public_surface_mints_nothing() {
     // materialization door (a loop that already exists, at another
     // scalar); `reversed` derives from an existing loop. None of them
     // takes a vertex table.
-    let pinned = ["map_scalar", "reversed", "tangent_joints", "vertices"];
+    let pinned = [
+        "bulges",
+        "map_scalar",
+        "reversed",
+        "segments",
+        "tangent_joints",
+        "vertices",
+    ];
     assert_eq!(
         found, pinned,
         "the public surface of `ProfileLoop` moved.\n  \

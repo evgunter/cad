@@ -152,3 +152,14 @@ re-measure: the `ContactContradicted` arm in four of the containment
 orders (the wall IS a row at the step the pair is fed to), and that the
 base refused six of six before the merge look-through, so that
 look-through is a strict improvement and is not what is being undone.
+
+## Containment left this row (Ev, #3200, 2026-09-25)
+
+Ev's contact ruling on #3200 came after PR 2677 and supersedes it for
+containment: a declared pair whose face the fold consumed whole is
+SATISFIED, not refused (DM4, `crates/editor-core/REFERENCES.md`). That
+case is built by `union-contact-is-judged-pairwise-before-the-fold`, on
+top of its pairwise pre-pass. This row builds only the split and the
+fragmented merge. A face nothing in the accumulation descends from keeps
+the door's plain `Vanished` until that unit lands, pinned by
+`docm8_flat_merged::a_member_face_inside_a_later_member_keeps_the_vanished_refusal`.

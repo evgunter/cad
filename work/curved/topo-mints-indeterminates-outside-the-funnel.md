@@ -130,4 +130,4 @@ row, the union refuses `ContactContradicted`, and the refusal reads
 *"… contradicted by predicate 'bool_plane_offset' indeterminate: margin
 is invalid (NaN or a poisoned enclosure) …"* about two planes 5 units
 apart whose offset DECIDED nonzero. Pinned (by kind, not text) in
-`docm8_flat_merged::a_member_face_inside_a_later_member_refuses_as_contained`.
+`docm8_flat_merged::a_member_face_inside_a_later_member_keeps_the_vanished_refusal`.

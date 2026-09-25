@@ -6,8 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Vec2};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{loft_prism_sections, stacked_at};
 use sweep::{LoftError, Revolution, RevolveAxis, loft_body, revolve};
 
@@ -57,9 +56,9 @@ fn probe_coincident_stacking_refuses_degenerate() {
 #[test]
 fn probe_measure_revolve_minor_radius_drift() {
     let (major, minor) = (2.0f64, 0.5f64);
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(major - minor, 0.0), 1.0),
-        ProfileVertex::new(Point2::new(major + minor, 0.0), 1.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(major - minor, 0.0), 1.0),
+        (Point2::new(major + minor, 0.0), 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

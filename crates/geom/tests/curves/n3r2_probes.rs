@@ -265,7 +265,6 @@ fn n3r2_dual_box_contains_a_dense_sample() {
 /// `u_ref`, radius, centre and the two span ends, all straddling the
 /// coordinate's extremal angle; every `f64` realization of the bracket
 /// family must lie in the one box.
-#[cfg(feature = "interval")]
 #[test]
 fn n3r2_interval_box_dominates_every_realization_ascending() {
     use geom_core::{Bounds, Interval, Real};
@@ -332,7 +331,6 @@ fn n3r2_interval_box_dominates_every_realization_ascending() {
 /// mints). The span the door reads is
 /// `[min(t0.lo(), t1.hi()), max(t0.lo(), t1.hi())]`, so on a descending
 /// run it takes the INNER end of each bracket.
-#[cfg(feature = "interval")]
 #[test]
 fn n3r2_interval_box_dominates_every_realization_descending() {
     use geom_core::{Bounds, Interval, Real};
@@ -424,7 +422,6 @@ fn n3r2_extremal_angle_exactly_pi_stays_sound_and_is_tight() {
 /// The same shape with BRACKETS placed exactly on the axes: a rectangle
 /// touching the positive `u` axis at a corner, one straddling the
 /// origin, and one of zero width on a coordinate.
-#[cfg(feature = "interval")]
 #[test]
 fn n3r2_bracket_rectangles_on_the_axes_stay_sound() {
     use geom_core::{Bounds, Interval, Real};

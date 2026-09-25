@@ -11,7 +11,7 @@
 )]
 
 use geom_core::Tol;
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, revolve};
 
 fn p2(x: f64, y: f64) -> geom_core::Point2<f64> {
@@ -63,9 +63,9 @@ fn hash_mesh(m: &mesh::Mesh) -> (u64, u64, u64) {
 fn r1_probe_corpus_hashes() {
     let tol = Tol::witness();
     let ball = revolve(
-        &vp(vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        &vp(vec![bulge_loop(vec![
+            (p2(0.0, -1.0), 1.0),
+            (p2(0.0, 1.0), 0.0),
         ])]),
         axis_y(),
         Revolution::Full,
@@ -74,10 +74,10 @@ fn r1_probe_corpus_hashes() {
     .unwrap()
     .body;
     let cone = revolve(
-        &vp(vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(0.0, 1.5), 0.0),
+        &vp(vec![bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(1.0, 0.0), 0.0),
+            (p2(0.0, 1.5), 0.0),
         ])]),
         axis_y(),
         Revolution::Full,
@@ -91,11 +91,11 @@ fn r1_probe_corpus_hashes() {
     let yt = (1.0 - rho * rho).sqrt();
     let bulge = ((yt.atan2(rho) - h.atan2(rc)) / 4.0).tan();
     let band = revolve(
-        &vp(vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(rc, h), bulge),
-            ProfileVertex::new(p2(rho, yt), 0.0),
-            ProfileVertex::new(p2(0.3, 1.3), 0.0),
-            ProfileVertex::new(p2(1.1, 0.9), 0.0),
+        &vp(vec![bulge_loop(vec![
+            (p2(rc, h), bulge),
+            (p2(rho, yt), 0.0),
+            (p2(0.3, 1.3), 0.0),
+            (p2(1.1, 0.9), 0.0),
         ])]),
         axis_y(),
         Revolution::Full,

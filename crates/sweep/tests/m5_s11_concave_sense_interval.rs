@@ -1,5 +1,5 @@
 //! M5 S11 interval lane: the concave-sense door and union rows at the
-//! CERTIFIED scalar (feature `interval`).
+//! CERTIFIED scalar.
 //!
 //! The sense bit itself is exact structure (a `bool` selected from
 //! stored `Sign`s — nothing here widens), so what this lane proves is
@@ -9,7 +9,6 @@
 //! escalation), the pellet survives with a certified volume
 //! enclosure, and the washer's bore reads as void.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands::pellet;
@@ -18,7 +17,7 @@ use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
@@ -46,11 +45,11 @@ fn notched() -> Body<Interval> {
     let b = iv(FRAC_PI_8.tan());
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
-    let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), b),
-        ProfileVertex::new(p2(2.0, 0.0), iv(0.0)),
-        ProfileVertex::new(p2(2.0, 1.5), iv(0.0) - b),
-        ProfileVertex::new(p2(0.0, 1.5), iv(0.0)),
+    let lp = bulge_loop::<Interval>(vec![
+        (p2(0.0, 0.0), b),
+        (p2(2.0, 0.0), iv(0.0)),
+        (p2(2.0, 1.5), iv(0.0) - b),
+        (p2(0.0, 1.5), iv(0.0)),
     ]);
     extrude(
         &validated(vec![lp]),

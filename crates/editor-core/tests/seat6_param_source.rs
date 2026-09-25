@@ -43,7 +43,7 @@ use fixture::{
 };
 use geom_brep::RadiusEvidence;
 use geom_core::Tol;
-use profile::{RawLoop, SketchPlane};
+use profile::{SketchPlane, test_support::bulge_loop};
 use topo::{Body, FaceKey, SurfaceField};
 
 /// The blend radius the documents below declare, meters (dyadic).
@@ -209,10 +209,10 @@ fn the_same_geometry_without_the_channel_refuses() {
     // profile, the same extrude, the same blend at the same radius —
     // and no recipe layer above them, so no records anywhere.
     let raw = {
-        let lp = profile::ProfileLoop::new(
+        let lp = bulge_loop(
             square(0.0, 0.0, 0.5)
                 .into_iter()
-                .map(|(x, y)| profile::ProfileVertex::new(geom_core::Point2::new(x, y), 0.0))
+                .map(|(x, y)| (geom_core::Point2::new(x, y), 0.0))
                 .collect(),
         );
         let sketch = profile::Profile::new(SketchPlane::xy(), vec![lp])

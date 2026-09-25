@@ -16,10 +16,9 @@
 //! gate could read — [[test-suite-cost]]). Run:
 //!
 //! ```sh
-//! cargo test -p editor-core --features interval --test all -- \
+//! cargo test -p editor-core --test all -- \
 //!   m10_8_r1_probes_interval:: --ignored --nocapture
 //! ```
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 

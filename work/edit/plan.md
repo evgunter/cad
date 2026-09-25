@@ -123,12 +123,17 @@ posture under §Process.
    against DOCM, EDIT's now) is **merged** (PR #2905, E-class, wave
    15: `Doc::has_minted`, the counter stays private; VIEW's layer-3
    row unblocked); `a-committed-profile-program-has-no-whole-program-edit`
-   was ruled (B) by Ev on `[ev]` #2904 and is **built and in the
-   dual** as a kernel unit (`docs/EDIT-PROGRAM-SPEC.md`, PR #2927,
-   v6 dual, ordinals 4808/4809, block EDIT-B2 slot 2, wave 17:
-   `SetProgram` carries the program and each step's provenance, the
-   door reports strands, retires stranded names and rebinds kept
-   ones; V2 and DM7 re-worded on the ruling);
+   was ruled (B) by Ev on `[ev]` #2904 and is **merged** (PR #2927,
+   kernel unit, v6 dual, ordinals 4808/4809, sample #243, block
+   EDIT-B2 slot 2 — the block concluded: `SetProgram` carries the
+   program and each step's provenance, the door reports strands,
+   retires stranded names and rebinds kept ones; V2 and DM7 re-worded
+   on the ruling). It left two rows: the retirement itself,
+   `stranded-names-are-retired-to-an-undrawable-coordinate`, on
+   `[ev]` #3158 as a DM7 clause; and
+   `a-slot-edit-through-a-zero-fit-renumbers-a-loops-live-names`
+   (P0), a live wrong answer the unit's review exposed and did not
+   own;
    `nodepick-name-doors-take-a-second-evaluation-unpaired` is
    **merged** (PR #2773, middle tier). The pairing row went to PROPS
    with EDIT's door built.

@@ -40,8 +40,7 @@ use crate::common::arc_section;
 use geom_brep::PropsError;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Section, loft_body};
 use topo::{MassProperties, MassPropsError};
 
@@ -412,9 +411,9 @@ fn the_lily_crescent_blade_certifies() {
 
     // The crescent: chord 0.170, ridge sagitta 0.015, keel 0.007. For a
     // circular arc, bulge = tan(θ/4) = 2·sagitta/chord.
-    let vtx = |x: f64, y: f64, b: f64| ProfileVertex::new(Point2::new(x, y), b);
+    let vtx = |x: f64, y: f64, b: f64| (Point2::new(x, y), b);
     let (hw, ridge, keel) = (0.085f64, 0.015f64, 0.007f64);
-    let section = vec![ProfileLoop::new(vec![
+    let section = vec![bulge_loop(vec![
         vtx(-hw, 0.0, 2.0 * ridge / (2.0 * hw)),
         vtx(hw, 0.0, 2.0 * keel / (2.0 * hw)),
     ])];

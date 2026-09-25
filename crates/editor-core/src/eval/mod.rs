@@ -35,6 +35,7 @@ pub(crate) use wire::{
 };
 
 pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
+pub(crate) use anchor::{naming_of, readable_naming, replay_naming};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -241,6 +242,12 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The fragment groups the node's emitter formed
+    /// ([`crate::names::FragmentGroups`]): the membership the
+    /// diagnosis ladder's group-size rung counts. Rides the value with
+    /// the names it was minted beside; like the verdict log, it is
+    /// not persisted.
+    pub fragment_groups: Arc<crate::names::FragmentGroups>,
     /// The DECLARED CONTACT RECORDS the node's output body 0 carries
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
@@ -341,7 +348,7 @@ pub enum ValuePayload<T: Decide> {
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
-    /// its program-anchor naming map, and the radius expression each
+    /// its naming anchor, and the radius expression each
     /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
@@ -1022,7 +1029,7 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
-    /// The program-anchor derivation failed to match a canonical loop
+    /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
     /// input), surfaced typed rather than panicking.
@@ -1728,11 +1735,9 @@ pub enum NodeErrorKind {
         /// which no road can have written ([`entity_door::Found`]).
         found: entity_door::Found,
     },
-    /// The clearance engine refused a `min_clearance` measurement,
-    /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried across the feature boundary by
-    /// [`crate::measure::MinClearanceRefusal`]).
-    MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
+    /// The clearance engine refused a `min_clearance` measurement: its
+    /// own typed refusal (E7's refusal vocabulary), carried unaltered.
+    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -2234,7 +2239,14 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
+            Self::MeasureClearanceRefused(refusal) => {
+                write!(f, "the clearance engine refused `{}`", refusal.name())?;
+                let payload = refusal.payload();
+                if !payload.is_empty() {
+                    write!(f, " ({payload})")?;
+                }
+                Ok(())
+            }
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -2343,19 +2355,10 @@ impl<T> EvalScalar for T where
 {
 }
 
-/// **The certified-leaf replay door** (ERROR-DESIGN E12) — one module
-/// rather than a handful of gated items, because
-/// `scripts/check-interval-cfg-additive.py` admits a gated `mod` and
-/// nothing smaller: the `interval` feature must not be able to change
-/// the default build, and a module is the granularity that keeps that
-/// checkable.
-///
-/// Gated for the driver's own reason (`crate::drive`'s module gate): a
-/// leaf replays at the certified scalar, so without it there is no leaf
-/// and nothing to replay. It lives inside `eval/mod.rs` because it names
+/// **The certified-leaf replay door** (ERROR-DESIGN E12): a leaf
+/// replays at the certified scalar. It lives inside `eval/mod.rs` because it names
 /// `EvalScalar`, which the evaluation-service seam confines to this file
 /// and `parts.rs`.
-#[cfg(feature = "interval")]
 pub(crate) mod leaf {
     use super::{
         CancelToken, ContentKey, EvalOptions, EvalScalar, Evaluation, NodeResult, ValuePayload,
@@ -2364,9 +2367,8 @@ pub(crate) mod leaf {
 
     // ------------------------------------------- the certified-leaf replay
     //
-    // Gated on `interval` for the driver's own reason (`crate::drive`'s
-    // module gate): a leaf replays at the certified scalar, so without it
-    // there is no leaf and nothing to replay.
+    // A leaf replays at the certified scalar, the one `crate::drive`
+    // certified it at.
 
     /// **Which lane a certified leaf is replayed on** (ERROR-DESIGN E12).
     ///
@@ -2547,7 +2549,6 @@ pub(crate) mod leaf {
     }
 }
 
-#[cfg(feature = "interval")]
 pub(crate) use leaf::{LeafLane, LeafPrior, LeafRequest, replay_leaf};
 
 /// Evaluation options (spec D5/D6).
@@ -2675,7 +2676,6 @@ impl SectionScalar for geom_core::Probe {
     }
 }
 
-#[cfg(feature = "interval")]
 impl SectionScalar for geom_core::Interval {
     fn pinned_f64(self) -> Option<f64> {
         None
@@ -3479,6 +3479,7 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
+                fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
                 verdicts: Arc::new(recorded.verdicts),
@@ -5971,9 +5972,8 @@ mod alignment_key {
 ///
 /// It lives HERE, beside [`KeyHasher`], rather than in
 /// [`crate::report`] where its callers are, because
-/// [`crate::mc`] needs it and that lane is pure `f64`: a helper in an
-/// `interval`-gated module was the only thing keeping the advisory
-/// estimator out of a default build (M10-6, R2's MINOR-9).
+/// [`crate::mc`] needs it too, and that lane is the pure-`f64` advisory
+/// estimator rather than a part of the certified reporting layer.
 pub fn key_of(tag: u8, serialized: &str) -> ContentKey {
     let mut h = KeyHasher::new();
     h.write_tag(tag);

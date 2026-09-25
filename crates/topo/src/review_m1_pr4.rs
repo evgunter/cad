@@ -29,7 +29,7 @@
 //! release-mode torn-body batteries.
 //!
 //! Only lint fixes and the promotion of the corrected re-make taxonomy
-//! were applied at promotion; the probes are otherwise verbatim.
+//! were applied at promotion; the probes were otherwise verbatim then.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -1607,8 +1607,7 @@ fn seqgen_kvfs_availability_instrumented() {
         let skeletal = body
             .solids()
             .filter(|&(s, _)| {
-                let solid_data = body.get_solid(s).unwrap();
-                let [shell] = solid_data.shells[..] else {
+                let [shell] = body.shells_of_solid(s).unwrap()[..] else {
                     return false;
                 };
                 let [face] = body.get_shell(shell).unwrap().faces[..] else {

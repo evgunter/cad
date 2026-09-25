@@ -24,7 +24,6 @@
 //!
 //! ITS PROBE-GATED CODE IS NOT EXECUTED BY CI.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 #![allow(dead_code)]
 

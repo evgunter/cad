@@ -14,7 +14,6 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec3};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::{Filleted, fillet_edges};
 use sweep::test_support::{one_edge_rim_at, revolved_about_y, rim_arcs_at};
@@ -24,8 +23,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 /// The #935 zone at the issue bore — `test_support`'s fixture (homed
