@@ -122,3 +122,63 @@ The order sweep for `seam-junction-vertex-name-cannot-be-collapsed-by-the-union-
 widened by PR 3112's review.
 `crates/editor-core/tests/emit_seam_junction.rs` asserts that only the
 junction rows are equal across orders, for this reason.
+
+## Correction (EMIT, 2026-09-23)
+
+The "zero cases of a name rebinding" measurement above compared vertex
+points only. With edges compared by their end points, 18 of the 162
+pairs of fused orders in PR 3112's review corpus rebind a name on main
+(EMIT's probe: 24 (pair, name) rebinds, all
+`FromMember` rim-edge pieces). That is its own P0 row:
+`work/emit/union-rim-piece-ranks-follow-fold-order-so-rim-names-rebind.md`.
+
+## After `emit/rim-piece-ranks` (EMIT, 2026-09-24)
+
+The published table now numbers each member edge's pieces by the cells
+the finished body's vertices cut that edge into, counting cells another
+member holds (`emit_union::rank_member_edges`), and a seam vertex cites
+the member edge it lies on whole (`emit_union::cite_member_edges`).
+
+Measured with #3168's review probe: PR 3112's review corpus plus the
+review's fixtures (`r1two`, `r1three`, `r1flush`, `r2ends`, `r2endsg`,
+`r3nest`, `r3nest2`), every member order, 226 fused cells, comparing
+vertices, edges and faces. No pair of fused orders rebinds a name, and
+no cell that fuses on main refuses.
+
+An earlier draft of that branch ranked only the pieces a member keeps,
+and this note then said a name "no longer lands on the wrong piece".
+That was wrong: which member keeps a flush stretch depends on order, and
+`r2ends` (a member flush with two partners) still rebound 8 names in a
+pair of orders that both fuse on main.
+
+What this row describes is still there. 295 of the corpus's 336 pairs
+of fused orders publish different name SETS: a flush stretch is named
+for whichever member was folded first, and so are the `Seam` vertices
+and edges, member vertices and `Merged` faces around it. A reference
+vanishes, typed, on a reorder.
+
+## The finished body itself depends on member order (EMIT, 2026-09-24)
+
+Measured on `emit/rim-piece-ranks` (PR #3168), with a scratch probe
+comparing each fused order's vertex points to 1e-9.
+
+- Document: `a` = x∈(0,1), `b` = x∈(0.5,1.5), both y,z∈(0,1), declared
+  flush as above. Third member: a slab x∈(0.49999,0.50001), y∈(−1,2),
+  z from 0.5 up.
+- `[0, 2, 1]` and `[2, 0, 1]` refuse (`DeclareResolve` Vanished).
+- `[1, 2, 0]` and `[2, 1, 0]` publish 32 vertices.
+- `[0, 1, 2]` and `[1, 0, 2]` publish 30. They lack (0.5, 0, 0.5) and
+  (0.5, 1, 0.5), two vertices on a seam line.
+- Two `Merged` face names bind different vertex sets across those
+  pairs of orders.
+- The slab at x∈(0.4999999,0.5000001) (±1e-7) behaves the same.
+
+**This is specific to the declared flush.** The same slab with `a`
+alone, or with an undeclared `b` = x∈(0.5,1.5), y∈(0.2,0.8),
+z∈(0.2,0.8) (at ±1e-5 and ±1e-7), gives one vertex set in every order.
+
+Consequence for PR #3168's member-edge ranks: they are a function of the
+finished body, so they are order-free only as far as the body is. A
+leftover vertex like these, landing on a member edge, would change that
+edge's cell count between orders.
+
