@@ -239,17 +239,19 @@ fn a_finite_described_net_draws_no_surface_verdict() {
 }
 
 /// **Where the state boundaries lie**, on one body per rung: the state
-/// `geom` reports for a net is exactly the verdict check 1 gives it,
-/// each face draws at most one surface verdict, and the face named is
-/// the swapped one.
+/// `geom` reports for a net decides the verdict check 1 gives it — with
+/// one further read inside `Described` — each face draws at most one
+/// surface verdict, and the face named is the swapped one.
 ///
 /// The rungs that carry the argument are the near misses. Poison in
 /// EVERY channel of every point is the placeholder however the net was
 /// built, so a hand-built all-poison net is `Placeholder` and not
 /// `Poisoned`; poison in every channel of ONE point is not, because the
-/// width rule quantifies over points as well as channels; and `+∞` is
-/// not `f64` poison at all, so a net of infinities is described data
-/// that this check passes.
+/// width rule quantifies over points as well as channels; and `±∞` is
+/// not `f64` poison at all, so a net carrying an infinity is
+/// `Described` — and check 1 refuses it anyway, as the poisoned net it
+/// is, because an infinite control point describes no locus exactly as
+/// an infinite radius does not.
 #[test]
 fn the_net_state_ladder_decides_check_1s_verdict() {
     let tol = Tol::witness();
@@ -291,6 +293,20 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
             ),
         ),
         (
+            "negative infinity at one point",
+            bilinear_net(
+                (0..4)
+                    .map(|i| {
+                        if i == 1 {
+                            pt(0.0, f64::NEG_INFINITY, 0.0)
+                        } else {
+                            finite_point(i)
+                        }
+                    })
+                    .collect(),
+            ),
+        ),
+        (
             "infinite x at every point",
             bilinear_net(
                 (0..4)
@@ -305,6 +321,10 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
             unreachable!("every rung is a Nurbs surface")
         };
         let state = payload.net_state();
+        let finite = payload
+            .control()
+            .iter()
+            .all(|p| p.x.is_finite() && p.y.is_finite() && p.z.is_finite());
         let (errs, face) = pillow_on(surface.clone(), tol);
         let placeholder = errs.contains(&ValidationError::UncertifiableSurface { face });
         let poisoned = errs.contains(&ValidationError::PoisonedSurfaceDescription { face });
@@ -313,9 +333,9 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
             match state {
                 NetState::Placeholder => (true, false),
                 NetState::Poisoned => (false, true),
-                NetState::Described => (false, false),
+                NetState::Described => (false, !finite),
             },
-            "{name}: the state is {state:?} and check 1 answered {errs:?}",
+            "{name}: the state is {state:?} (finite: {finite}) and check 1 answered {errs:?}",
         );
         // No other face is named by a surface verdict, ever.
         for e in &errs {
@@ -395,8 +415,9 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
 /// before the checks that read the surface for other questions — and it
 /// names the face, the kind and the datum.
 ///
-/// Two halves. A datum that is not a number (NaN or `±∞`), or a plane
-/// normal that is the zero vector, is `PoisonedSurfaceDatum`; a finite
+/// Two halves. A datum that is not a number (NaN or `±∞`), or a stored
+/// direction (`normal`, `axis`, `u_ref`) that is the zero vector, is
+/// `PoisonedSurfaceDatum`; a finite
 /// datum outside its variant's convention is
 /// `UnrepresentableSurfaceDatum`. The first six rungs are the
 /// measurement the carried row took before check 1 read any analytic
@@ -587,6 +608,78 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
             D::Center,
             Verdict::Poisoned,
         ),
+        (
+            "cylinder, zero axis",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cylinder,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, zero u_ref",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Cylinder,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, zero u_ref",
+            Surface::Plane {
+                origin: o,
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Plane,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cone, zero axis",
+            Surface::Cone {
+                apex: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cone,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, zero u_ref",
+            Surface::Sphere {
+                center: o,
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::new(0.0, 0.0, 0.0),
+            },
+            K::Sphere,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, zero axis",
+            Surface::Torus {
+                center: o,
+                axis: Vec3::new(0.0, 0.0, 0.0),
+                major_radius: 2.0,
+                minor_radius: 0.5,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Torus,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
     ];
     for (name, surface, kind, datum, verdict) in cases {
         let (errs, face) = pillow_on(surface, tol);
@@ -655,6 +748,257 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
             vec![],
             "{name}: a datum inside its convention earns no verdict: {errs:?}",
         );
+    }
+}
+
+/// The check-1 carrier-datum verdicts a body draws, in report order.
+fn curve_datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::PoisonedCurveDatum { .. }
+                    | ValidationError::UnrepresentableCurveDatum { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+/// The pillow with one chord's carrier re-minted through the public
+/// attach door as `carrier` over `(t0, t1)`, described in the face's
+/// plane chart; `Err` is the mint's refusal.
+fn pillow_with_carrier(
+    carrier: geom::Curve3<f64>,
+    t0: f64,
+    t1: f64,
+    tol: Tol,
+) -> Result<(Body<f64>, crate::entity::EdgeKey), crate::EulerOpError> {
+    let (mut body, split) = coplanar_pillow(tol);
+    let chart = body.get_face(split.face).unwrap().surface;
+    body.set_edge_curve(
+        split.edge,
+        EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::chart(chart),
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        },
+        tol,
+    )?;
+    Ok((body, split.edge))
+}
+
+/// **Check 1 names an edge carrier's datum when it describes no curve
+/// of its kind**, on the pillow with one chord re-minted through the
+/// public attach door as a half-arc from `(0,0,0)` to `(1,0,0)`.
+///
+/// These are the carriers the mint CERTIFIES: certification meters the
+/// carrier's residuals against its endpoints and its chart, and a
+/// circle or ellipse whose `axis` is zero traces the diameter between
+/// the two vertices — which lies in the chart — while an ellipse whose
+/// `major` is negative and whose `u_ref` is flipped traces the ellipse
+/// it would with both signs righted. Before check 1 read carrier datums
+/// all three were `Ok(())` at rest (the carried row's measurement);
+/// each is now refused, first, by name.
+///
+/// The honest twin — the same arc with its datums righted — is
+/// asserted clean, so the refusal is the datum's and not the fixture's.
+/// The bulge side is chosen at run time as the one the face's
+/// orientation admits, and exactly one side must.
+#[test]
+fn check_1_names_the_carrier_datum_that_describes_no_curve() {
+    use crate::query::CurveKind as K;
+    use geom::ConventionEnd::Lower;
+    use geom::Curve3;
+    use geom::CurveDatum as D;
+    let tol = Tol::witness();
+    let pi = core::f64::consts::PI;
+    let c = pt(0.5, 0.0, 0.0);
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let x = Vec3::unit_x();
+    let circle = |axis: Vec3<f64>| Curve3::Circle {
+        center: c,
+        axis,
+        radius: 0.5,
+        u_ref: -x,
+    };
+    let ellipse = |axis: Vec3<f64>, major: f64, u_ref: Vec3<f64>| Curve3::Ellipse {
+        center: c,
+        axis,
+        major,
+        minor: 0.3,
+        u_ref,
+    };
+    let sides: Vec<Vec3<f64>> = [Vec3::unit_z(), -Vec3::unit_z()]
+        .into_iter()
+        .filter(|&axis| {
+            let (circ, _) = pillow_with_carrier(circle(axis), 0.0, pi, tol).unwrap();
+            let (ell, _) = pillow_with_carrier(ellipse(axis, 0.5, -x), 0.0, pi, tol).unwrap();
+            validate_geometric(&circ, tol).is_ok() && validate_geometric(&ell, tol).is_ok()
+        })
+        .collect();
+    assert_eq!(sides.len(), 1, "exactly one bulge side is honest");
+    let axis = sides[0];
+    enum Verdict {
+        Poisoned,
+        Unrepresentable,
+    }
+    let cases: Vec<(&str, Curve3<f64>, K, D, Verdict)> = vec![
+        (
+            "circle, zero axis",
+            circle(zero),
+            K::Circle,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "ellipse, zero axis",
+            ellipse(zero, 0.5, -x),
+            K::Ellipse,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "ellipse, negative major with u_ref flipped",
+            ellipse(axis, -0.5, x),
+            K::Ellipse,
+            D::Major,
+            Verdict::Unrepresentable,
+        ),
+    ];
+    for (name, carrier, kind, datum, verdict) in cases {
+        let (body, edge) = pillow_with_carrier(carrier, 0.0, pi, tol)
+            .unwrap_or_else(|e| panic!("{name}: the mint certifies this carrier: {e:?}"));
+        let errs = validate_geometric(&body, tol).expect_err("the carrier datum is refused");
+        let expected = match verdict {
+            Verdict::Poisoned => ValidationError::PoisonedCurveDatum { edge, kind, datum },
+            Verdict::Unrepresentable => ValidationError::UnrepresentableCurveDatum {
+                edge,
+                kind,
+                datum,
+                end: Lower,
+            },
+        };
+        assert_eq!(
+            errs.first(),
+            Some(&expected),
+            "{name}: the carrier datum verdict is the first finding: {errs:?}",
+        );
+        assert_eq!(
+            curve_datum_verdicts(&errs),
+            vec![expected],
+            "{name}: one carrier datum verdict, on the re-minted edge: {errs:?}",
+        );
+    }
+}
+
+/// **The carrier-datum read over the datums no mint lets through**:
+/// certification refuses a carrier whose datum is not a number, or
+/// whose radius or semi-minor axis is not positive, before it reaches
+/// an arena (the carried row's measurement: `IntervalNotForward` or an
+/// escalated endpoint or span predicate), so no body can carry one to
+/// check 1. The read is asked of the carrier directly, so that it names
+/// each such datum the day a door stops refusing it — and so that the
+/// kinds the body row cannot mint (a line, a spiric) are covered.
+#[test]
+fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
+    use crate::validate::{DatumVerdict as V, analytic_datum_verdicts, poisoned_curve_datums};
+    use geom::ConventionEnd::Lower;
+    use geom::Curve3;
+    use geom::CurveDatum as D;
+    let nan = f64::NAN;
+    let inf = f64::INFINITY;
+    let o = pt(0.0, 0.0, 0.0);
+    let z = Vec3::unit_z();
+    let x = Vec3::unit_x();
+    let zero = Vec3::new(0.0, 0.0, 0.0);
+    let circle = |center, axis, radius, u_ref| Curve3::Circle {
+        center,
+        axis,
+        radius,
+        u_ref,
+    };
+    let spiric = |minor_radius: f64, offset: f64| Curve3::Spiric {
+        center: o,
+        axis: z,
+        u_ref: x,
+        major_radius: 2.0,
+        minor_radius,
+        offset,
+    };
+    let verdict = |c: &Curve3<f64>| {
+        analytic_datum_verdicts(poisoned_curve_datums(c), c.representability_margins())
+    };
+    let cases: Vec<(&str, Curve3<f64>, Option<V<D>>)> = vec![
+        ("honest line", Curve3::Line { origin: o, dir: x }, None),
+        (
+            "line, zero dir",
+            Curve3::Line {
+                origin: o,
+                dir: zero,
+            },
+            Some(V::Poisoned(vec![D::Dir])),
+        ),
+        (
+            "line, NaN origin and infinite dir",
+            Curve3::Line {
+                origin: pt(nan, 0.0, 0.0),
+                dir: Vec3::new(inf, 0.0, 0.0),
+            },
+            Some(V::Poisoned(vec![D::Origin, D::Dir])),
+        ),
+        ("honest circle", circle(o, z, 1.0, x), None),
+        (
+            "circle, NaN radius",
+            circle(o, z, nan, x),
+            Some(V::Poisoned(vec![D::Radius])),
+        ),
+        (
+            "circle, infinite center",
+            circle(pt(0.0, inf, 0.0), z, 1.0, x),
+            Some(V::Poisoned(vec![D::Center])),
+        ),
+        (
+            "circle, zero u_ref",
+            circle(o, z, 1.0, zero),
+            Some(V::Poisoned(vec![D::URef])),
+        ),
+        (
+            "circle, zero radius",
+            circle(o, z, 0.0, x),
+            Some(V::Unrepresentable(D::Radius, Lower)),
+        ),
+        (
+            "circle, negative radius",
+            circle(o, z, -1.0, x),
+            Some(V::Unrepresentable(D::Radius, Lower)),
+        ),
+        (
+            "ellipse, zero minor",
+            Curve3::Ellipse {
+                center: o,
+                axis: z,
+                major: 1.0,
+                minor: 0.0,
+                u_ref: x,
+            },
+            Some(V::Unrepresentable(D::Minor, Lower)),
+        ),
+        ("honest spiric", spiric(0.5, 0.3), None),
+        (
+            "spiric, NaN offset",
+            spiric(0.5, nan),
+            Some(V::Poisoned(vec![D::Offset])),
+        ),
+        (
+            "spiric, zero tube",
+            spiric(0.0, 0.3),
+            Some(V::Unrepresentable(D::MinorRadius, Lower)),
+        ),
+    ];
+    for (name, carrier, expected) in cases {
+        assert_eq!(verdict(&carrier), expected, "{name}");
     }
 }
 

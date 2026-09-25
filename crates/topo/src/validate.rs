@@ -3970,7 +3970,7 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
 ///
 /// One function for both kinds, so the file's one bracket read has one
 /// site. A SOLE bracket bound, deliberately: nothing here decides.
-fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
+pub(crate) fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
     poisoned: Vec<D>,
     margins: [Option<geom::RepresentabilityMargin<T, D>>; 2],
 ) -> Option<DatumVerdict<D>> {
@@ -3991,7 +3991,8 @@ fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
 
 /// What [`analytic_datum_verdicts`] found, before the caller names the
 /// face or edge that carries it.
-enum DatumVerdict<D> {
+#[derive(Debug, PartialEq)]
+pub(crate) enum DatumVerdict<D> {
     /// Every datum that describes no locus, in field order.
     Poisoned(Vec<D>),
     /// The first datum outside its convention, and the end it fails.
@@ -4133,7 +4134,7 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
 /// nothing. Empty for a `Nurbs` carrier, whose datum is its net.
 ///
 /// Fields destructured without `..`, as on the surface half.
-fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
+pub(crate) fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
     use geom::Curve3 as C;
     use geom::CurveDatum as D;
     use geom_core::is_finite_length as finite;
@@ -5026,7 +5027,8 @@ pub(crate) fn tier3_local_checks_marked<
     // circle; an elliptic arc is the circle's affine image), odd in the
     // signed span `Δ` and therefore carrying the traversal sign, and the
     // perimeter lever is re-metered to the arcs' own lengths — exactly
-    // for a circle, and for an ellipse by the upper bound `|Δ|·major`.
+    // for a circle, and for an ellipse by the upper bound `|Δ|` times the
+    // larger semi-axis.
     // An upper-bound lever shrinks the metered margin `2A/P`, so a thin
     // elliptic region escalates where a circular one of the same width
     // decides; escalation is exempt, so the bound can cost a verdict
@@ -7725,10 +7727,38 @@ mod tests {
                 }],
             ),
         ];
+        let errors = |kind, verdict: Option<DatumVerdict<geom::SurfaceDatum>>| match verdict {
+            None => vec![],
+            Some(DatumVerdict::Poisoned(datums)) => datums
+                .into_iter()
+                .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
+                .collect(),
+            Some(DatumVerdict::Unrepresentable(datum, end)) => {
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind,
+                    datum,
+                    end,
+                }]
+            }
+        };
         for (name, surface, expected) in rows {
-            let at_f64 = analytic_datum_verdicts(face, &surface);
+            let kind = K::of(&surface);
+            let at_f64 = errors(
+                kind,
+                analytic_datum_verdicts(
+                    poisoned_datums(&surface),
+                    surface.representability_margins(),
+                ),
+            );
             let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
-            let at_interval = analytic_datum_verdicts(face, &lifted);
+            let at_interval = errors(
+                kind,
+                analytic_datum_verdicts(
+                    poisoned_datums(&lifted),
+                    lifted.representability_margins(),
+                ),
+            );
             assert_eq!(at_f64, expected, "{name}, at f64");
             assert_eq!(at_interval, expected, "{name}, at Interval");
         }

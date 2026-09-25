@@ -40,9 +40,9 @@
 //! no case split beyond the per-edge carrier match.
 //!
 //! The perimeter lever moves with the area: a conic edge contributes
-//! `|Δ|·sa` — the circle's exact arc length, the ellipse's upper bound;
-//! an over-large `P` understates the width, i.e. escalates rather than
-//! decides.
+//! `|Δ|·max(sa, sb)` — the circle's exact arc length, the ellipse's
+//! upper bound; an over-large `P` understates the width, i.e. escalates
+//! rather than decides.
 //!
 //! A LINE-ONLY cycle is decided with exactly the chord arithmetic and
 //! accumulation order: the correction block is structurally skipped,
@@ -87,10 +87,13 @@ enum LoopCarriers {
 pub(crate) struct TornLoop;
 
 /// **The conic term of one traversed edge** — the one statement of it:
-/// `(axis · sa·sb · (Δ − sin Δ), |Δ|·sa)`, the vector area between the
+/// `(axis · sa·sb · (Δ − sin Δ), |Δ|·max(sa, sb))`, the vector area between the
 /// arc and its chord (the cross-sum's `2A` convention, odd in the
 /// signed span `Δ`) and the edge's boundary length (exact for a
-/// circle, an upper bound for an ellipse). `forward` is whether the
+/// circle, an upper bound for an ellipse: `|Δ|` times the LARGER
+/// semi-axis, whichever field stores it — an ellipse stored with
+/// `minor > major` reaches rest, and `|Δ|·major` would then be a lower
+/// bound, overstating the metered width). `forward` is whether the
 /// traversal runs with increasing carrier parameter — the edge's plus
 /// half. `None` for every carrier that is not a conic: its term is its
 /// chord's, which the caller owns. Shared by
@@ -111,7 +114,10 @@ pub(crate) fn conic_segment_term<T: Real>(
         }
     };
     let span = if forward { t1 - t0 } else { t0 - t1 };
-    Some((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+    Some((
+        axis * (sa * sb * (span - span.sin())),
+        span.abs() * sa.max(sb),
+    ))
 }
 
 impl<T: Decide> Body<T> {

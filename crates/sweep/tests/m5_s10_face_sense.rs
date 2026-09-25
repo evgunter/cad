@@ -410,12 +410,12 @@ fn fixed_union_keeps_a_pellet_in_a_concave_notch() {
 //
 // Inverting EVERY face's sense on the three-station arc loft is refused
 // at its two planar caps, exactly as on the square loft: check 6's
-// planar arm winds a loop of `Line` and `Circle` carriers exactly (the
-// chord polygon plus each arc's circular segment), so an arc cap is as
-// falsifiable as a polygonal one. The spline walls stay silent on both
-// bodies, and a planar loop riding an `Ellipse` or NURBS carrier stays
-// outside the arm; the rows below pin both residues so their silence
-// stays visible.
+// planar arm winds a loop of `Line`, `Circle` and `Ellipse` carriers
+// exactly (the chord polygon plus each arc's conic segment), so an arc
+// cap is as falsifiable as a polygonal one. The spline walls stay
+// silent on both bodies, and a planar loop riding a NURBS or spiric
+// carrier stays outside the arm; the rows below pin the walls' residue
+// so its silence stays visible, and the ellipse-bounded face's refusal.
 //
 // They live here and not in `topo`'s `tier3_tests` because the bodies
 // are `sweep` output: `topo` cannot reach the constructors that build
@@ -490,8 +490,8 @@ fn loop_carriers(body: &Body<f64>, l: topo::LoopKey) -> Vec<geom::Curve3<f64>> {
 /// - the loop is the outer loop OR one of `face.rings`;
 /// - the loop's boundary is a `Cycle` (an empty ring bounds no area and
 ///   is NOT examined);
-/// - every certified carrier on the cycle is a `Line` or a `Circle` —
-///   an `Ellipse`, spiric or NURBS carrier puts the loop outside.
+/// - every certified carrier on the cycle is a `Line`, a `Circle` or an
+///   `Ellipse` — a spiric or NURBS carrier puts the loop outside.
 ///
 /// A `(face, loop)` PAIR and not a face, because `LoopRoleInverted`
 /// names both and a face can refuse once per loop.
@@ -504,9 +504,14 @@ fn planar_arm_reaches(body: &Body<f64>) -> Vec<(FaceKey, topo::LoopKey)> {
         for l in core::iter::once(f.outer).chain(f.rings.iter().copied()) {
             let carriers = loop_carriers(body, l);
             if !carriers.is_empty()
-                && carriers
-                    .iter()
-                    .all(|c| matches!(c, geom::Curve3::Line { .. } | geom::Curve3::Circle { .. }))
+                && carriers.iter().all(|c| {
+                    matches!(
+                        c,
+                        geom::Curve3::Line { .. }
+                            | geom::Curve3::Circle { .. }
+                            | geom::Curve3::Ellipse { .. }
+                    )
+                })
             {
                 out.push((fk, l));
             }
@@ -756,21 +761,22 @@ fn a_narrow_arc_cap_certifies_honest_and_refuses_inverted() {
     }
 }
 
-/// **The residue: a planar loop riding an `Ellipse` stays outside the
-/// arm.** `tilted_cut_upper`'s cut face is a plane bounded by one exact
+/// **An inverted ellipse-bounded planar face refuses by name.**
+/// `tilted_cut_upper`'s cut face is a plane bounded by one exact
 /// `Ellipse`; its bottom cap is bounded by circle arcs. Inverting the
-/// bit of the circle cap is refused; inverting the bit of the ellipse
-/// face is not — check 6's planar arm answers on `Line` and `Circle`
-/// carriers only, and a loop riding an ellipse (or a NURBS carrier) is
-/// not examined.
+/// bit of either is refused, as exactly one `LoopRoleInverted` naming
+/// that face and its outer loop: check 6's planar arm winds an elliptic
+/// arc by its exact segment `axis · major·minor · (Δ − sin Δ)`, as it
+/// winds a circular one.
 ///
-/// **How it goes red.** The day the arm reaches ellipse carriers the
-/// `is_ok` fails, and this row is re-cut to the new verdict rather than
-/// loosened. A split that stopped minting an `Ellipse` for the tilted
-/// cut fails the carrier premise. The runtime values are the stored
-/// carrier discriminants and the two validation results.
+/// **How it goes red.** An arm narrowed back to `Line` and `Circle`
+/// carriers leaves the inverted cut face `Ok`, and the `expect_err`
+/// fails; a mis-signed elliptic segment term refuses the honest body in
+/// the first assertion. A split that stopped minting an `Ellipse` for
+/// the tilted cut fails the carrier premise. The runtime values are the
+/// stored carrier discriminants and the validation results.
 #[test]
-fn an_ellipse_bounded_planar_face_stays_outside_the_planar_arm() {
+fn an_inverted_ellipse_bounded_planar_face_refuses_by_name() {
     let tol = Tol::witness();
     let body = crate::common::tilted_cut_upper();
     assert!(
@@ -789,20 +795,15 @@ fn an_ellipse_bounded_planar_face_stays_outside_the_planar_arm() {
     assert_eq!(elliptic.len(), 1, "the tilted cut face rides an `Ellipse`");
     assert_eq!(circular.len(), 1, "the bottom cap rides circle arcs");
     assert!(
-        !planar_arm_reaches(&body).contains(&elliptic[0]),
-        "the ellipse-bounded loop is outside the planar arm"
+        planar_arm_reaches(&body).contains(&elliptic[0]),
+        "the ellipse-bounded loop is inside the planar arm"
     );
 
-    let (cap, cap_loop) = circular[0];
-    let errs = topo::validate_geometric(&sense_inverted_at(&body, cap), tol)
-        .expect_err("the circle-bounded cap's inversion is refused");
-    assert_eq!(role_inversions(&errs), vec![(cap, cap_loop)]);
-
-    assert!(
-        topo::validate_geometric(&sense_inverted_at(&body, elliptic[0].0), tol).is_ok(),
-        "MEASURED RESIDUE: an ellipse-bounded planar face inverted through the public \
-         door is clean at rest"
-    );
+    for (face, l) in [circular[0], elliptic[0]] {
+        let errs = topo::validate_geometric(&sense_inverted_at(&body, face), tol)
+            .expect_err("an inverted planar face's winding disagrees with its bit");
+        assert_eq!(role_inversions(&errs), vec![(face, l)]);
+    }
 }
 
 /// **The planar arm is the only sense reader on the arc loft.** Check
