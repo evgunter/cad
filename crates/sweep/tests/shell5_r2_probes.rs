@@ -10,7 +10,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
@@ -153,11 +153,11 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
 
 /// A cylinder of radius `r` spanning `z0..z1`, coaxial with `z`.
 fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, z0), 0.0),
-        ProfileVertex::new(p2(r, z0), 0.0),
-        ProfileVertex::new(p2(r, z1), 0.0),
-        ProfileVertex::new(p2(0.0, z1), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, z0), 0.0),
+        (p2(r, z0), 0.0),
+        (p2(r, z1), 0.0),
+        (p2(0.0, z1), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

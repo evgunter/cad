@@ -37,7 +37,7 @@ use std::f64::consts::{PI, TAU};
 use crate::common::approx::band;
 use geom::Surface;
 use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceKey, LoopBoundary, MetredRect, chart_boundary,
@@ -501,13 +501,7 @@ fn probe_face(
 fn profile_of(loops: &[Vec<((f64, f64), f64)>]) -> profile::ValidatedProfile<Interval> {
     let lps: Vec<ProfileLoop<Interval>> = loops
         .iter()
-        .map(|l| {
-            ProfileLoop::new(
-                l.iter()
-                    .map(|(p, b)| ProfileVertex::new(p2(p.0, p.1), iv(*b)))
-                    .collect(),
-            )
-        })
+        .map(|l| bulge_loop(l.iter().map(|(p, b)| (p2(p.0, p.1), iv(*b))).collect()))
         .collect();
     Profile::new(SketchPlane::<Interval>::xy(), lps)
         .validate(Tol::witness())

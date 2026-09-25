@@ -485,6 +485,18 @@ fn ring_contacts() -> Vec<RingContact> {
             ring_edge: edge,
             outer_edge: edge,
         },
+        RingContact::OuterVertexOnEdge {
+            outer_vertex: vertex,
+            ring_edge: edge,
+        },
+        RingContact::Circles {
+            ring_loop: LoopKey::default(),
+            outer_loop: LoopKey::default(),
+        },
+        RingContact::EdgesMeet {
+            ring_edge: edge,
+            outer_edge: edge,
+        },
     ]
 }
 

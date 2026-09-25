@@ -11,7 +11,7 @@
 use geom_brep::{EdgeAuthority, EdgeDescription};
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::RevolveAxis;
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, EdgeKey, LoopBoundary, LoopKey, validate, validate_closed, validate_geometric};
@@ -37,10 +37,7 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// once revolved a full turn about `y`. Shared by `mass_props`'s
 /// closed-form row and `revert_periodic_wrap`'s two-arc torus.
 pub fn donut_profile() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, -0.5), 1.0),
-        ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ])
+    bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)])
 }
 
 pub fn axis_y() -> RevolveAxis<f64> {

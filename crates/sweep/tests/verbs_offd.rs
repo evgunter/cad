@@ -21,7 +21,7 @@
 
 use geom::{Curve3, Surface};
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
@@ -43,12 +43,7 @@ const ENGINE_FIT_TARGET: f64 = 1e-6;
 
 /// Revolves the closed `(r, y)` polygon a full turn about the `y` axis.
 fn revolved(points: &[(f64, f64)]) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        points
-            .iter()
-            .map(|(r, y)| ProfileVertex::new(p2(*r, *y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("the fixture polygon is a valid profile");
@@ -431,8 +426,8 @@ fn an_apex_window_crossing_refuses_typed() {
 /// seams at a fresh key while the other wall kept the old chart.
 #[test]
 fn a_shared_surface_key_refuses_typed() {
-    let v = |x: f64, y: f64| ProfileVertex::new(p2(x, y), 1.0);
-    let lp = ProfileLoop::new(vec![v(-0.5, 0.0), v(0.5, 0.0)]);
+    let v = |x: f64, y: f64| (p2(x, y), 1.0);
+    let lp = bulge_loop(vec![v(-0.5, 0.0), v(0.5, 0.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a disc is a valid profile");

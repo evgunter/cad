@@ -16,7 +16,7 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom_core::{Point2, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
@@ -57,11 +57,11 @@ fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 /// axis at `(0, h/2)`, between two caps normal to it.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
     let c = p2(0.0, h / 2.0);
-    revolved(RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-        ProfileVertex::new(p2(r, h), 0.0),
-        ProfileVertex::new(p2(0.0, h), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
+        (p2(r, h), 0.0),
+        (p2(0.0, h), 0.0),
     ]))
 }
 
@@ -86,10 +86,10 @@ fn multi_arc_sphere(r: f64, seams: &[f64]) -> Body<f64> {
         .collect();
     let mut verts = Vec::new();
     for i in 0..pts.len() - 1 {
-        verts.push(ProfileVertex::new(pts[i], bulge(pts[i], pts[i + 1], c)));
+        verts.push((pts[i], bulge(pts[i], pts[i + 1], c)));
     }
-    verts.push(ProfileVertex::new(pts[pts.len() - 1], 0.0));
-    revolved(ProfileLoop::new(verts))
+    verts.push((pts[pts.len() - 1], 0.0));
+    revolved(bulge_loop(verts))
 }
 
 /// The two-arc sphere of `shell7_seam_corner` / `shell9_probe`.
@@ -107,10 +107,10 @@ fn n_arc_torus(big: f64, small: f64, n: usize) -> Body<f64> {
             p2(big + small * a.cos(), small * a.sin())
         })
         .collect();
-    let verts: Vec<ProfileVertex<f64>> = (0..n)
-        .map(|i| ProfileVertex::new(pts[i], bulge(pts[i], pts[(i + 1) % n], c)))
+    let verts: Vec<(Point2<f64>, f64)> = (0..n)
+        .map(|i| (pts[i], bulge(pts[i], pts[(i + 1) % n], c)))
         .collect();
-    revolved(ProfileLoop::new(verts))
+    revolved(bulge_loop(verts))
 }
 
 /// The planar faces whose plane is normal to `y` at height `y`.
@@ -271,12 +271,12 @@ fn r1_rows_corpus() {
     // A vase whose belly is two cocircular arcs.
     let c = p2(0.0, 1.0);
     let m = p2(2.0f64.sqrt(), 1.0);
-    let two_arc_vase = revolved(RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), bulge(p2(1.0, 0.0), m, c)),
-        ProfileVertex::new(m, bulge(m, p2(1.0, 2.0), c)),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0), 0.0),
+    let two_arc_vase = revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), bulge(p2(1.0, 0.0), m, c)),
+        (m, bulge(m, p2(1.0, 2.0), c)),
+        (p2(1.0, 2.0), 0.0),
+        (p2(0.0, 2.0), 0.0),
     ]));
     dump_shelled("two-arc vase sealed", &two_arc_vase, t, &[]);
     dump_shelled(

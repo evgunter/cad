@@ -32,8 +32,7 @@
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
@@ -52,11 +51,7 @@ fn cylinder(z0: f64, rot: f64) -> Body<f64> {
         let th: f64 = (deg + rot).to_radians();
         p2(0.5 * th.cos(), 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
