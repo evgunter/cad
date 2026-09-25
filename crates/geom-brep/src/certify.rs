@@ -249,6 +249,13 @@ impl core::fmt::Display for CertCheck {
 /// not extracted into the error (no `f64`-projection of a generic `T`
 /// exists for every lane — the Dual lane in particular).
 #[derive(Clone, Copy, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(CertifyErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum CertifyError {
     /// The collapsed conventional description's **chart image could
     /// not be derived** for this (chart, carrier) pair (D4's mint

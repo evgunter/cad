@@ -362,6 +362,13 @@ impl OffsetLimb {
 /// for, and no request crossed in. Every request that crossed OUT is
 /// certified by the same decomposition that refused it.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(OffsetFitErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum OffsetFitError {
     /// A door meter refused: the patch's normal is not certifiably
     /// non-degenerate, or `|d|` reaches its curvature reach.

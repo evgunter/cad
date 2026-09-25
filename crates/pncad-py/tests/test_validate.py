@@ -284,16 +284,21 @@ class TestTheRefusalsShape(unittest.TestCase):
         first, second = self.refusal(), self.refusal()
         self.assertEqual(first.failure_count, second.failure_count)
         self.assertEqual(str(first), str(second))
-        # Every finding is joined into the message, so the count and
-        # the separators agree: n findings, n-1 joins.
+        # Every finding is joined into the message, and every finding
+        # states exactly one recourse, so the count and the recourses
+        # agree: n findings, n recourses.
+        message = str(first)
         self.assertEqual(
-            str(first).count("tier-3′ census:"), first.failure_count
+            message.count("Recourse:") + message.count("There is no way through"),
+            first.failure_count,
         )
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
-        self.assertIn("undeclared contact", message)
-        self.assertIn("never blessed from discovery", message)
+        self.assertIn("is an undeclared contact", message)
+        self.assertIn(
+            "Recourse: declare the named contact class, or move the geometry", message
+        )
 
     def test_the_census_findings_arrive_as_prose(self):
         """The tier-3′ arms are the ones that reach a caller through a
@@ -456,8 +461,9 @@ class TestTheRefusalsShape(unittest.TestCase):
         script can mint one. `census_unsupported` and
         `census_lane_unsupported` — the two arms that carry the
         `subject_kind` / `entity_kind` half of a finding — want a
-        carrier outside the certifiable inventory or a scalar with no
-        certified chart-overlap lane, and neither is reachable through
+        carrier outside the certifiable inventory or a door that holds
+        no certified chart-overlap lane (the `_structural` ones, which
+        the binding does not expose), and neither is reachable through
         the doors this suite has: extruded boxes, cylinders and lofts
         all certify.
 
