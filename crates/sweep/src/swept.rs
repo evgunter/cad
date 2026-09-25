@@ -309,9 +309,36 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, bulge: T) -> Point2<
     mid - nhat * (len * bulge * T::from_f64(0.5))
 }
 
-/// The arc parameter span θ = 4·atan|bulge| (the sanctioned bulge
-/// re-inspection — never endpoint `atan2`).
-pub(crate) fn arc_span<T: Real>(bulge: T) -> T {
+/// The arc carrier's parameter span from the turn the profile decided:
+/// θ = 4·atan(σ·b), `σ` the segment's turn and `b` its stored bulge
+/// (the sanctioned bulge re-inspection — never endpoint `atan2`).
+///
+/// The profile decided `σ` from the sign of `b` itself (the arc's
+/// `segment_straightness`, certified over the box), so `σ·b` IS `|b|`:
+/// negation is exact, and the value is [`span_magnitude`]'s to the bit
+/// at every scalar. What differs is the form. Spelled from the turn,
+/// the span is the atom the pushforward's `4·atan b` mints, up to
+/// `(−b)² = b²`, and the symbolic tier meets the two spellings at a
+/// parameter bulge without asking the sign of `b` a second time; an
+/// `abs(b)` here would be a second atom for one quantity, related to
+/// the first only through the sign the profile already decided.
+/// The turn is read through [`turn_negates`], so the span and
+/// [`turn_axis`] take the same arm at every turn.
+pub(crate) fn turned_span<T: Real>(turn: Sign, bulge: T) -> T {
+    let signed = if turn_negates(turn) {
+        T::zero() - bulge
+    } else {
+        bulge
+    };
+    T::from_f64(4.0) * signed.atan()
+}
+
+/// The arc's angular extent from the bulge alone, θ = 4·atan|b|, for a
+/// margin that asks how large the span is whatever the traversal
+/// direction (revolve's `axis_arc_span`, `π − θ`). It is
+/// [`turned_span`]'s value, bit for bit; a carrier's span is
+/// [`turned_span`], whose form meets the pushforward's.
+pub(crate) fn span_magnitude<T: Real>(bulge: T) -> T {
     T::from_f64(4.0) * bulge.abs().atan()
 }
 
@@ -326,9 +353,10 @@ pub(crate) fn arc_span<T: Real>(bulge: T) -> T {
 /// `Zero`), and `revolve::tube` hand-mints only `Positive` and
 /// `Negative`. It is kept total rather than loud because every
 /// consumer reads the turn through this function, so whatever arm
-/// `Zero` took, the carrier's axis and the wall's material side would
-/// take it together: [`turn_axis`] and [`centre_on_material_side`]
-/// read it here, and no consumer spells the convention a second time.
+/// `Zero` took, the carrier's axis, its span and the wall's material side would
+/// take it together: [`turn_axis`], [`turned_span`] and
+/// [`centre_on_material_side`] read it here, and no consumer spells the
+/// convention a second time.
 fn turn_negates(turn: Sign) -> bool {
     matches!(turn, Sign::Negative)
 }
@@ -458,9 +486,10 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// this is the site that guarantees it.
 ///
 /// **The proof, and it is two lines.** The stored bulge is
-/// `b = tan(θ/4)` BY DEFINITION of the sketch representation, so the
-/// span `param_end = 4·atan|b|` is exactly the arc's turned angle θ
-/// (`arc_span`). The sagitta closed forms put the centre on the chord's
+/// `b = tan(θ/4)` BY DEFINITION of the sketch representation, and the
+/// turn `σ` is the sign the profile decided of that same `b`, so the
+/// span `param_end = 4·atan(σ·b)` ([`turned_span`]) is exactly the
+/// arc's turned angle θ. The sagitta closed forms put the centre on the chord's
 /// perpendicular bisector at the apothem (`profile::seg`), so `q_from`
 /// and `q_to` are both at `radius` from it — the rim identity above —
 /// and the angle from `q_from − c` to `q_to − c`, measured about the
@@ -469,14 +498,14 @@ pub(crate) fn register_rim_identity<T: Real>(rim: Vec3<T>, radius: T, tol: Tol) 
 /// circle carrier `eval(t) = c + frame(axis, u_ref, t).radial · r`
 /// with `u_ref = (q_from − c)/‖q_from − c‖`, so `eval(θ) = q_to`.
 ///
-/// **Why the tier cannot prove it for itself.** `θ = 4·atan|b|` reaches
-/// the normal form as the opaque atom `atan(|b|)` inside `cos` and
-/// `sin` atoms; the tier holds no functional identity of any atom (its
-/// module docs say so), so `cos(4·atan|b|)` and the polynomial in `b`
-/// that `q_to − c` is are two unrelated indeterminates. Measured:
-/// with the rim identity registered and this one not, the residual
-/// `carrier_endpoint_end` is what bounds the two-hole plate, its
-/// rendered form carrying `cos(4·atan(1·abs(1)))` verbatim
+/// **Why the tier cannot prove it for itself.** `θ = 4·atan(σ·b)`
+/// reaches the normal form as the opaque atom `atan(σ·b)` inside `cos`
+/// and `sin` atoms; the tier holds no functional identity of any atom
+/// (its module docs say so), so `cos(4·atan(σ·b))` and the polynomial
+/// in `b` that `q_to − c` is are two unrelated indeterminates.
+/// Measured: with the rim identity registered and this one not, the
+/// residual `carrier_endpoint_end` is what bounds the two-hole plate,
+/// its rendered form carrying the span's `cos(4·atan(…))` verbatim
 /// (M10's closed `plate-ceiling-is-now-the-arc-span-identity`,
 /// `docs/DOC-LEDGER.md` sweep 13).
 ///
@@ -521,7 +550,8 @@ pub(crate) fn register_span_identity<T: Real>(
 /// The edge spec of a profile segment carried into 3-space by one
 /// placement: `PlacedSegment` description, line or circle carrier per
 /// the crate docs' carrier conventions (arc axis = turn-signed plane
-/// normal, span θ = 4·atan|bulge| from the stored bulge).
+/// normal, span θ = 4·atan(σ·b) from the stored bulge `b` and the
+/// decided turn `σ`, [`turned_span`]).
 ///
 /// `place` and `normal` are the placement the segment is lowered
 /// through and its plane normal — the sketch placement for a base
@@ -569,7 +599,7 @@ pub(crate) fn placed_segment_spec<T: Real, S: SweptChord<T>>(
                 radius,
                 u_ref: rim.normalize(),
             };
-            let param_end = arc_span(seg.bulge());
+            let param_end = turned_span(turn, seg.bulge());
             // The SPAN identity, at the same guarantee
             // (`register_span_identity` carries the proof). The
             // carrier and the span are bound out first so the
@@ -750,4 +780,138 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
         body.describe_at_rest(edge, chart, tol)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::*;
+    use geom_core::sym::{session_counts, with_session};
+    use geom_core::{ParamSymbol, Sym, SymBudget};
+
+    type S = Sym<f64>;
+
+    /// How the tier answers a residual at the scalar door: the decide
+    /// funnel on the residual, read off the session's receipt.
+    fn how(m: S) -> &'static str {
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
+        let before = session_counts().expect("inside a session");
+        let _ = geom_core::k_stats::decide("decide_5_span_row", Margin::of(m), band);
+        let after = session_counts().expect("inside a session");
+        if after.registered > before.registered {
+            "registered"
+        } else if after.sign_gated > before.sign_gated {
+            "sign_gated"
+        } else if after.symbolic_zero > before.symbolic_zero {
+            "theorem"
+        } else {
+            "numeric"
+        }
+    }
+
+    /// One arc at the bulge `bulge` (a form) with the turn `turn`, on
+    /// the chord `(0, 0) → (2, 0)`, lowered through
+    /// [`placed_segment_spec`] at the identity placement. The centre and
+    /// radius are the sagitta closed forms, so the two registrants the
+    /// arm runs state true identities.
+    fn lowered(bulge: S, turn: Sign) -> EdgeCurveSpec<S> {
+        let lit = S::from_f64;
+        let (a, b) = (
+            Point2::new(lit(0.0), lit(0.0)),
+            Point2::new(lit(2.0), lit(0.0)),
+        );
+        let len = lit(2.0);
+        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
+        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
+        let seg = SweptSeg {
+            a,
+            b,
+            bulge,
+            kind: SweptKind::Arc {
+                center: Point2::new(lit(1.0), apothem),
+                radius,
+                turn,
+            },
+            canonical_vertex: 0,
+            canonical_segment: 0,
+        };
+        let q = |p: Point2<S>| Point3::new(p.x, p.y, lit(0.0));
+        placed_segment_spec(
+            &seg,
+            Affine3::identity(),
+            Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
+            q(a),
+            q(b),
+            Tol::witness(),
+        )
+    }
+
+    /// The carrier's samples against the pushforward's, at `s = i/8`:
+    /// the carrier at `t = s·param_end` about the turn-signed axis, the
+    /// pushforward (`SketchSegment::eval`) at `s·θ`, `θ = 4·atan b` from
+    /// the bulge the description carries. About `−n` the carrier turns
+    /// by `−t` in the sketch plane, so its sine enters with the turn's
+    /// sign. Per sample, how the tier answers the cosine and the sine.
+    fn samples(spec: &EdgeCurveSpec<S>, turn: Sign) -> Vec<(&'static str, &'static str)> {
+        let lit = S::from_f64;
+        let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
+            segment: SketchSegment::Arc { bulge, .. },
+            ..
+        }) = spec.description
+        else {
+            panic!("an arc lowers to a placed arc segment");
+        };
+        let theta = lit(4.0) * bulge.atan();
+        let sigma = lit(if matches!(turn, Sign::Negative) {
+            -1.0
+        } else {
+            1.0
+        });
+        (0..=8)
+            .map(|i| {
+                let s = lit(f64::from(i) / 8.0);
+                let t = spec.param_start + (spec.param_end - spec.param_start) * s;
+                let (st, ct) = t.sin_cos();
+                let sin = (s * theta).sin();
+                let cos = lit(1.0) - lit(2.0) * (s * theta * lit(0.5)).sin().powi(2);
+                (how(ct - cos), how(sigma * st - sin))
+            })
+            .collect()
+    }
+
+    /// **The carrier's span meets the pushforward's as a THEOREM at a
+    /// parameter bulge of either sign.** The span is spelled from the
+    /// decided turn ([`turned_span`]), so rule D reads `atan(σ·b)` and
+    /// `atan b` as one angle up to `(−b)² = b²`. Spelled through `abs`
+    /// (`4·atan|b|`), the carrier mints `atan(|b|)`, an atom related to
+    /// `atan b` only through the sign of `b`, and the sine at every
+    /// sample but `s = 0` stays numeric (measured: the row reds there,
+    /// on its first arc) — so this row reds if the carrier's span goes
+    /// back to `abs`. Three arcs: a positive parameter bulge, a
+    /// negative one, and the reversal of the positive one (the bulge
+    /// `0 − b`, the turn flipped: `swept_segments`' involution).
+    #[test]
+    fn the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign() {
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let cases: [(&str, f64, bool, Sign); 3] = [
+            ("b = +0.7", 0.7, false, Sign::Positive),
+            ("b = −0.7", -0.7, false, Sign::Negative),
+            ("0 − b, b = +0.7 (reversed)", 0.7, true, Sign::Negative),
+        ];
+        for (name, v, reversed, turn) in cases {
+            let (rows, counts) = with_session(budget, || {
+                let b = S::param(ParamSymbol::of("bulge"), v);
+                let bulge = if reversed { S::zero() - b } else { b };
+                samples(&lowered(bulge, turn), turn)
+            });
+            assert!(
+                rows.iter().all(|r| *r == ("theorem", "theorem")),
+                "{name}: every sample's cosine and sine must be a theorem: {rows:?} ({counts:?})"
+            );
+        }
+    }
 }

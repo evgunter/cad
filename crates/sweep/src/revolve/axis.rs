@@ -16,7 +16,7 @@ use geom_core::{
 use profile::ValidatedProfile;
 
 use super::{RevolveAxis, RevolveError, SweptSeg};
-use crate::swept::{SweptKind, arc_apex, arc_span, decide};
+use crate::swept::{SweptKind, arc_apex, decide, span_magnitude};
 
 /// The classified axis in both coordinate systems: the sketch-plane
 /// line plus its placed 3-D frame. `a3`/`u3` are the **shared
@@ -467,7 +467,7 @@ fn classify_segment<T: Decide>(
                     // exactly half its period, so a span definitely
                     // beyond π must dip below; the apex pins which
                     // half-circle branch the arc occupies.
-                    let span_margin = Margin::levered(T::pi() - arc_span(s.bulge), radius);
+                    let span_margin = Margin::levered(T::pi() - span_magnitude(s.bulge), radius);
                     match decide("axis_arc_span", span_margin, band).map_err(escalated)? {
                         Sign::Positive | Sign::Zero => {}
                         Sign::Negative => {
