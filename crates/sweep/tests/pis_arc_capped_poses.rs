@@ -230,6 +230,13 @@ fn tilted_elevation(p: Point3<f64>) -> f64 {
     (p - Point3::new(0.0, 0.0, 1.25)).dot(tilted_normal())
 }
 
+/// How far a cut-cylinder volume may sit from its closed form: the
+/// tilted-section wall's flux is a QUADRATURE converged to the run's ε,
+/// measured 2.2e-6 m³ off at ε = 1e-6. The volumes here only confirm
+/// the fixture is the half its truth describes, so the bound sits well
+/// above that and far below the 0.064 m³ a missed box would move.
+const TILTED_WALL_VOLUME: f64 = 1e-4;
+
 /// A unit cylinder of height 2.5 split by the tilted plane — the
 /// corpus's `cut_cylinder`, both halves. The cut face's rim is two exact
 /// `Ellipse` arcs (semi-axes `1/cos 0.3` and 1).
@@ -247,7 +254,7 @@ fn cut_cylinder(above: bool) -> Body<f64> {
     };
     let v = topo::mass_properties(half, tol()).unwrap().volume;
     assert!(
-        (v - core::f64::consts::PI * 1.25).abs() < 1e-9,
+        (v - core::f64::consts::PI * 1.25).abs() < TILTED_WALL_VOLUME,
         "the plane halves the cylinder: {v}"
     );
     assert!(
@@ -668,7 +675,10 @@ fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
     assert_eq!(topo::validate_geometric(&out, tol()), Ok(()), "tier 3");
     let v = topo::mass_properties(&out, tol()).unwrap().volume;
     let truth = core::f64::consts::PI * 1.25 - 0.4 * 0.4 * 0.4;
-    assert!((v - truth).abs() < 1e-9, "volume {v}, truth {truth}");
+    assert!(
+        (v - truth).abs() < TILTED_WALL_VOLUME,
+        "volume {v}, truth {truth}"
+    );
 }
 
 /// A 4 × 4 × 1 plate with a radius-½ circular hole on its axis: the top
