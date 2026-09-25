@@ -2371,13 +2371,15 @@ struct Reduction {
 /// form and no decision, only the time a leaf past it takes.
 ///
 /// **Measured**, the most entries one whole-box leaf's session holds
-/// (`profile::SymProfile::reduction_memo`): R2's rounded pad 5,027 at
-/// `1e2·ε` with the kept-atom ladder, 3,451 without it; R2's link
-/// 2,044 and 2,078; R2's bracket 1,041. The pad's DAG is 32,684 nodes,
-/// and a session keeps at most one entry per node per walk per attempt
-/// that carries a squared atom. The cap sits an order above the pad, so
-/// no measured document reaches it and one that does degrades into the
-/// time it cost before the memo, not into memory.
+/// (`profile::SymProfile::reduction_memo`, release leaf instrument):
+/// R2's rounded pad 2,161 at `1e2·ε` and 4,217 with the kept-atom
+/// ladder; R2's link 1,270 and 2,376 at `1e1·ε`; R2's bracket 575 and
+/// 1,289. An entry is kept only for a form carrying a squared atom, at
+/// most one per distinct form per rule set and ring bound, and a form
+/// the walk reduces is under `EARLY_AB_TERMS` terms. The cap sits more
+/// than ten times above the pad with its ladder, so no measured
+/// document reaches it, and one that does degrades into the time the
+/// reduction cost before the memo, not into memory.
 const REDUCTION_FORMS: usize = 50_000;
 
 /// **One retry attempt's two memos** — the early walk's and the door
