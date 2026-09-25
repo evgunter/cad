@@ -22,8 +22,8 @@ use std::sync::atomic::{AtomicUsize, Ordering};
 
 use common::asm;
 use pncad::document::{
-    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Frame, Node, ParamName, ProductError,
-    ProfileProgram, RecipeNodeId, SlotId,
+    CheckEvidence, CheckFinding, CheckId, ChecksReport, Doc, Expr, Frame, Node, ParamName,
+    ProductError, ProfileProgram, RecipeNodeId, SlotId,
 };
 use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::{EntityKind, StableName};
@@ -660,7 +660,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
             "a scene the rebuild refused ends when a rebuild lands",
         ),
         (
-            frame::index_badge(Some(&build)),
+            frame::index_badge(Some(&build), None),
             frame::Subject::Display,
             "a held pick-index refusal ends when a build lands",
         ),
@@ -740,7 +740,7 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     );
     assert_eq!(
         frame::unindexed_refusal(&pickcache::NotIndexed::Building).subject(),
-        frame::index_badge(Some(&build))
+        frame::index_badge(Some(&build), None)
             .expect("a held refusal badges")
             .subject(),
         "and one seam does not speak with two voices: the click it \
@@ -761,12 +761,119 @@ fn a_badge_and_a_line_message_answer_the_subject_question_separately() {
     // The silence of each new member, so the `None` is a row like the
     // rest of the family's.
     assert_eq!(frame::scene_badge(None), None, "a scene that built");
-    assert_eq!(frame::index_badge(None), None, "a cache holding no refusal");
+    assert_eq!(
+        frame::index_badge(None, None),
+        None,
+        "a cache holding no refusal"
+    );
     assert_eq!(
         frame::projection_badge(None),
         None,
         "a camera that projects"
     );
+}
+
+/// **A pick-index refusal that follows from a failed node is drawn
+/// under that node's row, and names it.**
+///
+/// The index is built over every root, so a root with no value
+/// refuses it. The node whose failure caused that is already on screen
+/// as the tree's one loud row; the badge used to outrank it
+/// (`Actionable`, at the top of the window) and to name the root it
+/// refused on instead of the row carrying the cause. Every expected
+/// value here is a literal: a row comparing the badge against another
+/// rendering of the same refusal would not notice the badge naming the
+/// wrong node.
+#[test]
+fn a_refusal_that_follows_from_a_failed_node_is_quieter_than_it_and_names_it() {
+    let tol = Tol::witness();
+    let consequence = "no pick is answered and the picture is not redrawn until it builds";
+
+    // A POISONED root: the extrude fails and the transform over it is
+    // the root the index refuses on. The badge names the extrude.
+    let (doc, extrude, moved) = common::broken_document(tol);
+    assert_eq!(
+        (extrude, moved),
+        (RecipeNodeId(2), RecipeNodeId(3)),
+        "the fixture's ids, which the literals below spell"
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let refusal = common::index_at(&session, common::plate_delta())
+        .expect_err("a poisoned root refuses the index");
+    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        badge.label(),
+        format!("pick index: waits on feature 2, which failed — {consequence}"),
+        "the row the tree blames, not the root the build refused on"
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
+    assert_eq!(
+        badge.detail(),
+        Some(format!("pick index: {refusal}").as_str()),
+        "the index's own words are kept, as the tooltip"
+    );
+    let rows = session.tree_rows();
+    assert_eq!(
+        common::status_of(&rows, extrude).tone(),
+        frame::Tone::Actionable,
+        "the cause is the loud one"
+    );
+
+    // A FAILED root beside a healthy one — the shape of the report,
+    // where the Boolean the kernel refused is itself a root. The
+    // healthy root's picks go with it, which is what the label says.
+    let empty: Doc<ProfileProgram> = Doc::empty_derived("vnews-derived-fault", tol);
+    let (doc, healthy_profile) = common::framed_square(&empty, 0.04, tol);
+    let (doc, healthy) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: healthy_profile,
+            distance: common::len(0.008),
+        },
+        tol,
+    );
+    let (doc, broken_profile) = common::framed_square(&doc, 0.02, tol);
+    let (doc, broken) = common::inserted(
+        &doc,
+        Node::Extrude {
+            profile: broken_profile,
+            distance: Expr::div(common::len(0.008), common::scl(0.0))
+                .expect("length / scalar is a length"),
+        },
+        tol,
+    );
+    assert_eq!(
+        (healthy, broken),
+        (RecipeNodeId(2), RecipeNodeId(5)),
+        "the fixture's ids, which the literal below spells"
+    );
+    let mut session = DocSession::inline(doc, tol);
+    session.pump();
+    let refusal = common::index_at(&session, common::plate_delta())
+        .expect_err("one failed root refuses the whole index");
+    let badge = frame::index_badge(Some(&refusal), session.evaluation())
+        .expect("a refusal the cache holds is still badged");
+    assert_eq!(
+        badge.label(),
+        format!("pick index: waits on feature 5, which failed — {consequence}")
+    );
+    assert_eq!(badge.tone(), frame::Tone::Advisory);
+
+    // The refusals that are the index's own keep their tone and their
+    // words — and so does a standing refusal with no evaluation to
+    // find its cause in, since there is then no row it can defer to.
+    let own = pickindex::PickIndexError::DrawnTwice {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let badge = frame::index_badge(Some(&own), session.evaluation()).expect("it badges");
+    assert_eq!(badge.tone(), frame::Tone::Actionable);
+    assert_eq!(badge.label(), format!("pick index: {own}"));
+    let unread = frame::index_badge(Some(&refusal), None).expect("it badges");
+    assert_eq!(unread.tone(), frame::Tone::Actionable);
+    assert_eq!(unread.label(), format!("pick index: {refusal}"));
 }
 
 /// **What the line could not do with a seam refusal.**

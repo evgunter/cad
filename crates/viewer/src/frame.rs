@@ -212,10 +212,10 @@
 use std::path::Path;
 
 use pncad::document::{
-    ChecksReport, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind, RecipeNodeId,
-    SlotId,
+    ChecksReport, Evaluation, Maintenance, ParamName, ParseError, ProductError, ProductErrorKind,
+    RecipeNodeId, SlotId,
 };
-use pncad::select::HitTestError;
+use pncad::select::{HitTestError, NodePickError};
 
 use crate::camera::CameraError;
 use crate::camera::Folded;
@@ -1994,14 +1994,85 @@ pub fn scene_badge(error: Option<&SceneError>) -> Option<Badge> {
 /// gets is [`unindexed_refusal`], on the line, because that is an
 /// outcome — the two carry one subject and neither states it
 /// ([`SeamSubject`]).
-pub fn index_badge(error: Option<&PickIndexError>) -> Option<Badge> {
-    error.map(|error| {
-        Badge::read(
+///
+/// # A refusal that is a consequence, drawn under its cause
+///
+/// The index is built over every root, and a root whose row the
+/// feature tree badges `Failed` or `Poisoned` has no value to index,
+/// so the build refuses on it ([`downstream_root`]). That refusal is
+/// DERIVED: the failure it follows from is already on screen, as the
+/// one [`Tone::Actionable`] row the tree draws for it. So it takes the
+/// tree's own reading of a downstream row — [`Tone::Advisory`], naming
+/// the row that carries the cause ([`crate::tree::cause_row`], spelled
+/// [`crate::tree::node_number`]) — and the index's own words move to
+/// the tooltip, unaltered.
+///
+/// **It is placed under the cause, not dropped**, because it carries
+/// two facts the cause does not. The refusal stops EVERY pick, on the
+/// healthy roots' bodies too, and it stops the picture: the scene is
+/// drawn from the index, so the viewport keeps its last picture until
+/// the index builds. Both are in the label; a pick aimed at the
+/// missing index is still refused on the line ([`unindexed_refusal`]),
+/// whose sentence points back at this badge for the reason.
+///
+/// Every other refusal is the index's own and stays
+/// [`Tone::Actionable`] in its own words — and so does a standing
+/// refusal the tree names no failed row for (a root that never ran,
+/// or no evaluation to read), because quieting news is only right
+/// where the louder news it defers to is actually drawn.
+pub fn index_badge(
+    error: Option<&PickIndexError>,
+    evaluation: Option<&Evaluation<f64>>,
+) -> Option<Badge> {
+    let error = error?;
+    let cause = downstream_root(error)
+        .zip(evaluation)
+        .and_then(|(root, evaluation)| crate::tree::cause_row(root, evaluation));
+    Some(match cause {
+        Some(cause) => Badge::read(
+            PickIndexError::SUBJECT,
+            format!(
+                "pick index: waits on {}, which failed — no pick is answered and the picture \
+                 is not redrawn until it builds",
+                crate::tree::node_number(cause)
+            ),
+            Tone::Advisory,
+        )
+        .detailed(format!("pick index: {error}")),
+        None => Badge::read(
             PickIndexError::SUBJECT,
             format!("pick index: {error}"),
             Tone::Actionable,
-        )
+        ),
     })
+}
+
+/// **The root a pick-index refusal is a consequence of**, when the
+/// refusal is the one a root with no value produces — `None` for a
+/// refusal that is the index's own.
+///
+/// Only [`NodePickError::Standing`] is that: it is how the index says
+/// the root has no `Ok` value in the evaluation. Whether that is
+/// because the root failed, was poisoned, or never ran is the tree's
+/// to read, and [`index_badge`] asks it rather than reading the
+/// standing arm here. A tessellation or indexing refusal of a root
+/// that DID evaluate is news no other surface carries.
+///
+/// Exhaustive over both enums, so a new way for the build to refuse
+/// has to decide here whether it follows from a node's failure.
+fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
+    match error {
+        PickIndexError::Node { node, error } => match error {
+            NodePickError::Standing(_) => Some(*node),
+            NodePickError::NotABody { .. }
+            | NodePickError::NoSuchBody { .. }
+            | NodePickError::Tessellate(_)
+            | NodePickError::Index(_) => None,
+        },
+        PickIndexError::Ids(_) | PickIndexError::DrawnTwice { .. } | PickIndexError::Names(_) => {
+            None
+        }
+    }
 }
 
 /// **What the chrome badges about a camera that cannot be

@@ -546,6 +546,23 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
     }
 }
 
+/// **The row this tree sends a reader to for `id`'s failure**: `id`
+/// itself when its row is `Failed`, the row it points at when it is
+/// `Poisoned`, and `None` when it is `Ok` or never ran.
+///
+/// Read off [`status_of`], so a surface reporting a CONSEQUENCE of a
+/// node's failure names the same row the tree badges `Failed` —
+/// blame through a poisoning and through a mate refusal included —
+/// rather than re-deriving the blame from the evaluation and drawing
+/// it differently.
+pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
+    match status_of(id, Some(evaluation)) {
+        RowStatus::Failed { .. } => Some(id),
+        RowStatus::Poisoned { through, .. } => Some(through),
+        RowStatus::Ok | RowStatus::Unevaluated => None,
+    }
+}
+
 /// What a downstream row says: WHERE the failure is, never what it
 /// was.
 ///
