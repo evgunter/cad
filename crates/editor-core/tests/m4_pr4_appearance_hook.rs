@@ -32,7 +32,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn rerun(doc: &ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
+fn rerun(doc: &editor_core::ProfileDoc, prior: &Evaluation<f64>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         Some(prior),

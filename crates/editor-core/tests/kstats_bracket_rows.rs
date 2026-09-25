@@ -598,6 +598,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
         ],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, extrude) = insert(
@@ -675,6 +676,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             [over(), len(1.0)],
             [len(0.0), len(1.0)],
         ])],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(

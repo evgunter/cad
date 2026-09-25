@@ -103,6 +103,7 @@ pub(crate) fn plate(
             ])
             .expect("finite plate corners"),
         ],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -116,6 +117,7 @@ pub(crate) fn plate(
                 centre: [centre, len(0.0)],
                 radius: param(radius),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile,

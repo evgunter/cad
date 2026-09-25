@@ -37,8 +37,8 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, ProfileVertexRef, RecipeNodeId,
-    RimSupport, RoleSeg, evaluate,
+    CancelToken, EvalOptions, Evaluation, Node, ProfileDoc, RecipeNodeId, RimSupport, RoleSeg,
+    evaluate,
 };
 use fixture::{ang, axis_in_plane, edge_of, insert, len, on_frame_keeping, table};
 use geom::Surface;
@@ -102,7 +102,7 @@ fn lantern() -> (ProfileDoc, RecipeNodeId) {
 /// The lantern with its mouth rim filleted, and the fillet node's id.
 fn filleted_mouth() -> (ProfileDoc, RecipeNodeId) {
     let (doc, revolve) = lantern();
-    let mouth = editor_core::band_rim(revolve, 0, MOUTH);
+    let mouth = editor_core::band_rim(revolve, fixture::vpiece(&doc, revolve, 0, MOUTH as usize));
     insert(
         doc,
         Node::Fillet {
@@ -233,7 +233,7 @@ fn the_host_is_the_planar_support_wherever_the_rim_has_one() {
     let (doc, revolve) = lantern();
     // The lip disk meets the upper cone at profile vertex 3: a
     // plane–cone rim, one planar side.
-    let lip = editor_core::band_rim(revolve, 0, 3);
+    let lip = editor_core::band_rim(revolve, fixture::vpiece(&doc, revolve, 0, 3));
     let (doc, fillet) = insert(
         doc,
         Node::Fillet {
@@ -347,10 +347,7 @@ fn a_seam_split_rim_gives_all_its_arcs_one_pair_of_roles() {
     let arc = |seg: RoleSeg| fixture::ename(revolve, seg);
     // The BASE rim (disk meets the lower cone): the one whose two
     // links disagree on slot order, and which has a planar support.
-    let pv = ProfileVertexRef {
-        loop_index: 0,
-        vertex: 1,
-    };
+    let pv = crate::fixture::vpiece(&doc, revolve, 0, 1);
     // The rim WHOLE: both of its arcs, which is the only request the
     // surgery accepts here (one alone terminates at a seam vertex).
     let mut selection = vec![arc(RoleSeg::BandRim(pv)), arc(RoleSeg::BandRimPi(pv))];

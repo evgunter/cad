@@ -75,6 +75,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
             pt(len(0.0), len(1.0)),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
+        ids: Vec::new(),
     });
     let applied = editor_core::apply(
         &r.doc,
@@ -93,7 +94,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
     Ok(r.doc)
 }
 
-fn split_at_point(doc: &ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
+fn split_at_point(doc: &editor_core::ProfileDoc, tol: Tol) -> BTreeMap<&'static str, (u64, u64)> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let nominal = ParamBox::from_axes(
         ParamBox::of(&analyzed)
