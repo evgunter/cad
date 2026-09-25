@@ -846,7 +846,7 @@ mod tests {
     /// the bulge the description carries. About `−n` the carrier turns
     /// by `−t` in the sketch plane, so its sine enters with the turn's
     /// sign. Per sample, how the tier answers the cosine and the sine.
-    fn samples<T: Real + Decide>(
+    fn samples<T: Decide>(
         spec: &EdgeCurveSpec<T>,
         turn: Sign,
     ) -> Vec<(&'static str, &'static str)> {
