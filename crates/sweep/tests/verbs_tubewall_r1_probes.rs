@@ -332,7 +332,6 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
 /// forms inside the enclosure — and the enclosure held TIGHT (pads
 /// bounded relative to the quantity), which is the direction the unit
 /// suite's own containment rows cannot pin.
-#[cfg(feature = "interval")]
 mod certified {
     use geom_core::interval::Interval;
     use geom_core::{Bounds, Real};

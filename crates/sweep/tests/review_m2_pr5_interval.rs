@@ -1,16 +1,15 @@
-//! Adversarial review suite for M2 PR 5, interval lane (feature
-//! `interval`): the reviewer's shapes that go beyond the shipped
+//! Adversarial review suite for M2 PR 5, interval lane: the
+//! reviewer's shapes that go beyond the shipped
 //! four-acceptance set — a multi-segment two-band wire (dome), the
 //! wrap-run donut, and a NEGATIVE-angle non-dyadic wedge. Refusals
 //! here are defects, not honesty (the lane is fully live post-B1).
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::Tol;
 use geom_core::{Interval, Point2, Real, Vec2};
 use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
 
@@ -66,9 +65,9 @@ fn survives_interval_dome_two_band_wire() {
 fn survives_interval_donut_wrap_run() {
     // The 2-arc circle profile: cosurface wrap pair + kfmrh/zip at
     // Interval; ONE torus key, both meridians Seam.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 0.5), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(2.0, 0.5), Interval::from_f64(1.0)),
+    let lp = bulge_loop(vec![
+        (p2(1.0, 0.5), Interval::from_f64(1.0)),
+        (p2(2.0, 0.5), Interval::from_f64(1.0)),
     ]);
     let t = revolve(
         &validated(vec![lp]),

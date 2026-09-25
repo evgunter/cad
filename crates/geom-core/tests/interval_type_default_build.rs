@@ -1,16 +1,14 @@
-//! The certified [`Interval`] scalar is nameable, constructible and
-//! **decides** in a DEFAULT build: `geom_core::interval` compiles with
-//! the `interval` cargo feature OFF, which gates the lane-trait impls
-//! above this crate and the interval test files — not the scalar, and
-//! not the generic bodies that take it.
+//! The certified [`Interval`] scalar's own doors, pinned at the crate
+//! that owns them: the scalar is nameable, constructible and
+//! **decides** in the default build — the only build there is — with
+//! nothing above `geom-core` in this suite's graph, so a row that goes
+//! red here is the scalar's defect and not a lane impl's.
 //!
-//! Deliberately carries no crate-level interval gate: a gated file would
-//! say nothing about the build this suite is a claim about. Deliberately
-//! ε-free as well — every band here is a literal [`Band::new`] and no
-//! row reads the global `Tolerance`, so the suite reads identically at
-//! every eps row and needs no process of its own.
+//! Deliberately ε-free — every band here is a literal [`Band::new`] and
+//! no row reads the global `Tolerance`, so the suite reads identically
+//! at every eps row and needs no process of its own.
 //!
-//! The rows are the doors this crate ungated: the type and its
+//! The rows are the scalar's doors: the type and its
 //! arithmetic, the [`Decide`] impl in both its answers, the
 //! `bit_identity` arm in both its channels (endpoints and decoration)
 //! and the [`SpanLocate`] impl — plus [`DualInterval`], the
@@ -27,8 +25,8 @@ use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Dual, DualInterval, Interval, Real, Sign,
 };
 
-/// Construction, arithmetic and the certified decision door, feature
-/// off. The band is 1e-9/1e-8 and the values are orders away from it in
+/// Construction, arithmetic and the certified decision door. The band
+/// is 1e-9/1e-8 and the values are orders away from it in
 /// each direction, so no row here is a tolerance claim.
 #[test]
 fn interval_constructs_decides_and_encloses_in_a_default_build() {
@@ -66,7 +64,7 @@ fn interval_constructs_decides_and_encloses_in_a_default_build() {
 }
 
 /// The `repr_bits` arm for `Interval` is compiled, so the identity
-/// channel answers `Some` at this scalar. A gated-out arm falls through
+/// channel answers `Some` at this scalar. A missing arm falls through
 /// to `None` — the answer a channel-less scalar gives — and that is the
 /// value this row would catch.
 #[test]
@@ -111,8 +109,8 @@ fn dual_interval_is_nameable_in_a_default_build() {
 /// domain-clamped enclosure (`sqrt([-1, 4])` clamps to `[0, 2]`, a
 /// plausible bracket) is refused on its DECORATION, not on its
 /// endpoints — `MarginDiag::Invalid`, where the straddling row above
-/// refuses with `MarginDiag::Enclosure`. A default build that compiled
-/// the arithmetic but not the poison channel would answer `Positive`.
+/// refuses with `MarginDiag::Enclosure`. A build that compiled the
+/// arithmetic but not the poison channel would answer `Positive`.
 #[test]
 fn a_domain_clamp_refuses_on_the_decoration_in_a_default_build() {
     let band = Band::new(1e-9, 1e-8).unwrap();

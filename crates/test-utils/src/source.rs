@@ -738,16 +738,7 @@ pub fn impl_head(blanked: &str, impl_at: usize, body_start: usize) -> Option<Imp
 /// and an UNTERMINATED head runs past the body's own brace — so both
 /// end the spelling.
 fn collapsed(spelling: &str) -> String {
-    let mut end = spelling.len();
-    let mut from = 0usize;
-    while let Some(off) = spelling[from..].find("where") {
-        let at = from + off;
-        from = at + "where".len();
-        if word_at(spelling, at, "where") {
-            end = at;
-            break;
-        }
-    }
+    let mut end = where_at(spelling).unwrap_or(spelling.len());
     if let Some(brace) = spelling[..end].find('{') {
         end = brace;
     }
@@ -755,6 +746,24 @@ fn collapsed(spelling: &str) -> String {
         .split_whitespace()
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+/// The offset of the first whole-word `where` in `spelling`, or `None`.
+///
+/// **Whole-word, and the first one that is.** A `where` clause is a
+/// bound and not part of the spelling before it, so a reader cutting a
+/// type or a return type ends it here; an identifier that merely
+/// contains the letters (`somewhere`, `where_clause`) ends nothing, and
+/// a scan that stops at the first substring match instead reads past
+/// the real keyword or cuts at the wrong place. Same precondition as
+/// [`balanced_end`]: a [`code_only`] view, so a `where` in a comment or
+/// a literal is not in the text.
+#[must_use]
+pub fn where_at(spelling: &str) -> Option<usize> {
+    spelling
+        .match_indices("where")
+        .map(|(at, _)| at)
+        .find(|&at| word_at(spelling, at, "where"))
 }
 
 /// The offset of the first whole-word `for` in `head` at bracket depth
@@ -1730,8 +1739,19 @@ mod tests {
     use super::{
         ItemBody, Region, aggregation_violations, angle_end, balanced_end, boundary_after,
         boundary_before, code_and_literals, code_only, comments_only, file_module_decls, item_body,
-        keeping, top_level_split,
+        keeping, top_level_split, where_at,
     };
+
+    /// The keyword, not the letters: an identifier that contains
+    /// `where` at either end is stepped over, and the answer is the
+    /// first `where` that is a word.
+    #[test]
+    fn a_where_clause_starts_at_the_keyword() {
+        let head = "Lane<Somewhere, where_ok>\nwhere\n    T: X";
+        assert_eq!(where_at(head), Some(head.find("\nwhere").unwrap() + 1));
+        assert_eq!(where_at("Lane<Somewhere, where_ok>"), None);
+        assert_eq!(where_at("Self where T: X"), Some("Self ".len()));
+    }
 
     /// A whole-word match needs BOTH boundaries, and each half refuses
     /// a different way of being inside a longer name.

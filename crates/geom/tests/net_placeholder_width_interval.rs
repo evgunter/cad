@@ -8,7 +8,6 @@
 //! lanes. A poisoned channel here is `Interval::from_f64(f64::NAN)`,
 //! whose enclosure stands for no real number at all.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::sync::Arc;

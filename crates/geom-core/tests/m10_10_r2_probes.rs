@@ -458,7 +458,6 @@ fn r2_evidence_a_residual_past_the_step_cap_is_answered_soundly() {
     }
 }
 
-#[cfg(feature = "interval")]
 mod over_boxes {
     //! The same folds over BOXES at `Sym<Interval>`: straddling and
     //! negative `X`, and the degenerate boxes A1's argument hands to

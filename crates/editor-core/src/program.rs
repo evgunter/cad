@@ -39,7 +39,7 @@ use profile::{ArcSweep, Step, Target};
 use serde::{Deserialize, Serialize};
 
 use crate::doc::ParamName;
-use crate::eval::ProfileNaming;
+use crate::eval::{LoopAnchor, ProfileNaming};
 use crate::expr::{Dimension, DimensionError, EvalError, Expr, ParamEnv, UnitSym, eval};
 use crate::names::ProfileEdgeRef;
 use crate::node::{RecipeNodeId, SlotId, StepArg};
@@ -469,6 +469,60 @@ pub struct ProfileProgram {
 /// The canonical `Doc` instantiation (the retired `ProfileDesc` seat).
 pub type ProfileDoc = crate::doc::Doc<ProfileProgram>;
 
+/// **What a replay of a whole program produces**: each loop as
+/// replayed at f64 and its structure record, both in program order
+/// and one per loop — the pair [`ProfileProgram::replay_records`] and
+/// [`ProfileProgram::check_returning`] hand back and
+/// the edit door's `checked_replay` reads the spans through. In-crate
+/// spelling only; the public signatures spell the tuple.
+pub(crate) type Replayed = (
+    Vec<profile::ProfileLoop<f64>>,
+    Vec<profile::ReplayStructure>,
+);
+
+/// **Every loop's program and record checked for shape, at the edit
+/// door** — the same walk [`ProfileProgram::checked_records`] makes
+/// at evaluation, over the pair [`ProfileProgram::replay_records`] or
+/// [`ProfileProgram::check_returning`] just produced, so the
+/// whole-program edit reads a step's segments through the one checked
+/// door DM8 names rather than off the record's fields. Over the loop
+/// programs directly, because the edit door holds the program being
+/// REPLACED as a slice of loops through [`ProfilePayload::loops`] and
+/// reads its records through the same walk as the new program's.
+///
+/// The loop's length is the replayed loop's, which is what the spans
+/// index into ([`CheckedRecords::new`] says why that is the canonical
+/// count too). The spans are in program order and the names hold
+/// canonical locators, so the edit door reads each name through the
+/// two programs' naming anchors (`SegmentMap` in `edit.rs`); these
+/// records carry none and mint no published ref.
+///
+/// # Errors
+///
+/// [`ProgramRefusal::Record`] naming the loop: a loop the pair does
+/// not cover, or a record whose step count is not the program's.
+pub(crate) fn checked_replay<'p, 'r>(
+    programs: &'p [LoopProgram],
+    loops: &[profile::ProfileLoop<f64>],
+    records: &'r [profile::ReplayStructure],
+) -> Result<Vec<CheckedRecords<'p, 'r>>, ProgramRefusal> {
+    programs
+        .iter()
+        .enumerate()
+        .map(|(li, program)| {
+            let loop_ = program_index(li);
+            let missing = || ProgramRefusal::Record {
+                loop_,
+                error: StepSegmentsError::NoRecord { loop_ },
+            };
+            let replay = records.get(li).ok_or_else(missing)?;
+            let replayed = loops.get(li).ok_or_else(missing)?;
+            CheckedRecords::new(loop_, program, replay, replayed.vertices().len())
+                .map_err(|error| ProgramRefusal::Record { loop_, error })
+        })
+        .collect()
+}
+
 // ------------------------------------------------------------------
 // The payload trait (Node<P> genericity's seam)
 // ------------------------------------------------------------------
@@ -491,12 +545,62 @@ pub trait ProfilePayload {
     fn expr_mut(&mut self, _slot: SlotId) -> Option<&mut Expr> {
         None
     }
+    /// Whether any expression of this program reads the document
+    /// parameter `name` — over [`ProfilePayload::slots`], so every
+    /// payload answers it the one way.
+    fn references(&self, name: &ParamName) -> bool {
+        let mut refs = Vec::new();
+        for slot in self.slots() {
+            if let Some(e) = self.expr(slot) {
+                e.param_refs(&mut refs);
+            }
+        }
+        refs.iter().any(|(n, _)| n == name)
+    }
     /// The authoring-time check (VQ9): resolve + replay + validate
     /// under the CURRENT parameter environment, refusing typed at the
     /// edit door. The evaluation-time twin re-checks under every
     /// binding that is ever evaluated.
-    fn check(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<(), ProgramRefusal> {
-        Ok(())
+    ///
+    /// [`ProfilePayload::check_returning`] with its records dropped —
+    /// the check has one body, and a payload answers it once.
+    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        self.check_returning(env, tol).map(|_| ())
+    }
+    /// [`ProfilePayload::check`] keeping each loop as replayed and its
+    /// replay record (`profile::ReplayStructure`, program order) —
+    /// what the whole-program edit door reads the new program's
+    /// per-step segment spans from, through the checked walk
+    /// (DM8, the edit door's `checked_replay`). A payload with no
+    /// program has no record and answers none.
+    fn check_returning(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<Replayed, ProgramRefusal> {
+        Ok((Vec::new(), Vec::new()))
+    }
+    /// The check's first two rungs — resolve and replay, recording —
+    /// without the validation rung: the loops and records of a program
+    /// that replays, whether or not its loops validate. The
+    /// whole-program edit door asks this of the program a node HOLDS,
+    /// which may replay and not validate and still has the spans its
+    /// names were published against.
+    fn replay_records(&self, _env: &ParamEnv<f64>, _tol: Tol) -> Result<Replayed, ProgramRefusal> {
+        Ok((Vec::new(), Vec::new()))
+    }
+    /// **The loop programs this payload holds**, program order — the
+    /// content [`crate::DocEdit::SetProgram`] replaces. `None` for a
+    /// payload with no program, which is every `Doc<P>` test payload.
+    fn loops(&self) -> Option<&[LoopProgram]> {
+        None
+    }
+    /// **This payload with its loops replaced whole** and everything
+    /// else it holds — the plane — kept: the value the whole-program
+    /// edit door writes. `None` where there is no program to replace,
+    /// which is the same payloads [`ProfilePayload::loops`] answers
+    /// `None` for.
+    fn with_loops(&self, _loops: Vec<LoopProgram>) -> Option<Self>
+    where
+        Self: Sized,
+    {
+        None
     }
     /// **The document node this payload is drawn ON**, if it names one
     /// — the profile's one DAG edge.
@@ -576,6 +680,21 @@ pub enum ProgramRefusal {
     /// The replayed loops refused profile validation under the current
     /// binding (also V1 class 2).
     Validate(profile::ProfileError),
+    /// The program passed the three rungs above and its replay record
+    /// does not describe it — a loop with no record, a record with a
+    /// different number of steps than the loop authors, a span past
+    /// the loop's end. DM8's rule for a record of the wrong shape is a
+    /// typed refusal rather than a guess, and the whole-program edit
+    /// door, which reads the new program's record to map every name
+    /// through, is the one door that reads a record at authoring time
+    /// (the edit door's `checked_replay`). Never produced by
+    /// [`ProfileProgram::check`], which reads no record.
+    Record {
+        /// The program loop whose record refused.
+        loop_: u32,
+        /// What the checked walk refused it for.
+        error: StepSegmentsError,
+    },
 }
 
 // LIB-DOORS F6 (reopened on review): a human-readable rendering. Each
@@ -605,16 +724,25 @@ impl core::fmt::Display for ProgramRefusal {
                 ..
             } => write!(f, "loop {loop_} step {step}: {rendered}"),
             Self::Validate(e) => write!(f, "the replayed loops failed profile validation: {e}"),
+            Self::Record { loop_, error } => {
+                write!(
+                    f,
+                    "loop {loop_}'s replay record does not describe it: {error}"
+                )
+            }
         }
     }
 }
 
 impl core::error::Error for ProgramRefusal {}
 
-/// One loop's two records, checked against each other — what
-/// [`ProfileProgram::checked_records`] hands its two doors so they
-/// answer through ONE permutation.
-struct CheckedRecords<'p, 'r> {
+/// One loop's program and replay record, checked against each other
+/// — what [`ProfileProgram::checked_records`] hands its two doors so
+/// they answer through ONE permutation, and what the whole-program
+/// edit door reads both programs' spans through
+/// (the edit door's `checked_replay`), so a step-addressed answer at
+/// authoring time and one at evaluation are the same walk.
+pub(crate) struct CheckedRecords<'p, 'r> {
     /// The loop's program.
     program: &'p LoopProgram,
     /// The loop's replay record: the per-step spans and the per-radius
@@ -624,32 +752,71 @@ struct CheckedRecords<'p, 'r> {
     segments: usize,
 }
 
-impl CheckedRecords<'_, '_> {
-    /// The published ref naming segment `segment` of this loop.
+/// [`CheckedRecords`] with the loop's place in the published
+/// numbering: what [`ProfileProgram::checked_records`] hands its two
+/// doors, and the only thing that mints a published ref. The edit door
+/// reads spans in program order and holds plain [`CheckedRecords`], so
+/// a ref minted without an anchor is not a state the types admit.
+struct AnchoredRecords<'p, 'r> {
+    /// The loop's records, checked for shape.
+    records: CheckedRecords<'p, 'r>,
+    /// The loop's position in the CANONICAL loop order (outer first,
+    /// then holes in authored order) — the loop index published names
+    /// carry.
+    canonical_loop: u32,
+    /// The loop's naming anchor, program segment ↔ canonical segment,
+    /// already checked against canonicalization's own record.
+    anchor: LoopAnchor,
+}
+
+impl<'p, 'r> CheckedRecords<'p, 'r> {
+    /// The pair checked for SHAPE: a record of the right LENGTH is
+    /// what makes a step index mean the same thing on both sides. A
+    /// record from another program can have the right loop count and
+    /// the wrong step count, and then every answer read through it is
+    /// about somebody else's program. The profile side guards its own
+    /// records this way (`StructureRefusal::shape`).
     ///
-    /// The segment index passes through: the permutation the
-    /// evaluation applied is the one the anchor rewrite undoes, and
-    /// [`ProfileProgram::checked_records`] has already asserted the
-    /// two records describe that one permutation.
+    /// `segments` is how many segments the loop the record describes
+    /// has — the length of the loop its spans index into. At
+    /// evaluation that loop is the canonical one
+    /// ([`ProfileProgram::checked_records`]); at the edit door it is
+    /// the replayed one (the edit door's `checked_replay`), which
+    /// canonicalization reindexes exactly and never lengthens, so the
+    /// two are one count.
     ///
-    /// The BOUND is the caller's, because the two callers hold
-    /// different facts and owe the reader different sentences: a span
-    /// is checked by [`CheckedRecords::span_of`] and an emission by
-    /// the arm that reads it. Both check before they get here, so a
-    /// segment past the end is a caller that forgot — the assertion
-    /// below, not a refusal this function invents a payload for.
-    fn edge_of(&self, loop_: u32, segment: usize) -> ProfileEdgeRef {
-        debug_assert!(
-            segment < self.segments,
-            "an unchecked segment reached `edge_of`: {segment} of {}",
-            self.segments
-        );
-        ProfileEdgeRef {
-            loop_index: loop_,
-            segment: program_index(segment),
+    /// # Errors
+    ///
+    /// [`StepSegmentsError::RecordShape`] where the record and the
+    /// program author different step counts.
+    pub(crate) fn new(
+        loop_: u32,
+        program: &'p LoopProgram,
+        replay: &'r profile::ReplayStructure,
+        segments: usize,
+    ) -> Result<Self, StepSegmentsError> {
+        let authored = program.authored_steps();
+        if replay.steps.len() != authored {
+            return Err(StepSegmentsError::RecordShape {
+                loop_,
+                authored,
+                recorded: replay.steps.len(),
+            });
         }
+        Ok(Self {
+            program,
+            replay,
+            segments,
+        })
     }
 
+    /// How many segments the loop has.
+    pub(crate) fn segments(&self) -> usize {
+        self.segments
+    }
+}
+
+impl CheckedRecords<'_, '_> {
     /// One step's recorded span, checked against the loop's length.
     ///
     /// # Errors
@@ -657,7 +824,7 @@ impl CheckedRecords<'_, '_> {
     /// [`StepSegmentsError::NoSuchStep`] where the record has no such
     /// step, [`StepSegmentsError::SpanOffTheLoop`] where the span it
     /// does have reaches past the loop's last segment.
-    fn span_of(&self, step: u32) -> Result<profile::StepSpan, StepSegmentsError> {
+    pub(crate) fn span_of(&self, step: u32) -> Result<profile::StepSpan, StepSegmentsError> {
         let span = *self
             .replay
             .steps
@@ -674,6 +841,35 @@ impl CheckedRecords<'_, '_> {
         }
         Ok(span)
     }
+}
+
+impl AnchoredRecords<'_, '_> {
+    /// The published ref naming PROGRAM segment `segment` of this loop:
+    /// the canonical segment it is. Published names carry canonical
+    /// indices, and the canonical start is the authored one, so the
+    /// hop is the identity for a loop authored in its canonical sense
+    /// and the reflection `s ↦ n − 1 − s` for one authored against it
+    /// — read off the anchor, which
+    /// [`ProfileProgram::checked_records`] has already checked against
+    /// canonicalization's own record of the permutation.
+    ///
+    /// The BOUND is the caller's, because the two callers hold
+    /// different facts and owe the reader different sentences: a span
+    /// is checked by [`CheckedRecords::span_of`] and an emission by
+    /// the arm that reads it. Both check before they get here, so a
+    /// segment past the end is a caller that forgot — the assertion
+    /// below, not a refusal this function invents a payload for.
+    fn edge_of(&self, segment: usize) -> ProfileEdgeRef {
+        debug_assert!(
+            segment < self.records.segments,
+            "an unchecked segment reached `edge_of`: {segment} of {}",
+            self.records.segments
+        );
+        ProfileEdgeRef {
+            loop_index: self.canonical_loop,
+            segment: self.anchor.canonical_segment(program_index(segment)),
+        }
+    }
 
     /// Every published ref of `step`'s recorded span — ONE walk over
     /// one checked span, which is what both of the doors below answer
@@ -682,15 +878,12 @@ impl CheckedRecords<'_, '_> {
     /// # Errors
     ///
     /// [`CheckedRecords::span_of`]'s.
-    fn edges_of_step(
-        &self,
-        loop_: u32,
-        step: u32,
-    ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
+    fn edges_of_step(&self, step: u32) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
         Ok(self
+            .records
             .span_of(step)?
             .iter()
-            .map(|s| self.edge_of(loop_, s))
+            .map(|s| self.edge_of(s))
             .collect())
     }
 }
@@ -903,7 +1096,7 @@ impl core::error::Error for StepSegmentsError {}
 ///
 /// Never, for the reason above; the `unreachable!` is the fail-loud
 /// spelling of "the machine got there anyway".
-fn program_index(i: usize) -> u32 {
+pub(crate) fn program_index(i: usize) -> u32 {
     let Ok(narrowed) = u32::try_from(i) else {
         unreachable!("a collection of {i} elements does not fit in memory")
     };
@@ -1606,13 +1799,7 @@ impl ProfileProgram {
     /// program (a loft's or a sweep's section) asks before a seed on
     /// that parameter is silently embedded as a constant.
     pub fn references(&self, name: &ParamName) -> bool {
-        let mut refs = Vec::new();
-        for slot in ProfilePayload::slots(self) {
-            if let Some(e) = ProfilePayload::expr(self, slot) {
-                e.param_refs(&mut refs);
-            }
-        }
-        refs.iter().any(|(n, _)| n == name)
+        ProfilePayload::references(self, name)
     }
 
     /// Resolves every loop at f64 — [`resolve_loops`] over this
@@ -1636,16 +1823,16 @@ impl ProfileProgram {
     /// evaluation already produced and never re-derives them from the
     /// geometry — a second derivation can disagree with the one the
     /// geometry came from, which is the defect this door exists to not
-    /// be. The two do not carry equal weight, which is DM8's amended
-    /// sentence: the span GIVES the answer, in the program's own step
-    /// order — the numbering the published names carry — and
-    /// canonicalization's permutation is CHECKED against the naming
-    /// anchor's record of the same permutation, never applied.
+    /// be. The span GIVES the answer, in the program's own step order,
+    /// and the profile's naming anchor carries it into the numbering
+    /// the published names carry: canonical loop, and canonical
+    /// segment counted from the loop's authored start. The anchor is
+    /// CHECKED against canonicalization's own record of the same
+    /// permutation before it is read.
     ///
     /// The name says what it answers: [`ProfileEdgeRef`]s, the published
-    /// coordinate a consumer holds. It does NOT answer canonical
-    /// segments — see the anchoring section below — so a name saying
-    /// "canonical" would be the one word in it that is false.
+    /// coordinate a consumer holds — the same one for every verb that
+    /// consumed the profile, a loft's sections included.
     ///
     /// # What it reads
     ///
@@ -1656,29 +1843,34 @@ impl ProfileProgram {
     ///    its straight leg and its arc, and a carrier form's single
     ///    step emits the whole loop, which is how `circle` and
     ///    `circle_split` answer here with no arm of their own.
-    /// 2. **The permutation canonicalization applied** — the check,
-    ///    not a factor of the answer
-    ///    (`profile::LoopCanonical`'s `reversed` and `start`): the
-    ///    reversal that turns program vertex `i` of `n` into oriented
-    ///    vertex `n-i`, then the rotation that makes oriented vertex
-    ///    `start` canonical vertex 0.
+    /// 2. **The naming anchor** (`eval::anchor`, `LoopAnchor`): which
+    ///    canonical loop this program loop is, and whether its
+    ///    traversal was reversed. It carries a program segment to the
+    ///    canonical segment it became — the identity for a loop
+    ///    authored in its canonical sense, `s ↦ n − 1 − s` for one
+    ///    authored against it, the canonical start being the authored
+    ///    one.
+    /// 3. **The permutation canonicalization applied** — the check
+    ///    (`profile::LoopCanonical`'s `reversed`): the reversal that
+    ///    turns program vertex `i` of `n` into canonical vertex
+    ///    `(n − i) mod n`, the only permutation it applies.
     ///
-    /// # Why the answer is in PROGRAM indices
+    /// # Why the answer is in CANONICAL indices
     ///
-    /// A profile ref reaches a name table already rewritten canonical →
-    /// program (`eval::anchor`, `LoopAnchor`): for a program loop, the
-    /// published [`ProfileEdgeRef`] names the segment the program's step
-    /// order authored, precisely so a parameter edit cannot renumber it.
-    /// So the two permutations — the one canonicalization applied and
-    /// the one the rewrite undoes — compose to the identity, and the
-    /// segments a step produced ARE the refs its walls carry.
+    /// Every verb that consumes a profile names its entities by the
+    /// profile's canonical positions, and the canonical form keeps the
+    /// author's start and hole order, so no geometric choice enters an
+    /// index and a parameter edit cannot renumber one. A loft's
+    /// sections are the case this settles: the skin pairs canonical
+    /// segment `k` of every section into one wall, so the wall's one
+    /// ref is every section's own canonical segment `k`, and this door
+    /// answers any section through that section's own anchor.
     ///
-    /// That is a statement about two records, so it is checked rather
-    /// than assumed — DM8 rules that the permutation is CHECKED here
-    /// and never applied. The permutation is derived here from `(2)`,
-    /// the decision canonicalization recorded; the anchor is derived
-    /// independently, by bit-matching the canonical loop against the
-    /// replayed one.
+    /// The anchor is one record and `(3)` is another, so the two are
+    /// checked against each other rather than assumed to agree: the
+    /// permutation is derived from `(3)`, the decision canonicalization
+    /// recorded, and the anchor independently, by bit-matching the
+    /// canonical loop against the replayed one.
     ///
     /// # Why a disagreement ASSERTS rather than refusing typed
     ///
@@ -1695,23 +1887,6 @@ impl ProfileProgram {
     ///
     /// Not persisted, and not a cache: it is rebuilt from the records
     /// beside the geometry they describe.
-    ///
-    /// # The LOFT limitation the published anchoring carries
-    ///
-    /// "Program-anchored" is a claim about the table the emitter's refs
-    /// were rewritten through, and a loft has only ONE:
-    /// `eval::wire::wire_loft` anchors the whole emitted table on the
-    /// FIRST section's `LoopAnchor`, because the loft emitter's refs
-    /// are canonical indices of the section combinatorics and the
-    /// sections must correspond. So for a loft this door's answer is
-    /// program-anchored for SECTION 0 and section-0-anchored for every
-    /// other section: a later section authored rotated or reversed
-    /// relative to section 0 is named by section 0's permutation, not
-    /// its own, and a consumer asking about one of ITS steps is off by
-    /// that permutation. The limitation is pinned in
-    /// `work/wire/loft-anchors-every-section-with-section-zeros-map.md`;
-    /// nothing here can repair it, because the refs the names carry are
-    /// the ones the rewrite published.
     ///
     /// # Errors
     ///
@@ -1731,7 +1906,7 @@ impl ProfileProgram {
         step: u32,
     ) -> Result<Vec<ProfileEdgeRef>, StepSegmentsError> {
         self.checked_records(structure, naming, loop_)?
-            .edges_of_step(loop_, step)
+            .edges_of_step(step)
     }
 
     /// **The records one loop's answers are read from, checked against
@@ -1758,7 +1933,7 @@ impl ProfileProgram {
         structure: &'r profile::ProfileStructure,
         naming: &ProfileNaming,
         loop_: u32,
-    ) -> Result<CheckedRecords<'p, 'r>, StepSegmentsError> {
+    ) -> Result<AnchoredRecords<'p, 'r>, StepSegmentsError> {
         let li = loop_ as usize;
         let program = self.loops.get(li).ok_or(StepSegmentsError::NoSuchLoop {
             loops: self.loops.len(),
@@ -1772,66 +1947,37 @@ impl ProfileProgram {
             .loops
             .get(li)
             .ok_or(StepSegmentsError::NoRecord { loop_ })?;
-        // A record of the right LENGTH is what makes a step index mean
-        // the same thing on both sides; a record from another program
-        // can have the right loop count and the wrong step count, and
-        // then every answer below is about somebody else's program.
-        // The profile side guards its own records this way
-        // (`StructureRefusal::shape`).
-        let authored = program.authored_steps();
-        if replay.steps.len() != authored {
-            return Err(StepSegmentsError::RecordShape {
-                loop_,
-                authored,
-                recorded: replay.steps.len(),
-            });
-        }
-        let anchor = naming
+        // The shape check is `CheckedRecords::new`'s — one for this
+        // door and the edit door.
+        let n = canonical.segments.len();
+        let checked = CheckedRecords::new(loop_, program, replay, n)?;
+        let (canonical_loop, anchor) = naming
             .loops
             .iter()
-            .find(|a| a.program_loop == loop_)
+            .enumerate()
+            .find(|(_, a)| a.program_loop == loop_)
             .ok_or(StepSegmentsError::NoAnchor { loop_ })?;
 
-        // The two records must be ONE permutation. `start` counts on
-        // the ORIENTED chain (after any reversal) while `offset` counts
-        // on the program chain, so the reversed case compares
-        // `n - start`: `reversed()` sends oriented vertex k to program
-        // vertex (n − k) mod n, and canonical vertex 0 is oriented
-        // vertex `start`.
-        let n = canonical.segments.len();
-        let offset = anchor.offset as usize;
-        let same = anchor.len as usize == n
-            && n != 0
-            && anchor.reversed == canonical.reversed
-            && canonical.start < n
-            && offset
-                == if canonical.reversed {
-                    (n - canonical.start) % n
-                } else {
-                    canonical.start
-                };
+        // The two records must be ONE permutation: the same length and
+        // the same reversal (the canonical start being the authored
+        // vertex 0 on both, there is nothing else for them to say).
+        let same = anchor.len as usize == n && n != 0 && anchor.reversed == canonical.reversed;
         assert!(
             same,
             concat!(
                 "the evaluation's two records of loop {}'s permutation ",
-                "disagree: canonicalization recorded reversed={} start={} ",
+                "disagree: canonicalization recorded reversed={} ",
                 "over {} segments, the naming anchor recorded reversed={} ",
-                "offset={} over {} vertices. One evaluation produces both, ",
+                "over {} vertices. One evaluation produces both, ",
                 "so they describe one permutation or the kernel has ",
                 "contradicted itself"
             ),
-            loop_,
-            canonical.reversed,
-            canonical.start,
-            n,
-            anchor.reversed,
-            anchor.offset,
-            anchor.len
+            loop_, canonical.reversed, n, anchor.reversed, anchor.len
         );
-        Ok(CheckedRecords {
-            program,
-            replay,
-            segments: n,
+        Ok(AnchoredRecords {
+            records: checked,
+            canonical_loop: program_index(canonical_loop),
+            anchor: *anchor,
         })
     }
 
@@ -1905,41 +2051,42 @@ impl ProfileProgram {
         // door walks, so a record whose step 0 does not cover the loop
         // is refused here exactly as it is there rather than answered
         // off the canonical segment count.
-        if let Some(radius) = checked.program.carrier_radius() {
+        if let Some(radius) = checked.records.program.carrier_radius() {
             // And the record must be a carrier's: `circle` and
             // `circle_split` mint their structure directly and emit
             // nothing, so an emission here is a chain's record under a
             // carrier program. Read before the answer, not after the
             // arm has returned.
-            if !checked.replay.radii.is_empty() {
+            if !checked.records.replay.radii.is_empty() {
                 return Err(StepSegmentsError::CarrierRecordsEmissions {
                     loop_,
-                    emissions: checked.replay.radii.len(),
+                    emissions: checked.records.replay.radii.len(),
                 });
             }
             return Ok(checked
-                .edges_of_step(loop_, 0)?
+                .edges_of_step(0)?
                 .into_iter()
                 .map(|e| (e, radius))
                 .collect());
         }
         let mut out = Vec::new();
-        for emission in &checked.replay.radii {
+        for emission in &checked.records.replay.radii {
             let step = program_index(emission.step);
             let arg = radius_arg_of(emission.role);
             let expr = checked
+                .records
                 .program
                 .expr(step, arg)
                 .ok_or(StepSegmentsError::RadiusNotAnArgument { step, arg })?;
-            if emission.segment >= checked.segments {
+            if emission.segment >= checked.records.segments {
                 return Err(StepSegmentsError::EmissionOffTheLoop {
                     step,
                     arg,
                     segment: emission.segment,
-                    segments: checked.segments,
+                    segments: checked.records.segments,
                 });
             }
-            out.push((checked.edge_of(loop_, emission.segment), expr));
+            out.push((checked.edge_of(emission.segment), expr));
         }
         Ok(out)
     }
@@ -1949,13 +2096,86 @@ impl ProfileProgram {
     /// the run tolerance (VQ6: the same `Tolerance::get()` evaluation
     /// pins). Used by the edit door; evaluation re-runs the same
     /// ladder per binding with full typed errors.
+    ///
+    /// [`ProfileProgram::check_returning`] with the records dropped:
+    /// the check has ONE body, and this is the door for a caller that
+    /// wants the verdict alone.
     pub fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
+        self.check_returning(env, tol).map(|_| ())
+    }
+
+    /// [`ProfileProgram::check`] keeping what the replay decided: each
+    /// loop as replayed and its [`profile::ReplayStructure`], in
+    /// program order — the per-step segment spans DM8's map is read
+    /// from, and the loop they index into. The whole-program edit door
+    /// reads both for the program replacing a node's
+    /// (the edit door's `checked_replay`), so which segments each
+    /// authored step draws is read off the record the geometry comes
+    /// from and never re-derived.
+    ///
+    /// Recording changes nothing about what is computed
+    /// (`profile::replay_recording` is `replay` bit for bit plus the
+    /// account), so this and [`ProfileProgram::check`] cannot disagree.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal`], exactly as [`ProfileProgram::check`].
+    pub fn check_returning(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<Replayed, ProgramRefusal> {
+        let (loops, records) = self.replay_records(env, tol)?;
+        // **The identity plane, and the check is honest about why.**
+        // Validation is 2-D — `profile::validate` says so itself, and
+        // the plane rides through it as conventional data — so what
+        // this door checks is the LOOPS: closure, orientation, no
+        // self-intersection. It could not read the real frame anyway:
+        // this runs at the insert door with a payload in hand and no
+        // document, and the frame is a node in one. A profile whose
+        // frame reference does not denote a frame is refused where
+        // every other operand's kind is, at evaluation.
+        profile::Profile::new(profile::SketchPlane::xy(), loops.clone())
+            .validate(tol)
+            .map_err(ProgramRefusal::Validate)?;
+        Ok((loops, records))
+    }
+
+    /// The check's first two rungs — resolve under `env`, replay every
+    /// loop recording — and what they produce: the replayed loops and
+    /// each loop's structure record. Validation is the third rung and
+    /// [`ProfileProgram::check_returning`]'s.
+    ///
+    /// Split off because the two rungs are all a SEGMENT question
+    /// needs: which segments an authored step drew is decided by the
+    /// replay, and a program whose loops replay but fail validation (a
+    /// self-crossing) still has that record. The whole-program edit
+    /// door asks it of the program a node HOLDS, which may be exactly
+    /// such a program.
+    ///
+    /// # Errors
+    ///
+    /// [`ProgramRefusal::Resolve`], [`ProgramRefusal::Transition`] or
+    /// [`ProgramRefusal::Geometry`] — never `Validate`, the rung this
+    /// does not run.
+    pub fn replay_records(
+        &self,
+        env: &ParamEnv<f64>,
+        tol: Tol,
+    ) -> Result<
+        (
+            Vec<profile::ProfileLoop<f64>>,
+            Vec<profile::ReplayStructure>,
+        ),
+        ProgramRefusal,
+    > {
         let resolved = self
             .resolve(env)
             .map_err(|(slot, source)| ProgramRefusal::Resolve { slot, source })?;
         let mut loops = Vec::with_capacity(resolved.len());
+        let mut records = Vec::with_capacity(resolved.len());
         for (li, steps) in resolved.iter().enumerate() {
-            let lp = profile::replay(steps, tol).map_err(|e| match e.kind {
+            let (lp, record) = profile::replay_recording(steps, tol).map_err(|e| match e.kind {
                 profile::ReplayErrorKind::Transition { state, verb } => {
                     ProgramRefusal::Transition {
                         loop_: program_index(li),
@@ -1972,20 +2192,9 @@ impl ProfileProgram {
                 },
             })?;
             loops.push(lp);
+            records.push(record);
         }
-        // **The identity plane, and the check is honest about why.**
-        // Validation is 2-D — `profile::validate` says so itself, and
-        // the plane rides through it as conventional data — so what
-        // this door checks is the LOOPS: closure, orientation, no
-        // self-intersection. It could not read the real frame anyway:
-        // this runs at the insert door with a payload in hand and no
-        // document, and the frame is a node in one. A profile whose
-        // frame reference does not denote a frame is refused where
-        // every other operand's kind is, at evaluation.
-        profile::Profile::new(profile::SketchPlane::xy(), loops)
-            .validate(tol)
-            .map(|_| ())
-            .map_err(ProgramRefusal::Validate)
+        Ok((loops, records))
     }
 }
 
@@ -2229,11 +2438,23 @@ impl ProfilePayload for ProfileProgram {
         self.loops.get_mut(loop_ as usize)?.expr_mut(step, arg)
     }
 
-    fn check(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<(), ProgramRefusal> {
-        ProfileProgram::check(self, env, tol)
+    fn check_returning(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
+        ProfileProgram::check_returning(self, env, tol)
+    }
+    fn replay_records(&self, env: &ParamEnv<f64>, tol: Tol) -> Result<Replayed, ProgramRefusal> {
+        ProfileProgram::replay_records(self, env, tol)
     }
     fn plane_input(&self) -> Option<crate::RecipeNodeId> {
         Some(self.plane)
+    }
+    fn loops(&self) -> Option<&[LoopProgram]> {
+        Some(&self.loops)
+    }
+    fn with_loops(&self, loops: Vec<LoopProgram>) -> Option<Self> {
+        Some(Self {
+            plane: self.plane,
+            loops,
+        })
     }
 }
 

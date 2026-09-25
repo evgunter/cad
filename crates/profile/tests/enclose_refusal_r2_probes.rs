@@ -192,12 +192,13 @@ fn fillet_endpoints(lp: &ProfileLoop<f64>, r: f64) -> Option<(Point2<f64>, Point
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        if a.bulge() == 0.0 {
+        let bulge = lp.bulges()[i];
+        if bulge == 0.0 {
             continue;
         }
-        let (_, rf) = circle_from_bulge(a.pos(), b.pos(), a.bulge());
+        let (_, rf) = circle_from_bulge(a, b, bulge);
         if (rf - r).abs() < 1e-6 * r.max(1.0) {
-            return Some((a.pos(), b.pos()));
+            return Some((a, b));
         }
     }
     None

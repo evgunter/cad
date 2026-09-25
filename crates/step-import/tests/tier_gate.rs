@@ -1110,7 +1110,7 @@ fn the_refusal_carries_the_kernels_verdicts() {
     for want in [
         "shared at-rest validation gate",
         "NegativeVolume",
-        "signed volume is definitely negative",
+        "a solid encloses negative volume, so it is inside-out",
     ] {
         assert!(msg.contains(want), "the message must name {want:?}: {msg}");
     }

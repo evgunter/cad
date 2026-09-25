@@ -29,6 +29,8 @@
 //!   input reaches the pivot tests as NaN and refuses there
 //!   (fail-loud, D4 ¶2).
 
+use crate::readable::Readable;
+
 /// A typed least-squares refusal (fail-loud; the kernel never panics).
 #[derive(Clone, Debug, PartialEq)]
 pub enum LsqError {
@@ -81,7 +83,8 @@ impl core::fmt::Display for LsqError {
         match self {
             LsqError::LsqDegenerate { pivot_index, pivot } => write!(
                 f,
-                "lsq: degenerate system (pivot {pivot_index} = {pivot} under the fixed elimination order)"
+                "lsq: degenerate system (pivot {pivot_index} = {} under the fixed elimination order)",
+                Readable(*pivot)
             ),
             LsqError::RowLengthMismatch { row, len, expected } => {
                 write!(f, "lsq: row {row} has length {len}, expected {expected}")

@@ -1,16 +1,15 @@
 #!/usr/bin/env bash
 # base-test-listing.sh — this run's test listing, the base run's listing, and
-# the "what this PR adds" block that diffs them. ONE copy, called by both
-# sharded test jobs.
+# the "what this PR adds" block that diffs them, called by the sharded
+# `test` job.
 #
-# WHY IT IS A SCRIPT AND NOT TWO `run:` BLOCKS. The lookup is ~60 lines of
-# shell and the default and interval lanes need the same 60 lines against a
-# different archive. Written inline it was copied verbatim into both jobs and
-# had already drifted in one string. Under the 2026-08-22 lane sampling only
-# ONE LANE RAN PER RUN, so the copy that did not run was untested by
-# construction and every hosted green was a green for one of them. Both lanes
-# run again since 2026-09-04 and one copy is still the right shape: two copies
-# would differ in one string and nothing would ever exercise the difference.
+# WHY IT IS A SCRIPT AND NOT A `run:` BLOCK. The lookup is ~60 lines of shell
+# that the default and interval lanes both needed against a different archive.
+# Written inline it was copied verbatim into both jobs and had already drifted
+# in one string; under the 2026-08-22 lane sampling only ONE LANE RAN PER RUN,
+# so the copy that did not run was untested by construction. There is one
+# lane since RING-4 deleted the `interval` feature, and a script is still the
+# shape: it is where the guards below can have a selftest.
 #
 # THE GUARDS LIVE HERE FOR THE SAME REASON, and it is the sharper half. The
 # defect this file is shaped around actually happened hosted (run 33343519165):
@@ -36,7 +35,7 @@
 #
 # AND THE LISTING IS NOT PUBLISHED UNLESS IT IS ONE. `cargo nextest list` can
 # fail and leave an empty or truncated file behind. Published anyway, that file
-# SQUATS the artifact name `test-list-<lane>-<tree>` for the retention window:
+# SQUATS the artifact name `test-list-<tree>` for the retention window:
 # every later run whose base is that tree finds it, fails to diff it, and
 # prints a stated skip — a permanent skip for a week, caused by one bad run.
 # So the listing is checked (exit status, non-empty, JSON with a non-empty
@@ -49,7 +48,7 @@
 # more important than itself. Every failure becomes a printed reason instead.
 #
 # Usage:
-#     base-test-listing.sh --archive FILE --lane LANE --job LABEL --cost-dir DIR
+#     base-test-listing.sh --archive FILE --job LABEL --cost-dir DIR
 #                          [--leg 'LABEL=PATH']...
 #     base-test-listing.sh --selftest
 #
@@ -80,7 +79,7 @@ raise SystemExit(0 if isinstance(suites, dict) and suites else 1)
 # The base listing, or the reason there is none. Sets BASE_LIST (a path, or
 # empty) and REASON. Never exits nonzero.
 lookup_base_listing() {
-  local lane=$1 cost=$2
+  local cost=$1
   BASE_LIST=""
   BASE_TREE=""
   if [ -z "${BASE_SHA:-}" ]; then
@@ -103,13 +102,13 @@ lookup_base_listing() {
     REASON="base commit $BASE_SHA could not be resolved to a tree — the API call failed or answered something that is not a tree SHA"
     return 0
   fi
-  local name="test-list-$lane-$BASE_TREE"
+  local name="test-list-$BASE_TREE"
   local url
   url=$(gh api "repos/$repo/actions/artifacts?name=$name&per_page=1" \
         --jq '.artifacts[] | select(.expired == false) | .archive_download_url' 2>/dev/null | head -n 1)
   case "$url" in https://*) ;; *) url="" ;; esac
   if [ -z "$url" ]; then
-    REASON="no run has published a test listing named \`$name\`, so the base tree \`$BASE_TREE\` has never been listed in this lane — it was tested before this report existed, its listing's retention has expired, the run that tested it drew the other lane, or the lookup had no \`actions: read\`"
+    REASON="no run has published a test listing named \`$name\`, so the base tree \`$BASE_TREE\` has never been listed — it was tested before this report existed or under the name its lane used to carry, its listing's retention has expired, or the lookup had no \`actions: read\`"
     return 0
   fi
   # `-f`: without it curl exits 0 on an HTTP error and writes the error body to
@@ -125,20 +124,19 @@ lookup_base_listing() {
 }
 
 run() {
-  local archive="" lane="" job="this job" cost=""
+  local archive="" job="this job" cost=""
   local legs=()
   while [ $# -gt 0 ]; do
     case "$1" in
       --archive)  archive=$2; shift 2 ;;
-      --lane)     lane=$2;    shift 2 ;;
       --job)      job=$2;     shift 2 ;;
       --cost-dir) cost=$2;    shift 2 ;;
       --leg)      legs+=(--leg "$2"); shift 2 ;;
       *) echo "base-test-listing.sh: unknown argument $1" >&2; return 0 ;;
     esac
   done
-  if [ -z "$archive" ] || [ -z "$lane" ] || [ -z "$cost" ]; then
-    echo "base-test-listing.sh: --archive, --lane and --cost-dir are required" >&2
+  if [ -z "$archive" ] || [ -z "$cost" ]; then
+    echo "base-test-listing.sh: --archive and --cost-dir are required" >&2
     return 0
   fi
   mkdir -p "$cost"
@@ -152,7 +150,7 @@ run() {
   if [ "$status" -ne 0 ] || ! listing_is_real "$list"; then
     # A LISTING THAT IS NOT ONE PUBLISHES NOTHING. Deleted rather than left for
     # the upload step to find, and `$GITHUB_ENV` is not written, so the name
-    # `test-list-$lane-<this tree>` stays free for a run that can fill it.
+    # `test-list-<this tree>` stays free for a run that can fill it.
     rm -f "$list"
     python3 "$HERE/pr-added-tests.py" --job "$job" --head "$list" \
       --no-base "this run's own \`cargo nextest list\` did not produce a usable listing (exit $status), so there is nothing to diff against a base — and nothing was published under this tree's name, which would otherwise have made every future run based on this tree skip too"
@@ -164,7 +162,7 @@ run() {
   echo "$head_tree" | grep -qE '^[0-9a-f]{40}$' || head_tree=""
 
   local BASE_LIST REASON="no base listing was looked for" BASE_TREE=""
-  lookup_base_listing "$lane" "$cost"
+  lookup_base_listing "$cost"
 
   if [ -n "$BASE_LIST" ]; then
     python3 "$HERE/pr-added-tests.py" --job "$job" --head "$list" --base "$BASE_LIST" \
@@ -283,7 +281,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
     env_file="$tmp/env-$n"
     : > "$env_file"
     out=$(GITHUB_ENV="$env_file" GITHUB_REPOSITORY="owner/repo" GH_TOKEN=x \
-          run --archive nextest-x.tar.zst --lane default --job "test (eps = default, 1/2)" \
+          run --archive nextest-x.tar.zst --job "test (eps = default, 1/2)" \
               --cost-dir "$cost" --leg "run archived tests=$FIXTURES/nextest-run-head.txt" 2>/dev/null)
   }
 
@@ -317,7 +315,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
     STUB_TREE_OUT="Resource not accessible by integration (HTTP 403)" STUB_TREE_STATUS=1 case_run
   want "could not be resolved to a tree" "$out" "case 4 (403 on the commits call)"
   reject "HTTP 403" "$out" "case 4 spliced gh's error text into the report"
-  reject "test-list-default-Resource" "$out" "case 4 built an artifact name out of an error"
+  reject "test-list-Resource" "$out" "case 4 built an artifact name out of an error"
   want "TEST_LIST_TREE=" "$(cat "$env_file")" "case 4 — a failed LOOKUP must not stop this run's own listing being published"
 
   # 5 — THE ARTIFACTS CALL ANSWERS AN ERROR BODY. Not `https://`, so not a URL,
@@ -327,7 +325,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
     STUB_TREE_OUT=1109b0184d1218a3cf0e8435e7ce713b855d0a1c \
     STUB_URL_OUT="Resource not accessible by integration (HTTP 403)" STUB_URL_STATUS=1 case_run
   want "no run has published a test listing named" "$out" "case 5 (error body for a URL)"
-  want "test-list-default-1109b0184d1218a3cf0e8435e7ce713b855d0a1c" "$out" "case 5 names the listing it looked for"
+  want "test-list-1109b0184d1218a3cf0e8435e7ce713b855d0a1c" "$out" "case 5 names the listing it looked for"
   reject "found but could not be downloaded" "$out" "case 5 read a failed lookup as a found artifact"
 
   # 6 — THE URL IS REAL AND THE FETCH FAILS. `curl -f` refuses the error body;
@@ -364,7 +362,7 @@ with zipfile.ZipFile(sys.argv[1], "w") as z:
   : > "$env_file"
   out=$(env -u GITHUB_REPOSITORY GH_TOKEN=x BASE_SHA=deadbeef GITHUB_ENV="$env_file" \
         STUB_LIST_STATUS=0 STUB_LIST_FILE="$FIXTURES/nextest-list-head.json" \
-        bash "$0" --archive nextest-x.tar.zst --lane default --job "j" \
+        bash "$0" --archive nextest-x.tar.zst --job "j" \
                   --cost-dir "$cost" 2>/dev/null)
   want "GITHUB_REPOSITORY is not set" "$out" "case 9 (no repository in the environment)"
   want "What this PR adds to the test suite" "$out" "case 9 printed no block at all"

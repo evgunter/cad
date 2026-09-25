@@ -2,7 +2,6 @@
 //! pinned its gating CI point to `lane=interval`. These rows ask what
 //! the cylinder arm's two scalar-sensitive gates actually do there.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::panic)]
 
 use geom_core::interval::Interval;

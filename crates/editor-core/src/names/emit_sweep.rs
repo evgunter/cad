@@ -57,10 +57,11 @@ fn cap_rim_contradicted(found: RimShare) -> NamingError {
     }
 }
 
-/// Truncating-safe index cast (loop/segment counts are far below
-/// `u32::MAX`; a table this large is unrepresentable upstream).
-fn ix(i: usize) -> u32 {
-    u32::try_from(i).unwrap_or(u32::MAX)
+/// A loop, segment or vertex index, narrowed to the `u32` a profile
+/// reference stores, or [`NamingError::Emission`] when it does not
+/// fit: two indices sharing one stored number would spell one name.
+fn ix(i: usize) -> Result<u32, NamingError> {
+    super::emit::to_u32(i, "a profile loop, segment or vertex index exceeds u32")
 }
 
 /// Names every boundary entity of an extrusion (spec D2's extrude
@@ -126,8 +127,8 @@ fn name_swept_topology<T: Decide>(
     for (l, segs) in side_faces.iter().enumerate() {
         for (s, &wall) in segs.iter().enumerate() {
             let pe = ProfileEdgeRef {
-                loop_index: ix(l),
-                segment: ix(s),
+                loop_index: ix(l)?,
+                segment: ix(s)?,
             };
             t.insert(
                 name1(EntityKind::Face, node, RoleSeg::Lateral(pe)),
@@ -152,8 +153,8 @@ fn name_swept_topology<T: Decide>(
     for (l, struts) in lateral_edges.iter().enumerate() {
         for (j, &strut) in struts.iter().enumerate() {
             let pv = ProfileVertexRef {
-                loop_index: ix(l),
-                vertex: ix(j),
+                loop_index: ix(l)?,
+                vertex: ix(j)?,
             };
             t.insert(
                 name1(EntityKind::Edge, node, RoleSeg::LateralEdge(pv)),
@@ -204,13 +205,17 @@ pub(crate) fn name_revolve<T: Decide>(
         name1(EntityKind::Body, node, RoleSeg::OutputBody),
         ent(0, EntityKey::Body),
     )?;
-    let pe = |l: usize, s: usize| ProfileEdgeRef {
-        loop_index: ix(l),
-        segment: ix(s),
+    let pe = |l: usize, s: usize| -> Result<ProfileEdgeRef, NamingError> {
+        Ok(ProfileEdgeRef {
+            loop_index: ix(l)?,
+            segment: ix(s)?,
+        })
     };
-    let pv = |l: usize, v: usize| ProfileVertexRef {
-        loop_index: ix(l),
-        vertex: ix(v),
+    let pv = |l: usize, v: usize| -> Result<ProfileVertexRef, NamingError> {
+        Ok(ProfileVertexRef {
+            loop_index: ix(l)?,
+            vertex: ix(v)?,
+        })
     };
     let insert_face = |t: &mut NameTable, seg: RoleSeg, f| {
         t.insert(
@@ -234,14 +239,14 @@ pub(crate) fn name_revolve<T: Decide>(
     for (l, segs) in built.walls.iter().enumerate() {
         for (s, wall) in segs.iter().enumerate() {
             if let Some(f) = wall {
-                insert_face(&mut t, RoleSeg::Band(pe(l, s)), *f)?;
+                insert_face(&mut t, RoleSeg::Band(pe(l, s)?), *f)?;
             }
         }
     }
     for (l, vs) in built.rims.iter().enumerate() {
         for (v, rim) in vs.iter().enumerate() {
             if let Some(e) = rim {
-                insert_edge(&mut t, RoleSeg::BandRim(pv(l, v)), *e)?;
+                insert_edge(&mut t, RoleSeg::BandRim(pv(l, v)?), *e)?;
             }
         }
     }
@@ -259,10 +264,10 @@ pub(crate) fn name_revolve<T: Decide>(
                 for (s, (&se, &ee)) in ss.iter().zip(es).enumerate() {
                     if se == ee {
                         // The shared axis edge of an on-axis segment.
-                        insert_edge(&mut t, RoleSeg::AxisEdge(pe(l, s)), se)?;
+                        insert_edge(&mut t, RoleSeg::AxisEdge(pe(l, s)?), se)?;
                     } else {
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Start, pe(l, s)), se)?;
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, pe(l, s)), ee)?;
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Start, pe(l, s)?), se)?;
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::End, pe(l, s)?), ee)?;
                     }
                 }
                 let rims = &built.rims[l];
@@ -272,17 +277,17 @@ pub(crate) fn name_revolve<T: Decide>(
                     if rims[v].is_some() {
                         insert_vertex(
                             &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)),
+                            RoleSeg::MeridianVertex(MeridianEnd::Start, pv(l, v)?),
                             start[v].ok_or(UNRESOLVED)?,
                         )?;
                         insert_vertex(
                             &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)),
+                            RoleSeg::MeridianVertex(MeridianEnd::End, pv(l, v)?),
                             end[v].ok_or(UNRESOLVED)?,
                         )?;
                     } else if let Some(p) = built.poles[l][v] {
                         // Pole: the same physical vertex in both chains.
-                        insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)), p)?;
+                        insert_vertex(&mut t, RoleSeg::Pole(pv(l, v)?), p)?;
                     }
                 }
             }
@@ -297,23 +302,23 @@ pub(crate) fn name_revolve<T: Decide>(
             for (l, ms) in meridians.iter().enumerate() {
                 for (s, m) in ms.iter().enumerate() {
                     if let Some(e) = m {
-                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s)), *e)?;
+                        insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Seam, pe(l, s)?), *e)?;
                     }
                 }
             }
             for (s, w) in pi_walls.iter().enumerate() {
                 if let Some(f) = w {
-                    insert_face(&mut t, RoleSeg::BandPi(pe(0, s)), *f)?;
+                    insert_face(&mut t, RoleSeg::BandPi(pe(0, s)?), *f)?;
                 }
             }
             for (s, m) in pi_meridians.iter().enumerate() {
                 if let Some(e) = m {
-                    insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Pi, pe(0, s)), *e)?;
+                    insert_edge(&mut t, RoleSeg::Meridian(MeridianEnd::Pi, pe(0, s)?), *e)?;
                 }
             }
             for (v, r) in pi_rims.iter().enumerate() {
                 if let Some(e) = r {
-                    insert_edge(&mut t, RoleSeg::BandRimPi(pv(0, v)), *e)?;
+                    insert_edge(&mut t, RoleSeg::BandRimPi(pv(0, v)?), *e)?;
                 }
             }
             let rims = &built.rims[0];
@@ -326,16 +331,16 @@ pub(crate) fn name_revolve<T: Decide>(
                     if rims[v].is_some() {
                         insert_vertex(
                             &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
+                            RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)?),
                             seam[v].ok_or(UNRESOLVED)?,
                         )?;
                         insert_vertex(
                             &mut t,
-                            RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)),
+                            RoleSeg::MeridianVertex(MeridianEnd::Pi, pv(0, v)?),
                             pi[v].ok_or(UNRESOLVED)?,
                         )?;
                     } else if let Some(p) = built.poles[0][v] {
-                        insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)), p)?;
+                        insert_vertex(&mut t, RoleSeg::Pole(pv(0, v)?), p)?;
                     }
                 }
             } else {
@@ -353,7 +358,7 @@ pub(crate) fn name_revolve<T: Decide>(
                     }
                     insert_vertex(
                         &mut t,
-                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)),
+                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(0, v)?),
                         a,
                     )?;
                 }
@@ -375,7 +380,7 @@ pub(crate) fn name_revolve<T: Decide>(
                     }
                     insert_vertex(
                         &mut t,
-                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(l, v)),
+                        RoleSeg::MeridianVertex(MeridianEnd::Seam, pv(l, v)?),
                         a,
                     )?;
                 }

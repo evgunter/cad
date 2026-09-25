@@ -38,13 +38,6 @@ use viewer::session::{DocSession, SessionOp};
 use crate::common;
 use crate::corpus;
 
-/// Coarse on purpose: the rows are about reuse across edits, not about
-/// mesh density, and the corpus has million-triangle documents at the
-/// application's δ.
-fn delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
-}
-
 fn fnv(h: &mut u64, x: u64) {
     for b in x.to_le_bytes() {
         *h ^= u64::from(b);
@@ -209,7 +202,7 @@ fn seam_index(
     seam: &mut InlineIndexer,
     session: &DocSession,
 ) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    seam_index_at(seam, session, delta())
+    seam_index_at(seam, session, common::corpus_delta())
 }
 
 /// What the seam's memo holds and did, after a build.
@@ -313,19 +306,6 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
 
 /// The plain door's answer for the same run: the definition of the
 /// picture.
-fn fresh_index(session: &DocSession) -> Result<PickIndex, viewer::pickindex::PickIndexError> {
-    let (doc, eval) = session.landed_pair().expect("a landed pair");
-    let generation = session
-        .landed_generation()
-        .expect("a landed evaluation has a generation");
-    PickIndex::build(
-        doc,
-        eval,
-        PictureKey::of(generation, delta()),
-        session.tol(),
-    )
-}
-
 /// A fixed set of rays for the picture: the six axis rays through the
 /// bounding box's centre and the eight corner-to-centre diagonals.
 fn rays_for(index: &PickIndex) -> Vec<Ray> {
@@ -898,7 +878,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     let mut seam = InlineIndexer::new();
     let mut steps = Vec::new();
     let index = seam_index(&mut seam, &session);
-    let fresh = fresh_index(&session);
+    let fresh = common::index_at(&session, common::corpus_delta());
     assert!(
         index.is_ok(),
         "{name}: the document indexes as opened: {index:?}"
@@ -927,7 +907,7 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
         );
         session.pump();
         let index = seam_index(&mut seam, &session);
-        let fresh = fresh_index(&session);
+        let fresh = common::index_at(&session, common::corpus_delta());
         let landed = assert_same_answer(name, step, &index, &fresh, &session);
         if let Ok(index) = &index {
             assert_memo_is_one_picture(name, step, &seam, index);
@@ -941,7 +921,8 @@ fn drive(name: &str, doc: ProfileDoc, edits: &[(&str, Edit)], tol: Tol) -> Vec<S
     // of the one tolerance a process commits, so there is no second
     // value to change to here — the (ε, k) axis is exercised as CI's
     // per-process eps rows, each of which opens its memo cold.
-    let finer = DisplayTolerance::new(delta().get() / 2.0).expect("a positive delta");
+    let finer =
+        DisplayTolerance::new(common::corpus_delta().get() / 2.0).expect("a positive delta");
     let index = seam_index_at(&mut seam, &session, finer);
     if let Ok(index) = &index {
         let r = reading(&seam);
@@ -1056,8 +1037,8 @@ fn the_worker_threads_memo_answers_across_landings_and_a_skipped_generation() {
             if !ask {
                 continue;
             }
-            let done = answer(&mut worker, request_at(&session, delta()));
-            let fresh = fresh_index(&session);
+            let done = answer(&mut worker, request_at(&session, common::corpus_delta()));
+            let fresh = common::index_at(&session, common::corpus_delta());
             let faces = assert_same_answer(
                 name,
                 &format!("landing {landing}"),
@@ -1120,9 +1101,8 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
 /// After the gallery ring's bump, the tie-break row aims a ray along
 /// +y at a chord point of the tube. The ray lies in the plane of a
 /// triangle of the face it does NOT cross there: Möller–Trumbore's
-/// determinant for that triangle is rounding noise (~2e-19), and its
-/// its quotient `t = e2·q / det` cancels to `1.476`, 0.004 BELOW the
-/// corner, while its `u` and `v` are exactly `0`: in exact arithmetic
+/// determinant for that triangle is rounding noise, and its quotient
+/// `t = e2·q / det` cancels to `1.5`, 0.02 BEYOND the corner, while its `u` and `v` are exactly `0`: in exact arithmetic
 /// over the mesh's rounded corners the ray passes through that
 /// triangle's own corner `a` — the chord point — and its true `t` is
 /// `1.480`. The exact test now takes `t` from the hit point
@@ -1157,13 +1137,11 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         outcome.refusal
     );
     session.pump();
-    let index = fresh_index(&session).expect("the bumped ring indexes");
-    let corner = Point3::new(0.3628905537491952, 0.0, 0.07218341914596763);
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(corner.x, corner.y - reach, corner.z),
-        dir: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let index =
+        common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
+    let corner = Point3::new(0.22558061449274294, 0.0, 0.0448707740637096);
+    let reach = REACH;
+    let ray = aimed_along_y(corner, 1.0);
     let same = |p: &Point3<f64>, q: &Point3<f64>| {
         (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
             == (q.x.to_bits(), q.y.to_bits(), q.z.to_bits())
@@ -1286,13 +1264,11 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         outcome.refusal
     );
     session.pump();
-    let index = fresh_index(&session).expect("the bumped ring indexes");
+    let index =
+        common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(vertex.x, vertex.y + reach, vertex.z),
-        dir: Vec3::new(0.0, -1.0, 0.0),
-    };
+    let reach = REACH;
+    let ray = aimed_along_y(vertex, -1.0);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1456,17 +1432,14 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         .expect("tube_arc is a corpus document");
     let mut session = DocSession::inline(c.doc.clone(), tol);
     session.pump();
-    let index = fresh_index(&session).expect("tube_arc indexes");
+    let index = common::index_at(&session, common::corpus_delta()).expect("tube_arc indexes");
     let vertex = Point3::new(
         1.253_413_016_011_234,
         0.384_323_569_889_266_14,
         -1.952_075_113_318_894_5,
     );
-    let reach = 1.48;
-    let ray = Ray {
-        origin: Point3::new(vertex.x, vertex.y - reach, vertex.z),
-        dir: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let reach = REACH;
+    let ray = aimed_along_y(vertex, 1.0);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1564,6 +1537,21 @@ const TUBE_ARC_WIDE_CANDIDATE_T: f64 = 1.475_904_852_772_309_5;
 /// `cargo test -p viewer --test all -- index_memo::a_wide_but --nocapture`.
 const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 
+/// The standoff the aimed-point rows fire from. It is an INPUT, and
+/// [`RING_CORNER_T`] below is an ANSWER a row expects back; they are
+/// kept apart so that a row comparing the two is still comparing
+/// something.
+const REACH: f64 = 1.48;
+
+/// A ray along `sense` y (`1.0` or `-1.0`) whose target `p` lies
+/// [`REACH`] along it.
+fn aimed_along_y(p: Point3<f64>, sense: f64) -> Ray {
+    Ray {
+        origin: Point3::new(p.x, p.y - sense * REACH, p.z),
+        dir: Vec3::new(0.0, sense, 0.0),
+    }
+}
+
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
@@ -1577,14 +1565,12 @@ fn first_length_slot(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
         match doc.node(node).expect("a node") {
             editor_core::Node::Extrude { distance, .. } => {
                 let value = editor_core::eval(distance, &env).expect("a literal distance");
-                let expr =
-                    Expr::literal(value * 1.03125, Dimension::Length).expect("a length literal");
+                let expr = common::len(value * 1.03125);
                 return (node, SlotId::Distance, expr);
             }
             editor_core::Node::Revolve { angle, .. } => {
                 let value = editor_core::eval(angle, &env).expect("a literal angle");
-                let expr =
-                    Expr::literal(value * 0.96875, Dimension::Angle).expect("an angle literal");
+                let expr = common::ang(value * 0.96875);
                 return (node, SlotId::RevolveAngle, expr);
             }
             _ => {}

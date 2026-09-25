@@ -20,17 +20,13 @@ pub mod analysis;
 pub mod appearance;
 pub mod assembly;
 pub mod checks;
-#[cfg(feature = "interval")]
 pub mod clearance;
 pub mod diff;
 pub mod distribution;
 pub mod doc;
 /// The E6 subdivision driver — the analysis lane's parameter-box
-/// verdict. Gated on `interval` because the leaf protocol replays at
-/// the certified interval scalar: without that scalar there is no leaf
-/// to certify, and a driver that fell back to `f64` would be a
-/// sampler.
-#[cfg(feature = "interval")]
+/// verdict. The leaf protocol replays at the certified interval
+/// scalar: a driver that fell back to `f64` would be a sampler.
 pub mod drive;
 pub mod edit;
 pub mod eval;
@@ -42,14 +38,7 @@ pub mod mate;
 /// The E11.1 Monte-Carlo ADVISORY estimator lane (ruling Q3): pure f64
 /// replay over samples drawn from the document's own distributions.
 /// Never gates, never persists as an assertion, never enters the
-/// accounting.
-///
-/// **UNGATED** (M10-6, R2's MINOR-9). It shipped behind `interval`,
-/// which made E11.1's pure-`f64` advisory lane unusable in a default
-/// build — a narrowing nothing in E11 asks for. The only thing holding
-/// it there was one hashing helper that lived in the gated reporting
-/// module; the helper moved to [`mod@eval`] beside `KeyHasher`, and
-/// nothing else in this module needs the certified scalar.
+/// accounting. Nothing in this module needs the certified scalar.
 pub mod mc;
 pub mod measure;
 pub mod meta;
@@ -66,29 +55,23 @@ pub mod program;
 /// query whose answer is meant to REPLACE the sampling probe's
 /// reading, in a consumer nothing in this tree has built yet
 /// (`work/offer/certify-affordance-on-the-bounds-panel`,
-/// `work/lib/certified-range-has-no-python-door`). Gated on `interval`
-/// for [`mod@drive`]'s reason: the certificate IS a drive's leaves,
-/// and a query that fell back to `f64` would be the sampler it exists
-/// to improve on.
-#[cfg(feature = "interval")]
+/// `work/lib/certified-range-has-no-python-door`). The certificate IS
+/// a [`mod@drive`]'s leaves, and a query that fell back to `f64` would
+/// be the sampler it exists to improve on.
 pub mod range;
 pub mod refactor;
 /// The E10/E11.6 reporting layer: the goldening and human forms every
 /// derived report carries, the priced-vs-forced budget type, the
-/// leaf-mass histogram, and the one content-key cache. Gated on
-/// `interval` because every report in it is derived from a drive, and
-/// a drive needs the certified scalar to have leaves at all.
-#[cfg(feature = "interval")]
+/// leaf-mass histogram, and the one content-key cache. Every report
+/// in it is derived from a drive.
 pub mod report;
 pub mod resolve;
 pub mod roots;
 /// The E4 sensitivity driver and the E5 stackup — the analysis lane's
-/// derivative and report services over [`mod@drive`]'s leaves. Gated on
-/// `interval` for the driver's own reason: every sensitivity carries a
-/// chamber mark whose certified variant IS an E6 leaf identity, and
-/// the gating `worst_case` is a certified interval enclosure; without
-/// the certified scalar neither exists to be minted.
-#[cfg(feature = "interval")]
+/// derivative and report services over [`mod@drive`]'s leaves. Every
+/// sensitivity carries a chamber mark whose certified variant IS an E6
+/// leaf identity, and the gating `worst_case` is a certified interval
+/// enclosure.
 pub mod stackup;
 pub mod update;
 mod verbs;
@@ -119,15 +102,15 @@ pub use distribution::{Distribution, DistributionFault, DistributionField};
 pub use doc::{
     DisplayUnitRefusal, DistributionRefusal, Doc, DocParam, DocParamField, DocParamValue, ParamName,
 };
-#[cfg(feature = "interval")]
 pub use drive::{
     BudgetKind, CertifiedLeaf, DEFAULT_MAX_DEPTH, DEFAULT_MAX_LEAVES, DriveConfig, DriveRefusal,
     FlipEvidence, LeafResults, MeasureAccounting, ParamBoxVerdict, ReasonClass, Receipt,
     RefusalReason, RefusedLeaf, StructureFlip, drive,
 };
 pub use edit::{
-    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, Maintenance, apply,
-    apply_logged, cascade_delete_order,
+    Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
+    Maintenance, MaintenanceNet, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged,
+    cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -158,21 +141,21 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
-    UnevaluatedReason, WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
+    WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
     ALL_SURFACE_KINDS, CONTACT_RECOURSE, CapEnd, Cmp, ContactClass, ContactRefusal, ContactVerdict,
     CurveKind, CurveKindSet, DeclareError, DeclaredContact, Denotation, DuplicateName, EntityKey,
     EntityKind, EntityRef, Entry, FIT_DEFERRAL, FaceName, FlushEvidence, FlushFinding, FlushRung,
-    GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef, NameTable, NamingError,
-    NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier, RimShare, RimSupport,
-    RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal, Selector, Side,
-    SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies, all_edges, all_faces,
-    all_vertices, attribute, band, band_pi, band_rim, carried, declare, declare_all, declare_node,
-    denotation, edge_carrier_kind, edge_frame, face_carrier_kind, face_frame,
-    find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
+    FragmentGroups, GeomPred, InterrogateError, MeridianEnd, NameOrigin, NamePat, NameRef,
+    NameTable, NamingError, NotAFaceName, OpGroup, ProfileEdgeRef, ProfileVertexRef, Qualifier,
+    RimShare, RimSupport, RolePath, RoleSeg, SEL_DATUM_DISTANCE, SegPat, SegTag, SelectRefusal,
+    Selector, Side, SideVerdict, SplitHalf, StableName, SurfaceKindSet, TagPat, all_bodies,
+    all_edges, all_faces, all_vertices, attribute, band, band_pi, band_rim, carried, declare,
+    declare_all, declare_node, denotation, edge_carrier_kind, edge_frame, face_carrier_kind,
+    face_frame, find_flush_candidates, meridian_vertex, select, select_where, vertex_position,
 };
 pub use node::{
     Axis3, BooleanOp, Datum, InputFault, InterfaceCrossing, InterfaceRecord, MeasureNodeFault,
@@ -197,29 +180,28 @@ pub use program::{
     ProgramStep, ProgramTarget, RecordedNotation, RecordedProgramError, StepSegmentsError,
     resolve_loops,
 };
-#[cfg(feature = "interval")]
 pub use range::{
     CertifiedRange, DerivedRange, RangeField, RangeRefusal, RangeSeed, RangeSide, certified_range,
 };
-pub use refactor::{InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, split};
-#[cfg(feature = "interval")]
+pub use refactor::{
+    InlineError, InlineOutcome, NodeMap, SplitError, SplitOutcome, inline, remap_name, split,
+};
 pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FlipSource, HitTestError, MeshPatchKey, NodeVerdictDelta,
+    Diagnosis, FlipSet, FlipSource, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
     PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
     ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS, ShadowExecRefusal,
-    TieWitness, Tombstone, VerdictFlip, appearance_rebind_suggestions, apply_with_names, body_name,
-    derivation_nodes, diff_verdicts, edge_name, enrich_appearance_loss,
-    enrich_appearance_loss_with_prior, entity_name, face_name, rebind_suggestions, resolve,
-    resolve_with_prior, vertex_name,
+    TieWitness, Tombstone, UpstreamCause, VerdictFlip, appearance_rebind_suggestions,
+    apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
+    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{
     NodeVerdicts, SummaryDelta, SummaryDivergence, SummaryFlip, SummaryFlipSet, VerdictRow,
     VerdictSummary, VerdictVector, VerdictVectorKey, diff_summaries, verdict_summary,
 };
-pub use verbs::shell::ShellLane;
 // GUI-1: the hit-test service (G1 `ray → stable ref`), with the ray
 // vocabulary re-exported from `bvh` so a layer-3 consumer needs no
 // direct bvh dependency.
@@ -228,7 +210,6 @@ pub use resolve::{
     MeshPick, MeshPickError, NodePick, NodePickError, PickHit, PickMemo, PickTarget, pick_face,
 };
 pub use roots::RootFault;
-#[cfg(feature = "interval")]
 pub use stackup::{
     Chamber, ChamberSpan, LiftRefusal, PairingViolation, PerParam, Rss, Sensitivity,
     SensitivityOutcome, SensitivityRefusal, Stackup, StackupRefusal, Unavailable, WorstCase,

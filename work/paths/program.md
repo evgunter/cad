@@ -2,7 +2,7 @@
 id: paths
 kind: program
 title: PATHS — the profile lattice: the authoring algebra's carriers, closers, joints and its two-plane frame
-status: ready
+status: active
 opened: 2026-09-16
 area: kernel
 prefix: paths/

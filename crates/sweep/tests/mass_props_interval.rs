@@ -4,7 +4,6 @@
 //! independent analytic closed form, and the f64-lane value lies
 //! within the enclosure's width of it.
 
-#![cfg(feature = "interval")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
@@ -12,7 +11,7 @@ use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Real, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane, ValidatedProfile};
+use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, mass_properties};
 
@@ -77,9 +76,9 @@ fn l_prism_interval_encloses_closed_forms() {
 
 #[test]
 fn ball_interval_encloses_closed_forms() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
+    let lp = bulge_loop(vec![
+        (p2(0.0, -1.0), Interval::from_f64(1.0)),
+        (p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -135,9 +134,9 @@ fn wedge_interval_encloses_closed_forms() {
 #[test]
 fn f64_value_within_interval_enclosure() {
     // Ball at both scalars.
-    let lp_i = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), Interval::from_f64(1.0)),
-        ProfileVertex::new(p2(0.0, 1.0), Interval::from_f64(0.0)),
+    let lp_i = bulge_loop(vec![
+        (p2(0.0, -1.0), Interval::from_f64(1.0)),
+        (p2(0.0, 1.0), Interval::from_f64(0.0)),
     ]);
     let t_i = revolve(
         &validated(vec![lp_i]),
@@ -148,9 +147,9 @@ fn f64_value_within_interval_enclosure() {
     .unwrap();
     let enc = mass_properties(&t_i.body, Tol::witness()).unwrap().volume;
 
-    let lp_f = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, -1.0), 1.0),
-        ProfileVertex::new(Point2::new(0.0, 1.0), 0.0),
+    let lp_f = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let vp_f = Profile::new(SketchPlane::xy(), vec![lp_f])
         .validate(geom_core::Tol::witness())

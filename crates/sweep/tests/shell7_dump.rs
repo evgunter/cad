@@ -17,7 +17,7 @@ use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom::Curve3;
 use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, FaceKey, VertexKey};
@@ -180,11 +180,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
 
 fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
-        ProfileLoop::new(
-            pts.iter()
-                .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-                .collect(),
-        ),
+        bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect()),
         turn,
     )
 }
@@ -201,11 +197,11 @@ fn torus_barrel() -> Body<f64> {
     let c = p2(6.0 / 64.0, 1.0 / 16.0);
     let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(lo, bulge(lo, hi, c)),
-            ProfileVertex::new(hi, 0.0),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (lo, bulge(lo, hi, c)),
+            (hi, 0.0),
+            (p2(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -215,12 +211,12 @@ fn torus_belly() -> Body<f64> {
     let c = p2(7.0 / 64.0, 5.0 / 64.0);
     let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(4.0 / 64.0, 0.0), 0.0),
-            ProfileVertex::new(lo, bulge(lo, hi, c)),
-            ProfileVertex::new(hi, 0.0),
-            ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(4.0 / 64.0, 0.0), 0.0),
+            (lo, bulge(lo, hi, c)),
+            (hi, 0.0),
+            (p2(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -228,10 +224,7 @@ fn torus_belly() -> Body<f64> {
 
 fn lune(r: f64, turn: f64) -> Body<f64> {
     revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -r), 0.0),
-            ProfileVertex::new(p2(0.0, r), -1.0),
-        ]),
+        bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)]),
         Revolution::Partial(turn),
     )
 }
@@ -241,11 +234,11 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
     let c = p2(0.0, h / 2.0);
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -254,10 +247,7 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 // ---- verbs_shell's klein elbow ----
 
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-r, 0.0), 1.0),
-        ProfileVertex::new(p2(r, 0.0), 1.0),
-    ])
+    bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])
 }
 
 fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
@@ -284,15 +274,15 @@ fn torus_vessel(centre_rho: f64) -> Body<f64> {
     let (y_foot, y_shoulder, y_mouth, h_tube) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0, 8.0 / 64.0);
     let (a, b) = (p2(r_band, y_foot), p2(r_band, y_shoulder));
     revolved(
-        RawLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r_foot, 0.0), 0.0),
-            ProfileVertex::new(p2(r_foot, y_foot), 0.0),
-            ProfileVertex::new(a, bulge(a, b, p2(centre_rho, h_tube))),
-            ProfileVertex::new(b, 0.0),
-            ProfileVertex::new(p2(r_neck, y_shoulder), 0.0),
-            ProfileVertex::new(p2(r_neck, y_mouth), 0.0),
-            ProfileVertex::new(p2(0.0, y_mouth), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r_foot, 0.0), 0.0),
+            (p2(r_foot, y_foot), 0.0),
+            (a, bulge(a, b, p2(centre_rho, h_tube))),
+            (b, 0.0),
+            (p2(r_neck, y_shoulder), 0.0),
+            (p2(r_neck, y_mouth), 0.0),
+            (p2(0.0, y_mouth), 0.0),
         ]),
         Revolution::Full,
     )
@@ -423,10 +413,7 @@ fn shell7_dump_corpus() {
         let (s, c) = v.sin_cos();
         let a = p2(2.0 + 0.5 * c, 0.5 * s);
         let b = p2(2.0 - 0.5 * c, -0.5 * s);
-        let body = revolved(
-            RawLoop::new(vec![ProfileVertex::new(a, 1.0), ProfileVertex::new(b, 1.0)]),
-            Revolution::Full,
-        );
+        let body = revolved(bulge_loop(vec![(a, 1.0), (b, 1.0)]), Revolution::Full);
         shelled(&format!("revolved torus, v = {v}"), &body, 0.05);
     }
     let mut wedge = polyline(
@@ -482,10 +469,10 @@ fn shell7_dump_corpus() {
     let v = PI / 4.0;
     let (sn, cs) = v.sin_cos();
     let ball = revolved(
-        ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, -1.0), ((FRAC_PI_2 + v) / 4.0).tan()),
-            ProfileVertex::new(p2(cs, sn), ((FRAC_PI_2 - v) / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, -1.0), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (p2(cs, sn), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (p2(0.0, 1.0), 0.0),
         ]),
         Revolution::Full,
     );

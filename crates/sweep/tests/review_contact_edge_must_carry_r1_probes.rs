@@ -36,7 +36,7 @@
 
 use geom_brep::{EdgeDescription, SurfaceKind};
 use geom_core::{Band, MarginDiag, Point2, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -119,10 +119,10 @@ fn sphere_zone_on_base(big_r: f64) -> Body<f64> {
     let bulge = (60f64.to_radians() / 4.0).tan();
     revolved_about_y(
         vec![
-            ProfileVertex::new(Point2::new(0.2 * big_r, 0.0), 0.0),
-            ProfileVertex::new(Point2::new(big_r, 0.0), bulge),
-            ProfileVertex::new(Point2::new(big_r * c, big_r * s), 0.0),
-            ProfileVertex::new(Point2::new(0.2 * big_r, big_r * s), 0.0),
+            (Point2::new(0.2 * big_r, 0.0), 0.0),
+            (Point2::new(big_r, 0.0), bulge),
+            (Point2::new(big_r * c, big_r * s), 0.0),
+            (Point2::new(0.2 * big_r, big_r * s), 0.0),
         ],
         Revolution::Full,
         tol(),
@@ -252,18 +252,18 @@ fn r1_the_screened_ratio_scaled_into_the_band_is_refused_at_the_mill() {
 /// A block `[−1, 1]² × [0, len]` with a D-shaped through-hole of
 /// radius `big_r` and flat at `x = flat`, as one profile with a ring.
 fn block_with_d_bore(big_r: f64, flat: f64, len: f64) -> Body<f64> {
-    let block = ProfileLoop::new(
+    let block = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let y = (big_r * big_r - flat * flat).sqrt();
     let theta = 2.0 * (core::f64::consts::PI - y.atan2(flat));
     let bulge = (theta / 4.0).tan();
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(flat, y), bulge),
-        ProfileVertex::new(Point2::new(flat, -y), 0.0),
+    let hole = bulge_loop(vec![
+        (Point2::new(flat, y), bulge),
+        (Point2::new(flat, -y), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![block, hole])
         .validate(tol())
@@ -336,8 +336,8 @@ fn r1_the_die_spends_the_rules_stations_once_per_contact_edge_beside_the_certifi
     use geom_core::k_stats::{self, Probe};
     let interior = usize::try_from(CERT_SAMPLES - 2).expect("a small count");
     // The unit die through the extrude door at the `Probe` scalar.
-    let p = |x: f64, y: f64| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(0.0));
-    let square = ProfileLoop::new(vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)]);
+    let p = |x: f64, y: f64| (Point2::new(Probe(x), Probe(y)), Probe(0.0));
+    let square = bulge_loop(vec![p(0.0, 0.0), p(1.0, 0.0), p(1.0, 1.0), p(0.0, 1.0)]);
     let profile = Profile::new(SketchPlane::<Probe>::xy(), vec![square])
         .validate(tol())
         .expect("the die's profile validates");

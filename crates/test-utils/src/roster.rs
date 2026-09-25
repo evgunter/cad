@@ -342,7 +342,7 @@ fn violations_against(
 ///
 /// One `--list` re-exec of the test binary, in single-digit
 /// milliseconds. Measured at 6.6-7.9 ms over eight runs on
-/// `editor-core`'s aggregated `all` binary under `--features interval`
+/// `editor-core`'s aggregated `all` binary with the certified lane in
 /// — the largest in the tree, ~450 MB and 1630 listed rows, of which
 /// this file contributes eight.
 ///

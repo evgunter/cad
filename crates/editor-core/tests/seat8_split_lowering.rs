@@ -153,7 +153,7 @@ fn a_split_document_with_projections_round_trips_byte_identical() {
 #[test]
 fn the_split_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("cut_cylinder", 0xeaea_81fa_b3df_29e3_u64),
+        ("cut_cylinder", 0xc6b0_1428_95b9_7df2_u64),
         ("part_select", 0xd31a_b4c8_da48_2cd5),
         ("kitchen_sink", 0x8826_0b67_1ded_0c08),
     ] {

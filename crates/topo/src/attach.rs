@@ -69,6 +69,20 @@ impl<T: Decide> Body<T> {
     /// can invalidate an adjacent edge's certification; tier 3 reports
     /// it — attach surfaces before upgrading edge descriptions.)
     ///
+    /// **The face's pcurve rows are not a cache this door may keep.** A
+    /// row is a curve stated in a face's CHART
+    /// ([`crate::pcurves`]), so re-charting the face in place makes
+    /// every one of its rows a statement about a surface the face is no
+    /// longer on — the loop-re-parenting doors' defect with the two
+    /// sides swapped, and it takes their answer: a swap onto the same
+    /// chart carries every row untouched, and a swap onto a different
+    /// one drops the face's rows ([`Body::drop_face_rows`]), deriving
+    /// nothing. A caller that wants the face's rows on its new chart
+    /// runs [`crate::pcurves::mint_pcurves`]. Leaving them was silent
+    /// wherever the new surface does not mint — tier 3's pcurve pass
+    /// skips such a face — so what the drop removes is a wrong row no
+    /// reader could be warned about.
+    ///
     /// # Errors
     ///
     /// [`EulerOpError::StaleKey`] if `face` does not resolve;
@@ -88,6 +102,13 @@ impl<T: Decide> Body<T> {
         // ---- Mutation (infallible from here on). ----
         let new = self.mint_face_surface(surface, old);
         if new != old {
+            // The chart question is asked HERE, where both keys still
+            // resolve: minting removes nothing, and the orphan sweep
+            // below can take `old` out of the arena — a key that
+            // resolves to nothing reads as a chart change whatever the
+            // two charts were. Nothing below reads a surface again, so
+            // the writes that follow answer to no ordering.
+            let carries_rows = self.same_chart(old, new);
             let Some(f) = self.get_face_mut(face) else {
                 unreachable!(
                     "set_face_surface: `face` resolved in the plan phase and minting a \
@@ -95,6 +116,9 @@ impl<T: Decide> Body<T> {
                 )
             };
             f.surface = new;
+            if !carries_rows {
+                self.drop_face_rows(face);
+            }
             self.remove_surface_if_orphaned(old);
         }
 
@@ -120,13 +144,12 @@ impl<T: Decide> Body<T> {
     /// know. Callers must keep the two encodings of orientation
     /// coherent — the bit and the loop winding — and the obligation is
     /// the CALLER'S, because at rest it is only partly checkable:
-    /// tier 3's check 6 falsifies a planar disagreement whose loop is
-    /// LINE-bounded, and passes over one whose loop carries a conic.
-    /// That skip is deliberate and banner-documented at the arm (an
-    /// arc's vertex chord is not the boundary), and it is a recorded
-    /// residual, so a planar face bounded by an arc can carry an
-    /// inverted bit through this door and certify. The test-only
-    /// hand-flip door [`Body::flipped_face_sense_for_tests`] is the
+    /// tier 3's check 6 falsifies a planar disagreement whose loop
+    /// rides `Line` and `Circle` carriers, and passes over one whose
+    /// loop rides an `Ellipse`, spiric or NURBS carrier (the residue
+    /// named at the arm's banner), so a planar face bounded so can
+    /// carry an inverted bit through this door and certify. The
+    /// test-only hand-flip door [`Body::flipped_face_sense_for_tests`] is the
     /// deliberate exception to the coherence rule; it is not the only
     /// way to break it.
     ///
@@ -167,6 +190,30 @@ impl<T: Decide> Body<T> {
     /// `he_plus` forward order; intrinsic/seam descriptions must also
     /// be **adjacency-coherent** (module docs). The old curve is
     /// removed iff no other edge references it.
+    ///
+    /// **A carrier swap leaves the pcurve rows where they are, and
+    /// that is not [`Body::set_face_surface`]'s case.** A row is stated
+    /// in a FACE's chart and keyed on a half-edge; this door moves
+    /// neither, so no row changes what it is ABOUT. What it does change
+    /// is what the row must agree WITH, and the tier-3 pcurve pass
+    /// re-derives that agreement from the edge's CURRENT curve on every
+    /// run — so on a COMPLETE face a row left saying the old carrier's
+    /// image is refused per half-edge, loud, which is where the surface
+    /// setter was silent.
+    ///
+    /// **Two faces of the pass are silent, and neither is this door's
+    /// to close.** A face whose chart mints nothing holds no minted row
+    /// for a carrier swap to stale at all. A HALF-MINTED face does hold
+    /// them, and the pass skips its re-certification entirely — it
+    /// reports the missing rows and then measures nothing else about
+    /// that face
+    /// (`work/trim/validate-pcurves-never-recertifies-a-face-it-finds-incomplete`),
+    /// so a row this door stales there is accepted unmeasured. That is
+    /// the pass's property for every content staleness in the tree, not
+    /// a fact about carrier swaps, and dropping rows here would buy a
+    /// `MissingCache` on that one face at the price of a re-mint on
+    /// every swap that certifies — including the upgrades this door
+    /// exists for, whose rows stay true within band.
     ///
     /// # Errors
     ///

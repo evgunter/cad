@@ -1470,7 +1470,6 @@ mod arc_clearance_tests {
     /// The same circle at the **interval** scalar: the division by an
     /// enclosure that contains zero poisons rather than overflowing,
     /// and a poisoned margin is what the boolean lane escalates on.
-    #[cfg(feature = "interval")]
     #[test]
     fn a_through_axis_circle_poisons_the_interval_lane() {
         use geom_core::Interval;

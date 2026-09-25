@@ -7,8 +7,9 @@
 //! torus bands all certified tier-3 GREEN with volumes BIT-IDENTICAL
 //! to the honest bodies, and fully inside-out washer/cone/donut/
 //! lantern bodies certified green with positive volume (their planar
-//! caps are arc-bounded, so the planar check-6 arm never saw them).
-//! These rows pin the closure: per kind and per direction where the
+//! caps are arc-bounded, which the planar check-6 arm then skipped;
+//! it examines loops of line and circle carriers now, so those caps
+//! refuse too). These rows pin the closure: per kind and per direction where the
 //! corpus offers them, the hand-flipped body now refuses with
 //! `CurvedSenseInverted` naming the flipped face — and every HONEST
 //! body, including the S11 `sense: false` faces (a washer's bore, a
@@ -20,9 +21,10 @@
 //! conic-trimmed class is likewise pinned AS residual (adversarial
 //! review, M2): a wall trimmed by an ellipse rim slips BOTH layers —
 //! the kernel arm exempts on the boundary parse's typed refusal, the
-//! import rider finds no circle-rim pair — so `cut_cylinder`'s flips
-//! (single wall AND whole body) stay green until the ellipse-rim
-//! encoding lands.
+//! import rider finds no circle-rim pair. A single wall flip is now
+//! caught one dimension down (`LaminaWedge`), and a whole-body
+//! inversion at the circle-bounded bottom cap (`LoopRoleInverted`);
+//! the ellipse-bounded section face is the planar arm's own residue.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -268,9 +270,8 @@ fn ball_half_flip_is_caught_at_the_shared_edge() {
 }
 
 /// The HEADLINE pins: whole-body inversions that certified GREEN with
-/// positive, bit-identical volume before this unit (their planar caps
-/// are arc-bounded — exempt from the planar check-6 arm — and the
-/// volume is traversal-derived, blind to the bits) now refuse with
+/// positive, bit-identical volume before the curved arm (the volume is
+/// traversal-derived, blind to the bits) refuse with
 /// `CurvedSenseInverted` on every rim-bearing curved face.
 #[test]
 fn whole_body_inversions_refuse() {
@@ -336,31 +337,26 @@ fn planar_control_unchanged() {
     );
 }
 
-/// The conic-trim residual, RE-CUT: the single-face flip is caught now,
-/// and only the whole-body inversion survives.
+/// The conic-trim residual, RE-CUT twice: the single-face flip and the
+/// whole-body inversion are both caught now, and the ellipse-bounded
+/// section face is what is left.
 ///
-/// The recorded posture was that `cut_cylinder`'s wall is trimmed by a
-/// tilted-section ELLIPSE, so its flux is quadrature-owned
-/// (winding-derived, bit-free) and its boundary parse refuses typed —
-/// the curved sense arm EXEMPTS it by the inherited posture, and the
-/// import rider finds no circle-rim pair to read — so a flipped wall
-/// AND the whole-body inversion both certified green: the one corpus
-/// body on which the headline defect class survived. That row was
-/// written to flip "when the ellipse-rim material-side encoding lands".
+/// `cut_cylinder`'s wall is trimmed by a tilted-section ELLIPSE, so its
+/// flux is quadrature-owned (winding-derived, bit-free) and its
+/// boundary parse refuses typed — the curved sense arm EXEMPTS it by
+/// the inherited posture. Flipping ONE wall is caught by tier 3's
+/// material-wedge arm one dimension down: the two trimmed walls share
+/// a cylinder, so their material sides oppose along the two edges they
+/// share while their jets osculate exactly — a lamina
+/// (`ValidationError::LaminaWedge`).
 ///
-/// **What lands instead is tier 3's material-wedge arm**, and it
-/// catches the same defect one dimension down: the two trimmed walls
-/// share a cylinder, so flipping ONE of them makes their material
-/// sides oppose along the two edges they share while their jets
-/// osculate exactly — a lamina, which no declaration can cure
-/// (`ValidationError::LaminaWedge`). Neither exemption above moved: the
-/// curved sense arm still exempts the conic-trimmed wall and the flux
-/// is still quadrature-owned. A different check reaches it.
-///
-/// The whole-body inversion stays green and stays the residual: it
-/// flips every face at once, so no PAIR's material sides disagree and
-/// the wedge arm has nothing to say — the quadrature volume being
-/// winding-derived is what leaves it standing.
+/// The WHOLE-BODY inversion leaves no pair's material sides in
+/// disagreement, so the wedge arm has nothing to say, and the volume
+/// stays positive. What refuses it is check 6's planar arm at the
+/// bottom cap, whose loop rides circle arcs: exactly one
+/// `LoopRoleInverted`, naming that cap. The section face, bounded by
+/// the `Ellipse`, is outside the planar arm and is never named
+/// (`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
 #[test]
 fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue() {
     let body = cut_cylinder();
@@ -380,17 +376,59 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue(
             "the material-wedge arm is what catches it: {errs:?}"
         );
     }
+    // The planar faces, split by whether their outer loop rides the
+    // section `Ellipse`.
+    let rides_ellipse = |f: FaceKey| {
+        let face = body.get_face(f).expect("live face");
+        let topo::entity::LoopBoundary::Cycle { first } =
+            body.get_loop(face.outer).expect("live loop").boundary
+        else {
+            return false;
+        };
+        body.loop_cycle(first)
+            .expect("a live cycle closes")
+            .iter()
+            .any(|&he| {
+                body.get_half_edge(he)
+                    .and_then(|hd| body.get_edge(hd.edge))
+                    .and_then(|e| body.get_curve_geom(e.curve))
+                    .and_then(topo::null::CurveGeom::certified)
+                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))
+            })
+    };
+    let planes = faces_where(&body, |s| matches!(s, Surface::Plane { .. }));
+    let (section, caps): (Vec<FaceKey>, Vec<FaceKey>) = planes
+        .iter()
+        .map(|&(k, _)| k)
+        .partition(|&k| rides_ellipse(k));
+    assert_eq!(
+        section.len(),
+        1,
+        "one planar face rides the section ellipse"
+    );
+    assert_eq!(caps.len(), 1, "one planar cap rides circle arcs");
+
     let inverted = flip_all(&body);
-    assert!(
-        validate_geometric(&inverted, Tol::witness()).is_ok(),
-        "whole-body-inverted cut_cylinder stays green (residual): quadrature volume \
-         is winding-derived and the trimmed wall is exempt"
+    let errs = validate_geometric(&inverted, Tol::witness())
+        .expect_err("the whole-body inversion is refused at the circle-bounded cap");
+    let named: Vec<FaceKey> = errs
+        .iter()
+        .map(|e| match e {
+            ValidationError::LoopRoleInverted { face, .. } => *face,
+            other => panic!("only check 6's planar arm refuses the inversion, got {other:?}"),
+        })
+        .collect();
+    assert_eq!(
+        named, caps,
+        "exactly the circle-bounded cap refuses; the ellipse-bounded section face is the \
+         planar arm's residue"
     );
     let v = topo::mass_properties(&inverted, Tol::witness())
         .expect("volume computes")
         .volume;
     assert!(
         v > 0.0,
-        "the inverted body even keeps its positive volume ({v}) — the residual's teeth"
+        "the inverted body keeps its positive volume ({v}): no volume gate sees the \
+         inversion, only the cap's winding does"
     );
 }

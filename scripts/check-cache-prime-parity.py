@@ -3,11 +3,12 @@
 
 WHY THIS EXISTS. `Swatinem/rust-cache` composes its key from the prefix, the
 `shared-key`, os + arch, a hash of the CARGO_*/RUST* environment, and a hash of
-the lockfiles. `cache-prime` / `cache-prime-interval` in
-`.github/workflows/ci.yml` exist only to write that entry in the DEFAULT
-BRANCH's scope, which is the only scope every branch can read; `build` /
-`build-interval` restore it. The two sides agree today because their `env:`
-blocks are the same text and their `shared-key`s are the same string.
+the lockfiles. `cache-prime` in `.github/workflows/ci.yml` exists only to
+write that entry in the DEFAULT BRANCH's scope, which is the only scope every
+branch can read; `build` restores it. The two sides agree today because their
+`env:` blocks are the same text and their `shared-key`s are the same string.
+(There was a second pair, `build-interval` / `cache-prime-interval`, while the
+`interval` feature made a second compile mode; RING-4 deleted it.)
 
 THE FAILURE MODE THIS CATCHES IS SILENT. Change `CARGO_PROFILE_TEST_OPT_LEVEL`
 on the build job and not on the primer, or rename one `shared-key`, and the two
@@ -24,9 +25,9 @@ WHAT IT PROVES, no wider:
   necessarily ci.yml — their
   `env:` blocks are identical once comments and blank lines are dropped, their
   `runs-on:` lines are the same text, and the `shared-key` on each one's
-  `Swatinem/rust-cache@v2` step is the same string; the two pairs' shared keys
-  differ from each other; and no OTHER job in any workflow under
-  .github/workflows/ uses either of those two keys.
+  `Swatinem/rust-cache@v2` step is the same string; no two pairs share a key;
+  and no OTHER job in any workflow under .github/workflows/ uses a pair's
+  key.
 
 `runs-on` is in that list because os + arch are IN the key: a primer moved to a
 different runner class would satisfy every other claim here and still write an
@@ -40,8 +41,8 @@ the runner image and the lockfiles are inputs this cannot read, and a label
 that resolves to two different images at two different times is outside it. Not
 that the primer builds the right thing; `--workspace` versus a scoped build is
 a comment's job, not this one. Not that the entry survives eviction. And not
-anything about a THIRD job that grows its own `shared-key`: the exclusivity
-claim covers these two values only.
+anything about a job that grows its own `shared-key`: the exclusivity claim
+covers the pairs' values only.
 
 WHY THE PAIR IS LOOKED UP ACROSS EVERY WORKFLOW FILE rather than in ci.yml.
 It used to read ci.yml alone, and that held only while every job in a pair
@@ -49,7 +50,9 @@ lived there. On 2026-09-21 the interval lane moved to
 `.github/workflows/interval.yml`, which put `build-interval` in one file and
 `cache-prime-interval` in another — and this script reported the consumer as
 MISSING, which is the right refusal for the reader it was but the wrong answer
-about the tree. A cache key does not care which file its job is written in, so
+about the tree. That pair is gone (RING-4) and the one left lives in one file,
+but a pair can span files again the day a job moves, so the lookup stays wide
+and the self-test builds a split pair to keep the cross-file arms exercised. A cache key does not care which file its job is written in, so
 neither does this — ALMOST. `check-ci-mirror-parity.py`'s claims 8 and 9 were widened from
 ci.yml to the whole directory for the same reason, and a job name defined in two
 files Bails here as it does there: a pair member has to resolve to one job.
@@ -64,8 +67,8 @@ file reaches one half only, and the job-level comparison is blind to it: exactly
 the silent divergence this header promises to catch, walking in through the door
 the cross-file lookup opened. `_workflow_env` closes it, restricted to the names
 rust-cache actually hashes so that ci.yml's five tool-version pins — which it
-does not hash, and which interval.yml has no counterpart for — do not red a
-correct tree.
+does not hash, and which a called workflow has no counterpart for — do not
+red a correct tree.
 
 Stdlib only, and a line recogniser rather than a YAML parser — the same posture
 as `scripts/check-ci-mirror-parity.py`, whose header argues it. Anything it
@@ -87,7 +90,7 @@ HOSTED = ".github/workflows/ci.yml"
 
 # (consumer job, primer job). The consumer restores; the primer writes the
 # entry under the default branch's scope.
-PAIRS = (("build", "cache-prime"), ("build-interval", "cache-prime-interval"))
+PAIRS = (("build", "cache-prime"),)
 
 JOB_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 # The environment variables rust-cache actually HASHES into its key: every name
@@ -229,7 +232,7 @@ def _all_jobs(root: str) -> dict[str, tuple[str, list[str]]]:
     return out
 
 
-def check(root: str) -> list[str]:
+def check(root: str, pairs: tuple[tuple[str, str], ...] = PAIRS) -> list[str]:
     errs: list[str] = []
     _WF_ENV.clear()
     found = _all_jobs(root)
@@ -237,7 +240,7 @@ def check(root: str) -> list[str]:
     where = {n: f for n, (f, _) in found.items()}
 
     claimed: dict[str, str] = {}
-    for consumer, primer in PAIRS:
+    for consumer, primer in pairs:
         for name in (consumer, primer):
             if name not in jobs:
                 errs.append(
@@ -308,11 +311,11 @@ def check(root: str) -> list[str]:
                         f"the {claimed[ka[0]]} pair and the {consumer}/{primer} pair both use "
                         f"`shared-key: {ka[0]}`. `shared-key` REPLACES the job component of "
                         "rust-cache's key, so one value across two feature graphs is exactly the "
-                        "thrash `build-interval`'s CACHE SEPARATION note prevents"
+                        "thrash separate keys prevent"
                     )
                 claimed[ka[0]] = f"{consumer}/{primer}"
 
-    # Exclusivity: no other job anywhere may claim these two keys.
+    # Exclusivity: no other job anywhere may claim a pair's key.
     wf_dir = os.path.join(root, WORKFLOW_DIR)
     for fname in sorted(os.listdir(wf_dir)):
         if not fname.endswith((".yml", ".yaml")):
@@ -322,7 +325,7 @@ def check(root: str) -> list[str]:
             # A pair member is not a third job on its own key, whichever file
             # it is written in. Keyed on the NAME alone now that a pair can
             # span files.
-            if name in {n for p in PAIRS for n in p}:
+            if name in {n for p in pairs for n in p}:
                 continue
             for k in _shared_keys(block):
                 if k in claimed:
@@ -339,15 +342,9 @@ def check(root: str) -> list[str]:
 # self-test: a clean fixture must pass, and each planted drift must fire.
 
 def _fixture(dst: str) -> None:
-    """EVERY workflow file, not just ci.yml.
-
-    The fixture used to be one file, which was the whole tree this reader
-    looked at. It is not any more: `build-interval` lives in interval.yml and
-    `cache-prime-interval` in ci.yml, so a fixture carrying ci.yml alone is a
-    tree with half a pair in it — exactly the shape the `missing` arm is
-    supposed to red on, which would make the clean case fail for the one
-    reason that is not a finding.
-    """
+    """EVERY workflow file, not just ci.yml: the reader looks at all of them,
+    and a fixture carrying one would be a different tree from the one it
+    reads."""
     dst_dir = os.path.join(dst, WORKFLOW_DIR)
     os.makedirs(dst_dir, exist_ok=True)
     src_dir = os.path.join(_root_of_record(), WORKFLOW_DIR)
@@ -356,11 +353,25 @@ def _fixture(dst: str) -> None:
             shutil.copy(os.path.join(src_dir, fname), os.path.join(dst_dir, fname))
 
 
-def _file_of(job: str) -> str:
-    """The workflow a job is written in, on the tree of record — so a mutation
-    edits the file that actually holds its target rather than a file named in
-    this script."""
-    return _all_jobs(_root_of_record())[job][0]
+# THE SPLIT FIXTURE. On the tree of record the one pair lives in ci.yml, so
+# nothing there exercises the arms that only a pair SPANNING FILES can reach.
+# `_split_primer` moves the primer's job block into a workflow of its own —
+# no workflow-level `env:`, as a called workflow has — which is the shape the
+# interval pair had, and the cross-file cases run against it.
+MOVED = ".github/workflows/primer-moved.yml"
+
+
+def _split_primer(root: str) -> None:
+    p = os.path.join(root, HOSTED)
+    lines = open(p, encoding="utf-8").read().split("\n")
+    start = lines.index("  cache-prime:")
+    end = next(i for i in range(start + 1, len(lines)) if JOB_RE.match(lines[i]))
+    block = lines[start:end]
+    del lines[start:end]
+    with open(p, "w", encoding="utf-8") as fh:
+        fh.write("\n".join(lines))
+    with open(os.path.join(root, MOVED), "w", encoding="utf-8") as fh:
+        fh.write("name: moved\non:\n  workflow_call:\n\njobs:\n" + "\n".join(block) + "\n")
 
 
 def _root_of_record() -> str:
@@ -370,9 +381,11 @@ def _root_of_record() -> str:
 def _selftest() -> int:
     failures = []
 
-    def case(label, mutate, want_fire, target=HOSTED, want_msg=None):
+    def case(label, mutate, want_fire, target=HOSTED, want_msg=None, split=False, pairs=PAIRS):
         with tempfile.TemporaryDirectory() as d:
             _fixture(d)
+            if split:
+                _split_primer(d)
             p = os.path.join(d, target)
             if mutate is not None:
                 # Read fully, THEN write: `open(p, "w")` in the same expression
@@ -381,7 +394,7 @@ def _selftest() -> int:
                 with open(p, "w", encoding="utf-8") as fh:
                     fh.write(mutate(before))
             try:
-                errs = check(d)
+                errs = check(d, pairs)
                 fired = bool(errs)
             except Bail as e:
                 fired = True
@@ -409,21 +422,17 @@ def _selftest() -> int:
         i = t.index("  cache-prime:")
         return t[:i] + t[i:].replace("          shared-key: build-default\n", "", 1)
 
-    def one_key_both_lanes(t):
-        return t.replace("shared-key: build-interval", "shared-key: build-default")
+    def lose_split_primer(t):
+        """A rename of the primer in the OTHER file must still be reported.
 
-    def lose_consumer(t):
-        """A rename of the consumer in the OTHER file must still be reported.
-
-        WHAT THIS DOES NOT PROVE, said here because an earlier version of this
-        docstring claimed it: it is not what pins the cross-file lookup. The
-        missing-job arm fires identically for a reader that never opens
-        interval.yml, since such a reader also finds no `build-interval`. What
-        pins the widening is the CLEAN-TREE case — a ci.yml-only reader fails
-        that one now — together with the three arms below, each of which needs
-        the other file to have been read AND compared.
+        WHAT THIS DOES NOT PROVE: it is not what pins the cross-file lookup.
+        The missing-job arm fires identically for a reader that never opens
+        the other file, since such a reader also finds no primer. What pins
+        the widening is the CLEAN SPLIT case — a ci.yml-only reader fails that
+        one — together with the three arms below, each of which needs the
+        other file to have been read AND compared.
         """
-        return t.replace("  build-interval:", "  build-interval-renamed-away:", 1)
+        return t.replace("  cache-prime:", "  cache-prime-renamed-away:", 1)
 
     def drift_env_cross_file(t):
         """Job-level env parity, planted on the half that lives in the other
@@ -438,11 +447,11 @@ def _selftest() -> int:
         )
 
     def wf_env_one_file(t):
-        """THE HOLE THE CROSS-FILE LOOKUP OPENED. A rust-cache-hashed name at
-        the WORKFLOW level of ci.yml reaches `cache-prime-interval` and not
-        `build-interval`, which is in a file with no workflow-level block. The
-        job-level comparison cannot see it: that was sound only while both
-        halves shared one file."""
+        """THE HOLE THE CROSS-FILE LOOKUP OPENED. On the split fixture, a
+        rust-cache-hashed name at the WORKFLOW level of ci.yml reaches `build`
+        and not the moved primer, which is in a file with no workflow-level
+        block. The job-level comparison cannot see it: that was sound only
+        while both halves shared one file."""
         return t.replace('  SCCACHE_VERSION:', '  CARGO_INCREMENTAL: "0"\n  SCCACHE_VERSION:', 1)
 
     def wf_env_unhashed_is_quiet(t):
@@ -474,29 +483,61 @@ def _selftest() -> int:
     def no_jobs(t):
         return t.replace("\njobs:\n", "\nnot-jobs:\n", 1)
 
+    # A SECOND PAIR. The tree of record has one, so "no two pairs share a
+    # key" has nothing to compare there; these cases hand `check` a second
+    # pair — a verbatim twin of `build`/`cache-prime` under new job names —
+    # so that arm runs. Sharing the key must red; the same twin on a key of
+    # its own must pass, or the red would be any second pair at all.
+    TWIN = (("build-twin", "cache-prime-twin"),)
+
+    def _twin(t, key):
+        lines = t.split("\n")
+        added = []
+        for job, twin in (("build", "build-twin"), ("cache-prime", "cache-prime-twin")):
+            start = lines.index(f"  {job}:")
+            end = next(
+                (i for i in range(start + 1, len(lines)) if JOB_RE.match(lines[i])
+                 or (lines[i] and not lines[i].startswith(" "))),
+                len(lines),
+            )
+            block = [f"  {twin}:", *lines[start + 1:end]]
+            added += [ln.replace("shared-key: build-default", f"shared-key: {key}") for ln in block]
+        at = lines.index("jobs:") + 1
+        return "\n".join(lines[:at] + added + lines[at:])
+
+    def twin_pair_shares_key(t):
+        return _twin(t, "build-default")
+
+    def twin_pair_own_key(t):
+        return _twin(t, "build-twin")
+
     case("clean tree passes", None, False)
     case("an env knob moved on one side only", drift_env, True)
     case("the primer's shared-key renamed", rename_key, True)
     case("the primer's shared-key deleted", drop_key, True)
-    case("one shared-key across both lanes", one_key_both_lanes, True,
-         target=_file_of("build-interval"))
-    # The pair spans two files on the tree of record, and both halves are
-    # looked up the same way — so the consumer's absence reds from ITS file.
-    case("the consumer job renamed away, in the other file", lose_consumer, True,
-         target=_file_of("build-interval"), want_msg="has a job `build-interval`")
+    # THE SPLIT PAIR: the primer moved to a file of its own. Both halves are
+    # looked up the same way, so the clean split passes and the primer's
+    # absence reds from ITS file.
+    case("a pair split across two files passes", None, False, split=True)
+    case("the primer renamed away, in the other file", lose_split_primer, True,
+         target=MOVED, want_msg="has a job `cache-prime`", split=True)
     # THE THREE CLAIMS THAT NEED THE OTHER FILE READ *AND* COMPARED.
     case("an env knob moved on the cross-file half", drift_env_cross_file, True,
-         target=_file_of("build-interval"), want_msg="different job-level `env:`")
+         target=MOVED, want_msg="different job-level `env:`", split=True)
     case("the cross-file half moved to another runner class", drift_runs_on_cross_file, True,
-         target=_file_of("build-interval"), want_msg="os and arch are")
+         target=MOVED, want_msg="os and arch are", split=True)
     case("a hashed name at ONE file's workflow level", wf_env_one_file, True,
-         want_msg="WORKFLOW-level")
+         want_msg="WORKFLOW-level", split=True)
     case("an unhashed name at one file's workflow level stays quiet",
-         wf_env_unhashed_is_quiet, False)
+         wf_env_unhashed_is_quiet, False, split=True)
     case("the primer moved to another runner class", drift_runs_on, True)
     case("a third job claiming the key", third_job, True)
     case("the primer job renamed away", lose_primer, True)
     case("a workflow with no jobs: mapping", no_jobs, True)
+    case("a second pair on a key of its own passes", twin_pair_own_key, False,
+         pairs=PAIRS + TWIN)
+    case("a second pair on the first pair's key", twin_pair_shares_key, True,
+         want_msg="pair both use `shared-key: build-default`", pairs=PAIRS + TWIN)
 
     if failures:
         for f in failures:
@@ -504,12 +545,12 @@ def _selftest() -> int:
         return 1
     print(
         "check-cache-prime-parity selftest OK: passes a clean tree; fires on an env knob moved on "
-        "one side, a renamed or deleted `shared-key`, one key across both lanes, a primer moved "
-        "to another runner class, a third job claiming a key, a primer renamed away, and — on the "
-        "half of a pair that lives in ANOTHER FILE — a consumer renamed away, an env knob "
+        "one side, a renamed or deleted `shared-key`, a primer moved "
+        "to another runner class, a third job claiming a key, a primer renamed away, and — on a "
+        "pair SPLIT across two files, which passes clean — a primer renamed away, an env knob "
         "moved, a runner class changed, and a rust-cache-hashed name set at one file's "
-        "WORKFLOW level (while an unhashed one there stays quiet), and a "
-        "workflow it cannot read"
+        "WORKFLOW level (while an unhashed one there stays quiet), a second pair on the first "
+        "pair's key (while one on its own key passes), and a workflow it cannot read"
     )
     return 0
 
@@ -532,8 +573,8 @@ def main(argv: list[str]) -> int:
     pairs = ", ".join(f"{c}/{p}" for c, p in PAIRS)
     print(
         f"check-cache-prime-parity OK: {pairs} each agree on their job-level env block, their "
-        "`runs-on:` line and one `shared-key`, the two lanes' keys differ, and no other job "
-        "claims either"
+        "`runs-on:` line and one `shared-key`, no two pairs share a key, and no other job "
+        "claims one"
     )
     return 0
 

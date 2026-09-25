@@ -30,9 +30,8 @@ pub fn document() -> CorpusDoc {
     // surface, the cosurface run).
     // v4: the disc is the `circle` program form; its private two-pole
     // lowering IS the same two half-circle arcs (canonical form
-    // bit-identical — lex-min starts the loop at the −x pole either
-    // way; only the program-order rotation differs, which is naming
-    // substrate, not geometry).
+    // bit-identical — the lowering starts the loop at the same pole
+    // with the same two arcs).
     let disc = LoopProgram::circle(0.0, 0.0, 0.5).unwrap();
     let plane = r.insert(xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
