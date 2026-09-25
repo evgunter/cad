@@ -435,7 +435,7 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
 #[test]
 fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     use geom_core::{Bounds, Interval, Real};
-    const TRUTH: [f64; 2] = [-0.932_255_799_041_234_0, -0.320_660_420_293_933_6];
+    const TRUTH: [f64; 2] = [-0.932_255_799_041_234, -0.320_660_420_293_933_6];
     let o = [0.6165109851873778, -0.4322368608327216, -1.7665919240171966];
     let d = [
         -0.7793351131793784,
