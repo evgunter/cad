@@ -792,12 +792,14 @@ mod tests {
 
     type S = Sym<f64>;
 
-    /// How the tier answers a residual at the scalar door: the decide
-    /// funnel on the residual, read off the session's receipt.
+    /// How the tier answers a residual at the scalar door: the scalar's
+    /// own `Decide::sign_within` on the residual (no recorder funnel, so
+    /// no predicate name joins the crate's roster), read off the
+    /// session's receipt.
     fn how(m: S) -> &'static str {
         let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
         let before = session_counts().expect("inside a session");
-        let _ = geom_core::k_stats::decide("decide_5_span_row", Margin::of(m), band);
+        let _ = m.sign_within(band);
         let after = session_counts().expect("inside a session");
         if after.registered > before.registered {
             "registered"
