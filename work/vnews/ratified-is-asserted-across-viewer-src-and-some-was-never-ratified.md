@@ -144,10 +144,11 @@ sorting test this row states — find the clause, then the commit — has to
 run at **the document that would carry the gate**, never at the comment
 that cites one.
 
-Corrected at `work/vnews/plan.md` §Dispatch rules, which now carries the
-retraction rather than a quiet rewrite.
+Corrected at `work/vnews/plan.md` §Dispatch rules, which carried the
+retraction rather than a quiet rewrite. That section was retired at
+#3209; the retraction is recoverable at `3137fb5456`.
 
-## The census (2026-09-24, merge base `f4b178189`)
+## The census (2026-09-24, re-derived at merge base `ebc22f34c`)
 
 Verdicts only, no corrections: those are a later unit. Every verdict
 below is a claim, and its evidence sits beside it. **TRUE** means both
@@ -155,7 +156,11 @@ halves of the sorting test turned up: a clause that decides what the
 sentence says, plus the commit or log entry that records Ev agreeing
 to it. **FALSE** means the only backing is the README, another doc
 comment, an agent's decision, or nothing. **PARTIAL** means part of the
-sentence is backed and part is not, and the entry says which. **OUT**
+sentence is backed and part is not, and the entry says which. The
+commonest case is a sentence that is true of a ratified BEHAVIOUR and
+false about its WORDING, where the clause decides what happens and an
+agent wrote the words. Another is a clause about one act, such as a drag,
+cited for a different act. **OUT**
 means the line matches the rule but asserts no ratification.
 
 ### How the evidence was taken, and one caveat on it
@@ -220,7 +225,7 @@ found none).
 | `session/refuse.rs` `Refusal::rank` (:388) | the affordance is a ratified decision | TRUE | G4. The RANK built on it is the doc's own argument and is not claimed to be ratified |
 | `session/refuse.rs` `Refusal::affordance` (:475) | *"The ratified affordance sentence"* | **PARTIAL** | The behaviour is G4's. The sentence is not decided anywhere (see the note on G4 above) |
 | `session/refuse.rs` `Refusal::affordance` (:478) | *"a ratified micro-decision whose WORDING is part of the decision"* | **PARTIAL** | The same. The quoted clause is Ev's. *"whose WORDING is part of the decision"* is not |
-| `session/refuse.rs` `Refusal`'s `Display::fmt` (:532) | the affordance arm's wording is a RATIFIED decision | **PARTIAL** | The same |
+| `session/refuse.rs` `Refusal`'s `Display::fmt` (:535) | the affordance arm's wording is a RATIFIED decision | **PARTIAL** | The same |
 | `app.rs` `ViewerApp::perform_batch` (:1099) | dragging shows the ratified affordance | TRUE | G4: a drag |
 | `tree.rs` module docs (:5) | GQ2's ratified codomain | TRUE | GQ2, `57d762ef1` |
 | `tree.rs` module docs (:6) | the ratified error rule | TRUE | micro-decision 2 (G4), `5267a9193`: *"failures are typed values … never exceptions or strings"* |
@@ -241,7 +246,8 @@ found none).
 | `display.rs` `AdmissionFault::NoSuchNode` (:167) | `Standing`'s *"ratified rule"* is that the vanished reference is rendered *"while the affordances that need a live entity switch off"* | **PARTIAL** | Survival is ratified (GUI-PLAN GUI-2 and SELECT-DESIGN §4, as at `select.rs:268`). The switch-off clause, which is the half this sentence rests on, is in no design doc. Its only statement is `Standing`'s own doc |
 | `display.rs` `DisplayState::free_move` (:734) | *"the ratified change (DI5)"* | TRUE | DI5, `087779036` |
 | `props.rs` module docs (:77) | setting a number into a driven slot is refused, *"the ratified micro-decision"* | **PARTIAL** | as `refuse.rs:146`: the drag half holds, the typed-write half does not |
-| `pane/properties.rs` `slot_notes` (:939) | *"Its wording is the ratified one"* | **PARTIAL** | as `refuse.rs:478`, and a note shown BEFORE any refusal is not a refusal of a drag either |
+| `pane/properties.rs` `slot_notes` (:1017) | *"Its wording is the ratified one"* | **PARTIAL** | as `refuse.rs:478`, and a note shown BEFORE any refusal is not a refusal of a drag either |
+| `pane/properties.rs` `tests::a_driven_slots_range_button_reads_the_refusal_the_probe_would_give` (:1318) | an assertion message: the button *"renders as the ratified affordance"* | **PARTIAL** | G4 ratifies refusing a drag, and this is a range probe. The words are not decided anywhere. Added by `b62e678bc` (#2961) |
 | `session/op.rs` `SessionOp::BeginParamGesture` (:220) | the ratified preview-vs-commit decision | TRUE | G1 |
 | `session/op.rs` `SessionOp::AddFillet` (:670) | ratified #217 semantics | TRUE | as `blend.rs:36` |
 | `session/op.rs` `SessionOp::permitted_during_value_gesture` (:1070) | DI5 (ratified) rules that release emits `SetPlacement` and `moves` empties | TRUE | DI5, `087779036`, which says both, word for word |
@@ -315,16 +321,18 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
 ### Population 3: the tracker half — `ratif*` in `work/vnews/*.md`
 
 **Rule:** `grep -niI ratif work/vnews/*.md`, excluding this row. That
-gives 47 lines. Some lines make no claim that a decision is ratified,
+gives 49 lines. Some lines make no claim that a decision is ratified,
 and are OUT:
 
 - row ids and `refs:` (`a-disabled-control-…:7,:319`,
-  `hand-maintained-counts-…:85`, `log.md:155`, `plan.md:105,209,337`);
+  `hand-maintained-counts-…:85`, `log.md:155`, `plan.md:105,209,337`,
+  `the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give:7`,
+  `no-test-can-reach-a-pane-function:7`);
 - meta-prose about the class (`frame-rs-says-…:44-46`);
 - retractions and refutations already argued in their own rows
   (`rank-one-discards-…:30,76,86,93,119,143,145-147`,
   `one-line-one-subject-…:55,105-106`, `a-disabled-control-…:112-113`,
-  `plan.md:175,176,188,525,536,543`);
+  `plan.md:175,176,188`);
 - a process step (`log.md:19`);
 - the count at `plan.md:202`. That count is stale: today's rule gives
   the population in the table above, not thirty-five.
@@ -339,20 +347,20 @@ The claims:
 | `is-instance-collapses-absent-and-wrong-kind:110` (closed) | `Standing`'s ratified rule: a vanished reference is a state | TRUE | GUI-PLAN GUI-2 survival, as at `select.rs:268` |
 | `a-disabled-control-says-why-in-four-shapes:314` (closed) | `probe_bounds` refuses with *"the ratified affordance"* | **PARTIAL** | G4 is a drag, and a range probe is not one |
 | `the-range-button-re-mints-the-ratified-affordance` (id, `:2`) | the button re-mints *the ratified affordance* | **PARTIAL** | The behaviour is ratified for a drag. The sentence is not ratified, and the button is a probe |
-| `the-range-button-…:15` | the home is *"documented as ratified"* | TRUE | accurately hedged: it is documented so, at `refuse.rs:475` |
-| `the-range-button-…:43` | quotes `refuse.rs:478` | **PARTIAL** | inherits that verdict |
-| `the-range-button-…:52` | the row shows *"the ratified affordance"* | **PARTIAL** | as `:2` |
+| `the-range-button-…:17` | the home is *"documented as ratified"* | TRUE | accurately hedged: it is documented so, at `refuse.rs:475` |
+| `the-range-button-…:45` | quotes `refuse.rs:478` | **PARTIAL** | inherits that verdict |
+| `the-range-button-…:54` | the row shows *"the ratified affordance"* | **PARTIAL** | as `:2` |
 | `log.md:150` | *"a third spelling of the ratified affordance"* | **PARTIAL** | as `the-range-button-…` |
 | `log.md:329` | *"`Standing`'s second clause is GQ7's ratified constraint"* | **FALSE** | the switch-off clause (see `select.rs:274`). The orchestrator's 2026-09-20 retraction corrected the plan, not this log entry |
 | `program.md:12` (`keep_out`) | *"the GUI-3 section 5 seam and GQ7 are ratified design in crates/viewer/GUI-DESIGN.md and a revision is an ev PR"* | **PARTIAL** | Ratified: GQ7's single-select (GUI-PLAN) and GQ6's toolkit row (`dc5f15444`, 2026-08-16). Not ratified: GQ7's pick-priority text, which is agent-recorded (`f3411bbf1`, *"Nothing here widens GQ7"*), and *"the §5 seam-friction re-take is GO"*, which is an orchestrator's reading at GUI-3's merge. SELECT-DESIGN §4 (ratified) leaves the slimmed GQ7 *"still deferred"* |
 | `plan.md:204` | `frame.rs`'s checks-badge line is unratified | TRUE | as `frame.rs:1271` (the line number has since moved) |
 | `plan.md:205` | *"refuse-then-offer"* is unratified | **PARTIAL** | as `frame.rs:2177`: G4's drag half is ratified |
 | `plan.md:207` | `frame.rs`'s expression-driven affordance is genuine | TRUE | G4 (now `frame.rs:571`) |
+| `the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users:59-61` | the row as filed called `slot_unit_ui`'s one-picker rule (*"three components of a point are written in one unit or the user is being told something they did not mean to say"*) *"itself ratified reasoning"* | **FALSE** (struck) | The sentence occurs once in the tree, in that code comment, and 0 times in `GUI-DESIGN.md`, `docs/DESIGN.md` and `crates/viewer/README.md`. It was struck on the branch that filed it (`b62e678bc`, merged in #2961), and the row's lines 59-61 now carry the retraction. It counts here as a member all the same, because it shows the RATE: the lane that minted it had caught the orchestrator's GQ7 claim in the same PR. Catching one instance does not stop you writing another, so the sorting test has to be a step in filing a row, not something careful readers do |
 
-The dispatch named a fourth instance, *"itself ratified reasoning"*
-about `slot_unit_ui`'s one-picker rule. It is no longer live: it was
-struck in the row that minted it by `b62e678bc` (2026-09-21), and
-`grep -rn "ratified reasoning" work/` now returns nothing.
+The retraction lines (`:59-61`) are the unit-picker member's only
+rule hits. The member is counted once, by its claim, and the table
+above is its record.
 
 ### Population 4: VDOC's ground — `ratif*` in `crates/viewer/tests` and the README
 
@@ -363,10 +371,10 @@ the row's four refuse-then-offer sites).
 
 - TRUE: `blend_authoring.rs:489,1168` (#217), `edge_pick.rs:742` (N5 and
   GUI-2), `frame_policy.rs:60` (G4), `tree_badges.rs:124` (GQ2),
-  `panel_edits.rs:7` (G4, scoped by *"where"*), `panel_edits.rs:303`
-  (G1) and `panel_edits.rs:388` (G4, a drag).
+  `panel_edits.rs:7` (G4, scoped by *"where"*), `panel_edits.rs:537`
+  (G1) and `panel_edits.rs:622` (G4, a drag).
 - **PARTIAL**: `story_parametric.rs:11` and `:391` (G4 cited for a
-  numeric write), and `panel_edits.rs:423`, an assertion message
+  numeric write), and `panel_edits.rs:657`, an assertion message
   saying *"renders the ratified wording"*.
 - **FALSE**: `frame_policy.rs:1162`, *"The checks badge is a BUTTON,
   and that is ratified"* (as `frame.rs:1271`).
@@ -380,9 +388,10 @@ are handed to VDOC with the rule.
 
 **Rule 1**, for the row's population, counts lines: every `ratif*` in
 a `.rs` file under `crates/viewer/src`. Re-run at this merge base it
-gives the first table. The filing counted 35 lines in 17 files. The 4
-extra lines: `readout.rs` gained 1, `pane/profile.rs` gained 2, and
-`widgets.rs:292` was added by `8e904637c` (2026-09-21). `frame.rs`'s
+gives the first table. The filing counted 35 lines in 17 files. The 5
+extra lines: `readout.rs` gained 1, `pane/profile.rs` gained 2,
+`widgets.rs:292` was added by `8e904637c` (2026-09-21), and
+`pane/properties.rs:1318` was added by `b62e678bc` (#2961). `frame.rs`'s
 line numbers also moved. The difference is the tree, not the
 rule. Rule 1 cannot see a ratification asserted without the word.
 **Rules 2a and 2b** were run at that gap. Every hit of 2a has a
@@ -405,8 +414,8 @@ verdict column (population 1 / 2 / 3):
 | verdict | P1 | P2 | P3 |
 |---|---|---|---|
 | TRUE | 23 | 21 | 5 |
-| PARTIAL | 11 | 2 | 7 |
-| FALSE | 3 | 11 | 3 |
+| PARTIAL | 12 | 2 | 7 |
+| FALSE | 3 | 11 | 4 |
 | OUT | 2 | — | — |
 
 ### Where the out-of-fence members were filed
@@ -431,7 +440,7 @@ filed one row per owning slate:
   holding `widgets.rs:292` and `props.rs:77` (both PARTIAL).
 - **VDOC**: `work/vdoc/viewer-tests-assert-ratifications-that-are-not`,
   holding `frame_policy.rs:1162` (FALSE), `story_parametric.rs:11,391`
-  and `panel_edits.rs:423` (PARTIAL), and the README's 15 unverdicted
+  and `panel_edits.rs:657` (PARTIAL), and the README's 15 unverdicted
   lines.
 - **GUARD**: `work/guard/gates-readme-cites-a-deleted-memory`, a
   side-finding. `scripts/gates/README.md:111` cites

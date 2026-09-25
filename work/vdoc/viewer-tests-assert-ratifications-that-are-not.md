@@ -26,7 +26,7 @@ are these:
   (:11) and its story step 7 (:391) cite G4 for a NUMERIC WRITE.
   `GUI-DESIGN.md` G4 as Ev wrote it (`5267a9193`) is about a drag.
 - **PARTIAL**: `crates/viewer/tests/panel_edits.rs`, an assertion
-  message at :423, says *"it renders the ratified wording"*. G4
+  message at :657, says *"it renders the ratified wording"*. G4
   ratifies the refusal and its affordance. Ev's parenthesised example
   sentence was illustration, and an agent dropped it (`585b3422f`); no
   wording is decided.
