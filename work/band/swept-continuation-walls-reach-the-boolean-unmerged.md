@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-25
 priority: P0
 cost: D
-needs_ev: true
 ---
 
 
@@ -72,3 +71,13 @@ Recommendation: (1). What F7 guards against is merging on inferred
 (numeric) coincidence, and this pair is structural by the author's own
 declaration. The naming rule it needs, N3's `Merged`, is already
 ratified.
+
+## Ruled (Ev, 2026-09-25, on the `[ev]` PR)
+
+Option 1: "yes this sounds good." DESIGN.md F7 now names sweeps over a
+declared straight continuation as the second op that runs the
+structural merge as a documented final stage. The row is now the
+implementation: the extrude and revolve lowering merge the continuation
+runs, the emitter names the merged wall N3's `Merged`, and the handle
+contracts (`Extruded::side_faces` / `strut_edges`, `Revolved::walls`)
+and N4's per-segment names change with it.
