@@ -212,7 +212,7 @@ mod tests {
     use super::{INDENT_MAX_DEPTH, INDENT_STEP, failure_lines, indent, message_indent, row_label};
     use crate::app::GLYPH_ROOT;
     use crate::pane::headless::SLACK;
-    use crate::pane::headless::{landed, painted_after_clicking, painted_text};
+    use crate::pane::headless::{find, landed, painted_after_clicking, painted_text};
     use crate::theme::Theme;
     use crate::tree;
     use crate::tree::{RowStatus, TreeRow};
@@ -435,6 +435,22 @@ mod tests {
         });
         assert!(drawn.contains(FAILURE), "{drawn}");
         assert!(!drawn.contains("see "), "no link line: {drawn}");
+    }
+
+    /// **A failed row's words are said quietly**: the row is loud once,
+    /// at its badge, and the line under it is that verdict's words —
+    /// egui's weak text, not the theme's unresolved colour.
+    #[test]
+    fn a_failed_rows_words_are_weak_under_its_loud_badge() {
+        let weak = core::cell::Cell::new(egui::Color32::PLACEHOLDER);
+        let painted = landed(|ui| {
+            weak.set(ui.visuals().weak_text_color());
+            failure_lines(ui, &placer_refused_row(None), &Theme::DEFAULT);
+        });
+        let unresolved = Theme::DEFAULT.unresolved;
+        let unresolved = egui::Color32::from_rgb(unresolved.r, unresolved.g, unresolved.b);
+        assert_ne!(unresolved, weak.get(), "the two voices this row tells apart");
+        assert_eq!(find(&painted, FAILURE).ink, Some(weak.get()));
     }
 
     /// A poisoned row's pointer is still the click to `through`.

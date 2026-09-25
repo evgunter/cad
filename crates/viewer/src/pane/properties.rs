@@ -1415,3 +1415,135 @@ mod tests {
         assert!(refusal.to_string().contains("thickness"));
     }
 }
+
+/// **How loud a picked entity's verdict is drawn**, read off the paint
+/// and held against fixed colours — the theme's `unresolved` and
+/// egui's own weak text — so a swapped mapping anywhere between
+/// [`Standing::tone`] and the glyphs turns a row red.
+#[cfg(test)]
+mod verdict_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::panic)]
+
+    use std::cell::Cell;
+
+    use eframe::egui;
+    use editor_core::RecipeEditRef;
+    use pncad::document::RecipeNodeId;
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
+    use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
+
+    use super::entity_verdict;
+    use crate::pane::headless::{Landed, landed};
+    use crate::session::{EdgeSelection, FaceSelection, Standing};
+    use crate::theme::Theme;
+
+    fn name(kind: EntityKind) -> StableName {
+        StableName {
+            kind,
+            node: RecipeNodeId(1),
+            path: vec![RoleSeg::Cap(CapEnd::End)],
+        }
+    }
+
+    fn face(resolution: Option<Resolution>) -> Standing {
+        Standing::Face {
+            face: FaceSelection {
+                name: name(EntityKind::Face),
+                node: RecipeNodeId(2),
+                body: 0,
+            },
+            resolution: resolution.map(Box::new),
+        }
+    }
+
+    fn vanished(offers: Vec<StableName>) -> Resolution {
+        Resolution::Failed(ResolutionFailure {
+            error: ResolveError::NodeGone {
+                name: name(EntityKind::Face),
+                edit: RecipeEditRef::NodeDeleted {
+                    node: RecipeNodeId(1),
+                },
+            },
+            offers,
+        })
+    }
+
+    /// What [`entity_verdict`] painted for `standing`, and the colour
+    /// egui paints weak text in on that frame.
+    fn drawn(noun: &str, standing: &Standing) -> (Vec<Landed>, egui::Color32) {
+        let weak = Cell::new(egui::Color32::PLACEHOLDER);
+        let painted = landed(|ui| {
+            weak.set(ui.visuals().weak_text_color());
+            entity_verdict(ui, &Theme::DEFAULT, noun, standing);
+        });
+        (painted, weak.get())
+    }
+
+    /// The painted entry whose text starts with `opening`.
+    fn opening<'a>(painted: &'a [Landed], opening: &str) -> &'a Landed {
+        painted
+            .iter()
+            .find(|landed| landed.text.starts_with(opening))
+            .unwrap_or_else(|| panic!("nothing painted opens with `{opening}`"))
+    }
+
+    fn unresolved() -> egui::Color32 {
+        let colour = Theme::DEFAULT.unresolved;
+        egui::Color32::from_rgb(colour.r, colour.g, colour.b)
+    }
+
+    /// **A name that no longer resolves is a verdict to act on**, so
+    /// it is drawn in the unresolved colour — and the rebind count
+    /// under it is secondary text, weak.
+    #[test]
+    fn a_vanished_faces_verdict_is_drawn_loud_and_its_offer_count_weak() {
+        let standing = face(Some(vanished(vec![name(EntityKind::Face)])));
+        let (painted, weak) = drawn("face", &standing);
+        assert_ne!(unresolved(), weak, "the two voices this row tells apart");
+        assert_eq!(
+            opening(&painted, "this face is gone: ").ink,
+            Some(unresolved())
+        );
+        assert_eq!(
+            opening(&painted, "1 rebind candidate(s) offered").ink,
+            Some(weak)
+        );
+    }
+
+    /// An entity the evaluation could not answer for is a verdict to
+    /// act on too — the edge arm, through the same one draw.
+    #[test]
+    fn an_indeterminate_edges_verdict_is_drawn_loud() {
+        let standing = Standing::Edge {
+            edge: EdgeSelection {
+                name: name(EntityKind::Edge),
+                node: RecipeNodeId(2),
+                body: 0,
+            },
+            resolution: Some(Box::new(Resolution::Indeterminate(
+                ResolveIndeterminate::TargetFailed {
+                    node: RecipeNodeId(1),
+                },
+            ))),
+        };
+        let (painted, _) = drawn("edge", &standing);
+        assert_eq!(
+            opening(&painted, "this edge cannot be resolved right now: ").ink,
+            Some(unresolved())
+        );
+    }
+
+    /// **No evaluation yet is not a verdict about the pick**: it is
+    /// said, quietly.
+    #[test]
+    fn a_pick_with_no_evaluation_behind_it_is_said_weak() {
+        let (painted, weak) = drawn("face", &face(None));
+        assert_eq!(
+            opening(&painted, "no evaluation yet").ink,
+            Some(weak),
+            "{:?}",
+            painted.iter().map(|landed| &landed.text).collect::<Vec<_>>()
+        );
+    }
+}

@@ -409,3 +409,34 @@ impl Standing {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use pncad::document::{ParamName, RecipeNodeId};
+
+    use super::Standing;
+    use crate::frame::Tone;
+
+    /// **A selection whose referent is gone is the verdict a reader
+    /// acts on**, and one that still denotes is not — held against
+    /// fixed tones for the two arms the properties pane draws inline,
+    /// where no headless drive reaches the paint. The picked-entity
+    /// arms are read off the paint (`pane::properties`'
+    /// `verdict_tests`).
+    #[test]
+    fn a_vanished_node_or_parameter_is_actionable_and_a_present_one_is_not() {
+        let node = |present| Standing::Node {
+            node: RecipeNodeId(3),
+            present,
+        };
+        let param = |present| Standing::Param {
+            name: ParamName("thickness".to_owned()),
+            present,
+        };
+        assert_eq!(node(false).tone(), Tone::Actionable);
+        assert_eq!(param(false).tone(), Tone::Actionable);
+        assert_eq!(node(true).tone(), Tone::Advisory);
+        assert_eq!(param(true).tone(), Tone::Advisory);
+        assert_eq!(Standing::Empty.tone(), Tone::Advisory);
+    }
+}

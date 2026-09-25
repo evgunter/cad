@@ -553,8 +553,21 @@ impl ViewerBehavior<'_> {
                     // The refusing layer's own sentence — the
                     // store's or the directory rule's — never one
                     // composed here.
+                    //
+                    // Actionable, and stated here once because every
+                    // refusal that arrives takes it: a scan refuses
+                    // for a document with no file to list beside, or
+                    // for the directory's own fault
+                    // (`DocSession::part_catalogue`), and either way
+                    // the chooser offers nothing until the reader
+                    // saves or repairs the directory and rescans.
                     Err(refusal) => {
-                        crate::widgets::message(ui, refusal.to_string());
+                        crate::widgets::message_toned(
+                            ui,
+                            refusal.to_string(),
+                            &self.theme,
+                            Tone::Actionable,
+                        );
                     }
                 }
                 ui.horizontal(|ui| {
