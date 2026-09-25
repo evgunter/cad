@@ -138,3 +138,18 @@ and the profile README to the recommended form (A2: verbatim vertices +
 asks the forks. Settled on #3202 and not re-asked: EMIT ships step ids
 first with `Piece(0/1)` circles and takes the second names break.
 Proposed unit cut, 0 → 6, is in the survey's §5.
+
+## 2026-09-25 — Ev's first round on the lowering `[ev]` PR
+
+Ev agreed q2 (geom-brep follows the profile form) and q4 (`Bulge` stays
+as a path-algebra arc mode; `RawLoop` keeps vertex + bulge as its input).
+On q1 Ev asked whether a zero-redundancy form exists, e.g. three points.
+The PR body's "no zero-redundancy form works" was too strong and is
+corrected: counting dof, a full turn is the blow-up of a = b in the
+partial-arc family, so every condition-free form (Z: bulge or via point
+plus a separate full-turn arm) reads a full turn differently, and A2
+trades that split for a verified carrier. A2 is still recommended, and
+Z is offered as coherent. On q3 Ev asked whether `circle` should be
+sugar for `circle_split(n = 1)`. The proposed answer is one kernel,
+with `circle` kept as its own verb in the program so it reads back as
+written. Both q1 and q3 await Ev.
