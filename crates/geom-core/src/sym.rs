@@ -6353,4 +6353,52 @@ mod tests {
         });
         assert_eq!(rows, ["numeric"; 2]);
     }
+    /// **The reduction memo answers what the reduction builds**: a form
+    /// carrying a `sqrt` atom squared is reduced once, answered from the
+    /// memo the second time, and both answers are the reduction's own.
+    /// Another rule set or another ring bound is another key, and a form
+    /// with no exponent past one is reduced and never kept.
+    #[test]
+    fn the_reduction_memo_answers_what_the_reduction_builds() {
+        let mut sess = Session::new(budget(), SymRules::shipped(), SymRetry::none(), None);
+        let x = Form::poly(Poly::indet(indet_param(1)));
+        let arg = x.add(&Form::poly(Poly::one()), budget()).unwrap();
+        let s = indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]);
+        mint_atom(&mut sess, s, true, || AtomInfo {
+            op: SymOp::Sqrt,
+            payload: 0,
+            args: [Some(Arc::new(arg.clone())), None, None],
+        });
+        // s² + s, which rule A takes to x + 1 + s.
+        let mut p = Poly::zero();
+        p.insert(vec![(s, 2)], Rat::one()).unwrap();
+        p.insert(vec![(s, 1)], Rat::one()).unwrap();
+        let f = Form::poly(p);
+        let direct = algebra::reduce_steps(&f, sess.rules, sess.budget, &sess.atoms, EARLY_STEPS);
+        assert_ne!(direct.as_ref(), Some(&f), "the square is substituted");
+        let (first, hit) = reduce_per_node(&mut sess, &f);
+        assert!(!hit);
+        assert_eq!(first, direct);
+        let (second, hit) = reduce_per_node(&mut sess, &f);
+        assert!(hit, "the second ask is the memo's");
+        assert_eq!(second, direct);
+
+        let (wide, hit) = rational::with_coeff_bound(512, || reduce_per_node(&mut sess, &f));
+        assert!(!hit, "another ring bound is another key");
+        assert_eq!(wide, direct);
+        sess.rules = SymRules::without_the_algebra();
+        let (bare, hit) = reduce_per_node(&mut sess, &f);
+        assert!(!hit, "another rule set is another key");
+        assert_eq!(bare.as_ref(), Some(&f), "no rule A, nothing substituted");
+        assert_eq!(sess.reductions[&f.digest()].len(), 3);
+
+        sess.rules = SymRules::shipped();
+        let linear = Form::poly(Poly::indet(s));
+        for _ in 0..2 {
+            let (out, hit) = reduce_per_node(&mut sess, &linear);
+            assert!(!hit);
+            assert_eq!(out.as_ref(), Some(&linear));
+        }
+        assert!(!sess.reductions.contains_key(&linear.digest()));
+    }
 }
