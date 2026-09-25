@@ -32,8 +32,8 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, ProfileVertexRef, RecipeNodeId, RoleSeg,
-    SitedRef, SlotId, StableName,
+    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
+    StableName,
 };
 
 use crate::fixture;
@@ -42,14 +42,16 @@ use crate::fixture::{len, vname};
 use super::{CorpusDoc, MassPin, Recorder};
 
 /// A cap-vertex name at `node`, on the document's one outer loop.
-fn outer_cap_vertex(node: RecipeNodeId, end: CapEnd, vertex: u32) -> StableName {
+fn outer_cap_vertex(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    end: CapEnd,
+    vertex: u32,
+) -> StableName {
     fixture::cap_vertex(
         node,
         end,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex,
-        },
+        crate::fixture::vpiece(doc, node, 0, vertex as usize),
     )
 }
 
@@ -107,11 +109,11 @@ pub fn document() -> CorpusDoc {
     // and the record survives into the second union's contacts.
     let kiss_a = vname(
         u1,
-        RoleSeg::FromA(outer_cap_vertex(a, CapEnd::End, 2).into()),
+        RoleSeg::FromA(outer_cap_vertex(&r.doc, a, CapEnd::End, 2).into()),
     );
     let kiss_b = vname(
         u1,
-        RoleSeg::FromB(outer_cap_vertex(b, CapEnd::Start, 0).into()),
+        RoleSeg::FromB(outer_cap_vertex(&r.doc, b, CapEnd::Start, 0).into()),
     );
     // Both names are rows of `u1`'s table — the same-operand
     // carried pair — so both are sited there, which is what says

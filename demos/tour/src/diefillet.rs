@@ -219,6 +219,7 @@ fn cube_node(doc: &mut Doc<ProfileProgram>, tol: Tol) -> RecipeNodeId {
         Node::Profile(ProfileProgram {
             plane: cube_plane,
             loops: vec![LoopProgram::polygon([(0.0, 0.0), (L, 0.0), (L, L), (0.0, L)]).unwrap()],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -264,6 +265,7 @@ fn pipped_node(doc: &mut Doc<ProfileProgram>, cube: RecipeNodeId, tol: Tol) -> R
         Node::Profile(ProfileProgram {
             plane: ball_plane,
             loops: vec![half_disc()],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -485,7 +487,8 @@ const DOC_LABEL: &str = "die";
 /// node through one `InsertNode` against the empty document: ids are
 /// minted in insertion order, so replaying `order()`'s nodes and then
 /// the same deletion rebuilds the document — ids and all, hole
-/// included. That is asserted here rather than assumed: a `build` that
+/// included, and the profiles' step ids with them, minted afresh in
+/// the same order. That is asserted here rather than assumed: a `build` that
 /// grows a non-insert edit fails this door instead of quietly
 /// exporting a document that is not the one the scene renders.
 pub fn corpus_text(tol: Tol) -> String {
@@ -495,8 +498,14 @@ pub fn corpus_text(tol: Tol) -> String {
         .doc
         .order()
         .iter()
-        .map(|id| DocEdit::InsertNode {
-            node: die.doc.node(*id).expect("an ordered node exists").clone(),
+        .map(|id| {
+            let mut node = die.doc.node(*id).expect("an ordered node exists").clone();
+            // A program enters the document without step ids: the
+            // insert door mints them, in the same order it did here.
+            if let Node::Profile(program) = &mut node {
+                program.ids = Vec::new();
+            }
+            DocEdit::InsertNode { node }
         })
         .collect();
     edits.push(DocEdit::DeleteNode { id: die.blank });
@@ -505,6 +514,21 @@ pub fn corpus_text(tol: Tol) -> String {
         replay = apply(&replay, edit, tol, &RefusingReach)
             .expect("the derived log replays")
             .doc;
+    }
+    // The ids were cleared on the strength of the insert door minting
+    // them again in the same order; that precondition is checked
+    // profile by profile, so a `build` that mints a step any other way
+    // fails here by name.
+    for id in die.doc.order() {
+        if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
+            (die.doc.node(*id), replay.node(*id))
+        {
+            assert_eq!(
+                built.ids, replayed.ids,
+                "profile node {} re-mints its step ids exactly as `build` minted them",
+                id.0
+            );
+        }
     }
     assert_eq!(
         replay,

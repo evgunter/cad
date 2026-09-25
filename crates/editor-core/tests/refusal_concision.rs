@@ -35,6 +35,7 @@ fn torus_block_union_refusal() -> String {
         loops: vec![
             LoopProgram::polygon([(1.75, -0.25), (3.0, -0.25), (3.0, 0.25), (1.75, 0.25)]).unwrap(),
         ],
+        ids: Vec::new(),
     }));
     let block = r.insert(Node::Extrude {
         profile: block_p,

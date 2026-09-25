@@ -1,11 +1,14 @@
 ---
 id: ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle
 kind: issue
-title: sweep: the ruled band refuses a D-shaped through-hole's crease as BodyNotIntact instead of as a frontier
-status: open
+title: sweep: a ruled crease whose ends sit in a cap RING (a D-shaped through-hole) now carves; it refused BodyNotIntact
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
+closed: 2026-09-25
+pr: 3243
+branch: band/ruled-d-hole-ring-crease
 ---
 
 
@@ -56,3 +59,24 @@ refusal's VARIANT and site, not its existence.
 ## Re-homed at BLEND's exit (2026-09-17)
 
 Filed by BLEND unit 14's implementation pass and merged with that unit on 2026-09-17, after the cut branch was drawn; moved here at BLEND's exit walk. The ruled band's walk is `crates/sweep/src/blend/open/ruled.rs`, CARVE's ground.
+
+## Built, not refused (2026-09-25, `band/ruled-d-hole-ring-crease`)
+
+The finding's diagnosis held — `chord_site` read `get_face(cap).outer`
+and the crease's rims are in the cap's ring — but its disposition did
+not: the ruled carve BUILDS this crease once the chord is hung in the
+cycle that carries it. `mef(Chords)` keeps the split cycle's outer/ring
+designation on the old face and moves only the run from one foot through
+the old vertex to the other onto the sliver, so the ring case is the
+outer-cycle case's combinatorics exactly; the supports' strips, the
+crease `kef`, the sliver `kef` and the spur `kev` touch no cap cycle but
+the one cut, and every mef-minted face is ring-free. `chord_site` now
+walks the face's outer cycle and its rings and refuses (Row 1) unless
+exactly one of them carries the keyed half-edge.
+
+Pinned by `band_ruled_d_hole` (the D hole at flats 0.3 and −0.2 and at
+`R/r = 2`: two bands, `(v+4, e+6, f+2)`, tier 3, naming totality, each
+cap's ring = two surviving middles + two cut-off arcs of radius `r`,
+`ΔV = +2·A·L` against `rod_section_cut`), and by the re-baselined
+`review_contact_edge_must_carry_r1_probes::r1_the_d_bore_crease_carves_in_its_caps_ring`
+(BLEND-14's `R/r = 2` bore, one crease requested alone).

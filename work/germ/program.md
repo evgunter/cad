@@ -2,7 +2,7 @@
 id: germ
 kind: program
 title: GERM — the cone and torus operand lanes, and the containment arms that stop short of them
-status: ready
+status: active
 opened: 2026-09-20
 area: kernel
 prefix: germ/

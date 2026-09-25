@@ -150,6 +150,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "band_ruled_d_hole.rs"]
+mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -294,6 +296,8 @@ mod review_arceval_r1_probes;
 mod review_arms2_r1_probes;
 #[path = "review_arms3_r1_probes.rs"]
 mod review_arms3_r1_probes;
+#[path = "review_band_ruled_ring_probes.rs"]
+mod review_band_ruled_ring_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
 #[path = "review_blend3_r1_probes.rs"]

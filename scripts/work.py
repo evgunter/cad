@@ -54,8 +54,9 @@ ISSUES_DIR = "issues"
 FREE_FILES = {"README.md", "STATUS.md"}       # unparsed: top of work/, and
                                               # README.md inside work/issues/
 NARRATIVE = {"plan.md", "log.md", "process-observations.md"}   # inside a program, unparsed
-LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the two non-program logs in docs/
-              "docs/DUAL-REVIEW-LOG.md"}
+LOG_EXEMPT = {"docs/MODEL-AB-LOG.md",        # the non-program logs in docs/
+              "docs/DUAL-REVIEW-LOG.md",
+              "docs/DESIGN-FORK-LOG.md"}
 STALE_DAYS = 14
 
 KINDS = ("program", "unit", "issue", "ruling")

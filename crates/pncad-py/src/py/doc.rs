@@ -694,6 +694,36 @@ pub(crate) fn name_text(py: Python<'_>, name: &pncad::prelude::StableName) -> Py
     })
 }
 
+/// The profile program a node holds, or a boundary `ValueError`.
+fn profile_of<'d>(doc: &'d d::ProfileDoc, node: &NodeId) -> PyResult<&'d d::ProfileProgram> {
+    match doc.node(node.0) {
+        Some(d::Node::Profile(program)) => Ok(program),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "node {} is not a profile",
+            node.0.0
+        ))),
+    }
+}
+
+/// **A profile piece as opaque text** — the one serialization its
+/// locator has, the same alphabet a name's text is written in.
+pub(crate) fn piece_text(piece: &pncad::select::ProfileEdgeRef) -> PyResult<String> {
+    serde_json::to_string(piece).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "a profile piece failed to serialize: {err}"
+        ))
+    })
+}
+
+/// Read a profile piece back from [`piece_text`]'s output.
+pub(crate) fn piece_from_text(text: &str) -> PyResult<pncad::select::ProfileEdgeRef> {
+    serde_json::from_str(text).map_err(|err| {
+        pyo3::exceptions::PyValueError::new_err(format!(
+            "not a profile piece: {text:?} ({err}) — pieces come from `Doc.pieces`"
+        ))
+    })
+}
+
 /// Read a stable name back from [`name_text`]'s output.
 ///
 /// Text that is not a name at all is a boundary `ValueError` — the
@@ -1025,6 +1055,52 @@ impl Doc {
             .iter()
             .cloned()
             .map(super::mate::Maintenance)
+            .collect()
+    }
+
+    /// **The minted id of every step of the profile at `profile`**, one
+    /// list per loop in program order — what `DocEdit.set_program`
+    /// keeps a step by.
+    ///
+    /// Raises `ValueError` for a node that is not a profile.
+    fn step_ids(&self, profile: &NodeId) -> PyResult<Vec<Vec<u64>>> {
+        Ok(profile_of(&self.inner, profile)?
+            .ids
+            .iter()
+            .map(|loop_| loop_.iter().map(|s| s.0).collect())
+            .collect())
+    }
+
+    /// **The piece every canonical segment of the profile at `profile`
+    /// is**, one list per canonical loop (0 the outer loop, then the
+    /// holes in description order), one piece per canonical segment in
+    /// the loop's canonical traversal from its authored start — under
+    /// the document's current parameter values.
+    ///
+    /// A piece is opaque text, as a name is: the step that drew the
+    /// segment, by its minted id, and its role in that step's list. It
+    /// is what `band`, `band_pi`, `band_rim` and `meridian_vertex` take,
+    /// and it stays the name of that piece whatever later moves the
+    /// segment — a value edit, a hole becoming the outer loop, a
+    /// `set_program` that keeps the step. The vertex a piece STARTS at
+    /// is spelled by the same text.
+    ///
+    /// Raises `ValueError` for a node that is not a profile, or whose
+    /// program does not replay and validate under the current values.
+    fn pieces(&self, profile: &NodeId) -> PyResult<Vec<Vec<String>>> {
+        let program = profile_of(&self.inner, profile)?;
+        let pieces = program
+            .pieces(&self.inner.param_env::<f64>(), Tol::witness())
+            .map_err(|refusal| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "node {} has no pieces under the current values: {refusal}",
+                    profile.0.0
+                ))
+            })?;
+        pieces
+            .edges
+            .iter()
+            .map(|loop_| loop_.iter().map(piece_text).collect())
             .collect()
     }
 
@@ -1786,6 +1862,7 @@ impl Node {
             inner: d::Node::Profile(d::ProfileProgram {
                 plane,
                 loops: vec![d::LoopProgram::polygon_expr(corners)],
+                ids: Vec::new(),
             }),
         })
     }
@@ -1815,7 +1892,11 @@ impl Node {
         let plane = plane.0;
         let loops = loops_from_outline(py, outline)?;
         Ok(Self {
-            inner: d::Node::Profile(d::ProfileProgram { plane, loops }),
+            inner: d::Node::Profile(d::ProfileProgram {
+                plane,
+                loops,
+                ids: Vec::new(),
+            }),
         })
     }
 
@@ -3742,48 +3823,42 @@ impl DocEdit {
     /// `outline` is the profile description `Node.profile` takes —
     /// one closed loop, or `[outer, hole, hole]` in that order — read
     /// through the same door, so what this writes is what that mints.
-    /// `provenance` is one entry per new loop, in `outline`'s order:
-    /// `(from, steps)` where `from` is the OLD loop index this loop
-    /// continues (`None` for a new loop) and `steps[i]` the old step
-    /// index new step `i` continues (`None` for a new step). The
-    /// editor that reshaped the program is the one party that knows
-    /// which leg it inserted, so the door is told rather than
-    /// guessing.
+    /// `ids` is one list per new loop, in `outline`'s order, with one
+    /// entry per authored step: the minted id of the OLD step that step
+    /// keeps (`Doc.step_ids` reads them), or `None` for a new step,
+    /// which the door mints. The editor that reshaped the program is
+    /// the one party that knows which leg it inserted, so the door is
+    /// told rather than guessing.
     ///
-    /// Every name spelled in the profile's coordinates — a fillet's
-    /// selection, a shell's mouth, a derived frame's face, a paint —
-    /// is rewritten to its new coordinates when its step was kept
-    /// (`Doc.last_maintenance` carries a `rebound` row per name, with
-    /// `name` the old spelling and `rebound_to` the new) and retired
-    /// when its step was dropped or changed — a step whose segment
-    /// count moved is not a kept one — reported as a `strand` or a
-    /// `stranded_appearance`, resolving to nothing until
+    /// A name on a profile piece spells its step's id, so a name on a
+    /// kept step keeps denoting its piece and is not touched. A step
+    /// the new program does not keep takes its id with it: every name
+    /// on it — a fillet's selection, a shell's mouth, a derived
+    /// frame's face, a paint — keeps its spelling, resolves to nothing,
+    /// and is reported as a `strand` or a `stranded_appearance` until
     /// `DocEdit.rebind` repairs it.
     ///
-    /// Refuses `provenance_malformed` before the program is replayed
-    /// — `inner_variant` says which way the shape is wrong
-    /// (`loop_count`, `step_count`, `no_such_old_loop`,
-    /// `no_such_old_step`, `step_of_new_loop`,
-    /// `old_loop_continued_twice`, `old_step_continued_twice`) —
-    /// `set_program_on_non_profile` for a node holding no program,
-    /// and then everything an insert refuses of a profile:
-    /// `slot_unknown_doc_param` and its siblings over every argument,
-    /// `profile_program_refused` for a program that does not close,
-    /// replay or validate.
+    /// Refuses `step_ids_refused` before the program is replayed —
+    /// `inner_variant` says which way the ids are wrong (`shape`,
+    /// `not_this_profiles`, `repeated`) — `set_program_on_non_profile`
+    /// for a node holding no program, and then everything an insert
+    /// refuses of a profile: `slot_unknown_doc_param` and its siblings
+    /// over every argument, `profile_program_refused` for a program
+    /// that does not close, replay or validate.
     #[staticmethod]
     fn set_program(
         py: Python<'_>,
         node: &NodeId,
         outline: &Bound<'_, PyAny>,
-        provenance: Vec<(Option<u32>, Vec<Option<u32>>)>,
+        ids: Vec<Vec<Option<u64>>>,
     ) -> PyResult<Self> {
         Ok(Self {
             inner: d::DocEdit::SetProgram {
                 node: node.0,
                 loops: loops_from_outline(py, outline)?,
-                provenance: provenance
+                ids: ids
                     .into_iter()
-                    .map(|(from, steps)| d::LoopProvenance { from, steps })
+                    .map(|steps| steps.into_iter().map(|s| s.map(d::StepId)).collect())
                     .collect(),
             },
         })

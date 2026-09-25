@@ -2104,3 +2104,60 @@ batch lands, the P4 tail is cut into its own program then.
 No unit this batch met the dual-review bar (especially tricky logic, or
 a broad design decision that would be hard to reverse). The owner-index
 choice is narrow: one entity kind, in a skeletal state, on one door.
+
+## 2026-09-25 — the fourth batch lands
+
+A second weekly limit stopped all four lanes on 2026-09-24. When usage
+reset (Ev, 2026-09-25) every worktree was pushed and clean except the
+scalar-lift lane's in-flight edit, and each lane resumed from HEAD.
+
+Merged: **#3150** (the viewer `insert` doors renamed for the door they
+drive; rectangle longhands folded), **#3151** (`SolidOwners` places lone
+vertices, one forward walk shaped like the offset scope's, pinned against
+it; `shell10_r2_probes` folded), **#3152** (the §9.3 hole/ring/plating
+surgery, the chart_region sheet helpers and the two-shell refile homed
+once each; door census sentences rewritten), and **#3149** (the third
+sitting's records). #3242 (scalar lift, no new door: `x.map(T::from_f64)`)
+is in full review.
+
+Every unit's review found something, and the findings rhyme:
+
+- **The recurring fold defect, again, three times.** #3150's fold minted a
+  byte-identical private twin (`add_instance` in two suites). #3152 moved
+  surgery into `test_support_fixtures.rs` without re-measuring
+  `DOORS_MEASURED` (57, not 54) or adding the new file to two suites'
+  `gated_to!` lists, which would have silently skipped them on an edit to
+  the moved bodies. #3151 corrected a stale premise in a row while
+  leaving the same premise in the doc it edited. The move-a-body case has
+  a follow-through of its own: **every check that keys on the file the
+  body left** (door tables, gated lists) is part of the move.
+- **Kept copies on recited reasons.** #3152 kept `review_f7`'s ring-face
+  plant on a header's "preserved verbatim", while exporting the door that
+  plant should have used with zero consumers. Folded in the fix pass.
+- **Load-bearing kind assertion.** #3150's fix-pass plants showed the new
+  `commit_mate` kind check is what keeps six rows honest: without it,
+  `fault(mate).is_none()` holds for any non-mate id.
+
+### The orchestrator's own errors this batch
+
+- The dispatch brief cited method items 1–25 while item 25 was only on
+  this branch (#3149 unmerged at the cut): item 20, repeated. Caught by
+  #3150's reviewer.
+- The topo-batch brief named `review_m1_pr3.rs` as a PR #17 attribution
+  file; the seven are `review_m1_pr1.rs` and `review_m1_pr2/*`. The #3152
+  reviewer brief asserted main had a "new copy" of `plane_every_face`;
+  main had only moved it. Both are transposed facts in a brief (item 20's
+  second clause), both corrected by the lane or reviewer.
+- The standing "read the LAST `test result:` line" was wrong under
+  `--no-fail-fast` (item 26), and the orchestrator's job-count check had
+  gone stale under RING-4 (item 27).
+- #3151's lane closed nothing it shouldn't have, but one lane last sitting
+  closed and reopened a PR to kick CI; the brief now forbids it and no
+  lane did it this batch.
+
+### The slate
+
+`dup` reads **39.5/30**: the batch closed seven rows and its lanes filed
+nine (every one of them priced, most P4/E, one P1/D:
+`step-program-embed-has-no-map-door`). Per the third sitting's log, the
+P4 tail is cut into its own program once #3242 lands.

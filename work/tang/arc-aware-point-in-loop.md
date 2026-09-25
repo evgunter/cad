@@ -129,3 +129,13 @@ walks the polygon; `NoWalk` refuses — both can call the new walk,
 ATREST-12), and the half-disc-with-axis-vertex cap above reaches
 `ArcParity` there; `chord_join::rehome_rings` (`point_in_loop` over the
 new face's outer loop, whatever its carriers).
+
+## A torus-free standalone fixture (GERM, 2026-09-25)
+
+GERM's dumbbell measurement lane reproduced a `contain::contfp` `OnBoundary`
+→ `Escalated{bool_contfp_boundary}` with no torus and no F7 in play:
+a rectangle touching the axis, `Revolution::Partial(3π/2)`, unioned with a
+box sitting on its top cap. The query point is the axis point, which is the
+cap arcs' common centre and is collinear with the loop's straight edges.
+(Its diag also reads `margin: Invalid`.) The same door stops the
+longitudinal spelling of the revolved dumbbell.

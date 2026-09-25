@@ -53,6 +53,7 @@ fn triangle(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
         loops: vec![
             LoopProgram::polygon([(0.0, 0.0), (side, 0.0), (0.0, side)]).expect("finite corners"),
         ],
+        ids: Vec::new(),
     })
 }
 
