@@ -2,11 +2,12 @@
 id: a-poisoned-curve-carrier-datum-is-refused-at-rest-only-by-accident
 kind: issue
 title: A curve carrier's poisoned or out-of-convention datum at rest is refused only by check 2's residual, which names the edge and not the datum
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P4
 cost: D
 refs: [ATREST-6]
+parent: ATREST-13
 ---
 
 ## What
