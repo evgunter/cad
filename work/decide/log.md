@@ -522,3 +522,34 @@ settled by reading plus a handful of probes: the value channel's
 bit-identity, the `Zero`-turn convention, the span identity's proof
 comment, and the re-baselines, the link's four lost theorems above all.
 None of that needs a second independent reviewer to believe.
+
+## 2026-09-25 — DECIDE-5 merged into `props/sign-hull` (#3214); the bulge-reach item closes
+
+**The change.** The arc carrier's span is spelled `4·atan(σ·b)` from the
+decided turn, and the value channel is bit-identical. It takes the `0.5`
+parameter control's sign-blocked decisions and 22 on R2's link.
+
+**The link's net of four.** The link's `carrier_on_surface_2` nets four
+fewer theorems: eight go to the door on the ring and four come back, and
+two answers go numeric. Those two freeze on terms and degree past a
+32,768-term budget and are on the census.
+
+**Cost.** The link's leaf is 19.1 → 10.7 s and the pad's 142.8 → 88.6 s.
+
+**Review.** Single FULL review on `3a99b1b71`: APPROVE-WITH-FIXES 0/2/7.
+It found the tube's `Zero` convention with the opposite arm and a missed
+retraction. Fix pass A–J at `e9bc401b5`, including the tour's caption
+made true.
+
+**Closed.** `rule-d-reaches-the-unit-bulge-only` closes. Its ring and
+term-budget residue is the census's, and the apothem's sign is its own
+row.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 394k | 307 min |
+| implementer, fix pass | 81k | 82 min |
+| reviewer | 248k | 54 min |
+
