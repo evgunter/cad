@@ -4905,7 +4905,9 @@ pub(crate) fn tier3_local_checks_marked<
     //   meeting point, so a contact carried by one is skipped. Arm 1
     //   still covers their endpoints.
     // - **A face on a non-planar surface** in arms 4 and 5: there is
-    //   no plane to meet in. Arms 1-3 still run there.
+    //   no plane to meet in. Arms 1-3 still run there. Both silences
+    //   are one row
+    //   (`work/atrest/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`).
     //
     // The residue is a floor, not a ceiling: what it costs is that a
     // body carrying one of those shapes validates. The shapes this

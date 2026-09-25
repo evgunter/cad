@@ -2,7 +2,7 @@
 id: check-9-contact-half-misses-a-crossing-and-a-tangency
 kind: issue
 title: check 9's contact half does not see a ring CROSSING or TANGENT to its outer loop at a point that is a vertex of neither, and the nesting arm is premised on the crossing being absent
-status: dispatched
+status: review
 opened: 2026-09-24
 priority: P1
 cost: D
@@ -58,3 +58,19 @@ the arc-window test `boolean::contain::point_on_arc` already spells.
 shape (the shell verb's own door refuses ahead of them, and profile
 validation refuses crossing loops), so this is the at-rest statement
 being weaker than it reads rather than a live wrong answer.
+
+**Resolution (ATREST-11).** Check 9's contact half has two new arms,
+run after arms 1–3 on a planar face. Arm 4: where both loops are
+`loop_shape`'s `Disc` class, `validate::circle_pair` decides the centre
+distance against `R + r` and `|R − r|` (two decides) and a tangency or
+crossing reports `RingMeetsOuter` with `RingContact::Circles`, naming
+the two loops. Arm 5: every other pair of `Line` and `Circle` edges has
+its carriers' meeting points computed in closed form
+(`validate::segments_meet`) and tested against both trims — a line's
+span, an arc's window through `boolean::contain::point_on_arc`, now
+`pub(crate)` — reporting `RingContact::EdgesMeet`; an in-band margin
+that could turn a candidate into a meeting escalates. The nesting arm's
+premise is checked for those carriers (`validate::ring_nesting`'s doc).
+The residue — non-planar faces and `Ellipse`/`Spiric`/NURBS edges — is
+its own row:
+`work/atrest/check-9-meeting-arms-silent-off-a-plane-and-on-ellipse-spiric-nurbs-edges.md`.
