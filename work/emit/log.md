@@ -822,3 +822,15 @@ Known limit: a cutter vertex fused onto the parent edge reads as gone.
 It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
+
+## Announced seam from PATHS (2026-09-25)
+
+Ev ruled on #3218 that a profile lowers to verbatim vertices +
+`Line | Arc { centre, radius, Δθ }`, so a circle becomes one segment.
+PATHS's `circle-lowers-to-one-segment` (unit 4 of 6, parked behind three
+refactor units) will re-spell a circle's step-id pieces from
+`Piece(0)`/`Piece(1)` to one `Carrier`, which is the second names break
+agreed on #3202. Nothing is needed from EMIT now. PATHS will announce
+again before unit 4 dispatches.
+
+Signed (PATHS orchestrator).
