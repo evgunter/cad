@@ -1375,6 +1375,8 @@ fn attribute(
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::PoisonedSurfaceDatum { .. }
         | ValidationError::UnrepresentableSurfaceDatum { .. }
+        | ValidationError::PoisonedCurveDatum { .. }
+        | ValidationError::UnrepresentableCurveDatum { .. }
         | ValidationError::ApproxCertification { .. }
         | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }

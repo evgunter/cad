@@ -779,8 +779,9 @@ pub enum ValidationError {
         cause: Indeterminate,
     },
     /// Tier 3: a face's analytic surface stores a datum that is not a
-    /// finite number, or a plane whose `normal` is the zero vector — a
-    /// description that claims a locus and cannot evaluate one.
+    /// finite number, or a direction (`normal`, `axis`, `u_ref`) that is
+    /// the zero vector — a description that claims a locus and cannot
+    /// evaluate one.
     ///
     /// **The analytic kinds' answer to `geom`'s totality-and-poison
     /// rule, and not [`ValidationError::PoisonedSurfaceDescription`]**:
@@ -833,6 +834,46 @@ pub enum ValidationError {
         /// Which end of the convention it fails: `Lower` for a radius
         /// that is not positive or a cone closed to a line, `Upper` for
         /// a cone opened to a plane.
+        end: geom::ConventionEnd,
+    },
+    /// Tier 3: an edge's analytic carrier stores a datum that is not a
+    /// finite number, or a direction (`dir`, `axis`, `u_ref`) that is
+    /// the zero vector — the curve half of
+    /// [`ValidationError::PoisonedSurfaceDatum`], read the same way and
+    /// for the same reason.
+    ///
+    /// Named at check 1 rather than left to check 2's re-certification,
+    /// because certification meters the carrier's residuals and not
+    /// its datums: a circle whose `axis` is zero traces the diameter
+    /// between two vertices and certifies against a chart description
+    /// that the diameter lies in, and a residual refusal that does
+    /// catch a poisoned datum names the edge and not the datum
+    /// (`CertifyError` has no variant for one).
+    PoisonedCurveDatum {
+        /// The edge whose carrier stores the datum.
+        edge: EdgeKey,
+        /// The carrier kind.
+        kind: crate::query::CurveKind,
+        /// The datum that describes no locus.
+        datum: geom::CurveDatum,
+    },
+    /// Tier 3: an edge's analytic carrier stores a finite datum outside
+    /// its variant's convention — a circle radius, an ellipse semi-axis
+    /// or a spiric tube radius that is not definitely positive
+    /// ([`geom::Curve3::representability_margins`]) — the curve half of
+    /// [`ValidationError::UnrepresentableSurfaceDatum`], with that
+    /// variant's posture: refused on representability (a circle of
+    /// radius zero is a point, and one of negative radius is the circle
+    /// of the opposite radius spelled as this one), and not a metered
+    /// predicate.
+    UnrepresentableCurveDatum {
+        /// The edge whose carrier stores the datum.
+        edge: EdgeKey,
+        /// The carrier kind.
+        kind: crate::query::CurveKind,
+        /// The datum outside its convention.
+        datum: geom::CurveDatum,
+        /// Which end of the convention it fails.
         end: geom::ConventionEnd,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
@@ -1999,10 +2040,37 @@ impl fmt::Display for ValidationError {
                  {what} — a description that claims a locus and cannot evaluate one",
                 kind = kind.name(),
                 datum = datum.name(),
-                what = if *datum == geom::SurfaceDatum::Normal {
-                    "it is not finite, or is the zero vector"
-                } else {
-                    "it is not a finite number"
+                what = match datum {
+                    geom::SurfaceDatum::Normal
+                    | geom::SurfaceDatum::Axis
+                    | geom::SurfaceDatum::URef => "it is not finite, or is the zero vector",
+                    _ => "it is not a finite number",
+                },
+            ),
+            Self::PoisonedCurveDatum { edge, kind, datum } => write!(
+                f,
+                "edge {edge:?}'s {kind:?} carrier stores a {datum} that describes no locus: \
+                 {what} — a carrier that claims a curve and cannot evaluate one",
+                datum = datum.name(),
+                what = match datum {
+                    geom::CurveDatum::Dir | geom::CurveDatum::Axis | geom::CurveDatum::URef =>
+                        "it is not finite, or is the zero vector",
+                    _ => "it is not a finite number",
+                },
+            ),
+            Self::UnrepresentableCurveDatum {
+                edge,
+                kind,
+                datum,
+                end,
+            } => write!(
+                f,
+                "edge {edge:?}'s {kind:?} carrier stores a {datum} {side} of its convention \
+                 (not definitely inside it), so it describes no curve of its kind",
+                datum = datum.name(),
+                side = match end {
+                    geom::ConventionEnd::Lower => "at or below the lower end",
+                    geom::ConventionEnd::Upper => "at or above the upper end",
                 },
             ),
             Self::UnrepresentableSurfaceDatum {
@@ -2733,17 +2801,22 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 1. **Surface implementedness** (faces, arena order): a `Nurbs`
 ///    payload's [`geom::NetState`] is read and each state answered —
 ///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
-///    `Poisoned` reports
-///    [`ValidationError::PoisonedSurfaceDescription`], `Described`
-///    passes; every analytic surface's stored datums are numbers, and
-///    a plane's normal is not zero
+///    `Poisoned` — and a `Described` net carrying a control point that
+///    is not a finite number — report
+///    [`ValidationError::PoisonedSurfaceDescription`], any other
+///    `Described` net passes; every analytic surface's stored datums
+///    are numbers, and none of its directions is the zero vector
 ///    ([`ValidationError::PoisonedSurfaceDatum`]); each datum lies
 ///    inside its convention
 ///    ([`ValidationError::UnrepresentableSurfaceDatum`], the bounds
 ///    being [`geom::Surface::representability_margins`]'s); and every
 ///    torus honours D3's ring convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
-///    [`ValidationError::DegenerateTorusEscalated`]).
+///    [`ValidationError::DegenerateTorusEscalated`]). Then the same
+///    datum read over every edge's analytic carrier (edges, arena
+///    order): [`ValidationError::PoisonedCurveDatum`] and
+///    [`ValidationError::UnrepresentableCurveDatum`], the bounds being
+///    [`geom::Curve3::representability_margins`]'s.
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
 ///    stored [`geom_brep::EdgeCurve`] re-runs its full D4 ¶2
 ///    certification — endpoint pinning against the edge's own vertices'
@@ -3872,40 +3945,39 @@ pub(crate) enum PlusVCheck<T: geom_core::Decide> {
     Through(Option<crate::props::QuadLane<T>>),
 }
 
-/// **Check 1's DATUM verdicts on one analytic surface**, in the order
-/// they are asked, the second gated on the first having found nothing.
-/// (The torus's ring half `R > r` is a decided geometric margin and is
-/// asked at the call site, after these.)
+/// **Check 1's DATUM verdict on one analytic surface or edge carrier**,
+/// the second question gated on the first having found nothing. (The
+/// torus's ring half `R > r` is a decided geometric margin and is asked
+/// at the call site, after this.)
 ///
-/// 1. **Poison** ([`poisoned_datums`]): `geom`'s totality-and-poison
-///    rule is about no particular surface kind, so a stored datum that
-///    is not a number is named here exactly as a poisoned net is named
-///    by the `Nurbs` arm. Every such datum is named, and the convention
-///    is not read over any of them — a margin of poison is poison.
-/// 2. **The convention, on REPRESENTABILITY**: each of
-///    [`geom::Surface::representability_margins`] must be definitely
+/// 1. **Poison** (`poisoned`, the caller's read — [`poisoned_datums`]
+///    for a surface, [`poisoned_curve_datums`] for a carrier): `geom`'s
+///    totality-and-poison rule is about no particular kind, so a stored
+///    datum that is not a number is named here exactly as a poisoned
+///    net is named by the `Nurbs` arm. Every such datum is named, and
+///    the convention is not read over any of them — a margin of poison
+///    is poison.
+/// 2. **The convention, on REPRESENTABILITY**: each of `margins`
+///    ([`geom::Surface::representability_margins`] or
+///    [`geom::Curve3::representability_margins`]) must be definitely
 ///    positive. A datum outside its variant's convention describes no
-///    2-manifold a face can bound. The first failing margin is named,
-///    with the end of the convention it fails. Why this is a bracket
-///    read that decides nothing, unmetered: the `Bounds` scope rule's
-///    entry for this file (`geom_core::real`, `bounds_allowlist`, the
-///    2026-09-02 certified at-rest entry) — one home, not restated here.
+///    locus of the kind its variant names. The first failing margin is
+///    named, with the end of the convention it fails. Why this is a
+///    bracket read that decides nothing, unmetered: the `Bounds` scope
+///    rule's entry for this file (`geom_core::real`, `bounds_allowlist`,
+///    the 2026-09-02 certified at-rest entry) — one home, not restated
+///    here.
 ///
-/// A SOLE bracket bound, deliberately: nothing here decides.
-fn analytic_datum_verdicts<T: geom_core::Bounds>(
-    face: FaceKey,
-    surface: &Surface<T>,
-) -> Vec<ValidationError> {
-    let kind = geom_brep::SurfaceKind::of(surface);
-    let poisoned = poisoned_datums(surface);
+/// One function for both kinds, so the file's one bracket read has one
+/// site. A SOLE bracket bound, deliberately: nothing here decides.
+fn analytic_datum_verdicts<T: geom_core::Bounds, D: Copy>(
+    poisoned: Vec<D>,
+    margins: [Option<geom::RepresentabilityMargin<T, D>>; 2],
+) -> Option<DatumVerdict<D>> {
     if !poisoned.is_empty() {
-        return poisoned
-            .into_iter()
-            .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
-            .collect();
+        return Some(DatumVerdict::Poisoned(poisoned));
     }
-    surface
-        .representability_margins()
+    margins
         .into_iter()
         .flatten()
         .find(|m| {
@@ -3914,21 +3986,51 @@ fn analytic_datum_verdicts<T: geom_core::Bounds>(
                 Some(core::cmp::Ordering::Greater)
             )
         })
-        .map(|m| ValidationError::UnrepresentableSurfaceDatum {
-            face,
-            kind,
-            datum: m.datum,
-            end: m.end,
-        })
-        .into_iter()
-        .collect()
+        .map(|m| DatumVerdict::Unrepresentable(m.datum, m.end))
+}
+
+/// What [`analytic_datum_verdicts`] found, before the caller names the
+/// face or edge that carries it.
+enum DatumVerdict<D> {
+    /// Every datum that describes no locus, in field order.
+    Poisoned(Vec<D>),
+    /// The first datum outside its convention, and the end it fails.
+    Unrepresentable(D, geom::ConventionEnd),
+}
+
+/// Is every coordinate of a stored point a finite number? The value
+/// channel of [`geom_core::is_finite_length`], per coordinate.
+fn is_finite_point<T: Real>(p: &geom_core::Point3<T>) -> bool {
+    use geom_core::is_finite_length as finite;
+    finite(p.x) && finite(p.y) && finite(p.z)
+}
+
+/// Is a stored DIRECTION one — every component a finite number, and
+/// the vector not the zero vector?
+///
+/// The zero question is asked through [`geom_core::is_zero_length`]
+/// under that door's precondition — the length is asked
+/// [`geom_core::is_finite_length`] first — so a vector whose components
+/// are finite but whose NORM overflows (`(1e200, 0, 0)` at `f64`) is a
+/// direction, not the zero vector, and passes. Underflowed vectors pass
+/// too: not unit, but a direction. Unit-ness and orthogonality are the
+/// frame's convention, read by a different question at check 1
+/// ([`frame_margins`]), not poison.
+fn is_direction<T: Real>(v: &geom_core::Vec3<T>) -> bool {
+    use geom_core::is_finite_length as finite;
+    let components = finite(v.x) && finite(v.y) && finite(v.z);
+    let len = v.norm();
+    let zero = finite(len) && geom_core::is_zero_length(len, v.norm_witness());
+    components && !zero
 }
 
 /// **Check 1's poison read of an analytic surface**: every stored datum
-/// that is not a finite number at this scalar, and a plane `normal`
-/// that is the zero vector, in field order. Empty for a surface whose
-/// every datum is a number — and for the spline kinds, whose datum is a
-/// net that check 1 reads through [`geom::NetState`] instead.
+/// that is not a finite number at this scalar, and every stored
+/// direction (`normal`, `axis`, `u_ref`) that is the zero vector, in
+/// field order. Empty for a surface whose every datum is a number and
+/// every direction a direction — and for the spline kinds, whose datum
+/// is a net that check 1 reads through [`geom::NetState`] and
+/// [`net_is_finite`] instead.
 ///
 /// Asked through the value channel ([`geom_core::is_finite_length`]),
 /// with no bracket read and no threshold: whether a stored number is a
@@ -3936,15 +4038,13 @@ fn analytic_datum_verdicts<T: geom_core::Bounds>(
 /// without `..`, so a datum a variant gains is a compile error here
 /// rather than a field this read silently skips.
 ///
-/// The zero normal is the one direction asked for more than
-/// finiteness, because a plane's `normal` IS its chart normal: a zero
-/// one collapses `v_ref = normal × u_ref`, and the plane with it. It is
-/// asked through [`geom_core::is_zero_length`] under that door's
-/// precondition — the length is asked [`geom_core::is_finite_length`]
-/// first — so a normal whose components are finite but whose NORM
-/// overflows (`(1e200, 0, 0)` at `f64`) is a direction, not the zero
-/// vector, and passes. Underflowed normals pass too: not unit, which is
-/// conventional and unchecked, but a direction.
+/// **A zero direction is poison, the same argument for every one of
+/// them**: a zero `normal` collapses a plane's `v_ref = normal × u_ref`;
+/// a zero `axis` collapses a cylinder's `∂v`, a cone's generators and a
+/// sphere's or torus's `v_ref = axis × u_ref`; a zero `u_ref` collapses
+/// `radial(u)` for every axisymmetric kind and a plane's `v_ref`. None
+/// of those describes the surface its variant names. [`is_direction`]
+/// is the one reading.
 ///
 /// **The two scalars answer "finite" differently on one shape**, and
 /// that is `is_finite_length`'s value-channel semantics rather than
@@ -3958,12 +4058,8 @@ fn analytic_datum_verdicts<T: geom_core::Bounds>(
 fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
     use geom::SurfaceDatum as D;
     use geom_core::is_finite_length as finite;
-    let point = |p: &geom_core::Point3<T>| finite(p.x) && finite(p.y) && finite(p.z);
-    let vector = |v: &geom_core::Vec3<T>| finite(v.x) && finite(v.y) && finite(v.z);
-    let is_zero_normal = |n: &geom_core::Vec3<T>| {
-        let len = n.norm();
-        finite(len) && geom_core::is_zero_length(len, n.norm_witness())
-    };
+    let point = is_finite_point::<T>;
+    let direction = is_direction::<T>;
     let fields: Vec<(D, bool)> = match surface {
         Surface::Plane {
             origin,
@@ -3971,8 +4067,8 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
             u_ref,
         } => vec![
             (D::Origin, point(origin)),
-            (D::Normal, vector(normal) && !is_zero_normal(normal)),
-            (D::URef, vector(u_ref)),
+            (D::Normal, direction(normal)),
+            (D::URef, direction(u_ref)),
         ],
         Surface::Cylinder {
             origin,
@@ -3981,9 +4077,9 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
             u_ref,
         } => vec![
             (D::Origin, point(origin)),
-            (D::Axis, vector(axis)),
+            (D::Axis, direction(axis)),
             (D::Radius, finite(*radius)),
-            (D::URef, vector(u_ref)),
+            (D::URef, direction(u_ref)),
         ],
         Surface::Cone {
             apex,
@@ -3992,9 +4088,9 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
             u_ref,
         } => vec![
             (D::Apex, point(apex)),
-            (D::Axis, vector(axis)),
+            (D::Axis, direction(axis)),
             (D::HalfAngle, finite(*half_angle)),
-            (D::URef, vector(u_ref)),
+            (D::URef, direction(u_ref)),
         ],
         Surface::Sphere {
             center,
@@ -4004,8 +4100,8 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
         } => vec![
             (D::Center, point(center)),
             (D::Radius, finite(*radius)),
-            (D::Axis, vector(axis)),
-            (D::URef, vector(u_ref)),
+            (D::Axis, direction(axis)),
+            (D::URef, direction(u_ref)),
         ],
         Surface::Torus {
             center,
@@ -4015,10 +4111,10 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
             u_ref,
         } => vec![
             (D::Center, point(center)),
-            (D::Axis, vector(axis)),
+            (D::Axis, direction(axis)),
             (D::MajorRadius, finite(*major_radius)),
             (D::MinorRadius, finite(*minor_radius)),
-            (D::URef, vector(u_ref)),
+            (D::URef, direction(u_ref)),
         ],
         Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
     };
@@ -4026,6 +4122,92 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
         .into_iter()
         .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
         .collect()
+}
+
+/// **Check 1's poison read of an analytic edge carrier** — the curve
+/// half of [`poisoned_datums`], through the same two readings
+/// ([`geom_core::is_finite_length`] for a number, [`is_direction`] for
+/// a direction) and for the same reason: a line whose `dir` is zero is
+/// a point, a circle or ellipse whose `axis` or `u_ref` is zero is a
+/// segment or a point, and a datum that is not a number describes
+/// nothing. Empty for a `Nurbs` carrier, whose datum is its net.
+///
+/// Fields destructured without `..`, as on the surface half.
+fn poisoned_curve_datums<T: Real>(curve: &geom::Curve3<T>) -> Vec<geom::CurveDatum> {
+    use geom::Curve3 as C;
+    use geom::CurveDatum as D;
+    use geom_core::is_finite_length as finite;
+    let point = is_finite_point::<T>;
+    let direction = is_direction::<T>;
+    let fields: Vec<(D, bool)> = match curve {
+        C::Line { origin, dir } => vec![(D::Origin, point(origin)), (D::Dir, direction(dir))],
+        C::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Axis, direction(axis)),
+            (D::Radius, finite(*radius)),
+            (D::URef, direction(u_ref)),
+        ],
+        C::Ellipse {
+            center,
+            axis,
+            major,
+            minor,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Axis, direction(axis)),
+            (D::Major, finite(*major)),
+            (D::Minor, finite(*minor)),
+            (D::URef, direction(u_ref)),
+        ],
+        C::Spiric {
+            center,
+            axis,
+            u_ref,
+            major_radius,
+            minor_radius,
+            offset,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Axis, direction(axis)),
+            (D::URef, direction(u_ref)),
+            (D::MajorRadius, finite(*major_radius)),
+            (D::MinorRadius, finite(*minor_radius)),
+            (D::Offset, finite(*offset)),
+        ],
+        C::Nurbs(_) => Vec::new(),
+    };
+    fields
+        .into_iter()
+        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+        .collect()
+}
+
+/// **Is every control point of a described net a finite number?** —
+/// check 1's answer to `geom`'s totality-and-poison rule for a NET,
+/// read exactly as [`poisoned_datums`] reads an analytic datum
+/// ([`geom_core::is_finite_length`], per coordinate).
+///
+/// [`geom::NetState`] discriminates on the SCALAR's poison
+/// ([`geom_core::Real::is_poison`]), and `±∞` is not `f64` poison, so a
+/// net of infinities is [`geom::NetState::Described`]. That
+/// discriminator answers a different question — placeholder or not,
+/// which every consumer that treats "no description yet" benignly has
+/// to ask — and it stays as it is. The question here is check 1's own:
+/// does the stored datum describe a locus? An infinite control point
+/// does not, exactly as an infinite radius does not, so a described
+/// net that fails this read is refused as
+/// [`ValidationError::PoisonedSurfaceDescription`], the net's poison
+/// verdict. Weights need no read: they are `f64` structure, and every
+/// door into a net refuses a non-finite one at construction
+/// (`SplineError::NonFiniteWeight`).
+fn net_is_finite<T: Real>(net: &geom::NurbsSurface<T>) -> bool {
+    net.control().iter().all(is_finite_point)
 }
 
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
@@ -4114,9 +4296,18 @@ pub(crate) fn tier3_local_checks_marked<
                 NetState::Poisoned => {
                     errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
                 }
+                // A described net is real geometry only if every control
+                // point is a number: `NetState` reads the scalar's poison,
+                // and `±∞` is not `f64` poison, so a net of infinities
+                // arrives here. It describes no locus, exactly as an
+                // infinite radius does not (`net_is_finite`), and is
+                // refused as the poisoned net it is.
+                NetState::Described if !net_is_finite(payload) => {
+                    errors.push(ValidationError::PoisonedSurfaceDescription { face: face_key });
+                }
                 // Real geometry, and the checks that examine it are
                 // elsewhere — its seams at check 2, its flux at check
-                // 7. Nothing about the payload itself is a tier-3 fact.
+                // 7. Nothing else about the payload is a tier-3 fact.
                 NetState::Described => {}
             },
             // The approximating surface's re-derivation (O5): the
@@ -4159,10 +4350,31 @@ pub(crate) fn tier3_local_checks_marked<
                 | Surface::Sphere { .. }
                 | Surface::Torus { .. }),
             ) => {
-                let verdicts = analytic_datum_verdicts(face_key, surface);
-                if !verdicts.is_empty() {
-                    errors.extend(verdicts);
-                    continue;
+                let kind = geom_brep::SurfaceKind::of(surface);
+                match analytic_datum_verdicts(
+                    poisoned_datums(surface),
+                    surface.representability_margins(),
+                ) {
+                    Some(DatumVerdict::Poisoned(datums)) => {
+                        errors.extend(datums.into_iter().map(|datum| {
+                            ValidationError::PoisonedSurfaceDatum {
+                                face: face_key,
+                                kind,
+                                datum,
+                            }
+                        }));
+                        continue;
+                    }
+                    Some(DatumVerdict::Unrepresentable(datum, end)) => {
+                        errors.push(ValidationError::UnrepresentableSurfaceDatum {
+                            face: face_key,
+                            kind,
+                            datum,
+                            end,
+                        });
+                        continue;
+                    }
+                    None => {}
                 }
                 // The torus's ring half `R > r` is a GEOMETRIC question
                 // — two datums of the body compared, not one against its
@@ -4198,6 +4410,48 @@ pub(crate) fn tier3_local_checks_marked<
             // resolve is tier 1's `DanglingGeometry`, already reported,
             // and the coarse gate means we never reach here in that
             // case.
+            None => {}
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Tier 3, check 1, CARRIER half (edge-arena order): every analytic
+    // edge carrier's stored datums, read exactly as a surface's are —
+    // poison first, then the representability convention
+    // (`analytic_datum_verdicts`). Certification meters a carrier
+    // against its endpoints and description, and a carrier whose datum
+    // describes no curve of its kind can pass that (a circle whose
+    // `axis` is zero traces the diameter it spans; a negative radius
+    // traces the circle of the opposite radius), so the datum is asked
+    // by name here and not left to check 2's residuals.
+    // ------------------------------------------------------------------
+    for (edge_key, edge) in body.edges.iter() {
+        let Some(curve) = body.curves.get(edge.curve).and_then(CurveGeom::certified) else {
+            continue;
+        };
+        let carrier = curve.carrier();
+        let kind = crate::query::CurveKind::of(carrier);
+        match analytic_datum_verdicts(
+            poisoned_curve_datums(carrier),
+            carrier.representability_margins(),
+        ) {
+            Some(DatumVerdict::Poisoned(datums)) => {
+                errors.extend(datums.into_iter().map(|datum| {
+                    ValidationError::PoisonedCurveDatum {
+                        edge: edge_key,
+                        kind,
+                        datum,
+                    }
+                }));
+            }
+            Some(DatumVerdict::Unrepresentable(datum, end)) => {
+                errors.push(ValidationError::UnrepresentableCurveDatum {
+                    edge: edge_key,
+                    kind,
+                    datum,
+                    end,
+                });
+            }
             None => {}
         }
     }
@@ -4764,13 +5018,19 @@ pub(crate) fn tier3_local_checks_marked<
     // role-invariant) but silently corrupts tessellation/export;
     // this closes that class structurally.
     //
-    // **Scope: loops of `Line` and `Circle` carriers.** A bare
-    // vertex-chord Newell sum is the enclosed area only for straight
-    // boundaries — a 270° sector's chord quad self-crosses — so an arc
-    // enters exactly: `2A` is the chord Newell plus, per arc, its
-    // circular segment `axis · R² · (Δ − sin Δ)`, odd in the signed span
-    // `Δ` and therefore carrying the traversal sign, and the perimeter
-    // lever is re-metered to the arcs' own lengths. That arithmetic has
+    // **Scope: loops of `Line`, `Circle` and `Ellipse` carriers.** A
+    // bare vertex-chord Newell sum is the enclosed area only for
+    // straight boundaries — a 270° sector's chord quad self-crosses — so
+    // an arc enters exactly: `2A` is the chord Newell plus, per arc, its
+    // conic segment `axis · a·b · (Δ − sin Δ)` (`a = b = R` for a
+    // circle; an elliptic arc is the circle's affine image), odd in the
+    // signed span `Δ` and therefore carrying the traversal sign, and the
+    // perimeter lever is re-metered to the arcs' own lengths — exactly
+    // for a circle, and for an ellipse by the upper bound `|Δ|·major`.
+    // An upper-bound lever shrinks the metered margin `2A/P`, so a thin
+    // elliptic region escalates where a circular one of the same width
+    // decides; escalation is exempt, so the bound can cost a verdict
+    // and never mint a wrong one. That arithmetic has
     // one home, `crate::loop_winding`, which the merge's role assigner
     // (`merge_faces`) decides on as well, so the checker falsifies a
     // role by the very functional that assigned it — so an error IN the
@@ -4782,14 +5042,11 @@ pub(crate) fn tier3_local_checks_marked<
     // or mis-scaled arc term. A LINE-only loop is decided by the chord
     // sum alone, the correction block structurally skipped.
     //
-    // **The residue this arm does not examine**, by carrier: a loop
-    // riding an `Ellipse` (the shared winding decides it, and the merge
-    // assigns roles by it, but its lever is an arc-length upper bound;
-    // what the widening would refuse over the corpora is measured at
-    // `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`),
-    // and a loop riding a NURBS or spiric carrier, whose region has no
-    // closed-form area. A planar face bounded so carries a stored sense
-    // no at-rest check falsifies.
+    // **The residue this arm does not examine**: a loop riding a NURBS
+    // or spiric carrier, whose region has no closed-form area
+    // (`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+    // A planar face bounded so carries a stored sense no at-rest check
+    // falsifies.
     //
     // **The S10 sense gate.** A face's outward normal is the chart
     // normal with `sense` folded in, so the winding is compared against
@@ -4828,15 +5085,10 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            // Line and Circle carriers (banner); an empty ring, a loop
-            // riding an ellipse, spiric or NURBS edge, and a torn
+            // Line, Circle and Ellipse carriers (banner); an empty
+            // ring, a loop riding a spiric or NURBS edge, and a torn
             // lookup (unreachable on tier-1 input) are not asked.
-            let Ok(Some(winding)) = body.planar_loop_winding(
-                l,
-                outward,
-                band,
-                crate::loop_winding::LoopCarriers::Circular,
-            ) else {
+            let Ok(Some(winding)) = body.planar_loop_winding(l, outward, band) else {
                 continue;
             };
             if winding == Ok(wrong) {

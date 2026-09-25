@@ -2720,6 +2720,8 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::DegenerateTorusEscalated { .. } => "degenerate_torus_escalated",
         ValidationError::PoisonedSurfaceDatum { .. } => "poisoned_surface_datum",
         ValidationError::UnrepresentableSurfaceDatum { .. } => "unrepresentable_surface_datum",
+        ValidationError::PoisonedCurveDatum { .. } => "poisoned_curve_datum",
+        ValidationError::UnrepresentableCurveDatum { .. } => "unrepresentable_curve_datum",
         ValidationError::EdgeCertification { .. } => "edge_certification",
         ValidationError::DescriptionNotAdjacent { .. } => "description_not_adjacent",
         ValidationError::PlanarFaceResidual { .. } => "planar_face_residual",

@@ -332,7 +332,8 @@ const ROSTER: &[Site] = &[
         subject: "analytic_datum_verdicts",
         why: Selection(
             "tier-3 check 1's representability read: `Bounds::lo` of each STORED datum's \
-             convention margin (`geom::Surface::representability_margins`) compared with \
+             convention margin (`geom::Surface::representability_margins`, \
+             `geom::Curve3::representability_margins`) compared with \
              zero — whether a datum lies inside the convention its variant states, a \
              locally constant fact about data, not a geometric quantity of the body. It \
              selects the refusal and never crosses into a certificate; the argument is \

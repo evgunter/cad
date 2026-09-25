@@ -65,13 +65,12 @@ use geom_core::{Decide, Indeterminate, Margin, Real, Sign, Vec3};
 use crate::body::Body;
 use crate::entity::LoopKey;
 
-/// Which conic carriers a wound loop rides — the carrier set a caller
-/// may choose to answer on. Ordered, and `reach` is a threshold rather
-/// than a set, because each class's winding is exact wherever the
-/// narrower one's is: a caller admitting ellipses has no reason to
-/// refuse circles.
+/// Which conic carriers a wound loop rides — ordered, so a walk
+/// accumulates the widest class it meets. Every class is answered; the
+/// class decides only whether the conic correction runs (a `Lines`
+/// cycle keeps the bare chord sum).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
-pub(crate) enum LoopCarriers {
+enum LoopCarriers {
     /// Every edge a `Line`: the chord polygon IS the region.
     Lines,
     /// Lines and at least one `Circle`, no `Ellipse`: the bulge is the
@@ -123,15 +122,15 @@ impl<T: Decide> Body<T> {
     ///
     /// `Ok(None)` — no predicate is asked — for an empty loop (a
     /// lone-vertex ring bounds no area), for a cycle carrying a NURBS
-    /// or spiric edge or a null-edge scaffold (the honest remainder),
-    /// and for a cycle whose widest carrier lies beyond `reach`, the
-    /// carrier set the caller answers on.
+    /// or spiric edge or a null-edge scaffold (the honest remainder).
+    /// There is no narrower reach to ask for: the assigner and the
+    /// checker answer on the one carrier set, which is what keeps them
+    /// from disagreeing about which loops have a winding.
     pub(crate) fn planar_loop_winding(
         &self,
         l: LoopKey,
         normal: Vec3<T>,
         band: geom_core::Band,
-        reach: LoopCarriers,
     ) -> Result<Option<Result<Sign, Indeterminate>>, TornLoop> {
         let crate::entity::LoopBoundary::Cycle { first } =
             self.get_loop(l).ok_or(TornLoop)?.boundary
@@ -162,9 +161,6 @@ impl<T: Decide> Body<T> {
                 .and_then(|vd| self.get_point(vd.point).copied())
                 .ok_or(TornLoop)?;
             walked.push((start, curve, edge.he_plus == he));
-        }
-        if carriers > reach {
-            return Ok(None);
         }
         let p0 = walked[0].0;
         let mut newell = Vec3::new(T::zero(), T::zero(), T::zero());

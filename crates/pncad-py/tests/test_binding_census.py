@@ -3539,6 +3539,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableCurveDatum": "ValidationFinding.variant",
     "ValidationError::EdgeCertification": "ValidationFinding.variant",
     "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
     "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",

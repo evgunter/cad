@@ -1339,10 +1339,12 @@ pub mod bounds_allowlist {
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
-    //! analytic surface's conventions state (`geom`'s
+    //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
-    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
+    //! radius, an ellipse's semi-axes and a spiric's tube radius), the
+    //! representability read. The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
     //! its convention with zero — a radius that is zero, negative or poison

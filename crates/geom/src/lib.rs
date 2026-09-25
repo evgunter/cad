@@ -137,9 +137,9 @@ mod scalar_lift;
 pub mod surfaces;
 
 pub use curves::{
-    ComposeError, Curve3, CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError,
-    FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3, ProjectionInconclusive,
-    RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
+    ComposeError, Curve3, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
 };
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the

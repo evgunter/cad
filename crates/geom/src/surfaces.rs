@@ -396,14 +396,15 @@ impl<T: Real> Surface<T> {
     }
 }
 
-/// One representability margin ([`Surface::representability_margins`]):
-/// the datum it bounds, which end of the datum's convention it
-/// measures, and the quantity — strictly positive exactly when the
-/// datum is inside that end.
+/// One representability margin ([`Surface::representability_margins`],
+/// or with `D` = [`crate::CurveDatum`],
+/// [`crate::Curve3::representability_margins`]): the datum it bounds,
+/// which end of the datum's convention it measures, and the quantity —
+/// strictly positive exactly when the datum is inside that end.
 #[derive(Clone, Copy, Debug)]
-pub struct RepresentabilityMargin<T> {
+pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
     /// The datum the margin bounds.
-    pub datum: SurfaceDatum,
+    pub datum: D,
     /// Which end of the datum's convention the margin measures.
     pub end: ConventionEnd,
     /// The margin itself, at the surface's scalar.
