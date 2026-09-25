@@ -31,7 +31,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     eval_after(doc, None)
 }
 
-fn eval_after(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn eval_after(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,

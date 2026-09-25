@@ -2,11 +2,12 @@
 id: touch-kinds-without-a-local-side-analysis-block-the-material-test
 kind: issue
 title: VertexVertex, VertexOnEdge, EdgeEdgeOverlap and ConformalPatch touches between two solids block the census's material test because only the vertex-on-face and edge-in-face kinds have a local side analysis
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2767, 750]
 priority: P0
 cost: H
+parent: CONTACT-1
 ---
 
 Filed by the S-BOOL orchestrator at BOOL-4's merge (PR 2767) on

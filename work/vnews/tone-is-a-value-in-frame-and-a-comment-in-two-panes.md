@@ -81,7 +81,8 @@ into `pane::profile::preview_verdict`, which no successor program
 claims. **It is a real third copy and a genuinely different rule** —
 unfinished-versus-blames-a-step, not own-refusal-versus-someone-else's
 — and it is filed as
-`work/issues/preview-error-picks-its-tone-by-hand-in-a-comment`.
+`work/vnews/preview-error-picks-its-tone-by-hand-in-a-comment` (filed
+under `work/issues/`, moved to VNEWS on 2026-09-25).
 
 **Residue**, each filed rather than disclosed here:
 `work/vnews/tone-doc-argues-from-a-site-that-now-reads-the-value`

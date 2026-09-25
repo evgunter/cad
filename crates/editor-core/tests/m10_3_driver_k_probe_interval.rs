@@ -95,6 +95,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                 .expect("finite square corners"),
         ],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -228,7 +229,7 @@ fn run_doc(doc: &ProfileDoc) -> Population {
 /// tolerance where the ε-relative fixtures stop certifying (they do
 /// not: the fixtures scale with ε, which is why the original defect
 /// was a budget and not a tolerance).
-fn run_doc_with(doc: &ProfileDoc, config: &DriveConfig) -> Population {
+fn run_doc_with(doc: &editor_core::ProfileDoc, config: &DriveConfig) -> Population {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     k_stats::start_recording();
     let v = drive(doc, &analyzed, config, Tol::witness()).expect("the fixture's nominal builds");

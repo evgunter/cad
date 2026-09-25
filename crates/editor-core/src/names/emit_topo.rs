@@ -2027,9 +2027,9 @@ mod tests {
                 RecipeNodeId(node),
                 RoleSeg::CapVertex(
                     super::super::role::CapEnd::End,
-                    super::super::role::ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: 0,
+                    super::super::role::ProfileVertexRef::Piece {
+                        step: crate::node::StepId(0),
+                        role: crate::names::PieceRole::Leg,
                     },
                 ),
             )),
@@ -2156,7 +2156,14 @@ mod tests {
         // A unit-cube extrusion: the "result body" stand-in.
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let a_table = name_extrude(ext_node, &built).unwrap();
+        let a_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
 
         // Synthetic merge: the end cap absorbed one lateral — listed
         // TWICE to exercise the dedup.
@@ -2241,7 +2248,14 @@ mod tests {
     fn a_cycling_fragment_map_refuses() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let a_table = name_extrude(ext_node, &built).unwrap();
+        let a_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         let naming = topo::BooleanNaming {
             a_keys: topo::OperandKeys::Direct,
             b_keys: topo::OperandKeys::Absent,
@@ -2303,7 +2317,14 @@ mod tests {
     fn a_cycling_graft_map_refuses_in_the_b_lane() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let b_table = name_extrude(ext_node, &built).unwrap();
+        let b_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         let mut body = built.body.clone();
         let e0 = body.edges().next().map(|(k, _)| k).unwrap();
         let e1 = body
@@ -2356,7 +2377,14 @@ mod tests {
     fn merged_same_constituent_groups_collide_loudly() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let a_table = name_extrude(ext_node, &built).unwrap();
+        let a_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         let laterals: Vec<_> = a_table
             .iter()
             .filter_map(|(n, e)| match (n.path.first(), e) {
@@ -2412,7 +2440,14 @@ mod tests {
     fn a_merge_over_a_merged_face_lists_its_constituents_flat() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let ext_table = name_extrude(ext_node, &built).unwrap();
+        let ext_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         // Three laterals: one the merge absorbs, two standing as the
         // constituents the operand's top cap already merged.
         let mut laterals: Vec<(StableName, FaceKey)> = ext_table
@@ -2511,7 +2546,14 @@ mod tests {
     fn a_merge_over_a_nested_merged_face_refuses_at_the_mint() {
         let built = unit_cube();
         let ext_node = RecipeNodeId(1);
-        let ext_table = name_extrude(ext_node, &built).unwrap();
+        let ext_table = name_extrude(
+            ext_node,
+            &built,
+            &crate::eval::ProfilePieces::numbered(
+                &built.side_faces.iter().map(Vec::len).collect::<Vec<_>>(),
+            ),
+        )
+        .unwrap();
         let mut laterals: Vec<(StableName, FaceKey)> = ext_table
             .iter()
             .filter_map(|(n, e)| match (n.path.first(), e) {

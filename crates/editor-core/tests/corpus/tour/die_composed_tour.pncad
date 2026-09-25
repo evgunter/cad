@@ -3,6 +3,7 @@ id: a8d79f40ddb79de569d778f1c0b832f9
   "snapshot": {
     "id": "a8d79f40ddb79de569d778f1c0b832f9",
     "next_id": 0,
+    "next_step": 0,
     "nodes": {},
     "order": [],
     "roots": [],
@@ -188,7 +189,8 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     }
                   ]
                 }
-              ]
+              ],
+              "ids": []
             }
           }
         }
@@ -236,8 +238,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "End",
                         {
-                          "loop_index": 0,
-                          "segment": 0
+                          "Piece": {
+                            "step": 1,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -251,8 +255,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "End",
                         {
-                          "loop_index": 0,
-                          "segment": 1
+                          "Piece": {
+                            "step": 2,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -266,8 +272,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "End",
                         {
-                          "loop_index": 0,
-                          "segment": 2
+                          "Piece": {
+                            "step": 3,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -281,8 +289,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "End",
                         {
-                          "loop_index": 0,
-                          "segment": 3
+                          "Piece": {
+                            "step": 4,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -296,8 +306,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "Start",
                         {
-                          "loop_index": 0,
-                          "segment": 0
+                          "Piece": {
+                            "step": 1,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -311,8 +323,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "Start",
                         {
-                          "loop_index": 0,
-                          "segment": 1
+                          "Piece": {
+                            "step": 2,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -326,8 +340,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "Start",
                         {
-                          "loop_index": 0,
-                          "segment": 2
+                          "Piece": {
+                            "step": 3,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -341,8 +357,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                       "RimEdge": [
                         "Start",
                         {
-                          "loop_index": 0,
-                          "segment": 3
+                          "Piece": {
+                            "step": 4,
+                            "role": "Leg"
+                          }
                         }
                       ]
                     }
@@ -354,8 +372,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "path": [
                     {
                       "LateralEdge": {
-                        "loop_index": 0,
-                        "vertex": 0
+                        "Piece": {
+                          "step": 1,
+                          "role": "Leg"
+                        }
                       }
                     }
                   ]
@@ -366,8 +386,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "path": [
                     {
                       "LateralEdge": {
-                        "loop_index": 0,
-                        "vertex": 1
+                        "Piece": {
+                          "step": 2,
+                          "role": "Leg"
+                        }
                       }
                     }
                   ]
@@ -378,8 +400,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "path": [
                     {
                       "LateralEdge": {
-                        "loop_index": 0,
-                        "vertex": 2
+                        "Piece": {
+                          "step": 3,
+                          "role": "Leg"
+                        }
                       }
                     }
                   ]
@@ -390,8 +414,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                   "path": [
                     {
                       "LateralEdge": {
-                        "loop_index": 0,
-                        "vertex": 3
+                        "Piece": {
+                          "step": 4,
+                          "role": "Leg"
+                        }
                       }
                     }
                   ]
@@ -594,7 +620,8 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                     }
                   ]
                 }
-              ]
+              ],
+              "ids": []
             }
           }
         }
@@ -2063,8 +2090,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "End",
                               {
-                                "loop_index": 0,
-                                "segment": 0
+                                "Piece": {
+                                  "step": 1,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2086,8 +2115,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "End",
                               {
-                                "loop_index": 0,
-                                "segment": 1
+                                "Piece": {
+                                  "step": 2,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2109,8 +2140,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "End",
                               {
-                                "loop_index": 0,
-                                "segment": 2
+                                "Piece": {
+                                  "step": 3,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2132,8 +2165,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "End",
                               {
-                                "loop_index": 0,
-                                "segment": 3
+                                "Piece": {
+                                  "step": 4,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2155,8 +2190,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "Start",
                               {
-                                "loop_index": 0,
-                                "segment": 0
+                                "Piece": {
+                                  "step": 1,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2178,8 +2215,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "Start",
                               {
-                                "loop_index": 0,
-                                "segment": 1
+                                "Piece": {
+                                  "step": 2,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2201,8 +2240,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "Start",
                               {
-                                "loop_index": 0,
-                                "segment": 2
+                                "Piece": {
+                                  "step": 3,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2224,8 +2265,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                             "RimEdge": [
                               "Start",
                               {
-                                "loop_index": 0,
-                                "segment": 3
+                                "Piece": {
+                                  "step": 4,
+                                  "role": "Leg"
+                                }
                               }
                             ]
                           }
@@ -2245,8 +2288,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "path": [
                           {
                             "LateralEdge": {
-                              "loop_index": 0,
-                              "vertex": 0
+                              "Piece": {
+                                "step": 1,
+                                "role": "Leg"
+                              }
                             }
                           }
                         ]
@@ -2265,8 +2310,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "path": [
                           {
                             "LateralEdge": {
-                              "loop_index": 0,
-                              "vertex": 1
+                              "Piece": {
+                                "step": 2,
+                                "role": "Leg"
+                              }
                             }
                           }
                         ]
@@ -2285,8 +2332,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "path": [
                           {
                             "LateralEdge": {
-                              "loop_index": 0,
-                              "vertex": 2
+                              "Piece": {
+                                "step": 3,
+                                "role": "Leg"
+                              }
                             }
                           }
                         ]
@@ -2305,8 +2354,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                         "path": [
                           {
                             "LateralEdge": {
-                              "loop_index": 0,
-                              "vertex": 3
+                              "Piece": {
+                                "step": 4,
+                                "role": "Leg"
+                              }
                             }
                           }
                         ]
@@ -2368,8 +2419,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2418,8 +2471,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2468,8 +2523,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2518,8 +2575,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2568,8 +2627,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2618,8 +2679,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2668,8 +2731,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2718,8 +2783,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2768,8 +2835,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2818,8 +2887,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2868,8 +2939,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2918,8 +2991,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -2968,8 +3043,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3018,8 +3095,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3052,8 +3131,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3071,8 +3152,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3105,8 +3188,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3124,8 +3209,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3158,8 +3245,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3177,8 +3266,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3211,8 +3302,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3230,8 +3323,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3264,8 +3359,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3283,8 +3380,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3317,8 +3416,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3336,8 +3437,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3370,8 +3473,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3389,8 +3494,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3423,8 +3530,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 0
+                                      "Piece": {
+                                        "step": 1,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3442,8 +3551,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3476,8 +3587,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 1
+                                      "Piece": {
+                                        "step": 2,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3495,8 +3608,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3529,8 +3644,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 1
+                                      "Piece": {
+                                        "step": 2,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3548,8 +3665,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3582,8 +3701,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 1
+                                      "Piece": {
+                                        "step": 2,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3601,8 +3722,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3635,8 +3758,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 1
+                                      "Piece": {
+                                        "step": 2,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3654,8 +3779,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3688,8 +3815,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3707,8 +3836,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3741,8 +3872,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3760,8 +3893,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3794,8 +3929,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3813,8 +3950,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3847,8 +3986,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3866,8 +4007,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3900,8 +4043,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3919,8 +4064,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -3953,8 +4100,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 2
+                                      "Piece": {
+                                        "step": 3,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -3972,8 +4121,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4006,8 +4157,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4025,8 +4178,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4059,8 +4214,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4078,8 +4235,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4112,8 +4271,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4131,8 +4292,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4165,8 +4328,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4184,8 +4349,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4218,8 +4385,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4237,8 +4406,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4271,8 +4442,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4290,8 +4463,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4324,8 +4499,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4343,8 +4520,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4377,8 +4556,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4396,8 +4577,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4430,8 +4613,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4449,8 +4634,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "Band": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]
@@ -4483,8 +4670,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                 "path": [
                                   {
                                     "Lateral": {
-                                      "loop_index": 0,
-                                      "segment": 3
+                                      "Piece": {
+                                        "step": 4,
+                                        "role": "Leg"
+                                      }
                                     }
                                   }
                                 ]
@@ -4502,8 +4691,10 @@ id: a8d79f40ddb79de569d778f1c0b832f9
                                         "path": [
                                           {
                                             "BandPi": {
-                                              "loop_index": 0,
-                                              "segment": 0
+                                              "Piece": {
+                                                "step": 6,
+                                                "role": "Leg"
+                                              }
                                             }
                                           }
                                         ]

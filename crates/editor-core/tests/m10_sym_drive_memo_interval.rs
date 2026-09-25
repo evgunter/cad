@@ -44,6 +44,7 @@ use editor_core::drive::{DriveConfig, ParamBoxVerdict, drive};
 use geom_core::sym::profile::{start_profile, take_profile};
 use geom_core::{SymBudget, SymRules, Tol};
 
+use crate::fixture::on_pool;
 use crate::m10_3_r1_probes_interval::{CHAMBER_LEAVES, bounded_chamber};
 use crate::m10_7_plate::plate;
 use crate::m10_derived_frame_tilted_interval::boss_on_tilted;
@@ -149,7 +150,10 @@ fn plain_memo_ceiling_plate_drive() {
 
 /// Every leaf's set of `Opaque` ids over one drive of `doc`, in leaf
 /// order.
-fn opaque_sets(doc: &ProfileDoc, max_leaves: usize) -> Vec<std::collections::BTreeSet<u128>> {
+fn opaque_sets(
+    doc: &editor_core::ProfileDoc,
+    max_leaves: usize,
+) -> Vec<std::collections::BTreeSet<u128>> {
     let tol = Tol::witness();
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     start_profile();
@@ -229,7 +233,10 @@ fn the_opaque_sets_a_drive_mints_are_reported_per_leaf() {
 
 /// The two drives of `doc` the differential compares: the memo on and
 /// the memo off, sequentially, at `max_leaves`.
-fn on_and_off(doc: &ProfileDoc, max_leaves: usize) -> (ParamBoxVerdict, ParamBoxVerdict) {
+fn on_and_off(
+    doc: &editor_core::ProfileDoc,
+    max_leaves: usize,
+) -> (ParamBoxVerdict, ParamBoxVerdict) {
     let tol = Tol::witness();
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let run = |plain_memo| {
@@ -396,17 +403,6 @@ fn the_memo_keeps_the_receipt_identical_across_schedules() {
     );
     assert_eq!(seq.content_key(), par.content_key());
     assert_eq!(seq.decisions(), par.decisions());
-}
-
-/// A drive on a rayon pool of `threads` workers — `install` binds the
-/// pool for the closure, so `drive`'s `par_iter` runs on it. Adopted
-/// from R2's probe, whose shape is `sweep/tests/common::on_pool`'s.
-fn on_pool<R: Send>(threads: usize, run: impl Fn() -> R + Send + Sync) -> R {
-    rayon::ThreadPoolBuilder::new()
-        .num_threads(threads)
-        .build()
-        .expect("the pool builds")
-        .install(run)
 }
 
 /// Everything two drives of one document must agree on.

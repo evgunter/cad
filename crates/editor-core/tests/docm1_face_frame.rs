@@ -99,6 +99,7 @@ fn ball_doc() -> (ProfileDoc, RecipeNodeId) {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![corpus::die_pips::half_disc_program()],
+            ids: Vec::new(),
         }),
     );
     fixture::insert(
@@ -680,7 +681,7 @@ fn a4_a_vanished_face_fails_the_frame_typed_and_poisons_the_sketch_and_rebind_re
 
     // A lateral face a 4-gon does not have: the name is well-formed,
     // its node is live, and the table lacks it — N5's `Vanished`.
-    let gone = fixture::fname(cube, fixture::wall(7));
+    let gone = fixture::fname(cube, editor_core::RoleSeg::Lateral(fixture::no_piece()));
     let rebind = |doc: &ProfileDoc, from: StableName, to: StableName| {
         apply(
             doc,

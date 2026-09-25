@@ -544,17 +544,20 @@ pub(crate) fn sources_of<T: Decide>(value: &NodeValue<T>) -> Option<Vec<Source0<
         // Multi-output ops carry no records (the `OpOut` invariant):
         // "output body 0" names nothing here, so there is no home to
         // read from and none is invented.
+        //
+        // Cannot refuse: an instance list is minted by the pattern op,
+        // which refuses any index `names::output_body` does not fit, or
+        // by `Placeable::map`, which rebuilds an existing list one body
+        // for one.
         ValuePayload::Instances(bodies) => Some(
             bodies
                 .iter()
                 .enumerate()
                 .map(|(i, body)| {
-                    (
-                        u32::try_from(i).unwrap_or(u32::MAX),
-                        Arc::clone(body),
-                        none(),
-                        norows(),
-                    )
+                    let ix = crate::names::output_body(i).unwrap_or_else(|e| {
+                        unreachable!("instance {i} outlived its minting op's index refusal: {e}")
+                    });
+                    (ix, Arc::clone(body), none(), norows())
                 })
                 .collect(),
         ),
