@@ -146,9 +146,13 @@ checked**.
   old quiet `"no directory"` was the same fact in the other voice.
 - `pane/create.rs`, the datum form's face-frame fault: **the value
   carries it**, `session::FaceFrameFault::tone`. A fault about the pick
-  (`NotOneBody`, `NotPlanar`, `Unresolved` — the last the same stale
-  pick `Standing::Face` draws loud in the header) is `Actionable`; a
-  seat not yet answerable (`NoFace`, `NotLanded`) is `Advisory`.
+  (`NotOneBody`, `NotPlanar`, `Unresolved`) is `Actionable`; a seat not
+  yet answerable (`NoFace`, `NotLanded`) is `Advisory`. The form's pick
+  is LATCHED and outlives the selection, so `Unresolved` is loud on its
+  own merits — the header is often about something else. When the
+  latched face IS the selection and the selection carries an unresolved
+  verdict, the header already says it loud, so the form omits its
+  sentence (`selection_says_unresolved`): a fact said once, as above.
 - `pane/create.rs`, the add-profile form's held reason: **typed**,
   `pane::create::Held`. It was one `&'static str` for three prompts
   (`Advisory`) and one refused input — a bore at least as wide as the
@@ -173,6 +177,9 @@ back at a draw site goes red as well as a wrong value:
 an indeterminate edge, no evaluation, a deleted node, an undeclared
 parameter, and silence for a standing that still denotes) and
 `pane::create::tone_tests` (the chooser's three answers, the face-frame
-faults, the held reason). `session::select::tests` holds
+faults including a stale pick, the stale pick said once, the bore's
+`Refused`, the held reason). `app::properties_pane_tests` drives a whole
+headless frame of the app, so `properties_ui`'s own `live()` gate and
+the deleted parameter line are held where they live. `session::select::tests` holds
 `Standing::tone`'s node and parameter arms against fixed `Tone`s. The
 mutation runs are named in PR #3230.

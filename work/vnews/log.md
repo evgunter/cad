@@ -546,3 +546,7 @@ from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
 because `pane/profile.rs` is VNEWS-claimed today.
 Filed on VDOC: `viewer-readme-counts-one-tone-function-outside-frame`
 (the README is VDOC's carve-out).
+Final pass: `app.rs` gains a test module, `properties_pane_tests`, which
+drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
+`Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
+`part-census-dir-iff-refusal-is-held-in-prose`.
