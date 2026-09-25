@@ -10159,12 +10159,16 @@ mod tests {
         words_with_sweeps(outer, ring, &arcs)
     }
 
+    /// An edge to re-carry: its two ends, the centre, and whether the
+    /// arc asked for is the one over a half turn.
+    type Sweep = (Point3<f64>, Point3<f64>, Point3<f64>, bool);
+
     /// [`words_with_arcs`], each arc's fourth field asking for the arc
     /// over a half turn ([`recarry_as_sweep`]).
     fn words_with_sweeps(
         outer: &[Point3<f64>],
         ring: &[Point3<f64>],
-        arcs: &[(Point3<f64>, Point3<f64>, Point3<f64>, bool)],
+        arcs: &[Sweep],
     ) -> (Vec<ValidationError>, FaceKey) {
         let tol = Tol::witness();
         let (mut body, face) = lamina_with_ring(outer, ring, tol);
