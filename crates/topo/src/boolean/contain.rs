@@ -41,6 +41,12 @@ pub enum FaceContainment {
 /// and [`ValidationError`](crate::ValidationError) is a cloneable,
 /// comparable value.
 #[derive(Debug, Clone, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(ContainErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum ContainError {
     /// A margin landed in the sliver band — the pair is
     /// ill-conditioned at this ε.

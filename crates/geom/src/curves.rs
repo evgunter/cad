@@ -356,6 +356,9 @@ impl std::error::Error for SpiricInvalid {}
 /// [`crate::SurfaceDatum`]; a consumer naming a datum names the curve
 /// kind beside it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum CurveDatum {
     /// A line's `origin`.
     Origin,

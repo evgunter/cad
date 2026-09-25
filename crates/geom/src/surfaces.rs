@@ -509,6 +509,9 @@ pub struct RepresentabilityMargin<T, D = SurfaceDatum> {
 /// way of saying TOO SMALL (a radius of zero, a cone closed to a line)
 /// from TOO LARGE (a cone opened to a plane).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum ConventionEnd {
     /// The datum must lie above this end (`radius > 0`, `half_angle > 0`).
     Lower,
@@ -521,6 +524,9 @@ pub enum ConventionEnd {
 /// `radius` are both [`SurfaceDatum::Radius`]). A consumer naming a
 /// datum names the surface kind beside it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+// Every value, for `topo`'s samples (this crate's `test-support`
+// feature, test builds only).
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum SurfaceDatum {
     /// A plane's or cylinder's `origin`.
     Origin,

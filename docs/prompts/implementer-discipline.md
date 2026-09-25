@@ -132,6 +132,11 @@ When you do run locally:
   artefacts into its branch history — unfixable under merge-only rules except
   by abandoning the branch and re-landing the diff (CERT-M2, 2026-09-02). Read
   `git status` before every `git add`; never add with `-A` unattended.
+- **Never kill processes by pattern on a shared box.** `pkill -f cargo` or
+  `pkill -f nextest` matches every lane's build, not yours. Kill only a PID
+  you have attributed to yourself — read `/proc/<pid>/environ` for your own
+  `CARGO_TARGET_DIR`, which is the other reason that directory has to be
+  yours alone.
 - **`--workspace` is not every cargo root, and the roots outside it are
   not covered uniformly.** `Cargo.toml` `exclude`s `benches`, `demos`,
   `tools` and `interval-transcendentals`, so
