@@ -340,8 +340,13 @@ fn probes(case: &Case) -> Vec<(Point3<f64>, bool)> {
 
 /// **Every arc-capped kind, at every pose: an answer is the truth.**
 /// Each wrong answer is reported with its fixture, pose and point; a
-/// refusal must be an in-band escalation, the walk's honest posture for
-/// a margin it cannot decide.
+/// refusal must be an in-band escalation (the solid walk's own, or the
+/// in-face walk's, which arrives as `Loop(Escalated)`), the honest
+/// posture for a margin it cannot decide, and at most one probe in
+/// twenty per cell. Measured: at ε = 1e-6 the torus barrel at the
+/// (1,2,3) pose escalates 5 of its 117 probes on
+/// `point_in_arc_loop_conic_disc` — an in-face ray passing within a
+/// band's width of tangent to the 3/64 m cap circle.
 #[test]
 fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -368,7 +373,12 @@ fn every_arc_capped_kind_reads_its_truth_at_every_pose() {
                         "{} | {pose} | {p:?}: {got:?}, truth {want:?}",
                         case.name
                     )),
-                    Err(PointInSolidError::Escalated { .. }) => refused += 1,
+                    Err(
+                        PointInSolidError::Escalated { .. }
+                        | PointInSolidError::Loop(topo::splitting::PointInLoopError::Escalated {
+                            ..
+                        }),
+                    ) => refused += 1,
                     Err(e) => wrong.push(format!("{} | {pose} | {p:?}: refused {e:?}", case.name)),
                 }
             }
@@ -433,7 +443,9 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
         200f64.to_radians().cos(),
         200f64.to_radians().sin(),
     );
-    let near = 1e-6;
+    // Near, but clear of the widest band a run draws (ε = 1e-6 escalates
+    // to 1e-5).
+    let near = 1e-4;
     let disc = prism_of(
         vec![pv(0.5, 0.0, 1.0), pv(-0.5, 0.0, 1.0)],
         core::f64::consts::PI * 0.25,
