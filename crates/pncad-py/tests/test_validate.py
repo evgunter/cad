@@ -295,7 +295,7 @@ class TestTheRefusalsShape(unittest.TestCase):
 
     def test_the_message_is_the_kernel_s_own_diagnosis(self):
         message = str(self.refusal())
-        self.assertIn("no declared contact covers it", message)
+        self.assertIn("is an undeclared contact", message)
         self.assertIn("Recourse: declare the contact, or move the geometry", message)
 
     def test_the_census_findings_arrive_as_prose(self):

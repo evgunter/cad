@@ -2373,8 +2373,8 @@ impl fmt::Display for ValidationError {
             }
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "{contact} at {witness}, and no declared contact covers it. \
-                 Recourse: declare the contact, or move the geometry"
+                "{contact} at {witness} is an undeclared contact. Recourse: declare the \
+                 contact, or move the geometry"
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
