@@ -12,7 +12,7 @@
 
 use crate::common::census::{genus_of, rings_of};
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey, ShellError};
 
@@ -44,11 +44,7 @@ fn plane_chart_at_z(body: &Body<f64>, z: f64) -> Vec<FaceKey> {
 }
 
 fn poly(pts: &[(f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    )
+    bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect())
 }
 
 fn revolved(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {

@@ -32,7 +32,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use core::f64::consts::FRAC_PI_2;
-use profile::RawLoop;
+use profile::test_support::bulge_loop;
 
 use geom::NurbsCurve3;
 use geom::curves::fit::interpolate_columns;
@@ -352,9 +352,9 @@ fn the_swept_bodys_seam_carriers_meter_positively() {
 /// non-unit weights, and there is no parameterization of a circle that
 /// does not.
 fn circle_section(r: f64) -> Section {
-    vec![sweep::ProfileLoop::new(vec![
-        sweep::ProfileVertex::new(Point2::new(-r, 0.0), 1.0),
-        sweep::ProfileVertex::new(Point2::new(r, 0.0), 1.0),
+    vec![bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
     ])]
 }
 

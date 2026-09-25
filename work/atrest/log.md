@@ -768,3 +768,17 @@ five live agents mid-work. Nothing was lost — every lane had pushed or
 held its work on disk (ATREST-4 five unpushed commits, ATREST-9 its
 trace instrumentation) — and all five were resumed with their context
 at the reset on 2026-09-27.
+
+## Announced seam from PATHS (2026-09-25)
+
+When #3231 lands, it carries a three-arm fix to
+`crates/topo/src/validate.rs`. main had stopped compiling `topo`: the
+`Display` match for `RingMeetsOuter` (#3185) covered only `Vertex`,
+`VertexOnEdge` and `Edge`. `a3d5c47e1` added three more contact arms
+(`OuterVertexOnEdge`, `Circles`, `EdgesMeet`), and the match had no
+arms for them. The new sentences are "where a corner of the outline
+meets an edge of the hole", "where the two circles cross or touch"
+and "where two of their edges cross or touch". No test pins any of
+them. Re-word them if ATREST prefers other phrasing.
+
+Signed (PATHS orchestrator).

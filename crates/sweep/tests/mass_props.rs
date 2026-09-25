@@ -14,7 +14,7 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2, TAU};
 use profile::RawLoop;
 
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::{Body, mass_properties, validate_geometric};
 
@@ -67,10 +67,7 @@ fn square_with_two_vertex_hole_matches_closed_forms() {
     // 4×4 square with a centered circular hole of radius 1, the closed
     // carrier split into two bulge-1 semicircle segments (genus 1).
     let outer = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(1.0, 0.0), 1.0), (p2(-1.0, 0.0), 1.0)]);
     let body = extrude(
         &validated(vec![outer, hole]),
         Extrusion::Distance(1.0),
@@ -106,10 +103,7 @@ fn washer_matches_closed_forms() {
 
 #[test]
 fn ball_matches_closed_forms() {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     let t = revolve(
         &validated(vec![lp]),
         axis_y(),

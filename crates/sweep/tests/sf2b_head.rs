@@ -14,7 +14,7 @@ use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
 
@@ -50,11 +50,11 @@ fn bellied(r0: f64, y0: f64, r1: f64, y1: f64, cy: f64, sign: f64) -> Body<f64> 
     let (dx1, dy1) = (r1 - c.x, y1 - c.y);
     let sweep = (dx0 * dy1 - dy0 * dx1).atan2(dx0 * dx1 + dy0 * dy1);
     let bulge = sign * (sweep / 4.0).tan();
-    revolved(RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r0, y0), bulge),
-        ProfileVertex::new(p2(r1, y1), 0.0),
-        ProfileVertex::new(p2(0.0, y1), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r0, y0), bulge),
+        (p2(r1, y1), 0.0),
+        (p2(0.0, y1), 0.0),
     ]))
 }
 
@@ -77,12 +77,12 @@ fn bellied_pot() -> Body<f64> {
     let (dx0, dy0) = (foot - c.x, y_foot - c.y);
     let (dx1, dy1) = (r_neck - c.x, y_mouth - c.y);
     let sweep = (dx0 * dy1 - dy0 * dx1).atan2(dx0 * dx1 + dy0 * dy1);
-    revolved(RawLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(foot, 0.0), 0.0),
-        ProfileVertex::new(p2(foot, y_foot), (sweep / 4.0).tan()),
-        ProfileVertex::new(p2(r_neck, y_mouth), 0.0),
-        ProfileVertex::new(p2(0.0, y_mouth), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(foot, 0.0), 0.0),
+        (p2(foot, y_foot), (sweep / 4.0).tan()),
+        (p2(r_neck, y_mouth), 0.0),
+        (p2(0.0, y_mouth), 0.0),
     ]))
 }
 
@@ -90,11 +90,11 @@ fn bellied_pot() -> Body<f64> {
 fn bullet() -> Body<f64> {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     revolved(
-        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
-            ProfileVertex::new(p2(0.0, h + r), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), (std::f64::consts::FRAC_PI_2 / 4.0).tan()),
+            (p2(0.0, h + r), 0.0),
         ])
         .with_tangent_joints(vec![2]),
     )
@@ -103,21 +103,21 @@ fn bullet() -> Body<f64> {
 /// A cylinder between two caps normal to its axis — the drum, which
 /// hollowed at base and must keep hollowing.
 fn drum() -> Body<f64> {
-    revolved(ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0 / 64.0, 0.0), 0.0),
-        ProfileVertex::new(p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
-        ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(3.0 / 64.0, 0.0), 0.0),
+        (p2(3.0 / 64.0, 8.0 / 64.0), 0.0),
+        (p2(0.0, 8.0 / 64.0), 0.0),
     ]))
 }
 
 /// **The cone frustum** between two planar caps.
 fn cone_frustum() -> Body<f64> {
-    revolved(ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(4.0 / 64.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0 / 64.0, 8.0 / 64.0), 0.0),
-        ProfileVertex::new(p2(0.0, 8.0 / 64.0), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(4.0 / 64.0, 0.0), 0.0),
+        (p2(2.0 / 64.0, 8.0 / 64.0), 0.0),
+        (p2(0.0, 8.0 / 64.0), 0.0),
     ]))
 }
 
@@ -127,11 +127,11 @@ fn wedge() -> Body<f64> {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![ProfileLoop::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
-            ProfileVertex::new(p2(r, 0.0), 0.0),
-            ProfileVertex::new(p2(r, h), 0.0),
-            ProfileVertex::new(p2(0.0, h), 0.0),
+        vec![bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
+            (p2(r, 0.0), 0.0),
+            (p2(r, h), 0.0),
+            (p2(0.0, h), 0.0),
         ])],
     )
     .validate(Tol::witness())

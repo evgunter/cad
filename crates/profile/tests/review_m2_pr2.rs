@@ -34,8 +34,8 @@ use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
-    SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,
+    ValidatedProfile, bulge_from_center, bulge_from_via, test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -144,9 +144,9 @@ fn one_ulp_leftmost_tie_keeps_the_authored_start() {
     let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
     for r in 0..4 {
         let n = base.vertices().len();
-        let rotated = ProfileLoop::new(
+        let rotated = bulge_loop(
             (0..n)
-                .map(|k| ProfileVertex::new(base.vertices()[(r + k) % n], 0.0))
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
@@ -171,9 +171,9 @@ fn origin_centered_square_keeps_each_authored_start() {
     let mut starts = Vec::new();
     for r in 0..4 {
         let n = base.vertices().len();
-        let rotated = ProfileLoop::new(
+        let rotated = bulge_loop(
             (0..n)
-                .map(|k| ProfileVertex::new(base.vertices()[(r + k) % n], 0.0))
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
@@ -278,9 +278,9 @@ fn cocircular_partial_arc_overlap() {
     let b = at(290.0);
     // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
     // closes back on the straight chord.
-    let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
-        ProfileVertex::new(b, 0.0),
+    let riding = bulge_loop(vec![
+        (a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
+        (b, 0.0),
     ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {
