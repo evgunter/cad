@@ -449,7 +449,11 @@ mod tests {
         });
         let unresolved = Theme::DEFAULT.unresolved;
         let unresolved = egui::Color32::from_rgb(unresolved.r, unresolved.g, unresolved.b);
-        assert_ne!(unresolved, weak.get(), "the two voices this row tells apart");
+        assert_ne!(
+            unresolved,
+            weak.get(),
+            "the two voices this row tells apart"
+        );
         assert_eq!(find(&painted, FAILURE).ink, Some(weak.get()));
     }
 

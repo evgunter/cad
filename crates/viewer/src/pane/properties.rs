@@ -955,7 +955,9 @@ pub(crate) fn entity_verdict(ui: &mut egui::Ui, theme: &Theme, noun: &str, stand
     let said = match resolution {
         None => Some("no evaluation yet to resolve this against".to_owned()),
         Some(Resolution::Resolved(_)) => None,
-        Some(Resolution::Failed(failure)) => Some(format!("this {noun} is gone: {}", failure.error)),
+        Some(Resolution::Failed(failure)) => {
+            Some(format!("this {noun} is gone: {}", failure.error))
+        }
         Some(Resolution::Indeterminate(cause)) => Some(indeterminate_wording(noun, cause)),
     };
     if let Some(said) = said {
@@ -1434,8 +1436,8 @@ mod verdict_tests {
 
     use std::cell::Cell;
 
-    use eframe::egui;
     use editor_core::RecipeEditRef;
+    use eframe::egui;
     use pncad::document::RecipeNodeId;
     use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::{Resolution, ResolutionFailure, ResolveError, ResolveIndeterminate};
@@ -1550,7 +1552,10 @@ mod verdict_tests {
             opening(&painted, "no evaluation yet").ink,
             Some(weak),
             "{:?}",
-            painted.iter().map(|landed| &landed.text).collect::<Vec<_>>()
+            painted
+                .iter()
+                .map(|landed| &landed.text)
+                .collect::<Vec<_>>()
         );
     }
 }

@@ -382,9 +382,7 @@ impl Standing {
             Self::Face { resolution, .. } | Self::Edge { resolution, .. } => {
                 match resolution.as_deref() {
                     None | Some(Resolution::Resolved(_)) => Tone::Advisory,
-                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => {
-                        Tone::Actionable
-                    }
+                    Some(Resolution::Failed(_) | Resolution::Indeterminate(_)) => Tone::Actionable,
                 }
             }
         }
