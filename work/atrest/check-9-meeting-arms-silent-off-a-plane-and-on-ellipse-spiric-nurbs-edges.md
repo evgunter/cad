@@ -38,5 +38,9 @@ first decided vertex inside, certifies.
 No verb is known to mint the shape: `Profile` validation refuses
 crossing loops, and the ATREST-11 refusal-surface measurement over
 the corpus found no body a verb produces on purpose that the new arms
-refuse. Priority P3 (latent unsoundness), cost H (a conic/spline
+refuse. That measurement was a one-off instrument (a throwaway
+branch that panicked on any new-arm verdict, run once over the suites,
+the tour and the wild corpus) and nothing re-runs it; what guards the
+claim afterwards is every row that validates a verb's output and asserts
+`Ok`, which goes red if the arms start refusing it. Priority P3 (latent unsoundness), cost H (a conic/spline
 meeting-point row, or a chart-space loop-crossing walk).
