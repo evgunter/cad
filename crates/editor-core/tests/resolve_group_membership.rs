@@ -12,14 +12,21 @@
 //! - a split that stops dividing a face: the face passes through under
 //!   its UPSTREAM name, so no row is spelled from the fragment's base,
 //!   while the emitter's group for that face and side holds the face.
+//!
+//! The same arm's `cutters` names the seams on the group's parent only
+//! one run spells, by the cutter across each (`GroupCutters`), and the
+//! later rows pin it on real documents: a cutter that stops cutting, one
+//! that starts, two at once, a union's member-space cutters in every
+//! fold order, and a cutter a fold step re-qualified that is not read as
+//! gone and new.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;
 
 use editor_core::{
-    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation, Node,
-    ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SlotId, StableName,
-    evaluate, resolve_with_prior,
+    Axis3, BooleanOp, CancelToken, Datum, Diagnosis, DocEdit, Entry, EvalOptions, Evaluation,
+    GroupCutters, Node, ProfileDoc, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
+    SlotId, StableName, evaluate, resolve_with_prior,
 };
 use fixture::{ang, insert, len, on_frame, scl, step};
 use geom_core::Tol;
@@ -196,6 +203,7 @@ fn two_tied_parents_each_cut_in_two_are_two_groups_of_two() {
                 node: cut,
                 was: 2,
                 now: 1,
+                cutters: GroupCutters::TiedParents,
             },
             "{n:?}"
         );
@@ -303,6 +311,7 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
                 node: split,
                 was: 2,
                 now,
+                cutters: GroupCutters::NotSeamBounded,
             },
             "{n:?}"
         );
@@ -313,7 +322,8 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
     );
 }
 
-/// **A union's fragment group is read through its fold.**
+/// **A union's fragment group is read through its fold, and so are its
+/// cutters.**
 ///
 /// A 3×3×1 plate, a bar standing through its top in y (behind a
 /// `Transform`), and a block far away, united in every order: the bar
@@ -324,6 +334,12 @@ fn a_split_that_stops_dividing_a_face_leaves_a_group_of_one() {
 /// followed to the published names: 2 → 1 in every order. The two runs
 /// are read without their verdict logs and against one document, for
 /// the split row's reason: the slide's own flip is diagnosed first.
+///
+/// The cutters are read off the published seams, whose sides are in
+/// name order and member-keyed: sliding in y, the bar's y = y0 wall
+/// starts cutting the top; sliding 1.5 in x instead, its x = x1 wall
+/// stops cutting the top's x-running rim edges (ranked, so no side
+/// verdict answers first). Every order names the same member-space wall.
 #[test]
 fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
     let orders: [[usize; 3]; 6] = [
@@ -356,34 +372,64 @@ fn a_unions_group_resized_at_any_fold_step_reads_two_to_one() {
                 declare: None,
             },
         );
-        let ev1 = run(&doc, None);
-        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::Y), 2.5);
-        // The slide records a containment flip at the union, the answer
-        // above this rung; read the two real runs without that
-        // evidence, as the split row does.
-        let ev2 = silent(run(&doc2, Some(&ev1)));
-        let ev1 = silent(ev1);
-        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
-            matches!(e, Entry::Unique(_))
-                && matches!(
-                    n.path.last(),
-                    Some(RoleSeg::Fragment(editor_core::Qualifier::SideOf(_)))
-                )
-        });
-        assert!(
-            !rows.is_empty(),
-            "{order:?}: no fragment vanished, so the row pins nothing"
-        );
-        for (n, d) in rows {
-            assert_eq!(
-                d,
-                Diagnosis::GroupResized {
-                    node: u,
-                    was: 2,
-                    now: 1,
-                },
-                "{order:?}: {n:?}"
+        // Member `member`'s wall `segment` (of the block `of`), as the
+        // union's seams spell it.
+        let member_wall = |member, of, segment| StableName {
+            kind: editor_core::EntityKind::Face,
+            node: u,
+            path: vec![RoleSeg::FromMember {
+                member,
+                of: editor_core::NameRef::new(wall(&doc, of, segment)),
+            }],
+        };
+        let from = |n: &StableName, m: RecipeNodeId| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == m);
+        for (axis, by, ranked, gone, new) in [
+            (Axis3::Y, 2.5, false, vec![], vec![member_wall(tr, bar, 0)]),
+            (Axis3::X, 1.5, true, vec![member_wall(tr, bar, 1)], vec![]),
+        ] {
+            let ev1 = run(&doc, None);
+            let doc2 = set(doc.clone(), tr, SlotId::Translation(axis), by);
+            // The slide records a containment flip at the union, the
+            // answer above this rung; read the two real runs without
+            // that evidence, as the split row does.
+            let ev2 = silent(run(&doc2, Some(&ev1)));
+            let ev1 = silent(ev1);
+            let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
+                matches!(e, Entry::Unique(_))
+                    && match n.path.last() {
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::SideOf(_))) => !ranked,
+                        Some(RoleSeg::Fragment(editor_core::Qualifier::OrderAlong { .. })) => {
+                            ranked && from(n, plate)
+                        }
+                        _ => false,
+                    }
+            });
+            assert!(
+                !rows.is_empty(),
+                "{order:?} {axis:?}: no fragment vanished, so the row pins nothing"
             );
+            for (n, d) in rows {
+                // The plate's own top, divided by the bar; or, sliding
+                // in y, one of the bar's x walls, which the plate's
+                // y = y0 wall divided where the bar ran out through it
+                // and no longer meets.
+                let (gone, new) = if from(&n, plate) {
+                    (gone.clone(), new.clone())
+                } else {
+                    assert!(from(&n, tr) && !ranked, "{order:?} {axis:?}: {n:?}");
+                    (vec![member_wall(plate, plate, 0)], vec![])
+                };
+                assert_eq!(
+                    d,
+                    Diagnosis::GroupResized {
+                        node: u,
+                        was: 2,
+                        now: 1,
+                        cutters: GroupCutters::Read { gone, new },
+                    },
+                    "{order:?} {axis:?}: {n:?}"
+                );
+            }
         }
     }
 }
@@ -526,7 +572,248 @@ fn a_tie_carried_through_a_later_fold_step_counts_one_parent() {
                     node: u,
                     was: 2,
                     now: 1,
+                    cutters: GroupCutters::TiedParents,
                 },
+                "{order:?}: {n:?}"
+            );
+        }
+    }
+}
+
+/// Wall `segment` of the block `node` extruded (`block`'s profile runs
+/// counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 2
+/// is y = y1, 3 is x = x0).
+fn wall(doc: &ProfileDoc, node: RecipeNodeId, segment: u32) -> StableName {
+    StableName {
+        kind: editor_core::EntityKind::Face,
+        node,
+        path: vec![RoleSeg::Lateral(crate::fixture::piece(
+            doc,
+            node,
+            0,
+            segment as usize,
+        ))],
+    }
+}
+
+/// The plate-and-bar fixture as a PAIR union: a 3×3×1 plate, and a bar
+/// standing through its top across the whole plate in y, behind a
+/// `Transform`. The bar's two x walls divide the plate's top in two,
+/// and each of the top's two x-running rim edges.
+/// Answers (doc, the plate, the bar, the bar's transform, the union).
+fn plate_and_bar() -> (
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
+    let doc = ProfileDoc::empty_derived("group-cutters", Tol::witness());
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+    let (doc, tr) = insert(
+        doc,
+        Node::Transform {
+            input: bar,
+            translation: [len(0.0), len(0.0), len(0.0)],
+            rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+            rotation_angle: ang(0.0),
+        },
+    );
+    let (doc, u) = insert(
+        doc,
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: tr,
+            declare: None,
+        },
+    );
+    (doc, plate, bar, tr, u)
+}
+
+/// Whether `n` is the pair union's row descended from the plate's
+/// entity spelled `seg`.
+fn from_plate(n: &StableName, plate: RecipeNodeId, seg: &RoleSeg) -> bool {
+    matches!(n.path.first(), Some(RoleSeg::FromA(p)) if p.node == plate && p.path == [seg.clone()])
+}
+
+const TOP: RoleSeg = RoleSeg::Cap(editor_core::CapEnd::End);
+
+/// The plate's top rim edge over profile segment `segment`.
+fn rim(doc: &ProfileDoc, plate: RecipeNodeId, segment: u32) -> RoleSeg {
+    RoleSeg::RimEdge(
+        editor_core::CapEnd::End,
+        crate::fixture::piece(doc, plate, 0, segment as usize),
+    )
+}
+
+/// The plate-and-bar pair union with the bar slid by `(dx, dy)`: every
+/// vanished fragment of the plate's entities spelled by one of `segs`,
+/// diagnosed. Read without the verdict logs and against one document,
+/// as the split row is. Answers (the bar, the union, the rows).
+fn slid(
+    (dx, dy): (f64, f64),
+    segs: &[RoleSeg],
+) -> (RecipeNodeId, RecipeNodeId, Vec<(StableName, Diagnosis)>) {
+    let (doc, plate, bar, tr, u) = plate_and_bar();
+    let ev1 = run(&doc, None);
+    let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), dx);
+    let doc2 = set(doc2, tr, SlotId::Translation(Axis3::Y), dy);
+    let ev2 = silent(run(&doc2, Some(&ev1)));
+    let ev1 = silent(ev1);
+    let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, _| {
+        segs.iter().any(|s| from_plate(n, plate, s))
+    });
+    assert!(
+        !rows.is_empty(),
+        "({dx}, {dy}): no fragment of {segs:?} vanished, so the row pins nothing"
+    );
+    (bar, u, rows)
+}
+
+/// `GroupResized { was: 2, now: 1 }` at `node` with these cutters.
+fn two_to_one(node: RecipeNodeId, gone: Vec<StableName>, new: Vec<StableName>) -> Diagnosis {
+    Diagnosis::GroupResized {
+        node,
+        was: 2,
+        now: 1,
+        cutters: GroupCutters::Read { gone, new },
+    }
+}
+
+/// **A cutter that stops cutting is named.**
+///
+/// The bar slides 1.5 in x, off the plate's far edge: its x = x0 wall
+/// still cuts the top's two x-running rim edges, and its x = x1 wall is
+/// past the plate and no longer meets them. Each rim edge is one piece,
+/// 2 → 1, and the one cutter whose seam vertex with it is gone is that
+/// wall. Ranked edges, so no side verdict answers first.
+#[test]
+fn a_cutter_that_stops_cutting_is_named_gone() {
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, plate, ..) = plate_and_bar();
+    let (bar, u, rows) = slid((1.5, 0.0), &[rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    for (n, d) in rows {
+        assert_eq!(d, two_to_one(u, vec![wall(&doc, bar, 1)], vec![]), "{n:?}");
+    }
+}
+
+/// **A cutter that starts cutting is named.**
+///
+/// The bar slides 2.5 in y, so it stops short of the plate's near edge:
+/// both x walls still cut the top, and the bar's y = y0 wall now crosses
+/// it too. The top is one piece around the bar, 2 → 1, with no cutter
+/// gone and that wall new.
+#[test]
+fn a_cutter_that_starts_cutting_is_named_new() {
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, ..) = plate_and_bar();
+    let (bar, u, rows) = slid((0.0, 2.5), &[TOP]);
+    for (n, d) in rows {
+        assert_eq!(d, two_to_one(u, vec![], vec![wall(&doc, bar, 0)]), "{n:?}");
+    }
+}
+
+/// **Two cutters that change at once are both named.**
+///
+/// Slid 1.5 in x and 2.5 in y, the bar covers only the plate's far
+/// corner: its x = x1 wall stops cutting the top and its y = y0 wall
+/// starts. Of the top's two vanished fragments, the one on the far
+/// side of that x wall is answered by the flip of its side verdict
+/// against it, a cause, above this rung; the other by the rung, naming
+/// both. Slid 5 in y, clear of the plate, both x walls stop cutting the
+/// top and its rim edges. Each list holds every cutter it states.
+#[test]
+fn two_cutters_that_change_at_once_are_both_named() {
+    // `slid` builds this same recipe, so its pieces are these.
+    let (doc, plate, ..) = plate_and_bar();
+    let (bar, u, rows) = slid((1.5, 2.5), &[TOP]);
+    let mut answered = 0;
+    for (n, d) in rows {
+        if matches!(d, Diagnosis::PredicateFlip { .. }) {
+            continue;
+        }
+        answered += 1;
+        assert_eq!(
+            d,
+            two_to_one(u, vec![wall(&doc, bar, 1)], vec![wall(&doc, bar, 0)]),
+            "{n:?}"
+        );
+    }
+    assert_eq!(answered, 1, "the near fragment is the rung's to answer");
+    let (bar, u, rows) = slid((0.0, 5.0), &[TOP, rim(&doc, plate, 0), rim(&doc, plate, 2)]);
+    let mut gone = vec![wall(&doc, bar, 1), wall(&doc, bar, 3)];
+    gone.sort();
+    for (n, d) in rows {
+        assert_eq!(d, two_to_one(u, gone.clone(), vec![]), "{n:?}");
+    }
+}
+
+/// **A cutter a fold step re-qualified is the same cutter.**
+///
+/// The plate, the bar and a small block C standing across the bar's
+/// x = x0 wall beyond the plate's near edge, united with C before the
+/// plate: C divides that wall at an earlier fold step, so the union's
+/// seam vertices between the top's x-running rim edges and the wall
+/// spell the wall with the fold's `Fragment` after it. Sliding the bar
+/// 1.5 in x takes it off C and half off the plate: the x = x0 wall is
+/// whole and still cuts each rim edge, its seam spelled without the
+/// tail, and the x = x1 wall no longer meets them (2 → 1). Read with
+/// the tail, the x = x0 wall would be gone and new at once; the fold's
+/// tail is not the member's, so it is neither, and the one cutter gone
+/// is the x = x1 wall. Ranked edges: their names embed no partner, so
+/// no cascade answers first.
+#[test]
+fn a_cutter_a_fold_step_requalified_is_the_same_cutter() {
+    for order in [[0usize, 1, 2], [1, 0, 2]] {
+        let doc = ProfileDoc::empty_derived("group-cutters-refold", Tol::witness());
+        let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+        let (doc, bar) = block(doc, (1.0, 2.0), (-1.0, 4.0), 0.5, 1.0);
+        let (doc, tr) = insert(
+            doc,
+            Node::Transform {
+                input: bar,
+                translation: [len(0.0), len(0.0), len(0.0)],
+                rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+                rotation_angle: ang(0.0),
+            },
+        );
+        let (doc, c) = block(doc, (0.5, 1.5), (-0.8, -0.5), 0.0, 2.0);
+        let m = [tr, c];
+        let (doc, u) = insert(
+            doc,
+            Node::Union {
+                members: vec![m[order[0]], m[order[1]], plate],
+                declare: None,
+            },
+        );
+        let ev1 = run(&doc, None);
+        let doc2 = set(doc.clone(), tr, SlotId::Translation(Axis3::X), 1.5);
+        let ev2 = silent(run(&doc2, Some(&ev1)));
+        let ev1 = silent(ev1);
+        let rows = vanished((&doc, &ev2), (&doc, &ev1), u, |n, e| {
+            matches!(e, Entry::Unique(_))
+                && n.kind == editor_core::EntityKind::Edge
+                && matches!(n.path.first(),
+                    Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+        });
+        assert!(
+            !rows.is_empty(),
+            "{order:?}: no rim fragment vanished, so the row pins nothing"
+        );
+        let x1_wall = StableName {
+            kind: editor_core::EntityKind::Face,
+            node: u,
+            path: vec![RoleSeg::FromMember {
+                member: tr,
+                of: editor_core::NameRef::new(wall(&doc, bar, 1)),
+            }],
+        };
+        for (n, d) in rows {
+            assert_eq!(
+                d,
+                two_to_one(u, vec![x1_wall.clone()], vec![]),
                 "{order:?}: {n:?}"
             );
         }

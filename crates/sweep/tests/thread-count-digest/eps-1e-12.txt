@@ -8,6 +8,6 @@ arc_loft_1e9eps v=3e43a1a4cbdc6571 a=3efad3cb7629920a vpad=3cd1af21af355555 apad
 thin_strip REFUSED mass properties: face FaceKey(3v1): integral properties: the certified quadrature enclosure cannot reach the 1.024e-9 m target (which scales with the run's tolerance): its mean boundary displacement is 9.504e-8 m — the schedule's last round's, or the bound every remaining round was proven to exceed — after 1 refinement round(s); certified bounds or typed refusal, never a silently wide answer; loosen the tolerance or simplify the trim | verdicts n=2 h=bf6dcbf50767c0fd esc n=0 h=cbf29ce484222325
 # sym-session
 sym_arc_loft mass_properties OK decisions=15 sz=0 sg=0 reg=0 rref=0 rcon=0 num=15 frozen=0 shapes=15
-sym_arc_loft validate_geometric OK decisions=658 sz=40 sg=0 reg=0 rref=0 rcon=0 num=618 frozen=2115 shapes=658
+sym_arc_loft validate_geometric OK decisions=660 sz=40 sg=0 reg=0 rref=0 rcon=0 num=620 frozen=2117 shapes=660
 sym_thin_strip mass_properties REFUSED decisions=2 sz=0 sg=0 reg=0 rref=0 rcon=0 num=2 frozen=0 shapes=2
-sym_thin_strip validate_geometric REFUSED decisions=658 sz=26 sg=0 reg=0 rref=0 rcon=0 num=632 frozen=2177 shapes=658
+sym_thin_strip validate_geometric REFUSED decisions=660 sz=26 sg=0 reg=0 rref=0 rcon=0 num=634 frozen=2179 shapes=660

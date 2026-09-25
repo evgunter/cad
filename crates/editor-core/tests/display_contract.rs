@@ -1285,26 +1285,136 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
 
 /// The group-size diagnosis states the group fact and nothing more:
 /// how many entities the group the emitter divided the fragment's
-/// parent into held and holds, the same sentence at every count, and
-/// no cause. Exact sentences, so a clause that claims more cannot slip
-/// in.
+/// parent into held and holds, the same sentence at every count, which
+/// seams on the parent only one run spells — every cutter, each with
+/// its role in words so two walls of one extrude read as two, or none
+/// and why the tables cannot say — and no cause. Exact sentences, so a
+/// clause that claims more cannot slip in.
 #[test]
 fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
+    use editor_core::{
+        CapEnd, EntityKind, GroupCutters, NameRef, ProfileEdgeRef, ProfileVertexRef, RoleSeg,
+        StableName,
+    };
+    let vertex = StableName {
+        kind: EntityKind::Vertex,
+        node: RecipeNodeId(5),
+        path: vec![RoleSeg::CapVertex(
+            CapEnd::End,
+            ProfileVertexRef::Piece {
+                step: StepId(1),
+                role: editor_core::PieceRole::Leg,
+            },
+        )],
+    };
+    let wall = |step| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(6),
+        path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+            step: StepId(step),
+            role: editor_core::PieceRole::Leg,
+        })],
+    };
+    // A union member's wall, as a union's seams spell it.
+    let member_wall = StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(8),
+        path: vec![RoleSeg::FromMember {
+            member: RecipeNodeId(7),
+            of: NameRef::new(wall(2)),
+        }],
+    };
+    let cases = [
+        (
+            GroupCutters::Read {
+                gone: vec![vertex.clone()],
+                new: vec![],
+            },
+            "the parent's seams with the vertex name minted by node 5 (the end cap vertex \
+             over the start of the leg of profile step 1) are gone",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![member_wall],
+            },
+            "the parent has new seams with the face name minted by node 8 (the side wall \
+             over the leg of profile step 2, minted by node 6)",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![wall(1), wall(3)],
+                new: vec![wall(0)],
+            },
+            "the parent's seams with 2 cutters (the face name minted by node 6 (the side \
+             wall over the leg of profile step 1); the face name minted by node 6 (the \
+             side wall over the leg of profile step 3)) are gone, and the parent has new \
+             seams with the face name minted by node 6 (the side wall over the leg of \
+             profile step 0)",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![],
+            },
+            "the parent's seams name the same cutters in both runs",
+        ),
+        (
+            GroupCutters::NotSeamBounded,
+            "which cutter changed is not on record, because this group is not bounded by \
+             seams on one parent name",
+        ),
+        (
+            GroupCutters::TiedParents,
+            "which cutter changed is not on record, because tied parents share the name \
+             the seams are spelled on",
+        ),
+        (
+            GroupCutters::NoSeamOnRecord,
+            "which cutter changed is not on record, because the last-good run spells no \
+             seam on the parent",
+        ),
+        (
+            GroupCutters::SeamUnread,
+            "which cutter changed is not on record, because a seam on the parent is \
+             spelled in a shape this reading does not follow",
+        ),
+    ];
     for (was, now) in [(2, 1), (3, 0), (2, 3)] {
-        let d = Diagnosis::GroupResized {
-            node: RecipeNodeId(8),
-            was,
-            now,
-        };
-        assert_eq!(
-            d.to_string(),
-            format!(
-                "at node 8, the group this fragment's parent was divided into held \
-                 {was} entities in the last-good run and holds {now} now, and no verdict \
-                 flip was found that explains the change"
-            )
-        );
-        assert_f6(&d, &[], &["GroupResized"]);
+        for (cutters, clause) in &cases {
+            let d = Diagnosis::GroupResized {
+                node: RecipeNodeId(8),
+                was,
+                now,
+                cutters: cutters.clone(),
+            };
+            assert_eq!(
+                d.to_string(),
+                format!(
+                    "at node 8, the group this fragment's parent was divided into held \
+                     {was} entities in the last-good run and holds {now} now; {clause}; and \
+                     no verdict flip was found that explains the change"
+                )
+            );
+            assert_f6(
+                &d,
+                &[],
+                &[
+                    "GroupResized",
+                    "GroupCutters",
+                    "Read",
+                    "NotSeamBounded",
+                    "TiedParents",
+                    "NoSeamOnRecord",
+                    "SeamUnread",
+                    "CapVertex",
+                    "Lateral",
+                    "FromMember",
+                    "ProfileEdgeRef",
+                    "loop_index",
+                ],
+            );
+        }
     }
 }
 

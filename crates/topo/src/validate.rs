@@ -774,17 +774,62 @@ pub enum ValidationError {
         /// The predicate-layer escalation.
         cause: Indeterminate,
     },
-    /// Tier 3: a face's torus has a tube radius that is not definitely
-    /// positive — the `r > 0` half of D3's ring convention `R > r > 0`.
+    /// Tier 3: a face's analytic surface stores a datum that is not a
+    /// finite number, or a plane whose `normal` is the zero vector — a
+    /// description that claims a locus and cannot evaluate one.
+    ///
+    /// **The analytic kinds' answer to `geom`'s totality-and-poison
+    /// rule, and not [`ValidationError::PoisonedSurfaceDescription`]**:
+    /// that variant is check 1's answer to a NET's state
+    /// ([`geom::NetState::Poisoned`], paired with the placeholder's
+    /// [`ValidationError::UncertifiableSurface`]) and carries only the
+    /// face, because a net's poison sits in no one named field. An
+    /// analytic surface's datums are named fields, so this refusal
+    /// names the one that failed, and the kind that carries it.
+    ///
+    /// `+∞` is refused here with NaN: a datum is a number the variant's
+    /// formula reads, and an infinite radius or origin is no more a
+    /// locus than a NaN one.
+    PoisonedSurfaceDatum {
+        /// The face whose surface stores the datum.
+        face: FaceKey,
+        /// The surface kind.
+        kind: geom_brep::SurfaceKind,
+        /// The datum that describes no locus.
+        datum: geom::SurfaceDatum,
+    },
+    /// Tier 3: a face's analytic surface stores a finite datum outside
+    /// its variant's convention — a cylinder or sphere radius, or a
+    /// torus tube radius, that is not definitely positive, or a cone
+    /// half-angle not definitely inside `(0, π/2)`
+    /// ([`geom::Surface::representability_margins`], the one place in
+    /// code the at-rest bounds are computed; that door says where else
+    /// they are stated).
+    ///
+    /// **Refused on representability, the torus ring convention's
+    /// reason**: such a datum describes no 2-manifold a face can bound
+    /// — a radius of zero is a line or a point, not a small cylinder or
+    /// sphere; a half-angle of `0` or `π/2` is a line or a plane. That
+    /// `geom` evaluates it as "well-defined garbage" is `geom`'s
+    /// contract with its callers, not a statement that the face is
+    /// valid.
     ///
     /// **Not a metered predicate, deliberately** (the chamfer's
-    /// `NonpositiveSize` precedent): whether the stored datum is a
-    /// positive number is a fact about the DATUM, not a geometric
+    /// `NonpositiveSize` precedent): whether a stored datum lies inside
+    /// its convention is a fact about the DATUM, not a geometric
     /// quantity of the body, so it takes no `k_stats` name and no band.
-    /// A poisoned or zero-straddling radius fails it with the rest.
-    NonpositiveTorusTube {
-        /// The face whose torus has no tube.
+    /// A zero-straddling enclosure fails it with the rest.
+    UnrepresentableSurfaceDatum {
+        /// The face whose surface stores the datum.
         face: FaceKey,
+        /// The surface kind.
+        kind: geom_brep::SurfaceKind,
+        /// The datum outside its convention.
+        datum: geom::SurfaceDatum,
+        /// Which end of the convention it fails: `Lower` for a radius
+        /// that is not positive or a cone closed to a line, `Upper` for
+        /// a cone opened to a plane.
+        end: geom::ConventionEnd,
     },
     /// Tier 3: an edge's carrier re-certification failed at rest — the
     /// stored cache no longer satisfies D4 ¶2's `residual ≤ ε` against
@@ -1024,7 +1069,10 @@ pub enum ValidationError {
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
     /// positive-area loop never classifies `Negative` under a
-    /// tighter ε).
+    /// tighter ε). Examined on loops of `Line` and `Circle` carriers,
+    /// whose winding is exact (chord polygon plus each arc's circular
+    /// segment); a loop riding an `Ellipse`, spiric or NURBS carrier is
+    /// not examined.
     LoopRoleInverted {
         /// The face whose loop roles disagree with the windings.
         face: FaceKey,
@@ -1940,10 +1988,33 @@ impl fmt::Display for ValidationError {
                 f,
                 "face {face:?}'s ring-torus margin R - r escalated: {cause}"
             ),
-            Self::NonpositiveTorusTube { face } => write!(
+            Self::PoisonedSurfaceDatum { face, kind, datum } => write!(
                 f,
-                "face {face:?}'s torus has a tube radius that is not definitely positive, \
-                 so it is not a torus at all (D3's ring convention R > r > 0)"
+                "face {face:?}'s {kind} surface stores a {datum} that describes no locus: \
+                 {what} — a description that claims a locus and cannot evaluate one",
+                kind = kind.name(),
+                datum = datum.name(),
+                what = if *datum == geom::SurfaceDatum::Normal {
+                    "it is not finite, or is the zero vector"
+                } else {
+                    "it is not a finite number"
+                },
+            ),
+            Self::UnrepresentableSurfaceDatum {
+                face,
+                kind,
+                datum,
+                end,
+            } => write!(
+                f,
+                "face {face:?}'s {kind} surface stores a {datum} {side} of its convention \
+                 (not definitely inside it), so it describes no 2-manifold a face can bound",
+                kind = kind.name(),
+                datum = datum.name(),
+                side = match end {
+                    geom::ConventionEnd::Lower => "at or below the lower end",
+                    geom::ConventionEnd::Upper => "at or above the upper end",
+                },
             ),
             Self::EdgeCertification { edge, error } => {
                 write!(f, "edge {edge:?} failed re-certification at rest: {error}")
@@ -2604,8 +2675,13 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    `Placeholder` reports [`ValidationError::UncertifiableSurface`],
 ///    `Poisoned` reports
 ///    [`ValidationError::PoisonedSurfaceDescription`], `Described`
-///    passes; and every torus honours D3's ring
-///    convention `R > r > 0`
+///    passes; every analytic surface's stored datums are numbers, and
+///    a plane's normal is not zero
+///    ([`ValidationError::PoisonedSurfaceDatum`]); each datum lies
+///    inside its convention
+///    ([`ValidationError::UnrepresentableSurfaceDatum`], the bounds
+///    being [`geom::Surface::representability_margins`]'s); and every
+///    torus honours D3's ring convention `R > r > 0`
 ///    ([`ValidationError::DegenerateTorus`] /
 ///    [`ValidationError::DegenerateTorusEscalated`]).
 /// 2. **Carrier re-certification** (edges, arena order): every edge's
@@ -2725,7 +2801,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   The **planar** case is now covered between vertices by check 5
 ///   (sample containment against adjacent planar faces), and its
 ///   orientation half by check 6 (loop-role winding against the
-///   outward normal, line-bounded loops). The **curved analytic**
+///   outward normal, on loops of line and circle carriers — a planar
+///   loop riding an ellipse, spiric or NURBS carrier is not examined,
+///   so such a face's sense bit is falsified by nothing at rest;
+///   `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+///   The **curved analytic**
 ///   kinds' orientation half is covered by check 6's curved arm
 ///   (M6-6: boundary material side vs the sense bit), and its NESTING
 ///   half — a ring lying inside the outer loop of its own face — by
@@ -3756,6 +3836,162 @@ fn contact_marks_declared_via<
 /// getting the argument rather than two copies of the check.
 type PlusVCheck<'a, T> = &'a dyn Fn(&Body<T>, &[FaceKey], Band, Tol) -> Check7Certificate<T>;
 
+/// **Check 1's DATUM verdicts on one analytic surface**, in the order
+/// they are asked, the second gated on the first having found nothing.
+/// (The torus's ring half `R > r` is a decided geometric margin and is
+/// asked at the call site, after these.)
+///
+/// 1. **Poison** ([`poisoned_datums`]): `geom`'s totality-and-poison
+///    rule is about no particular surface kind, so a stored datum that
+///    is not a number is named here exactly as a poisoned net is named
+///    by the `Nurbs` arm. Every such datum is named, and the convention
+///    is not read over any of them — a margin of poison is poison.
+/// 2. **The convention, on REPRESENTABILITY**: each of
+///    [`geom::Surface::representability_margins`] must be definitely
+///    positive. A datum outside its variant's convention describes no
+///    2-manifold a face can bound. The first failing margin is named,
+///    with the end of the convention it fails. Why this is a bracket
+///    read that decides nothing, unmetered: the `Bounds` scope rule's
+///    entry for this file (`geom_core::real`, `bounds_allowlist`, the
+///    2026-09-02 certified at-rest entry) — one home, not restated here.
+///
+/// A SOLE bracket bound, deliberately: nothing here decides.
+fn analytic_datum_verdicts<T: geom_core::Bounds>(
+    face: FaceKey,
+    surface: &Surface<T>,
+) -> Vec<ValidationError> {
+    let kind = geom_brep::SurfaceKind::of(surface);
+    let poisoned = poisoned_datums(surface);
+    if !poisoned.is_empty() {
+        return poisoned
+            .into_iter()
+            .map(|datum| ValidationError::PoisonedSurfaceDatum { face, kind, datum })
+            .collect();
+    }
+    surface
+        .representability_margins()
+        .into_iter()
+        .flatten()
+        .find(|m| {
+            !matches!(
+                geom_core::Bounds::lo(m.margin).partial_cmp(&0.0),
+                Some(core::cmp::Ordering::Greater)
+            )
+        })
+        .map(|m| ValidationError::UnrepresentableSurfaceDatum {
+            face,
+            kind,
+            datum: m.datum,
+            end: m.end,
+        })
+        .into_iter()
+        .collect()
+}
+
+/// **Check 1's poison read of an analytic surface**: every stored datum
+/// that is not a finite number at this scalar, and a plane `normal`
+/// that is the zero vector, in field order. Empty for a surface whose
+/// every datum is a number — and for the spline kinds, whose datum is a
+/// net that check 1 reads through [`geom::NetState`] instead.
+///
+/// Asked through the value channel ([`geom_core::is_finite_length`]),
+/// with no bracket read and no threshold: whether a stored number is a
+/// number is not a decision about geometry. The fields are destructured
+/// without `..`, so a datum a variant gains is a compile error here
+/// rather than a field this read silently skips.
+///
+/// The zero normal is the one direction asked for more than
+/// finiteness, because a plane's `normal` IS its chart normal: a zero
+/// one collapses `v_ref = normal × u_ref`, and the plane with it. It is
+/// asked through [`geom_core::is_zero_length`] under that door's
+/// precondition — the length is asked [`geom_core::is_finite_length`]
+/// first — so a normal whose components are finite but whose NORM
+/// overflows (`(1e200, 0, 0)` at `f64`) is a direction, not the zero
+/// vector, and passes. Underflowed normals pass too: not unit, which is
+/// conventional and unchecked, but a direction.
+///
+/// **The two scalars answer "finite" differently on one shape**, and
+/// that is `is_finite_length`'s value-channel semantics rather than
+/// this read's: an interval ENCLOSURE whose upper end overflowed still
+/// contains its truth and answers finite, where the same computation at
+/// `f64` is `∞` and is refused. A stored datum reaches the interval
+/// scalar through `Interval::from_f64` (NaN and `±∞` become NaI, which
+/// is refused), so the difference bites only a datum that was COMPUTED
+/// at interval type; filed as
+/// `work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo`.
+fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
+    use geom::SurfaceDatum as D;
+    use geom_core::is_finite_length as finite;
+    let point = |p: &geom_core::Point3<T>| finite(p.x) && finite(p.y) && finite(p.z);
+    let vector = |v: &geom_core::Vec3<T>| finite(v.x) && finite(v.y) && finite(v.z);
+    let is_zero_normal = |n: &geom_core::Vec3<T>| {
+        let len = n.norm();
+        finite(len) && geom_core::is_zero_length(len, n.norm_witness())
+    };
+    let fields: Vec<(D, bool)> = match surface {
+        Surface::Plane {
+            origin,
+            normal,
+            u_ref,
+        } => vec![
+            (D::Origin, point(origin)),
+            (D::Normal, vector(normal) && !is_zero_normal(normal)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => vec![
+            (D::Origin, point(origin)),
+            (D::Axis, vector(axis)),
+            (D::Radius, finite(*radius)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Cone {
+            apex,
+            axis,
+            half_angle,
+            u_ref,
+        } => vec![
+            (D::Apex, point(apex)),
+            (D::Axis, vector(axis)),
+            (D::HalfAngle, finite(*half_angle)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Sphere {
+            center,
+            radius,
+            axis,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Radius, finite(*radius)),
+            (D::Axis, vector(axis)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Torus {
+            center,
+            axis,
+            major_radius,
+            minor_radius,
+            u_ref,
+        } => vec![
+            (D::Center, point(center)),
+            (D::Axis, vector(axis)),
+            (D::MajorRadius, finite(*major_radius)),
+            (D::MinorRadius, finite(*minor_radius)),
+            (D::URef, vector(u_ref)),
+        ],
+        Surface::Nurbs(_) | Surface::Approx(_) => Vec::new(),
+    };
+    fields
+        .into_iter()
+        .filter_map(|(datum, is_number)| (!is_number).then_some(datum))
+        .collect()
+}
+
 /// [`tier3_local_checks`] with the check-4 contact marks KEPT (the
 /// same pass — never classifying twice; the mark is the verdict the
 /// dihedral/jet loop derives anyway).
@@ -3813,14 +4049,22 @@ pub(crate) fn tier3_local_checks_marked<
     // This is the consumer's described arm for a face's SURFACE, which
     // `geom`'s totality-and-poison rule requires to exist: the three
     // states a control net can be in are `NetState`'s, defined there,
-    // and each is answered below.
+    // and each is answered below; an analytic surface's stored datums
+    // are answered by name, poison first.
     //
-    // A torus is implemented only under D3's ring convention
-    // `R > r > 0`: a horn or spindle torus puts a singular point on the
+    // An analytic surface is implemented only inside its datum
+    // conventions — a radius that is positive, a cone half-angle inside
+    // `(0, π/2)`, and D3's ring convention `R > r > 0` for a torus,
+    // whose horn or spindle configuration puts a singular point on the
     // axis that no chart in the tree represents. The check lives HERE,
-    // at rest, because that is the one place BOTH doors that can mint a
-    // torus pass through — `sweep::revolve` refuses the configuration at
-    // construction, `step-import` reads the two radii verbatim.
+    // at rest, because that is the one place every door that can mint a
+    // surface passes through, whatever each door checks for itself —
+    // `sweep::revolve` refuses a horn or spindle at construction,
+    // `step-import` reads a torus's two radii verbatim.
+    //
+    // Checks 3–5 still read these surfaces for their own questions, and
+    // a datum refused here may draw their escalations as well; the
+    // named refusal is the one reported first.
     // ------------------------------------------------------------------
     for (face_key, face) in body.faces.iter() {
         match body.surfaces.get(face.surface) {
@@ -3866,32 +4110,33 @@ pub(crate) fn tier3_local_checks_marked<
                     errors.push(ValidationError::ApproxLaneUnsupported { face: face_key });
                 }
             },
-            Some(Surface::Torus {
-                major_radius,
-                minor_radius,
-                ..
-            }) => {
-                // `r > 0`, the convention's other half, is a fact about
-                // the STORED DATUM and not a geometric quantity of the
-                // body: a tube radius that is zero, negative or poison
-                // does not describe a small torus, it fails to describe
-                // one. So it takes no `k_stats` name and no band — the
-                // chamfer's `NonpositiveSize` precedent — and is read
-                // off the bracket's low end — `Bounds::lo`, the one
-                // bracket read in this file, disclosed at the `Bounds`
-                // scope rule's entry for it (`geom_core::real`) —
-                // through `partial_cmp`, so the INCOMPARABLE case is an
-                // arm and not an accident.
-                // It is checked FIRST because `R − r` metered against a
-                // nonpositive `r` would quote it: at `r = −R` the
-                // difference reads `2R`, definitely positive, and the
-                // net would pass a surface that has no tube at all.
-                if !matches!(
-                    geom_core::Bounds::lo(*minor_radius).partial_cmp(&0.0),
-                    Some(core::cmp::Ordering::Greater)
-                ) {
-                    errors.push(ValidationError::NonpositiveTorusTube { face: face_key });
-                } else {
+            // Every analytic kind: its datums first, then its
+            // convention (`analytic_datum_verdicts`), then — for the
+            // torus — the one convention that relates two datums.
+            Some(
+                surface @ (Surface::Plane { .. }
+                | Surface::Cylinder { .. }
+                | Surface::Cone { .. }
+                | Surface::Sphere { .. }
+                | Surface::Torus { .. }),
+            ) => {
+                let verdicts = analytic_datum_verdicts(face_key, surface);
+                if !verdicts.is_empty() {
+                    errors.extend(verdicts);
+                    continue;
+                }
+                // The torus's ring half `R > r` is a GEOMETRIC question
+                // — two datums of the body compared, not one against its
+                // bound — so it goes through `decide`. It is asked only
+                // after `r > 0` has held, because `R − r` metered against
+                // a nonpositive `r` would quote it: at `r = −R` the
+                // difference reads `2R`, definitely positive.
+                if let Surface::Torus {
+                    major_radius,
+                    minor_radius,
+                    ..
+                } = surface
+                {
                     match decide(
                         "ring_torus_convention",
                         Margin::of(*major_radius - *minor_radius),
@@ -3910,34 +4155,6 @@ pub(crate) fn tier3_local_checks_marked<
                     }
                 }
             }
-            // A plane's frame CAN fail to describe a locus — a zero or
-            // poisoned normal, a poisoned origin — and check 1 does not
-            // say so. Such a face is refused downstream instead: its
-            // plane equation is read at check 3 and its normal at check
-            // 4, where the residual and the wedge angle come out
-            // `Invalid` and escalate (`PlanarFaceEscalated`,
-            // `PlanarBoundaryEscalated`, `SliverDihedral`). Loud, but
-            // by accident of evaluation and never naming the datum —
-            // the shape this check exists to close for `Nurbs`.
-            Some(Surface::Plane { .. }) => {}
-            // Same, for the quadric datums: a cylinder's or sphere's
-            // radius and a cone's half-angle are read through
-            // EVALUATION, not by any datum check, so a poisoned or
-            // nonpositive one reaches check 4's dihedral arm and
-            // escalates there (`SliverDihedral`, predicate
-            // `dihedral_arm` / `dihedral_wedge`) without check 1 or
-            // anything else naming the surface.
-            //
-            // The torus arm above is the one datum check at rest, and
-            // it is there because D3's ring convention is a
-            // REPRESENTABILITY claim (a horn or spindle torus has a
-            // chart singularity no chart in the tree represents), not
-            // because a stored radius is checked as a matter of course.
-            // Whether the argument stops at the torus is an open
-            // question, filed.
-            Some(Surface::Cylinder { .. }) => {}
-            Some(Surface::Sphere { .. }) => {}
-            Some(Surface::Cone { .. }) => {}
             // Cascade discipline: a face whose surface key does not
             // resolve is tier 1's `DanglingGeometry`, already reported,
             // and the coarse gate means we never reach here in that
@@ -4506,27 +4723,34 @@ pub(crate) fn tier3_local_checks_marked<
     // the same discipline as check 7's V/A below).
     // A role inversion passes every volume gate (they are
     // role-invariant) but silently corrupts tessellation/export;
-    // this closes that class structurally. Scope: LINE-BOUNDED loops
-    // only — the vertex-chord Newell functional IS the enclosed area
-    // exactly for straight boundaries.
+    // this closes that class structurally.
     //
-    // **That scope's stated REASON is retired for circle carriers, and
-    // the remaining question is a different one** (VERBS-1031B). The
-    // reason above was that a planar face bounded by arcs has chord
-    // windings that can legitimately disagree with the region's — a
-    // 270° sector's chord quad self-crosses. That disagreement is
-    // exactly what the bulge term dissolves: `2A` decomposes EXACTLY
-    // as chord Newell plus a per-conic `axis · sa·sb · (Δ − sin Δ)`,
-    // so for Line/Circle/Ellipse boundaries there is no longer a
-    // chord-vs-region gap to point at. `merge_faces::loop_winding`
-    // states that decomposition today and NURBS remains the honest
-    // remainder there. What still keeps this arm line-only is NOT the
-    // chord objection but the cost of widening a REFUSAL surface: the
-    // other two sites of this predicate ask it a question they need
-    // answered, and this one asks it in order to FAIL a body, on an
-    // in-band margin whose behaviour over real revolve output is
-    // unmeasured. Owned, with that measurement as its opening step, by
-    // `work/verbs/verbs-1031b-assigner-checker-divergence.md`.
+    // **Scope: loops of `Line` and `Circle` carriers.** A bare
+    // vertex-chord Newell sum is the enclosed area only for straight
+    // boundaries — a 270° sector's chord quad self-crosses — so an arc
+    // enters exactly: `2A` is the chord Newell plus, per arc, its
+    // circular segment `axis · R² · (Δ − sin Δ)`, odd in the signed span
+    // `Δ` and therefore carrying the traversal sign, and the perimeter
+    // lever is re-metered to the arcs' own lengths. That arithmetic has
+    // one home, `crate::loop_winding`, which the merge's role assigner
+    // (`merge_faces`) decides on as well, so the checker falsifies a
+    // role by the very functional that assigned it — so an error IN the
+    // functional moves both sides together and this arm cannot see it.
+    // The independent guard is a row whose roles come from another
+    // derivation: `m5_s10_face_sense`'s extruded washer (roles from
+    // `profile`'s containment pass, chord terms zero) and its R ≠ 1,
+    // Δ ≠ π crescent, which refuse the HONEST body under a mis-signed
+    // or mis-scaled arc term. A LINE-only loop is decided by the chord
+    // sum alone, the correction block structurally skipped.
+    //
+    // **The residue this arm does not examine**, by carrier: a loop
+    // riding an `Ellipse` (the shared winding decides it, and the merge
+    // assigns roles by it, but its lever is an arc-length upper bound;
+    // what the widening would refuse over the corpora is measured at
+    // `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`),
+    // and a loop riding a NURBS or spiric carrier, whose region has no
+    // closed-form area. A planar face bounded so carries a stored sense
+    // no at-rest check falsifies.
     //
     // **The S10 sense gate.** A face's outward normal is the chart
     // normal with `sense` folded in, so the winding is compared against
@@ -4556,58 +4780,6 @@ pub(crate) fn tier3_local_checks_marked<
         for (l, is_outer) in
             core::iter::once((face.outer, true)).chain(face.rings.iter().map(|&r| (r, false)))
         {
-            let Some(loop_data) = body.get_loop(l) else {
-                continue; // unreachable on tier-1 input
-            };
-            let crate::entity::LoopBoundary::Cycle { first } = loop_data.boundary else {
-                continue; // empty ring: bounds no area
-            };
-            let Some(cycle) = body.loop_cycle(first) else {
-                continue; // unreachable on tier-1 input
-            };
-            // Line-bounded only (banner): an arc's vertex chord is not
-            // the boundary, and its winding is not the region's.
-            // Since VERBS-1031B this skip has a live PRODUCER on the
-            // other side of it — `merge_faces::loop_winding` now
-            // ASSIGNS outer/ring roles on exactly the conic-bounded
-            // loops this arm passes over, so those roles are set by a
-            // functional check 6 cannot falsify (evidence and flip
-            // condition: `verbs-1031b-assigner-checker-divergence`).
-            let all_lines = cycle.iter().all(|&he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_edge(hd.edge))
-                    .and_then(|e| body.get_curve_geom(e.curve))
-                    .and_then(crate::null::CurveGeom::certified)
-                    .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Line { .. }))
-            });
-            if !all_lines {
-                continue;
-            }
-            let point_of = |he| {
-                body.get_half_edge(he)
-                    .and_then(|hd| body.get_vertex(hd.start))
-                    .and_then(|vd| body.get_point(vd.point).copied())
-            };
-            let Some(p0) = point_of(cycle[0]) else {
-                continue; // unreachable on tier-1 input
-            };
-            let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-            // The F4 metering lever (audit; the derivation and the
-            // three-site coherence statement live at
-            // `boolean::join::ring_run_ccw`): this loop's perimeter,
-            // accumulated with the area. Line-bounded only, so the
-            // chords ARE the boundary.
-            let mut perimeter = T::zero();
-            let mut prev = p0;
-            for &he in &cycle[1..] {
-                let Some(p) = point_of(he) else {
-                    continue;
-                };
-                newell = newell + (prev - p0).cross(p - p0);
-                perimeter = perimeter + (p - prev).norm();
-                prev = p;
-            }
-            perimeter = perimeter + (p0 - prev).norm();
             // Only a DEFINITE wrong sign refuses (doc on the variant:
             // the check-7 posture — Zero and escalated windings are
             // exempt, so degenerate pillows stay legal and
@@ -4617,12 +4789,18 @@ pub(crate) fn tier3_local_checks_marked<
             } else {
                 Sign::Positive
             };
-            if decide(
-                "bool_ring_run_winding",
-                Margin::over_lever(outward.dot(newell), perimeter),
+            // Line and Circle carriers (banner); an empty ring, a loop
+            // riding an ellipse, spiric or NURBS edge, and a torn
+            // lookup (unreachable on tier-1 input) are not asked.
+            let Ok(Some(winding)) = body.planar_loop_winding(
+                l,
+                outward,
                 band,
-            ) == Ok(wrong)
-            {
+                crate::loop_winding::LoopCarriers::Circular,
+            ) else {
+                continue;
+            };
+            if winding == Ok(wrong) {
                 errors.push(ValidationError::LoopRoleInverted {
                     face: face_key,
                     r#loop: l,
@@ -4659,9 +4837,9 @@ pub(crate) fn tier3_local_checks_marked<
     // face leaves the volume BIT-IDENTICAL (M6-6 substrate truth
     // table: washer walls, cone laterals, sphere zones, torus bands
     // all certified green before this arm), and a whole-body-inverted
-    // washer/cone/donut even keeps its POSITIVE volume (their planar
-    // caps are arc-bounded, exempt from the Newell arm above — this
-    // arm is what refuses those bodies).
+    // washer/cone/donut even keeps its POSITIVE volume (this arm
+    // refuses their walls; the planar arm above, their arc-bounded
+    // caps).
     //
     // Posture inherited (check 7): only a DEFINITE disagreement
     // refuses. A failed derivation (escalated classification,
@@ -6610,6 +6788,94 @@ mod tests {
     use crate::seqgen;
     use crate::test_support_fixtures::declined_cube;
 
+    /// **Check 1's analytic verdicts at BOTH scalars**, one surface
+    /// lifted from `f64` to `Interval` through `Surface::map_scalar`
+    /// and handed to the same door. The rows a scalar-shaped
+    /// degradation would red: the zero normal (`[0,0]/[0,0]` is the
+    /// empty interval, poison), a NaN datum (NaI at the interval
+    /// scalar), the cone one ulp inside and exactly at `π/2` (where
+    /// `Interval::pi()` is an enclosure, not a point), and a finite
+    /// normal whose norm overflows at `f64` — a direction, refused at
+    /// neither scalar.
+    #[test]
+    fn check_1_analytic_verdicts_agree_at_f64_and_interval() {
+        use geom::{ConventionEnd, SurfaceDatum as D};
+        use geom_brep::SurfaceKind as K;
+        use geom_core::{Interval, Vec3};
+        let face = FaceKey::default();
+        let plane = |normal: Vec3<f64>| Surface::Plane {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            normal,
+            u_ref: Vec3::unit_x(),
+        };
+        let cone = |half_angle: f64| Surface::Cone {
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::unit_z(),
+            half_angle,
+            u_ref: Vec3::unit_x(),
+        };
+        let half_pi = core::f64::consts::FRAC_PI_2;
+        let normal_verdict = vec![ValidationError::PoisonedSurfaceDatum {
+            face,
+            kind: K::Plane,
+            datum: D::Normal,
+        }];
+        let rows: Vec<(&str, Surface<f64>, Vec<ValidationError>)> = vec![
+            (
+                "zero normal",
+                plane(Vec3::new(0.0, 0.0, 0.0)),
+                normal_verdict.clone(),
+            ),
+            (
+                "NaN normal",
+                plane(Vec3::new(f64::NAN, 0.0, 1.0)),
+                normal_verdict,
+            ),
+            (
+                "normal (1e200, 0, 0)",
+                plane(Vec3::new(1e200, 0.0, 0.0)),
+                vec![],
+            ),
+            (
+                "normal (0, 0, 1e160)",
+                plane(Vec3::new(0.0, 0.0, 1e160)),
+                vec![],
+            ),
+            (
+                "cone at pi/2",
+                cone(half_pi),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Upper,
+                }],
+            ),
+            (
+                "cone one ulp below pi/2",
+                cone(f64::from_bits(half_pi.to_bits() - 1)),
+                vec![],
+            ),
+            (
+                "cone at 0",
+                cone(0.0),
+                vec![ValidationError::UnrepresentableSurfaceDatum {
+                    face,
+                    kind: K::Cone,
+                    datum: D::HalfAngle,
+                    end: ConventionEnd::Lower,
+                }],
+            ),
+        ];
+        for (name, surface, expected) in rows {
+            let at_f64 = analytic_datum_verdicts(face, &surface);
+            let lifted: Surface<Interval> = surface.map_scalar(Interval::from_f64);
+            let at_interval = analytic_datum_verdicts(face, &lifted);
+            assert_eq!(at_f64, expected, "{name}, at f64");
+            assert_eq!(at_interval, expected, "{name}, at Interval");
+        }
+    }
+
     fn anchor() -> Point3<f64> {
         Point3::origin()
     }
@@ -7631,7 +7897,17 @@ mod tests {
                 face: t.face_a,
                 cause: indeterminate(),
             },
-            ValidationError::NonpositiveTorusTube { face: t.face_a },
+            ValidationError::PoisonedSurfaceDatum {
+                face: t.face_a,
+                kind: geom_brep::SurfaceKind::Plane,
+                datum: geom::SurfaceDatum::Normal,
+            },
+            ValidationError::UnrepresentableSurfaceDatum {
+                face: t.face_a,
+                kind: geom_brep::SurfaceKind::Cone,
+                datum: geom::SurfaceDatum::HalfAngle,
+                end: geom::ConventionEnd::Upper,
+            },
             ValidationError::ApproxCertification {
                 face: t.face_a,
                 error: geom_brep::OffsetFitError::InvalidRequest {

@@ -4200,7 +4200,7 @@ fn asm_upd_spawn_probe(tag: &str) -> String {
 /// - **The witness/verdict/diff instrumentation** (`Branch*`,
 ///   `Summary*`, `Verdict*`, `Witness*`, `NodeVerdict*`, `FlipSet`,
 ///   `Diagnosis`, `UpstreamCause`, `FlipSource`, `ShadowExecRefusal`,
-///   `Implicated`, `PredicateDivergence`, `SideVerdict`,
+///   `GroupCutters`, `Implicated`, `PredicateDivergence`, `SideVerdict`,
 ///   `DocDiff`, `NodeChange`, `diff_*`, `verdict_summary`, `Epoch`,
 ///   `Tombstone`, `RecipeEditRef`): the editor's own re-evaluation
 ///   telemetry, not a modelling vocabulary. GUI-2 carried these
@@ -4446,6 +4446,7 @@ const NOT_CARRIED: [&str; 95] = [
     "FlipSet",
     "FlipSource",
     "FragmentGroups",
+    "GroupCutters",
     "Implicated",
     "Lane",
     "MeshPatchKey",

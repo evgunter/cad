@@ -525,8 +525,10 @@ pub enum SectionError {
     /// its meridian circles meet or cross on
     /// the axis, so no closed form here is well-posed. Every validated
     /// body already upholds the convention (`sweep::revolve` refuses
-    /// degenerate tori at construction; tier-3 reports
-    /// `DegenerateTorus` at rest) — this refusal is the arm's own
+    /// degenerate tori at construction; tier-3 check 1 refuses a tube
+    /// radius that is not positive as `UnrepresentableSurfaceDatum` and
+    /// a horn or spindle as `DegenerateTorus`, at rest) — this refusal
+    /// is the arm's own
     /// insurance against pre-validate operands, e.g. STEP-minted tori.
     DegenerateTorus,
     /// The conic carrier constructor refused (near-circular tilt or a
@@ -1724,7 +1726,9 @@ pub enum PlaneTorusSection<T: Real> {
 ///    meet or cross on the axis, so no closed form below is
 ///    well-posed on one. The invariant already holds on every
 ///    validated body (`sweep::revolve` refuses degenerate tori at
-///    construction; tier-3 reports `DegenerateTorus` at rest), so
+///    construction; tier-3 check 1 refuses them at rest —
+///    `UnrepresentableSurfaceDatum` for a tube radius that is not
+///    positive, `DegenerateTorus` for a horn or spindle), so
 ///    these refusals ([`SectionError::DegenerateTorus`]) are
 ///    insurance against pre-validate operands, not a missing
 ///    invariant.
