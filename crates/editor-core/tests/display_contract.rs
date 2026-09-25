@@ -1261,26 +1261,97 @@ fn the_shadow_exec_refusal_states_which_wall_it_hit() {
 
 /// The group-size diagnosis states the group fact and nothing more:
 /// how many entities the group the emitter divided the fragment's
-/// parent into held and holds, the same sentence at every count, and
-/// no cause. Exact sentences, so a clause that claims more cannot slip
-/// in.
+/// parent into held and holds, the same sentence at every count, which
+/// cutters' seams on the parent the two tables differ by — every one,
+/// or none, or why the tables cannot say — and no cause. Exact
+/// sentences, so a clause that claims more cannot slip in.
 #[test]
 fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
+    use editor_core::{EntityKind, GroupCutters, RoleSeg, StableName};
+    let cutter = |kind, node| StableName {
+        kind,
+        node: RecipeNodeId(node),
+        path: vec![RoleSeg::OutputBody],
+    };
+    let vertex = cutter(EntityKind::Vertex, 5);
+    let face = cutter(EntityKind::Face, 6);
+    let cases = [
+        (
+            GroupCutters::Read {
+                gone: vec![vertex.clone()],
+                new: vec![],
+            },
+            "the parent's seams with the vertex name minted by node 5 are gone",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![face.clone()],
+            },
+            "the parent has new seams with the face name minted by node 6",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![vertex.clone(), face.clone()],
+                new: vec![face.clone()],
+            },
+            "the parent's seams with 2 cutters (the vertex name minted by node 5; the \
+             face name minted by node 6) are gone, and the parent has new seams with the \
+             face name minted by node 6",
+        ),
+        (
+            GroupCutters::Read {
+                gone: vec![],
+                new: vec![],
+            },
+            "the parent's seams name the same cutters in both runs",
+        ),
+        (
+            GroupCutters::NotSeamBounded,
+            "which cutter changed is not on record, because this group is not bounded by \
+             seams on one parent name",
+        ),
+        (
+            GroupCutters::TiedParents,
+            "which cutter changed is not on record, because tied parents share the name \
+             the seams are spelled on",
+        ),
+        (
+            GroupCutters::NoSeamOnRecord,
+            "which cutter changed is not on record, because the last-good run spells no \
+             seam on the parent",
+        ),
+    ];
     for (was, now) in [(2, 1), (3, 0), (2, 3)] {
-        let d = Diagnosis::GroupResized {
-            node: RecipeNodeId(8),
-            was,
-            now,
-        };
-        assert_eq!(
-            d.to_string(),
-            format!(
-                "at node 8, the group this fragment's parent was divided into held \
-                 {was} entities in the last-good run and holds {now} now, and no verdict \
-                 flip was found that explains the change"
-            )
-        );
-        assert_f6(&d, &[], &["GroupResized"]);
+        for (cutters, clause) in &cases {
+            let d = Diagnosis::GroupResized {
+                node: RecipeNodeId(8),
+                was,
+                now,
+                cutters: cutters.clone(),
+            };
+            assert_eq!(
+                d.to_string(),
+                format!(
+                    "at node 8, the group this fragment's parent was divided into held \
+                     {was} entities in the last-good run and holds {now} now; {clause}; and \
+                     no verdict flip was found that explains the change"
+                )
+            );
+            assert_f6(
+                &d,
+                &[],
+                &[
+                    "GroupResized",
+                    "GroupCutters",
+                    "Read",
+                    "NotSeamBounded",
+                    "TiedParents",
+                    "NoSeamOnRecord",
+                    "OutputBody",
+                ],
+            );
+        }
     }
 }
 

@@ -56,7 +56,13 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 // 2, now: 1 } instead of the evidence-free fallback. The other four
 // row shapes were re-read and are unchanged (cascade → Cascade,
 // structural-param, node-gone, ambiguous).
-const DIAGNOSIS_DIGEST: u64 = 0xf735_449b_3e36_841b;
+// RE-PINNED for GroupResized's cutters: exactly ONE row changed —
+// "flip-vanish" keeps its shape (GroupResized, was 2, now 1) and now
+// also names the cutter whose seam vertex with the rim edge is gone, B's
+// cap vertex (CapVertex(End, v 0) at B's extrude), with none new. The
+// other four row shapes were re-read and are unchanged (cascade →
+// Cascade, structural-param, node-gone, ambiguous).
+const DIAGNOSIS_DIGEST: u64 = 0x732a_85e6_51d3_cedd;
 
 #[test]
 fn diagnosis_corpus_is_golden() {
