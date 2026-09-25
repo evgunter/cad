@@ -220,14 +220,19 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
 
 /// The circle a disc-class loop bounds — its own type, because three
 /// components of one datum read better named than positional.
+///
+/// Its centre and radius are readable crate-wide: tier 3's check 9
+/// decides two disc-class loops against each other from them (the
+/// centre distance against the radii's sum and difference), a question
+/// about a PAIR of loops that [`disc_side`]'s one point cannot ask.
 #[derive(Clone, Copy)]
 pub(crate) struct LoopCircle<T: geom_core::Real> {
     /// The circle's centre.
-    center: Point3<T>,
+    pub(crate) center: Point3<T>,
     /// Its plane normal (sign-free: only `cross` reads it).
     axis: Vec3<T>,
     /// Its radius, in metres.
-    radius: T,
+    pub(crate) radius: T,
 }
 
 /// **Which walk expresses this loop's region** — one carrier pass over
@@ -565,8 +570,12 @@ fn boundary_pre_pass<T: Decide>(
 /// row F8 — is stated once at
 /// [`super::solid_contain::point_on_wall_in_face`] and shared by all
 /// three of its sites.
+///
+/// Visible to the crate because tier 3's check 9 asks the same
+/// question of a point where a ring edge and an outer edge meet: is
+/// it inside the arc's window, or past its trim?
 #[allow(clippy::too_many_arguments)] // one arc datum, each argument named
-pub(super) fn point_on_arc<T: Decide>(
+pub(crate) fn point_on_arc<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
     axis: Vec3<T>,

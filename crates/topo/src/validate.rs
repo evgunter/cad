@@ -2369,8 +2369,8 @@ impl fmt::Display for ValidationError {
 impl std::error::Error for ValidationError {}
 
 /// How a ring meets its face's outer loop
-/// ([`ValidationError::RingMeetsOuter`]) — the three shapes the
-/// position comparison can find.
+/// ([`ValidationError::RingMeetsOuter`]) — the five shapes check 9's
+/// contact arms can find.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum RingContact {
     /// A vertex of the ring stands on a vertex of the outer loop.
@@ -2402,6 +2402,30 @@ pub enum RingContact {
         /// The outer loop's edge it runs along.
         outer_edge: EdgeKey,
     },
+    /// The ring and the outer loop are two WHOLE circles — both in
+    /// [`crate::boolean::LoopShape`]'s disc class — that cross or
+    /// touch: their centre distance lies between the difference of
+    /// their radii and the sum, both ends included. Named by LOOP,
+    /// because a crossing need not put a ring vertex outside, or
+    /// anywhere near the points where the two circles meet.
+    Circles {
+        /// The ring.
+        ring_loop: LoopKey,
+        /// The outer loop.
+        outer_loop: LoopKey,
+    },
+    /// An edge of the ring and an edge of the outer loop share a POINT
+    /// the three shapes above do not name: a transversal crossing, a
+    /// one-point tangency, or a vertex of the outer loop on the ring
+    /// edge's interior. Found by intersecting the two edges' `Line`
+    /// and `Circle` carriers and testing each meeting point against
+    /// both edges' trims.
+    EdgesMeet {
+        /// The ring's edge.
+        ring_edge: EdgeKey,
+        /// The outer loop's edge it meets.
+        outer_edge: EdgeKey,
+    },
 }
 
 impl fmt::Display for RingContact {
@@ -2427,6 +2451,21 @@ impl fmt::Display for RingContact {
             } => write!(
                 f,
                 "{ring_edge:?} runs along the outer loop's {outer_edge:?}"
+            ),
+            Self::Circles {
+                ring_loop,
+                outer_loop,
+            } => write!(
+                f,
+                "the ring's circle {ring_loop:?} crosses or touches the outer loop's circle \
+                 {outer_loop:?}"
+            ),
+            Self::EdgesMeet {
+                ring_edge,
+                outer_edge,
+            } => write!(
+                f,
+                "{ring_edge:?} crosses or touches the outer loop's {outer_edge:?} at a point"
             ),
         }
     }
@@ -5218,7 +5257,463 @@ pub(crate) fn ring_outer_contact<T: Decide>(
             });
         }
     }
-    RingOuterVerdict::Disjoint
+    ring_outer_meeting(body, outer, ring, &ring_cycle, &outer_cycle, band)
+}
+
+/// Check 9's arms 4 and 5: do `ring` and `outer` share a POINT that
+/// arms 1–3 of [`ring_outer_contact`] do not name — a transversal
+/// crossing, a one-point tangency, or a vertex of the outer loop on a
+/// ring edge's interior?
+///
+/// Run only after arms 1–3 have cleared the pair, and that order is
+/// what lets both arms read a CLOSED edge: once no ring vertex stands
+/// on an outer vertex, a point the two loops share is the loops
+/// meeting whichever edge's end it sits at, so an endpoint
+/// neighbourhood counts as inside a trim rather than being handed
+/// back to a vertex arm that has already spoken.
+///
+/// - **Arm 4, both loops whole circles** ([`crate::boolean::LoopShape::Disc`]
+///   on each): [`circle_pair`], exact without any trim.
+/// - **Arm 5, every other pair of `Line` and `Circle` edges**
+///   ([`segments_meet`]): the carriers' meeting points, each tested
+///   against both edges' trims — a line's by its span, an arc's by
+///   [`crate::boolean::point_on_arc`].
+///
+/// Both run in the plane of `outer`'s face and are silent off one: a
+/// non-planar face has no plane to intersect in, and an `Ellipse`,
+/// `Spiric` or `Nurbs` edge has no closed-form meeting point here.
+/// Those are check 9's recorded residue.
+///
+/// A definite meeting anywhere wins over an escalation elsewhere —
+/// the report names the shape it can — and an escalation with no
+/// meeting found is [`RingOuterVerdict::Escalated`], never
+/// `Disjoint`.
+fn ring_outer_meeting<T: Decide>(
+    body: &Body<T>,
+    outer: LoopKey,
+    ring: LoopKey,
+    ring_cycle: &[HalfEdgeKey],
+    outer_cycle: &[HalfEdgeKey],
+    band: Band,
+) -> RingOuterVerdict {
+    let normal = body
+        .get_loop(outer)
+        .and_then(|l| body.get_face(l.face))
+        .and_then(|f| body.surfaces.get(f.surface));
+    let Some(&Surface::Plane { normal, .. }) = normal else {
+        return RingOuterVerdict::Disjoint; // the recorded residue: no plane
+    };
+
+    // ---- Arm 4: two whole circles. ----
+    if let (Ok(crate::boolean::LoopShape::Disc(o)), Ok(crate::boolean::LoopShape::Disc(r))) = (
+        crate::boolean::loop_shape(body, outer, band),
+        crate::boolean::loop_shape(body, ring, band),
+    ) {
+        return match circle_pair(o.center, o.radius, r.center, r.radius, band) {
+            Ok(CirclePair::Apart | CirclePair::Nested) => RingOuterVerdict::Disjoint,
+            Ok(
+                CirclePair::ExternallyTangent
+                | CirclePair::InternallyTangent
+                | CirclePair::Crossing,
+            ) => RingOuterVerdict::Contact(RingContact::Circles {
+                ring_loop: ring,
+                outer_loop: outer,
+            }),
+            Err(source) => RingOuterVerdict::Escalated(source),
+        };
+    }
+
+    // ---- Arm 5: an edge pair meeting at a point. ----
+    let mut escalated: Option<Indeterminate> = None;
+    for &rhe in ring_cycle {
+        let Some((ring_edge, rseg)) = meet_segment(body, rhe) else {
+            continue; // the recorded residue: Ellipse, Spiric and Nurbs carriers
+        };
+        for &ohe in outer_cycle {
+            let Some((outer_edge, oseg)) = meet_segment(body, ohe) else {
+                continue;
+            };
+            match segments_meet(rseg, oseg, normal, band) {
+                Meet::Apart => {}
+                Meet::Meet => {
+                    return RingOuterVerdict::Contact(RingContact::EdgesMeet {
+                        ring_edge,
+                        outer_edge,
+                    });
+                }
+                Meet::Unsure(source) => escalated = escalated.or(Some(source)),
+            }
+        }
+    }
+    escalated.map_or(RingOuterVerdict::Disjoint, RingOuterVerdict::Escalated)
+}
+
+/// How two coplanar circles sit, from their centre distance `d`
+/// against the sum and the difference of their radii — two decides,
+/// and nothing about any trim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum CirclePair {
+    /// `d > R + r`: each lies outside the other.
+    Apart,
+    /// `d = R + r`: they touch at one point, each outside the other.
+    ExternallyTangent,
+    /// `|R − r| < d < R + r`: they cross at two points.
+    Crossing,
+    /// `d = |R − r|`: they touch at one point, one inside the other.
+    InternallyTangent,
+    /// `d < |R − r|`: one lies strictly inside the other. Which one
+    /// is the nesting arm's question, not this one's.
+    Nested,
+}
+
+/// [`CirclePair`] for the circles `(c1, r1)` and `(c2, r2)`, which lie
+/// in one plane. The outer decide runs first and settles two circles
+/// far apart on its own; an escalation on either is returned rather
+/// than read as either side of it.
+fn circle_pair<T: Decide>(
+    c1: geom_core::Point3<T>,
+    r1: T,
+    c2: geom_core::Point3<T>,
+    r2: T,
+    band: Band,
+) -> Result<CirclePair, Indeterminate> {
+    let d = (c2 - c1).norm();
+    match decide("ring_outer_circles_apart", Margin::of(d - (r1 + r2)), band)? {
+        Sign::Positive => return Ok(CirclePair::Apart),
+        Sign::Zero => return Ok(CirclePair::ExternallyTangent),
+        Sign::Negative => {}
+    }
+    Ok(
+        match decide(
+            "ring_outer_circles_nested",
+            Margin::of((r1 - r2).abs() - d),
+            band,
+        )? {
+            Sign::Positive => CirclePair::Nested,
+            Sign::Zero => CirclePair::InternallyTangent,
+            Sign::Negative => CirclePair::Crossing,
+        },
+    )
+}
+
+/// One edge as check 9's arm 5 reads it: a `Line` by its two end
+/// points, a `Circle` by its carrier and parameter window.
+#[derive(Clone, Copy)]
+enum MeetSegment<T: Real> {
+    /// A straight edge from `a` to `b`.
+    Line {
+        /// One end.
+        a: geom_core::Point3<T>,
+        /// The other end.
+        b: geom_core::Point3<T>,
+    },
+    /// An arc of a circle, over `[t0, t1]` of its carrier.
+    Arc {
+        /// The circle's centre.
+        center: geom_core::Point3<T>,
+        /// Its unit axis.
+        axis: geom_core::Vec3<T>,
+        /// Its radius.
+        radius: T,
+        /// Its seam direction.
+        u_ref: geom_core::Vec3<T>,
+        /// The window's start.
+        t0: T,
+        /// The window's end.
+        t1: T,
+    },
+}
+
+/// The edge under `he` as a [`MeetSegment`], or `None` for a carrier
+/// arm 5 has no meeting point for (`Ellipse`, `Spiric`, `Nurbs`) or an
+/// edge it cannot resolve.
+fn meet_segment<T: Real>(body: &Body<T>, he: HalfEdgeKey) -> Option<(EdgeKey, MeetSegment<T>)> {
+    let edge = body.half_edges.get(he)?.edge;
+    let geom = certified_carrier(body, edge)?;
+    let segment = match *geom.carrier() {
+        geom::Curve3::Line { .. } => {
+            let (a, b) = edge_endpoints(body, he)?;
+            MeetSegment::Line { a, b }
+        }
+        geom::Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => {
+            let (t0, t1) = geom.params();
+            MeetSegment::Arc {
+                center,
+                axis,
+                radius,
+                u_ref,
+                t0,
+                t1,
+            }
+        }
+        _ => return None,
+    };
+    Some((edge, segment))
+}
+
+/// Whether two edges share a point, as arm 5 decides it.
+enum Meet {
+    /// Definitely not.
+    Apart,
+    /// Definitely: a point lies on both carriers and inside both trims.
+    Meet,
+    /// A margin that could turn a candidate meeting point into a
+    /// meeting landed in the band — kept, never read as `Apart`.
+    Unsure(Indeterminate),
+}
+
+/// Whether a point on an edge's carrier lies inside its trim.
+enum Window {
+    /// Inside, an end included.
+    In,
+    /// Definitely past an end.
+    Out,
+    /// A trim margin landed in the band.
+    Unsure(Indeterminate),
+}
+
+/// Arm 5 for one pair of edges lying in the plane whose unit normal is
+/// `normal`. Two lines are decided by orientation, with no meeting
+/// point computed; a pair with an arc computes its candidate meeting
+/// points in closed form and hands them to [`meet_at`].
+fn segments_meet<T: Decide>(
+    first: MeetSegment<T>,
+    second: MeetSegment<T>,
+    normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Meet {
+    match (first, second) {
+        (MeetSegment::Line { a: a0, b: a1 }, MeetSegment::Line { a: b0, b: b1 }) => {
+            lines_meet(a0, a1, b0, b1, normal, band)
+        }
+        (MeetSegment::Line { a, b }, arc @ MeetSegment::Arc { center, radius, .. })
+        | (arc @ MeetSegment::Arc { center, radius, .. }, MeetSegment::Line { a, b }) => {
+            let e = (b - a).normalize();
+            // The foot of the centre on the line, and the half-chord
+            // either side of it.
+            let foot = a + e * (center - a).dot(e);
+            let h = (center - foot).norm();
+            let half_chord = ((radius - h) * (radius + h)).max(T::zero()).sqrt();
+            let (existence, candidates) =
+                match decide("ring_outer_meet_reach", Margin::of(radius - h), band) {
+                    Ok(Sign::Negative) => return Meet::Apart,
+                    Ok(Sign::Positive) => (None, vec![foot + e * half_chord, foot - e * half_chord]),
+                    // Tangent within the band: the foot is the touching
+                    // point, and the two chord ends — as far apart as
+                    // `√(2·r·band)` — are asked as well, so a crossing
+                    // this shallow cannot slip past a trim the foot
+                    // itself misses.
+                    Ok(Sign::Zero) => (
+                        None,
+                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                    ),
+                    Err(source) => (
+                        Some(source),
+                        vec![foot, foot + e * half_chord, foot - e * half_chord],
+                    ),
+                };
+            meet_at(existence, &candidates, MeetSegment::Line { a, b }, arc, band)
+        }
+        (
+            first @ MeetSegment::Arc {
+                center: c1,
+                radius: r1,
+                ..
+            },
+            second @ MeetSegment::Arc {
+                center: c2,
+                radius: r2,
+                ..
+            },
+        ) => {
+            let (existence, tangent) = match circle_pair(c1, r1, c2, r2, band) {
+                Ok(CirclePair::Apart | CirclePair::Nested) => return Meet::Apart,
+                Ok(CirclePair::Crossing) => (None, false),
+                Ok(CirclePair::ExternallyTangent | CirclePair::InternallyTangent) => (None, true),
+                Err(source) => (Some(source), true),
+            };
+            let w = c2 - c1;
+            let d = w.norm();
+            if tangent {
+                // Concentric within the band with radii equal within
+                // it is one circle, whose shared arcs arm 2 has
+                // already reported: every ring vertex stands on its
+                // locus. The direction to the touching point is
+                // undefined there, so it is settled before dividing.
+                match decide("ring_outer_meet_centres", Margin::of(d), band) {
+                    Ok(Sign::Positive) => {}
+                    Ok(Sign::Zero | Sign::Negative) => return Meet::Apart,
+                    Err(source) => return Meet::Unsure(existence.unwrap_or(source)),
+                }
+            }
+            // The radical line's foot on the centre line, and the
+            // half-chord either side of it; at a tangency the foot is
+            // the touching point (`a = ±r1`) and the chord ends are
+            // asked too, as on a line.
+            let u = w.normalize();
+            let v = normal.cross(u);
+            let a = (d * d + r1 * r1 - r2 * r2) / (d * T::from_f64(2.0));
+            let half_chord = ((r1 - a) * (r1 + a)).max(T::zero()).sqrt();
+            let foot = c1 + u * a;
+            let candidates = if tangent {
+                vec![foot, foot + v * half_chord, foot - v * half_chord]
+            } else {
+                vec![foot + v * half_chord, foot - v * half_chord]
+            };
+            meet_at(existence, &candidates, first, second, band)
+        }
+    }
+}
+
+/// Two straight edges `[a0, a1]` and `[b0, b1]` in one plane, by the
+/// four orientation margins of each one's ends against the other's
+/// line — signed lengths, `(p − o) × ê · n̂`. Both ends strictly on one
+/// side of the other's line separates them; otherwise they meet,
+/// unless all of one's ends lie ON the other's line, where the pair is
+/// collinear and the question is whether the two spans overlap.
+fn lines_meet<T: Decide>(
+    a0: geom_core::Point3<T>,
+    a1: geom_core::Point3<T>,
+    b0: geom_core::Point3<T>,
+    b1: geom_core::Point3<T>,
+    normal: geom_core::Vec3<T>,
+    band: Band,
+) -> Meet {
+    let ea = (a1 - a0).normalize();
+    let eb = (b1 - b0).normalize();
+    let side = |p: geom_core::Point3<T>, o: geom_core::Point3<T>, e: geom_core::Vec3<T>| {
+        decide(
+            "ring_outer_meet_side",
+            Margin::of((p - o).cross(e).dot(normal)),
+            band,
+        )
+    };
+    let on_a = [side(b0, a0, ea), side(b1, a0, ea)];
+    let on_b = [side(a0, b0, eb), side(a1, b0, eb)];
+    let separated = |pair: &[Result<Sign, Indeterminate>; 2]| {
+        matches!(
+            pair,
+            [Ok(Sign::Positive), Ok(Sign::Positive)] | [Ok(Sign::Negative), Ok(Sign::Negative)]
+        )
+    };
+    if separated(&on_a) || separated(&on_b) {
+        return Meet::Apart;
+    }
+    if let Some(&Err(source)) = on_a.iter().chain(&on_b).find(|r| r.is_err()) {
+        return Meet::Unsure(source);
+    }
+    let collinear = |pair: &[Result<Sign, Indeterminate>; 2]| {
+        matches!(pair, [Ok(Sign::Zero), Ok(Sign::Zero)])
+    };
+    // Collinear: do the spans overlap, measured along one edge's own
+    // axis? A point of overlap is a meeting too.
+    let overlap = |o0: geom_core::Point3<T>,
+                   o1: geom_core::Point3<T>,
+                   e: geom_core::Vec3<T>,
+                   p0: geom_core::Point3<T>,
+                   p1: geom_core::Point3<T>| {
+        let len = (o1 - o0).norm();
+        let (t0, t1) = ((p0 - o0).dot(e), (p1 - o0).dot(e));
+        let margin = t0.max(t1).min(len) - t0.min(t1).max(T::zero());
+        match decide("ring_outer_meet_overlap", Margin::of(margin), band) {
+            Ok(Sign::Positive | Sign::Zero) => Meet::Meet,
+            Ok(Sign::Negative) => Meet::Apart,
+            Err(source) => Meet::Unsure(source),
+        }
+    };
+    if collinear(&on_a) {
+        overlap(a0, a1, ea, b0, b1)
+    } else if collinear(&on_b) {
+        overlap(b0, b1, eb, a0, a1)
+    } else {
+        Meet::Meet
+    }
+}
+
+/// Arm 5's verdict on candidate meeting points of two edges' carriers:
+/// a candidate inside both trims is a meeting. `existence` is the
+/// escalation, if any, of the margin that said the carriers meet at
+/// all — with one, a candidate inside both trims is `Unsure` rather
+/// than a meeting, and a candidate definitely past either trim is
+/// still ruled out, which is what keeps a near-tangency far from both
+/// edges from escalating.
+fn meet_at<T: Decide>(
+    existence: Option<Indeterminate>,
+    candidates: &[geom_core::Point3<T>],
+    first: MeetSegment<T>,
+    second: MeetSegment<T>,
+    band: Band,
+) -> Meet {
+    let mut open: Option<Indeterminate> = None;
+    for &p in candidates {
+        let wa = window(first, p, band);
+        if matches!(wa, Window::Out) {
+            continue;
+        }
+        let diag = match (wa, window(second, p, band)) {
+            (_, Window::Out) => continue,
+            (Window::In, Window::In) => match existence {
+                None => return Meet::Meet,
+                Some(source) => source,
+            },
+            (Window::Unsure(source), _) | (_, Window::Unsure(source)) => {
+                existence.unwrap_or(source)
+            }
+            (Window::Out, _) => continue,
+        };
+        open = open.or(Some(diag));
+    }
+    open.map_or(Meet::Apart, Meet::Unsure)
+}
+
+/// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
+/// an end included, since arm 5 runs only once no vertex arm has
+/// spoken ([`ring_outer_meeting`]). A line's by the two signed spans
+/// from its ends; an arc's by [`crate::boolean::point_on_arc`], whose
+/// endpoint neighbourhood and whole-circle answers (`None`) are both
+/// inside.
+fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
+    match segment {
+        MeetSegment::Line { a, b } => {
+            let len = (b - a).norm();
+            let s0 = (p - a).dot((b - a).normalize());
+            let spans = [
+                decide("ring_outer_meet_span", Margin::of(s0), band),
+                decide("ring_outer_meet_span", Margin::of(len - s0), band),
+            ];
+            if spans.iter().any(|s| matches!(s, Ok(Sign::Negative))) {
+                return Window::Out;
+            }
+            match spans.iter().find_map(|s| s.err()) {
+                Some(source) => Window::Unsure(source),
+                None => Window::In,
+            }
+        }
+        MeetSegment::Arc {
+            center,
+            axis,
+            radius,
+            u_ref,
+            t0,
+            t1,
+        } => match crate::boolean::point_on_arc(p, center, axis, radius, u_ref, t0, t1, band) {
+            Ok(Some(true) | None) => Window::In,
+            Ok(Some(false)) => Window::Out,
+            Err(ContainError::Escalated(source)) => Window::Unsure(source),
+            // `point_on_arc` escalates and does nothing else; a walk
+            // error it grew later is not a verdict on the trim.
+            Err(_) => Window::Unsure(Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("ring_outer_meet_arc"),
+            }),
+        },
+    }
 }
 
 /// The region check 9's nesting arm reads a face's outer loop as, or
