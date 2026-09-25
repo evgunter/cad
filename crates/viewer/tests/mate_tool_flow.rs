@@ -98,10 +98,7 @@ fn two_picks_one_choice_one_committed_edit() {
     );
 
     // EXACTLY one committed edit, through the session's one door.
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    session.pump();
+    commit_mate(&mut session, proposal.op());
 
     // The placement is SOLVED from the mate: the two picked frames
     // now coincide in world space (composition through the solved
@@ -296,7 +293,7 @@ const PATTERN_STEP: f64 = 0.04;
 
 /// Pattern post_b twice along +x and answer the pattern node.
 fn patterned_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
             input: bench.post_b,
@@ -384,11 +381,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
     // coincide in the world the evaluation draws. A tool that folded
     // the pattern offset into the authored frame would land copy 1 one
     // step away from the shelf.
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    session.pump();
-    let mate = committed_mate(&session);
+    let mate = commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol).fault(mate).is_none(),
@@ -414,7 +407,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
     // A transform between the instance and the pattern: the pattern's
     // input is a `Transform`, not an `InstantiatePart`, which is one
     // of the heads `member_of` declines.
-    let moved = common::insert(
+    let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b,
@@ -424,7 +417,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
         },
     );
     session.pump();
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         &mut session,
         SessionOp::AddPattern {
             input: moved,
@@ -485,7 +478,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("matefused", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let fused = common::insert(
+    let fused = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: pncad::document::BooleanOp::Union,
@@ -541,7 +534,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
     let mut session = asm::open_bench(&bench, tol);
     // A quarter turn about z through the world origin plus an offset:
     // post_b's centre (0.07, 0.01) lands at (-0.01, 0.07) + (0.015, -0.005).
-    let moved = common::insert(
+    let moved = common::session_insert(
         &mut session,
         SessionOp::AddTransform {
             input: bench.post_b,
@@ -583,9 +576,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
         proposal.alignment.a
     );
 
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
+    commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, viewer::tree::RowStatus::Ok, "{row:?}");
     }
@@ -625,7 +616,7 @@ const QUARTER_TURN: f64 = core::f64::consts::FRAC_PI_2;
 /// else. The ROTATION is the point: a linear rule moves only the
 /// origin, and a frame has two more channels.
 fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
-    let axis = common::insert(
+    let axis = common::session_insert(
         session,
         SessionOp::AddDatum {
             datum: DatumSpec::Axis {
@@ -635,7 +626,7 @@ fn spun_post(session: &mut DocSession, bench: &asm::Bench) -> RecipeNodeId {
         },
     );
     session.pump();
-    let pattern = common::insert(
+    let pattern = common::session_insert(
         session,
         SessionOp::AddPattern {
             input: bench.post_b,
@@ -761,11 +752,7 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
     // And it SOLVES: the spun copy's cap meets the shelf's underside
     // in the world the evaluation draws, which is the pattern's
     // rotation being applied exactly once.
-    let outcome = session.perform(spun.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    session.pump();
-    let mate = committed_mate(&session);
+    let mate = commit_mate(&mut session, spun.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol).fault(mate).is_none(),
@@ -868,24 +855,33 @@ fn shelf_underside(session: &DocSession) -> FaceSelection {
     )
 }
 
-/// **The mate the tool just committed** — the document's last
-/// `Node::Mate`, which is the node the solve keys a fault by.
+/// **Commit the tool's mate through the session's insert door**,
+/// pump, and answer the node it minted — checked to BE a mate, because
+/// that id is what the solve keys a fault by.
 ///
 /// A pattern node, a `Part` node or an instance is NOT such a key:
 /// `SolvedPoses::fault` maps refusing MATES and the instances of a
 /// cluster that consequently has no pose, so `fault(pattern)` answers
-/// `None` for every document ever written and asserts nothing.
+/// `None` for every document ever written and asserts nothing. The
+/// kind check is what keeps a row's `fault(mate).is_none()` from
+/// passing on an id it could never fail on.
 ///
 /// # Panics
 ///
-/// If the document holds no mate.
-fn committed_mate(session: &DocSession) -> RecipeNodeId {
-    let (doc, _) = session.landed_pair().expect("landed");
-    *doc.order()
-        .iter()
-        .rev()
-        .find(|&&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
-        .expect("the tool committed a mate")
+/// If the op refuses, commits anything but one insert, or inserts a
+/// node that is not a `Node::Mate`.
+fn commit_mate(session: &mut DocSession, op: SessionOp) -> RecipeNodeId {
+    let mate = common::session_insert(session, op);
+    assert!(
+        matches!(
+            session.committed_doc().node(mate),
+            Some(pncad::document::Node::Mate { .. })
+        ),
+        "the tool's op inserts a mate: {:?}",
+        session.committed_doc().node(mate)
+    );
+    session.pump();
+    mate
 }
 
 /// The two picked faces meet in the world the evaluation draws.
@@ -957,11 +953,7 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
         proposal.alignment.a.origin
     );
 
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1);
-    session.pump();
-    let mate = committed_mate(&session);
+    let mate = commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol).fault(mate).is_none(),
@@ -1021,10 +1013,7 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
         proposal.alignment.a.origin
     );
 
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
-    let mate = committed_mate(&session);
+    let mate = commit_mate(&mut session, proposal.op());
     let (doc, _) = session.landed_pair().expect("landed");
     assert!(
         common::solve(&session, doc, tol).fault(mate).is_none(),

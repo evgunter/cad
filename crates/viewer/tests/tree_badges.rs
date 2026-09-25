@@ -225,7 +225,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // — a verdict about the pair, which the edit door admits (a mate
     // the table refuses on its own datum is refused at the insert).
     let add_mate = |session: &mut DocSession, post, alignment| {
-        common::insert(
+        common::session_insert(
             session,
             SessionOp::AddMate {
                 a: common::head(common::asm::in_part(post, &bench.post_top)),
@@ -330,7 +330,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let mut session = common::asm::open_bench(&bench, tol);
 
     let add_mate = |session: &mut DocSession, alignment| {
-        common::insert(
+        common::session_insert(
             session,
             SessionOp::AddMate {
                 a: common::head(common::asm::in_part(bench.post_a, &bench.post_top)),
@@ -429,7 +429,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
 
     // The boolean lands first, over two instances that are both `Ok`:
     // the operand seat admits an instance (`combine::denotes_body`).
-    let boolean = common::insert(
+    let boolean = common::session_insert(
         &mut session,
         SessionOp::AddBoolean {
             op: BooleanOp::Union,
@@ -445,7 +445,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
     );
 
     let add_mate = |session: &mut DocSession, post, alignment| {
-        common::insert(
+        common::session_insert(
             session,
             SessionOp::AddMate {
                 a: common::head(common::asm::in_part(post, &bench.post_top)),
