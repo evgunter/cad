@@ -1709,7 +1709,7 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error()),
+                frame::index_badge(self.picks.error(), self.session.evaluation()),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()

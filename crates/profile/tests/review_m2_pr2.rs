@@ -83,6 +83,7 @@ fn dxf_quarter_arc_center_left_apex_right() {
             center,
             radius,
             turn,
+            ..
         } => {
             // Hand values: L = 2, r = L(1+b^2)/(4b) = sqrt(2),
             // apothem = L(1-b^2)/(4b) = 1 -> center = (1, 1).
@@ -145,12 +146,12 @@ fn one_ulp_leftmost_tie_keeps_the_authored_start() {
         let n = base.vertices().len();
         let rotated = ProfileLoop::new(
             (0..n)
-                .map(|k| base.vertices()[(r + k) % n])
+                .map(|k| ProfileVertex::new(base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
-        let v0 = canon.loops()[0].vertices()[0].pos();
-        let want = rotated.vertices()[0].pos();
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
         assert_eq!(
             (v0.x.to_bits(), v0.y.to_bits()),
             (want.x.to_bits(), want.y.to_bits()),
@@ -172,12 +173,12 @@ fn origin_centered_square_keeps_each_authored_start() {
         let n = base.vertices().len();
         let rotated = ProfileLoop::new(
             (0..n)
-                .map(|k| base.vertices()[(r + k) % n])
+                .map(|k| ProfileVertex::new(base.vertices()[(r + k) % n], 0.0))
                 .collect::<Vec<_>>(),
         );
         let canon = ok(&profile(vec![rotated.clone()]));
-        let v0 = canon.loops()[0].vertices()[0].pos();
-        let want = rotated.vertices()[0].pos();
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
         assert_eq!((v0.x, v0.y), (want.x, want.y), "rot {r}");
         starts.push((v0.x.to_bits(), v0.y.to_bits()));
         let vp = ok(&profile(vec![rotated.reversed()]));
@@ -472,7 +473,7 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     let r = rect(big, big, 2.0, 1.0);
     let vp = ok(&profile(vec![r]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     assert_eq!((v0.x, v0.y), (big, big));
     // With a hole (ray casting + orientation of both loops far away).
     let vp = ok(&profile(vec![

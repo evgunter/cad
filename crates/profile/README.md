@@ -2,9 +2,13 @@
 
 `profile` is the kernel's planar sketch layer. A profile is a set of
 closed loops on a `SketchPlane`; a loop is a vertex chain in which each
-vertex carries a **bulge** b = tan(θ/4) for the segment leaving it (b = 0
-a line, otherwise a circular arc of signed included angle θ), so every
-segment lies on a line or circle **carrier**. Loops are authored through
+segment is a **carrier** plus a signed interval on it — a line between
+its two vertices, or a circular arc stored as centre, radius and signed
+sweep Δθ with |Δθ| ≤ 2π, so a full circle is one segment at one vertex.
+Vertices are stored verbatim and are authoritative; validation verifies
+that they lie on their carriers. The **bulge** b = tan(Δθ/4) (b = 0 a
+line) is the `arc_to(Bulge { p, b })` mode's input, lowered to the
+carrier form once, at the algebra. Loops are authored through
 the PATHS algebra, a typestate lattice whose closing verbs return both
 the lowered `ProfileLoop` and the **program** that produced it (the verb
 sequence as data). In a document the program is the profile's
@@ -132,8 +136,9 @@ the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 
 **V5 — The v1-form → program lift is a development tool.** `profile::lift`
-mints a chain- or carrier-vocabulary program from a vertex+bulge loop
-with declared joints: declared junctions become `.tangent()`, every
+mints a chain- or carrier-vocabulary program from a lowered loop (its
+vertices and the bulge each segment was lowered from) with declared
+joints: declared junctions become `.tangent()`, every
 other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
 undeclared joint — and when there is none, seamed at 0 with the closing
 target carrying joint 0's declaration (`Start.arrives_tangent()`); no

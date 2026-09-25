@@ -486,7 +486,8 @@ pub use topo::{
 // - `StaleDeclaration` is `StaleContactDeclaration`'s: which record
 //   lost its witness, so which record to withdraw.
 // - `RingContact` is `RingMeetsOuter`'s: vertex-on-vertex,
-//   vertex-on-edge, or edge-along-edge.
+//   vertex-on-edge (either loop's vertex), edge-along-edge, two edges
+//   meeting at a point, or two whole circles crossing or touching.
 // - `CensusSubject` is what `CensusUnsupported` and
 //   `CensusLaneUnsupported` are ABOUT, and it is the sharpest of the
 //   four because both of its payload types are already on this list.
@@ -535,7 +536,12 @@ pub use topo::{
 };
 
 // --- 6. Mass properties ---------------------------------------
-pub use topo::{MassProperties, MassPropsError, mass_properties};
+// `TargetUnreached` and the `VolumeEnclosure` it carries are
+// `StepImport::Solid::enclosure`'s other arm: an admitted body whose
+// volume is not measurable at this ε imports with that refusal, and
+// the curated-type rule (the `coherence` note below) says a caller
+// able to hold the answer must be able to spell its vocabulary.
+pub use topo::{MassProperties, MassPropsError, TargetUnreached, VolumeEnclosure, mass_properties};
 
 // --- 7. Tessellation and export -------------------------------
 pub use mesh::{Mesh, TessellateError, tessellate};
@@ -621,9 +627,11 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // `PromotedCurveKind` as `kind` words beside their payload fields,
 // `PlacedInstance::placement` as the `Frame` the surface already has.
 // `enclosure` is why the value shape matters rather than only the
-// spelling: it is the gate's own certified `MassProperties`, so a
-// Python caller who reads it measures the import once instead of
-// twice.
+// spelling: it is the gate's own certificate continued to the number,
+// so a Python caller who reads it measures the import once instead of
+// twice — and on an admitted body whose volume is not measurable at
+// this ε, reading it raises the measurement refusal with the
+// sign-level bracket (`ImportReport.enclosure`).
 //
 // **`StepImport::Solid::coherence` is the one field whose type is not
 // step-import's**, and the curated-type rule reaches through it

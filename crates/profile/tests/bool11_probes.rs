@@ -105,7 +105,7 @@ fn the_subdivided_square_closes_and_validates() {
         (0.0, 1.0),
     ];
     for (i, (wx, wy)) in want.iter().enumerate() {
-        let got = loop_.vertices()[i].pos();
+        let got = loop_.vertices()[i];
         // The three point-target vertices land EXACTLY where they were
         // authored; the four `line(len)` vertices are `at + û·len`, and
         // û comes from `turn`'s round trip through the angle, so their
@@ -152,7 +152,7 @@ fn an_accepted_target_lands_where_it_was_authored() {
         .line_to(Start, t)
         .unwrap();
     let v = pinned(closed);
-    let landed = v.vertices()[2].pos();
+    let landed = v.vertices()[2];
     assert_eq!(
         (landed.x.to_bits(), landed.y.to_bits()),
         (target.x.to_bits(), target.y.to_bits()),
@@ -194,7 +194,7 @@ fn the_closer_mints_no_vertex_at_the_entry() {
         .unwrap();
     let loop_ = pinned(closed);
     assert_eq!(loop_.vertices().len(), 5);
-    let first = loop_.vertices()[0].pos();
+    let first = loop_.vertices()[0];
     assert_eq!(
         (first.x.to_bits(), first.y.to_bits()),
         (entry.x.to_bits(), entry.y.to_bits()),
@@ -512,7 +512,7 @@ fn the_per_leg_band_composes_and_the_data_gate_catches_the_sum() {
 
     // The drift is real and is larger than any single leg's bound: it is
     // the SUM of n accepted misses, so it passes ε_input (= K·ε).
-    let drift = loop_.vertices()[n + 1].pos().y;
+    let drift = loop_.vertices()[n + 1].y;
     assert!(
         drift > t.k() * eps,
         "the accumulated drift {drift:e} should exceed one full input tolerance \

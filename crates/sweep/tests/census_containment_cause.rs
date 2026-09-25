@@ -133,9 +133,9 @@ fn the_arc_loop_refusal_reaches_the_user_as_itself() {
     // reader is not sent to the tolerance levers for a modelling fact.
     let shown = carried[0].to_string();
     for want in [
-        "fewer than three vertices",
-        "no available walk",
-        "split an arc",
+        "arcs over fewer than three corners",
+        "cannot read as a region",
+        "Recourse: split an arc so the boundary has three corners",
     ] {
         assert!(
             shown.contains(want),

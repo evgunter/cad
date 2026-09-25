@@ -2,7 +2,7 @@
 id: ATREST-10
 kind: unit
 title: the at-rest door matrix: one meaning for _structural, and a roster a census reads
-status: spec
+status: dispatched
 opened: 2026-09-24
 priority: P3
 cost: D

@@ -70,11 +70,9 @@ pub(crate) mod headless {
     ) -> String {
         let ctx = egui::Context::default();
         let run = |input: egui::RawInput, draw: &mut dyn FnMut(&mut egui::Ui)| {
-            let mut output = ctx.run_ui(input, |ui| draw(ui));
-            let landed = landed_in(&output.shapes);
-            let at = hit(&landed, target);
+            let landed = frame(&ctx, input, draw);
+            let at = hit(&landed, target, 0);
             let text: Vec<String> = landed.into_iter().map(|landed| landed.text).collect();
-            output.textures_delta.clear();
             (text, at)
         };
         let (_, at) = run(egui::RawInput::default(), &mut draw);
@@ -100,6 +98,51 @@ pub(crate) mod headless {
         let (clicked, _) = run(click, &mut draw);
         let (after, _) = run(egui::RawInput::default(), &mut draw);
         [clicked.join("\n"), after.join("\n")].join("\n")
+    }
+
+    /// Everything `draw` paints while the pointer RESTS on the `nth`
+    /// (zero-based) painting of the text `target` — for what a widget
+    /// says only on hover. egui draws that through two hooks, one read
+    /// only while the widget takes input and one only while it does
+    /// not, so a row asserting a control's words hovers it in the
+    /// state it asserts about.
+    ///
+    /// Frames on ONE context, at a clock this drive sets: one to lay
+    /// out and find where `target` was painted, one that moves the
+    /// pointer there, and then frames with the pointer still until
+    /// well past egui's tooltip delay — a tooltip's area spends the
+    /// first frame it appears sizing itself, invisible. The answer is
+    /// what the last frame painted.
+    ///
+    /// Panics when `target` was painted fewer than `nth + 1` times.
+    pub(crate) fn painted_while_hovering(
+        target: &str,
+        nth: usize,
+        mut draw: impl FnMut(&mut egui::Ui),
+    ) -> String {
+        let ctx = egui::Context::default();
+        let delay = f64::from(ctx.global_style().interaction.tooltip_delay);
+        let run = |seconds: f64, events: Vec<egui::Event>, draw: &mut dyn FnMut(&mut egui::Ui)| {
+            let input = egui::RawInput {
+                time: Some(seconds),
+                events,
+                ..Default::default()
+            };
+            frame(&ctx, input, draw)
+        };
+        let laid_out = run(0.0, Vec::new(), &mut draw);
+        let at = hit(&laid_out, target, nth)
+            .unwrap_or_else(|| panic!("`{target}` was painted fewer than {} times", nth + 1));
+        run(1.0, vec![egui::Event::PointerMoved(at)], &mut draw);
+        let mut rested = Vec::new();
+        for rest in 1..=3 {
+            rested = run(1.0 + 2.0 * delay * f64::from(rest), Vec::new(), &mut draw);
+        }
+        rested
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect::<Vec<_>>()
+            .join("\n")
     }
 
     /// **What one frame PAINTED and WHERE** — one entry per
@@ -166,13 +209,27 @@ pub(crate) mod headless {
         out
     }
 
-    /// One headless frame of `draw`, and [`landed_in`] over what it
-    /// painted.
+    /// **One frame of `draw` on `ctx`, fed `input`**, and [`landed_in`]
+    /// over what it painted.
     ///
-    /// **The module's one drive.** The `textures_delta.clear()` is
+    /// **This module's one drive.** The `textures_delta.clear()` is
     /// the reason it is one: no painter took the frame's font atlas,
     /// and `TexturesDelta` panics on drop until one does — a detail
-    /// of epaint that no caller should have to remember.
+    /// of epaint that no caller should have to remember. Test rows
+    /// elsewhere in the crate still spell the pair inline
+    /// (`work/vnews/a-gated-button-with-a-reason-is-spelled-five-ways`).
+    fn frame(
+        ctx: &egui::Context,
+        input: egui::RawInput,
+        draw: &mut dyn FnMut(&mut egui::Ui),
+    ) -> Vec<Landed> {
+        let mut output = ctx.run_ui(input, |ui| draw(ui));
+        let landed = landed_in(&output.shapes);
+        output.textures_delta.clear();
+        landed
+    }
+
+    /// One headless frame of `draw`, and what it painted.
     pub(crate) fn landed(draw: impl FnOnce(&mut egui::Ui)) -> Vec<Landed> {
         let mut draw = Some(draw);
         landed_after(1, |ui| {
@@ -190,9 +247,7 @@ pub(crate) mod headless {
         let ctx = egui::Context::default();
         let mut out = Vec::new();
         for _ in 0..passes {
-            let mut output = ctx.run_ui(egui::RawInput::default(), |ui| draw(ui));
-            out = landed_in(&output.shapes);
-            output.textures_delta.clear();
+            out = frame(&ctx, egui::RawInput::default(), &mut draw);
         }
         out
     }
@@ -289,13 +344,14 @@ pub(crate) mod headless {
         landed(draw).into_iter().map(|landed| landed.text).collect()
     }
 
-    /// The centre of the text `target`, where it was painted — the
-    /// [`Landed::allocated`] box, because this is the position a
-    /// synthesized click is aimed at.
-    fn hit(landed: &[Landed], target: &str) -> Option<egui::Pos2> {
+    /// The centre of the `nth` (zero-based) painting of the text
+    /// `target` — the [`Landed::allocated`] box, because this is the
+    /// position a synthesized pointer is aimed at.
+    fn hit(landed: &[Landed], target: &str, nth: usize) -> Option<egui::Pos2> {
         landed
             .iter()
-            .find(|landed| landed.text == target)
+            .filter(|landed| landed.text == target)
+            .nth(nth)
             .map(|landed| landed.allocated.center())
     }
 }

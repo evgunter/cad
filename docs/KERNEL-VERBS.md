@@ -426,8 +426,14 @@ the table.
   **The invariant is now stated at rest**, which is what turns the
   class loud wherever it is minted: tier 3's check 9
   (`ValidationError::RingMeetsOuter`) refuses a ring that meets its
-  face's own outer loop, in three arms — vertex-on-vertex,
-  vertex-on-edge-interior, and edge-along-edge. Compared by POSITION,
+  face's own outer loop, in five arms — vertex-on-vertex,
+  vertex-on-edge-interior (a vertex of either loop on an edge of the
+  other, inside that edge's trim on a line and an arc alike),
+  edge-along-edge, and, on a planar face, the
+  two loops crossing or touching at a point: two whole circles decided
+  by centre distance against the radii's sum and difference, and every
+  other `Line`/`Circle` edge pair by its carriers' closed-form meeting
+  points tested against both trims. Compared by POSITION,
   not by key: the shapes it catches are minted by surgeries that copy a
   boundary. Key-shared pairs are decided too and carry no exemption —
   tier 1 has no pass that refuses a face's outer loop and its own ring
@@ -438,13 +444,10 @@ the table.
   and never proceeds to build.
 
   **What check 9's contact arms do NOT match, enumerated** (an unstated
-  blind spot is an unverified claim): one-point TANGENCY between two
-  edges at a point that is a vertex of neither (circle-circle internal
-  or external, line-circle) and a transversal CROSSING at a non-vertex
-  point — three-sample locus agreement cannot see a single shared
-  point, and the closed forms that could need an arc-containment test
-  this predicate has not got; and `Ellipse`/NURBS carriers in the two
-  locus arms, whose endpoints the vertex arm still covers.
+  blind spot is an unverified claim): `Ellipse`, `Spiric` and NURBS
+  carriers in the locus and meeting-point arms, whose endpoints the
+  vertex arm still covers; and the meeting-point arms on a face that
+  is not planar.
 
   **The other half of the same sentence is stated at rest too**: a ring
   is a hole *strictly inside* the region its face trims, so a ring that
@@ -477,13 +480,14 @@ the table.
   `contfp` takes the opposite posture on `ArcParity` because one
   point's classification is not a refusal. Filed:
   `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`.
-  And inside the gate: a ring that CROSSES its outer loop, part in and
-  part out, passes whenever the first vertex decided is an inside one,
-  and so does a ring arc bowing past the outer loop between inside
-  vertices — both are the contact half's unmatched crossing,
-  `work/atrest/check-9-contact-half-misses-a-crossing-and-a-tangency.md`
-  (why the nesting arm does not answer the second: `validate::ring_nesting`'s
-  doc).
+  And inside the gate: the nesting arm places a whole ring from one
+  vertex on the premise that the two loops do not cross, which the
+  contact half checks wherever both loops carry only `Line` and
+  `Circle` edges — a ring arc bowing past the outer loop between inside
+  vertices is a `RingMeetsOuter` there. Where an edge is an `Ellipse`,
+  `Spiric` or NURBS carrier the premise is assumed, and a crossing whose
+  first decided vertex is inside passes (why the nesting arm does not
+  answer a crossing itself: `validate::ring_nesting`'s doc).
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

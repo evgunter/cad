@@ -145,8 +145,9 @@ proptest = { workspace = true }
 test-utils = { path = "../test-utils" }
 # The M5 PR 8 differential suite's doors (failure injection + traces)
 # are test-only surface in topo; dev-dependencies are the only place
-# the feature turns on.
-topo = { path = "../topo", features = ["sweep-testing"] }
+# the feature turns on. `test-support` for the one-of-every-arm
+# `ValidationError` samples the at-rest refusal budget renders.
+topo = { path = "../topo", features = ["sweep-testing", "test-support"] }
 # `sweep` again, with `test-support` ON, for the same reason `profile`
 # is named twice above: the corpus `loft_prism` document and the perf12
 # BVH differential author the SAME two section polygons the kernel's
