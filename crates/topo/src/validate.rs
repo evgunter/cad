@@ -1985,6 +1985,7 @@ fn surface_kind_words(kind: geom_brep::SurfaceKind) -> &'static str {
         K::Sphere => "spherical",
         K::Torus => "toroidal",
         K::Nurbs => "spline",
+        K::Approx => "fitted",
     }
 }
 
