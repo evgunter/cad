@@ -10001,6 +10001,147 @@ mod tests {
         }
     }
 
+    /// Check 9's words on a `z = 0` lamina whose outer loop is `outer`
+    /// and whose ring is `ring`, after `arcs` re-carries the named
+    /// edges — each `(from, to, centre)` an edge between two of the
+    /// given points, re-carried as the short arc about `centre`.
+    fn words_with_arcs(
+        outer: &[Point3<f64>],
+        ring: &[Point3<f64>],
+        arcs: &[(Point3<f64>, Point3<f64>, Point3<f64>)],
+    ) -> (Vec<ValidationError>, FaceKey) {
+        let tol = Tol::witness();
+        let (mut body, face) = lamina_with_ring(outer, ring, tol);
+        for &(from, to, centre) in arcs {
+            let edge = body
+                .edges
+                .iter()
+                .find(|(_, e)| {
+                    edge_endpoints(&body, e.he_plus)
+                        .is_some_and(|(a, b)| (a == from && b == to) || (a == to && b == from))
+                })
+                .map(|(k, _)| k)
+                .expect("the named edge");
+            recarry_as_arc(&mut body, edge, centre, tol);
+        }
+        (check_9_words(&body, Band::linear(tol).unwrap(), tol), face)
+    }
+
+    /// **A short arc's end facing a wall, clear of it, is not a
+    /// meeting** (review MAJOR-1). The ring's arc — radius 10, a
+    /// 0.02-rad sweep, centre `(10 − δ, −5)` — ends at `Q = (10 − δ, 5)`
+    /// facing the square's wall `x = 10`. The arc's circle meets the
+    /// wall about `δ` of arc length PAST `Q`, outside the trim. An
+    /// angular trim test compresses that distance by `sin(w/2) ≈ 0.01`,
+    /// so it read `δ = 50ε` as the endpoint and `δ = 500ε` as the band;
+    /// a trim decided as a distance reads both as clear.
+    #[test]
+    fn a_short_arcs_end_near_a_wall_is_clear() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        for k in [50.0, 500.0] {
+            let d = k * tol.eps();
+            let c = p(10.0 - d, -5.0, 0.0);
+            let q = p(10.0 - d, 5.0, 0.0);
+            let s = 0.02_f64;
+            let a = p(c.x - 10.0 * s.sin(), c.y + 10.0 * s.cos(), 0.0);
+            let r = p(9.9 - d, 4.0, 0.0);
+            let (got, _) = words_with_arcs(&square_outer(), &[q, a, r], &[(q, a, c)]);
+            assert!(got.is_empty(), "[δ = {k}ε] a clear ring drew {got:?}");
+        }
+    }
+
+    /// **A near-tangency far from the arc's trim is not an
+    /// escalation** (review MAJOR-2). A quarter-disc hole — centre
+    /// `(5, 1 + 3ε)`, radius 1, its arc from 0° to 90° — above the
+    /// square's bottom edge: the circle comes within `3ε` of the edge,
+    /// in the band, but at 270°, where the arc is not. The trim must
+    /// be decided before the band is.
+    #[test]
+    fn a_near_tangency_off_the_arcs_trim_is_clear() {
+        let tol = Tol::witness();
+        let p = Point3::new;
+        let y = 1.0 + 3.0 * tol.eps();
+        let c = p(5.0, y, 0.0);
+        let e = p(6.0, y, 0.0);
+        let n = p(5.0, y + 1.0, 0.0);
+        let (got, _) = words_with_arcs(&square_outer(), &[c, e, n], &[(e, n, c)]);
+        assert!(got.is_empty(), "a clear quarter-disc drew {got:?}");
+    }
+
+    /// **An OUTER vertex on a ring edge's interior is a meeting**
+    /// (review MINOR-1), the mirror of arm 2. The ring is the circle
+    /// about `(5, 5)`, radius 2; the outer loop's vertex
+    /// `V = (7 + δ, 5)` points at it, its two edges falling away. At
+    /// `δ = ε/2` the loops touch at `V`; at `δ = 3ε` whether they do is
+    /// in the band, and must escalate rather than certify.
+    #[test]
+    fn an_outer_vertex_on_a_ring_edge_is_a_meeting() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let p = Point3::new;
+        let centre = p(5.0, 5.0, 0.0);
+        for (k, touches) in [(0.5, true), (3.0, false)] {
+            let d = k * tol.eps();
+            let outer = vec![
+                p(7.04 + d, 1.0, 0.0),
+                p(7.0 + d, 5.0, 0.0),
+                p(7.04 + d, 9.0, 0.0),
+                p(0.0, 9.0, 0.0),
+                p(0.0, 1.0, 0.0),
+            ];
+            let (body, face) = lamina_with_circular_ring(&outer, None, centre, 2.0, tol);
+            let got = check_9_words(&body, band, tol);
+            let ok = if touches {
+                matches!(got.as_slice(), [ValidationError::RingMeetsOuter { face: f, .. }] if *f == face)
+            } else {
+                matches!(got.as_slice(), [ValidationError::RingContactEscalated { face: f, .. }] if *f == face)
+            };
+            assert!(ok, "[δ = {k}ε] got {got:?}");
+        }
+    }
+
+    /// **A ring vertex on an outer arc's CIRCLE but far from its trim
+    /// is not a meeting** (review NOTE-2). The outer loop is a 30 × 10
+    /// rectangle whose right edge bulges out as an arc of the circle
+    /// about `(22, 5)` through its two corners; the D-shaped hole's arc
+    /// lies on that same circle, around 180° — twenty metres from the
+    /// outer arc's window. The two arcs share a carrier and no point.
+    #[test]
+    fn a_ring_arc_on_an_outer_arcs_circle_off_its_trim_is_clear() {
+        let p = Point3::new;
+        let centre = p(22.0, 5.0, 0.0);
+        let radius = (64.0_f64 + 25.0).sqrt();
+        let at = |deg: f64| {
+            let t = deg.to_radians();
+            p(
+                centre.x + radius * t.cos(),
+                centre.y + radius * t.sin(),
+                0.0,
+            )
+        };
+        let outer = vec![
+            p(0.0, 0.0, 0.0),
+            p(30.0, 0.0, 0.0),
+            p(30.0, 10.0, 0.0),
+            p(0.0, 10.0, 0.0),
+        ];
+        let (a, b) = (at(170.0), at(190.0));
+        let ring = vec![a, b, p(14.0, 5.0, 0.0)];
+        let (got, _) = words_with_arcs(
+            &outer,
+            &ring,
+            &[
+                (p(30.0, 0.0, 0.0), p(30.0, 10.0, 0.0), centre),
+                (a, b, centre),
+            ],
+        );
+        assert!(
+            got.is_empty(),
+            "a hole on the outer arc's circle drew {got:?}"
+        );
+    }
+
     /// Gives every face of `body` the Newell plane of its outer loop —
     /// the minimum needed to reach check 6 from [`crate::test_support_fixtures::declined_cube`], whose
     /// faces are raw `Nurbs` placeholders (check 6 only inspects
