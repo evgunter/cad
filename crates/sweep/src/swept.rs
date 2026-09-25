@@ -916,4 +916,311 @@ mod tests {
             );
         }
     }
+
+    // ---- DECIDE-5 review probes (reviewer lane) ----
+
+    /// Bit-identity of `turned_span(sign(b), b)` against `span_magnitude(b)`
+    /// at every scalar, both signs, across magnitudes and interval widths.
+    #[test]
+    fn review_turned_span_is_span_magnitude_to_the_bit() {
+        use geom_core::{Dual, Interval};
+        let sign = |v: f64| {
+            if v < 0.0 {
+                Sign::Negative
+            } else {
+                Sign::Positive
+            }
+        };
+        let vals = [
+            0.4,
+            0.5,
+            0.7,
+            1.0,
+            2.0,
+            1e-3,
+            1e-300,
+            2.2250738585072014e-308,
+            1e-310,
+            1e300,
+            f64::MAX,
+            3.0,
+            0.1,
+            0.3,
+        ];
+        let mut n = 0;
+        for &m in &vals {
+            for v in [m, -m] {
+                let t = sign(v);
+                // f64
+                assert_eq!(
+                    turned_span(t, v).to_bits(),
+                    span_magnitude(v).to_bits(),
+                    "f64 {v}"
+                );
+                // Dual<f64>, tangent 1 and -3
+                for d in [1.0, -3.0] {
+                    let x = Dual::new(v, d);
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, x)),
+                        format!("{:?}", span_magnitude(x)),
+                        "dual {v}"
+                    );
+                }
+                // Interval: point and widened boxes that keep the sign
+                for w in [0.0, 1e-9, 0.25] {
+                    let (lo, hi) = if v < 0.0 {
+                        (v - v.abs() * w, v)
+                    } else {
+                        (v, v + v.abs() * w)
+                    };
+                    let x = Interval::from_bounds(lo, hi);
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, x)),
+                        format!("{:?}", span_magnitude(x)),
+                        "interval {v} w {w}"
+                    );
+                    let xd = Dual::new(x, Interval::from_bounds(-1.0, 2.0));
+                    assert_eq!(
+                        format!("{:?}", turned_span(t, xd)),
+                        format!("{:?}", span_magnitude(xd)),
+                        "dual<interval> {v} w {w}"
+                    );
+                }
+                n += 1;
+            }
+        }
+        // Sym<f64> and Sym<Interval>, value channel, parameter bulge.
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        for &m in &[0.4, 0.7, 2.0, 1e-3] {
+            for v in [m, -m] {
+                let t = sign(v);
+                let ((a, b), _) = with_session(budget, || {
+                    let x = Sym::<f64>::param(ParamSymbol::of("bulge"), v);
+                    (turned_span(t, x).value, span_magnitude(x).value)
+                });
+                assert_eq!(a.to_bits(), b.to_bits(), "sym<f64> {v}");
+                let (lo, hi) = if v < 0.0 {
+                    (v * 1.1, v * 0.9)
+                } else {
+                    (v * 0.9, v * 1.1)
+                };
+                let ((a, b), _) = with_session(budget, || {
+                    let x = Sym::<Interval>::param(
+                        ParamSymbol::of("bulge"),
+                        Interval::from_bounds(lo, hi),
+                    );
+                    (
+                        format!("{:?}", turned_span(t, x).value),
+                        format!("{:?}", span_magnitude(x).value),
+                    )
+                });
+                assert_eq!(a, b, "sym<interval> {v}");
+            }
+        }
+        eprintln!(
+            "REVIEW bit-identity: {n} f64 values x (f64, 2 dual, 3 interval, 3 dual<interval>) + 8 sym<f64> + 8 sym<interval>: 0 mismatches"
+        );
+    }
+
+    /// The theorem row at `Sym<f64>` across magnitudes and both signs,
+    /// including a unit bulge and a large one (a > half-turn arc).
+    #[test]
+    fn review_the_span_meets_the_pushforward_across_magnitudes() {
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let mut report = Vec::new();
+        for &m in &[0.05, 0.4, 0.5, 1.0, 2.0] {
+            for (v, reversed, turn) in [
+                (m, false, Sign::Positive),
+                (-m, false, Sign::Negative),
+                (m, true, Sign::Negative),
+                (-m, true, Sign::Positive),
+            ] {
+                let (rows, _) = with_session(budget, || {
+                    let b = S::param(ParamSymbol::of("bulge"), v);
+                    let bulge = if reversed { S::zero() - b } else { b };
+                    samples(&lowered(bulge, turn), turn)
+                });
+                let ok = rows.iter().all(|r| *r == ("theorem", "theorem"));
+                report.push(format!(
+                    "b={v} rev={reversed} turn={turn:?}: {}",
+                    if ok {
+                        "all theorem".to_string()
+                    } else {
+                        format!("{rows:?}")
+                    }
+                ));
+            }
+        }
+        for r in &report {
+            eprintln!("REVIEW magnitudes: {r}");
+        }
+        assert!(
+            report.iter().all(|r| r.ends_with("all theorem")),
+            "{report:#?}"
+        );
+    }
+
+    /// `revolve::tube`'s `circle_traversal` mints bulge `-1` for a
+    /// `Sign::Zero` turn (`Sign::Negative | Sign::Zero => -1`), while
+    /// `turn_negates` reads `Zero` as the positive arm. Lower exactly
+    /// that pair and read the span and the axis.
+    #[test]
+    fn review_tube_zero_convention_against_turn_negates() {
+        let (a, b) = (Point2::new(1.0_f64, 0.0), Point2::new(3.0, 0.0));
+        let seg = SweptSeg {
+            a,
+            b,
+            bulge: -1.0,
+            kind: SweptKind::Arc {
+                center: Point2::new(2.0, 0.0),
+                radius: 1.0,
+                turn: Sign::Zero,
+            },
+            canonical_vertex: 0,
+            canonical_segment: 0,
+        };
+        let q = |p: Point2<f64>| Point3::new(p.x, p.y, 0.0);
+        let spec = placed_segment_spec(
+            &seg,
+            Affine3::identity(),
+            Vec3::new(0.0, 0.0, 1.0),
+            q(a),
+            q(b),
+            Tol::witness(),
+        );
+        let axis = turn_axis(Sign::Zero, Vec3::new(0.0, 0.0, 1.0));
+        eprintln!(
+            "REVIEW tube Zero: param_end = {} (span_magnitude = {}), axis.z = {}",
+            spec.param_end,
+            span_magnitude(-1.0_f64),
+            axis.z
+        );
+    }
+
+    type SI = Sym<geom_core::Interval>;
+    fn how_i(m: SI) -> &'static str {
+        let band = Band::linear(Tol::witness()).expect("the witness tolerance has a linear band");
+        let before = session_counts().expect("inside a session");
+        let _ = m.sign_within(band);
+        let after = session_counts().expect("inside a session");
+        if after.registered > before.registered {
+            "registered"
+        } else if after.sign_gated > before.sign_gated {
+            "sign_gated"
+        } else if after.symbolic_zero > before.symbolic_zero {
+            "theorem"
+        } else {
+            "numeric"
+        }
+    }
+
+    fn lowered_i(bulge: SI, turn: Sign) -> EdgeCurveSpec<SI> {
+        let lit = SI::from_f64;
+        let (a, b) = (
+            Point2::new(lit(0.0), lit(0.0)),
+            Point2::new(lit(2.0), lit(0.0)),
+        );
+        let len = lit(2.0);
+        let apothem = len * (lit(1.0) - bulge * bulge) / (lit(4.0) * bulge);
+        let radius = (len * (lit(1.0) + bulge * bulge) / (lit(4.0) * bulge)).abs();
+        let seg = SweptSeg {
+            a,
+            b,
+            bulge,
+            kind: SweptKind::Arc {
+                center: Point2::new(lit(1.0), apothem),
+                radius,
+                turn,
+            },
+            canonical_vertex: 0,
+            canonical_segment: 0,
+        };
+        let q = |p: Point2<SI>| Point3::new(p.x, p.y, lit(0.0));
+        placed_segment_spec(
+            &seg,
+            Affine3::identity(),
+            Vec3::new(lit(0.0), lit(0.0), lit(1.0)),
+            q(a),
+            q(b),
+            Tol::witness(),
+        )
+    }
+
+    fn samples_i(spec: &EdgeCurveSpec<SI>, turn: Sign) -> Vec<(&'static str, &'static str)> {
+        let lit = SI::from_f64;
+        let EdgeDescriptionSpec::Scaffold(MappedCurve::PlacedSegment {
+            segment: SketchSegment::Arc { bulge, .. },
+            ..
+        }) = spec.description
+        else {
+            panic!("an arc lowers to a placed arc segment");
+        };
+        let theta = lit(4.0) * bulge.atan();
+        let sigma = lit(if matches!(turn, Sign::Negative) {
+            -1.0
+        } else {
+            1.0
+        });
+        (0..=8)
+            .map(|i| {
+                let s = lit(f64::from(i) / 8.0);
+                let t = spec.param_start + (spec.param_end - spec.param_start) * s;
+                let (st, ct) = t.sin_cos();
+                let sin = (s * theta).sin();
+                let cos = lit(1.0) - lit(2.0) * (s * theta * lit(0.5)).sin().powi(2);
+                (how_i(ct - cos), how_i(sigma * st - sin))
+            })
+            .collect()
+    }
+
+    #[test]
+    fn review_the_theorem_row_at_sym_interval_over_a_box() {
+        use geom_core::Interval;
+        let budget = SymBudget {
+            max_terms: 4096,
+            max_degree: 128,
+        };
+        let mut report = Vec::new();
+        for &(lo, hi) in &[(0.63, 0.77), (0.35, 0.45), (1.9, 2.1)] {
+            for (neg, reversed, turn) in [
+                (false, false, Sign::Positive),
+                (true, false, Sign::Negative),
+                (false, true, Sign::Negative),
+                (true, true, Sign::Positive),
+            ] {
+                let x = if neg {
+                    Interval::from_bounds(-hi, -lo)
+                } else {
+                    Interval::from_bounds(lo, hi)
+                };
+                let (rows, _) = with_session(budget, || {
+                    let b = SI::param(ParamSymbol::of("bulge"), x);
+                    let bulge = if reversed { SI::zero() - b } else { b };
+                    samples_i(&lowered_i(bulge, turn), turn)
+                });
+                let ok = rows.iter().all(|r| *r == ("theorem", "theorem"));
+                report.push(format!(
+                    "b={x:?} rev={reversed} turn={turn:?}: {}",
+                    if ok {
+                        "all theorem".to_string()
+                    } else {
+                        format!("{rows:?}")
+                    }
+                ));
+            }
+        }
+        for r in &report {
+            eprintln!("REVIEW sym<interval>: {r}");
+        }
+        assert!(
+            report.iter().all(|r| r.ends_with("all theorem")),
+            "{report:#?}"
+        );
+    }
 }
