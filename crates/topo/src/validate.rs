@@ -212,44 +212,39 @@
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
 //!   through the closed form, no plane × NURBS lane at check 2, and at
 //!   tier 3′ no chart-region door in the census. Every door without it
-//!   has a twin with it.
+//!   has a twin with it. At tier 3 the twin also GATES check 7
+//!   differently: it runs the battery in one call, so check 7 waits on
+//!   checks 1–6 only, where the composed door's `?` makes it wait on the
+//!   whole structural phase, checks 8 and 9 included — the gate the
+//!   tier-3′ and marks passes have always had.
 //!
+//! The table between the `door-roster` markers IS the roster — the one
+//! spelling of it. The census `door_roster_is_the_exported_set` derives
+//! the door set from its cells (a cell `✓ + _structural` is the column's
+//! door and its twin, `—` is a hole with its reason below) and holds it
+//! against the file's `pub fn`s and the crate root's re-exports, failing
+//! on a door either side lacks.
+//!
+//! <!-- door-roster:begin -->
 //! | pass | plain | `_certificate` | `_declared` | `_certificate_declared` |
 //! |---|---|---|---|---|
 //! | `validate_geometric` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` |
 //! | `validate_pseudomanifold` | ✓ + `_structural` | ✓ + `_structural` | — (a) | — (a) |
 //! | `contact_marks` | ✓ + `_structural` | — (b) | ✓ + `_structural` | — (b) |
+//! <!-- door-roster:end -->
 //!
 //! (a) The tier-3′ pass takes its declarations as the body's
 //! [`crate::boolean::ContactRecords`] — the `contacts` argument every
-//! form already has — so a `_declared` form would be a second spelling
-//! of an argument it holds.
+//! form already has — and reads only their CURVE records into check 4,
+//! deliberately not the `Rest` patch records: a conformal declaration
+//! asserts the wrong class for a curve locus. A `_declared` form taking
+//! `DeclaredContact`s would be a second spelling of that argument and a
+//! channel for exactly the class the pass refuses to read.
 //! (b) The marks pass's product is the marks channel; the certificate
 //! its check 7 decides on has no consumer there, and the two passes
-//! that return one are the doors a caller wanting it takes.
-//!
-//! The rows, spelled out — the census `door_roster_is_the_exported_set`
-//! reads THIS list against the file's `pub fn`s and the crate root's
-//! re-exports, and fails on a door either side lacks:
-//!
-//! <!-- door-roster:begin -->
-//! - `validate_geometric`
-//! - `validate_geometric_structural`
-//! - `validate_geometric_certificate`
-//! - `validate_geometric_certificate_structural`
-//! - `validate_geometric_declared`
-//! - `validate_geometric_declared_structural`
-//! - `validate_geometric_certificate_declared`
-//! - `validate_geometric_certificate_declared_structural`
-//! - `validate_pseudomanifold`
-//! - `validate_pseudomanifold_structural`
-//! - `validate_pseudomanifold_certificate`
-//! - `validate_pseudomanifold_certificate_structural`
-//! - `contact_marks`
-//! - `contact_marks_structural`
-//! - `contact_marks_declared`
-//! - `contact_marks_declared_structural`
-//! <!-- door-roster:end -->
+//! that return one are the doors a caller wanting it takes. No
+//! `contact_marks*` door has a production caller at all today — its
+//! callers are this crate's tests and probes.
 //!
 //! [`validate`] and [`validate_closed`] (tiers 1 and 2) take no form:
 //! they certify nothing and read no declaration. The measurement doors
@@ -295,12 +290,11 @@
 //! setup across windows is `work/perf/`'s
 //! `quadrature-setup-is-re-derived-per-round-window`.
 //!
-//! **Tier 3′ is not this**, and the difference is visible from
-//! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
-//! their check 7 through the certified quadrature at the reporting
-//! target (their `_structural` twins through the closed form alone),
-//! so a body tier 3 admits on a definite sign can still be refused
-//! there on quadrature budget.
+//! **Tier 3′ pays the same**: [`validate_pseudomanifold`] and
+//! [`contact_marks`] make check 7 through `plus_v_by_sign` too, with the
+//! certified quadrature at SIGN level (their `_structural` twins through
+//! the closed form alone), so a body one tier admits on a definite sign
+//! the other does not refuse on quadrature budget at the same lane.
 //!
 //! # All failures, not the first
 //!
@@ -11652,16 +11646,22 @@ mod offset_fit_door_rows {
     }
 }
 
-/// The door roster, checked against the source: the module doc's list
+/// The door roster, checked against the source: the module doc's table
 /// between the `door-roster` markers is the set of at-rest doors, and a
-/// door this file defines or the crate root re-exports that the list
-/// lacks — or a listed door that neither side has — fails here.
+/// door this file defines or the crate root re-exports that the table
+/// lacks — or a door the table names that neither side has — fails here.
 ///
-/// What it reads is source text, so what it cannot see is named: a door
-/// defined outside this file (`props`' measurement doors, or a future
-/// submodule), a door spelled by a macro or a `pub use … as` alias, a
-/// re-export further out (the `pncad` prelude, `pncad-py`), and a door
-/// whose name kept its shape while its meaning moved.
+/// It reads source text, so it refuses loudly on the shapes it cannot
+/// parse rather than reading past them: a `pub use validate::` group
+/// with a nested `{…}` or an `as` alias, a table cell that is neither
+/// `✓ + `_structural``, `✓` nor `— (…)`. A top-level `pub fn` is read
+/// through its qualifiers (`const`, `async`, `unsafe`, `extern "…"`).
+/// What it cannot see at all: a door defined outside this file
+/// (`props`' measurement doors, or a future submodule), a door spelled
+/// by a macro, a `pub fn` not at column 0 (a nested module's, or one
+/// whose name sits on a later line than `fn`), a re-export further out
+/// (the `pncad` prelude, `pncad-py`), and a door whose name kept its
+/// shape while its meaning moved — the behaviour rows own that class.
 #[cfg(test)]
 #[allow(clippy::expect_used, clippy::panic)]
 mod door_roster {
@@ -11681,9 +11681,17 @@ mod door_roster {
     /// The suffixes, in the one order they compose in.
     const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
 
-    /// The roster, read from the module doc's PROSE between its two
-    /// markers — so the markers and the list are found only where a
-    /// reader of the rendered doc would find them.
+    fn backticked(cell: &str) -> &str {
+        cell.strip_prefix('`')
+            .and_then(|c| c.strip_suffix('`'))
+            .unwrap_or_else(|| panic!("a roster name is backticked: {cell:?}"))
+    }
+
+    /// The roster, DERIVED from the module doc's table — read from the
+    /// PROSE view between the two markers, so the table is found only
+    /// where a reader of the rendered doc finds it. The header row names
+    /// each column's suffix (`plain` is none); each body row names a pass,
+    /// and each cell says which of that column's doors exist.
     fn roster() -> Vec<String> {
         let prose = comments_only(SOURCE);
         let region = sentinel_region(
@@ -11692,26 +11700,70 @@ mod door_roster {
             "<!-- door-roster:begin -->",
             "<!-- door-roster:end -->",
         );
-        prose[region]
+        let rows: Vec<Vec<&str>> = prose[region]
             .lines()
             .map(str::trim)
             .filter(|line| !line.is_empty() && *line != "//!")
             .map(|line| {
-                line.strip_prefix("//! - `")
-                    .and_then(|rest| rest.strip_suffix('`'))
-                    .unwrap_or_else(|| panic!("a roster line is \"//! - `door`\": {line:?}"))
-                    .to_owned()
+                let row = line
+                    .strip_prefix("//! |")
+                    .and_then(|r| r.strip_suffix('|'))
+                    .unwrap_or_else(|| panic!("a roster line is a table row: {line:?}"));
+                row.split('|').map(str::trim).collect()
             })
-            .collect()
+            .collect();
+        let (header, body) = rows
+            .split_first()
+            .expect("the roster table has a header row");
+        assert!(
+            body.first()
+                .is_some_and(|r| r.iter().all(|c| c.chars().all(|ch| ch == '-'))),
+            "the roster table's second row is its `|---|` rule"
+        );
+        let suffixes: Vec<&str> = header[1..]
+            .iter()
+            .map(|c| if *c == "plain" { "" } else { backticked(c) })
+            .collect();
+        let mut doors = Vec::new();
+        for row in &body[1..] {
+            assert_eq!(
+                row.len(),
+                header.len(),
+                "a roster row has every column: {row:?}"
+            );
+            let pass = backticked(row[0]);
+            for (cell, suffix) in row[1..].iter().zip(&suffixes) {
+                let door = format!("{pass}{suffix}");
+                match *cell {
+                    "✓ + `_structural`" => {
+                        doors.push(door.clone());
+                        doors.push(format!("{door}_structural"));
+                    }
+                    "✓" => doors.push(door),
+                    hole if hole.starts_with("— (") => {}
+                    other => panic!("{door}: a roster cell reads {other:?}"),
+                }
+            }
+        }
+        doors
     }
 
     /// Every top-level `pub fn` this file defines, less the formless two,
     /// read from the CODE view (a `pub fn` in a comment or a literal is
-    /// not a door).
+    /// not a door), through its qualifiers.
     fn defined() -> BTreeSet<String> {
         code_only(SOURCE)
             .lines()
-            .filter_map(|line| line.strip_prefix("pub fn "))
+            .filter_map(|line| line.strip_prefix("pub "))
+            .filter_map(|rest| {
+                let at = rest.find("fn ")?;
+                let qualifiers = &rest[..at];
+                let known = qualifiers.split_whitespace().all(|q| {
+                    matches!(q, "const" | "async" | "unsafe" | "extern")
+                        || (q.starts_with('"') && q.ends_with('"'))
+                });
+                known.then_some(&rest[at + "fn ".len()..])
+            })
             .map(|rest| {
                 let end = rest
                     .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
@@ -11723,21 +11775,47 @@ mod door_roster {
     }
 
     /// Every function the crate root re-exports from this module, less
-    /// the formless two (the re-export list's lower-case names).
+    /// the formless two — every `pub use validate::…;` statement, a group
+    /// or a single path, refusing the two shapes it would misread.
     fn exported() -> BTreeSet<String> {
         let code = code_only(LIB);
-        let open = "pub use validate::{";
-        let start = code
-            .find(open)
-            .expect("the crate root re-exports the validators");
-        let body = &code[start + open.len()..];
-        let body = &body[..body.find('}').expect("the re-export list closes")];
-        body.split(',')
-            .map(str::trim)
-            .filter(|name| name.starts_with(|c: char| c.is_ascii_lowercase()))
-            .filter(|name| !FORMLESS.contains(name))
-            .map(str::to_owned)
-            .collect()
+        let open = "pub use validate::";
+        let mut names = BTreeSet::new();
+        let mut from = 0;
+        while let Some(at) = code[from..].find(open) {
+            let start = from + at + open.len();
+            let end = start
+                + code[start..]
+                    .find(';')
+                    .expect("a `pub use` statement ends in `;`");
+            let path = code[start..end].trim();
+            let list = match path.strip_prefix('{').and_then(|p| p.strip_suffix('}')) {
+                Some(group) => {
+                    assert!(
+                        !group.contains('{'),
+                        "a nested group in `pub use validate::{{…}}` — the census reads one level"
+                    );
+                    group
+                }
+                None => path,
+            };
+            for item in list.split(',').map(str::trim).filter(|i| !i.is_empty()) {
+                assert!(
+                    !item.contains(" as "),
+                    "an aliased re-export `{item}` — the census cannot name the door it exports"
+                );
+                let name = item.rsplit("::").next().unwrap_or(item);
+                if name.starts_with(|c: char| c.is_ascii_lowercase()) && !FORMLESS.contains(&name) {
+                    names.insert(name.to_owned());
+                }
+            }
+            from = end;
+        }
+        assert!(
+            !names.is_empty(),
+            "the crate root re-exports the validators"
+        );
+        names
     }
 
     #[test]
