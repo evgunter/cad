@@ -578,3 +578,31 @@ so it is not DUAL.
 
 Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
 `props/sign-hull` at `1264640fa`.
+
+## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
+
+DECIDE-6 closed at its measurement.
+- The decision read is under 0.4% of every replay. Shut, or run ten
+  times over, it moves no suite.
+- None of the three answers was taken.
+- What ships is the profiling instrument behind `sym-profile-testing`,
+  with the decline's cause noted at the enclosure's own refusal arms,
+  plus its rows.
+
+**Where the cost went.** The review measured the separation: rule G shut
+takes the pad's dev leaf 280.6 → 122.4 s, and the pad's release leaf
+73.8 → 17.2 s. The exact quotient and A0's `min`/`max` folds are flat.
+`decision-read-triples-the-plate-pin-suites-wall-time` closes, and
+`rule-g-is-the-link-and-pads-leaf-cost` (P2) carries the cost.
+
+**Review.** Single FULL review on `cadc16eaf`: APPROVE-WITH-FIXES 0/5/6.
+Fix pass at `25f64b906`.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 237k | 139 min |
+| implementer, fix pass | 100k | 70 min |
+| reviewer | 213k | 97 min |
+
