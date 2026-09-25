@@ -822,3 +822,50 @@ Known limit: a cutter vertex fused onto the parent edge reads as gone.
 It is documented and not detected, because telling it apart needs the
 body. The change is additive to N5 and was not taken to Ev, per his
 ruling on #3115.
+
+## 2026-09-25 — union face names go to Ev: re-derive over the merge closure
+
+The fork on `union-face-names-follow-fold-order` went to Ev. The
+recommendation is to re-derive. A union face's parent is its merge
+closure: the member faces the union's merges link, transitively. A
+parent held as one face takes the parent's name. A parent held as
+several faces gets one `SideOf` against the parents across the group's
+seam edges. N2 and N3 in `names/README.md` state it.
+
+Measured with a scratch probe (deleted) over the rebind row's corpus
+(45 case-unions; 248 fused orders; the probe's 186 refusing orders are
+the known mixed and all-refusing cases, untouched):
+- **The absences, by the shape where the name IS published:**
+  - `Merged#SideOf` (merged then cut): 234;
+  - bare constituent a merge lists: 66;
+  - `Merged` whole: 54;
+  - one four-partner `SideOf`: 84;
+  - two stacked `SideOf`s: 48.
+
+  That totals 486. The 330 seam absences split into 120 citing a
+  fragment, 120 citing a merge and 90 citing bare faces.
+- **Re-derive:**
+  - Across 552 parents, the finished body's faces per parent and their
+    seam partners agree in every fused order (0 mismatches).
+  - Partners read from the fold's names instead disagree in 25
+    parents, so the partners must come from the body.
+  - Axis-plane verdicts separate every piece: no new ties.
+  - All 342 seam parent-pairs hold one edge each and agree across
+    orders.
+  - Renamed: 238 of 3468 face rows (90 of 702 distinct names), of which
+    102 are stacked or misplaced fragments, 76 have a parent that is not
+    the closure (56 bare constituents and 20 sub-merges, the latter in
+    `r2endsg`), 48 have a different partner set, and 12 cite a partner
+    as a piece. Seam rows: 132 of 1924.
+  - Faces already in merged-then-cut, single-step form keep their
+    spelling.
+- **Refuse:** refusing only where the fold's spelling varies would
+  itself follow order. The order-free test is "a merged parent is cut,
+  or a face is cut by two or more other members". It refuses 134 of 248
+  fused orders, and 26 of 45 case-unions in every order, `r1two`,
+  `abg` and every `fam0**` among them. It renames nothing.
+- **The collision freeze** (`retire_into_merges`) fires on none of the
+  corpus. It fires only on the ZIP-shape row: four seam edges in each
+  of its four runs, two edges of one seam line between the same two
+  faces. Under the rule, those are two pieces of the seam, ranked
+  along it.

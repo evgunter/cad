@@ -6,6 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: H
+needs_ev: true
 ---
 
 
@@ -29,12 +30,15 @@ Fixing either shape means choosing a canonical fragment form for a
 union's faces, which decides how N2 and N3 compose. There are two
 options:
 - **Re-derive** every face group's qualifiers over the finished body,
-  the way edge ranks were re-derived in #3168 and #3198. This renames
-  every fragmented union face.
-- **Refuse** these shapes. This refuses ordinary documents such as
-  `r1two` in most orders.
+  the way edge ranks were re-derived in #3168 and #3198. Measured, it
+  renames 90 of the 702 distinct published face names on the rebind
+  probe, not every fragmented face (log, 2026-09-25).
+- **Refuse** these shapes. A refusal that does not itself follow order
+  has to refuse the document in every order: `r1two` and 25 other
+  documents of the probe's 45.
 
-The orchestrator leans to re-derive.
+The recommendation is to re-derive, over each face's merge closure;
+N2 and N3 in `crates/editor-core/src/names/README.md` state the rule.
 
 ## Also here
 
