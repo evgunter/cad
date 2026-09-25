@@ -806,6 +806,9 @@ fn halves_of_two_splits_that_overlap_still_refuse_naming() {
             (at_z(2.0), SplitHalf::Below),
         ),
     ];
+    // Every shape is judged before any assertion, so a regression
+    // names each shape it reaches rather than the first.
+    let mut wrong = Vec::new();
     for (what, (p1, h1), (p2, h2)) in shapes {
         let doc = ProfileDoc::empty_derived("gather-overlapping-halves", Tol::witness());
         let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
@@ -814,10 +817,8 @@ fn halves_of_two_splits_that_overlap_still_refuse_naming() {
         assert_eq!(doc.roots(), &[first, second][..], "the premise: {what}");
         match product(&doc, &run(&doc), Tol::witness()) {
             Err(ProductError::Naming { .. }) => {}
-            other => panic!(
-                "{what}: expected a Naming refusal, got {:?}",
-                other.map(|b| b.faces().count())
-            ),
+            other => wrong.push(format!("{what}: {:?}", other.map(|b| b.faces().count()))),
         }
     }
+    assert!(wrong.is_empty(), "expected a Naming refusal: {wrong:#?}");
 }
