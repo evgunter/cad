@@ -644,7 +644,7 @@ fn a_spline_walled_container_is_refused_at_the_census_for_its_face_kind() {
     assert!(
         errors.iter().any(|e| matches!(
             e,
-            ValidationError::CensusUndecidable { what, .. } if what.contains("no extent the check can bound")
+            ValidationError::CensusUndecidable { what, .. } if what.contains("a placeholder surface, or an edge whose curve has no bounds")
         )),
         "and the census names the kind it cannot reach: {errors:?}"
     );

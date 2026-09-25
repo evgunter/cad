@@ -1300,7 +1300,9 @@ pub enum ValidationError {
         /// message: a coordinate triple, or — where the arm's evidence
         /// is a region verdict with no point (the conformal-patch
         /// arm) — a phrase naming that region. Never the subject
-        /// again: `contact` carries it.
+        /// again: `contact` carries it. A site with more to say (the
+        /// edge-edge crossing's side verdict) appends it after " — ";
+        /// the message renders the part before, and `Debug` the whole.
         witness: String,
     },
     /// Tier 3′: a declared contact record has no geometric witness —
@@ -1330,14 +1332,13 @@ pub enum ValidationError {
         /// whose verdict compares whole surfaces). Never the pair
         /// again, and never a key: `declaration` carries both.
         witness: String,
-        /// The margin that decided, and its predicate. The message
-        /// reads the predicate as a reason in words
-        /// ([`crate::contact::contradiction_reason`]), so a
-        /// contradiction never reads bare; the margin itself rides in
-        /// `Debug`. Every raise site carries `MarginDiag::Invalid`
-        /// here, standing in for a definite relation (senses aligned,
-        /// a carrier datum apart, a point off a surface) rather than
-        /// a number.
+        /// The margin that decided, and its predicate — carried for a
+        /// caller and rendered by `Debug`, never by the message. The
+        /// predicate names which check refused, but not in a way a
+        /// sentence can state truthfully for every site (the same
+        /// carrier predicate reports carriers apart at one site and a
+        /// coincidence at another), so the message states what is true
+        /// at all of them ([`crate::contact::CONTRADICTION_REASON`]).
         margin: Indeterminate,
         /// Extra recourse steering when the counter-evidence has a
         /// named remedy (AQ6's designed-clearance arm).
@@ -1920,8 +1921,10 @@ pub enum StaleDeclaration {
 /// Prose, not `Debug` guts, for the same reason
 /// [`CensusContact`]'s rendering is: this payload is quoted into
 /// [`ValidationError::StaleContactDeclaration`]'s user-facing message.
-/// Each arm names the record's GRANULARITY, which is what tells a
-/// caller which declaration to withdraw or re-seat.
+/// Each arm names the record's GRANULARITY — which KIND of declaration
+/// went stale. Which record it is rides in the typed fields, and at the
+/// viewer the at-rest refusal's attribution names the mate that made
+/// it, where a mate did.
 impl fmt::Display for StaleDeclaration {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         // In words, without the keys: the typed fields carry them.
@@ -1946,9 +1949,11 @@ const NOT_YET: &str = "There is no way through yet";
 /// The recourse for a tolerance that forms no usable band.
 const TOLERANCE: &str = "Recourse: set a finite, positive tolerance";
 
-/// The recourse for a margin the band could not decide: the shared
-/// coincidence menu, prefixed by the input check a poisoned margin
-/// wants first.
+/// The recourse for a margin the band could not decide, where a
+/// coincidence between two things has an object to declare: the
+/// shared menu ([`geom_core::COINCIDENCE_RECOURSE`], which
+/// `too_close_spells_the_shared_menu` holds these two spellings to),
+/// prefixed by the input check a poisoned margin wants first.
 fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
     match margin {
         Some(geom_core::MarginDiag::Invalid) => {
@@ -1958,6 +1963,22 @@ fn too_close(margin: Option<&geom_core::MarginDiag>) -> &'static str {
         _ => "Recourse: declare the coincidence, move the geometry, or lower the tolerance",
     }
 }
+
+/// The recourse for an undecided margin that is about ONE thing — a
+/// torus's own radii, a corner against its own face's plane, an edge's
+/// own two faces — where "declare the coincidence" has no object: the
+/// arm's own lever, or, for a poisoned margin (not a number at all),
+/// the kernel defect it is.
+fn own_close(margin: &geom_core::MarginDiag, recourse: &'static str) -> &'static str {
+    match margin {
+        geom_core::MarginDiag::Invalid => DEFECT,
+        _ => recourse,
+    }
+}
+
+/// An edge's own faces too close to call: the edge-local lever.
+const EDGE_CLOSE: &str =
+    "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
 
 /// A census subject in words, without its keys (they ride in `Debug`).
 fn subject_noun(subject: &CensusSubject) -> &'static str {
@@ -2046,19 +2067,29 @@ fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
         | CertifyError::IntervalNotForward
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
-        | CertifyError::PlaneNurbs(
-            P::FootPointInconclusive { .. } | P::PcurveFit | P::Limb { .. },
-        ) => (MISMATCH, DEFECT),
+        | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => (MISMATCH, DEFECT),
+        // The DEFINITE halves of their two-tolerance pairs: the check
+        // decided, and what it decided contradicts the description.
+        CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => (
+            "its faces are tangent where its description says they cross",
+            DEFECT,
+        ),
+        CertifyError::NotSecondOrderSeparated { .. } => (
+            "its faces agree to second order, so they do not fix where it runs, which its \
+             description says they do",
+            DEFECT,
+        ),
+        CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => (
+            "the check could not locate the curve on its spline face (the projection did not \
+             converge)",
+            NOT_YET,
+        ),
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => (KIND, NOT_YET),
-        CertifyError::NotTransverse { .. }
-        | CertifyError::NotSecondOrderSeparated { .. }
-        | CertifyError::PlaneNurbs(P::NotTransverse { .. } | P::TubeStraddles { .. }) => {
-            (CLOSE, too_close(None))
-        }
+        CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => (CLOSE, EDGE_CLOSE),
         CertifyError::Escalated { cause, .. } | CertifyError::PlaneNurbs(P::Escalated(cause)) => {
-            (CLOSE, too_close(Some(&cause.margin)))
+            (CLOSE, own_close(&cause.margin, EDGE_CLOSE))
         }
         CertifyError::Band(b) => (classify_band(b), TOLERANCE),
     }
@@ -2074,7 +2105,10 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
         ),
         O::Meter(M::Escalated { source }) => (
             "whether the offset folds here is too close to call at this tolerance",
-            too_close(Some(&source.margin)),
+            own_close(
+                &source.margin,
+                "Recourse: use a smaller offset distance, or lower the tolerance",
+            ),
         ),
         O::BudgetExhausted { .. }
         | O::SampleCapReached { .. }
@@ -2101,7 +2135,7 @@ fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, &'sta
         M::Face { source, .. } => match source {
             P::Escalated { cause } => (
                 "a face's contribution is too close to call at this tolerance",
-                too_close(Some(&cause.margin)),
+                own_close(&cause.margin, "Recourse: lower the tolerance"),
             ),
             P::QuadratureBudget { .. } => (
                 "a face's contribution did not converge to the tolerance",
@@ -2140,7 +2174,10 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, &'stat
             "the face wraps all the way round its surface, which the kernel cannot yet map",
             NOT_YET,
         ),
-        M::Escalated { cause, .. } => (CLOSE, too_close(Some(&cause.margin))),
+        M::Escalated { cause, .. } => (
+            CLOSE,
+            own_close(&cause.margin, "Recourse: lower the tolerance"),
+        ),
         M::Band(b) => (classify_band(b), TOLERANCE),
         M::Certify { error, .. } => match error {
             C::UnsupportedChart { .. }
@@ -2158,23 +2195,28 @@ fn classify_pcurve(e: &crate::pcurves::PcurveMintError) -> (&'static str, &'stat
             | C::ResidualExceeded { .. }
             | C::TrimEscape
             | C::FittedCertificate { .. } => (WRONG, DEFECT),
-            C::FittedEscalated { cause } | C::Escalated { cause, .. } => {
-                (CLOSE, too_close(Some(&cause.margin)))
-            }
+            C::FittedEscalated { cause } | C::Escalated { cause, .. } => (
+                CLOSE,
+                own_close(&cause.margin, "Recourse: lower the tolerance"),
+            ),
             C::Band(b) => (classify_band(b), TOLERANCE),
         },
     }
 }
 
+/// A point too near a boundary to place: the lever is the point's own.
+const OFF_BOUNDARY: &str =
+    "Recourse: move the geometry clear of the boundary, or lower the tolerance";
+
 fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
     match e {
         ContainError::Escalated(diag) => (
             "a point of it lies too close to a boundary to place at this tolerance",
-            too_close(Some(&diag.margin)),
+            own_close(&diag.margin, OFF_BOUNDARY),
         ),
         ContainError::RayExhausted => (
             "a point of it lies too close to a boundary to place at this tolerance",
-            too_close(None),
+            OFF_BOUNDARY,
         ),
         ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
         ContainError::ArcLoopUnsupported { .. } => (
@@ -2197,10 +2239,15 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "a face's boundary is curved in a way the check cannot yet measure",
             NOT_YET,
         ),
+        // Where a round surface's seam falls is set by the part's
+        // placement, so turning a part about its axis moves the seam
+        // off the contact — the viewer's spelling of the nested
+        // sentences' "re-seat the trims / move the window off the tie".
         ChartRegionError::SeamBranch | ChartRegionError::PeriodFold => (
-            "the faces straddle the seam of a round surface in a way the check cannot yet \
+            "the contact straddles the seam of a round surface, which the check cannot yet \
              place",
-            NOT_YET,
+            "Recourse: turn one part a little about its axis, so the seam falls away from \
+             the contact",
         ),
         ChartRegionError::ArmUnbounded { .. } => (
             "a face reaches a pole, apex or fold of its surface",
@@ -2227,16 +2274,20 @@ fn classify_chart_region(e: &ChartRegionError) -> (&'static str, &'static str) {
             "their boundaries cross too many times for the check to finish",
             "Recourse: simplify the faces' boundaries",
         ),
-        ChartRegionError::MissingCache { .. }
-        | ChartRegionError::DegenerateLoop { .. }
-        | ChartRegionError::Corrupt => ("a face's stored boundary is incomplete", DEFECT),
+        ChartRegionError::DegenerateLoop { .. } => (
+            "a face's boundary encloses no definite area at this tolerance (a sliver)",
+            "Recourse: widen the face well past the tolerance, or lower the tolerance",
+        ),
+        ChartRegionError::MissingCache { .. } | ChartRegionError::Corrupt => {
+            ("a face's stored boundary is incomplete", DEFECT)
+        }
     }
 }
 
 fn classify_contact_lane(e: &ContactRefusal) -> (&'static str, &'static str) {
     match e {
-        ContactRefusal::Contradicted { diag, .. } => (
-            crate::contact::contradiction_reason(diag),
+        ContactRefusal::Contradicted { .. } => (
+            crate::contact::CONTRADICTION_REASON,
             crate::contact::CONTRADICTION_RECOURSE,
         ),
         // A contact site's recourse has no tolerance arm (SELECT §3d,
@@ -2321,7 +2372,11 @@ impl fmt::Display for ValidationError {
                 f,
                 "whether a torus face's tube radius is smaller than its ring radius is too \
                  close to call at this tolerance. {}",
-                too_close(Some(&cause.margin))
+                own_close(
+                    &cause.margin,
+                    "Recourse: make the tube radius clearly smaller than the ring radius, or \
+                     lower the tolerance"
+                )
             ),
             Self::PoisonedSurfaceDatum { kind, datum, .. } => write!(
                 f,
@@ -2374,7 +2429,7 @@ impl fmt::Display for ValidationError {
                 f,
                 "whether a corner of a flat face lies on its plane is too close to call at \
                  this tolerance. {}",
-                too_close(Some(&cause.margin))
+                own_close(&cause.margin, "Recourse: lower the tolerance")
             ),
             Self::PlanarBoundaryResidual { .. } => write!(
                 f,
@@ -2384,13 +2439,13 @@ impl fmt::Display for ValidationError {
                 f,
                 "whether an edge of a flat face stays on its plane is too close to call at \
                  this tolerance. {}",
-                too_close(Some(&cause.margin))
+                own_close(&cause.margin, "Recourse: lower the tolerance")
             ),
             Self::SliverDihedral { cause, .. } => write!(
                 f,
                 "the angle between two faces at an edge is too close to call at this \
                  tolerance (a sliver). {}",
-                too_close(Some(&cause.margin))
+                own_close(&cause.margin, EDGE_CLOSE)
             ),
             Self::TransverseNotIntrinsic { .. } => write!(
                 f,
@@ -2471,7 +2526,10 @@ impl fmt::Display for ValidationError {
                 f,
                 "whether a hole in a face touches the face's outline is too close to call at \
                  this tolerance. {}",
-                too_close(Some(&source.margin))
+                own_close(
+                    &source.margin,
+                    "Recourse: move the hole clearly inside the outline, or lower the tolerance"
+                )
             ),
             Self::RingOutsideOuter { .. } => write!(
                 f,
@@ -2486,26 +2544,30 @@ impl fmt::Display for ValidationError {
                      decided: {why}. {recourse}"
                 )
             }
+            // The position alone: a witness may carry detail after " — "
+            // (the field's contract), which rides in `Debug`.
             Self::UndeclaredContact { contact, witness } => write!(
                 f,
-                "{contact} at {witness} is an undeclared contact. {}",
+                "{contact} at {} is an undeclared contact. {}",
+                witness.split(" — ").next().unwrap_or(witness),
                 crate::contact::CONTACT_RECOURSE_MARKED
             ),
             Self::StaleContactDeclaration { declaration } => write!(
                 f,
                 "{declaration} names a contact the geometry does not have. \
-                 Recourse: remove the declaration, or move the geometry so the contact exists"
+                 Recourse: remove that declaration (the mate named with it, where one is), \
+                 or move the geometry so the contact exists"
             ),
             Self::ContactContradicted {
                 declaration,
                 witness,
-                margin,
                 steer,
+                ..
             } => write!(
                 f,
                 "the declared {} contact is contradicted {witness}: {}. {}{}",
                 declaration.class.name(),
-                crate::contact::contradiction_reason(margin),
+                crate::contact::CONTRADICTION_REASON,
                 crate::contact::CONTRADICTION_RECOURSE,
                 crate::contact::steer_clause(*steer),
             ),
@@ -7865,6 +7927,19 @@ mod tests {
                     geometry: GeomRef::Surface(s),
                 },
             ])
+        );
+    }
+
+    /// `too_close`'s two sentences are the shared coincidence menu,
+    /// spelled once in `geom_core` — the plain one, and the poisoned
+    /// margin's with its input check first.
+    #[test]
+    fn too_close_spells_the_shared_menu() {
+        let menu = geom_core::COINCIDENCE_RECOURSE;
+        assert_eq!(super::too_close(None), format!("Recourse: {menu}"));
+        assert_eq!(
+            super::too_close(Some(&geom_core::MarginDiag::Invalid)),
+            format!("Recourse: check the inputs that built this body, then {menu}")
         );
     }
 

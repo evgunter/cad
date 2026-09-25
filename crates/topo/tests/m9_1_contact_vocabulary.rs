@@ -171,8 +171,8 @@ fn a_false_rest_is_contradicted_naming_the_margin_and_steering_to_fit() {
         other => panic!("expected ContactContradicted, got {other:?}"),
     }
     assert!(
-        msg.contains("contradicted: the two faces' planes are parallel but apart"),
-        "the reason in words, not the margin payload: {msg}"
+        msg.contains(&format!("contradicted: {}", topo::CONTRADICTION_REASON)),
+        "the one reason true at every site, not the margin payload: {msg}"
     );
     assert!(msg.contains(topo::CONTRADICTION_RECOURSE), "{msg}");
     assert!(

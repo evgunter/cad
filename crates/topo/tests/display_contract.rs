@@ -73,11 +73,11 @@ fn contact_refusal_display_names_its_content_not_its_struct() {
                 diag: in_band(),
                 steer: None,
             },
-            // The reason in words, read off the predicate; the
-            // predicate's name is developer detail and rides in `Debug`.
+            // The one reason true at every contradiction site; the
+            // predicate and margin are developer detail in `Debug`.
             vec![
                 "contradicted",
-                "the geometry definitely disagrees with it",
+                topo::CONTRADICTION_REASON,
                 topo::CONTRADICTION_RECOURSE,
             ],
         ),

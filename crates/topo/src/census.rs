@@ -2101,32 +2101,23 @@ fn ee_crossing_lane<T: Decide>(
             });
         }
         CrossingBacking::Refused(verdict) => {
-            // The witness is display data (its contract), and the
-            // verdict rides it so the refusal NAMES what the sense
-            // algebra answered — same-side is interpenetration
-            // evidence (the C6 hook), undecided already escalated
-            // typed alongside this finding.
-            let name = match verdict {
+            // The witness is the POSITION; the side verdict rides after
+            // it, behind " — ", for `Debug` and the caller, and the
+            // message renders the position alone (the field's
+            // contract). Same-side is interpenetration evidence (the
+            // C6 hook); undecided is already escalated typed alongside
+            // this finding.
+            let verdict = match verdict {
                 CrossingSideVerdict::OppositeSides => unreachable!("Backed above"),
-                CrossingSideVerdict::SameSide => {
-                    "side verdict: same-side — the declared pair holds the crossing \
-                     point but the material lies on ONE side of the shared carrier: \
-                     a transverse crossing, interpenetration evidence (the C6 \
-                     declared-interpenetration class is this verdict's consumer)"
-                }
-                CrossingSideVerdict::Undecided => {
-                    "side verdict: undecided — a candidate holding the crossing did \
-                     not validly reach a side answer (an in-band margin, or the \
-                     Smooth precondition failing after the carrier screens passed); \
-                     escalated typed alongside this finding"
-                }
+                CrossingSideVerdict::SameSide => "side verdict: same-side",
+                CrossingSideVerdict::Undecided => "side verdict: undecided",
             };
             errors.push(ValidationError::UndeclaredContact {
                 contact: CensusContact::EdgeEdgeCross {
                     a: ea.key,
                     b: eb.key,
                 },
-                witness: format!("{} — {name}", witness(q)),
+                witness: format!("{} — {verdict}", witness(q)),
             });
         }
     }
@@ -2870,21 +2861,37 @@ impl Undecided {
     }
 
     /// The reason and its recourse, as the finding renders them.
+    ///
+    /// "Until their bounding boxes no longer overlap" is the distance
+    /// that clears a pair: arm 1 examines only faces within each
+    /// other's reach box and arm 2 only instances whose padded extents
+    /// overlap, so a recourse to move the parts is true exactly past
+    /// that — and is not offered by a reason no distance clears.
     pub(crate) fn what(self) -> &'static str {
         match self {
+            // Arm 1 is gated by the faces' reach boxes, so moving the
+            // parts until those boxes no longer overlap clears it; a
+            // designed contact (a boss in a hole, a cradle, an embedded
+            // cap) lands here too and has no way through yet.
             Self::CurvedWithinReach => {
                 "a curved face of one is within reach of the other, and the kernel cannot \
-                 yet tell whether curved faces of two parts touch. Recourse: move the parts \
-                 so their curved faces are clearly apart"
+                 yet tell whether curved faces of two parts touch. There is no way through \
+                 yet for a designed contact; otherwise move the parts until their bounding \
+                 boxes no longer overlap"
             }
+            // Neither this nor `Unclaimable` is gated by distance: a
+            // face with no sound reach bound is refused at ANY
+            // separation, so moving the parts is no way through. A
+            // placeholder surface is also reported on its own, as the
+            // kernel defect it is (`UncertifiableSurface`).
             Self::NoSoundReach => {
-                "one face has no extent the check can bound (an unfinished surface, or an \
-                 edge whose curve has no bounds). Recourse: finish that face, or move the \
-                 parts clearly apart"
+                "one face has no extent the check can bound (a placeholder surface, or an \
+                 edge whose curve has no bounds), so no distance clears it. There is no way \
+                 through yet for this shape"
             }
             Self::Unclaimable => {
                 "a face of one has no extent the check can bound, so where that part ends \
-                 is unknown. Recourse: move the parts clearly apart"
+                 is unknown at any distance. There is no way through yet for this shape"
             }
             Self::Crossing => {
                 "another finding reports their boundaries crossing, and this one cannot be \
@@ -2901,17 +2908,20 @@ impl Undecided {
             Self::TouchInBand => {
                 "they touch, and which side of the touched face each is on is too close \
                  to call at this tolerance. There is no way through yet for a designed \
-                 resting contact; otherwise move them apart"
+                 resting contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
             }
             Self::TouchUnreadable => {
                 "they touch at a curved face or edge, and the check cannot yet tell which \
                  side each is on. There is no way through yet for a designed resting \
-                 contact; otherwise move them apart"
+                 contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
             }
             Self::TouchUnanalysed => {
                 "they touch at a point, along an edge or over a curved patch, and the check \
                  cannot yet tell which side each is on. There is no way through yet for a \
-                 designed resting contact; otherwise move them apart"
+                 designed resting contact; otherwise move them until their \
+                 bounding boxes no longer overlap"
             }
             Self::DeclaredFacePair => {
                 "a declared contact between their faces touches only at corners the check \
@@ -2920,15 +2930,18 @@ impl Undecided {
             Self::AllOn => {
                 "every corner of one lies on the other's boundary, so the corners cannot \
                  place it. There is no way through yet for a designed resting fit; \
-                 otherwise move them apart"
+                 otherwise move them until their \
+                 bounding boxes no longer overlap"
             }
             Self::NoVertex => {
                 "one has no corner to test, so nothing places it. There is no way through \
-                 yet for this shape; if they are not meant to meet, move them apart"
+                 yet for this shape; if they are not meant to meet, move them until their \
+                 bounding boxes no longer overlap"
             }
             Self::WitnessTooClose => {
                 "a corner of one lies too close to the other's boundary to place at this \
-                 tolerance. Recourse: move the parts apart, or lower the tolerance"
+                 tolerance. Recourse: move the parts until \
+                 their bounding boxes no longer overlap, or lower the tolerance"
             }
             Self::ZeroVolume => {
                 "one has no volume, so nothing can be inside it. Recourse: fix that part \
@@ -2936,11 +2949,13 @@ impl Undecided {
             }
             Self::VolumeUncertified => {
                 "the check could not certify one's volume, so it cannot tell that part's \
-                 inside from its outside. Recourse: move the parts clearly apart"
+                 inside from its outside. Recourse: move the parts until \
+                 their bounding boxes no longer overlap"
             }
             Self::FaceKindUnsupported => {
                 "one has a face (a spline, or part of a sphere, cone or torus) the check \
-                 cannot yet test a point against. Recourse: move the parts clearly apart"
+                 cannot yet test a point against. Recourse: move the parts until \
+                 their bounding boxes no longer overlap"
             }
             Self::CorruptInstance => {
                 "one part's topology could not be walked. There is no way through: this is \

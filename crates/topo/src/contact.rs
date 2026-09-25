@@ -143,31 +143,15 @@ pub const FIT_DEFERRAL_FOR_USERS: &str = "a designed gap between the faces canno
 pub const CONTRADICTION_RECOURSE: &str =
     "Recourse: correct or remove the declaration, or move the geometry so it holds";
 
-/// A contradiction's reason in words, read off the predicate that
-/// decided it. Every contradiction site carries an invalid margin
-/// standing for a definite relation, so the predicate IS the reason;
-/// its name, and the margin, ride in `Debug`.
-pub(crate) fn contradiction_reason(diag: &Indeterminate) -> &'static str {
-    match diag.predicate {
-        Some("contact_rest_senses_opposed") => {
-            "the two faces face the same way, so neither rests against the other"
-        }
-        Some("contact_tangent_opposed") => {
-            "the two faces face the same way along the edge, so neither touches the other"
-        }
-        Some("contact_tangent_independent") => "the faces cross at the edge rather than touch",
-        Some("contact_tangent_parallel") => "the faces are not tangent along the edge",
-        Some("contact_tangent_on_1" | "contact_tangent_on_2") => {
-            "the edge does not lie on both faces"
-        }
-        Some("carrier_kind") => "the two faces lie on different kinds of surface",
-        Some("bool_plane_offset") => "the two faces' planes are parallel but apart",
-        Some("bool_plane_parallel") => "the two faces' planes are not parallel",
-        Some("bool_plane_orient") => "the two faces face the same way",
-        Some(p) if p.starts_with("carrier_") => "the two faces lie on different surfaces",
-        _ => "the geometry definitely disagrees with it",
-    }
-}
+/// A contradiction's reason, as the message states it. One sentence
+/// for every contradiction site, because it is the one that is true at
+/// all of them: the sites carry different margins (a definite relation
+/// at the carrier and tangent tables, an in-band coincidence margin at
+/// the Boolean's conformal screen), and the same carrier predicate
+/// means "apart" at one and "one surface" at another, so no reading of
+/// the predicate is true everywhere. The margin and its predicate ride
+/// in the payload and `Debug`.
+pub const CONTRADICTION_REASON: &str = "the geometry does not match it";
 
 /// A steer as the rendered contradiction says it: `FIT_DEFERRAL` in the
 /// user's words, any other steer as written.
@@ -262,14 +246,13 @@ pub enum ContactRefusal {
 impl core::fmt::Display for ContactRefusal {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            // The reason in words, never the margin payload: every
-            // contradiction carries an invalid margin standing for a
-            // definite relation, which the payload would render as
-            // "indeterminate".
-            Self::Contradicted { diag, steer } => write!(
+            // The one reason true at every site, never the margin
+            // payload, which would render a definite contradiction as
+            // "indeterminate" (`CONTRADICTION_REASON`).
+            Self::Contradicted { steer, .. } => write!(
                 f,
-                "the declared contact is contradicted: {}. {CONTRADICTION_RECOURSE}{}",
-                contradiction_reason(diag),
+                "the declared contact is contradicted: {CONTRADICTION_REASON}. \
+                 {CONTRADICTION_RECOURSE}{}",
                 steer_clause(*steer),
             ),
             Self::Escalated { diag } => write!(
