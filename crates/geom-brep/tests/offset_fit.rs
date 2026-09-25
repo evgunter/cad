@@ -524,12 +524,18 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
                 tolerance,
             };
             let msg = e.to_string();
-            assert!(msg.contains("OFFSET_FIT_SAMPLE_CAP"), "{msg}");
             assert!(
-                msg.contains(&format!("{rounds} of {OFFSET_FIT_BUDGET} rounds")),
-                "the rounds that ran are not in the message: {msg}"
+                msg.contains(&format!("limit of {cap} samples per direction")),
+                "the cap is not what the message names: {msg}"
             );
-            assert!(msg.contains("nothing uncertified is returned"), "{msg}");
+            assert!(
+                !msg.contains("rounds"),
+                "the message points at the round budget: {msg}"
+            );
+            assert!(
+                msg.contains(&format!("loosen the tolerance to {achieved} m")),
+                "the repair is not sized to the bound reached: {msg}"
+            );
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
     }
@@ -714,19 +720,28 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                 .to_string();
                 // The type cannot print an `inf` here — the face has no
                 // bound field — so the row asserts what the message DOES
-                // say: that no round produced a finite bound, which knobs
-                // it disowns, the `d` it was asked for, and no constant.
+                // say: that no refinement bounded the error, the `d` it
+                // was asked for, and the distance as the repair, which
+                // the decade above (`1e-7` certifies) bears out. Neither
+                // the round budget nor the sample cap is named: raising
+                // either would not help.
                 assert!(
-                    msg.contains("without any round producing a finite sup bound"),
+                    msg.contains("no refinement of the offset surface's fit could bound its error"),
                     "d = {d}: {msg}"
                 );
                 assert!(
-                    msg.contains("neither the round budget nor the sample cap"),
-                    "d = {d}: the message does not disown both knobs: {msg}"
+                    msg.contains(&format!("offset distance of {d} m")),
+                    "d = {d}: {msg}"
                 );
-                assert!(msg.contains(&format!("d = {d} m")), "d = {d}: {msg}");
-                assert!(!msg.contains("OFFSET_FIT_"), "d = {d}: names a knob: {msg}");
-                assert!(msg.contains("nothing uncertified is returned"), "{msg}");
+                assert!(
+                    msg.contains("Recourse: use a larger offset distance"),
+                    "d = {d}: {msg}"
+                );
+                assert!(!msg.contains("inf"), "d = {d}: prints a bound: {msg}");
+                assert!(
+                    !msg.contains("rounds") && !msg.contains("samples"),
+                    "d = {d}: points at the budget or the cap: {msg}"
+                );
             }
             other => panic!("d = {d}: a never-finite bound did not refuse as one: {other:?}"),
         }
@@ -1061,23 +1076,21 @@ fn the_stall_refusal_carries_its_grid_rounds_and_bound() {
     let msg = e.to_string();
     // The message must say WHICH refusal this is — a caller that
     // cannot tell a stall from budget exhaustion cannot tell "more
-    // budget will help" from "it will not".
-    assert!(msg.contains("STALLED"), "{msg}");
+    // budget will help" from "it will not". The grid and the round
+    // count ride in the payload, pinned above; the sentence carries
+    // the numbers that decided it and the repair.
+    assert!(msg.contains("stopped improving"), "{msg}");
     assert!(
-        msg.contains("11x7"),
-        "the grid is not in the message: {msg}"
-    );
-    assert!(
-        msg.contains("3 rounds"),
-        "the round count is missing: {msg}"
+        msg.contains("certified error of 0.000425 m against a tolerance of 0.000001 m"),
+        "the deciding numbers are not in the message: {msg}"
     );
     assert!(
         msg.contains("both directions"),
         "the message does not say what was tried: {msg}"
     );
     assert!(
-        msg.contains("nothing uncertified is returned"),
-        "the fail-loud posture is not stated: {msg}"
+        msg.contains("Recourse: loosen the tolerance to 0.000425 m or more"),
+        "the repair is not sized to the bound reached: {msg}"
     );
     // And it is a DIFFERENT sentence from budget exhaustion's.
     let budget = OffsetFitError::BudgetExhausted {

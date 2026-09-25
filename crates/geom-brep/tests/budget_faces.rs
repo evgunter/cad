@@ -496,7 +496,10 @@ fn bumpy_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
     );
 }
 
-/// Each message names the lever the face's doc claims, and no other.
+/// Each message names what stopped the loop and the repair the face's
+/// doc claims, and no other: the budget and the cap are told apart by
+/// what they name, and the two not-finite cases send the caller to two
+/// different repairs.
 #[test]
 fn each_faces_message_names_its_lever() {
     let b = OffsetFitError::BudgetExhausted {
@@ -506,8 +509,12 @@ fn each_faces_message_names_its_lever() {
         tolerance: 1e-9,
     }
     .to_string();
-    assert!(b.contains("OFFSET_FIT_BUDGET"), "{b}");
-    assert!(!b.contains("OFFSET_FIT_SAMPLE_CAP"), "{b}");
+    assert!(
+        b.contains(&format!("all {OFFSET_FIT_BUDGET} refinement rounds")),
+        "{b}"
+    );
+    assert!(!b.contains("samples"), "{b}");
+    assert!(b.contains("loosen the tolerance to 0.001 m"), "{b}");
     let c = OffsetFitError::SampleCapReached {
         cap: OFFSET_FIT_SAMPLE_CAP,
         rounds: 5,
@@ -516,11 +523,14 @@ fn each_faces_message_names_its_lever() {
         tolerance: 1e-9,
     }
     .to_string();
-    assert!(c.contains("OFFSET_FIT_SAMPLE_CAP"), "{c}");
     assert!(
-        c.contains(&format!("5 of {OFFSET_FIT_BUDGET} rounds")),
+        c.contains(&format!(
+            "limit of {OFFSET_FIT_SAMPLE_CAP} samples per direction"
+        )),
         "{c}"
     );
+    assert!(!c.contains("rounds"), "{c}");
+    assert!(c.contains("loosen the tolerance to 0.001 m"), "{c}");
     let n = OffsetFitError::BoundNotFinite {
         rounds: 4,
         grid: (25, 17),
@@ -529,16 +539,14 @@ fn each_faces_message_names_its_lever() {
         last_finite: None,
     }
     .to_string();
+    assert!(n.contains("offset distance of 0.0000001 m"), "{n}");
+    assert!(n.contains("Recourse: use a larger offset distance"), "{n}");
+    // The never-finite message names no knob of the loop, and no
+    // tolerance to loosen to: there is no bound to size one against.
     assert!(
-        n.contains("without any round producing a finite sup bound"),
+        !n.contains("rounds") && !n.contains("samples") && !n.contains("loosen"),
         "{n}"
     );
-    assert!(
-        n.contains("neither the round budget nor the sample cap"),
-        "{n}"
-    );
-    // The never-finite message names no constant a caller could raise.
-    assert!(!n.contains("OFFSET_FIT_"), "{n}");
     let l = OffsetFitError::BoundNotFinite {
         rounds: 4,
         grid: (25, 17),
@@ -547,11 +555,10 @@ fn each_faces_message_names_its_lever() {
         last_finite: Some(3.2e-4),
     }
     .to_string();
-    assert!(l.contains("the schedule is the lever"), "{l}");
     assert!(
-        l.contains("0.00032 m"),
-        "the lost bound is not in the message: {l}"
+        l.contains("Recourse: loosen the tolerance to 0.00032 m or more"),
+        "the lost bound is not what the repair is sized to: {l}"
     );
-    assert!(!l.contains("OFFSET_FIT_"), "{l}");
+    assert!(!l.contains("offset distance"), "{l}");
     assert_ne!(n, l, "the two not-finite cases must read differently");
 }

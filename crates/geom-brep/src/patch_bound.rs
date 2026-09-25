@@ -131,9 +131,18 @@ pub enum PatchBoundError {
     /// C⁰ crease.
     Crease,
     /// A rational description with a non-positive or non-finite
-    /// weight — the convex-combination licence never held.
+    /// weight — the convex-combination licence every hull fact rests
+    /// on never held. Supplying strictly positive weights lets the face
+    /// certify through the rational arm; the door that mints a NURBS
+    /// surface refuses these already, so a face reaching this bound
+    /// carrying one is also a finding.
     NonPositiveWeight,
-    /// The same, discovered after the fixed rational refinement.
+    /// The same, discovered after the fixed rational refinement: the
+    /// refined weight ENCLOSURE reaches zero. Positivity survives knot
+    /// insertion in ℝ, and the refinement's two barycentric ratios are
+    /// both non-negative, so no weight RATIO can reach this; what does
+    /// is a weight so small that its product with a ratio UNDERFLOWS to
+    /// zero, which needs a subnormal near the bottom of the `f64` range.
     RefinedWeightLostPositivity,
     /// The fixed rational refinement failed to materialise.
     RefinementFailed,
@@ -163,22 +172,15 @@ impl PatchBoundError {
                  the face at the crease"
             }
             Self::NonPositiveWeight => {
-                "rational NURBS face with a non-positive or non-finite weight — an \
-                 illegal rational description: the convex-combination licence every \
-                 hull fact rests on requires strictly positive weights, so supply them \
-                 and the face certifies through the rational arm. The door that mints a \
-                 NURBS surface refuses these already, so a face that reaches this bound \
-                 carrying one is worth reporting too"
+                "rational NURBS face with a non-positive or non-finite weight, which is not \
+                 a valid rational description: supply strictly positive, finite weights, \
+                 and report the face too, since the door that mints one refuses these"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
-                 the certified inventory: positivity survives knot insertion in ℝ, and the \
-                 refinement's two barycentric ratios are both non-negative, so no weight \
-                 RATIO can reach this; what does is a weight so small that its product with \
-                 a ratio UNDERFLOWS to zero, which needs a subnormal near the bottom of the \
-                 f64 range. Describe the face at a weight scale f64 can hold — scaling \
-                 every weight by one constant describes the same surface — or report the \
-                 description"
+                "rational NURBS face whose weights are too small for f64 to refine without \
+                 one underflowing to zero: describe the face at a weight scale f64 can hold \
+                 (scaling every weight by one constant describes the same surface), or \
+                 report the description"
             }
             Self::RefinementFailed => {
                 "NURBS face whose refinement fails to materialise — outside the certified \

@@ -220,7 +220,7 @@ use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
 use geom_core::spline::compose::patch::PatchSpans;
-use geom_core::spline::{KnotVector, SplineError};
+use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
 use geom_core::{Band, Interval, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
@@ -322,8 +322,9 @@ impl OffsetLimb {
 ///    the guard would have refused.
 /// 2. **The per-direction sample cap stopped the next round** —
 ///    [`Self::SampleCapReached`]; the lever is
-///    [`OFFSET_FIT_SAMPLE_CAP`], and the face says how many rounds
-///    ran so the budget is never read as the knob.
+///    [`OFFSET_FIT_SAMPLE_CAP`]. The payload carries how many rounds
+///    ran, and the message names the cap and not the rounds, so the
+///    budget is never read as the knob.
 /// 3. **The strongest step gained nothing, or could not grow the
 ///    schedule at all** — [`Self::RefinementStalled`]; no lever, more
 ///    rounds cannot help. A round that marks nothing ends here and
@@ -339,6 +340,13 @@ impl OffsetLimb {
 ///    reached in place of an `inf`, and its lever is the schedule
 ///    when there was one and no constant of this loop when there was
 ///    not.
+///
+/// The levers above are the kernel's. Neither constant is a caller's
+/// to change, so each face's message names the caller's repair
+/// instead: a tolerance no tighter than the bound reached (which the
+/// round that reached it would then have certified), a face split into
+/// pieces that need less refinement, or, when no bound was ever
+/// finite, a larger offset distance.
 ///
 /// **D2 classification: row 1**, stated here once for the four faces
 /// (their own docs point back here rather than restating it). Every
@@ -532,7 +540,11 @@ pub enum OffsetFitError {
         window: geom::ApproxWindow,
     },
     /// A certificate limb refused on a fit handed in from outside —
-    /// the re-derivation door ([`certify_offset`]).
+    /// the re-derivation door ([`certify_offset`]). An on-locus max
+    /// above the tolerance is a fit wrong where the samples looked; a
+    /// hull sup above it is a bound too weak between them. Either way
+    /// the stored certificate is not accepted, and re-fitting through
+    /// [`fit_offset`] at this tolerance is the repair.
     Limb {
         /// Which limb.
         limb: OffsetLimb,
@@ -541,6 +553,19 @@ pub enum OffsetFitError {
         /// The tolerance it was classified against.
         tolerance: f64,
     },
+    /// Raising a degree-1 base direction to degree 2 refused. The
+    /// certifying composite needs each direction's derived knot vector,
+    /// which a degree-1 direction does not have, so it is built on the
+    /// elevated form; this carries the knot-algebra refusal whole.
+    ///
+    /// No door reaches it: a direction reaching the composite has
+    /// passed the meters' C¹ gate ([`crate::patch_bound::check_direction`]),
+    /// so a degree-1 one is a single span, whose elevation is one
+    /// Bézier stage with no insertion or removal to refuse, over
+    /// weights the surface's own constructor validated. The arm exists
+    /// because the elevation is fallible by type, and a refusal there
+    /// is a kernel finding, which is why the message asks for a report.
+    Elevation(KnotAlgebraError),
 }
 
 impl From<MeterError> for OffsetFitError {
@@ -594,82 +619,59 @@ impl core::fmt::Display for OffsetFitError {
             ),
             Self::BudgetExhausted {
                 budget,
-                grid,
                 achieved,
                 tolerance,
+                ..
             } => write!(
                 f,
-                "the offset fit's round budget of {budget} refinement rounds ran out on a \
-                 {}x{} sample grid with the bound still converging — the achieved sup \
-                 bound is {achieved} m against a tolerance of {tolerance} m; the lever is \
-                 OFFSET_FIT_BUDGET; nothing uncertified is returned",
-                grid.0, grid.1
+                "the offset surface's fit used all {budget} refinement rounds while still \
+                 improving, at a certified error of {achieved} m against a tolerance of \
+                 {tolerance} m. Recourse: loosen the tolerance to {achieved} m or more, or \
+                 split the face so each piece fits in fewer rounds"
             ),
             Self::SampleCapReached {
                 cap,
-                rounds,
-                grid,
                 achieved,
                 tolerance,
+                ..
             } => write!(
                 f,
-                "the offset fit's per-direction sample cap of {cap} stopped the refinement \
-                 loop on a {}x{} sample grid after {rounds} of {OFFSET_FIT_BUDGET} rounds — \
-                 the next round's schedule would exceed the cap — with an achieved sup \
-                 bound of {achieved} m against a tolerance of {tolerance} m; the lever is \
-                 OFFSET_FIT_SAMPLE_CAP, not the round budget; nothing uncertified is \
-                 returned",
-                grid.0, grid.1
+                "the offset surface's fit reached its limit of {cap} samples per direction \
+                 at a certified error of {achieved} m against a tolerance of {tolerance} m. \
+                 Recourse: loosen the tolerance to {achieved} m or more, or split the face \
+                 so each piece needs fewer samples"
             ),
             Self::BoundNotFinite {
-                rounds,
-                grid,
                 d,
                 tolerance,
                 last_finite: None,
+                ..
             } => write!(
                 f,
-                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
-                 {rounds} rounds without any round producing a finite sup bound, at \
-                 d = {d} m against a tolerance of {tolerance} m — the certifying limb \
-                 answered +∞ on every grid reached, so there is no achieved bound to \
-                 report; neither the round budget nor the sample cap is the lever: the \
-                 limb's floors against |d| = {} m are, at the door meters; nothing \
-                 uncertified is returned",
-                grid.0,
-                grid.1,
-                d.abs()
+                "no refinement of the offset surface's fit could bound its error at an \
+                 offset distance of {d} m, so it cannot be certified to {tolerance} m. \
+                 Recourse: use a larger offset distance"
             ),
             Self::BoundNotFinite {
-                rounds,
-                grid,
-                d,
                 tolerance,
                 last_finite: Some(b),
+                ..
             } => write!(
                 f,
-                "the offset fit's refinement loop stopped on a {}x{} sample grid after \
-                 {rounds} rounds with a non-finite sup bound on its last grid, at d = {d} m \
-                 against a tolerance of {tolerance} m — a coarser grid reached {b} m and \
-                 the finer one lost it, so the schedule is the lever and {b} m is the \
-                 bound to size against; nothing uncertified is returned",
-                grid.0, grid.1
+                "the offset surface's fit bounded its error at {b} m on coarser sampling \
+                 and lost that bound on finer sampling, so it cannot be certified to \
+                 {tolerance} m. Recourse: loosen the tolerance to {b} m or more"
             ),
             Self::RefinementStalled {
-                rounds,
-                grid,
                 achieved,
                 tolerance,
+                ..
             } => write!(
                 f,
-                "the offset fit's refinement loop STALLED on a {}x{} sample grid after \
-                 {rounds} rounds — bisecting every failing cell in both directions did \
-                 not lower the achieved sup bound of {achieved} m, against a tolerance \
-                 of {tolerance} m, so the remaining round budget cannot reach it and \
-                 raising OFFSET_FIT_BUDGET will not either; loosen the tolerance to \
-                 something this fit's structure reaches on this patch; nothing \
-                 uncertified is returned",
-                grid.0, grid.1
+                "the offset surface's fit stopped improving at a certified error of \
+                 {achieved} m against a tolerance of {tolerance} m, and refining it in both \
+                 directions did not lower the error. Recourse: loosen the tolerance to \
+                 {achieved} m or more"
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
@@ -685,12 +687,19 @@ impl core::fmt::Display for OffsetFitError {
                 tolerance,
             } => write!(
                 f,
-                "the offset fit's {} measured {bound} m against a tolerance of {tolerance} m \
-                 — a fit handed in does not certify at the tolerance asked (an on-locus \
-                 max above it is a fit wrong where the samples looked; a hull sup above it \
-                 is a bound too weak between them), so re-fit through fit_offset at this \
-                 tolerance rather than accepting the stored certificate",
-                limb.name()
+                "a stored offset surface does not hold to the tolerance: its {} is {bound} m \
+                 against a tolerance of {tolerance} m. Recourse: re-fit the offset at this \
+                 tolerance rather than keep the stored surface",
+                match limb {
+                    OffsetLimb::OnLocus => "sampled error",
+                    OffsetLimb::HullSup => "certified error bound",
+                }
+            ),
+            Self::Elevation(e) => write!(
+                f,
+                "the offset surface's fit could not raise the face's linear direction to \
+                 degree 2, which a valid surface always allows ({e}). There is no way \
+                 through: this is a kernel defect; report the face's description"
             ),
         }
     }
@@ -1927,12 +1936,12 @@ impl Composite {
             if b.knots_u().degree() < 2 {
                 b = b
                     .elevate_degree_u(2 - b.knots_u().degree())
-                    .map_err(|_| OffsetFitError::PatchBound(PatchBoundError::DerivedKnots))?;
+                    .map_err(OffsetFitError::Elevation)?;
             }
             if b.knots_v().degree() < 2 {
                 b = b
                     .elevate_degree_v(2 - b.knots_v().degree())
-                    .map_err(|_| OffsetFitError::PatchBound(PatchBoundError::DerivedKnots))?;
+                    .map_err(OffsetFitError::Elevation)?;
             }
             raised = b;
             &raised
@@ -2764,31 +2773,20 @@ mod recourse_tests {
     use crate::offset_meters::MeterError;
     use crate::patch_bound::PatchBoundError;
     use geom::curves::fit::FitError;
-    use geom_core::spline::SplineError;
+    use geom_core::spline::{KnotAlgebraError, SplineError};
 
     /// **The recourse claim for the carrier tier 3 renders whole.**
     /// `ValidationError::ApproxCertification { error }` contributes a
     /// face key and nothing else, so whatever this enum fails to say is
     /// absent from the message a user reads there.
     ///
-    /// **Reading changed the verdict on this enum more than on any
-    /// other in the chain**, and the row records the outcome rather
-    /// than the sweep: four renderings already pointed at a lever
-    /// before this change — `BudgetExhausted` at `OFFSET_FIT_BUDGET`,
-    /// `SampleCapReached` at `OFFSET_FIT_SAMPLE_CAP`, and
-    /// `BoundNotFinite` at the limb's floors or at the schedule,
-    /// depending on `last_finite` — so what the vocabulary below
-    /// accepts is "the lever is X" as readily as an imperative. A row
-    /// that demanded a verb would have rewritten four correct messages.
-    ///
-    /// **The four delegating arms are asserted differently.** An arm is
-    /// checked TRANSITIVELY only where its carrier has an enforcement
-    /// row of its own, and none of `MeterError`, `PatchBoundError`,
-    /// `FitError` or `SplineError` has one — so for those four this row
-    /// asserts the DELEGATION (that the arm renders the carrier whole
-    /// rather than summarising it) and nothing about the recourse. The
-    /// chain's claim is unproved at that hop and this row does not
-    /// pretend otherwise.
+    /// **The delegating arms are asserted differently.** `Meter`,
+    /// `PatchBound`, `Fit` and `Structure` forward a carrier that holds
+    /// an enforcement row of its own, so each is asserted TRANSITIVELY:
+    /// the carrier is rendered whole, and its recourse survives into
+    /// the message. `Elevation` forwards a `KnotAlgebraError`, which
+    /// names no repair, so its recourse is this arm's own sentence and
+    /// the vocabulary check reads that.
     ///
     /// **A floor, not a proof**, on the terms `topo`'s
     /// `every_chart_region_arm_names_a_recourse` states: a vocabulary
@@ -2801,8 +2799,16 @@ mod recourse_tests {
         // the lever the caller turns satisfies the claim the same way
         // an imperative does.
         const RECOURSE_WORDS: &[&str] = &[
-            "lever", "supply", "repair", "loosen", "ask", "re-fit", "schedule", "split", "report",
-            "describe", "drop",
+            "supply",
+            "repair",
+            "loosen",
+            "ask",
+            "re-fit",
+            "split",
+            "report",
+            "describe",
+            "drop",
+            "larger offset distance",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -2815,6 +2821,7 @@ mod recourse_tests {
             index: 0,
             weight: 0.0,
         };
+        let elevation = KnotAlgebraError::WeightCollapse { index: 0 };
         let arms = [
             OffsetFitError::Meter(meter),
             OffsetFitError::PatchBound(patch_bound),
@@ -2869,11 +2876,18 @@ mod recourse_tests {
                 bound: 2e-9,
                 tolerance: 1e-9,
             },
+            OffsetFitError::Limb {
+                limb: OffsetLimb::HullSup,
+                bound: 2e-9,
+                tolerance: 1e-9,
+            },
+            OffsetFitError::Elevation(elevation.clone()),
         ];
-        // Twelve variants; `BoundNotFinite` is rendered at both of its
+        // Thirteen variants; `BoundNotFinite` is rendered at both of its
         // `last_finite` cases, which are two different messages sending
-        // the caller to two different levers.
-        assert_eq!(arms.len(), 13, "an arm was added without a row here");
+        // the caller to two different repairs, and `Limb` at both limbs,
+        // which the message names in two different words.
+        assert_eq!(arms.len(), 15, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -2881,17 +2895,20 @@ mod recourse_tests {
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
                 OffsetFitError::Fit(_) => Some(fit.to_string()),
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
+                OffsetFitError::Elevation(_) => Some(elevation.to_string()),
                 _ => None,
             };
-            // The four carriers below each hold an enforcement row of
-            // their own (`every_meter_error_arm_names_a_recourse`,
+            // Four of the carriers hold an enforcement row of their own
+            // (`every_meter_error_arm_names_a_recourse`,
             // `every_patch_bound_error_arm_names_a_recourse`,
             // `every_fit_error_arm_names_a_recourse`,
-            // `every_spline_error_arm_names_a_recourse`), so these arms
+            // `every_spline_error_arm_names_a_recourse`), so those arms
             // are asserted TRANSITIVELY: the carrier is rendered whole
             // AND its clause survives into the message a caller reads.
             // The carrier's row is what makes that a statement about
             // every payload rather than about the one built here.
+            // `Elevation`'s carrier names no repair; the vocabulary
+            // check below reads this arm's own sentence for it.
             if let Some(carrier) = delegated {
                 assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
             }

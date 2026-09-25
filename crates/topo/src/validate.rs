@@ -2146,7 +2146,8 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
         | O::Structure(_)
         | O::InvalidRequest { .. }
         | O::NonFiniteSample { .. }
-        | O::WindowUnsupported { .. } => ("its stored fit is not well-formed", DEFECT),
+        | O::WindowUnsupported { .. }
+        | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
     }
 }
 

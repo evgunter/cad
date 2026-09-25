@@ -25,7 +25,7 @@
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
-//! `CertifyError::PlaneNurbs` carry are sampled whole too; the four
+//! `CertifyError::PlaneNurbs` carry are sampled whole too; the five
 //! `OffsetFitError` wrappers carry one value each.
 //!
 //! Where a raise site fills a field with prose — a `what`, a `detail`,
@@ -421,6 +421,7 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
+        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::WeightCollapse { index: 0 }),
     ]
 }
 

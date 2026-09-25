@@ -870,20 +870,119 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { lane: "interval" },
         ),
-        (
-            "ApproxRecertify",
-            E::ApproxRecertify {
-                source: geom_brep::OffsetFitError::InvalidRequest {
-                    d: 0.0,
-                    tolerance: 1.0e-6,
-                },
-            },
-        ),
         ("Corrupt", E::Corrupt { what: "face" }),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain(approx_recertify())
     .collect()
+}
+
+/// Every `geom_brep::OffsetFitError` arm, through the transform op's
+/// re-certification wrapper.
+///
+/// The offset fit's refusals reach the feature tree two ways: here, and
+/// under the shell op's face replacement, whose wrapper still names the
+/// face by key and opens with a stage prefix (the `FILED` entries for
+/// `Shell/Face`). This is the clean route of the two, so the enum's
+/// own sentences are held here, one level deeper than the one
+/// representative arm the rest of this file renders for a forwarded
+/// enum.
+///
+/// The roster is `topo`'s: every `OffsetFitError` sample
+/// `validation_error_samples` carries, which `topo`'s coverage row holds
+/// complete over the enum's variants and over `MeterError`'s. Added
+/// here: every `PatchBoundError` arm (each is a different sentence),
+/// `BoundNotFinite` at the `last_finite` case the roster does not
+/// sample, and `Limb` at the limb it does not.
+fn approx_recertify() -> Vec<(String, NodeErrorKind)> {
+    use geom_brep::OffsetFitError as O;
+    use geom_brep::offset_fit::OffsetLimb;
+    use geom_brep::patch_bound::PatchBoundError as P;
+    let sampled = topo::test_support::validation_error_samples()
+        .into_iter()
+        .filter_map(|(_, e)| match e {
+            topo::ValidationError::ApproxCertification { error, .. } => Some(error),
+            _ => None,
+        });
+    let patch_bound = [
+        P::DegreeZero,
+        P::Degree1Crease,
+        P::Crease,
+        P::NonPositiveWeight,
+        P::RefinedWeightLostPositivity,
+        P::RefinementFailed,
+        P::DerivedKnots,
+    ]
+    .map(O::PatchBound);
+    let unsampled = [
+        O::BoundNotFinite {
+            rounds: 6,
+            grid: (64, 64),
+            d: 1.0e-7,
+            tolerance: 1.0e-6,
+            last_finite: None,
+        },
+        O::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3.0e-6,
+            tolerance: 1.0e-6,
+        },
+    ];
+    let mut rows: Vec<(String, NodeErrorKind)> = sampled
+        .chain(patch_bound)
+        .chain(unsampled)
+        .map(|source| {
+            // The variant and the variant it carries, read off `Debug`:
+            // `Meter(NormalFloor`, `BoundNotFinite`.
+            let debug = format!("{source:?}");
+            let arm: String = debug
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || matches!(c, '_' | '('))
+                .collect();
+            let arm = arm.trim_end_matches('(').replace('(', "/");
+            row(
+                &format!("Transform/ApproxRecertify/{arm}"),
+                NodeErrorKind::Transform(topo::TransformError::ApproxRecertify { source }),
+            )
+        })
+        .collect();
+    // The roster is borrowed, so its reach is checked here: a sample
+    // list that stopped carrying an arm would otherwise shrink these
+    // rows silently.
+    for arm in [
+        "Meter/NormalFloor",
+        "Meter/CurvatureHeadroom",
+        "Meter/Escalated",
+        "Fit",
+        "Structure",
+        "InvalidRequest",
+        "NonFiniteSample",
+        "BudgetExhausted",
+        "SampleCapReached",
+        "BoundNotFinite",
+        "RefinementStalled",
+        "WindowUnsupported",
+        "Limb",
+        "Elevation",
+    ] {
+        assert!(
+            rows.iter()
+                .any(|(n, _)| n.starts_with(&format!("Transform/ApproxRecertify/{arm}"))),
+            "no row renders OffsetFitError::{arm}"
+        );
+    }
+    // Two samples of one arm are two different sentences; the row id
+    // says which by position.
+    let mut seen = std::collections::BTreeMap::<String, usize>::new();
+    for (name, _) in &mut rows {
+        let n = seen.entry(name.clone()).or_default();
+        *n += 1;
+        if *n > 1 {
+            name.push_str(&format!("#{n}"));
+        }
+    }
+    rows
 }
 
 fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {

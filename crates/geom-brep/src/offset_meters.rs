@@ -174,6 +174,13 @@ pub enum MeterError {
     /// `offset_normal_floor`: the patch's chart normal could not be
     /// bounded away from degeneracy, so the offset locus is not
     /// defined on it (or the bound is too weak to prove that it is).
+    ///
+    /// A `floor` of exactly zero is the loud answer of a cell the
+    /// normal turns too far inside, which splitting the face clear of
+    /// the degeneracy answers. A regular patch refusing here means
+    /// [`OFFSET_METER_LADDER`] ran out of rungs on it, and the payload
+    /// is what decides a further rung, which is why the message asks
+    /// for the numbers to be reported.
     NormalFloor {
         /// The certified lower bound on `‖S_u × S_v‖` (m² per unit
         /// parameter area) — zero when no cell could be certified.
@@ -188,7 +195,9 @@ pub enum MeterError {
     /// `offset_curvature_headroom`: `|d|` reaches the patch's
     /// smallest certified curvature radius on the folding side, so
     /// the offset self-intersects (or the bound is too weak to prove
-    /// that it does not).
+    /// that it does not). The message names `reach`, the distance a
+    /// request must stay strictly inside; `headroom` and `kappa` ride
+    /// in the payload.
     CurvatureHeadroom {
         /// The certified critical distance on the folding side, in
         /// metres (`+∞` when the patch does not curve that way).
@@ -210,36 +219,26 @@ impl core::fmt::Display for MeterError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NormalFloor {
-                floor,
-                thinness,
-                speed_lever,
+                floor, thinness, ..
             } => write!(
                 f,
-                "offset_normal_floor: the patch's chart normal is not certifiably \
-                 non-degenerate — the certified floor on ‖S_u × S_v‖ is {floor} m² per \
-                 unit parameter area, which over the patch's faster chart speed \
-                 ({speed_lever} m) leaves a chart thinness of {thinness} m; the offset \
-                 locus is undefined where the normal degenerates, so nothing is fitted. \
-                 A floor of exactly zero is the loud answer of a cell the normal turns \
-                 too far inside: split the face clear of the degeneracy and offset the \
-                 pieces. If the patch is regular and these numbers say so, the ladder \
-                 (OFFSET_METER_LADDER) ran out of rungs on it — report them, which is \
-                 what decides a further rung"
+                "the face's surface normal cannot be proved non-zero (normal floor {floor}, \
+                 chart thinness {thinness} m), so its offset is not defined. Recourse: split \
+                 the face clear of the degenerate point and offset the pieces; if the face \
+                 is regular, report these numbers"
             ),
-            Self::CurvatureHeadroom {
-                reach,
-                headroom,
-                kappa,
-            } => write!(
+            Self::CurvatureHeadroom { reach, .. } => write!(
                 f,
-                "offset_curvature_headroom: |d| reaches the patch's certified \
-                 curvature radius on the folding side (reach {reach} m, headroom \
-                 {headroom} m, principal curvature in [{}, {}] 1/m) — the offset \
-                 folds, so nothing is fitted: ask for |d| strictly inside the reach, \
-                 or offset to the other side, where this patch does not fold",
-                kappa.0, kappa.1
+                "the offset distance reaches the face's radius of curvature on the side it \
+                 bends toward ({reach} m), so the offset would fold over itself. Recourse: \
+                 use a distance below {reach} m, or offset to the other side"
             ),
-            Self::Escalated { source } => write!(f, "offset meter escalated: {source}"),
+            Self::Escalated { source } => {
+                write!(
+                    f,
+                    "whether the face can be offset is too close to call: {source}"
+                )
+            }
         }
     }
 }
