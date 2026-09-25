@@ -24,7 +24,7 @@ use mate2_common::{
     assert_additive, body_of, boolean_body, collar, collar_at, peg_at, plane_face, volume,
     wall_decls, walls_at,
 };
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, ContactClass, FacePairDeclaration,
@@ -46,11 +46,7 @@ fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
         let th = deg.to_radians();
         p2(cx + r * th.cos(), 2.0 + r * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(0.0), b120),
-        ProfileVertex::new(at(120.0), b120),
-        ProfileVertex::new(at(240.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(Tol::witness())
@@ -353,13 +349,13 @@ fn d_prism_with_split_keys() -> (
     let r = (0.25f64 * 0.25 + 0.5 * 0.5).sqrt();
     let sweep = 2.0 * core::f64::consts::PI - 2.0 * 0.5f64.atan2(0.25);
     let bulge = (sweep / 2.0 / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 0.0), bulge),
-        ProfileVertex::new(p2(2.25 + r, 0.5), bulge),
-        ProfileVertex::new(p2(2.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
+        (p2(2.0, 0.0), bulge),
+        (p2(2.25 + r, 0.5), bulge),
+        (p2(2.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp])
@@ -539,10 +535,7 @@ fn pair_with_no_live_faces_mints_no_record() {
 
 /// A ball of radius `r` (a revolved semicircle).
 fn ball(r: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -r), 1.0),
-        ProfileVertex::new(p2(0.0, r), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -553,10 +546,7 @@ fn ball(r: f64) -> Body<f64> {
 
 /// A donut (a revolved circle off the axis).
 fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, -0.3), 1.0),
-        ProfileVertex::new(p2(1.0, 0.3), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, -0.3), 1.0), (p2(1.0, 0.3), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

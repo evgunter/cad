@@ -40,7 +40,7 @@ use crate::common;
 
 use common::*;
 use geom_core::Tol;
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::{Revolution, RevolveError, revolve};
 use topo::Body;
 
@@ -50,11 +50,11 @@ fn band_body(rho: f64) -> Result<Body<f64>, RevolveError> {
     let (h, rc) = (0.5f64.sin(), 0.5f64.cos());
     let yt = (1.0 - rho * rho).sqrt();
     let bulge = ((yt.atan2(rho) - h.atan2(rc)) / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(rc, h), bulge),
-        ProfileVertex::new(p2(rho, yt), 0.0),
-        ProfileVertex::new(p2(0.3, 1.3), 0.0),
-        ProfileVertex::new(p2(1.1, 0.9), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(rc, h), bulge),
+        (p2(rho, yt), 0.0),
+        (p2(0.3, 1.3), 0.0),
+        (p2(1.1, 0.9), 0.0),
     ]);
     revolve(
         &validated(vec![lp]),

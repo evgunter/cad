@@ -14,7 +14,7 @@
 )]
 
 use geom_core::{Affine3, Point2, Point3, Sign, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::euler_counts;
 use topo::{
@@ -40,11 +40,7 @@ fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
 /// A meridian polyline revolved a full turn about the sketch's `+y`
 /// axis through `(axis_x, 0)`, on the xy plane translated by `z0`.
 fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(p2(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol())
@@ -334,17 +330,17 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
 /// R2 built the same fixture at 6×6×4 and measured the same shape).
 #[test]
 fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
-    let outer_loop = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(3.0, 1.0), 0.0),
-        ProfileVertex::new(p2(3.0, 3.0), 0.0),
-        ProfileVertex::new(p2(1.0, 3.0), 0.0),
+    let outer_loop = bulge_loop(vec![
+        (p2(1.0, 1.0), 0.0),
+        (p2(3.0, 1.0), 0.0),
+        (p2(3.0, 3.0), 0.0),
+        (p2(1.0, 3.0), 0.0),
     ]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.8, 1.8), 0.0),
-        ProfileVertex::new(p2(1.8, 2.2), 0.0),
-        ProfileVertex::new(p2(2.2, 2.2), 0.0),
-        ProfileVertex::new(p2(2.2, 1.8), 0.0),
+    let hole = bulge_loop(vec![
+        (p2(1.8, 1.8), 0.0),
+        (p2(1.8, 2.2), 0.0),
+        (p2(2.2, 2.2), 0.0),
+        (p2(2.2, 1.8), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = match Profile::new(plane, vec![outer_loop, hole]).validate(tol()) {

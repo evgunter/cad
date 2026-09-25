@@ -19,7 +19,7 @@ mod certified {
     use geom::Curve3;
     use geom::Surface;
     use geom_core::{Affine3, Bounds, Interval, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop};
+    use profile::{Profile, test_support::bulge_loop};
     use sweep::blend::build::fillet_edges;
     use sweep::test_support::{cube, sketch_from_axes};
     use sweep::{Revolution, RevolveAxis, revolve};
@@ -50,10 +50,8 @@ mod certified {
     fn pip_ball() -> Body<Interval> {
         // The half-disc lamina: a semicircle out of the south pole and
         // the straight diameter back.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -PIP_R), iv(1.0)),
-            ProfileVertex::new(p2(0.0, PIP_R), iv(0.0)),
-        ]);
+        let lp =
+            bulge_loop::<Interval>(vec![(p2(0.0, -PIP_R), iv(1.0)), (p2(0.0, PIP_R), iv(0.0))]);
         let profile = Profile::new(
             sketch_from_axes(
                 geom_core::Point3::new(iv(0.0), iv(0.0), iv(0.0)),

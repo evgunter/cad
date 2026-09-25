@@ -24,7 +24,9 @@ pub(crate) mod certified {
 
     use geom::Surface;
     use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec2, Vec3};
-    use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, ValidatedProfile};
+    use profile::{
+        Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
+    };
     use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
     use topo::{Body, mass_properties};
 
@@ -63,10 +65,7 @@ pub(crate) mod certified {
     /// `r` because that suite's E1 row varies it; this file only ever
     /// wants 1.
     pub(crate) fn ball(r: f64) -> Body<Interval> {
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, -r), iv(1.0)),
-            ProfileVertex::new(p2(0.0, r), iv(0.0)),
-        ]);
+        let lp = bulge_loop::<Interval>(vec![(p2(0.0, -r), iv(1.0)), (p2(0.0, r), iv(0.0))]);
         let axis = RevolveAxis {
             origin: p2(0.0, 0.0),
             dir: Vec2::new(iv(0.0), iv(1.0)),
@@ -98,11 +97,7 @@ pub(crate) mod certified {
         };
         // Three equal 120° arcs: every vertex leaves with the same
         // bulge, the third one closing the circle.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(at(0), bulge),
-            ProfileVertex::new(at(1), bulge),
-            ProfileVertex::new(at(2), bulge),
-        ]);
+        let lp = bulge_loop::<Interval>(vec![(at(0), bulge), (at(1), bulge), (at(2), bulge)]);
         let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
             iv(0.0),
             iv(0.0),
@@ -121,13 +116,13 @@ pub(crate) mod certified {
     fn notched() -> Body<Interval> {
         // Only (3, 1) leaves on an arc: the semicircular notch bowing
         // into the plate.
-        let lp = <ProfileLoop<Interval> as RawLoop<Interval>>::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(3.0, 0.0), iv(0.0)),
-            ProfileVertex::new(p2(3.0, 1.0), iv(-1.0)),
-            ProfileVertex::new(p2(3.0, 2.0), iv(0.0)),
-            ProfileVertex::new(p2(3.0, 3.0), iv(0.0)),
-            ProfileVertex::new(p2(0.0, 3.0), iv(0.0)),
+        let lp = bulge_loop::<Interval>(vec![
+            (p2(0.0, 0.0), iv(0.0)),
+            (p2(3.0, 0.0), iv(0.0)),
+            (p2(3.0, 1.0), iv(-1.0)),
+            (p2(3.0, 2.0), iv(0.0)),
+            (p2(3.0, 3.0), iv(0.0)),
+            (p2(0.0, 3.0), iv(0.0)),
         ]);
         extrude(
             &validated(vec![lp]),

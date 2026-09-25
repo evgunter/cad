@@ -14,7 +14,7 @@ use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::Vec2;
-use profile::{ProfileLoop, ProfileVertex};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, revolve};
 
@@ -201,10 +201,10 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
     // Quarter arc on a carrier centered at (0.5, 0) with radius 0.6:
     // every arc point stays at r > 0, but the carrier reaches across
     // the axis — a spindle torus, refused per D3's ring convention.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.1, 0.0), FRAC_PI_8.tan()),
-        ProfileVertex::new(p2(0.5, 0.6), 0.0),
-        ProfileVertex::new(p2(0.5, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(1.1, 0.0), FRAC_PI_8.tan()),
+        (p2(0.5, 0.6), 0.0),
+        (p2(0.5, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
@@ -215,10 +215,7 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
 fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
     // (−1, 0): endpoints on the axis, apex definitely across it.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), -1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), -1.0), (p2(0.0, 1.0), 0.0)]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::ArcCrossesAxis { .. }), "{e:?}");

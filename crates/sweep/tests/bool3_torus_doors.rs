@@ -66,8 +66,7 @@ use crate::revolve_common;
 
 use crate::common::approx::band;
 use geom_core::{Band, Point3, Tol};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::test_support::brick;
 use sweep::{Revolution, revolve};
@@ -93,9 +92,9 @@ const FIXTURE_EXTENT: f64 = DONUT_R + DONUT_MINOR;
 /// both full-period parallels and each wraps the major azimuth through
 /// its own self-mated seam meridian.
 fn donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(DONUT_R, -DONUT_MINOR), 1.0),
-        ProfileVertex::new(p2(DONUT_R, DONUT_MINOR), 1.0),
+    let lp = bulge_loop(vec![
+        (p2(DONUT_R, -DONUT_MINOR), 1.0),
+        (p2(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -125,11 +124,11 @@ fn spool_arc() -> (f64, f64) {
 }
 
 fn spool_loop() -> ProfileLoop<f64> {
-    ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), SPOOL_BULGE),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), SPOOL_BULGE),
+        (p2(1.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ])
 }
 
@@ -149,9 +148,9 @@ fn spool() -> Body<f64> {
 /// A quarter revolve of the donut's circle: the torus face is trimmed in
 /// the MAJOR azimuth and wraps the minor angle.
 fn quarter_donut() -> Body<f64> {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(DONUT_R, -DONUT_MINOR), 1.0),
-        ProfileVertex::new(p2(DONUT_R, DONUT_MINOR), 1.0),
+    let lp = bulge_loop(vec![
+        (p2(DONUT_R, -DONUT_MINOR), 1.0),
+        (p2(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -804,11 +803,11 @@ fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     let r = (0.25 + s * s) / (2.0 * s);
     let big_r = 1.0 + s - r;
     assert!(big_r < r, "this profile really does describe a spindle");
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.3),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.3),
+        (p2(1.0, 1.0), 0.0),
+        (p2(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     let refused = match profile {

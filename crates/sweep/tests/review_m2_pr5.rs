@@ -22,7 +22,7 @@ use geom::Surface;
 use geom_brep::{EdgeDescription, EdgeDescriptionSpec};
 use geom_core::Tol;
 use geom_core::{Point2, Point3, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::test_support::sketch_from_axes;
 use sweep::{Revolution, RevolveAxis, RevolveError, Revolved, RevolvedKind, revolve};
@@ -463,10 +463,7 @@ fn survives_ball_pole_valence_and_volume() {
     // implementer's lifted-oracle shape, but with the reviewer's dense
     // samples and a magnitude bound from an independently computed
     // chordal expectation).
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     assert_all_tiers(&t.body);
@@ -604,11 +601,11 @@ fn survives_four_arc_donut_wrap_run_single_torus() {
     // run reaches segment 0 through the WRAP pair; the zip runs with
     // every wall sharing one torus key.
     let b = FRAC_PI_8.tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, 0.5), b),
-        ProfileVertex::new(p2(1.5, 1.0), b),
-        ProfileVertex::new(p2(1.0, 0.5), b),
-        ProfileVertex::new(p2(1.5, 0.0), b),
+    let lp = bulge_loop(vec![
+        (p2(2.0, 0.5), b),
+        (p2(1.5, 1.0), b),
+        (p2(1.0, 0.5), b),
+        (p2(1.5, 0.0), b),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -669,10 +666,7 @@ fn survives_forged_seam_on_pi_meridian_is_refused() {
     // silently wrong model is set_edge_curve's certification gate
     // (SeamSide: samples must sit on the u_ref side). Verify the gate
     // actually refuses.
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     let vp = validated(vec![lp]);
     let mut t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
     let RevolvedKind::Full { pi_meridians, .. } = &t.kind else {
@@ -989,11 +983,11 @@ fn survives_tight_but_definite_torus_clearance_is_accepted() {
     let p_lo = p2(cx + r_c * a0.cos(), cy + r_c * a0.sin());
     let p_hi = p2(cx + r_c * a1.cos(), cy + r_c * a1.sin());
     let bulge = ((a1 - a0) / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p_lo, bulge),
-        ProfileVertex::new(p_hi, 0.0),
-        ProfileVertex::new(p2(1.5, cy + r_c * a1.sin()), 0.0),
-        ProfileVertex::new(p2(1.5, cy + r_c * a0.sin()), 0.0),
+    let lp = bulge_loop(vec![
+        (p_lo, bulge),
+        (p_hi, 0.0),
+        (p2(1.5, cy + r_c * a1.sin()), 0.0),
+        (p2(1.5, cy + r_c * a0.sin()), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let t = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap();
@@ -1161,11 +1155,11 @@ fn survives_near_tangent_arc_join_classification() {
     // layer speaks.
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.0), bulge),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(2.0, 0.0), 0.0),
+        (p2(2.0, 1.0), bulge),
+        (p2(1.0, 2.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
     ]);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => {
@@ -1373,11 +1367,11 @@ fn survives_wire_cosurface_pair_at_segment_zero() {
 fn probe_sliver_dihedral_arms() {
     let delta = 3.0 * eps();
     let bulge = (FRAC_PI_8 - delta / 2.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.0), bulge),
-        ProfileVertex::new(p2(1.0, 2.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(2.0, 0.0), 0.0),
+        (p2(2.0, 1.0), bulge),
+        (p2(1.0, 2.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
     ]);
     match Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness()) {
         Err(e) => println!("near-tangent arc: upstream validation: {e:?}"),
@@ -1407,12 +1401,12 @@ fn survives_wire_quarter_arc_sphere_cap_with_tangent_join() {
     // join at (1,1) is TANGENT (smooth, distinct keys): the D2
     // conventional split must survive in BOTH bands, and tier 3 must
     // accept it while the transverse base join upgrades.
-    let mut lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
+    let mut lp = bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(1.0, 0.0), 0.0),
         // quarter arc to (0, 2), center (0,1)
-        ProfileVertex::new(p2(1.0, 1.0), FRAC_PI_8.tan()),
-        ProfileVertex::new(p2(0.0, 2.0), 0.0),
+        (p2(1.0, 1.0), FRAC_PI_8.tan()),
+        (p2(0.0, 2.0), 0.0),
     ]);
     // The cylinder-sphere tangency this test is ABOUT is declared
     // (#101): the discipline gates the profile door; the D2 split and

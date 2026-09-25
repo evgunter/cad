@@ -49,7 +49,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
 
@@ -65,9 +65,9 @@ pub fn band() -> Band {
 /// A straight-walled square prism lofted between two identical
 /// sections — four PLANAR described-NURBS walls.
 pub fn prism() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0),
             v(2.0, 0.0),
             v(2.0, 2.0),
@@ -110,22 +110,22 @@ pub fn twisted_loft(theta: f64) -> Body<f64> {
 /// way is a different body, and only a row that measures the roll
 /// reads that datum at all.
 pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let (s, c) = theta.sin_cos();
     let rv = |x: f64, y: f64| {
         let (dx, dy) = (x - 1.0, y - 1.0);
-        ProfileVertex::new(
+        (
             Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy),
             0.0,
         )
     };
-    let square = vec![ProfileLoop::new(vec![
+    let square = vec![bulge_loop(vec![
         v(0.0, 0.0),
         v(2.0, 0.0),
         v(2.0, 2.0),
         v(0.0, 2.0),
     ])];
-    let rotated = vec![ProfileLoop::new(vec![
+    let rotated = vec![bulge_loop(vec![
         rv(0.0, 0.0),
         rv(2.0, 0.0),
         rv(2.0, 2.0),

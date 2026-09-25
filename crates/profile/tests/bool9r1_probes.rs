@@ -41,24 +41,24 @@
 
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, Step, Target,
-    lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target, lift_checked,
+    test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A table only the fixture door can spell: arcs of both signs, a
+/// A table only the fixture helpers can spell: arcs of both signs, a
 /// semicircle, a signed zero, declarations duplicated and out of
 /// order, then the whole thing reversed (so the joints are remapped).
 fn awkward() -> ProfileLoop<f64> {
-    <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, -0.0), 0.3),
-        ProfileVertex::new(p2(2.0, 0.0), -0.5),
-        ProfileVertex::new(p2(2.0, 2.0), 1.0),
-        ProfileVertex::new(p2(1.0, 3.0), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0), 0.123_456_789_012_3),
+    bulge_loop(vec![
+        (p2(0.0, -0.0), 0.3),
+        (p2(2.0, 0.0), -0.5),
+        (p2(2.0, 2.0), 1.0),
+        (p2(1.0, 3.0), 0.0),
+        (p2(0.0, 2.0), 0.123_456_789_012_3),
     ])
     .with_tangent_joints(vec![4, 1, 1, 0])
     .reversed()
@@ -66,11 +66,11 @@ fn awkward() -> ProfileLoop<f64> {
 
 /// `sweep/src/loft.rs::end_profile`'s walk before the unit, verbatim.
 fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
             .zip(lp.bulges())
-            .map(|(v, &b)| ProfileVertex::new(v.map(T::from_f64), T::from_f64(b)))
+            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -79,12 +79,12 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// `editor-core/src/eval/anchor.rs::embed_profile`'s walk before the
 /// unit, verbatim.
 fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
             .zip(lp.bulges())
             .map(|(vx, &b)| {
-                ProfileVertex::new(
+                (
                     Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
                     T::from_f64(b),
                 )
@@ -160,9 +160,9 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
 /// bit, exactly as the former walks carried it.
 #[test]
 fn r1_embed_is_total_on_a_poisoned_table() {
-    let src = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(f64::INFINITY, 0.0), f64::NAN),
-        ProfileVertex::new(p2(1.0, f64::NEG_INFINITY), -0.0),
+    let src = bulge_loop(vec![
+        (p2(f64::INFINITY, 0.0), f64::NAN),
+        (p2(1.0, f64::NEG_INFINITY), -0.0),
     ])
     .with_tangent_joints(vec![usize::MAX]);
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
@@ -233,11 +233,11 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
     let source = stadium();
     let n = source.vertices().len();
     for r in 0..n {
-        let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(
+        let reseamed: ProfileLoop<f64> = bulge_loop(
             (0..n)
                 .map(|k| {
                     let j = (k + r) % n;
-                    ProfileVertex::new(source.vertices()[j], source.bulges()[j])
+                    (source.vertices()[j], source.bulges()[j])
                 })
                 .collect(),
         )
@@ -274,11 +274,8 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
 /// The chain form seams at 0 and closes with the tangent arrival.
 #[test]
 fn r1_a_two_arc_circle_with_both_joints_declared_lifts() {
-    let circle = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 1.0),
-        ProfileVertex::new(p2(2.0, 0.0), 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1]);
+    let circle =
+        bulge_loop(vec![(p2(0.0, 0.0), 1.0), (p2(2.0, 0.0), 1.0)]).with_tangent_joints(vec![0, 1]);
     let outcome = lift_checked(&circle, Tol::witness());
     match &outcome {
         LiftOutcome::Lifted {

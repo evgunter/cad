@@ -39,7 +39,7 @@ test_utils::gated_to![
 use crate::common::oracles::chamfered_cube_volume;
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::chamfer::chamfer_edges;
 use sweep::{Extrusion, extrude};
@@ -50,11 +50,7 @@ use topo::{Body, EdgeKey};
 
 /// Extrude a convex polygon (counterclockwise vertices) by `h`.
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = ProfileLoop::new(
-        pts.iter()
-            .map(|&(x, y)| ProfileVertex::new(Point2::new(x, y), 0.0))
-            .collect(),
-    );
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a convex polygon validates");
@@ -244,10 +240,10 @@ fn a_skewed_wedge_chamfers_with_every_face_outward() {
 #[test]
 fn the_chamfers_probe_rows_are_exactly_its_own_questions() {
     use geom_core::k_stats::{self, Probe};
-    let lp: ProfileLoop<Probe> = ProfileLoop::new(
+    let lp: profile::ProfileLoop<Probe> = bulge_loop(
         [(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| ProfileVertex::new(Point2::new(Probe(x), Probe(y)), Probe(0.0)))
+            .map(|(x, y)| (Point2::new(Probe(x), Probe(y)), Probe(0.0)))
             .collect(),
     );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -306,9 +302,9 @@ fn a_dimpled_spacer_carries_its_ring_through_the_chamfer() {
     let ball = {
         use geom_core::{Affine3, Vec2, Vec3};
         use sweep::{Revolution, RevolveAxis, revolve};
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(Point2::new(0.0, -r), 1.0),
-            ProfileVertex::new(Point2::new(0.0, r), 0.0),
+        let lp = bulge_loop(vec![
+            (Point2::new(0.0, -r), 1.0),
+            (Point2::new(0.0, r), 0.0),
         ]);
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
             .validate(Tol::witness())

@@ -23,7 +23,6 @@
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
@@ -41,7 +40,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// Revolve a closed sketch loop about the sketch y-axis.
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
@@ -75,11 +74,11 @@ fn neck_flare(rev: Revolution<f64>) -> Body<f64> {
     let t30 = (30.0f64).to_radians().tan();
     revolved(
         vec![
-            ProfileVertex::new(p2(0.2, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 1.0), 0.0),
-            ProfileVertex::new(p2(1.0 - t30, 2.0), 0.0),
-            ProfileVertex::new(p2(0.2, 2.0), 0.0),
+            (p2(0.2, 0.0), 0.0),
+            (p2(1.0, 0.0), 0.0),
+            (p2(1.0, 1.0), 0.0),
+            (p2(1.0 - t30, 2.0), 0.0),
+            (p2(0.2, 2.0), 0.0),
         ],
         rev,
     )
@@ -131,10 +130,7 @@ fn full_and_partial_revolve_decide_the_same_honest_dihedral() {
 #[test]
 fn a_co_surface_seam_meridian_still_refuses_tangential_at_exactly_zero() {
     let ball = revolved(
-        vec![
-            ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            ProfileVertex::new(p2(0.0, 1.0), 0.0),
-        ],
+        vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)],
         Revolution::Full,
     );
     let sphere = SurfaceKindSet::just(SurfaceKind::Sphere);
@@ -186,10 +182,10 @@ fn a_dome_equator_rim_decides_convex_at_an_honest_lever() {
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     let dome = revolved(
         vec![
-            ProfileVertex::new(p2(0.5, 0.0), 0.0),
-            ProfileVertex::new(p2(1.0, 0.0), bulge),
-            ProfileVertex::new(p2(a45, a45), 0.0),
-            ProfileVertex::new(p2(0.5, a45), 0.0),
+            (p2(0.5, 0.0), 0.0),
+            (p2(1.0, 0.0), bulge),
+            (p2(a45, a45), 0.0),
+            (p2(0.5, a45), 0.0),
         ],
         Revolution::Full,
     );
@@ -225,11 +221,11 @@ fn a_boss_root_rim_decides_concave_at_an_honest_lever() {
     let bulge = (((0.2f64).acos() - core::f64::consts::FRAC_PI_6) / 4.0).tan();
     let boss = revolved(
         vec![
-            ProfileVertex::new(p2(0.2, 0.0), 0.0),
-            ProfileVertex::new(p2(2.0, 0.0), 0.0),
-            ProfileVertex::new(p2(2.0, 0.5), 0.0),
-            ProfileVertex::new(p2(rim_r, 0.5), bulge),
-            ProfileVertex::new(p2(0.2, bore_y), 0.0),
+            (p2(0.2, 0.0), 0.0),
+            (p2(2.0, 0.0), 0.0),
+            (p2(2.0, 0.5), 0.0),
+            (p2(rim_r, 0.5), bulge),
+            (p2(0.2, bore_y), 0.0),
         ],
         Revolution::Full,
     );

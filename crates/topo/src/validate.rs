@@ -2546,8 +2546,8 @@ impl fmt::Display for ValidationError {
                     RingContact::OuterVertexOnEdge { .. } => {
                         "where a corner of the outline meets an edge of the hole"
                     }
-                    RingContact::Circles { .. } => "where the two circles meet",
-                    RingContact::EdgesMeet { .. } => "where an edge of each crosses or touches",
+                    RingContact::Circles { .. } => "where the two circles cross or touch",
+                    RingContact::EdgesMeet { .. } => "where two of their edges cross or touch",
                 }
             ),
             Self::RingContactEscalated { source, .. } => write!(

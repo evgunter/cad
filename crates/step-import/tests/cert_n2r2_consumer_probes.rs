@@ -7,12 +7,12 @@ use std::sync::Arc;
 
 use geom::{NurbsSurface, Surface};
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::{ProfileLoop, test_support::bulge_loop};
 use topo::{Body, FaceKey, FaceSurface};
 
 fn square() -> Vec<ProfileLoop<f64>> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
-    vec![ProfileLoop::new(vec![
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
+    vec![bulge_loop(vec![
         v(-1.0, -1.0),
         v(1.0, -1.0),
         v(1.0, 1.0),

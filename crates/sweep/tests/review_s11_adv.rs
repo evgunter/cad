@@ -20,7 +20,9 @@ use crate::common::approx::band;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{OrthoFrame, Point3};
-use profile::{ArcSweep, Center, Open, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start};
+use profile::{
+    ArcSweep, Center, Open, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
+};
 use revolve_common::{assert_all_tiers, axis_y, p2, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -44,11 +46,11 @@ fn sense_of(body: &Body<f64>, f: FaceKey) -> bool {
 #[test]
 fn adv_mixed_convex_concave_hole() {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(6.0, 0.0), p2(6.0, 6.0), p2(0.0, 6.0)]);
-    let hole = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(2.0, 2.0), 0.5),
-        ProfileVertex::new(p2(4.0, 2.0), 0.0),
-        ProfileVertex::new(p2(4.0, 4.0), -0.5),
-        ProfileVertex::new(p2(2.0, 4.0), 0.0),
+    let hole = bulge_loop(vec![
+        (p2(2.0, 2.0), 0.5),
+        (p2(4.0, 2.0), 0.0),
+        (p2(4.0, 4.0), -0.5),
+        (p2(2.0, 4.0), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
@@ -196,15 +198,15 @@ fn adv_eye_slot_outer_and_hole_senses() {
 #[test]
 fn adv_asymmetric_downward_invariance() {
     let mk = || {
-        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            ProfileVertex::new(p2(0.0, 0.0), 0.0),
+        bulge_loop(vec![
+            (p2(0.0, 0.0), 0.0),
             // concave bite on the right edge
-            ProfileVertex::new(p2(3.0, 0.0), -0.4),
-            ProfileVertex::new(p2(3.0, 1.0), 0.0),
+            (p2(3.0, 0.0), -0.4),
+            (p2(3.0, 1.0), 0.0),
             // convex bulge on top, off-center
-            ProfileVertex::new(p2(3.0, 2.0), 0.7),
-            ProfileVertex::new(p2(1.0, 2.0), 0.0),
-            ProfileVertex::new(p2(0.0, 2.0), 0.0),
+            (p2(3.0, 2.0), 0.7),
+            (p2(1.0, 2.0), 0.0),
+            (p2(0.0, 2.0), 0.0),
         ])
     };
     let up = extrude(
@@ -299,13 +301,13 @@ fn adv_reversed_authoring_revolve_same_senses() {
 fn adv_bore_groove_torus_band() {
     // Only (1, 0.75) leaves on an arc: the semicircular groove cut
     // into the bore.
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(1.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 0.0), 0.0),
-        ProfileVertex::new(p2(2.0, 1.0), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0), 0.0),
-        ProfileVertex::new(p2(1.0, 0.75), -1.0),
-        ProfileVertex::new(p2(1.0, 0.25), 0.0),
+    let lp = bulge_loop(vec![
+        (p2(1.0, 0.0), 0.0),
+        (p2(2.0, 0.0), 0.0),
+        (p2(2.0, 1.0), 0.0),
+        (p2(1.0, 1.0), 0.0),
+        (p2(1.0, 0.75), -1.0),
+        (p2(1.0, 0.25), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),

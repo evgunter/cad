@@ -22,7 +22,7 @@ use profile::RawLoop;
 
 use common::*;
 use geom_core::Tol;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
@@ -60,10 +60,7 @@ fn notched() -> Body<f64> {
 /// walls are the reversed-sense population.
 fn hole_plate() -> Body<f64> {
     let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.0), p2(4.0, 4.0), p2(0.0, 4.0)]);
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(1.0, 2.0), 1.0),
-        ProfileVertex::new(p2(3.0, 2.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(1.0, 2.0), 1.0), (p2(3.0, 2.0), 1.0)]);
     let vp = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(geom_core::Tol::witness())
         .unwrap();

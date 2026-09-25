@@ -52,7 +52,7 @@ use std::fmt::Write as _;
 use geom::Surface;
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::chamfer::chamfer_edges;
@@ -360,11 +360,11 @@ fn bitdump_shell_open_box_corpus() {
         return;
     };
     let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(0.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(2.0, 0.0), 0.0),
-        ProfileVertex::new(Point2::new(2.0, 3.0), 0.0),
-        ProfileVertex::new(Point2::new(0.0, 3.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 3.0), 0.0),
+        (Point2::new(0.0, 3.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol)
@@ -478,12 +478,8 @@ fn bitdump_extrude_revolve_corpus() {
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
         extruded_by(name, loops, sweep::Extrusion::Distance(h))
     };
-    let circle = |cx: f64, cy: f64, r: f64| {
-        <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-            ProfileVertex::new(p2(cx - r, cy), 1.0),
-            ProfileVertex::new(p2(cx + r, cy), 1.0),
-        ])
-    };
+    let circle =
+        |cx: f64, cy: f64, r: f64| bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)]);
 
     let mut rows: Vec<(String, Body<f64>)> = vec![
         extruded(
@@ -514,15 +510,15 @@ fn bitdump_extrude_revolve_corpus() {
         extruded(
             "rounded square (tangent line-arc joins)",
             vec![
-                <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-                    ProfileVertex::new(p2(0.25, 0.0), 0.0),
-                    ProfileVertex::new(p2(0.75, 0.0), b),
-                    ProfileVertex::new(p2(1.0, 0.25), 0.0),
-                    ProfileVertex::new(p2(1.0, 0.75), b),
-                    ProfileVertex::new(p2(0.75, 1.0), 0.0),
-                    ProfileVertex::new(p2(0.25, 1.0), b),
-                    ProfileVertex::new(p2(0.0, 0.75), 0.0),
-                    ProfileVertex::new(p2(0.0, 0.25), b),
+                bulge_loop(vec![
+                    (p2(0.25, 0.0), 0.0),
+                    (p2(0.75, 0.0), b),
+                    (p2(1.0, 0.25), 0.0),
+                    (p2(1.0, 0.75), b),
+                    (p2(0.75, 1.0), 0.0),
+                    (p2(0.25, 1.0), b),
+                    (p2(0.0, 0.75), 0.0),
+                    (p2(0.0, 0.25), b),
                 ])
                 .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
             ],
@@ -530,11 +526,11 @@ fn bitdump_extrude_revolve_corpus() {
         ),
         extruded(
             "concave arc leg",
-            vec![<ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-                ProfileVertex::new(p2(0.0, 0.0), 0.0),
-                ProfileVertex::new(p2(3.0, 0.0), 0.0),
-                ProfileVertex::new(p2(3.0, 2.0), 0.0),
-                ProfileVertex::new(p2(0.0, 2.0), -0.4),
+            vec![bulge_loop(vec![
+                (p2(0.0, 0.0), 0.0),
+                (p2(3.0, 0.0), 0.0),
+                (p2(3.0, 2.0), 0.0),
+                (p2(0.0, 2.0), -0.4),
             ])],
             1.25,
         ),
@@ -558,15 +554,15 @@ fn bitdump_extrude_revolve_corpus() {
     rows.push(extruded_by(
         "rounded-corner prism, reversed (negative distance)",
         vec![
-            <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-                ProfileVertex::new(p2(0.25, 0.0), 0.0),
-                ProfileVertex::new(p2(0.75, 0.0), b),
-                ProfileVertex::new(p2(1.0, 0.25), 0.0),
-                ProfileVertex::new(p2(1.0, 0.75), b),
-                ProfileVertex::new(p2(0.75, 1.0), 0.0),
-                ProfileVertex::new(p2(0.25, 1.0), b),
-                ProfileVertex::new(p2(0.0, 0.75), 0.0),
-                ProfileVertex::new(p2(0.0, 0.25), b),
+            bulge_loop(vec![
+                (p2(0.25, 0.0), 0.0),
+                (p2(0.75, 0.0), b),
+                (p2(1.0, 0.25), 0.0),
+                (p2(1.0, 0.75), b),
+                (p2(0.75, 1.0), 0.0),
+                (p2(0.25, 1.0), b),
+                (p2(0.0, 0.75), 0.0),
+                (p2(0.0, 0.25), b),
             ])
             .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
         ],
