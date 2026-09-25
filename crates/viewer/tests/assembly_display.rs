@@ -344,7 +344,7 @@ fn fused_geometry_refuses_both_display_ops_typed() {
 #[test]
 fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
     let tol = Tol::witness();
-    let (mut session, a, _b, weld) = fused_pair("fusedgate", tol);
+    let (mut session, a, b, weld) = fused_pair("fusedgate", tol);
 
     assert!(
         display::instance_check(session.doc(), a).is_ok(),
@@ -371,6 +371,17 @@ fn a_fused_instances_section_is_drawn_and_its_display_controls_are_refused() {
         fault.to_string(),
         refusal.to_string(),
         "the pre-click sentence is the post-click one"
+    );
+    // The mapping itself, planted: what a reader is told under the
+    // disabled toggle. The coupling above survives any rewording of
+    // the fault; this line does not.
+    assert_eq!(
+        fault.to_string(),
+        format!(
+            "instance {}'s geometry is fused into node {} together with instance(s) {} — \
+             a display operation cannot address it separately",
+            a.0, weld.0, b.0
+        )
     );
 
     // And the free-move probe below the toggle answers the SAME fault

@@ -1287,12 +1287,20 @@ mod tests {
             }
             ref other => panic!("expected the driven refusal, got {other:?}"),
         }
+        let rendered = ViewerBehavior::probe_refusal(NODE, &row)
+            .expect("a driven slot is refused the probe")
+            .to_string();
         assert_eq!(
-            ViewerBehavior::probe_refusal(NODE, &row)
-                .expect("a driven slot is refused the probe")
-                .to_string(),
+            rendered,
             Refusal::affordance(&[thickness()], Some(current)),
             "and it renders as the ratified affordance, from its one home"
+        );
+        // The mapping itself, planted: the words a reader gets for this
+        // row. The coupling above holds under any rewording of the one
+        // home; this line does not.
+        assert_eq!(
+            rendered,
+            "driven by an expression over thickness (currently 0.004) — edit the expression?"
         );
     }
 
