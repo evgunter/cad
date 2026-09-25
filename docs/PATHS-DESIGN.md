@@ -372,9 +372,11 @@ from and no verb that follows it.
 It authors **no seam**. That is the load-bearing property. PQ4 (§6: a
 closed loop's seam sits at a junction or fillet; closing mid-side is
 refused) is a rule about CHAINS, and it is untouched — a chain still
-cannot close mid-carrier. The primitive lowers to ONE segment: a
-full turn (Δθ = 2π) on its carrier at one vertex, at +x (angle 0 from
-the centre). That vertex is where a swept wall's seam sits; it is not
+cannot close mid-carrier. The primitive lowers exactly as
+`circle_split(c, r, 1, 0)` does — one kernel — to ONE segment: a full
+turn (Δθ = 2π) on its carrier at one vertex, at +x (angle 0 from the
+centre). It stays its own verb in the program, so a program reads back
+as it was written. That vertex is where a swept wall's seam sits; it is not
 a junction anyone said, and nothing is declared tangent — there is no
 tangency to declare, it is one circle.
 

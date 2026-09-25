@@ -7,7 +7,8 @@ its two vertices, or a circular arc stored as centre, radius and signed
 sweep Δθ with |Δθ| ≤ 2π, so a full circle is one segment at one vertex.
 Vertices are stored verbatim and are authoritative; validation verifies
 that they lie on their carriers. The **bulge** b = tan(Δθ/4) (b = 0 a
-line) is an input form, lowered to the carrier form, and a derived view. Loops are authored through
+line) is the `arc_to(Bulge { p, b })` mode's input, lowered to the
+carrier form, and a derived view. Loops are authored through
 the PATHS algebra, a typestate lattice whose closing verbs return both
 the lowered `ProfileLoop` and the **program** that produced it (the verb
 sequence as data). In a document the program is the profile's

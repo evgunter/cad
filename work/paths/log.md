@@ -153,3 +153,18 @@ Z is offered as coherent. On q3 Ev asked whether `circle` should be
 sugar for `circle_split(n = 1)`. The proposed answer is one kernel,
 with `circle` kept as its own verb in the program so it reads back as
 written. Both q1 and q3 await Ev.
+
+## 2026-09-25 — Ev rules q1 (A2) and q3 on #3218; q4 reopens
+
+Ev chose A2 ("not super elegant but it seems principled and easy to work
+with") and agreed q3 (`circle` lowers through `circle_split`'s kernel
+with n = 1 and stays its own verb). The doc texts are re-worded to match.
+On q4 Ev had thought the vertex + bulge fixture door (`RawLoop`) was
+already gone, and finds it odd to keep bulge alive for that door alone.
+It is dev-only (absent from shipped builds since BOOL-9 / Q1 half ii).
+Its users are about 290 test files and a handful of in-crate `#[cfg(test)]`
+modules. The proposal is to keep the fixture door, since validate has
+to be tested on tables the algebra refuses, but have it take the
+canonical segments. `ProfileVertex` as a bulge record retires, and the
+fixtures migrate through a helper that calls the algebra's own `Bulge`
+lowering, so the only bulge→carrier converter left is the algebra's.
