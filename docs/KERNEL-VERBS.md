@@ -427,7 +427,9 @@ the table.
   class loud wherever it is minted: tier 3's check 9
   (`ValidationError::RingMeetsOuter`) refuses a ring that meets its
   face's own outer loop, in five arms — vertex-on-vertex,
-  vertex-on-edge-interior, edge-along-edge, and, on a planar face, the
+  vertex-on-edge-interior (a vertex of either loop on an edge of the
+  other, inside that edge's trim on a line and an arc alike),
+  edge-along-edge, and, on a planar face, the
   two loops crossing or touching at a point: two whole circles decided
   by centre distance against the radii's sum and difference, and every
   other `Line`/`Circle` edge pair by its carriers' closed-form meeting
