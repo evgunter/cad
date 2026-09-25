@@ -226,20 +226,25 @@ pub(crate) fn derive_naming(
         let mut found = None;
         'progs: for (pi, pl) in program_loops.iter().enumerate() {
             let pv = &pl.vertices();
-            let n = pv.len();
-            if n != cv.len() || n == 0 {
+            if pv.len() != cv.len() || pv.is_empty() {
                 continue;
             }
+            // An anchor stores its loop and count as `u32`; one that
+            // does not fit is no anchor, and the derivation fails typed
+            // rather than anchoring to a wrapped loop.
+            let program_loop = u32::try_from(pi).ok()?;
+            let n = u32::try_from(pv.len()).ok()?;
             let bits = |p: &geom_core::Point2<f64>| (p.x.to_bits(), p.y.to_bits());
             for reversed in [false, true] {
                 let a = LoopAnchor {
-                    program_loop: pi as u32,
+                    program_loop,
                     reversed,
-                    len: n as u32,
+                    len: n,
                 };
-                let vmap = |k: usize| a.vertex(k as u32) as usize;
-                let smap = |k: usize| a.segment(k as u32) as usize;
-                let positions_ok = (0..n).all(|k| bits(&cv[k].pos()) == bits(&pv[vmap(k)].pos()));
+                let vmap = |k: u32| a.vertex(k) as usize;
+                let smap = |k: u32| a.segment(k) as usize;
+                let positions_ok =
+                    (0..n).all(|k| bits(&cv[k as usize].pos()) == bits(&pv[vmap(k)].pos()));
                 if !positions_ok {
                     continue;
                 }
@@ -248,14 +253,18 @@ pub(crate) fn derive_naming(
                 let bulges_ok = (0..n).all(|k| {
                     let pb = pv[smap(k)].bulge();
                     let want = if reversed { -pb } else { pb };
-                    cv[k].bulge().to_bits() == want.to_bits()
+                    cv[k as usize].bulge().to_bits() == want.to_bits()
                 });
                 if !bulges_ok {
                     continue;
                 }
                 // Declared joints as SETS under the vertex map
                 // (canonical joints are canonical vertex indices).
-                let mut mapped: Vec<usize> = vl.tangent_joints().iter().map(|&j| vmap(j)).collect();
+                let mut mapped: Vec<usize> = vl
+                    .tangent_joints()
+                    .iter()
+                    .map(|&j| u32::try_from(j).ok().map(vmap))
+                    .collect::<Option<_>>()?;
                 mapped.sort_unstable();
                 let mut prog_joints = pl.tangent_joints().to_vec();
                 prog_joints.sort_unstable();
