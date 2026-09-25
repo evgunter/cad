@@ -606,3 +606,5 @@ mod decide_1_self_dot_interval;
 mod decide_3_split_rows_interval;
 #[path = "decide_6_read_cost_interval.rs"]
 mod decide_6_read_cost_interval;
+#[path = "decide_7_rule_g_cost_interval.rs"]
+mod decide_7_rule_g_cost_interval;

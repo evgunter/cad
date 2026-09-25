@@ -3310,6 +3310,8 @@ fn form_in(
             ];
             #[cfg(feature = "sym-profile-testing")]
             profile::clear_note();
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
@@ -3376,8 +3378,10 @@ fn form_in(
             profile::record_node(
                 node.op,
                 profile::Walk::of(early, registry),
+                id.bits(),
                 kids,
                 made.as_ref(),
+                t0,
             );
             made
         };

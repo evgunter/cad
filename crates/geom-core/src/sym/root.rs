@@ -196,6 +196,15 @@ use super::form::{Form, Poly};
 use super::rational::Rat;
 use super::{AtomInfo, Session, SymOp, indet_atom, manifest, mint_atom, signed};
 
+/// Names the branch the running `canonical` call takes
+/// (`profile::RootProfile`); nothing without the profile's feature.
+macro_rules! note {
+    ($branch:literal) => {
+        #[cfg(feature = "sym-profile-testing")]
+        super::profile::root_note($branch);
+    };
+}
+
 /// `p = c · p'` with `c > 0` the rational CONTENT and `p'` the
 /// primitive integer polynomial — the coefficients of `p` divided by
 /// the gcd of their magnitudes, so the sign of every coefficient, and
@@ -311,6 +320,15 @@ fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
 /// decides how a magnitude is NAMED, and rule F decides when one may
 /// be folded away.
 pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::root_begin();
+    let out = magnitude_atom_in(arg, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_abs_done(t0);
+    out
+}
+
+fn magnitude_atom_in(arg: &Form, sess: &mut Session) -> Option<Form> {
     let (k, primitive) = magnitude_key(arg)?;
     let a = atom(SymOp::Abs, primitive, sess);
     a.mul(&Form::poly(Poly::constant(k)), sess.budget)
@@ -331,7 +349,16 @@ pub(super) fn magnitude_atom(arg: &Form, sess: &mut Session) -> Option<Form> {
 /// order.
 fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     let f = sign_normalised(&Form::poly(r))?;
-    if let Some(m) = manifest::magnitude(&f, sess) {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let m = manifest::magnitude(&f, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_part(
+        "magnitude door (manifest; hit = |R| = R)",
+        t0,
+        m.as_ref().is_some_and(|m| *m == f),
+    );
+    if let Some(m) = m {
         return Some(m);
     }
     if sess.rules.signed_root
@@ -339,7 +366,7 @@ fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     {
         return Some(g);
     }
-    magnitude_atom(&f, sess)
+    magnitude_atom_in(&f, sess)
 }
 
 /// `sqrt(p)` in canonical form — the content split of the module
@@ -356,8 +383,12 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
         }
         return sqrt_rational(&c, sess);
     }
-    let (content, primitive) = content_split(p)?;
-    let (s, f) = content.split_square()?;
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let split = content_split(p).and_then(|(c, pr)| Some((c.split_square()?, pr)));
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_part("content split", t0, split.is_some());
+    let ((s, f), primitive) = split?;
     // `sqrt(R²) = |R|` — step 3, behind its own dial
     // (`SymRules::root_magnitude`), read as its conjunction with rule
     // G's so that it can only take the step AWAY. With the step off the
@@ -367,10 +398,16 @@ fn sqrt_poly(p: &Poly, sess: &mut Session) -> Option<Form> {
     // registrant's axiom; shut as a RETRY it recovered nothing on the
     // five documents SYM-9 measured, so no measured ladder shuts it.
     let magnitude = sess.rules.canonical_root && sess.rules.root_magnitude;
-    let base = match magnitude
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let root = magnitude
         .then(|| signed::poly_sqrt(&primitive, sess.budget))
-        .flatten()
-    {
+        .flatten();
+    #[cfg(feature = "sym-profile-testing")]
+    if magnitude {
+        super::profile::root_part("poly_sqrt", t0, root.is_some());
+    }
+    let base = match root {
         Some(r) => magnitude_of_root(r, sess)?,
         None => atom(SymOp::Sqrt, Form::poly(primitive), sess),
     };
@@ -395,27 +432,53 @@ struct Sign {
 /// caller keeps the opaque atom. **No source consults the session's
 /// atom table**; the header says why that cannot be one.
 fn denominator_sign(d: &Poly, sess: &Session) -> Option<Sign> {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let out = denominator_sign_in(d, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_part("side condition", t0, out.is_some());
+    out
+}
+
+fn denominator_sign_in(d: &Poly, sess: &Session) -> Option<Sign> {
     if let Some(c) = d.as_constant() {
+        note!("split: D constant");
         return (!c.is_zero()).then_some(Sign {
             negate: c.is_negative(),
             read: false,
         });
     }
     if manifest::nonneg(&Form::poly(d.clone()), sess) {
+        note!("split: D manifestly >= 0");
         return Some(Sign {
             negate: false,
             read: false,
         });
     }
     if manifest::nonneg(&Form::poly(d.neg()?), sess) {
+        note!("split: D manifestly <= 0");
         return Some(Sign {
             negate: true,
             read: false,
         });
     }
-    if sess.rules.signed_root
-        && let Some(r) = signed::enclose_poly(d, sess)
-    {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let read = if sess.rules.signed_root {
+        signed::enclose_poly(d, sess)
+    } else {
+        None
+    };
+    #[cfg(feature = "sym-profile-testing")]
+    if sess.rules.signed_root {
+        super::profile::root_part(
+            "side condition: certified read",
+            t0,
+            read.as_ref().is_some_and(|r| r.lo() > 0.0 || r.hi() < 0.0),
+        );
+    }
+    if let Some(r) = read {
+        note!("split: D read");
         if r.lo() > 0.0 {
             return Some(Sign {
                 negate: false,
@@ -429,13 +492,26 @@ fn denominator_sign(d: &Poly, sess: &Session) -> Option<Sign> {
             });
         }
     }
+    note!("declined: no sign for D");
     None
 }
 
 /// The canonical form of `sqrt(arg)`, or `None` where the rule
 /// declines and the caller keeps the opaque atom.
 pub(super) fn canonical(arg: &Form, sess: &mut Session) -> Option<Form> {
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::root_begin();
+    let out = canonical_in(arg, sess);
+    #[cfg(feature = "sym-profile-testing")]
+    if t0.is_some() {
+        super::profile::root_canonical_done(t0, arg.digest(), out.as_ref());
+    }
+    out
+}
+
+fn canonical_in(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.poisoned || arg.is_zero() {
+        note!("declined: poisoned or zero");
         return None;
     }
     exact_quotient_root(arg, sess).or_else(|| split(arg, sess))
@@ -449,8 +525,13 @@ fn exact_quotient_root(arg: &Form, sess: &mut Session) -> Option<Form> {
     if !(sess.rules.canonical_root && sess.rules.root_quotient) {
         return None;
     }
-    let q = arg.num.div_exact(&arg.den, sess.budget)?;
-    let mut out = sqrt_poly(&q, sess)?;
+    #[cfg(feature = "sym-profile-testing")]
+    let t0 = super::profile::clock();
+    let q = arg.num.div_exact(&arg.den, sess.budget);
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_part("div_exact", t0, q.is_some());
+    let mut out = sqrt_poly(&q?, sess)?;
+    note!("exact quotient");
     // Redundant under `combine`'s `gate()`, and kept: it matches the
     // split's own branch and holds the label wherever else `canonical`
     // is reached from.
@@ -462,7 +543,9 @@ fn exact_quotient_root(arg: &Form, sess: &mut Session) -> Option<Form> {
 /// through `sqrt_poly`, a quotient through `D`'s proved sign.
 fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.den.as_constant().is_some_and(|c| c == Rat::one()) {
+        note!("declined: den = 1, the root");
         let mut out = sqrt_poly(&arg.num, sess)?;
+        note!("den = 1");
         out.gated |= arg.gated;
         return Some(out);
     }
@@ -472,9 +555,14 @@ fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
     } else {
         (arg.num.clone(), arg.den.clone())
     };
+    #[cfg(feature = "sym-profile-testing")]
+    let branch = super::profile::root_noted();
+    note!("declined: a half's root");
     let num = sqrt_poly(&n, sess)?;
     let den = sqrt_poly(&d, sess)?;
     let mut out = num.mul(&den.recip()?, sess.budget)?;
+    #[cfg(feature = "sym-profile-testing")]
+    super::profile::root_renote(branch);
     out.gated |= arg.gated || sign.read;
     Some(out)
 }

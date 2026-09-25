@@ -25,7 +25,7 @@
 //! on the same thread, and takes it.
 
 use core::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 use std::time::{Duration, Instant};
 
 use super::form::Form;
@@ -74,7 +74,7 @@ pub enum FreezeCause {
 /// existed. They carry no attempt number — an attempt's own forms are
 /// in `DecisionRecord`'s attribution, and a bucket per attempt would
 /// make the ledger's shape depend on how long the ladder is.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Walk {
     /// Every atom opaque, rule A0 only.
     Plain,
@@ -155,6 +155,32 @@ pub struct OpProfile {
     pub max_terms_out: usize,
     /// The highest total degree any form built reached.
     pub max_degree_out: u32,
+    /// Wall time building every node of this kind, frozen ones
+    /// included: `combine`, the per-node reduction, rule E and the
+    /// budget check, by `Instant` ([`NodeCost::time`] per node).
+    pub time: Duration,
+}
+
+/// **One node's cost in one walk**, summed over every session that
+/// computed it — the per-node row [`SymProfile::node_delta`] joins two
+/// profiles on. A node id is a content hash of the DAG, and rule G
+/// changes no node of it, so two replays of one leaf under two rule
+/// sets visit the same ids and the join compares the SAME node's form
+/// under each.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NodeCost {
+    /// The op's tag (`SymOp::tag`).
+    pub op: u64,
+    /// Computations: one per session whose walk built it.
+    pub visits: u64,
+    /// Of those, frozen.
+    pub frozen: u64,
+    /// Numerator plus denominator terms of the forms built, summed.
+    pub terms: u64,
+    /// Total degree of the forms built, summed.
+    pub degree: u64,
+    /// Wall time building it, as [`OpProfile::time`] counts.
+    pub time: Duration,
 }
 
 /// One freeze: the node's op, the cause, the walk and its origin, and
@@ -325,6 +351,99 @@ pub struct SymProfile {
     pub opaque_ids: Vec<BTreeSet<u128>>,
     /// **The decision read's cost** ([`ReadProfile`]).
     pub read: ReadProfile,
+    /// **Rule G's own cost** ([`RootProfile`]).
+    pub root: RootProfile,
+    /// **Every node each walk built, by `(walk, node id)`** — the
+    /// per-node sizes and times [`Self::node_delta`] aligns.
+    pub node_costs: HashMap<(Walk, u128), NodeCost>,
+}
+
+/// **Rule G's own cost** (`sym::root`): the calls and wall time of the
+/// canonical root by the branch that answered or declined, the parts
+/// inside it, the `abs` node's atom door, and what the canonical form
+/// hands the walk in place of the one-term atom.
+///
+/// **`own` is the mint site's whole time and nothing else**: every
+/// OUTERMOST entry into rule G — `root::canonical` from `combine` or
+/// from `root::mint`, and `root::magnitude_atom` from `combine`'s `abs`
+/// arm — clocked once, so a nested entry is not counted twice. The
+/// rest of a walk's time is the rest of the walk: what it does with
+/// the forms rule G handed it.
+///
+/// A branch is the one [`root_note`] named last inside the call: the
+/// exact quotient, the polynomial argument (`den = 1`), the split by
+/// the side condition's source, or a decline by where it declined.
+/// A part is timed inside the call it belongs to, so the parts of one
+/// branch sum to at most that branch's time.
+#[derive(Clone, Debug, Default)]
+pub struct RootProfile {
+    /// `root::canonical`'s calls, whole, by branch.
+    pub branches: BTreeMap<&'static str, Timed>,
+    /// The parts inside it, with how many of each SUCCEEDED (a division
+    /// that was exact, a perfect-square search that found a root, a
+    /// side condition that proved a sign).
+    pub parts: BTreeMap<&'static str, (Timed, u64)>,
+    /// `root::magnitude_atom` asked by an `abs` NODE.
+    pub abs_door: Timed,
+    /// Rule G's own time: the outermost entries, summed.
+    pub own: Timed,
+    /// Calls whose argument form this session had already asked
+    /// `canonical` about, by digest — what a per-session memo keyed by
+    /// the argument would answer — and their time.
+    pub repeats: Timed,
+    /// Where `canonical` answered: the answers' terms (numerator plus
+    /// denominator) and total degree, summed, and how many carry a
+    /// non-constant denominator. The atom it stands in for is one term
+    /// of degree one over the constant one.
+    pub answered: u64,
+    /// See [`Self::answered`].
+    pub out_terms: u64,
+    /// See [`Self::answered`].
+    pub out_degree: u64,
+    /// See [`Self::answered`].
+    pub out_quotients: u64,
+}
+
+impl RootProfile {
+    /// Rule G's table, as text.
+    #[must_use]
+    pub fn render(&self) -> String {
+        use core::fmt::Write as _;
+        let mut f = String::new();
+        let _ = writeln!(
+            f,
+            "rule G own: {} outermost entries in {:?}; abs door {} in {:?}; \
+             repeated arguments {} in {:?}",
+            self.own.calls,
+            self.own.time,
+            self.abs_door.calls,
+            self.abs_door.time,
+            self.repeats.calls,
+            self.repeats.time
+        );
+        let calls: u64 = self.branches.values().map(|t| t.calls).sum();
+        let time: Duration = self.branches.values().map(|t| t.time).sum();
+        let _ = writeln!(f, "canonical: {calls} calls in {time:?}");
+        for (b, t) in &self.branches {
+            let _ = writeln!(f, "  branch {b:<34} {:6} in {:?}", t.calls, t.time);
+        }
+        for (p, (t, hit)) in &self.parts {
+            let _ = writeln!(
+                f,
+                "  part   {p:<34} {:6} ({hit} succeeded) in {:?}",
+                t.calls, t.time
+            );
+        }
+        let _ = writeln!(
+            f,
+            "answers: {} (mean terms {:.2}, mean degree {:.2}, {} with a non-constant denominator)",
+            self.answered,
+            mean(self.out_terms, self.answered),
+            mean(self.out_degree, self.answered),
+            self.out_quotients
+        );
+        f
+    }
 }
 
 /// **The decision read's cost** (`signed::decision`, and
@@ -487,6 +606,14 @@ thread_local! {
     static CLASSIFYING: Cell<bool> = const { Cell::new(false) };
     static READ_NOTE: RefCell<Option<String>> = const { RefCell::new(None) };
     static READ_DEEPEST: Cell<usize> = const { Cell::new(0) };
+
+    /// How deep inside rule G the thread is ([`RootProfile::own`]
+    /// clocks the outermost entry), the branch the call running last
+    /// named, and the argument digests this session's `canonical` has
+    /// seen ([`RootProfile::repeats`]).
+    static ROOT_DEPTH: Cell<u32> = const { Cell::new(0) };
+    static ROOT_BRANCH: Cell<Option<&'static str>> = const { Cell::new(None) };
+    static ROOT_SEEN: RefCell<BTreeSet<u128>> = const { RefCell::new(BTreeSet::new()) };
 }
 
 /// Installs the profile on this thread, dropping anything recorded.
@@ -618,11 +745,20 @@ fn degree(s: FormSize) -> u32 {
 }
 
 /// Records one node the walk visited: its kids' forms and what came of
-/// it — a form, or a freeze whose cause is the last note.
-pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 3], made: Option<&Form>) {
+/// it — a form, or a freeze whose cause is the last note — and the time
+/// since `t0`, taken before the node was combined.
+pub(super) fn record_node(
+    op: SymOp,
+    walk: Walk,
+    id: u128,
+    kids: [&Form; 3],
+    made: Option<&Form>,
+    t0: Option<Instant>,
+) {
     if !active() {
         return;
     }
+    let dt = elapsed(t0);
     let walk = walk.charged();
     let arity = op.arity();
     let sizes = [
@@ -641,6 +777,19 @@ pub(super) fn record_node(op: SymOp, walk: Walk, kids: [&Form; 3], made: Option<
         for s in sizes.into_iter().flatten() {
             o.terms_in += terms(s);
             o.degree_in += u64::from(degree(s));
+        }
+        o.time += dt;
+        let n = p.node_costs.entry((walk, id)).or_default();
+        n.op = tag;
+        n.visits += 1;
+        n.time += dt;
+        match made {
+            Some(f) => {
+                let s = size_of(f);
+                n.terms += terms(s);
+                n.degree += u64::from(degree(s));
+            }
+            None => n.frozen += 1,
         }
         let w = p.walks.entry((walk, origin)).or_default();
         w.forms += 1;
@@ -768,6 +917,7 @@ pub(super) fn session_start() {
     if active() {
         OPAQUE_LEAF.with(|s| s.borrow_mut().clear());
         READ_SEEN.with(|s| s.borrow_mut().clear());
+        ROOT_SEEN.with(|s| s.borrow_mut().clear());
     }
 }
 
@@ -898,6 +1048,106 @@ pub(super) fn record_opaque(id: u128) {
             s.borrow_mut().insert(id);
         });
     }
+}
+
+/// **Rule G is entered** — `root::canonical` or the `abs` node's door:
+/// the clock the matching `root_*_done` reads, one level deeper.
+pub(super) fn root_begin() -> Option<Instant> {
+    if !active() {
+        return None;
+    }
+    if ROOT_DEPTH.get() == 0 {
+        ROOT_BRANCH.set(None);
+    }
+    ROOT_DEPTH.set(ROOT_DEPTH.get() + 1);
+    Some(Instant::now())
+}
+
+/// One level out of rule G; `true` where the entry closing was the
+/// outermost.
+fn root_end() -> bool {
+    let d = ROOT_DEPTH.get().saturating_sub(1);
+    ROOT_DEPTH.set(d);
+    d == 0
+}
+
+/// **The branch the running `canonical` call took** — named at the arm
+/// that answered or declined; the last name before the call returns
+/// is its branch.
+#[inline]
+pub(super) fn root_note(branch: &'static str) {
+    if active() {
+        ROOT_BRANCH.set(Some(branch));
+    }
+}
+
+/// The branch noted so far — the split reads it before it asks the
+/// halves' roots, and [`root_renote`] puts it back once they answered.
+pub(super) fn root_noted() -> Option<&'static str> {
+    ROOT_BRANCH.get()
+}
+
+/// Puts back a branch [`root_noted`] read.
+pub(super) fn root_renote(branch: Option<&'static str>) {
+    if active() {
+        ROOT_BRANCH.set(branch);
+    }
+}
+
+/// One `root::canonical` call finished: its whole time under the branch
+/// it noted, whether its argument repeated one this session already
+/// asked, and the size of what it answered.
+pub(super) fn root_canonical_done(t0: Option<Instant>, arg: u128, out: Option<&Form>) {
+    let Some(start) = t0 else { return };
+    let dt = start.elapsed();
+    let outermost = root_end();
+    let branch = ROOT_BRANCH.take().unwrap_or("unnoted");
+    let repeat = !ROOT_SEEN.with(|s| s.borrow_mut().insert(arg));
+    let size = out.map(|f| (size_of(f), f.den.as_constant().is_none()));
+    with(|p| {
+        let r = &mut p.root;
+        let b = r.branches.entry(branch).or_default();
+        b.calls += 1;
+        b.time += dt;
+        if outermost {
+            r.own.calls += 1;
+            r.own.time += dt;
+        }
+        if repeat {
+            r.repeats.calls += 1;
+            r.repeats.time += dt;
+        }
+        if let Some((s, quotient)) = size {
+            r.answered += 1;
+            r.out_terms += terms(s);
+            r.out_degree += u64::from(degree(s));
+            r.out_quotients += u64::from(quotient);
+        }
+    });
+}
+
+/// One `abs` node's atom door (`root::magnitude_atom` from `combine`)
+/// finished.
+pub(super) fn root_abs_done(t0: Option<Instant>) {
+    let Some(start) = t0 else { return };
+    let dt = start.elapsed();
+    let outermost = root_end();
+    with(|p| {
+        timed(&mut p.root.abs_door, Some(start));
+        if outermost {
+            p.root.own.calls += 1;
+            p.root.own.time += dt;
+        }
+    });
+}
+
+/// One part inside rule G finished, and whether it succeeded.
+pub(super) fn root_part(part: &'static str, t0: Option<Instant>, hit: bool) {
+    with(|p| {
+        let e = p.root.parts.entry(part).or_default();
+        timed(&mut e.0, t0);
+        e.1 += u64::from(hit);
+    });
 }
 
 /// The kids' sizes over one `(cause, op)` class of freezes.
@@ -1042,6 +1292,113 @@ impl SymProfile {
         f
     }
 
+    /// **The same nodes under two profiles** — `self` against `other`
+    /// (rule G on against rule G off, say), joined on `(walk, node id)`.
+    /// Per walk: the nodes both built and their summed sizes and times
+    /// under each, how many grew and shrank, and the nodes only one of
+    /// them built with their time; then, over the aligned nodes, the
+    /// time and size per op under each, largest time difference first.
+    #[must_use]
+    pub fn node_delta(&self, other: &Self) -> String {
+        use core::fmt::Write as _;
+        #[derive(Default)]
+        struct Side {
+            nodes: u64,
+            visits: u64,
+            terms: u64,
+            degree: u64,
+            time: Duration,
+        }
+        impl Side {
+            fn add(&mut self, n: &NodeCost) {
+                self.nodes += 1;
+                self.visits += n.visits;
+                self.terms += n.terms;
+                self.degree += n.degree;
+                self.time += n.time;
+            }
+        }
+        let mut f = String::new();
+        let walks: BTreeSet<Walk> = self
+            .node_costs
+            .keys()
+            .chain(other.node_costs.keys())
+            .map(|(w, _)| *w)
+            .collect();
+        for walk in walks {
+            let (mut a, mut b) = (Side::default(), Side::default());
+            let (mut only_a, mut only_b) = (Side::default(), Side::default());
+            let (mut grew, mut shrank) = (0u64, 0u64);
+            let mut per_op: BTreeMap<u64, (Side, Side)> = BTreeMap::new();
+            for ((w, id), n) in &self.node_costs {
+                if *w != walk {
+                    continue;
+                }
+                match other.node_costs.get(&(walk, *id)) {
+                    Some(m) => {
+                        a.add(n);
+                        b.add(m);
+                        let (x, y) = (n.terms * m.visits, m.terms * n.visits);
+                        grew += u64::from(x > y);
+                        shrank += u64::from(x < y);
+                        let e = per_op.entry(n.op).or_default();
+                        e.0.add(n);
+                        e.1.add(m);
+                    }
+                    None => only_a.add(n),
+                }
+            }
+            for ((w, id), m) in &other.node_costs {
+                if *w == walk && !self.node_costs.contains_key(&(walk, *id)) {
+                    only_b.add(m);
+                }
+            }
+            let _ = writeln!(
+                f,
+                "{walk:?}: aligned {} nodes (visits {} / {}): terms {} / {} (mean {:.2} / {:.2}), \
+                 degree {} / {}, time {:?} / {:?}; {grew} grew, {shrank} shrank; \
+                 only here {} nodes in {:?}, only there {} nodes in {:?}",
+                a.nodes,
+                a.visits,
+                b.visits,
+                a.terms,
+                b.terms,
+                mean(a.terms, a.visits),
+                mean(b.terms, b.visits),
+                a.degree,
+                b.degree,
+                a.time,
+                b.time,
+                only_a.nodes,
+                only_a.time,
+                only_b.nodes,
+                only_b.time,
+            );
+            let mut ops: Vec<(u64, (Side, Side))> = per_op.into_iter().collect();
+            ops.sort_by(|(_, (x, y)), (_, (u, v))| {
+                let d1 = x.time.as_secs_f64() - y.time.as_secs_f64();
+                let d2 = u.time.as_secs_f64() - v.time.as_secs_f64();
+                d2.total_cmp(&d1)
+            });
+            for (tag, (x, y)) in ops {
+                let _ = writeln!(
+                    f,
+                    "  {:8} {:7} nodes: time {:?} / {:?}, mean terms {:.2} / {:.2}, \
+                     mean degree {:.2} / {:.2}",
+                    self.op_name(Some(tag)),
+                    x.nodes,
+                    x.time,
+                    y.time,
+                    mean(x.terms, x.visits),
+                    mean(y.terms, y.visits),
+                    mean(x.degree, x.visits),
+                    mean(y.degree, y.visits),
+                );
+            }
+        }
+        f
+    }
+
     /// The tables, as text: totals; each walk by origin; the early
     /// walk's inner clocks; the ring; per op; freezes by cause and op.
     #[must_use]
@@ -1091,7 +1448,7 @@ impl SymProfile {
         );
         let _ = writeln!(
             f,
-            "op       | built | frozen | terms in->out (mean) | degree in->out (mean) | max terms | max degree"
+            "op       | built | frozen | terms in->out (mean) | degree in->out (mean) | max terms | max degree | time"
         );
         let mut ops: Vec<&OpProfile> = self.ops.values().collect();
         ops.sort_by(|a, b| a.op.cmp(&b.op));
@@ -1099,7 +1456,7 @@ impl SymProfile {
             let n = o.built + o.frozen;
             let _ = writeln!(
                 f,
-                "{:8} | {:5} | {:6} | {:8.1} -> {:8.1} | {:6.1} -> {:6.1} | {:9} | {:10}",
+                "{:8} | {:5} | {:6} | {:8.1} -> {:8.1} | {:6.1} -> {:6.1} | {:9} | {:10} | {:?}",
                 o.op,
                 o.built,
                 o.frozen,
@@ -1108,7 +1465,8 @@ impl SymProfile {
                 mean(o.degree_in, n),
                 mean(o.degree_out, o.built),
                 o.max_terms_out,
-                o.max_degree_out
+                o.max_degree_out,
+                o.time
             );
         }
         if !self.freezes.is_empty() {
