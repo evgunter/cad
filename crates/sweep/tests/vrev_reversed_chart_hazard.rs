@@ -47,9 +47,10 @@ fn reversing_a_chart_under_its_face_strands_the_parameters_on_it() {
         topo::validate(&body).is_ok(),
         "the lofted body validates structurally before the surgery"
     );
-    assert!(
-        topo::validate_geometric_structural(&body, tol).is_ok(),
-        "and geometrically-structurally too: the pcurves match their charts"
+    assert_eq!(
+        topo::validate_geometric(&body, tol),
+        Ok(()),
+        "and geometrically too: the pcurves match their charts"
     );
 
     let faces: Vec<_> = body.faces().map(|(fk, f)| (fk, f.surface)).collect();

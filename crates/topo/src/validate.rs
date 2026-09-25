@@ -3386,8 +3386,9 @@ pub fn validate_geometric_declared<
 /// caller takes the certified half without the structural one, so no
 /// body is blessed by a volume claim while its geometry went
 /// unchecked. Returning the certificate does not move that seam — the
-/// structural half still runs first and still short-circuits, and it
-/// makes no certificate of its own to return.
+/// structural phase still runs first and still short-circuits, and it
+/// runs without check 7, so it makes no certificate of its own to
+/// return.
 ///
 /// # Errors
 ///
@@ -3400,7 +3401,7 @@ pub fn validate_geometric_certificate_declared<
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    // The structural half runs WITH check 2's plane x NURBS lane
+    // The structural phase runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
     // whose bound cannot name the lane, runs without it.
@@ -3745,7 +3746,7 @@ pub(crate) fn material_arm_error(
 /// certification right. Its `Err` is the battery's vector and differs
 /// from the composed door's in one stated way: its check 7 is gated on
 /// checks 1-6 only, where the composed door gates on the whole
-/// structural half. [`contact_marks_structural`] is the same pass
+/// structural phase. [`contact_marks_structural`] is the same pass
 /// holding neither lane, at every scalar with a bracket.
 ///
 /// **No `_certificate` form**, and that is a roster decision rather

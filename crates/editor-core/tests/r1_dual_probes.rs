@@ -624,10 +624,9 @@ fn r1_e2e_consumer_drive_at_dual64() {
                 );
                 // The friction DL3 is about, made visible on a body the
                 // service just handed back. What a dual can take is the
-                // STRUCTURAL half of the validator; the composed door
-                // carries the certified half's bound and cannot be
-                // called here at all, so the friction is now the
-                // narrower verdict rather than a refusal. What DL3
+                // validator's `_structural` twin, holding no certified
+                // lane; the composed door carries the certified half's
+                // bound and cannot be called here at all. What DL3
                 // removes is still the evaluation service's CALL.
                 match topo::validate_geometric_structural(&p.body, tol) {
                     Ok(()) => println!(
@@ -667,12 +666,12 @@ fn r1_e2e_consumer_drive_at_dual64() {
     }
 
     // The friction DL3 is about, made visible. The door a dual can take
-    // is the validator's STRUCTURAL half; the composed entry carries the
-    // +V invariant's certified bound and cannot be called here at all,
-    // so the friction is a narrower verdict rather than a refusal — and
-    // narrower in both directions, since the structural half reports no
-    // orientation verdict either. What DL3 removes is still the
-    // evaluation service's CALL, not the door.
+    // is the validator's `_structural` twin; the composed entry carries
+    // the +V invariant's certified bound and cannot be called here at
+    // all, so the friction is the twin's narrower reach — check 7 through
+    // the closed form, which refuses typed where the certified quadrature
+    // would have answered. What DL3 removes is still the evaluation
+    // service's CALL, not the door.
     let ev_d = eval::<Dual64>(&study);
     if let Some(editor_core::NodeResult::Ok(v)) = ev_d.result(tool) {
         let _ = v; // the datum node itself carries no body
@@ -761,13 +760,15 @@ fn r1_is_dl3s_measured_problem_reproducible() {
             continue;
         };
         gathered += 1;
-        // The dual column is the STRUCTURAL half — the composed door is
-        // not callable at a dual — and the f64 column stays the composed
-        // one, so the two columns differ by the +V volume invariant as
-        // well as by the scalar. DL3's measurement is about which
-        // refusals a dual product collects, and every refusal class the
-        // finding names (`ApproxLaneUnsupported`, `CensusUnsupported`)
-        // is raised in the structural half.
+        // The dual column is the `_structural` twin — the composed door
+        // is not callable at a dual — and the f64 column stays the
+        // composed one, so the two columns differ by the lanes held
+        // (check 7 through the closed form rather than the certified
+        // quadrature) as well as by the scalar. DL3's measurement is
+        // about which refusals a dual product collects, and every refusal
+        // class the finding names (`ApproxLaneUnsupported`,
+        // `CensusUnsupported`, the closed form's `VolumeUncomputable`) is
+        // raised at the twin.
         let d = topo::validate_geometric_structural(&pd.body, tol);
         let f = product_recorded(&doc.doc, &ev_f, tol)
             .ok()

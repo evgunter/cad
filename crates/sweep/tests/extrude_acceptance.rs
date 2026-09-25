@@ -661,12 +661,11 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
         Tol::witness(),
     )
     .unwrap();
-    // The dual takes the structural half: checks 1-6, 8 and 9, which is
-    // where the certificates compared below are produced. The one check
-    // it does not run is the +V volume invariant, whose enclosure a
-    // dual may not certify — and the f64 row beside it runs the
-    // composed door on the same construction, so this is a narrower
-    // assertion about the same body rather than a weaker subject.
+    // The dual takes the `_structural` twin: the whole battery holding no
+    // certified lane (check 7 through the closed form, which computes on
+    // this planar body), and where the certificates compared below are
+    // produced — and the f64 row beside it runs the composed door on the
+    // same construction, so both scalars answer the same question.
     assert_eq!(
         topo::validate_geometric_structural(&d.body, Tol::witness()),
         Ok(())
