@@ -4072,6 +4072,14 @@ class ImportReport:
     second time over the same body at the same band, and answers the
     same four fields bit for bit.
 
+    The gate decides each solid's volume SIGN, so it admits a valid
+    body whose volume is not measurable at this ε (a large rational
+    wall whose quadrature exhausts its schedule). The import still
+    succeeds; reading `enclosure` on such a report raises the same
+    measurement refusal `Body.validate_geometric_measured` raises,
+    carrying `volume_lo`/`volume_hi`/`surface_area` when the schedule
+    ran out.
+
     The three record lists are the adoption's own report, as data
     rather than prose: every boundary graph re-minted, every NURBS
     curve carrier adopted as an analytic one, and one assembly row per

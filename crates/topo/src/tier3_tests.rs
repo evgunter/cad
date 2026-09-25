@@ -1604,16 +1604,17 @@ fn two_ordinary_solids_in_one_body_certify() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
-/// **The number a multi-solid body's certificate door hands back is
+/// **The number a multi-solid body's certificate door continues to is
 /// the whole-body measurement, bit for bit.**
 ///
-/// Check 7's subject is a SOLID, so over several solids no subject's
-/// read is the body's and the tier-3′ door takes a further arena-wide
-/// reporting read for its return value
-/// (`work/atrest/the-multi-solid-reporting-quadrature-is-unscheduled`).
-/// That read carries exactly one promise — that it is the number
-/// [`crate::mass_properties`] would give — and this row is what reds if
-/// the two ever diverge.
+/// Check 7's subject is a SOLID, so the tier-3′ door's certificate is
+/// the per-solid walks assembled into face-arena order, and the number
+/// a caller asks of it is that assembly continued to the reporting
+/// target. The continuation carries exactly one promise — that it is
+/// the number [`crate::mass_properties`] would give — and this row is
+/// what reds if the two ever diverge. (That no further arena-wide read
+/// is taken is a COUNT, and it lives where a quadrature body can be
+/// built: `sweep`'s `tcost_k3_certificate`.)
 #[test]
 fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     let tol = Tol::witness();
@@ -1623,7 +1624,9 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
     let certified =
         crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
-            .expect("two ordinary cubes certify");
+            .expect("two ordinary cubes certify")
+            .refine_to_target()
+            .expect("two ordinary cubes measure");
     let measured = crate::mass_properties(&body, tol).expect("the cubes measure");
     assert_eq!(
         (
@@ -1638,7 +1641,56 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             measured.volume_pad.to_bits(),
             measured.area_pad.to_bits()
         ),
-        "the door's reporting read is the measurement door's"
+        "the door's certificate, continued, is the measurement door's"
+    );
+}
+
+/// **A `_structural` certificate is continued at a scalar that may not
+/// certify, to the closed form's own number.**
+///
+/// `SignCertificate`'s continuation is generic over `Decide`, so the
+/// certificate the no-lane tier-3′ door hands back at a
+/// [`geom_core::Dual64`] can be asked for its number: it carries no lane,
+/// every face is closed-form and finished at round 0, and the
+/// continuation is the fold of what it holds. That fold must BE
+/// [`crate::mass_properties_structural`] on the same body — value and
+/// derivative, compared through `Debug` (which renders every `f64`
+/// round-trip exactly) — over two solids, so the assembly re-orders
+/// real parts.
+#[test]
+fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
+    use geom_core::Dual64;
+    use geom_core::Real as _;
+    let tol = Tol::witness();
+    let mut body = Body::<Dual64>::new();
+    for (ox, s) in [(0.0, 1.0), (5.0, 0.5)] {
+        crate::test_support_fixtures::cube_into(
+            &mut body,
+            move |x, y, z| {
+                Point3::new(
+                    Dual64::from_f64(ox + x * s),
+                    Dual64::from_f64(y * s),
+                    Dual64::from_f64(z * s),
+                )
+            },
+            tol,
+        );
+    }
+    assert_eq!(body.solids().count(), 2, "two boxes are two solids");
+    let continued = crate::validate_pseudomanifold_certificate_structural(
+        &body,
+        &crate::ContactRecords::default(),
+        tol,
+    )
+    .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
+    .refine_to_target()
+    .expect("a closed-form certificate's continuation cannot refuse");
+    let measured =
+        crate::mass_properties_structural(&body, tol).expect("the closed form measures two boxes");
+    assert_eq!(
+        format!("{continued:?}"),
+        format!("{measured:?}"),
+        "the continued no-lane certificate is the closed form's own measurement"
     );
 }
 

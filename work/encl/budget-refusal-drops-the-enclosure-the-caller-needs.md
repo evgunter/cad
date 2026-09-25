@@ -79,3 +79,22 @@ certificate.
 This does not touch the reporting contract or the quadrature
 schedule — it is about what a refusal CARRIES, not about which bodies
 refuse.
+
+## 2026-09-24 — the classification has one home (ATREST-3, PR #3191)
+
+`topo::SignCertificate::measure` continues a certificate and, on a
+refusal, answers `topo::TargetUnreached { refusal, bracket }`, whose
+`bracket` is the sign-level enclosure exactly when the refusal is a
+face's `QuadratureBudget` — shape (1) above, as a sibling of
+`refine_to_target` rather than a change to its error type. Its callers
+now: `step-import`'s `gate3` (the import ships the `Result` on
+`StepImport::Solid::enclosure`), `pncad-py`'s
+`Body::validate_geometric_measured` and `ImportReport.enclosure`
+(through one `unreached_err`), and the tour's `continued` helper. No
+consumer matches `geom_brep::PropsError` for this any more.
+**Not taken up**: the tour's teapot spout probe
+(`demos/tour/src/teapot.rs`) measures through `mass_properties`
+directly, not through a certificate, so it still has no bracket to
+print; switching it to `validate_geometric_certificate(..).measure()`
+is the remaining consumer-side step. `refine_to_target` keeps its
+`MassPropsError` for its other callers.
