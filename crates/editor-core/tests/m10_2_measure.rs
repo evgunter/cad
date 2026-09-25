@@ -1170,3 +1170,55 @@ fn the_measurement_nodes_carry_no_slots() {
         assert!(node.expr(SlotId::Distance).is_none());
     }
 }
+
+/// A document whose one root is an extrude of a `.cusp()` lune
+/// evaluates, and the product gate refuses it `UndeclaredCusp`: the
+/// extrude carries the declaration (`Extruded::declared_contacts`) but
+/// the recipe layer drops it and the gate reads none. The red-first row
+/// of `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
+/// which flips it to gathering.
+#[test]
+fn a_cusp_extrude_document_refuses_at_the_product_gate() {
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive("cusp-extrude-lune"), Tol::witness()),
+        xy_frame(),
+    );
+    let lune = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(4.0)]),
+        ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Turn(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+        ProgramStep::Cusp,
+        ProgramStep::TangentArcTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![lune],
+        }),
+    );
+    let (doc, ex) = mint(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.result(ex), Some(NodeResult::Ok(_))),
+        "the cusp extrude evaluates"
+    );
+    // TODAY: refuses at the aggregate gate. The gather item's red-first
+    // row flips this to `Ok`.
+    let err = editor_core::product(&doc, &ev, Tol::witness())
+        .map(|b| b.solids().count())
+        .expect_err("the product gate reads no declarations yet");
+    let rendered = format!("{err:?}");
+    assert!(
+        rendered.starts_with("ProductInvalid") && rendered.contains("UndeclaredCusp"),
+        "{rendered}"
+    );
+}

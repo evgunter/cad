@@ -3,8 +3,9 @@
 //! segment, the sketch-level quantities derived from it (apex, span,
 //! turn-signed axis), the arc material-side rule, the edge spec a
 //! placed segment mints, the cap-plane point list, the cosurface
-//! decision, and the two crate-wide accessors (the classification
-//! funnel, a face's surface key).
+//! decision, the wall pairing a profile's declared cusp joints carry
+//! out as contacts ([`cusp_contacts`]), and the two crate-wide
+//! accessors (the classification funnel, a face's surface key).
 //!
 //! This module is a sibling of the sweep verbs, not a member of one:
 //! its consumers are `extrude`, `revolve` and `loft`, and a core
@@ -743,99 +744,8 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
     Ok(())
 }
 
-/// A declared joint whose heading could not be decided: the loop and
-/// canonical vertex it sits at, and the predicate layer's diagnostic.
-/// Each verb re-types it on its own error enum.
-#[derive(Clone, Debug)]
-pub(crate) struct CuspHeadingEscalation {
-    /// Canonical index of the loop.
-    pub(crate) loop_index: usize,
-    /// Canonical index of the joint vertex.
-    pub(crate) vertex_index: usize,
-    /// The predicate-layer escalation.
-    pub(crate) source: Indeterminate,
-}
-
-/// The unit heading of a canonical segment at one of its endpoints,
-/// in canonical traversal: a line's chord direction, an arc's
-/// counterclockwise tangent at `p` flipped for a clockwise turn (a
-/// `Zero` turn is unreachable for a classified arc and takes the
-/// counterclockwise arm, [`centre_on_material_side`]'s posture).
-fn canonical_heading<T: Real>(s: &profile::ValidatedSegment<T>, p: Point2<T>) -> Vec2<T> {
-    match s.kind {
-        profile::SegmentKind::Line => (s.end - s.start).normalize(),
-        profile::SegmentKind::Arc { center, turn, .. } => {
-            let r = p - center;
-            let ccw = Vec2::new(-r.y, r.x).normalize();
-            if matches!(turn, Sign::Negative) {
-                -ccw
-            } else {
-                ccw
-            }
-        }
-    }
-}
-
-/// **Which of a loop's declared tangent joints are CUSPS** — the
-/// canonical vertices, ascending, at which the leaving segment departs
-/// along the arriving segment's heading REVERSED.
-///
-/// A declared joint is one of two things once validation has verified
-/// its tangency ([`profile::ValidatedLoop::tangent_joints`]): a smooth
-/// continuation, whose two walls meet at wedge π and need nothing, or
-/// a reversal — the `.cusp()` door's joint, and any raw-authored joint
-/// of the same shape — whose walls meet at wedge 0 (an outer's
-/// crescent) or 2π (a hole's slit). Tier 3 holds those two ends legal
-/// exactly where a `Tangent` contact is declared on the wall pair, and
-/// the profile's declaration is that declaration; this is the reading
-/// that says which joints carry one. The profile records the joint,
-/// not its direction, so the direction is decided here, once per
-/// joint, from the canonical segments — and reversal-invariant, since
-/// reversing a loop negates both headings.
-///
-/// The **`declared_joint_heading`** predicate — margin: the dot of the
-/// two unit headings, levered by the shorter of the two chords (the
-/// separation, over that leg, between the arriving ray continued and
-/// the leaving one). Positive is a continuation, negative a cusp. A
-/// verified tangent joint's headings are parallel or antiparallel, so
-/// the margin is ± the arm and a validated profile cannot land it in
-/// band: an escalation is surfaced rather than trusted (the
-/// `CapPlane` posture).
-pub(crate) fn declared_cusp_joints<T: Decide>(
-    lp: &profile::ValidatedLoop<T>,
-    loop_index: usize,
-    band: Band,
-) -> Result<Vec<usize>, CuspHeadingEscalation> {
-    let segs = lp.segments();
-    let n = segs.len();
-    let mut cusps = Vec::new();
-    for &v in lp.tangent_joints() {
-        let (arriving, leaving) = (&segs[(v + n - 1) % n], &segs[v]);
-        let dot = canonical_heading(arriving, arriving.end)
-            .dot(canonical_heading(leaving, leaving.start));
-        let arm = (arriving.end - arriving.start)
-            .norm()
-            .min((leaving.end - leaving.start).norm());
-        match geom_core::k_stats::decide_nonzero(
-            "declared_joint_heading",
-            Margin::levered(dot, arm),
-            band,
-        ) {
-            Ok(geom_core::k_stats::NonzeroSign::Positive) => {}
-            Ok(geom_core::k_stats::NonzeroSign::Negative) => cusps.push(v),
-            Err(source) => {
-                return Err(CuspHeadingEscalation {
-                    loop_index,
-                    vertex_index: v,
-                    source,
-                });
-            }
-        }
-    }
-    Ok(cusps)
-}
-
-/// The `Tangent` contact a declared cusp joint implies, per joint, in
+/// The `Tangent` contact a declared cusp joint
+/// ([`profile::ValidatedLoop::cusp_joints`]) implies, per joint, in
 /// the order given: the walls of the two CANONICAL segments meeting at
 /// the joint — `(v − 1 mod n, v)`, arriving wall first — which are the
 /// two faces of the edge the joint sweeps. `wall(s)` is the face canonical

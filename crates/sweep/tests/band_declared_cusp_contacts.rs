@@ -271,3 +271,157 @@ fn loft_carries_the_cusp_seam() {
         Ok(())
     );
 }
+
+/// The lune authored RAW (bulges + `with_tangent_joints`), not through
+/// the `.cusp()` door: the joint carries the same record.
+fn raw_lune() -> ProfileLoop<f64> {
+    bulge_loop(vec![
+        (p2(0.0, 4.0), 0.0),
+        (p2(0.0, 2.0), -1.0),
+        (p2(0.0, 0.0), 1.0),
+    ])
+    .with_tangent_joints(vec![2])
+}
+
+fn filleted_block(x0: f64) -> ProfileLoop<f64> {
+    let q = 0.25;
+    let b = core::f64::consts::FRAC_PI_8.tan();
+    bulge_loop(vec![
+        (p2(x0 + q, 0.0), 0.0),
+        (p2(x0 + 1.0 - q, 0.0), b),
+        (p2(x0 + 1.0, q), 0.0),
+        (p2(x0 + 1.0, 1.0 - q), b),
+        (p2(x0 + 1.0 - q, 1.0), 0.0),
+        (p2(x0 + q, 1.0), b),
+        (p2(x0, 1.0 - q), 0.0),
+        (p2(x0, q), b),
+    ])
+    .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
+}
+
+#[test]
+fn a_raw_authored_cusp_carries_like_the_door() {
+    let profile = validated(vec![raw_lune()]);
+    assert_eq!(profile.loops()[0].tangent_joints(), &[2]);
+    for d in [1.0, -1.0] {
+        let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
+        carries_exactly_its_cusps(
+            &built.body,
+            &built.declared_contacts,
+            MaterialWedge::Cusp,
+            1,
+        );
+    }
+}
+
+#[test]
+fn a_hole_cusp_carries_its_slit_at_either_sign_and_either_winding() {
+    let plate = bulge_loop(vec![
+        (p2(-1.0, -1.0), 0.0),
+        (p2(3.0, -1.0), 0.0),
+        (p2(3.0, 5.0), 0.0),
+        (p2(-1.0, 5.0), 0.0),
+    ]);
+    // Hole authored the "right" (CW) way AND the wrong way.
+    for hole in [lune(), raw_lune()] {
+        let profile = validated(vec![plate.clone(), hole]);
+        for d in [1.0, -1.0] {
+            let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
+            carries_exactly_its_cusps(
+                &built.body,
+                &built.declared_contacts,
+                MaterialWedge::Slit,
+                1,
+            );
+        }
+    }
+}
+
+#[test]
+fn revolve_and_loft_carry_nothing_for_smooth_joints() {
+    let axis = RevolveAxis {
+        origin: p2(0.0, 0.0),
+        dir: Vec2::new(0.0, 1.0),
+    };
+    let profile = validated(vec![filleted_block(2.0)]);
+    for revolution in [Revolution::Partial(1.0), Revolution::Full] {
+        let built = revolve(&profile, axis, revolution, Tol::witness()).unwrap();
+        assert_eq!(built.declared_contacts, []);
+        assert_eq!(
+            topo::validate_geometric(&built.body, Tol::witness()),
+            Ok(())
+        );
+    }
+    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+        .iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect();
+    let built = loft_body::<f64>(
+        &[vec![filleted_block(0.0)], vec![filleted_block(0.0)]],
+        &places,
+        1,
+        Tol::witness(),
+    )
+    .expect("the block lofts");
+    assert_eq!(built.declared_contacts, []);
+}
+
+fn crescent_raw(far: Point2<f64>, declared: bool) -> ProfileLoop<f64> {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let lp = bulge_loop(vec![
+        (p2(1.0, 0.0), (std::f64::consts::PI / 16.0).tan()),
+        (p2(h, h), 0.0),
+        (far, 0.0),
+    ]);
+    if declared {
+        lp.with_tangent_joints(vec![1])
+    } else {
+        lp
+    }
+}
+
+/// Sections that DISAGREE at one joint: a cusp in one, a corner in the
+/// other, same arc (so the loft's pcurve lane admits it).
+#[test]
+fn a_loft_whose_sections_disagree_carries_the_cusp_seam() {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    let a = crescent_raw(p2(2.0 * h, 0.0), true);
+    let b = crescent_raw(p2(1.5, 0.2), false);
+    let va = validated(vec![a.clone()]);
+    let vb = validated(vec![b.clone()]);
+    assert_eq!(
+        vb.loops()[0].tangent_joints(),
+        &[] as &[usize],
+        "B's joint is a corner"
+    );
+    let j = va.loops()[0].tangent_joints()[0];
+    let places: Vec<Affine3<f64>> = [0.0, 1.0]
+        .iter()
+        .map(|z| Affine3::translation(Vec3::new(0.0, 0.0, *z)))
+        .collect();
+    for sections in [
+        [vec![a.clone()], vec![b.clone()]],
+        [vec![b.clone()], vec![a.clone()]],
+    ] {
+        let built = loft_body::<f64>(&sections, &places, 1, Tol::witness())
+            .expect("mixed sections loft (same arc, different far vertex)");
+        // The union rule: one section's cusp carries the seam pair.
+        assert_eq!(
+            carried_pairs(&built.declared_contacts),
+            [edge_faces(&built.body, built.seam_edges[0][j])],
+        );
+        // NURBS walls: tier 3 exempts the seam either way today.
+        assert_eq!(
+            topo::validate_geometric(&built.body, Tol::witness()),
+            Ok(())
+        );
+        assert_eq!(
+            topo::validate_geometric_declared(
+                &built.body,
+                &built.declared_contacts,
+                Tol::witness()
+            ),
+            Ok(())
+        );
+    }
+}

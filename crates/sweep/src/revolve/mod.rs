@@ -224,7 +224,56 @@ pub struct Revolved<T: Real> {
     /// nothing, nor does a declared SMOOTH joint (wedge π, legal
     /// undeclared), nor a joint one of whose segments sweeps no wall
     /// (on-axis) — there is no wall pair there to be in contact.
+    ///
+    /// Always empty from the tube doors ([`crate::tube_along_arc`],
+    /// [`crate::tube_along_arc_hollow`]): a tube circle is two
+    /// half-circles on ONE carrier, so it has no cusp to declare.
     pub declared_contacts: Vec<DeclaredContact>,
+}
+
+/// What a revolve BUILDER mints: everything a [`Revolved`] carries but
+/// the declared contacts, which are the profile's and not the
+/// builder's — the builders see swept traversals, never a profile's
+/// joints. Each public door finishes it with
+/// [`RevolvedParts::with_contacts`], so a door cannot hand back a
+/// `Revolved` without having said what it declares.
+#[derive(Debug)]
+pub(super) struct RevolvedParts<T: Real> {
+    pub(super) body: Body<T>,
+    pub(super) solid: SolidKey,
+    pub(super) shell: ShellKey,
+    pub(super) cavities: Vec<ShellKey>,
+    pub(super) walls: Vec<Vec<Option<FaceKey>>>,
+    pub(super) rims: Vec<Vec<Option<EdgeKey>>>,
+    pub(super) poles: Vec<Vec<Option<VertexKey>>>,
+    pub(super) kind: RevolvedKind,
+}
+
+impl<T: Real> RevolvedParts<T> {
+    /// The finished [`Revolved`], with the door's declared contacts.
+    pub(super) fn with_contacts(self, declared_contacts: Vec<DeclaredContact>) -> Revolved<T> {
+        let Self {
+            body,
+            solid,
+            shell,
+            cavities,
+            walls,
+            rims,
+            poles,
+            kind,
+        } = self;
+        Revolved {
+            body,
+            solid,
+            shell,
+            cavities,
+            walls,
+            rims,
+            poles,
+            kind,
+            declared_contacts,
+        }
+    }
 }
 
 /// The per-case keys of a [`Revolved`] (see the ratified case split in
@@ -506,21 +555,6 @@ pub enum RevolveError {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
-    /// The heading of a declared tangent joint — a continuation or a
-    /// cusp ([`Revolved::declared_contacts`]) — escalated.
-    ///
-    /// Defense-in-depth: a verified tangent joint's headings are
-    /// parallel or antiparallel, so the decision's margin is the whole
-    /// lever arm — unreachable from validated profiles, surfaced rather
-    /// than trusted.
-    CuspHeadingEscalated {
-        /// Canonical index of the loop.
-        loop_index: usize,
-        /// Canonical index of the joint vertex.
-        vertex_index: usize,
-        /// The predicate-layer escalation.
-        source: Indeterminate,
-    },
     /// The dihedral classification at a latitude (wall–wall) join
     /// escalated: a sliver dihedral, certifiable as neither a corner
     /// nor a smooth join (D2's ratified text).
@@ -686,15 +720,6 @@ impl fmt::Display for RevolveError {
                 "whether the walls meeting at loop {loop_index} vertex {vertex_index} share \
                  one surface is too close to call: {source}"
             ),
-            Self::CuspHeadingEscalated {
-                loop_index,
-                vertex_index,
-                source,
-            } => write!(
-                f,
-                "whether the declared joint at loop {loop_index} vertex {vertex_index} \
-                 continues or reverses its heading is too close to call: {source}"
-            ),
             Self::SliverJoin {
                 loop_index,
                 vertex_index,
@@ -807,20 +832,6 @@ pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
         classes.push(axis::classify_loop(segs, &frame, li, reverse, band)?);
     }
 
-    // The declared joints' headings: which declared joints are cusps,
-    // decided before any surgery (the extrude's step 7, one verb over).
-    let cusps: Vec<Vec<usize>> = profile
-        .loops()
-        .iter()
-        .enumerate()
-        .map(|(li, lp)| crate::swept::declared_cusp_joints(lp, li, band))
-        .collect::<Result<_, _>>()
-        .map_err(|e| RevolveError::CuspHeadingEscalated {
-            loop_index: e.loop_index,
-            vertex_index: e.vertex_index,
-            source: e.source,
-        })?;
-
     let mut out = if full {
         full::build_full(&frame, &loops, &classes, theta, band, tol)
     } else {
@@ -837,20 +848,22 @@ pub fn revolve<T: Decide + geom_brep::PcurveFittedLane>(
         RevolvedKind::Full { pi_walls, .. } => Some(pi_walls),
         RevolvedKind::Partial { .. } => None,
     };
-    let declared_contacts = cusps
+    let declared_contacts = profile
+        .loops()
         .iter()
         .zip(&out.walls)
-        .flat_map(|(joints, walls)| crate::swept::cusp_contacts(joints, walls.len(), |s| walls[s]))
-        .chain(
-            pi_walls.into_iter().flat_map(|walls| {
-                crate::swept::cusp_contacts(&cusps[0], walls.len(), |s| walls[s])
-            }),
-        )
+        .flat_map(|(lp, walls)| {
+            crate::swept::cusp_contacts(lp.cusp_joints(), walls.len(), |s| walls[s])
+        })
+        .chain(pi_walls.into_iter().flat_map(|walls| {
+            let outer = profile
+                .loops()
+                .first()
+                .map_or(&[][..], |lp| lp.cusp_joints());
+            crate::swept::cusp_contacts(outer, walls.len(), |s| walls[s])
+        }))
         .collect();
-    Ok(Revolved {
-        declared_contacts,
-        ..out
-    })
+    Ok(out.with_contacts(declared_contacts))
 }
 
 #[cfg(test)]

@@ -84,11 +84,15 @@ Taken the first way: each sweep verb that can carry a declared cusp
 carries its record. `Extruded`, `Revolved` and `Lofted` grow
 `declared_contacts: Vec<DeclaredContact>` — one `Tangent` pair per
 declared cusp joint, the walls of the two canonical segments meeting
-there. Which declared joints are cusps is a new decision, because the
-profile records a joint as declared-tangent and not its direction (the
-`.cusp()` door emits the same declaration `.tangent()` does): the
-`declared_joint_heading` predicate in `crates/sweep/src/swept.rs`
-(`declared_cusp_joints`), shared by the three verbs.
+there. Which declared joints are cusps is the profile's to say: the
+`.cusp()` door emits the same declaration `.tangent()` does, so
+validation now decides each declared joint's heading once, with the
+path door's own `path_junction_side` question (one home,
+`crates/profile/src/seg.rs`'s `junction_reverses`), and records the
+answer as `ValidatedLoop::cusp_joints` — carried through the lift, the
+reversal remap and the guided replay (`Decision::CuspJoints`). The
+sweep verbs read that set and decide nothing. `blend_arcs` reads it
+too: an arc with a cusp at either end is not a fillet.
 
 Measured against the tree, three of this file's premises moved:
 

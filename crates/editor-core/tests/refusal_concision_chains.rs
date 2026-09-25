@@ -492,14 +492,6 @@ fn extrude() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         (
-            "CuspHeadingEscalated",
-            E::CuspHeadingEscalated {
-                loop_index: 0,
-                vertex_index: 3,
-                source: diag(),
-            },
-        ),
-        (
             "SliverJoin",
             E::SliverJoin {
                 loop_index: 0,
@@ -601,14 +593,6 @@ fn revolve_arms() -> Vec<(&'static str, sweep::RevolveError)> {
         (
             "CosurfaceEscalated",
             E::CosurfaceEscalated {
-                loop_index: 0,
-                vertex_index: 3,
-                source: diag(),
-            },
-        ),
-        (
-            "CuspHeadingEscalated",
-            E::CuspHeadingEscalated {
                 loop_index: 0,
                 vertex_index: 3,
                 source: diag(),
@@ -981,15 +965,6 @@ fn loft() -> Vec<(String, NodeErrorKind)> {
             "StackingEscalated",
             E::StackingEscalated {
                 slab: 1,
-                source: diag(),
-            },
-        ),
-        (
-            "CuspHeadingEscalated",
-            E::CuspHeadingEscalated {
-                section: 1,
-                loop_index: 0,
-                vertex_index: 3,
                 source: diag(),
             },
         ),

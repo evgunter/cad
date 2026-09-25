@@ -1,12 +1,8 @@
-//! MATE-3 R1 review probes — reachability honesty (claim 7) and the
-//! declared-cusp chain, re-executed rather than trusted.
-//!
-//! PR #1423 §3 claims: a `.cusp()` profile validates, `extrude` BUILDS
-//! the cusp solid (v/e/f = 6/9/5), and `validate_geometric` refuses it
-//! typed `UndeclaredCusp { wedge: Cusp }` — nothing silent. The
-//! verb carries the profile's own declaration out
-//! (`Extruded::declared_contacts`), and with it the body validates.
-//! This file executes that chain.
+//! The declared-cusp chain, executed: a `.cusp()` profile validates,
+//! `extrude` builds the cusp solid (v/e/f = 6/9/5), `validate_geometric`
+//! refuses it typed `UndeclaredCusp { wedge: Cusp }` — nothing silent —
+//! and the verb carries the profile's own declaration out
+//! (`Extruded::declared_contacts`), with which the body validates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
@@ -37,7 +33,7 @@ fn lune() -> profile::ClosedLoop<f64> {
 }
 
 #[test]
-fn r1_cusp_profile_extrudes_and_the_at_rest_gate_refuses_typed() {
+fn r1_cusp_profile_extrudes_refuses_undeclared_and_carries_its_declaration() {
     let tol = Tol::witness();
     let closed = lune();
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![closed.loop_])

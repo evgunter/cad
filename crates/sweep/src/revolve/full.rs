@@ -36,7 +36,7 @@ use super::chain::build_chain;
 use super::partial::{he_edge, sweep_loop};
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::{upgrade_intersection, upgrade_meridian_seam};
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use super::{RevolveError, RevolvedKind, RevolvedParts, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
@@ -79,7 +79,7 @@ pub(super) fn build_full<T: Decide>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<RevolvedParts<T>, RevolveError> {
     let segs = &loops[0];
     let cls = &classes[0];
     let run = super::axis::analyze_contact(segs, cls, 0)?;
@@ -180,7 +180,7 @@ fn build_lamina<T: Decide>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<RevolvedParts<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
     let qs: Vec<Point3<T>> = segs.iter().map(|s| frame.world(s.a)).collect();
@@ -302,10 +302,7 @@ fn build_lamina<T: Decide>(
         rims_c[s.canonical_vertex] = swept.rims[j];
         mer_c[s.canonical_segment] = Some(he_edge(&built, hes[j])?);
     }
-    Ok(Revolved {
-        // `revolve` carries the profile's declarations over this: the
-        // builders see swept traversals, not the profile's joints.
-        declared_contacts: Vec::new(),
+    Ok(RevolvedParts {
         body: built,
         solid: seed.solid,
         shell: seed.shell,
@@ -340,7 +337,7 @@ fn build_wire<T: Decide>(
     theta: T,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<RevolvedParts<T>, RevolveError> {
     let place = frame.place;
     let n = segs.len();
     let k = n - run.len;
@@ -646,10 +643,7 @@ fn build_wire<T: Decide>(
     poles_c[segs[wvert(0)].canonical_vertex] = Some(pole_near);
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
     body.close_already_checked();
-    Ok(Revolved {
-        // `revolve` carries the profile's declarations over this: the
-        // builders see swept traversals, not the profile's joints.
-        declared_contacts: Vec::new(),
+    Ok(RevolvedParts {
         body: built,
         solid: seed.solid,
         shell: seed.shell,

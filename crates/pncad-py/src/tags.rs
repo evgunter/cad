@@ -1283,7 +1283,6 @@ pub fn extrude_error_tag(err: &ExtrudeError) -> &'static str {
         ExtrudeError::ObliqueExtrusion => "oblique_extrusion",
         ExtrudeError::ExtrusionEscalated { .. } => "extrusion_escalated",
         ExtrudeError::CosurfaceEscalated { .. } => "cosurface_escalated",
-        ExtrudeError::CuspHeadingEscalated { .. } => "cusp_heading_escalated",
         ExtrudeError::SliverJoin { .. } => "sliver_join",
         ExtrudeError::SliverRim { .. } => "sliver_rim",
         ExtrudeError::CapPlane { .. } => "cap_plane",
@@ -1315,7 +1314,6 @@ pub fn revolve_error_tag(err: &RevolveError) -> &'static str {
         RevolveError::HoleTouchesAxis { .. } => "hole_touches_axis",
         RevolveError::VoidInsertion { .. } => "void_insertion",
         RevolveError::CosurfaceEscalated { .. } => "cosurface_escalated",
-        RevolveError::CuspHeadingEscalated { .. } => "cusp_heading_escalated",
         RevolveError::SliverJoin { .. } => "sliver_join",
         RevolveError::SliverRim { .. } => "sliver_rim",
         RevolveError::CapPlane { .. } => "cap_plane",
@@ -1512,7 +1510,6 @@ pub fn loft_error_tag(err: &LoftError) -> &'static str {
         LoftError::ReversedStacking { .. } => "reversed_stacking",
         LoftError::DegenerateStacking { .. } => "degenerate_stacking",
         LoftError::StackingEscalated { .. } => "stacking_escalated",
-        LoftError::CuspHeadingEscalated { .. } => "cusp_heading_escalated",
     }
 }
 

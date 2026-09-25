@@ -54,22 +54,19 @@
 //!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
-//! 7. **Declared contacts.** Every declared tangent joint that
-//!    REVERSES the heading — a cusp — sweeps a strut at material wedge
-//!    0 (2π on a hole loop), legal at rest exactly where its wall pair
-//!    is declared in `Tangent` contact. The profile declared it, so the
-//!    result carries it ([`Extruded::declared_contacts`]); which
-//!    declared joints are cusps is decided before any surgery, per
-//!    loop in canonical order, joints ascending, as the
-//!    `declared_joint_heading` predicate (a smooth declared joint is
-//!    wedge π and carries nothing).
+//! 7. **Declared contacts.** Every declared cusp joint
+//!    ([`profile::ValidatedLoop::cusp_joints`]) sweeps a strut at
+//!    material wedge 0 (2π on a hole loop), legal at rest exactly where
+//!    its wall pair is declared in `Tangent` contact. The profile
+//!    declared it, so the result carries it
+//!    ([`Extruded::declared_contacts`]); a smooth declared joint is
+//!    wedge π and carries nothing.
 //!
-//! Everything runs in a fixed, documented order (D9): the declared
-//! joints' headings first; then loops outer first then holes in
-//! canonical order; per loop, struts in traversal order, then side
-//! faces, then join classification; finally rim upgrades per loop, per
-//! segment, bottom before top. Two calls with identical inputs replay
-//! byte-identically.
+//! Everything runs in a fixed, documented order (D9): loops outer
+//! first then holes in canonical order; per loop, struts in traversal
+//! order, then side faces, then join classification; finally rim
+//! upgrades per loop, per segment, bottom before top. Two calls with
+//! identical inputs replay byte-identically.
 
 use core::fmt;
 
@@ -246,21 +243,6 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
-    /// The heading of a declared tangent joint — a continuation or a
-    /// cusp (module docs, step 7) — escalated.
-    ///
-    /// Defense-in-depth (the `CapPlane` posture): a verified tangent
-    /// joint's headings are parallel or antiparallel, so the decision's
-    /// margin is the whole lever arm — unreachable from validated
-    /// profiles, surfaced rather than trusted.
-    CuspHeadingEscalated {
-        /// Canonical index of the loop.
-        loop_index: usize,
-        /// Canonical index of the joint vertex.
-        vertex_index: usize,
-        /// The predicate-layer escalation.
-        source: Indeterminate,
-    },
     /// The dihedral classification at a cap–wall rim edge escalated
     /// during the rim upgrade pass (module docs, step 6) — the rim's
     /// counterpart of [`ExtrudeError::SliverJoin`].
@@ -345,15 +327,6 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
                  definite corner nor definitely smooth: {source}"
-            ),
-            Self::CuspHeadingEscalated {
-                loop_index,
-                vertex_index,
-                source,
-            } => write!(
-                f,
-                "whether the declared joint at loop {loop_index} vertex {vertex_index} \
-                 continues or reverses its heading is too close to call: {source}"
             ),
             Self::SliverRim {
                 loop_index,
@@ -584,20 +557,6 @@ pub fn extrude<T: Decide>(
     let w_norm = w.norm();
     let top_place = Affine3::translation(w) * place;
 
-    // ---- The declared joints' headings (module docs, step 7): which
-    // declared joints are cusps, decided before any surgery. ----
-    let cusps: Vec<Vec<usize>> = profile
-        .loops()
-        .iter()
-        .enumerate()
-        .map(|(li, lp)| swept::declared_cusp_joints(lp, li, band))
-        .collect::<Result<_, _>>()
-        .map_err(|e| ExtrudeError::CuspHeadingEscalated {
-            loop_index: e.loop_index,
-            vertex_index: e.vertex_index,
-            source: e.source,
-        })?;
-
     // ---- Swept traversals and world points, per loop. ----
     let loops: Vec<Vec<WallSeg<T>>> = profile
         .loops()
@@ -818,13 +777,13 @@ pub fn extrude<T: Decide>(
     let declared_contacts = loops
         .iter()
         .zip(&side_faces)
-        .zip(&cusps)
-        .flat_map(|((segs, faces), joints)| {
+        .zip(profile.loops())
+        .flat_map(|((segs, faces), lp)| {
             let mut by_canonical: Vec<Option<FaceKey>> = vec![None; segs.len()];
             for (seg, &face) in segs.iter().zip(faces) {
                 by_canonical[seg.chord.canonical_segment] = Some(face);
             }
-            swept::cusp_contacts(joints, segs.len(), |s| by_canonical[s])
+            swept::cusp_contacts(lp.cusp_joints(), segs.len(), |s| by_canonical[s])
         })
         .collect();
 

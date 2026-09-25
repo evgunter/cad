@@ -10,9 +10,12 @@ cost: D
 
 
 Found by BAND's `sweep-emits-no-contact-record-for-declared-cusps`
-unit, following the carried declarations downstream. Read, not yet
-measured: no row in `crates/editor-core/tests` evaluates a document
-whose profile program takes a `Step::Cusp` and then gathers it.
+unit, following the carried declarations downstream. Measured:
+`crates/editor-core/tests/m10_2_measure.rs`'s
+`a_cusp_extrude_document_refuses_at_the_product_gate` evaluates a
+document whose one root extrudes a `ProgramStep::Cusp` lune and pins
+the `ProductInvalid` / `UndeclaredCusp` refusal — this item's red-first
+row, which the fix flips to gathering.
 
 ## The mechanic
 
@@ -49,8 +52,8 @@ downstream of the verb lose it:
 
 So a document whose one root is an extrude of a `.cusp()` profile
 evaluates, and then refuses at `product` as `ProductInvalid` carrying
-`UndeclaredCusp` — the refusal the kernel verb no longer asks its own
-callers to cure by hand.
+`UndeclaredCusp` (measured, above) — the refusal the kernel verb no
+longer asks its own callers to cure by hand.
 
 ## What a fix has to decide
 
@@ -69,5 +72,5 @@ callers to cure by hand.
   (`product-gate-says-verbatim-then-states-the-difference` is the row
   about where that trigger lives).
 
-The red-first row is a document with a `Step::Cusp` extrude root that
-must gather.
+The red-first row is `a_cusp_extrude_document_refuses_at_the_product_gate`
+(above): flip its `expect_err` to the gathered product.
