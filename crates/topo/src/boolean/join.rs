@@ -305,8 +305,8 @@ pub(super) fn bool_connect<T: Decide>(
         let (a1, a2) = choose_roles(&red.a, ea, ra, &a_loose, band)?;
         let (b1, b2) = choose_roles(&red.b, eb, rb, &b_loose, band)?;
         // Curved germ pairs (M5 PR 9): each solid's chord lane comes
-        // from the germ FACE PAIR — plane×plane keeps the M3
-        // straight-chord lane bit-identically; plane×cylinder mints
+        // from the germ FACE PAIR — plane×plane takes the straight-chord
+        // lane with the partner's plane as its section; plane×cylinder mints
         // the C5 section conic on both sides (the wall side through
         // the S9 window machinery with the germ plane as context, the
         // planar side against the wall face's own window, so both
@@ -336,12 +336,49 @@ pub(super) fn bool_connect<T: Decide>(
         use crate::splitting::SplitPlane;
         use geom::Surface as Sf;
         match (&ga, &gb) {
-            (Sf::Plane { .. }, Sf::Plane { .. }) => {
+            (
+                Sf::Plane {
+                    origin: oa,
+                    normal: na,
+                    ..
+                },
+                Sf::Plane {
+                    origin: ob,
+                    normal: nb,
+                    ..
+                },
+            ) => {
+                // Each side's section is the PARTNER's plane: the chord
+                // runs along the two planes' common line, and a conic
+                // on this side's face boundary (a cap disk's rim) lies
+                // on that section only if it lies in the partner plane.
                 sa.joiner
-                    .join(&mut red.a, a1, a2, JoinLane::Planar, tol)
+                    .join(
+                        &mut red.a,
+                        a1,
+                        a2,
+                        JoinLane::Planar {
+                            plane: SplitPlane {
+                                origin: *ob,
+                                normal: *nb,
+                            },
+                        },
+                        tol,
+                    )
                     .map_err(BooleanError::Join)?;
                 sb.joiner
-                    .join(&mut red.b, b1, b2, JoinLane::Planar, tol)
+                    .join(
+                        &mut red.b,
+                        b1,
+                        b2,
+                        JoinLane::Planar {
+                            plane: SplitPlane {
+                                origin: *oa,
+                                normal: *na,
+                            },
+                        },
+                        tol,
+                    )
                     .map_err(BooleanError::Join)?;
             }
             (Sf::Plane { origin, normal, .. }, Sf::Sphere { .. })
@@ -1609,6 +1646,30 @@ fn cut_pair<T: Decide>(
     }
 }
 
+/// The point halfway along the CURVED edge under `he` — its carrier at
+/// the parameter midpoint — or `None` for a straight edge (a line, or
+/// null scaffolding), whose chord midpoint is already on it.
+fn curved_edge_midpoint<T: Decide>(
+    body: &Body<T>,
+    he: HalfEdgeKey,
+) -> Result<Option<geom_core::Point3<T>>, BooleanError> {
+    let edge = body
+        .get_half_edge(he)
+        .and_then(|h| body.get_edge(h.edge))
+        .ok_or(BooleanError::JoinDesync {
+            what: "region half has no edge",
+        })?;
+    Ok(match body.get_curve_geom(edge.curve) {
+        Some(crate::null::CurveGeom::Certified(curve))
+            if !matches!(curve.carrier(), geom::Curve3::Line { .. }) =>
+        {
+            let (t0, t1) = curve.params();
+            Some(curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5)))
+        }
+        _ => None,
+    })
+}
+
 /// GEOMETRIC loop-role resolution for a completed section polygon
 /// (M3 PR 5, the cookie-cutter finding): a loop of the 2-loop null
 /// face is the IN copy iff the region material adjacent to it (the
@@ -1636,7 +1697,12 @@ fn cut_pair<T: Decide>(
 /// reified-predicate funnel — no
 /// new predicate, no epsilon comparison. Seam-chord midpoints lie ON
 /// the other boundary and are skipped by the trilean like seam
-/// vertices. Third, REGION-INTERIOR candidates (the nested-island
+/// vertices. A curved edge's chord midpoint is not on the edge, so a
+/// tier of its own follows: the midpoint ALONG each curved edge (its
+/// carrier at the parameter midpoint), which is on the region boundary
+/// where the chord midpoint may sit on the other boundary instead (a
+/// semicircle's chord midpoint is the circle's centre, held by a
+/// cutter plane through the axis). Then REGION-INTERIOR candidates (the nested-island
 /// case: an island's surround bounded entirely by seam chords of TWO
 /// seam loops — every vertex and midpoint on the other boundary):
 /// vertex-triple centroids accepted only when the reified
@@ -1655,7 +1721,7 @@ fn cut_pair<T: Decide>(
 /// The typed refusal below stays LOAD-BEARING, not a dead backstop.
 /// Post-#106 the known residue is: regions lying INSIDE the other
 /// body's boundary surface (the coincident-plane class) exhaust all
-/// four tiers — every candidate, interior or not, is `OnBoundary`
+/// tiers — every candidate, interior or not, is `OnBoundary`
 /// against the other solid — though post-N6 that class normally
 /// refuses earlier, at the coincidence door; and any region whose
 /// every certified interior candidate still reads `OnBoundary`.
@@ -1680,6 +1746,14 @@ fn resolve_roles_geometric<T: Decide>(
         Vertex,
         /// The half-edge's chord midpoint (issue #93's second tier).
         EdgeMidpoint,
+        /// The point halfway ALONG a curved half-edge (its carrier at
+        /// the parameter midpoint); a straight edge offers none, its
+        /// chord midpoint having been probed by the tier before. A
+        /// conic's chord midpoint is off the edge, and can sit on the
+        /// other boundary where the edge's own interior does not: a
+        /// semicircle's is the circle's centre, which a cutter plane
+        /// through the axis holds.
+        EdgeOnCarrier,
         /// A verified region-interior point (issue #93's third tier —
         /// the nested-island case): the centroid of the half-edge's
         /// vertex triple, ACCEPTED only when the reified
@@ -1710,10 +1784,13 @@ fn resolve_roles_geometric<T: Decide>(
     }
     impl Anchor {
         /// Do this tier's candidates need the `point_in_face` strict-
-        /// interiority certificate before they may be probed? Tiers 1
-        /// and 2 sit ON the region boundary by construction (the
-        /// trilean's `OnBoundary` skips the ones that matter); tiers 3
-        /// and 4 are GUESSES until a reified predicate certifies them.
+        /// interiority certificate before they may be probed? Vertices,
+        /// straight edges' midpoints and on-carrier midpoints sit ON
+        /// the region boundary by construction (the trilean's
+        /// `OnBoundary` skips the ones that matter), and a curved
+        /// edge's chord midpoint is probed uncertified as it always
+        /// was; the region-interior tiers are GUESSES until a reified
+        /// predicate certifies them.
         fn needs_interior_certificate(self) -> bool {
             matches!(self, Anchor::RegionInterior | Anchor::RegionVertexChord)
         }
@@ -1775,6 +1852,9 @@ fn resolve_roles_geometric<T: Decide>(
                     let cands: Vec<geom_core::Point3<T>> = match anchor {
                         Anchor::Vertex => vec![start],
                         Anchor::EdgeMidpoint => vec![start.lerp(end_of(rhe)?, T::from_f64(0.5))],
+                        Anchor::EdgeOnCarrier => {
+                            curved_edge_midpoint(body, rhe)?.into_iter().collect()
+                        }
                         Anchor::RegionInterior => {
                             let b = end_of(rhe)?;
                             let c = end_of(
@@ -1865,6 +1945,9 @@ fn resolve_roles_geometric<T: Decide>(
         return Ok(roles);
     }
     if let Some(roles) = resolve(Anchor::EdgeMidpoint)? {
+        return Ok(roles);
+    }
+    if let Some(roles) = resolve(Anchor::EdgeOnCarrier)? {
         return Ok(roles);
     }
     if let Some(roles) = resolve(Anchor::RegionInterior)? {

@@ -580,8 +580,8 @@ impl ChordJoiner {
 /// once per split, at the first conic chord; the finish step's
 /// promoted section faces carry their own oriented copies — this one
 /// stays alive through description references, the carve orphan
-/// sweep's rule). The boolean joining passes `None` — its operands are
-/// gated all-planar and take the straight-chord lane bit-identically.
+/// sweep's rule). The boolean builds one per wall-side join of a
+/// plane×curved germ pair, from the germ plane.
 pub(crate) struct SectionCtx<T: Real> {
     /// The split plane.
     pub(crate) plane: SplitPlane<T>,
@@ -592,9 +592,13 @@ pub(crate) struct SectionCtx<T: Real> {
 /// Which curved-section lane a [`ChordJoiner::join`] call runs
 /// (M5 PR 9 generalized the M3 `Option<&mut SectionCtx>`):
 ///
-/// - [`JoinLane::Planar`] — the M3 boolean's straight-chord lane,
-///   bit-identical (`chord_spec` sees no context and returns `None`
-///   for planar faces).
+/// - [`JoinLane::Planar`] — the boolean's lane for a plane×plane germ
+///   pair: straight chords only (`chord_spec` returns `None` for the
+///   planar divided face). The partner germ plane rides along as the
+///   section plane, because the divided face's boundary may still
+///   carry conics (a cylinder's cap disk is a planar face), and the
+///   adjacency skip asks a conic between edge which side of the
+///   section it lies on.
 /// - [`JoinLane::Split`] — the split lane's conic machinery, AND the
 ///   boolean's WALL-side chord (the germ pair's plane arrives as a
 ///   transient context; the divided face's own cylinder chart drives
@@ -606,8 +610,12 @@ pub(crate) struct SectionCtx<T: Real> {
 ///   the one contained in that window — the same S9 statement, asked
 ///   of the mate's chart.
 pub(crate) enum JoinLane<'a, T: Real> {
-    /// Straight chords only (the M3 boolean lane).
-    Planar,
+    /// Straight chords only; `plane` is the partner germ face's plane,
+    /// the section the chords lie in.
+    Planar {
+        /// The section plane (the partner germ face's plane).
+        plane: SplitPlane<T>,
+    },
     /// The split lane / boolean wall-side conic lane.
     Split(&'a mut SectionCtx<T>),
     /// The boolean planar-side chord of a curved germ pair.
@@ -625,7 +633,7 @@ impl<T: Real> JoinLane<'_, T> {
     /// A reborrowing view (the join mints up to two chords per call).
     fn reborrow(&mut self) -> JoinLane<'_, T> {
         match self {
-            JoinLane::Planar => JoinLane::Planar,
+            JoinLane::Planar { plane } => JoinLane::Planar { plane: *plane },
             JoinLane::Split(ctx) => JoinLane::Split(ctx),
             JoinLane::BoolPlanar {
                 wall,
@@ -1217,7 +1225,7 @@ fn chord_spec<T: Decide>(
                     u1,
                     u2,
                 ),
-                JoinLane::Planar | JoinLane::Split(_) => Ok(None),
+                JoinLane::Planar { .. } | JoinLane::Split(_) => Ok(None),
             };
         }
         Some(&geom::Surface::Cylinder {
@@ -1246,7 +1254,8 @@ fn chord_spec<T: Decide>(
     let JoinLane::Split(ctx) = lane else {
         return Err(SplitJoinError::SectionInvariant {
             face,
-            what: "curved section chord outside the split/wall lane (no section context)",
+            what: "curved section chord outside the split/wall lane (the plane×plane lane divides \
+                   only planar faces)",
         });
     };
     // The wall surface (cylinder OR sphere since M5 S13).
@@ -1547,12 +1556,15 @@ fn skip_adjacent_chord<T: Decide>(
 /// NO predicate evaluation (the M3 path, bit-identical: a line whose
 /// join-adjacent role puts it between two ON copies is the in-plane
 /// section edge); conics ask the named trilean
-/// `split_conic_inplane_mid` — margin the mid-parameter plane distance
-/// (meters). With both endpoints ON and the interior sign-constant
-/// (root insertion split every interior crossing out), a Zero midpoint
-/// pins the whole arc in-plane; a definite midpoint is a belly arc —
-/// the skipped chord MUST be minted or the section face inherits an
-/// off-plane boundary edge.
+/// `split_conic_inplane_mid` of the lane's section plane — margin the
+/// mid-parameter plane distance (meters). A conic not lying in the
+/// plane meets it in at most two points, and both endpoints are ON, so
+/// the interior is sign-constant: a Zero midpoint pins the whole arc
+/// in-plane; a definite midpoint is a belly arc — the skipped chord
+/// MUST be minted or the section face inherits an off-plane boundary
+/// edge. The plane×plane lane asks the same question as the split lane:
+/// a planar divided face still carries conic edges (a cylinder's cap
+/// disk), and the partner germ plane is its section.
 fn between_edge_in_plane<T: Decide>(
     body: &Body<T>,
     lane: &JoinLane<'_, T>,
@@ -1563,8 +1575,8 @@ fn between_edge_in_plane<T: Decide>(
     let edge = body
         .get_edge(he_data.edge)
         .ok_or_else(|| corrupt_edge(he_data.edge))?;
-    // Named only by the two invariant arms below, which are off the
-    // hot path.
+    // Named only by the invariant arms below, which are off the hot
+    // path.
     let owning_face = || {
         body.get_loop(he_data.parent_loop)
             .map(|l| l.face)
@@ -1574,25 +1586,23 @@ fn between_edge_in_plane<T: Decide>(
         return Ok(Some(true)); // null scaffolding: zero-length, ON
     };
     match curve.carrier() {
-        geom::Curve3::Line { .. } | geom::Curve3::Nurbs(_) => Ok(Some(true)),
-        // The join lanes are fenced against the spiric (the boolean's
-        // operand gate refuses the kind), so a run edge carrying one is
-        // an invariant break, never assumed ON.
-        geom::Curve3::Spiric { .. } => Err(SplitJoinError::SectionInvariant {
-            face: owning_face()?,
-            what: "a join lane reached a spiric run edge (the operand gate refuses the kind)",
-        }),
+        geom::Curve3::Line { .. } => Ok(Some(true)),
+        // The join lanes are fenced against the spiric and the spline
+        // (both operand gates refuse the kinds), so a run edge carrying
+        // one is an invariant break, never assumed ON.
+        geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
+            Err(SplitJoinError::SectionInvariant {
+                face: owning_face()?,
+                what: "a join lane reached a spiric or spline run edge (the operand gates \
+                       refuse the kinds)",
+            })
+        }
         geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
             let (t0, t1) = curve.params();
             let mid = curve.carrier().eval(t0 + (t1 - t0) * T::from_f64(0.5));
             match lane {
-                JoinLane::Planar => Err(SplitJoinError::SectionInvariant {
-                    face: owning_face()?,
-                    what: "the all-planar join lane reached a conic run edge (the operand \
-                           gate promises every carrier planar)",
-                }),
-                JoinLane::Split(ctx) => {
-                    let margin = Margin::of((mid - ctx.plane.origin).dot(ctx.plane.normal));
+                JoinLane::Planar { plane } | JoinLane::Split(SectionCtx { plane, .. }) => {
+                    let margin = Margin::of((mid - plane.origin).dot(plane.normal));
                     match decide("split_conic_inplane_mid", margin, band) {
                         Ok(Sign::Zero) => Ok(Some(true)),
                         Ok(Sign::Positive | Sign::Negative) => Ok(Some(false)),
@@ -2395,6 +2405,38 @@ mod tests {
         body.get_edge(made.edge).unwrap().he_plus
     }
 
+    /// The plane×plane lane's adjacency question on a conic between
+    /// edge (a cylinder cap's rim, which a planar divided face carries),
+    /// answered against the partner germ plane both ways, and by the
+    /// same test the split lane runs. The rim is the upper semicircle
+    /// of the unit circle in z = 0, from (1, 0, 0) to (−1, 0, 0).
+    #[test]
+    fn planar_lane_decides_a_conic_between_edge_against_its_section_plane() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let mut body = crate::Body::<f64>::new();
+        let rim = rim_run(&mut body, 0.0, core::f64::consts::PI);
+        let verdict = |normal: Vec3<f64>| {
+            let plane = SplitPlane {
+                origin: Point3::origin(),
+                normal,
+            };
+            let planar = between_edge_in_plane(&body, &JoinLane::Planar { plane }, rim, band);
+            let mut ctx = SectionCtx {
+                plane,
+                plane_key: None,
+            };
+            let split = between_edge_in_plane(&body, &JoinLane::Split(&mut ctx), rim, band);
+            (planar.unwrap(), split.unwrap())
+        };
+        // A section plane through the rim's two ends and the cap's
+        // centre (y = 0, a lap through the axis): the rim bellies to
+        // y = 1, so it is no section segment and the chord is minted.
+        assert_eq!(verdict(Vec3::unit_y()), (Some(false), Some(false)));
+        // The section plane holding the whole rim (z = 0): the rim IS
+        // the section, and the chord is skipped.
+        assert_eq!(verdict(Vec3::unit_z()), (Some(true), Some(true)));
+    }
+
     /// `chord_spec` on the fixture with a run of rim arcs.
     fn spec_with(runs: &[(f64, f64)]) -> Result<Option<EdgeCurveSpec<f64>>, SplitJoinError> {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -2511,12 +2553,18 @@ mod tests {
             ),
             "{err:?}"
         );
-        // Outside the split lane (no section context) a conic chord is
-        // an invariant violation, typed.
+        // The plane×plane lane divides only planar faces, so a conic
+        // chord asked of it on a wall is an invariant violation, typed.
         let band = Band::new(1e-9, 1e-8).unwrap();
         let (mut body, face, u1, u2, _) = cyl_fixture();
         let run = vec![rim_run(&mut body, -0.2, core::f64::consts::FRAC_PI_2 + 0.2)];
-        let err = chord_spec(&mut body, band, JoinLane::Planar, face, &run, u1, u2).unwrap_err();
+        let lane = JoinLane::Planar {
+            plane: SplitPlane {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                normal: Vec3::new(0.0, 0.0, 1.0),
+            },
+        };
+        let err = chord_spec(&mut body, band, lane, face, &run, u1, u2).unwrap_err();
         assert!(
             matches!(err, SplitJoinError::SectionInvariant { .. }),
             "{err:?}"
