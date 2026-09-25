@@ -228,7 +228,11 @@ use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
+use crate::blend::BlendEvent;
+use crate::matetool::MateToolEvent;
+use crate::seats::SeatEvent;
 use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -398,6 +402,30 @@ partial_mirror! {
 pub struct Message {
     subject: Subject,
     text: String,
+    loss: Loss,
+}
+
+/// **Whether what a notice reports is gone for good** — the one
+/// property [`frame_status`]'s rank 1 reads.
+///
+/// **A property of the message, decided where the message is made.**
+/// The value that knows what was taken is the one that says so, and
+/// the ranking reads the answer without knowing what refused beside
+/// it. A rule over pairs would need a table of which refusal may hide
+/// which notice, and nothing states what would fill it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Loss {
+    /// **Nothing the notice reports is out of reach**: it took nothing
+    /// (a refusal, a pick a tool declined, an observation), or what it
+    /// reports is an edit the document's history holds, which the undo
+    /// that returns the edit returns with it.
+    Recoverable,
+    /// **It reports state an accepted edit TOOK from the viewer, and no
+    /// history holds that state.** Undo and redo never change what the
+    /// display or a tool holds ([`crate::display`]'s module docs), so
+    /// nothing the user can do returns it. [`Message::lost`] is the
+    /// only door that says this, and it is private to this module.
+    Irrecoverable,
 }
 
 impl Message {
@@ -412,9 +440,27 @@ impl Message {
     /// notice, which is what [`LIST_SEPARATOR`] is for — so the
     /// rewrite says what the author meant at the level they are at.
     pub fn new(subject: Subject, text: impl Into<String>) -> Self {
+        Self::said(subject, text, Loss::Recoverable)
+    }
+
+    /// **A message reporting an [`Loss::Irrecoverable`] loss** — state
+    /// an accepted edit took that nothing returns.
+    ///
+    /// Private, so what may ride beside a refusal is decided in this
+    /// module and nowhere else. Its callers are the population
+    /// [`frame_status`]'s ranking names: [`Withdrawal::notice`] and the
+    /// survival arms of [`tool_notice`].
+    fn lost(subject: Subject, text: impl Into<String>) -> Self {
+        Self::said(subject, text, Loss::Irrecoverable)
+    }
+
+    /// Both doors above, and so the one place a text's [`NOTICE_MARK`]s
+    /// are rewritten.
+    fn said(subject: Subject, text: impl Into<String>, loss: Loss) -> Self {
         Self {
             subject,
             text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+            loss,
         }
     }
 
@@ -435,8 +481,12 @@ impl Message {
     ///
     /// The caller decides the subject, because what a joined line is
     /// ABOUT is a separate question with its own rule
-    /// ([`joined_subject`]).
+    /// ([`joined_subject`]). A line reports a loss if any notice on it
+    /// does, so it keeps the [`Loss`] of its worst member.
     fn joined(subject: Subject, notices: &[Message]) -> Self {
+        let lost = notices
+            .iter()
+            .any(|notice| notice.loss == Loss::Irrecoverable);
         Self {
             subject,
             text: notices
@@ -444,6 +494,11 @@ impl Message {
                 .map(Message::text)
                 .collect::<Vec<_>>()
                 .join(NOTICE_SEPARATOR),
+            loss: if lost {
+                Loss::Irrecoverable
+            } else {
+                Loss::Recoverable
+            },
         }
     }
 
@@ -455,6 +510,11 @@ impl Message {
     /// The sentence shown on the line.
     pub fn text(&self) -> &str {
         &self.text
+    }
+
+    /// Whether what it reports is gone for good.
+    pub fn loss(&self) -> Loss {
+        self.loss
     }
 }
 
@@ -470,9 +530,17 @@ impl Message {
 /// refusal, else the frame's notices, else the batch's own verdict —
 /// and no rank reads a subject. A line that printed its own routing
 /// would be saying to the user what the chrome says to itself.
+///
+/// `loss` is the same decision for the converse reason: it RANKS — it
+/// is what lets a notice ride beside a refusal — and what was lost is
+/// already in the text's own words.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { subject: _, text } = self;
+        let Self {
+            subject: _,
+            text,
+            loss: _,
+        } = self;
         f.write_str(text)
     }
 }
@@ -632,8 +700,12 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 ///
 /// # The ranking
 ///
-/// 1. A **refusal** wins, alone. It is the answer to the action the
-///    user asked the DOCUMENT for, and it is the louder of the two.
+/// 1. A **refusal** wins, and only a **loss** rides beside it. The
+///    refusal is the answer to the action the user asked the DOCUMENT
+///    for, and it is the louder of the two, so it comes first; after
+///    it, joined with [`NOTICE_SEPARATOR`] in the order they happened,
+///    come the frame's notices whose [`Message::loss`] is
+///    [`Loss::Irrecoverable`], and every other notice is dropped.
 /// 2. Else **every notice the frame produced**, in the order they
 ///    happened, joined with [`NOTICE_SEPARATOR`] — the same boundary
 ///    the preferences path writes between its own startup notices
@@ -649,6 +721,43 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// still its own typed value's own rendering, which is what the error
 /// micro-decision asks. Nothing here writes prose about someone else's
 /// failure.
+///
+/// # What rides beside a refusal: a loss, and why only a loss
+///
+/// Two sentences about different things are worse than one about the
+/// louder, so rank 1 drops what it can afford to. What it cannot afford
+/// to drop is the one kind of notice whose news the user has no other
+/// way back to. **The rule: a notice rides beside a refusal when it
+/// reports state an accepted edit TOOK from the viewer, which no
+/// history holds** ([`Loss::Irrecoverable`]). Undo and redo govern the
+/// document and never what the display or a tool holds, so the op that
+/// refused can be undone, the edit that took the state can be undone,
+/// and the state is still gone; a frame that dropped the sentence would
+/// leave that unsaid for good.
+///
+/// It is a property of the MESSAGE, set where the message is made
+/// ([`Message::lost`], private to this module), not of the pair: the
+/// ranking reads it without asking what refused. Applied to every kind
+/// that reaches rank 2, it admits:
+///
+/// - every [`Withdrawal`] — a superseded free move (a hand placement
+///   discarded, not parked), a dropped hide, and a killed drag, each
+///   withdrawn by [`crate::display::DisplayState::prune`] from state no
+///   history holds;
+/// - a tool's **survival drop** ([`tool_notice`]'s lost-pick arms): a
+///   pick the tool held, taken because the edit left it naming nothing.
+///
+/// And it leaves under the refusal, because nothing they report is
+/// out of reach:
+///
+/// - a pick a tool **declined** and a panel's own refusal
+///   ([`tool_notice`]'s other arms, [`tool_news`]) — they took nothing,
+///   and the pick can be made again;
+/// - a **maintenance** row ([`maintenance_notice`]) — an edit the
+///   document's history holds, returned by the undo that returns the
+///   edit;
+/// - the pick, index, δ, store and fold refusals and the id pass's
+///   disagreement — they changed nothing.
 ///
 /// # The join is invertible, and that is the whole rule
 ///
@@ -687,7 +796,17 @@ pub fn frame_status(
     refusal: Option<&Refusal>,
 ) -> StatusUpdate {
     match batch_status(ops, refusal) {
-        refused @ StatusUpdate::Show(_) => refused,
+        StatusUpdate::Show(refused) => {
+            let line: Vec<Message> = core::iter::once(refused)
+                .chain(
+                    notices
+                        .iter()
+                        .filter(|notice| notice.loss() == Loss::Irrecoverable)
+                        .cloned(),
+                )
+                .collect();
+            StatusUpdate::Show(Message::joined(joined_subject(&line), &line))
+        }
         verdict if notices.is_empty() => verdict,
         _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
     }
@@ -861,9 +980,13 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// that withdraws is an edit the document accepted, so the same
 /// frame's batch verdict is [`StatusUpdate::Clear`].
 ///
-/// A refusal in the same frame outranks it and it is then not shown,
-/// which rank 1 already says. The two cannot come from one operation:
-/// a refused op returns before the prune that fills the report.
+/// **A refusal in the same frame does not hide it.** What it reports
+/// is gone — no history holds display state — so it is a
+/// [`Loss::Irrecoverable`] and rides beside the refusal, which is rank
+/// 1's rule for exactly this. The two cannot come from one operation (a
+/// refused op returns before the prune that fills the report), but they
+/// come from one frame whenever a panel's edit lands and a gesture op
+/// behind it refuses.
 ///
 /// # The cause is the fault's own sentence
 ///
@@ -1042,8 +1165,11 @@ impl<'a> Withdrawal<'a> {
     }
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
+    ///
+    /// A [`Loss::Irrecoverable`] whatever the kind: each is display
+    /// state the prune took, and no history holds display state.
     pub fn notice(&self) -> Message {
-        Message::new(Subject::Document, self.to_string())
+        Message::lost(Subject::Document, self.to_string())
     }
 }
 
@@ -1713,14 +1839,51 @@ pub fn pick_refusal(error: &PickError) -> Message {
     )
 }
 
-/// **What a tool has to say** — an authoring panel's refusal, a
-/// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired the way that subject says.
+/// **What a tool did on its own** — a survival drop or a declined pick
+/// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
+/// [`tool_news`], in the words [`ToolNotice`]'s own `Display` gives it.
+///
+/// **The one door a tool event reaches the line through**, because the
+/// event's arm is what says whether anything was lost, and a door that
+/// took the rendered text could not read it. A survival drop is a pick
+/// the tool HELD, taken because an accepted edit left it naming
+/// nothing: tool state enters no history, so it is
+/// [`Loss::Irrecoverable`] and rides beside a refusal
+/// ([`frame_status`]). A declined pick took nothing — the held picks
+/// are untouched and the pick can be aimed again — so it is not.
+///
+/// Every arm of every tool's event vocabulary is named, so an event
+/// added to one is a compile error here and its author decides which
+/// side it is on.
+pub fn tool_notice(notice: &ToolNotice) -> Message {
+    let lost = match notice {
+        ToolNotice::Mate(MateToolEvent::PickLost { .. })
+        | ToolNotice::Seated {
+            event: SeatEvent::PickLost { .. },
+            ..
+        }
+        | ToolNotice::Blend(BlendEvent::TargetLost { .. } | BlendEvent::EdgesLost { .. }) => true,
+        ToolNotice::Blend(BlendEvent::OtherTarget { .. } | BlendEvent::NoEdgesOnTarget { .. }) => {
+            false
+        }
+    };
+    if lost {
+        Message::lost(Subject::Document, notice.to_string())
+    } else {
+        Message::new(Subject::Document, notice.to_string())
+    }
+}
+
+/// **What a tool has to say** that is not one of its own events — an
+/// authoring panel's refusal, or a sentence formatted at the site.
+/// [`Subject::Document`], retired the way that subject says, and never
+/// a loss: a panel that refused took nothing. A tool's own events go
+/// through [`tool_notice`], whose arms decide that.
 ///
 /// **A door a type does not pin**, like [`startup_notices`], because
 /// its call sites hand it text — rendered through
-/// [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`] and
-/// the typed forms vocabulary, or formatted at the site. What it buys
+/// [`crate::tools::ToolKind::says`] and the typed forms vocabulary, or
+/// formatted at the site. What it buys
 /// is that every site shares one decision: changing the subject here
 /// changes it at all of them, and a row can see it.
 ///
