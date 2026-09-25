@@ -2325,12 +2325,19 @@ pub fn session_counts() -> Option<SymCounts> {
 /// before it maps (`topo::props`' face walks, `editor_core`'s node
 /// schedule), and the one home of that test.
 ///
+/// **It covers more than decisions.** It is false while a symbolic
+/// session is installed, which changes what a decision answers, AND
+/// while the shape report is installed, which changes nothing a
+/// decision answers but records every one in a thread-local of the
+/// deciding thread. The name is the session half's; the report half is
+/// the third bullet below.
+///
 /// The K-funnel's frame and sample sink are thread-local too, but they
 /// compose back: a unit run under `k_stats::detached` hands its
 /// recording back as a value and the caller's fold splices it
 /// (`k_stats::map_detached`). The two thread-locals read here do not,
-/// and three things follow, only the first of which is about
-/// recording:
+/// and three things follow. The first is about the answer, not about
+/// what is recorded; the other two are about recording:
 ///
 /// - **The decision itself changes.** `Sym`'s `sign_within` consults
 ///   the session; with none installed `discharge` answers `None`, the

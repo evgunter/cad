@@ -970,12 +970,20 @@ pub fn splice(recording: Detached) {
 /// **A caller owes [`crate::sym::decisions_are_thread_portable`]
 /// first**: a frame and a sink compose back, the symbolic session and
 /// the shape report do not, so while either is installed the walk has
-/// to be the serial one and this map must not be reached.
+/// to be the serial one and this map must not be reached. The map
+/// asserts it (a `debug_assert!`, and this workspace builds every
+/// profile with debug assertions on), so a caller that skipped the test
+/// panics here rather than recording a schedule-shaped answer.
 pub fn map_detached<I: Sync, R: Send>(
     items: &[I],
     run: impl Fn(&I) -> R + Send + Sync,
 ) -> Vec<(R, Detached)> {
     use rayon::prelude::*;
+    debug_assert!(
+        crate::sym::decisions_are_thread_portable(),
+        "map_detached reached with a symbolic session or shape report installed: the caller \
+         owes the serial walk here (`sym::decisions_are_thread_portable`)"
+    );
     items
         .par_iter()
         .map(|item| detached(|| run(item)))

@@ -20,14 +20,15 @@ count (`crates/editor-core/tests/parallel_node_map_probe.rs`).
 
 One thing that composition cannot order is a decision that belongs to
 no node. `PartCache::get` (`crates/editor-core/src/eval/parts.rs`) holds
-its lock across the miss path, so when two instances of one part sit in
-the same level, the part is evaluated once, on whichever worker took the
-lock first. Its verdicts are shielded (`_shield`) and land on no node,
+its lock across the miss path, so when a document instantiates one part
+more than once, the part is evaluated once, on whichever worker took the
+lock first. (An `InstantiatePart` node has no inputs, so every instance
+sits in level 0 and they all race.) Its verdicts are shielded (`_shield`) and land on no node,
 but its `probe` samples go to the sink installed on that worker, which
 is the winning instance's detached sink, and they are spliced at that
 instance's slot. The serial walk gives them to the first instance in
-`sched.order`. So on a document with two instances of one part in one
-level, the MULTISET of samples is the serial walk's at every width, and
+`sched.order`. So on a document that instantiates one part more than
+once, the MULTISET of samples is the serial walk's at every width, and
 the SEQUENCE is not: the miss path's samples move to the later
 instance's slot whenever it wins the race.
 
@@ -43,6 +44,6 @@ Either the miss path runs under `k_stats::detached` and the cache keeps
 the recording beside the row, to be spliced by the fold at the first
 instance in `sched.order` that reads the key; or the statement the
 evaluator makes about its recordings is narrowed to "the serial walk's
-population" for documents that instantiate one part twice in a level.
+population" for documents that instantiate one part more than once.
 The first keeps the stronger claim, and it has to decide what a
 nested evaluation's own fold owes the outer one.
