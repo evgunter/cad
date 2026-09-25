@@ -2194,7 +2194,9 @@ mod tests {
                 .unwrap();
             }
             let bnd = geom_core::Band::new(1e-9, 1e-6).unwrap();
-            cite_member_edges(t, &self.body, &self.members(), bnd)
+            let members = self.members();
+            let flush = Flush::of(self.union, &self.body, &members, &t, bnd)?;
+            cite_member_edges(t, &self.body, &members, &flush, bnd)
         }
     }
 
