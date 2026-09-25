@@ -199,7 +199,7 @@ row asserting that a planar face is admitted cannot go red on the gate;
 the rows that can are the non-planar one, the unresolved one, and the
 `at`-is-the-hit-node one, which needs a body whose face was carried
 through a later feature. `docm1_face_frame.rs` already builds a box with
-`common::{insert, inserted, len}` and names its cap
+`common::{session_insert, inserted, len}` and names its cap
 `RoleSeg::Cap(CapEnd::End)`; reuse those helpers rather than minting a
 second fixture vocabulary.
 

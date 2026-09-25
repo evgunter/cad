@@ -1996,6 +1996,7 @@ pub fn product_error_tag(err: &pncad::document::ProductError) -> &'static str {
     match err {
         E::EvaluationOfAnotherDocument { .. } => "evaluation_of_another_document",
         E::UnknownNode { .. } => "unknown_node",
+        E::PlacedUnderTwoRoots { .. } => "placed_under_two_roots",
         E::RootFailed { .. } => "root_failed",
         E::RootPoisoned { .. } => "root_poisoned",
         E::NoBodyRoots => "no_body_roots",
