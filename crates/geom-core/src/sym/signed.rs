@@ -701,6 +701,85 @@ mod instrument {
             assert!(reach(&p, &params, &atoms, 0).is_err());
             assert!(enclose_deep(&p, &params, &atoms, 0).is_none());
         }
+
+        /// REVIEW PROBE (DECIDE-6 review): the walk against the
+        /// enclosure at the ops and argument shapes the row above does
+        /// not reach — `abs`, both arguments of `min`/`max`, a
+        /// denominator carrying the unbracketed id, and a poisoned
+        /// argument. Each of these reds a planted divergence in `reach`
+        /// that the row above passes.
+        #[test]
+        fn review_probe_the_walk_meets_every_op_the_enclosure_enters() {
+            let mut params = IndetMap::default();
+            params.insert(PARAM, (1.0, 2.0));
+            let arg = |f: Form| Some(Arc::new(f));
+            let x = || Form::poly(Poly::indet(PARAM));
+            let o = || Form::poly(Poly::indet(OPAQUE));
+            let cases: [(&str, SymOp, [Option<Arc<Form>>; 3], bool); 7] = [
+                (
+                    "abs of the parameter",
+                    SymOp::Abs,
+                    [arg(x()), None, None],
+                    true,
+                ),
+                (
+                    "max of two parameters",
+                    SymOp::Max,
+                    [arg(x()), arg(x()), None],
+                    true,
+                ),
+                (
+                    "max, opaque second",
+                    SymOp::Max,
+                    [arg(x()), arg(o()), None],
+                    false,
+                ),
+                (
+                    "min, opaque second",
+                    SymOp::Min,
+                    [arg(x()), arg(o()), None],
+                    false,
+                ),
+                (
+                    "sqrt over x / opaque",
+                    SymOp::Sqrt,
+                    [
+                        arg(Form::quotient(Poly::indet(PARAM), Poly::indet(OPAQUE))),
+                        None,
+                        None,
+                    ],
+                    false,
+                ),
+                (
+                    "sqrt over poison",
+                    SymOp::Sqrt,
+                    [arg(Form::poison()), None, None],
+                    false,
+                ),
+                (
+                    "min, second missing",
+                    SymOp::Min,
+                    [arg(x()), None, None],
+                    false,
+                ),
+            ];
+            for (what, op, args, encloses) in cases {
+                let mut atoms = IndetMap::default();
+                atoms.insert(
+                    7,
+                    AtomInfo {
+                        op,
+                        payload: 0,
+                        args,
+                    },
+                );
+                let p = Poly::indet(7);
+                let walked = reach(&p, &params, &atoms, 0);
+                let enclosed = enclose_deep(&p, &params, &atoms, 0);
+                assert_eq!(enclosed.is_some(), encloses, "{what}: the enclosure");
+                assert_eq!(walked.is_ok(), encloses, "{what}: the walk {walked:?}");
+            }
+        }
     }
 }
 
