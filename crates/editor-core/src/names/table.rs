@@ -123,13 +123,30 @@ pub enum Entry {
 pub struct NameTable {
     forward: BTreeMap<NameRef, Entry>,
     reverse: BTreeMap<EntityRef, NameRef>,
-    /// The `Unique` rows that are one piece of a tie SEPARATED across
-    /// output bodies upstream: [`NameTable::project`] narrowed the tie
-    /// to the one candidate in the selected body, or a verbatim edge
-    /// carried such a row on unchanged. A reader of this table sees a
-    /// `Unique` row either way; the mark is for a reader that MERGES
-    /// tables, which needs to know the other pieces may arrive under
-    /// the same name (`defer::CarriedRows`).
+    /// **The separated-piece mark** — the one statement of it; every
+    /// other doc that mentions the mark points here.
+    ///
+    /// A split that separates an N2 tie without cutting its candidates
+    /// holds some in each half, and its own table keeps the one `Tied`
+    /// row across both. [`NameTable::project`] narrows that tie to the
+    /// candidates in the selected half, and a half holding ONE writes
+    /// the name `Unique` — correctly, for any reader of that half. This
+    /// set records that such a `Unique` row is one piece of a tie
+    /// separated across output bodies upstream. `project` marks what it
+    /// narrows that way and keeps a mark its input already carried; a
+    /// split's intact pass-through keeps it (`defer::pass_through`);
+    /// a `Transform` shares its input's table, mark included. Every
+    /// edge that sets or keeps it names the row VERBATIM, so a marked
+    /// row is still that piece of that tie.
+    ///
+    /// No lookup reads the mark. Its one reader is the product gather
+    /// (`defer::CarriedRows::carry`), which defers a marked row as it
+    /// defers a tied one, so two `Part` roots over the halves merge
+    /// back into the one `Entry::Tied` the split root would gather,
+    /// while a lone `Part` root's single piece narrows back to
+    /// `Unique`. A row that is NOT a separated piece must stay
+    /// unmarked: the gather inserts it strict, which is what makes two
+    /// roots carrying one entity refuse rather than tie.
     separated: BTreeSet<NameRef>,
     sealed: Sealed,
 }
@@ -306,13 +323,17 @@ impl NameTable {
         self.separated.contains(name)
     }
 
-    /// Marks `name`'s row as one piece of a separated tie. Only a
-    /// `Unique` row takes the mark: a `Tied` row already says it is a
-    /// tie, and a name with no row has nothing to mark.
+    /// Marks `name`'s row as one piece of a separated tie. Every caller
+    /// marks a row it has just written `Unique`, so a `Tied` or absent
+    /// row here is the caller's bug, asserted rather than skipped: a
+    /// `Tied` row already says it is a tie, and a name with no row has
+    /// nothing to mark.
     pub(super) fn mark_separated_piece(&mut self, name: NameRef) {
-        if matches!(self.forward.get(&name), Some(Entry::Unique(_))) {
-            self.separated.insert(name);
-        }
+        debug_assert!(
+            matches!(self.forward.get(&name), Some(Entry::Unique(_))),
+            "only a Unique row is marked as a separated piece"
+        );
+        self.separated.insert(name);
     }
 
     /// [`NameTable::insert`] by handle — the door that preserves
@@ -476,13 +497,9 @@ impl NameTable {
     /// cutting either holds one in each half. The projection is what
     /// separates them, and the split's own table stays `Tied`.
     ///
-    /// A row the projection narrows to `Unique` that way is MARKED as
-    /// one piece of a separated tie, and so is a `Unique` row the
-    /// input already marked. Nothing that reads the projected table
-    /// sees the mark — it holds one `Unique` row — but a gather that
-    /// takes both halves as sources reads it, and merges the pieces
-    /// back into the one tie the split's own table holds
-    /// (`defer::CarriedRows::carry`).
+    /// A row narrowed to `Unique` that way, and a `Unique` row the
+    /// input already marked, carry the separated-piece mark (the
+    /// `separated` field's doc).
     ///
     /// # Errors
     ///

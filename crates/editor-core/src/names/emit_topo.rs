@@ -397,7 +397,7 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Edge(e)))?;
+                pass_through(t, tie, up, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -437,7 +437,7 @@ fn name_split_edges_vertices<T: Decide>(
                     .is_some()
             {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Vertex(v)))?;
+                pass_through(t, tie, up, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -1926,7 +1926,7 @@ fn name_split_faces<T: Decide>(
                     vec![ent(s.ix, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
-                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Face(f)))?;
+                pass_through(t, tie, up, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
                     .entry((root, s.ix))

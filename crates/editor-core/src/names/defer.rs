@@ -16,7 +16,10 @@
 //! Rows that do not descend from a tie keep going through `insert`
 //! directly, so a genuine aliasing bug is still a typed `Duplicate` —
 //! and so is a tie-descended name colliding with a strict one, since
-//! the flush inserts into the same table.
+//! the flush inserts into the same table. "Descends from a tie" is the
+//! operand row's `Tied` entry for an emitter; the product gather also
+//! defers a `Unique` row marked as one piece of a separated tie
+//! ([`CarriedRows`]; the mark is `NameTable`'s `separated` field).
 //!
 //! **One implementation, not a shape to copy.** This module exists
 //! because `emit_fillet` was written without the deferral and #708
@@ -38,8 +41,8 @@ use super::role::NameRef;
 use super::table::{DuplicateName, Entry, NameTable};
 use crate::node::RecipeNodeId;
 
-/// An entity's upstream name, plus whether the upstream entry is an N2
-/// TIE.
+/// An entity's upstream name, plus how its upstream row descends from
+/// an N2 tie: `Tied` itself, or a `Unique` separated piece of one.
 ///
 /// B1 (ratified, #512): a tie PROPAGATES — naming a tie is fine (N2);
 /// only *referencing* one is `Ambiguous`. This mirrors the three
@@ -55,6 +58,12 @@ pub(super) struct Upstream {
     pub(super) name: NameRef,
     /// True iff that name's entry is `Entry::Tied`.
     pub(super) tied: bool,
+    /// True iff that name's entry is `Unique` and marked as one piece
+    /// of a tie separated across output bodies (`NameTable`'s
+    /// `separated` field). Only a VERBATIM carry reads it
+    /// ([`pass_through`]): a wrapping emitter names a new row the piece
+    /// is the one entity of, and strict is right there.
+    pub(super) piece: bool,
 }
 
 /// The upstream name of an entity. A MISSING row is still loud (the
@@ -95,6 +104,7 @@ pub(super) fn upstream_name(
     Ok(Upstream {
         name: name.clone(),
         tied,
+        piece: table.is_separated_piece(name),
     })
 }
 
@@ -106,11 +116,14 @@ pub(super) fn upstream_name(
 /// Upstream candidates that were equally admissible stay equally
 /// admissible downstream, so their same-named descendants MERGE into
 /// one entry at flush: `Tied` when ≥ 2 survive, narrowed back to
-/// `Unique` when exactly one does (the `graft_names` shape). Rows that
-/// do NOT descend from a tie keep going through `NameTable::insert`
+/// `Unique` when exactly one does (the `graft_names` shape). Rows whose
+/// operand entry is not `Tied` keep going through `NameTable::insert`
 /// directly, so a genuine aliasing bug is still a typed `Duplicate` —
 /// and so is a tie-descended name colliding with a strict one, since
-/// the flush inserts into the same table.
+/// the flush inserts into the same table. A `Unique` separated piece
+/// (`NameTable`'s `separated` field) is one of those strict rows here:
+/// an emitter wraps its name, and the piece is one entity of the
+/// operand. Only the gather's [`CarriedRows`] defers it.
 ///
 /// Narrowing means a WRAPPED name can come out `Unique` here while the
 /// upstream name it wraps stays `Tied` (review NOTE-2). That is the
@@ -233,20 +246,17 @@ pub(super) fn put(
 
 /// Inserts a row that carries its operand's name VERBATIM — a
 /// split's pass-through of an entity it did not cut — through [`put`],
-/// and keeps the operand row's separated-piece mark on it
-/// ([`NameTable::project`]): a verbatim edge adds no segment, so the
-/// row is still that piece of that tie, and a gather merging it with
-/// the tie's other pieces has to be able to tell.
+/// keeping the operand row's separated-piece mark
+/// ([`Upstream::piece`]): a verbatim edge adds no segment, so the row
+/// is still that piece of that tie.
 pub(super) fn pass_through(
     t: &mut NameTable,
     tie: &mut TieRows,
-    operand: &NameTable,
     up: Upstream,
     e: super::table::EntityRef,
 ) -> Result<(), DuplicateName> {
-    let piece = operand.is_separated_piece(&up.name);
     put(t, tie, up.tied, up.name.clone(), e)?;
-    if piece {
+    if up.piece {
         t.mark_separated_piece(up.name);
     }
     Ok(())
@@ -270,30 +280,19 @@ pub(super) fn pass_through(
 ///
 /// The deferral reads the SOURCE ROW's tie bit, never how many
 /// candidates survived into this one source — that count is 1 for
-/// each half of a separated tie, and reading it is what made the two
-/// halves of one document collide. The bit is set for a `Tied` entry
-/// and for a `Unique` row the source table marks as one piece of a
-/// tie separated across output bodies upstream
-/// ([`NameTable::project`]; [`pass_through`] keeps the mark across a
-/// split that leaves the piece intact). Any other `Unique` row goes
+/// each half of a separated tie. The bit is set for a `Tied` entry and
+/// for a `Unique` row marked as a separated piece (`NameTable`'s
+/// `separated` field, which tells why). Any other `Unique` row goes
 /// straight through `insert_ref`, so two roots aliasing a strict name
 /// is still a typed refusal, and so is a tie-descended name landing
 /// on one: the flush inserts into the same table.
 ///
-/// **The rule, at the generality it is written in.** Nothing here is
-/// about one root: the accumulator spans EVERY source, so candidates
-/// arriving under one tied name from two different roots merge into
-/// one `Entry::Tied` of the product exactly as two halves of one
-/// split do. That is [`TieRows`]'s own rule — upstream candidates
-/// that were equally admissible stay equally admissible downstream —
-/// read at the gather's scope, where the operand is the whole source
-/// list. The merge needs every source to carry the name as a tie or
-/// as a marked piece of one. One split root's two output bodies carry
-/// it as a tie, since the split's table keeps the tie across both;
-/// two `Part` roots over the two halves carry it as pieces, since
-/// each `Part`'s table narrows the tie to the candidates in its half
-/// and marks a lone survivor. Both documents gather the same product
-/// table.
+/// Nothing here is about one root: the accumulator spans EVERY
+/// source, so candidates arriving under one tied name from different
+/// roots merge into one `Entry::Tied` of the product. That is
+/// [`TieRows`]'s own rule — upstream candidates that were equally
+/// admissible stay equally admissible downstream — read at the
+/// gather's scope, where the operand is the whole source list.
 ///
 /// **Why this door knows the gather's body model.** The source-body
 /// filter and the body-0 target live here rather than in the caller
@@ -358,21 +357,13 @@ impl CarriedRows {
     /// a row the table already holds, which for the product gather
     /// means a STRICT row under the same name.
     ///
-    /// No document in the tree reaches it. It needs one source to carry
-    /// the name strict and another to carry it as a tie or a piece, and
-    /// two sources agree on a name only if both reach it VERBATIM:
-    /// every emitter but three wraps what it carries
-    /// (`FromA`/`FromB`, `Instance`, `InPart`, `SplitFragment`), the
-    /// three that do not being `Transform`, a split's intact
-    /// pass-through and a `Part`'s projection. A `Part` marks what it
-    /// narrows, and a split passes a mark on, so the one strict reading
-    /// of a tie a verbatim edge still writes is a split's own flush
-    /// narrowing a tie it CUT all but one candidate of — and a source
-    /// carrying that beside a source carrying the tie whole shares the
-    /// uncut candidate's boundary with it verbatim, so the two collide
-    /// in [`CarriedRows::carry`] first whenever any of that boundary
-    /// is strictly named. A document whose shared boundary is tied
-    /// throughout would reach this arm; none is built.
+    /// No document in the tree reaches it — an argument, not a
+    /// measurement, and nothing re-checks it. The shape that would: one
+    /// source carrying the name strict beside another carrying it tied,
+    /// with no strictly named entity shared between them to collide in
+    /// [`CarriedRows::carry`] first — for instance a split's own flush
+    /// narrowing a tie it cut all but one candidate of, beside a root
+    /// over the split's target whose shared boundary is tied throughout.
     pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
         self.0.flush(into)
     }

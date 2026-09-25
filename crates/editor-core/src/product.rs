@@ -169,12 +169,9 @@ pub enum ProductError {
     /// rather than colliding — which is what a split ROOT hands the
     /// gather for a tie its plane separates, since the split's own
     /// table keeps the tie across both output bodies. The two halves
-    /// taken as two `Part` roots merge the same way: a `Part` that
-    /// narrows the tie to the one candidate in its half publishes it
-    /// `Unique` but marks the row as one piece of a separated tie
-    /// ([`NameTable::project`]), and the carry defers a marked row as
-    /// it defers a tied one, so the product table is the split root's,
-    /// row for row. What that costs is stated where it lands: the
+    /// taken as two `Part` roots merge the same way, through the
+    /// separated-piece mark (`NameTable`'s `separated` field). What
+    /// that costs is stated where it lands: the
     /// product genuinely holds two entities under the one name, and a
     /// selection that matches both refuses
     /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
