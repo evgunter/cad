@@ -1487,11 +1487,10 @@ impl SeamSubject for NotIndexed {
 // # The subject-assigning doors
 //
 // **A subject is a decision, so it lives where a decision can be
-// asserted.** The dozen writers that assign `ViewerApp::status`
-// directly all sit inside `app`-gated draw paths no headless row
-// executes, so a subject chosen at one of those sites is
-// unfalsifiable — a reviewer can change `Camera` to `Preferences` and
-// the whole suite stays green. That is the same argument `Badge` makes
+// asserted.** The writers that put a sentence on the line sit inside
+// `app`-gated draw paths no headless row executes, so a subject chosen
+// at one of those sites is unfalsifiable — a reviewer can change
+// `Camera` to `Preferences` and the whole suite stays green. That is the same argument `Badge` makes
 // about the `None` decision, applied to the half of a `Message` that a
 // `String` could not carry.
 //

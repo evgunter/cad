@@ -2,11 +2,12 @@
 id: hand-maintained-counts-in-frame-rs-prose-have-no-guard
 kind: issue
 title: Five prose counts in frame.rs are maintained by hand, one went stale in a day, and nothing reds for any of them
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
 rides_with: frame-rs-says-the-per-subject-line-is-a-question-for-ev
+closed: 2026-09-24
 ---
 
 
