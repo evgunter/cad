@@ -290,6 +290,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
         row(
+            "ProfilePieces",
+            NodeErrorKind::ProfilePieces {
+                fault: editor_core::PiecesFault::Length {
+                    loop_: 0,
+                    recorded: 4,
+                    anchored: 5,
+                },
+            },
+        ),
+        row(
             "CurvedSolidFrontier",
             NodeErrorKind::CurvedSolidFrontier {
                 what: "a sweep along a curved path",

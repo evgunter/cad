@@ -398,13 +398,11 @@ row names. The appearance-key widening was ruled by Ev on EDIT's third
 `[ev]` PR of 2026-09-16
 (`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
 it. The subject's widening from the delete to the edit that removes a
-name's referent, with the reshaping's rebound arm, was ruled by Ev on
-EDIT's seventh `[ev]` PR, #2904 (2026-09-20,
-`a-committed-profile-program-has-no-whole-program-edit`), which builds
-it. Its rebound arm — a kept step's names rewritten to the coordinates
-its segments moved to — and the value-edit arm beside it went when
-profile pieces came to be named by minted step ids (Ev, #3193,
-2026-09-25): nothing moves, so there is nothing to rewrite or report.*
+name's referent was ruled by Ev on EDIT's seventh `[ev]` PR, #2904
+(2026-09-20, `a-committed-profile-program-has-no-whole-program-edit`),
+which builds it. That a kept step's names and a value edit's names
+stay as they are, with nothing to report, follows from profile pieces
+being named by minted step ids (Ev, #3193, 2026-09-25).*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
 

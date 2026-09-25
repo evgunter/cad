@@ -173,10 +173,72 @@ impl InlineError {
     }
 }
 
+/// **A step the insert door minted other than as precomputed**: the
+/// source document's step, the id the refactoring predicted for it,
+/// and the id the carried profile holds after its insert (`None` where
+/// it holds none there).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StepMapDivergence {
+    /// The step, in the source document.
+    pub step: StepId,
+    /// The id the step map holds for it.
+    pub precomputed: Option<StepId>,
+    /// The id the insert minted for it.
+    pub minted: Option<StepId>,
+}
+
+impl core::fmt::Display for StepMapDivergence {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let id = |s: Option<StepId>| s.map_or_else(|| "none".to_owned(), |s| format!("#{}", s.0));
+        write!(
+            f,
+            "the profile step minted #{} was predicted to be re-minted as {} and was minted as \
+             {}, which is a kernel bug",
+            self.step.0,
+            id(self.precomputed),
+            id(self.minted)
+        )
+    }
+}
+
+/// **The step map checked against what the inserts minted**: every
+/// profile of `source` that `node_map` carries into `target`, step by
+/// step in loop then step order, holds the id `step_map` predicted.
+/// The first step that does not is the divergence.
+fn step_map_check(
+    source: &ProfileDoc,
+    node_map: &NodeMap,
+    step_map: &StepMap,
+    target: &ProfileDoc,
+) -> Result<(), StepMapDivergence> {
+    for (&old, &new) in node_map {
+        let Some(Node::Profile(carried)) = source.node(old) else {
+            continue;
+        };
+        let minted: Vec<StepId> = match target.node(new) {
+            Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
+            _ => Vec::new(),
+        };
+        for (k, &step) in carried.ids.iter().flatten().enumerate() {
+            let precomputed = step_map.get(&step).copied();
+            let got = minted.get(k).copied();
+            if precomputed.is_none() || precomputed != got {
+                return Err(StepMapDivergence {
+                    step,
+                    precomputed,
+                    minted: got,
+                });
+            }
+        }
+    }
+    Ok(())
+}
+
 /// The step map a refactoring's inserts will mint, precomputed: every
 /// profile among `nodes`, in the order they are inserted, has each of
 /// its steps re-minted from `next_step` onward, in loop then step
-/// order — exactly the insert door's minting order.
+/// order — exactly the insert door's minting order, which
+/// [`step_map_check`] confirms once the inserts are done.
 fn step_map_of<'a>(
     nodes: impl Iterator<Item = &'a Node<ProfileProgram>>,
     next_step: u64,
@@ -361,6 +423,12 @@ pub enum SplitError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
+    /// The part document's insert door minted a cut profile's step
+    /// under an id other than the one the split precomputed for it —
+    /// a construction bug in this module, surfaced typed: every name
+    /// the split rewrote through its step map would spell the wrong
+    /// step.
+    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for SplitError {
@@ -467,7 +535,7 @@ impl core::fmt::Display for SplitError {
             }
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "split: the {name} spells a piece of profile step {}, which no profile of this \
+                "split: the {name} spells a piece of the profile step minted #{}, which no profile of this \
                  document draws any more — repair the stranded reference before splitting",
                 step.0
             ),
@@ -488,6 +556,7 @@ impl core::fmt::Display for SplitError {
             Self::RemainderEdit { error } => {
                 write!(f, "split: a remainder-side edit refused: {error}")
             }
+            Self::StepMapDiverged(d) => write!(f, "split: {d}"),
         }
     }
 }
@@ -601,6 +670,10 @@ pub enum InlineError {
         /// The refusing edit's own diagnosis.
         error: Box<EditError>,
     },
+    /// The host's insert door minted a spliced profile's step under an
+    /// id other than the one the inline precomputed for it — the same
+    /// construction bug as [`SplitError::StepMapDiverged`].
+    StepMapDiverged(StepMapDivergence),
 }
 
 impl core::fmt::Display for InlineError {
@@ -652,7 +725,7 @@ impl core::fmt::Display for InlineError {
             ),
             Self::NameOnDroppedStep { name, step } => write!(
                 f,
-                "inline: the {name} spells a piece of profile step {}, which no profile of the \
+                "inline: the {name} spells a piece of the profile step minted #{}, which no profile of the \
                  referenced document draws any more — repair the stranded reference before \
                  inlining",
                 step.0
@@ -664,6 +737,7 @@ impl core::fmt::Display for InlineError {
                 missing.0
             ),
             Self::Edit { error } => write!(f, "inline: an edit refused: {error}"),
+            Self::StepMapDiverged(d) => write!(f, "inline: {d}"),
         }
     }
 }
@@ -1597,6 +1671,7 @@ pub fn split(
         })?;
         part_apply(&mut part, DocEdit::InsertNode { node })?;
     }
+    step_map_check(doc, &node_map, &step_map, &part.doc).map_err(SplitError::StepMapDiverged)?;
     // Witness DATA copies VERBATIM while node ids remap: sound because
     // a witness datum is sketch-self-relative — it selects among the
     // owning profile's own solution branches and embeds no other
@@ -2016,6 +2091,8 @@ pub fn inline(
         })?;
         step(&mut current, DocEdit::InsertNode { node })?;
     }
+    step_map_check(&part, &node_map, &step_map, &current.doc)
+        .map_err(InlineError::StepMapDiverged)?;
     // Witness data copies VERBATIM while ids remap — the same
     // invariant as split's copy: a witness datum is sketch-self-
     // relative and embeds no other node's identity (see split's

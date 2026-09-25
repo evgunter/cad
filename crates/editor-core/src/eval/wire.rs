@@ -1597,9 +1597,9 @@ pub(crate) fn prepare_profile(
     })?;
     // The piece each canonical position is: the records above and the
     // program's minted ids describe one program, so a disagreement is
-    // the same internal break, surfaced the same way.
+    // an internal break, surfaced as the fault it is.
     let pieces = super::ProfilePieces::publish(&naming, &replay_records, ids)
-        .ok_or(NodeErrorKind::ProfileAnchor { loop_: 0 })?;
+        .map_err(|fault| NodeErrorKind::ProfilePieces { fault })?;
     Ok(ProfilePre {
         profile_f64,
         validated_f64,
@@ -2175,11 +2175,7 @@ fn tube_pieces<T: Decide>(
     built: &sweep::Revolved<T>,
 ) -> Result<super::ProfilePieces, NodeErrorKind> {
     let counts: Vec<usize> = built.walls.iter().map(Vec::len).collect();
-    super::ProfilePieces::section(&counts).ok_or(NodeErrorKind::Naming(
-        names::NamingError::Emission {
-            what: "a tube door built a section of more than two circles",
-        },
-    ))
+    super::ProfilePieces::section(&counts).map_err(NodeErrorKind::Naming)
 }
 
 /// **A hollow tube** — `sweep::tube_along_arc_hollow`, the OTHER

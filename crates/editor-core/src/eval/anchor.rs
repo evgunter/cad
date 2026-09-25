@@ -36,7 +36,9 @@
 
 use profile::{Profile, ProfileLoop, ValidatedProfile};
 
-use crate::names::{PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle};
+use crate::names::{
+    NamingError, PieceRole, ProfileEdgeRef, ProfileVertexRef, SectionCircle, to_u32,
+};
 use crate::node::StepId;
 
 /// One canonical loop's anchor: how canonical indices map back to the
@@ -129,78 +131,182 @@ pub struct ProfilePieces {
     pub vertices: Vec<Vec<ProfileVertexRef>>,
 }
 
+/// **Why a profile's pieces could not be published**: the naming
+/// anchor, the replay record and the minted ids do not describe one
+/// program. All three are built from one program in one pass, so each
+/// of these is a kernel bug, surfaced typed
+/// ([`crate::NodeErrorKind::ProfilePieces`],
+/// [`crate::ProgramRefusal::Pieces`]).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum PiecesFault {
+    /// A canonical loop's anchor names a program loop the replay
+    /// record has no loop for.
+    NoRecord {
+        /// The program loop the anchor names.
+        loop_: u32,
+    },
+    /// A canonical loop's anchor names a program loop the minted ids
+    /// have no list for.
+    NoIds {
+        /// The program loop the anchor names.
+        loop_: u32,
+    },
+    /// The replay recorded a different number of segments for a loop
+    /// than the anchored canonical loop has.
+    Length {
+        /// The program loop.
+        loop_: u32,
+        /// Segments the replay recorded.
+        recorded: usize,
+        /// Segments the canonical loop has.
+        anchored: u32,
+    },
+    /// A recorded piece names a step past the loop's list of minted
+    /// ids.
+    NoStepId {
+        /// The program loop.
+        loop_: u32,
+        /// The step, in program order.
+        step: usize,
+        /// How many ids the loop's list holds.
+        ids: usize,
+    },
+}
+
+impl core::fmt::Display for PiecesFault {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::NoRecord { loop_ } => write!(
+                f,
+                "program loop {loop_} has no replay record to name its pieces by, which is a \
+                 kernel bug"
+            ),
+            Self::NoIds { loop_ } => write!(
+                f,
+                "program loop {loop_} has no minted step ids to name its pieces by, which is \
+                 a kernel bug"
+            ),
+            Self::Length {
+                loop_,
+                recorded,
+                anchored,
+            } => write!(
+                f,
+                "program loop {loop_} replayed {recorded} segments but its canonical loop has \
+                 {anchored}, which is a kernel bug"
+            ),
+            Self::NoStepId { loop_, step, ids } => write!(
+                f,
+                "step {step} of program loop {loop_} drew a piece but the loop has only {ids} \
+                 minted step ids, which is a kernel bug"
+            ),
+        }
+    }
+}
+
+impl core::error::Error for PiecesFault {}
+
 impl ProfilePieces {
     /// **An authored profile's pieces**: each canonical segment read
     /// back through its loop's anchor to the program segment it is,
     /// whose piece the replay recorded, spelled with the step's minted
-    /// id. `None` where the three records do not describe one program
-    /// — an anchor naming a loop the record or the ids lack, or a
-    /// record of another length — which the evaluation surfaces typed.
+    /// id.
+    ///
+    /// # Errors
+    ///
+    /// [`PiecesFault`] where the three records do not describe one
+    /// program.
     pub(crate) fn publish(
         naming: &ProfileNaming,
         replay: &[profile::ReplayStructure],
         ids: &[Vec<StepId>],
-    ) -> Option<Self> {
+    ) -> Result<Self, PiecesFault> {
         let mut edges = Vec::with_capacity(naming.loops.len());
         let mut vertices = Vec::with_capacity(naming.loops.len());
         for anchor in &naming.loops {
-            let pl = anchor.program_loop as usize;
-            let pieces = &replay.get(pl)?.pieces;
-            let steps = ids.get(pl)?;
+            let loop_ = anchor.program_loop;
+            let pl = loop_ as usize;
+            let pieces = &replay
+                .get(pl)
+                .ok_or(PiecesFault::NoRecord { loop_ })?
+                .pieces;
+            let steps = ids.get(pl).ok_or(PiecesFault::NoIds { loop_ })?;
             if pieces.len() != anchor.len as usize {
-                return None;
+                return Err(PiecesFault::Length {
+                    loop_,
+                    recorded: pieces.len(),
+                    anchored: anchor.len,
+                });
             }
-            let piece = |program_segment: u32| -> Option<ProfileEdgeRef> {
-                let p = pieces.get(program_segment as usize)?;
-                Some(ProfileEdgeRef::Piece {
-                    step: *steps.get(p.step)?,
-                    role: p.role.into(),
-                })
+            let piece = |program_segment: u32| -> Result<ProfileEdgeRef, PiecesFault> {
+                let length = PiecesFault::Length {
+                    loop_,
+                    recorded: pieces.len(),
+                    anchored: anchor.len,
+                };
+                let p = pieces.get(program_segment as usize).ok_or(length)?;
+                let step = *steps.get(p.step).ok_or(PiecesFault::NoStepId {
+                    loop_,
+                    step: p.step,
+                    ids: steps.len(),
+                })?;
+                Ok(ProfileEdgeRef::Piece { step, role: p.role })
             };
             edges.push(
                 (0..anchor.len)
                     .map(|k| piece(anchor.segment(k)))
-                    .collect::<Option<Vec<_>>>()?,
+                    .collect::<Result<Vec<_>, _>>()?,
             );
             // Canonical vertex `v` is program vertex `anchor.vertex(v)`,
             // where the program segment of the same index starts.
             vertices.push(
                 (0..anchor.len)
                     .map(|v| piece(anchor.vertex(v)).map(|e| e.start()))
-                    .collect::<Option<Vec<_>>>()?,
+                    .collect::<Result<Vec<_>, _>>()?,
             );
         }
-        Some(Self { edges, vertices })
+        Ok(Self { edges, vertices })
     }
 
     /// **A kernel-built section's pieces** — a tube's: loop 0 the outer
     /// circle and loop 1 a hollow tube's bore, each of `counts[l]`
     /// pieces, named structurally under the node that builds them.
-    /// `None` for a shape no tube door builds (more than two loops).
-    pub(crate) fn section(counts: &[usize]) -> Option<Self> {
+    ///
+    /// # Errors
+    ///
+    /// [`NamingError::Emission`] for a shape no tube door builds (more
+    /// than two loops), or a piece index past the `u32` a role stores.
+    pub(crate) fn section(counts: &[usize]) -> Result<Self, NamingError> {
         let circle = |l: usize| match l {
-            0 => Some(SectionCircle::Outer),
-            1 => Some(SectionCircle::Bore),
-            _ => None,
+            0 => Ok(SectionCircle::Outer),
+            1 => Ok(SectionCircle::Bore),
+            _ => Err(NamingError::Emission {
+                what: "a tube door built a section of more than two circles",
+            }),
         };
         let mut edges = Vec::with_capacity(counts.len());
         let mut vertices = Vec::with_capacity(counts.len());
         for (l, &n) in counts.iter().enumerate() {
             let circle = circle(l)?;
-            let roles = (0..n).map(|k| PieceRole::Piece(u32::try_from(k).unwrap_or(u32::MAX)));
+            let roles = (0..n)
+                .map(|k| {
+                    to_u32(k, "a tube section's piece index exceeds u32").map(PieceRole::Piece)
+                })
+                .collect::<Result<Vec<_>, _>>()?;
             edges.push(
                 roles
-                    .clone()
-                    .map(|role| ProfileEdgeRef::Section { circle, role })
+                    .iter()
+                    .map(|&role| ProfileEdgeRef::Section { circle, role })
                     .collect(),
             );
             vertices.push(
                 roles
-                    .map(|role| ProfileVertexRef::Section { circle, role })
+                    .iter()
+                    .map(|&role| ProfileVertexRef::Section { circle, role })
                     .collect(),
             );
         }
-        Some(Self { edges, vertices })
+        Ok(Self { edges, vertices })
     }
 
     /// **Distinct stand-in pieces for a profile no document holds** —

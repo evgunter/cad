@@ -515,6 +515,21 @@ pub fn corpus_text(tol: Tol) -> String {
             .expect("the derived log replays")
             .doc;
     }
+    // The ids were cleared on the strength of the insert door minting
+    // them again in the same order; that precondition is checked
+    // profile by profile, so a `build` that mints a step any other way
+    // fails here by name.
+    for id in die.doc.order() {
+        if let (Some(Node::Profile(built)), Some(Node::Profile(replayed))) =
+            (die.doc.node(*id), replay.node(*id))
+        {
+            assert_eq!(
+                built.ids, replayed.ids,
+                "profile node {} re-mints its step ids exactly as `build` minted them",
+                id.0
+            );
+        }
+    }
     assert_eq!(
         replay,
         gallery_document(tol),

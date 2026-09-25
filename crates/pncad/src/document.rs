@@ -77,11 +77,12 @@
 // `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
 // who cannot spell it cannot author the edit — and `StepIdFault` is
 // what `EditError::StepIdsRefused` carries, so a consumer matching that
-// arm can name what it caught.
+// arm can name what it caught. `PiecesFault` is the same for
+// `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    Maintenance, MaintenanceNet, MetaVersionError, ProgramRefusal, StepId, StepIdFault, apply,
-    apply_logged,
+    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
+    StepIdFault, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -405,7 +406,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, StepMap, inline, split,
+    SplitOutcome, StepMap, StepMapDivergence, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s

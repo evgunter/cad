@@ -546,24 +546,18 @@ fn descent_leaf(name: &StableName) -> &StableName {
     }
 }
 
-/// A profile piece in words: the step that drew it, by its minted id,
-/// and its role there — or, on a kernel-built section, which circle.
+/// A profile piece in words: its role (the role's own `Display`) and
+/// the step that drew it, by the id it was minted with — spelled as an
+/// id (`#7`), never as a position, since a name holds no position — or,
+/// on a kernel-built section, which circle.
 fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
-    use crate::names::{PieceRole, ProfileEdgeRef, SectionCircle};
-    let role = |r: &PieceRole| match r {
-        PieceRole::Leg => "the leg".to_owned(),
-        PieceRole::RunIn => "the run-in".to_owned(),
-        PieceRole::Arc => "the arc".to_owned(),
-        PieceRole::RunOut => "the run-out".to_owned(),
-        PieceRole::Piece(k) => format!("piece {k}"),
-    };
+    use crate::names::{ProfileEdgeRef, SectionCircle};
     match e {
-        ProfileEdgeRef::Piece { step, role: r } => {
-            format!("{} of profile step {}", role(r), step.0)
+        ProfileEdgeRef::Piece { step, role } => {
+            format!("the {role} of the profile step minted #{}", step.0)
         }
-        ProfileEdgeRef::Section { circle, role: r } => format!(
-            "{} of the {} circle",
-            role(r),
+        ProfileEdgeRef::Section { circle, role } => format!(
+            "the {role} of the {} circle",
             match circle {
                 SectionCircle::Outer => "outer",
                 SectionCircle::Bore => "bore",

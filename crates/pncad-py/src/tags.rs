@@ -133,9 +133,9 @@ use pncad::document::{
     ClusterMaintenance, DimensionError, Distribution, DistributionFault, DistributionField,
     EditError, EvalError, FrameFault, InlineError, InterfaceCrossing, LeverRefusal, Maintenance,
     MateFault, MatePrimitive, MeasureNodeFault, MeasureUnavailableAt, MetaVersionError,
-    MintRefusal, NodeErrorKind, ParseError, PersistError, PlacementRuleFault, ProgramFault,
-    ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault, ShellClassifyError,
-    SlotId, SnapshotError, SplitError, StepIdFault, Subgroup, UpdateError,
+    MintRefusal, NodeErrorKind, ParseError, PersistError, PiecesFault, PlacementRuleFault,
+    ProgramFault, ProgramRefusal, RecordedProgramError, RefusedRef, Relation, RootFault,
+    ShellClassifyError, SlotId, SnapshotError, SplitError, StepIdFault, Subgroup, UpdateError,
 };
 use pncad::geom_core::{
     BandError, BandField, FrameError, FrameInput, FrameVector, OrthoAxis, OrthoFrameError,
@@ -834,6 +834,7 @@ pub fn node_error_tag(kind: &NodeErrorKind) -> &'static str {
         NodeErrorKind::ProfileReplay { .. } => "profile_replay",
         NodeErrorKind::ProfileLaneReplay { .. } => "profile_lane_replay",
         NodeErrorKind::ProfileAnchor { .. } => "profile_anchor",
+        NodeErrorKind::ProfilePieces { .. } => "profile_pieces",
         NodeErrorKind::Extrude { .. } => "extrude",
         NodeErrorKind::Revolve { .. } => "revolve",
         // ONE tag for both tube kinds, matching every other op on
@@ -1025,6 +1026,7 @@ pub fn node_inner_kind_tag(kind: &NodeErrorKind) -> Option<&'static str> {
             None => None,
         },
         NodeErrorKind::ProfileAnchor { .. } => None,
+        NodeErrorKind::ProfilePieces { fault } => Some(pieces_fault_tag(fault)),
         NodeErrorKind::Extrude(inner) => Some(extrude_error_tag(inner)),
         NodeErrorKind::Revolve(inner) => Some(revolve_error_tag(inner)),
         NodeErrorKind::Tube(inner) => Some(tube_error_tag(inner)),
@@ -1615,6 +1617,8 @@ pub fn program_refusal_tag(err: &ProgramRefusal) -> &'static str {
         ProgramRefusal::Geometry { .. } => "geometry",
         ProgramRefusal::Validate(_) => "validate",
         ProgramRefusal::Unminted => "unminted",
+        ProgramRefusal::StepIds(_) => "step_ids",
+        ProgramRefusal::Pieces(_) => "pieces",
     }
 }
 
@@ -2281,6 +2285,7 @@ pub fn split_error_tag(err: &SplitError) -> &'static str {
         SplitError::Pin { .. } => "split_pin",
         SplitError::PartEdit { .. } => "part_edit",
         SplitError::RemainderEdit { .. } => "remainder_edit",
+        SplitError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2306,6 +2311,7 @@ pub fn inline_error_tag(err: &InlineError) -> &'static str {
         InlineError::StrandedPartName { .. } => "stranded_part_name",
         InlineError::NameOnDroppedStep { .. } => "name_on_dropped_step",
         InlineError::Edit { .. } => "inline_edit",
+        InlineError::StepMapDiverged(_) => "step_map_diverged",
     }
 }
 
@@ -2982,6 +2988,18 @@ pub fn maintenance_tag(maintenance: &Maintenance) -> &'static str {
         Maintenance::Strand { .. } => "strand",
         Maintenance::StrandedAppearance { .. } => "stranded_appearance",
         Maintenance::OrphanedDeclare { .. } => "orphaned_declare",
+    }
+}
+
+/// The stable tag for where a profile's naming anchor, replay record
+/// and minted ids disagree — the fault `NodeErrorKind::ProfilePieces`
+/// carries, published on `inner_variant` beside the node error's word.
+pub fn pieces_fault_tag(fault: &PiecesFault) -> &'static str {
+    match fault {
+        PiecesFault::NoRecord { .. } => "no_record",
+        PiecesFault::NoIds { .. } => "no_ids",
+        PiecesFault::Length { .. } => "length",
+        PiecesFault::NoStepId { .. } => "no_step_id",
     }
 }
 

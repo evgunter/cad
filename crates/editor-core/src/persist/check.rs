@@ -1018,7 +1018,7 @@ impl core::fmt::Display for SnapshotError {
                 next_step,
             } => write!(
                 f,
-                "the {name} spells profile step {}, at or beyond the step counter {next_step} — \
+                "the {name} spells the profile step id #{}, at or beyond the step counter {next_step} — \
                  replay would mint that id for another step",
                 step.0
             ),
@@ -1227,20 +1227,8 @@ fn validate_snapshot(doc: &ProfileDoc) -> Result<(), SnapshotError> {
             continue;
         };
         let fault = |fault| SnapshotError::StepIds { node: id, fault };
-        if program.ids.len() != program.loops.len() {
-            return Err(fault(crate::program::StepIdFault::LoopCount {
-                loops: program.loops.len(),
-                given: program.ids.len(),
-            }));
-        }
-        for (li, (lp, ids)) in program.loops.iter().zip(&program.ids).enumerate() {
-            if ids.len() != lp.authored_steps() {
-                return Err(fault(crate::program::StepIdFault::Shape {
-                    loop_: crate::program::program_index(li),
-                    authored: lp.authored_steps(),
-                    given: ids.len(),
-                }));
-            }
+        program.check_id_shape().map_err(fault)?;
+        for ids in &program.ids {
             for &step in ids {
                 if step.0 >= doc.next_step {
                     return Err(fault(crate::program::StepIdFault::BeyondCounter {

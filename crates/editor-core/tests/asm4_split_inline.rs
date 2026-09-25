@@ -1542,3 +1542,153 @@ fn inline_name_refusals_fire_typed_and_name_their_subjects() {
         }
     }
 }
+
+// ---- Profile step ids across the refactorings ----
+
+/// A `part` with a second component (a half-block at x = 10) whose
+/// profile has been reshaped once, its step at `position` re-minted,
+/// and a face frame on that step's wall added FIRST when `stranded` —
+/// so the reshaping strands the frame's name. Returns the document and
+/// the second component's `(frame, profile, extrude, face frame)`.
+fn reshaped_component(
+    label: &str,
+    position: usize,
+    stranded: bool,
+) -> (ProfileDoc, [RecipeNodeId; 3], Option<RecipeNodeId>) {
+    let doc = part(label, 0.0, 1.0);
+    let (doc, f2) = insert(doc, xy_frame());
+    let (doc, p2) = insert(doc, Node::Profile(desc(f2, vec![square(10.0, 0.0, 0.5)])));
+    let (doc, e2) = insert(
+        doc,
+        Node::Extrude {
+            profile: p2,
+            distance: len(1.0),
+        },
+    );
+    let program = match doc.node(p2) {
+        Some(Node::Profile(p)) => p.clone(),
+        other => panic!("a profile, got {other:?}"),
+    };
+    let (doc, face_frame) = if stranded {
+        let dropped = editor_core::ProfileEdgeRef::Piece {
+            step: program.ids[0][position],
+            role: editor_core::PieceRole::Leg,
+        };
+        let (doc, id) = insert(
+            doc,
+            Node::Datum(editor_core::Datum::FaceFrame {
+                at: e2,
+                face: fixture::fname(e2, RoleSeg::Lateral(dropped)),
+                spin: fixture::ang(0.0),
+            }),
+        );
+        (doc, Some(id))
+    } else {
+        (doc, None)
+    };
+    let mut ids: Vec<Vec<Option<editor_core::StepId>>> = program
+        .ids
+        .iter()
+        .map(|l| l.iter().copied().map(Some).collect())
+        .collect();
+    ids[0][position] = None;
+    let (doc, _) = step(
+        doc,
+        DocEdit::SetProgram {
+            node: p2,
+            loops: program.loops.clone(),
+            ids,
+        },
+    );
+    (doc, [f2, p2, e2], face_frame)
+}
+
+/// The ids a profile node holds, flattened in loop then step order.
+fn flat_ids(doc: &ProfileDoc, profile: RecipeNodeId) -> Vec<editor_core::StepId> {
+    match doc.node(profile) {
+        Some(Node::Profile(p)) => p.ids.iter().flatten().copied().collect(),
+        other => panic!("a profile, got {other:?}"),
+    }
+}
+
+/// **A split re-mints the cut profiles' steps in the part's own order,
+/// and its step map says so, however the source numbered them.** The
+/// cut profile's step 2 was re-minted by a reshaping, so its ids are
+/// not contiguous — `[5, 6, 10, 8, 9]`, the first component's five
+/// taking `0..5`. The part document mints its one profile's steps from
+/// zero in step order, and the step map pairs each old id with the id
+/// in the same position.
+#[test]
+fn a_split_step_map_follows_a_non_contiguous_re_mint() {
+    let (doc, [f2, p2, e2], _) = reshaped_component("asm4-steps", 2, false);
+    let old = flat_ids(&doc, p2);
+    let n = 5;
+    assert_eq!(
+        old,
+        [5, 6, 10, 8, 9].map(editor_core::StepId).to_vec(),
+        "the reshaped profile's ids skip the re-minted step's old id"
+    );
+    let out = split(
+        &doc,
+        &BTreeSet::from([f2, p2, e2]),
+        DocumentId::derive("asm4-steps-new"),
+        Tol::witness(),
+        None,
+    )
+    .expect("legal");
+    let part_profile = out.node_map[&p2];
+    let minted = flat_ids(&out.part, part_profile);
+    assert_eq!(minted, (0..n).map(editor_core::StepId).collect::<Vec<_>>());
+    let expected: editor_core::StepMap = old.iter().copied().zip(minted).collect();
+    assert_eq!(out.step_map, expected);
+}
+
+/// **A name on a step a `SetProgram` dropped does not cross a split or
+/// an inline**: the part document would mint that id afresh for a
+/// step of its own, so each refactoring refuses typed, naming the
+/// stranded name and the dropped step.
+#[test]
+fn a_name_on_a_dropped_step_refuses_a_split_and_an_inline() {
+    let (doc, [f2, p2, e2], face_frame) = reshaped_component("asm4-dropped", 1, true);
+    let face_frame = face_frame.expect("the stranded frame");
+    let dropped = match doc.node(face_frame) {
+        Some(Node::Datum(editor_core::Datum::FaceFrame { face, .. })) => face.clone(),
+        other => panic!("a face frame, got {other:?}"),
+    };
+    let dropped_step = match dropped.path.as_slice() {
+        [RoleSeg::Lateral(editor_core::ProfileEdgeRef::Piece { step, .. })] => *step,
+        other => panic!("a wall spelled by a piece, got {other:?}"),
+    };
+    assert!(
+        !flat_ids(&doc, p2).contains(&dropped_step),
+        "the frame spells a step the profile no longer holds"
+    );
+    match split(
+        &doc,
+        &BTreeSet::from([f2, p2, e2, face_frame]),
+        DocumentId::derive("asm4-dropped-new"),
+        Tol::witness(),
+        None,
+    ) {
+        Err(SplitError::NameOnDroppedStep { name, step }) => {
+            assert_eq!((*name, step), (dropped.clone(), dropped_step));
+        }
+        other => panic!("expected NameOnDroppedStep, got {other:?}"),
+    }
+
+    let mut store = PartStore::default();
+    let doc_ref = store.insert(doc, Tol::witness());
+    let host = ProfileDoc::empty(DocumentId::derive("asm4-dropped-host"), Tol::witness());
+    let (host, instance) = insert(host, Node::instantiate_part(doc_ref));
+    match inline(
+        &host,
+        instance,
+        &(Arc::new(store) as Arc<dyn editor_core::PartResolver>),
+        Tol::witness(),
+    ) {
+        Err(InlineError::NameOnDroppedStep { name, step }) => {
+            assert_eq!((*name, step), (dropped, dropped_step));
+        }
+        other => panic!("expected NameOnDroppedStep, got {other:?}"),
+    }
+}

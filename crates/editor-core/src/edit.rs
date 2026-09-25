@@ -1692,7 +1692,7 @@ impl core::fmt::Display for EditError {
                 next_step,
             } => write!(
                 f,
-                "the {name} spells profile step {}, which this document never minted (its step \
+                "the {name} spells the profile step id #{}, which this document never minted (its step \
                  counter is {next_step})",
                 step.0
             ),
@@ -2282,9 +2282,7 @@ fn stranded_steps<P>(
 /// **One appearance record moved onto the key `to`**, attribute by
 /// attribute and metadata entry by entry, refusing where `to` already
 /// carries the same kind or key: which value survives would be an
-/// auto-pick. The store half of every name rewrite —
-/// [`DocEdit::Rebind`]'s one pair and [`DocEdit::SetProgram`]'s map —
-/// so the two doors cannot disagree about what a collision is.
+/// auto-pick. The store half of [`DocEdit::Rebind`]'s name rewrite.
 fn move_appearance_record(
     store: &mut crate::appearance::AppearanceMap,
     moved: crate::appearance::AppearanceRecord,

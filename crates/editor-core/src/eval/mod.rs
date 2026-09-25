@@ -35,7 +35,9 @@ pub(crate) use wire::{
 };
 
 pub(crate) use anchor::derive_naming;
-pub use anchor::{CanonicalSegment, LoopAnchor, ProfileNaming, ProfilePieces, ProfileValue};
+pub use anchor::{
+    CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
+};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -1037,6 +1039,13 @@ pub enum NodeErrorKind {
         /// The canonical loop index that failed to match.
         loop_: u32,
     },
+    /// The naming anchor, the replay record and the program's minted
+    /// step ids do not describe one program, so the profile's pieces
+    /// have no names — an internal invariant break, surfaced typed.
+    ProfilePieces {
+        /// Where the three disagree.
+        fault: PiecesFault,
+    },
     /// The extrude op refused.
     Extrude(ExtrudeError),
     /// The revolve op refused.
@@ -1914,6 +1923,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "profile loop {loop_} did not match back to a loop of the program, which is \
                  a kernel bug"
             ),
+            Self::ProfilePieces { fault } => {
+                write!(f, "the profile's pieces have no names: {fault}")
+            }
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
                 instance,

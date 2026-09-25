@@ -281,7 +281,11 @@ impl core::fmt::Display for RadiusEmission {
 ///   [`PieceRole::RunOut`], a fused verb's authored arc carriers being
 ///   its runs;
 /// - a complete-loop carrier form (`circle`, `circle_split`) draws
-///   [`PieceRole::Piece`] `k` for its segment `k`.
+///   [`PieceRole::Piece`] `k` for its segment `k`, and so does a
+///   section a kernel door builds rather than an author (a tube's).
+///
+/// The one role type: the name vocabulary (`editor_core::names`)
+/// re-exports it, and its `Display` is the one spelling a user reads.
 ///
 /// A role the values do not draw has no segment: a run that a `Zero`
 /// fit suppresses, or a piece drawn as one segment with an earlier
@@ -296,8 +300,25 @@ pub enum PieceRole {
     Arc,
     /// The run out of a fillet: the trimmed arrival side.
     RunOut,
-    /// Piece `k` of a complete-loop carrier form.
+    /// Piece `k` of a complete-loop carrier form, or of a section a
+    /// kernel door builds.
     Piece(u32),
+}
+
+impl PieceRole {
+    /// Where the role falls in its step's drawing order, for
+    /// [`Piece::outranks`]: a fillet's run in, its arc, its run out,
+    /// then a carrier form's pieces in order, and the leg last — a
+    /// step's fillet role is drawn over its leg (see [`Piece`]).
+    fn rank(self) -> (u8, u32) {
+        match self {
+            Self::RunIn => (0, 0),
+            Self::Arc => (1, 0),
+            Self::RunOut => (2, 0),
+            Self::Piece(k) => (3, k),
+            Self::Leg => (4, 0),
+        }
+    }
 }
 
 impl core::fmt::Display for PieceRole {
@@ -319,7 +340,8 @@ impl core::fmt::Display for PieceRole {
 /// fillet's run and the authored leg it continues. The segment is
 /// then the EARLIER piece in authored order, and the later one is not
 /// drawn at all; where one step plays two roles on one segment, its
-/// fillet role is the one drawn rather than its leg.
+/// fillet role is the one drawn rather than its leg, and of two fillet
+/// roles the one earlier in the fillet's drawing order.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, PartialOrd, Ord)]
 pub struct Piece {
     /// The authored step, in program order.
@@ -330,14 +352,13 @@ pub struct Piece {
 
 impl Piece {
     /// Whether `self` names a segment `other` would otherwise name:
-    /// the earlier step, and within one step the fillet role over the
-    /// leg.
+    /// the earlier step, and within one step the role earlier in its
+    /// drawing order ([`PieceRole::rank`]). A strict total order on
+    /// distinct pieces, so which of two claims reaches a segment first
+    /// never decides its name.
     #[must_use]
     pub(crate) fn outranks(&self, other: &Self) -> bool {
-        self.step < other.step
-            || (self.step == other.step
-                && other.role == PieceRole::Leg
-                && self.role != PieceRole::Leg)
+        (self.step, self.role.rank()) < (other.step, other.role.rank())
     }
 }
 

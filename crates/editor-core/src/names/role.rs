@@ -558,47 +558,24 @@ pub enum CapEnd {
 }
 
 /// **Which of its step's pieces a profile piece is** — the role half
-/// of a locator, from the fixed list its verb draws
-/// (`profile::PieceRole`, whose docs give the lists).
-#[derive(
-    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
-)]
-pub enum PieceRole {
-    /// The one segment a single-segment verb draws.
+/// of a locator, from the fixed list its verb draws. The one type is
+/// the profile crate's, which records it per segment as it replays;
+/// its docs give the lists, and its `Display` is the one spelling a
+/// user reads.
+pub use profile::PieceRole;
+
+/// **The wire spelling of [`PieceRole`]**: serde's derive for the
+/// profile crate's type, which carries no serde of its own (the kernel
+/// crates are serde-free). Externally tagged, one variant per role, so
+/// a role reads back as the variant it was written as.
+#[derive(serde::Serialize, serde::Deserialize)]
+#[serde(remote = "profile::PieceRole")]
+enum PieceRoleWire {
     Leg,
-    /// The run into a fillet.
     RunIn,
-    /// A fillet's arc.
     Arc,
-    /// The run out of a fillet.
     RunOut,
-    /// Piece `k` of a complete-loop carrier form, or of a section a
-    /// kernel door builds.
     Piece(u32),
-}
-
-impl From<profile::PieceRole> for PieceRole {
-    fn from(role: profile::PieceRole) -> Self {
-        match role {
-            profile::PieceRole::Leg => Self::Leg,
-            profile::PieceRole::RunIn => Self::RunIn,
-            profile::PieceRole::Arc => Self::Arc,
-            profile::PieceRole::RunOut => Self::RunOut,
-            profile::PieceRole::Piece(k) => Self::Piece(k),
-        }
-    }
-}
-
-impl core::fmt::Display for PieceRole {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Leg => f.write_str("leg"),
-            Self::RunIn => f.write_str("run in"),
-            Self::Arc => f.write_str("arc"),
-            Self::RunOut => f.write_str("run out"),
-            Self::Piece(k) => write!(f, "piece {k}"),
-        }
-    }
 }
 
 /// **Which circle of a kernel-built section** — the tube doors'
@@ -636,6 +613,7 @@ pub enum ProfileEdgeRef {
         /// The step's minted id.
         step: StepId,
         /// Which of the step's pieces.
+        #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
     /// Piece `role` of one circle of a kernel-built section.
@@ -643,6 +621,7 @@ pub enum ProfileEdgeRef {
         /// Which circle.
         circle: SectionCircle,
         /// Which of its pieces.
+        #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
 }
@@ -660,6 +639,7 @@ pub enum ProfileVertexRef {
         /// The step's minted id.
         step: StepId,
         /// Which of the step's pieces starts here.
+        #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
     /// Where piece `role` of one circle of a kernel-built section
@@ -668,6 +648,7 @@ pub enum ProfileVertexRef {
         /// Which circle.
         circle: SectionCircle,
         /// Which of its pieces starts here.
+        #[serde(with = "PieceRoleWire")]
         role: PieceRole,
     },
 }

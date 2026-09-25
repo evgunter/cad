@@ -1001,6 +1001,116 @@ fn the_persisted_spelling_is_pinned_and_an_old_file_refuses_typed() {
     unreadable(&positional, "loop_index");
 }
 
+/// **Every step-id fault a file can carry refuses typed at the load
+/// door**: an id two profiles share, an id one profile holds twice, an
+/// id at or beyond the document's step counter, a name spelling a step
+/// at or beyond it, and a file with no counter at all. The document is
+/// two squares, one extruded with a frame on a wall; each fault is one
+/// field of its saved text changed.
+#[test]
+fn every_step_id_fault_refuses_typed_at_the_load_door() {
+    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)]).unwrap();
+    let (doc, profile, ext) = extruded("load-step-faults", vec![square]);
+    let (doc, plane) = insert(doc, fixture::xy_frame());
+    let (doc, other) = insert(
+        doc,
+        Node::Profile(fixture::desc(plane, vec![fixture::square(5.0, 5.0, 1.0)])),
+    );
+    let wall = wall_of(&doc, ext, 0, 1);
+    let (doc, _) = frame_on(doc, ext, wall);
+    let next_step = doc.next_step();
+    let text = save(&doc, &[], tol()).expect("saves");
+    assert!(load(&text, tol()).is_ok(), "the untouched file loads");
+    let (header, body) = text.split_once('\n').expect("an id line, then the body");
+    let body: serde_json::Value = serde_json::from_str(body).expect("the body is JSON");
+    let edited = |edit: &dyn Fn(&mut serde_json::Value)| {
+        let mut v = body.clone();
+        edit(&mut v);
+        format!("{header}\n{v}\n")
+    };
+    let ids = |v: &mut serde_json::Value, node: RecipeNodeId, k: usize, to: u64| {
+        v["snapshot"]["nodes"][node.0.to_string()]["Profile"]["ids"][0][k] = to.into();
+    };
+    let refused = |text: String| match load(&text, tol()) {
+        Err(PersistError::Snapshot(e)) => e,
+        other => panic!("a snapshot refusal, got {other:?}"),
+    };
+    let step_fault = |text: String, node: RecipeNodeId| match refused(text) {
+        editor_core::SnapshotError::StepIds { node: at, fault } => {
+            assert_eq!(at, node);
+            fault
+        }
+        other => panic!("a step-id refusal, got {other:?}"),
+    };
+    let mine = ids_of(&doc, profile)[0].clone();
+    let theirs = ids_of(&doc, other)[0].clone();
+
+    // Two profiles share an id: the later profile in node order holds
+    // the repeat.
+    let shared = edited(&|v| ids(v, other, 0, mine[0].0));
+    assert_eq!(
+        step_fault(shared, other),
+        StepIdFault::Repeated { step: mine[0] }
+    );
+    // One profile holds an id twice.
+    let twice = edited(&|v| ids(v, other, 1, theirs[0].0));
+    assert_eq!(
+        step_fault(twice, other),
+        StepIdFault::Repeated { step: theirs[0] }
+    );
+    // An id the document never minted.
+    let beyond = edited(&|v| ids(v, profile, 0, next_step));
+    assert_eq!(
+        step_fault(beyond, profile),
+        StepIdFault::BeyondCounter {
+            step: StepId(next_step),
+            next_step,
+        }
+    );
+    // A name spelling a step the document never minted: the frame's
+    // wall, re-spelled on the step at the counter.
+    let piece = serde_json::to_value(fixture::piece(&doc, ext, 0, 1))
+        .unwrap()
+        .to_string();
+    let unminted = ProfileEdgeRef::Piece {
+        step: StepId(next_step),
+        role: PieceRole::Leg,
+    };
+    let compact = body.to_string();
+    assert!(
+        compact.contains(&piece),
+        "the frame spells the wall's piece"
+    );
+    let respelled = format!(
+        "{header}
+{}
+",
+        compact.replace(&piece, &serde_json::to_value(unminted).unwrap().to_string())
+    );
+    match refused(respelled) {
+        editor_core::SnapshotError::NameStepBeyondCounter {
+            step,
+            next_step: counter,
+            ..
+        } => assert_eq!((step, counter), (StepId(next_step), next_step)),
+        other => panic!("a name on a never-minted step refuses, got {other:?}"),
+    }
+    // No counter at all.
+    let no_counter = edited(&|v| {
+        v["snapshot"]
+            .as_object_mut()
+            .expect("the snapshot")
+            .remove("next_step")
+            .expect("the file carries its step counter");
+    });
+    match load(&no_counter, tol()) {
+        Err(PersistError::Unreadable { detail, .. }) => {
+            assert!(detail.contains("next_step"), "{detail}");
+        }
+        other => panic!("a file without a step counter is unreadable, got {other:?}"),
+    }
+}
+
 // ---------------------------------------------------------------- //
 // What cannot move a name: value edits (N1)
 // ---------------------------------------------------------------- //

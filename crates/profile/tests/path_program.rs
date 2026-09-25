@@ -1570,7 +1570,8 @@ fn a_leg_a_run_continues_keeps_the_segment() {
 /// fillet whose arrival point is exactly its tangent point, so the
 /// chain's next segment is the first one after the arc, drawn by
 /// whichever step comes next.
-fn corner_then() -> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
+fn corner_then()
+-> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
     let t = Tol::witness();
     Open.at(p2(0.0, 0.0))
         .toward(1.0, 0.0, t)

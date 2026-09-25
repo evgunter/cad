@@ -1060,7 +1060,7 @@ fn snapshot_error_display_names_its_content_not_its_struct() {
                 step: StepId(8),
                 next_step: 6,
             },
-            vec!["minted by node 5", "profile step 8", "step counter 6"],
+            vec!["minted by node 5", "profile step id #8", "step counter 6"],
         ),
     ];
     assert_f6_every_variant(&cases, &SNAPSHOT_ERROR, &[]);
@@ -1334,7 +1334,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![],
             },
             "the parent's seams with the vertex name minted by node 5 (the end cap vertex \
-             over the start of the leg of profile step 1) are gone",
+             over the start of the leg of the profile step minted #1) are gone",
         ),
         (
             GroupCutters::Read {
@@ -1342,7 +1342,7 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![member_wall],
             },
             "the parent has new seams with the face name minted by node 8 (the side wall \
-             over the leg of profile step 2, minted by node 6)",
+             over the leg of the profile step minted #2, minted by node 6)",
         ),
         (
             GroupCutters::Read {
@@ -1350,10 +1350,10 @@ fn a_resized_group_states_the_group_fact_and_claims_no_flip() {
                 new: vec![wall(0)],
             },
             "the parent's seams with 2 cutters (the face name minted by node 6 (the side \
-             wall over the leg of profile step 1); the face name minted by node 6 (the \
-             side wall over the leg of profile step 3)) are gone, and the parent has new \
-             seams with the face name minted by node 6 (the side wall over the leg of \
-             profile step 0)",
+             wall over the leg of the profile step minted #1); the face name minted by node 6 (the \
+             side wall over the leg of the profile step minted #3)) are gone, and the parent \
+             has new seams with the face name minted by node 6 (the side wall over the leg \
+             of the profile step minted #0)",
         ),
         (
             GroupCutters::Read {
@@ -2718,7 +2718,7 @@ fn a_step_id_fault_names_the_id_or_the_count() {
         },
         &[
             "edge name minted by node 3",
-            "profile step 9",
+            "profile step id #9",
             "never minted",
             "step counter is 5",
         ],
