@@ -337,7 +337,10 @@ fn a_tampered_branch_is_refused_at_rest() {
     // And the ladder surfaces it typed.
     let errs = validate_geometric(&above, Tol::witness()).unwrap_err();
     assert!(
-        errs.iter().any(|e| format!("{e}").contains("pcurve")),
+        errs.iter()
+            .any(|e| matches!(e, topo::ValidationError::Pcurve { .. })
+                && format!("{e}")
+                    .starts_with("a face's boundary could not be mapped onto its surface")),
         "{errs:?}"
     );
 }

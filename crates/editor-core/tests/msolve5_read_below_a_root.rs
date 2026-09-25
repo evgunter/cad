@@ -192,13 +192,11 @@ fn scene_no_pattern(label: &str) -> Scene {
 }
 
 /// The first TIED row of `kind` in the node's table.
-fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, u32) {
+fn tied_row(ev: &Evaluation<f64>, node: RecipeNodeId, kind: EntityKind) -> (StableName, usize) {
     fixture::table(ev, node)
         .iter()
         .find_map(|(n, e)| match e {
-            Entry::Tied(c) if n.kind == kind => {
-                Some((n.clone(), u32::try_from(c.len()).expect("a small tie")))
-            }
+            Entry::Tied(c) if n.kind == kind => Some((n.clone(), c.len())),
             Entry::Tied(_) | Entry::Unique(_) => None,
         })
         .unwrap_or_else(|| panic!("node {} holds a tied {kind:?} row", node.0))

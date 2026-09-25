@@ -741,6 +741,13 @@ pub enum FittedMagnitude {
 
 /// Typed pcurve-certification failure (D4 ¶3): actionable, closed enum.
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PcurveCertifyErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum PcurveCertifyError {
     /// The face's chart is outside the certified lane. Plane and
     /// cylinder charts have exact closed-form images for every carrier

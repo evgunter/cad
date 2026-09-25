@@ -212,8 +212,8 @@ fn cap_planes_are_the_sweep_ends_for_both_signs_both_doors_two_planes() {
 fn canonical_winding_is_on_top_iff_w_dot_n_positive() {
     for (pname, plane) in planes() {
         let vp = validated(plane, vec![l_loop(), square_hole(0.3, 0.7)]);
-        let outer: Vec<Point2<f64>> = vp.loops()[0].vertices().iter().map(|v| v.pos()).collect();
-        let hole: Vec<Point2<f64>> = vp.loops()[1].vertices().iter().map(|v| v.pos()).collect();
+        let outer: Vec<Point2<f64>> = vp.loops()[0].vertices().to_vec();
+        let hole: Vec<Point2<f64>> = vp.loops()[1].vertices().to_vec();
         assert!(
             signed_area2(&outer) > 0.0,
             "canonical outer is counterclockwise"

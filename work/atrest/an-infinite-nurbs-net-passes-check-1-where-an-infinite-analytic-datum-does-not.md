@@ -2,11 +2,12 @@
 id: an-infinite-nurbs-net-passes-check-1-where-an-infinite-analytic-datum-does-not
 kind: issue
 title: Check 1 refuses an infinite analytic datum and passes a NURBS net of infinities - one poison rule, two readings of it
-status: open
+status: dispatched
 opened: 2026-09-24
 priority: P4
 cost: E
 refs: [ATREST-6, S330]
+parent: ATREST-13
 ---
 
 ## What
