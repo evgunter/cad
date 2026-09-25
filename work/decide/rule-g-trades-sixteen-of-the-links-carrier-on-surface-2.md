@@ -1,7 +1,7 @@
 ---
 id: rule-g-trades-sixteen-of-the-links-carrier-on-surface-2
 kind: issue
-title: rule G costs the link's carrier_on_surface_2 sixteen theorems - SYM-9's kept-atom retry, shipped on, recovers the ten, and the six weakened to the registrant's axiom are what is left
+title: rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget
 status: open
 opened: 2026-09-21
 priority: P2
@@ -155,6 +155,84 @@ of the untried list: render the residuals under both dial sets and read
 the atom keys off — the six the registrant closes, and the ten the
 rule-G attempt recovers — so that both are a described mechanism rather
 than an observed count.
+
+## What DECIDE-5 moved (the arc's span from the decided turn, 2026-09-25)
+
+DECIDE-5 spells the arc carrier's span `4·atan(σ·b)` from the turn the
+profile decided, in place of `4·atan|b|` (`sweep`'s `turned_span`). The
+value channel is bit-identical, and this predicate's numbers move. All of
+the following was measured on the link at the nominal, ε = 1e-9, dev build,
+with `m10_10_evidence_interval`'s render row. The before side is the
+same tree with the one call spelled `span_magnitude` again.
+
+| tier | `carrier_on_surface_2` before → after | document total before → after |
+| --- | --- | --- |
+| rule G and the read off | `[98, 0, 0, 10]` → `[88, 0, 0, 20]` | `[515, 0, 90, 497]` → `[505, 0, 110, 487]` |
+| shipped, one attempt per rung | `[82, 0, 6, 20]` → `[84, 0, 8, 16]` | `[541, 0, 96, 465]` → `[545, 0, 108, 449]` |
+| shipped, with the ladder | `[92, 0, 6, 10]` → `[88, 0, 8, 12]` | `[553, 0, 96, 453]` → `[549, 0, 120, 433]`, retried 12 → 16 |
+
+The same at ε = 1e-6 and 1e-12 (`decide_3_no_predicate_loses_a_decision`
+and `sym_9_the_kept_atom_ladder_recovers_what_phase_1_measured` at each
+row). The pins are re-baselined at these numbers.
+
+**The shipped ladder's −4 theorems are a net, and the evaluation order
+says of what.** The predicate asks nine samples per edge. Blocks 2–3
+are two edges on the end arc whose bulge is the atom
+`tan(½·atan2(3458764513820541·2^-60 + 2·half_w, 0))` (the only bulge
+atom their forms carry). Blocks 6–7 are two edges on the other end arc,
+whose bulge is a `tan(½·atan2(…))` over `cos(2·atan2(…))` and
+`sin(2·atan2(…))`.
+
+```
+               block 2    block 3    block 6    block 7
+ladder before  TTTnTnTnT  TTTnTnTnT  TRTRTnTnR  TRTRTnTnR
+ladder after   TRRnTnRnR  TRRnTnRnR  TTTnTnTnT  TTTnTnTnT
+G shut before  TTTnTnTnT  TTTnTnTnT  TTTTTnTnT  TTTTTnTnT
+G shut after   TnnnTnnnn  TnnnTnnnn  TTTnTnTnT  TTTnTnTnT
+```
+
+- **Eight theorems go to the door**: samples 1, 2, 6 and 8 of blocks 2
+  and 3. The ladder proves them with rule G shut, and with rule G shut
+  they now freeze on the COEFFICIENT RING. Their causes read
+  `{Degree: 3, Coefficient: 1}` against `{Degree: 3}` before
+  (`CAD_M10_10_RULES=no_g CAD_M10_10_PROFILE=1 CAD_M10_10_DUMP_ASKED=1`).
+  Rendered, sample 1's early form is `−½·|R|² + ½·?#` over `|R|`, with
+  `|R| = abs((¼·T²·S + ¼·S)/T)`. Here `T` is the bulge atom above and
+  `S = sqrt(11963051962064243354196353532681·2^-120 +
+  3458764513820541·2^-58·half_w + 4·half_w²)`. The frozen node is the
+  carrier point's squared distance, a sum of three squares. Its
+  components carry coefficients like `17/3458764513820541·2^61` and
+  `17/3987683987354747784732117844227·2^121`: the chord's odd 52-bit
+  mantissa, raised to a power, in the denominator. **A 512-bit ring
+  takes all eight back as theorems**: with rule G shut and one retry at
+  512 bits (`CAD_M10_10_RULES=no_g CAD_M10_10_RETRY=ring_512`) blocks 2
+  and 3 read `TTTnTnTnT` again. So the ring's width is what blocks
+  them, a cost wall of the class `fl(0.4)`'s ring belongs to, and no
+  rule is missing. The door answers them with the rim identity, so they
+  land in `registered`, not `numeric`.
+- **Four door answers become theorems**: samples 1 and 8 of blocks 6
+  and 7. Their first attempt now proves them, because the carrier's span
+  meets the pushforward's atom. Before, the first attempt failed and the
+  door answered them ahead of the ladder.
+- **Two door answers go numeric**: sample 3 of blocks 6 and 7. With
+  rule G shut they freeze on the TERM budget (`{Terms: 2, Degree: 3}`
+  with rule G shut, `{Terms: 6, Degree: 3}` on the ladder's render). A
+  512-bit ring does not take them back. The door no longer closes them
+  either.
+
+Net −8 + 4 theorems, +8 − 4 − 2 door answers, +2 numeric: that is
+`[92, 0, 6, 10]` → `[88, 0, 8, 12]`. Nothing here is closed by a
+value-free rule the tier lacks. The eight are the ring's width, and the
+two are the term budget. So no rule item is filed. The eight are the
+ring class's, where this program's residue at `fl(0.4)` is re-stated.
+
+**The pin's second predicate.** One attempt per rung,
+`carrier_matches_mapped_source` was `[108, 0, 40, 32]` with rule G off and
+on alike. It is now `[108, 0, 60, 12]` off and `[108, 0, 50, 22]`
+shipped. The span's new atom sends twenty more decisions through the
+door with G shut and ten with it on. The ladder takes the shipped side to
+`[108, 0, 62, 10]`. `decide_3_no_predicate_loses_a_decision` pins both
+sides of both predicates.
 
 ## Home
 

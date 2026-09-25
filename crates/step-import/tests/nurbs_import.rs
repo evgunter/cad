@@ -226,13 +226,13 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
 /// * **the refusal arm's structural match is review F1's positive
 ///   control's** (`review_probes_m7_3::probe_arm_b_true_arc_rim_
 ///   positive_control`, M7-3 review, adopted by merge). It is
-///   STRICTER than the string check beside it: the verdict list must
-///   be exactly one `VolumeUncomputable` whose source is a per-face
-///   `QuadratureBudget` — no other verdict, no second verdict, and no
-///   escalation standing in for a budget. Because the import gate is
-///   the SAME `topo::validate_geometric` the native side runs, this
-///   also pins the native posture RW2 asserted directly: a native
-///   escalation would arrive here as an escalation and fail this
+///   STRICTER than the string check beside it: the import succeeds and
+///   its enclosure's refusal must be a per-face `QuadratureBudget`
+///   carrying the sign-level bracket — no validity verdict, and no
+///   escalation standing in for a budget. Because the import's measurement is the
+///   SAME quadrature the native side runs, this also pins the native
+///   posture RW2 asserted directly: a native escalation would arrive
+///   here as an escalation and fail this
 ///   match.
 #[test]
 fn arc_loft_natively_computes_its_rational_volume() {
@@ -303,6 +303,56 @@ fn arc_loft_natively_computes_its_rational_volume() {
         Ok(step_import::StepImport::Solid {
             body, enclosure, ..
         }) => {
+            // The fixed schedule's honest frontier, reached through the
+            // import's measurement instead of the native one. The gate
+            // ADMITS the body — check 7 decides a sign, and this body's
+            // is definite — and the import SUCCEEDS (DESIGN import step
+            // 4: the reader holds no opinion of its own about which
+            // admitted bodies ship). What refuses is the number, and the
+            // refusal rides on the enclosure.
+            let enclosure = match enclosure {
+                Ok(enclosure) => enclosure,
+                Err(unreached) => {
+                    assert!(
+                        !certified,
+                        "the import may only fail to measure where the native body's flux \
+                         also ran out of schedule: {unreached:?}"
+                    );
+                    // Review F1's positive control, adopted: the REFUSAL
+                    // itself, not a substring of its prose — the per-face
+                    // quadrature budget, and no escalation standing in for
+                    // one — and the kernel's own classification of it,
+                    // which keeps the sign-level bracket.
+                    assert!(
+                        matches!(
+                            unreached.refusal,
+                            topo::MassPropsError::Face {
+                                source: geom_brep::props::PropsError::QuadratureBudget { .. },
+                                ..
+                            }
+                        ),
+                        "the only surviving refusal is the fixed schedule's budget: {unreached:?}"
+                    );
+                    let bracket = unreached
+                        .bracket
+                        .expect("a budget refusal keeps the sign-level bracket");
+                    assert!(
+                        bracket.volume_lo > 0.0,
+                        "the bracket the gate admitted on is definitely positive: {bracket:?}"
+                    );
+                    let msg = unreached.to_string();
+                    assert!(
+                        !msg.contains("RATIONAL patch flux"),
+                        "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
+                    );
+                    assert!(
+                        msg.contains("the certified quadrature enclosure cannot reach the"),
+                        "the only surviving refusal is the quadrature budget, with its number: \
+                         {msg}"
+                    );
+                    return;
+                }
+            };
             assert!(
                 certified,
                 "an imported Solid means the at-rest gate passed, which means the \
@@ -425,42 +475,6 @@ fn arc_loft_natively_computes_its_rational_volume() {
                 "RW2 probe 1 (adopted): reversed-DATA reimport is body-identical \
                  (re-export bytes + edge descriptions), volume {}",
                 got.volume
-            );
-        }
-        // The fixed schedule's honest frontier, reached through the
-        // import gate instead of the native one.
-        Err(step_import::StepImportError::TierInvalid { solid, errors }) => {
-            assert!(
-                !certified,
-                "the import gate may only refuse where the native body's flux also \
-                 ran out of schedule: {errors:?}"
-            );
-            // Review F1's positive control, adopted: the VERDICT LIST
-            // itself, not a substring of its prose. Exactly one
-            // verdict, and it is the per-face quadrature budget.
-            assert!(
-                matches!(
-                    errors.as_slice(),
-                    [topo::ValidationError::VolumeUncomputable {
-                        source: topo::MassPropsError::Face {
-                            source: geom_brep::props::PropsError::QuadratureBudget { .. },
-                            ..
-                        },
-                        ..
-                    }]
-                ),
-                "the only surviving verdict is the fixed schedule's budget: {errors:?}"
-            );
-            let refusal = step_import::StepImportError::TierInvalid { solid, errors };
-            let msg = refusal.to_string();
-            assert!(
-                !msg.contains("RATIONAL patch flux"),
-                "the RATIONAL patch flux bank is RETIRED — no refusal may name it: {msg}"
-            );
-            assert!(
-                msg.contains("QuadratureBudget { width_len:")
-                    && msg.contains("a face's contribution did not converge to the tolerance"),
-                "the only surviving refusal is the quadrature budget, with its number: {msg}"
             );
         }
         other => panic!("no other round-trip posture is pinned: {other:?}"),
