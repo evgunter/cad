@@ -917,3 +917,19 @@ Left as they are, with reasons in the PR: the `param_source` prefix code,
 `sign_ix as u8`, and every widening cast.
 
 Filed: gather P4 `product-instance-output-body-index-saturates`.
+
+## 2026-09-25 — Ev: a union names its faces from the finished body (PR 3222)
+
+Ev chose re-deriving over refusing:
+- a face's parent is its merge closure;
+- one `SideOf` per piece, with partners read from the finished body;
+- seams cite parents.
+
+Measured, the rule:
+- renames 90 of 702 distinct face names;
+- refuses nothing new;
+- is order-free over the rebind corpus;
+- lets N3's "constituents retire" hold in every order.
+
+Refusing would have refused 134 of 248 fused orders.
+`union-face-names-follow-fold-order` becomes the build.

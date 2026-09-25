@@ -6,7 +6,6 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: H
-needs_ev: true
 ---
 
 
@@ -56,3 +55,19 @@ N2 and N3 in `crates/editor-core/src/names/README.md` state the rule.
   row's own neighbour signature shows 32 mismatches on #3198's head
   against 12 on main. All of them trace to the leftover vertex, which
   is the zip row's defect.
+
+## Ruled (2026-09-25)
+
+Ev chose (a) on #3222 ("(a) sounds great!"). A union names its faces
+from the finished body, as N2 and N3 now state in `names/README.md`:
+- a face's parent is its merge closure, named `Merged(closure)`, or the
+  bare member face when nothing merges it;
+- a parent held as one face takes the parent's name;
+- a parent held as several faces gives each one `SideOf`, whose
+  partners are the parents across the group's seams;
+- a seam cites the parents on its two sides.
+
+This row is now the build. It is expected to close
+`a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`
+along with it, since under the rule a constituent is never published
+beside its merge.
