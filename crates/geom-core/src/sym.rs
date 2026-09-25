@@ -3327,7 +3327,15 @@ fn form_in(
                     let reduced =
                         algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS);
                     #[cfg(feature = "sym-profile-testing")]
-                    profile::reduce_done(t0);
+                    if t0.is_some() {
+                        let outcome = match &reduced {
+                            Some(g) if !within(budget, g) => "refused",
+                            None => "refused",
+                            Some(g) if *g == f => "unchanged",
+                            Some(_) => "reduced",
+                        };
+                        profile::reduce_outcome(t0, outcome, even_powers(&f, &sess.atoms));
+                    }
                     reduced
                         .filter(|g| within(budget, g))
                         // The gate has ONE home: `algebra::apply`
@@ -3424,6 +3432,39 @@ fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> A
     sess.atoms.entry(id).or_insert_with(info);
     if !early && sess.memo.is_some() {
         sess.plain_atoms.push(id);
+    }
+}
+
+/// Which atom kinds `f` carries to an even power — what rules A/B and
+/// rule G's companion `|X|² = X²` could substitute — as the cost
+/// profile's label for a per-node reduction.
+#[cfg(feature = "sym-profile-testing")]
+fn even_powers(f: &Form, atoms: &IndetMap<AtomInfo>) -> &'static str {
+    let (mut sqrt, mut abs, mut sin) = (false, false, false);
+    for poly in [&f.num, &f.den] {
+        for mono in poly.monos() {
+            for &(id, e) in mono {
+                if e < 2 {
+                    continue;
+                }
+                match atoms.get(&id).map(|a| a.op) {
+                    Some(SymOp::Sqrt) => sqrt = true,
+                    Some(SymOp::Abs) => abs = true,
+                    Some(SymOp::Sin) => sin = true,
+                    _ => {}
+                }
+            }
+        }
+    }
+    match (sqrt, abs, sin) {
+        (false, false, false) => "no even power",
+        (true, false, false) => "sqrt",
+        (false, true, false) => "abs",
+        (false, false, true) => "sin",
+        (true, true, false) => "sqrt+abs",
+        (true, false, true) => "sqrt+sin",
+        (false, true, true) => "abs+sin",
+        (true, true, true) => "sqrt+abs+sin",
     }
 }
 

@@ -309,6 +309,12 @@ pub struct SymProfile {
     /// The per-node rule A/B reduction in the early walk
     /// (`algebra::reduce_steps` under `SymRules::early_ab`).
     pub reduce: Timed,
+    /// The per-node reduction by `(outcome, even powers)`: whether it
+    /// `reduced` the form, left it `unchanged` (no square to take), or
+    /// was `refused` (past its step cap or the budget, so the walk kept
+    /// the unreduced form), against which atom kinds the form carried to
+    /// an even power before it ran.
+    pub reduce_by: BTreeMap<(&'static str, &'static str), Timed>,
     /// Rules A/B over the top residual (`algebra::reduce` in
     /// `discharge`).
     pub reduce_top: Timed,
@@ -896,9 +902,12 @@ fn timed(t: &mut Timed, t0: Option<Instant>) {
     t.time += elapsed(t0);
 }
 
-/// One per-node rule A/B reduction finished.
-pub(super) fn reduce_done(t0: Option<Instant>) {
-    with(|p| timed(&mut p.reduce, t0));
+/// One per-node reduction finished, classified ([`SymProfile::reduce_by`]).
+pub(super) fn reduce_outcome(t0: Option<Instant>, outcome: &'static str, powers: &'static str) {
+    with(|p| {
+        timed(&mut p.reduce, t0);
+        timed(p.reduce_by.entry((outcome, powers)).or_default(), t0);
+    });
 }
 
 /// One top-residual rule A/B reduction finished.
@@ -1441,6 +1450,13 @@ impl SymProfile {
             self.reduce_top.calls,
             self.reduce_top.time
         );
+        for ((outcome, powers), t) in &self.reduce_by {
+            let _ = writeln!(
+                f,
+                "  reduce {outcome:<9} over {powers:<14} {:6} in {:?}",
+                t.calls, t.time
+            );
+        }
         let _ = writeln!(
             f,
             "ring: rat ops {}  big-path int ops {}  promotions {}  widest coefficient kept {} bits, refused {} bits",
@@ -1740,5 +1756,42 @@ mod tests {
         assert!(Rat::zero().recip().is_none());
         assert_eq!(NOTE.get(), Some(FreezeCause::ZeroDivisor));
         let _ = take_profile();
+    }
+
+    /// **Rule G is clocked by branch and part**: `sqrt(x²) − |x|` asks
+    /// the canonical root over a polynomial (`den = 1`, a perfect square
+    /// the search finds) and the `abs` node's door; `sqrt((x + 1)³ /
+    /// (x + 1)) − |x + 1|` asks the exact quotient. Both are zero only
+    /// through rule G, so the early walk asks it, and every entry here
+    /// is outermost: `own` is the canonical calls and the door's.
+    #[test]
+    fn rule_g_is_clocked_by_branch_and_part() {
+        let out = profiled(budget(4096, 128), || {
+            let x = p("x", -3.0);
+            ask((x * x).sqrt() - x.abs());
+            let one = Sym::<f64>::from_f64(1.0);
+            let c = (x + one) * (x + one) * (x + one);
+            ask((c / (x + one)).sqrt() - (x + one).abs());
+        });
+        let r = &out.root;
+        let branch = |b: &str| r.branches.get(b).map_or(0, |t| t.calls);
+        assert!(branch("den = 1") >= 1, "{}", r.render());
+        assert!(branch("exact quotient") >= 1, "{}", r.render());
+        let canonical: u64 = r.branches.values().map(|t| t.calls).sum();
+        assert_eq!(r.own.calls, canonical + r.abs_door.calls, "{}", r.render());
+        assert!(r.abs_door.calls >= 2, "{}", r.render());
+        let (search, found) = r.parts["poly_sqrt"];
+        assert!(found >= 2 && search.calls >= found, "{}", r.render());
+        assert!(r.parts["div_exact"].1 >= 1, "{}", r.render());
+        assert!(r.answered >= 2, "{}", r.render());
+
+        // The node join of a profile against itself aligns every node
+        // and moves none.
+        assert!(!out.node_costs.is_empty());
+        let delta = out.node_delta(&out);
+        assert!(
+            delta.contains(" 0 grew, 0 shrank; only here 0 nodes"),
+            "{delta}"
+        );
     }
 }
