@@ -2,10 +2,13 @@
 id: shell10-r2-probes-restates-the-scope-walk-fixtures-verbatim
 kind: issue
 title: shell10_r2_probes restates offset_together's scope-walk fixtures verbatim, by its own module doc
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-09-24
+branch: dup/owner-index-divergence
+pr: 3151
 ---
 
 
@@ -66,3 +69,50 @@ cross-referenced from
 `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`;
 a shell lane that would rather own it should move the file, per
 `work/README.md`'s one-file-one-item rule.
+
+## Closed 2026-09-24 — the rows moved to the fixtures, not the fixtures to a shared home
+
+Carried by `work/dup/two-spellings-of-the-face-to-solid-owner-index.md`'s
+unit, which was in both files anyway.
+
+Neither of the two homes this row proposed. The copy module held two
+rows and nothing else, and both are about the scope walk and the door
+over it — the subject of `offset_together::scope_walks`, whose
+fixtures they restated. So the rows moved there and
+`crates/topo/src/shell10_r2_probes.rs` was deleted: one module, one
+fixture family, and no visibility widened (`scope_walks`' helpers stay
+private to it, and `test_support_fixtures` gains nothing).
+
+| was | now |
+| --- | --- |
+| `shell10_r2_probes::r2_the_door_panics_on_an_out_of_scope_malformed_solid` | `offset_together::scope_walks::the_door_panics_on_an_out_of_scope_malformed_solid` |
+| `shell10_r2_probes::r2_a_re_scope_up_holds_the_solid_it_was_aimed_at` | `offset_together::scope_walks::a_re_scope_up_holds_the_solid_it_was_aimed_at` |
+| `two_boxes`, `moves_of`, `break_a_loop`, `SQUARE` (the copies) | deleted |
+| `scope_walks`' own `SQUARE` | `crate::test_support_fixtures::UNIT_SQUARE`, the crate's existing home for that literal; the new `separation::owner_index` fixture reads it too rather than spelling a third |
+
+Test count unchanged by the move: `topo`'s lib suite is 761 on the
+branch, of which one row is new (`separation::owner_index`), against
+760 at the merge base. The rows' docs lost their review archaeology
+("the PR's row", "the review's third mutant") and state what they pin.
+
+**The `.expect("a live solid")` sites** this row was to collect are
+**ten** in `offset_together.rs` at this row's close (`git grep -n
+'expect("a live solid")' -- crates`: ten there and one in
+`tier3_tests.rs`), not the twelve `listing-a-solids-faces-…` counted —
+two went with the deleted copies' helpers. **They are not collapsed**
+onto a local adapter: the adapter would be the one-line `faces_of`
+wrapper the `faces_of` unit deleted onto `Body::faces_of_solid`; each
+site names the door it reads, and nothing goes stale with them.
+
+**Citations updated with the move**: `re_scope`'s rustdoc
+(`offset_together.rs`), and the open rows that named the module —
+`work/offset/doors-still-read-the-whole-body-for-tier1.md`,
+`work/perf/door-scopes-outside-topo-are-unguarded.md`,
+`work/helper/expect-one-solid-on-solids-next-has-twenty-homes.md`.
+Closed rows citing it are records of their own merge base and were
+left alone.
+
+**X4, one crate over.** `moves_of` also lives in three `sweep/tests`
+files, and it is one member of a larger class there — a solid's charts
+as a move set — filed as
+`work/dup/a-solids-charts-as-a-move-set-is-spelled-per-sweep-test-file.md`.
