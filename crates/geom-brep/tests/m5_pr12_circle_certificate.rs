@@ -19,8 +19,8 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{
-    EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey, tangent_certificate_lane,
-    tangent_jet,
+    CertCheck, CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey,
+    tangent_certificate_lane, tangent_jet,
 };
 use geom_core::Vec3;
 use slotmap::SlotMap;
@@ -164,4 +164,120 @@ fn the_corner_trimline_jet_is_one_over_the_radius_everywhere() {
     for k in &seen {
         assert!((k - seen[0]).abs() < 1e-12, "κ_rel drifts along the circle");
     }
+}
+
+/// A cylinder of radius r about z and the cap plane z = h crossing it
+/// at a RIGHT angle: their intersection is the circle of radius r at
+/// height h, and it is transverse — the ruled band's cut-off arc
+/// against its cap.
+fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
+    let plane = Surface::Plane {
+        origin: p(0.0, 0.0, h),
+        normal: v(0.0, 0.0, 1.0),
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    let cylinder = Surface::Cylinder {
+        origin: p(0.0, 0.0, 0.0),
+        axis: v(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    let circle = Curve3::Circle {
+        center: p(0.0, 0.0, h),
+        axis: v(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: v(1.0, 0.0, 0.0),
+    };
+    (plane, cylinder, circle)
+}
+
+/// A quarter of `cap_crossing`'s circle, described by `describe` over
+/// the (plane, cylinder) keys, certified.
+fn certify_cap_quarter(
+    r: f64,
+    describe: impl Fn(SurfaceKey, SurfaceKey, geom_core::Point3<f64>) -> EdgeDescriptionSpec<f64>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let h = 0.5;
+    let (plane, cylinder, circle) = cap_crossing(r, h);
+    let mut surfaces: SlotMap<SurfaceKey, Surface<f64>> = SlotMap::with_key();
+    let k_plane = surfaces.insert(plane);
+    let k_cyl = surfaces.insert(cylinder);
+    let (t0, t1) = (0.0, core::f64::consts::FRAC_PI_2);
+    let witness = circle.eval(core::f64::consts::FRAC_PI_4);
+    let spec = EdgeCurveSpec {
+        description: describe(k_plane, k_cyl, witness),
+        carrier: circle.clone(),
+        param_start: t0,
+        param_end: t1,
+    };
+    EdgeCurve::certify(
+        spec,
+        circle.eval(t0),
+        circle.eval(t1),
+        |k| surfaces.get(k).cloned(),
+        band(),
+    )
+}
+
+/// **A right-angle crossing described as a tangency is refused at the
+/// parallelism check** — D4 ¶1's `sin θ ≤ ε·|κ_rel|`, i.e. the margin
+/// `sin θ · r` at lever arm `r = 1/|κ_rel|`. Along the cap crossing
+/// the normals are perpendicular (`sin θ = 1`) and `κ_rel` is the
+/// cylinder's `∓1/r` against the plane's zero, so the margin is `r`,
+/// far above ε. The jet must read each surface's curvature against its
+/// OWN gradient norm: read against the projection `∇F₂·n̂₁`, which is
+/// zero here, `κ_rel` is infinite, the lever arm is zero, and the false
+/// description certifies.
+///
+/// The same arc described as what it is (`Intersection`) certifies;
+/// with the surfaces the other way round the tangent description is
+/// refused too (the plane's zero Hessian against the cylinder's flat
+/// ruling direction gives `κ_rel = 0`, so the second-order check
+/// refuses first).
+#[test]
+fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
+    let r = 0.2;
+    let (plane, cylinder, circle) = cap_crossing(r, 0.5);
+    for i in 1..8 {
+        let t = core::f64::consts::FRAC_PI_2 * f64::from(i) / 8.0;
+        let jet = tangent_jet(&plane, &cylinder, circle.eval(t), circle.deriv(t));
+        assert_eq!(jet.sin_theta, 1.0, "the normals cross at a right angle");
+        assert!(
+            (jet.kappa_rel.abs() - 1.0 / r).abs() < 1e-9,
+            "κ_rel is the cylinder's ±1/r against the plane's zero, got {}",
+            jet.kappa_rel
+        );
+    }
+
+    certify_cap_quarter(r, |s1, s2, witness| EdgeDescriptionSpec::Intersection {
+        s1,
+        s2,
+        witness,
+    })
+    .expect("the cap crossing is a certified transverse intersection");
+
+    let err = certify_cap_quarter(r, |s1, s2, witness| {
+        EdgeDescriptionSpec::TangentIntersection { s1, s2, witness }
+    })
+    .expect_err("a right-angle crossing is not a tangency");
+    assert_eq!(
+        err,
+        CertifyError::ResidualExceeded {
+            check: CertCheck::TangentParallel,
+            sample: 1,
+        }
+    );
+
+    let err = certify_cap_quarter(r, |s1, s2, witness| {
+        EdgeDescriptionSpec::TangentIntersection {
+            s1: s2,
+            s2: s1,
+            witness,
+        }
+    })
+    .expect_err("a right-angle crossing is not a tangency in either order");
+    assert!(
+        matches!(err, CertifyError::NotSecondOrderSeparated { sample: 1, .. }),
+        "{err:?}"
+    );
 }

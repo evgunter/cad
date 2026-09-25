@@ -65,10 +65,17 @@ pub fn tangent_jet<T: Real>(
     let d = n_hat.cross(tangent.normalize());
     let d_hat = d / d.norm();
     // Normal curvatures along d̂, both signed against n̂: κᵢ =
-    // d̂ᵀ(∇²Fᵢ)d̂ / (∇Fᵢ · n̂) — the denominator carries the sign when
-    // the gradients are antiparallel, so κ_rel is orientation-honest.
+    // σᵢ·d̂ᵀ(∇²Fᵢ)d̂ / |∇Fᵢ|, σᵢ = ±1 the sign of ∇Fᵢ · n̂, so κ_rel is
+    // orientation-honest when the gradients are antiparallel. The
+    // MAGNITUDE is each surface's own gradient norm, never the
+    // projection ∇F₂ · n̂ = |∇F₂|·cos θ: that projection vanishes as
+    // the normals turn perpendicular, which would send κ_rel to ±∞
+    // and the parallelism lever arm 1/|κ_rel| to zero — admitting a
+    // right-angle crossing as normal-parallel at any ε. Read this way
+    // κ_rel stays finite on every non-singular pair, so `sin_theta`
+    // is metered at a real arm whatever the angle is.
     let k1 = implicit_hessian_form(s1, p, d_hat) / g1.dot(n_hat);
-    let k2 = implicit_hessian_form(s2, p, d_hat) / g2.dot(n_hat);
+    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * T::one().copysign(g2.dot(n_hat));
     TangentJet {
         sin_theta,
         kappa_rel: k1 - k2,
