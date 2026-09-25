@@ -2769,8 +2769,8 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::PartialTorusFace { face },
         ),
         (
-            "PartialPlaneFace",
-            PointInSolidError::PartialPlaneFace { face },
+            "EdgeCarrierUnsupported",
+            PointInSolidError::EdgeCarrierUnsupported { face },
         ),
         (
             "NoSuchSolid",

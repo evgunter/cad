@@ -316,8 +316,8 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             PointInSolidError::PartialTorusFace { face },
         ),
         (
-            "Containment(PartialPlaneFace)",
-            PointInSolidError::PartialPlaneFace { face },
+            "Containment(EdgeCarrierUnsupported)",
+            PointInSolidError::EdgeCarrierUnsupported { face },
         ),
         (
             "Containment(NoSuchSolid)",
