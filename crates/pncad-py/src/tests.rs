@@ -375,8 +375,8 @@ fn the_measure_node_fault_tag_is_stable() {
 /// `MeasureUnavailableAt` is what the `f64` lane answers a
 /// `min_clearance` with, and the binding evaluates at `f64` — so it is
 /// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `MinClearanceRefusal` is the interval
-/// engine's own, and its ONLY producer is
+/// through a real document. `ClearanceRefusal` is the interval
+/// engine's own, and its ONLY producer on the measure path is
 /// `impl MinClearanceLane for geom_core::Interval`; no Python
 /// evaluation reaches it, because the binding evaluates at `f64` and the
 /// lane is what gates it. So this row is where the second one's tag and
@@ -384,7 +384,7 @@ fn the_measure_node_fault_tag_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinClearanceRefusal};
+    use pncad::document::{ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -398,17 +398,32 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("clearance::min_separation"));
 
-    let refused = MinClearanceRefusal {
-        class: "SubdivisionBudget",
-        payload: "depth 12".to_string(),
-    };
-    assert_eq!(
-        node_error_tag(&pncad::document::NodeErrorKind::MeasureClearanceRefused(
-            refused.clone()
-        )),
-        "measure_clearance_refused"
-    );
-    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+    // The four arms `clearance::min_separation` refuses with — the
+    // only ones this carrier's producer can build — all cross as one
+    // tag.
+    let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
+    let empty = refused(ClearanceRefusal::EmptyScope);
+    let unpaired = refused(ClearanceRefusal::NoAdmittedPair);
+    let unsupported = refused(ClearanceRefusal::Unsupported {
+        carrier: "a free-form face",
+        face: FaceKey::default(),
+    });
+    let poison = refused(ClearanceRefusal::PoisonEnclosure {
+        a: FaceKey::default(),
+        b: FaceKey::default(),
+    });
+    for e in [&empty, &unpaired, &unsupported, &poison] {
+        assert_eq!(node_error_tag(e), "measure_clearance_refused", "{e}");
+    }
+    // The prose is pinned on the two arms whose rendering is a
+    // sentence. `Unsupported` and `PoisonEnclosure` print their faces
+    // as `FaceKey` `Debug` — the defect
+    // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
+    // `reads_as_prose` does not look for an arena key, so a pin there
+    // would pass and prove nothing.
+    for e in [&empty, &unpaired] {
+        assert!(crate::errors::reads_as_prose(&e.to_string()), "{e}");
+    }
 }
 
 /// LIB-B-MEASURES: an assertion's two directions, and the symbols a
@@ -4692,9 +4707,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "member_edge_tied",
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",
+            "narrow_band",
             "seam_line_sides",
             "seam_vertex_parentage",
             "seam_vertex_partners",

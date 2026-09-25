@@ -698,7 +698,8 @@ pub enum SideVerdict {
 /// verdicts against recipe-covariant references. NO values, NO bare
 /// indices — `OrderAlong.rank` is an ordinal under the named
 /// order-along comparison (N2's sanctioned order-along(oriented
-/// parent carrier)), which changes only at a recorded flip.
+/// parent carrier)), or for a union's member-edge piece the index of a
+/// cell of that edge, and changes only at a recorded flip.
 #[derive(
     Debug, Clone, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
 )]
@@ -737,14 +738,26 @@ pub enum Qualifier {
     /// collapse, or at a later rewrite of the name that reorders the
     /// two sides — the rank is read from the other end.
     ///
+    /// **A union's piece of a member edge counts cells, not
+    /// fragments.** For `FromMember(m, e)` + `OrderAlong`, the finished
+    /// body's vertices on `e`'s segment cut it into cells numbered along
+    /// `e`'s oriented carrier in `m`'s body. `of` counts CELLS, not
+    /// pieces: a cell another member holds, or none does, counts too, so
+    /// some ranks below `of` index a cell no piece of `m` holds. `rank`
+    /// is the first cell the piece covers. The count is order-free as far
+    /// as the boolean's output is (`emit_union::rank_member_edges`).
+    ///
     /// The carrier's orientation is load-bearing — reversing it
     /// reverses every rank — so where it is built from face normals
     /// those are **outward** normals (M5 S10, `emit_topo::face_plane`),
     /// never raw chart normals.
     OrderAlong {
-        /// This fragment's rank (0-based) along the carrier.
+        /// This fragment's rank (0-based) along the carrier — for a
+        /// union's member-edge piece, its first cell's index.
         rank: u32,
-        /// How many sibling fragments the ordering ranked.
+        /// How many sibling fragments the ordering ranked — for a
+        /// union's member-edge piece, how many CELLS the edge is cut
+        /// into, held or not.
         of: u32,
     },
 }

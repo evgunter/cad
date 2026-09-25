@@ -109,7 +109,8 @@ pub use drive::{
 };
 pub use edit::{
     Applied, CarryForwardDoor, DocEdit, EditError, EditRecord, LoggedEdit, LoopProvenance,
-    Maintenance, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged, cascade_delete_order,
+    Maintenance, MaintenanceNet, ProvenanceFault, RETIRED_FLOOR, apply, apply_logged,
+    cascade_delete_order,
 };
 pub use eval::{
     Arity, BooleanValue, CancelToken, ContentBits, ContentKey, DatumValue, DirectionRefusal, Epoch,
@@ -140,8 +141,8 @@ pub use mc::{
 };
 pub use measure::{
     ASSERT_BOUND, AssertionDir, AssertionVerdict, Certified, MeasureExpr, MeasurePrimitive,
-    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, MinClearanceRefusal,
-    UnevaluatedReason, WINDOW_TIGHTENING,
+    MeasureUnavailableAt, MinClearanceLane, MinClearanceOperand, UnevaluatedReason,
+    WINDOW_TIGHTENING,
 };
 pub use meta::{MetaError, MetaValue, MetaVersionError, from_value, to_value};
 pub use names::{
