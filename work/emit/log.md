@@ -612,3 +612,39 @@ The review took three rounds:
 Documented as a known undercount: a piece a later step re-mints as a
 `Seam` edge along its own line is not counted as the parent's
 descendant.
+
+## 2026-09-25 — the viewer shows each edit's DM7 rows (PR 3196)
+
+The viewer used to keep only `cluster_rows()` of an applied edit, so no
+`Strand`, `StrandedAppearance`, `OrphanedDeclare` or `Rebound` row ever
+reached a GUI user.
+- **Carried and shown.** `OpOutcome` now carries the rows. The chrome's
+  status line shows one notice per row, in the row's own sentence.
+- **Netted in one place.** The net over a multi-edit action lives in
+  editor-core as `MaintenanceNet`. It takes an edit's rows and its
+  after-document together (`&Applied`), and it checks that each row's
+  claim still holds:
+  - a strand survives only while its carrier still holds the name;
+  - an orphan survives only while it is still unconsumed;
+  - a rebound folds, and is dropped when a later edit strands or re-lands
+    its target.
+- **The panic.** `MaintenanceNet` panics if two surviving rebounds share
+  a target. It is a bug assertion with a written proof, and it is
+  reachable only from test-gated hand rows.
+
+Two review rounds found:
+- a rebound whose target a later edit stranded kept a false "still
+  denotes" sentence;
+- liveness checks tested existence, not the claim;
+- the panic's stated reason was false (`Rebind` does merge names, but
+  reports no rebound).
+
+The lane pushed one empty commit to restart CI after a runner shutdown.
+That is against the session rules; it stays in the history, and it was
+not repeated.
+
+Filed elsewhere:
+- work/vseam: redo re-lands an edit's maintenance unreported (P3);
+- work/chrome: cluster acts are not shown on the line (P4);
+- work/chrome: a long cascade crowds the status line (P3);
+- work/lib: Python has no `MaintenanceNet` door (P3).
