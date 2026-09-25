@@ -40,7 +40,7 @@
 //!
 //! `sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0` where it is used, not
 //! merely `N/D ≥ 0`: at `N ≤ 0, D < 0` the left side is real and
-//! neither root on the right is. `D ≠ 0` is rule E's four-source
+//! neither root on the right is. `D ≠ 0` is rule E's five-source
 //! denominator argument ([`quotient`]) — a denominator the form carries
 //! has a value, so it is non-zero wherever the expression has one.
 //! What is left is a SIGN for `D`, and it is PROVED from the form,
@@ -95,6 +95,91 @@
 //! rather than asking the atom table. With it goes the old
 //! order-dependence disclosure: a proof from the form does not depend
 //! on what the walk minted first.
+//!
+//! # The exact quotient: a polynomial factor the halves share
+//!
+//! **The invariant.** A root whose argument `N/D` has a denominator
+//! that divides its numerator exactly is minted over the polynomial
+//! quotient `Q`, `N = Q·D`, before the split above is asked
+//! ([`super::SymRules::root_quotient`], read with rule G's dial as
+//! `canonical_root && root_quotient`). Where `D` does not divide `N`,
+//! or `Q`'s own root declines, the split is asked as before.
+//!
+//! **Why it is needed.** Rule E ([`quotient`]) divides out the
+//! MONOMIAL both halves share, and says of itself that it is not a
+//! polynomial GCD: `(x + 1)` dividing both halves stays. A root keyed
+//! through the split of such a quotient keys its halves' factors
+//! separately — `|R³|/R²`, say, where the value is `|R|` — and on wide
+//! coefficients the split declines on the ring and keys the whole
+//! quotient. R1's boss at `bulge = 2` carries exactly that at its
+//! `arc_span` identity: `2^-59·sqrt(5)·|c + 2^59·h| − sqrt(P/Q)` with
+//! `Q = (1 + h/a)⁴`, `a = c·2^-59`, and `P = 5a²(1 + h/a)⁶` — the
+//! chord's own polynomial to the fourth power in both halves. With the
+//! factor divided out the root is `sqrt(5(a + h)²)`, whose canonical
+//! form is the first term's atom, and the residual is zero.
+//!
+//! **Why it is an equality of reals, with no value read.** The quotient
+//! comes from [`Poly::div_exact`], whose loop holds `rest = N − q·D`
+//! exactly at every step, so a zero `rest` is the statement `N = Q·D`
+//! as polynomials. So `N/D = Q` as rational functions, and at every
+//! point where `D ≠ 0` the two denote one real; `sqrt(N/D) = sqrt(Q)`
+//! there, on both sides of zero and at a zero of `Q` (both roots are
+//! `0`). `D ≠ 0` at every point clause 1 admits is [`quotient`]'s
+//! five-source argument, which this step inherits whole and extends by
+//! nothing: it mints no denominator (its output has none). Nothing
+//! here consults the box, the atom table or a bracket, so a zero
+//! reached through it is a THEOREM.
+//!
+//! **The sign of `D` stops mattering, and that is correct.** The split
+//! `sqrt(N/D) = sqrt(N)/sqrt(D)` needs `D > 0`; the quotient does not,
+//! because it never separates the halves. A negative `D` with `D | N`
+//! gives a `Q` that is the argument's own value, and whether `sqrt(Q)`
+//! has a real value is clause 1's question exactly as it was for
+//! `sqrt(N/D)`.
+//!
+//! **The `abs` and `copysign` hazard.** The step rewrites no `abs` and
+//! no `copysign` node. Its output does meet rule F's predicate: a
+//! perfect-square `Q = R²` goes through step 3 above, `sqrt(R²) = |R|`,
+//! and `|R|` through [`manifest::magnitude`], which folds `|R| = R`
+//! only for an `R` the form shows non-negative — `sqrt(R²) = R` there
+//! is an identity of reals, the zero included — and otherwise keys the
+//! `Abs` atom. No `copysign` is minted, so its signed-zero edge does
+//! not arise. A sign-carrying `R` stays opaque; `geom-core`'s
+//! `decide_4_root_quotient_rows` pins that on boxes where the tier is
+//! asked.
+//!
+//! **What it does not reach, and the meeting it gives up.**
+//! - A factor shared by the halves when neither divides the other
+//!   (`(x + 1)(x + 2)/((x + 1)(x + 3))`) — that is a GCD, and a GCD is
+//!   not taken here. Only `D | N` is tried, not `N | D`.
+//! - It runs at the root door only: an `abs` over the same quotient, or
+//!   a quotient that is not under a root, is untouched.
+//! - **It re-keys a root the split used to meet.** With `D | N` the
+//!   root is `sqrt(Q)`, so it no longer meets the split spelling
+//!   `sqrt(N)/sqrt(D)` of the same value that the rule mints wherever
+//!   `N` and `D` are written apart — `sqrt(N)` for `N = Q·D` is its
+//!   own atom, and meeting it needs `sqrt(Q·D) = sqrt(Q)·sqrt(D)`, a
+//!   factorisation of `N` this tier does not take. Asking the split
+//!   FIRST trades the other way: it keeps that meeting, but it makes
+//!   the quotient's reach depend on the ring. Wherever the ring lets
+//!   the split through, `sqrt(5p⁶)/sqrt(p⁴)` keys `|p³|/p²` and not
+//!   `|p|`. The MEASURED boss is still taken under that order, because
+//!   there the split declines on the ring, but the dyadic twin of its
+//!   shape is not. Run split-first, `decide_4_root_quotient_rows` reds
+//!   four rows: the boss's dyadic shape, a sign-carrying square over a
+//!   squared denominator, the signed-denominator meeting, and the trade
+//!   rows. Quotient-first keys the root the same way at every ring
+//!   width. No measured document moves on the lost shape. `decide_4_root_quotient_rows` pins both
+//!   spellings as the trade, and
+//!   `work/decide/the-exact-quotient-re-keys-a-root-the-split-met`
+//!   carries them with the remedy, a canonical factorisation of a
+//!   root's argument.
+//!
+//! **The division** is [`Poly::div_exact`]'s: leading terms under the
+//! graded-lexicographic monomial order (`form::grlex`), a step cap
+//! that is the budget's own term cap, and a decline wherever a
+//! leading monomial does not divide or the ring refuses — a missed
+//! cancellation, never a wrong one.
 //!
 //! # One door
 //!
@@ -156,15 +241,17 @@ fn sqrt_rational(c: &Rat, sess: &mut Session) -> Option<Form> {
     k.mul(&Form::poly(Poly::constant(s)), sess.budget)
 }
 
-/// The sign of a polynomial's LEADING term — the last in the monomial
-/// order the form stores its terms in. `None` for the zero polynomial,
-/// which has no leading term and needs no normalisation.
-fn leading_is_negative(p: &Poly) -> Option<bool> {
+/// The sign of a polynomial's LAST term in STORAGE order — `Mono`'s own
+/// `Ord`, which is not a monomial order and not `form::leading`'s grlex.
+/// Any fixed choice of term serves a KEY convention; this one is the
+/// cheapest. `None` for the zero polynomial, which needs no
+/// normalisation.
+fn last_stored_is_negative(p: &Poly) -> Option<bool> {
     p.terms().last().map(|(_, c)| c.is_negative())
 }
 
 /// **`|Y|` and `|−Y|` are one real, so they are one atom.** The
-/// representative is the form whose numerator's leading coefficient is
+/// representative is the form whose numerator's last stored coefficient is
 /// positive; a magnitude minted over `1 − 2x` and one minted over
 /// `2x − 1` then key the same indeterminate, and a root of a perfect
 /// square meets the `abs` NODE the document spelled whichever way
@@ -180,7 +267,7 @@ fn leading_is_negative(p: &Poly) -> Option<bool> {
 /// changes here is only which indeterminate the magnitude that is left
 /// is called.
 fn sign_normalised(f: &Form) -> Option<Form> {
-    if leading_is_negative(&f.num)? {
+    if last_stored_is_negative(&f.num)? {
         let mut out = f.neg()?;
         out.gated = f.gated;
         return Some(out);
@@ -201,10 +288,10 @@ fn sign_normalised(f: &Form) -> Option<Form> {
 fn magnitude_key(f: &Form) -> Option<(Rat, Form)> {
     let (cn, mut n) = content_split(&f.num)?;
     let (cd, mut d) = content_split(&f.den)?;
-    if leading_is_negative(&n)? {
+    if last_stored_is_negative(&n)? {
         n = n.neg()?;
     }
-    if leading_is_negative(&d)? {
+    if last_stored_is_negative(&d)? {
         d = d.neg()?;
     }
     let k = cn.mul(&cd.recip()?)?;
@@ -351,6 +438,29 @@ pub(super) fn canonical(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.poisoned || arg.is_zero() {
         return None;
     }
+    exact_quotient_root(arg, sess).or_else(|| split(arg, sess))
+}
+
+/// The exact quotient (module header): where the denominator divides
+/// the numerator, the root of the polynomial quotient, asked BEFORE the
+/// split. `None` where the step is shut, `D` does not divide `N`, or the
+/// quotient's own root declines — and then the split IS asked.
+fn exact_quotient_root(arg: &Form, sess: &mut Session) -> Option<Form> {
+    if !(sess.rules.canonical_root && sess.rules.root_quotient) {
+        return None;
+    }
+    let q = arg.num.div_exact(&arg.den, sess.budget)?;
+    let mut out = sqrt_poly(&q, sess)?;
+    // Redundant under `combine`'s `gate()`, and kept: it matches the
+    // split's own branch and holds the label wherever else `canonical`
+    // is reached from.
+    out.gated |= arg.gated;
+    Some(out)
+}
+
+/// The split of the module header's steps 1–3: a polynomial argument
+/// through `sqrt_poly`, a quotient through `D`'s proved sign.
+fn split(arg: &Form, sess: &mut Session) -> Option<Form> {
     if arg.den.as_constant().is_some_and(|c| c == Rat::one()) {
         let mut out = sqrt_poly(&arg.num, sess)?;
         out.gated |= arg.gated;

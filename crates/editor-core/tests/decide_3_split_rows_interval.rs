@@ -19,14 +19,15 @@ use geom_core::{SymRules, Tol};
 use crate::m10_8_harness::split_at_the_nominal;
 
 /// The tier as it stood before this unit: the shipped set with rule G
-/// and the decision read shut. Rule G's companion rewrite in rule A
-/// rides rule G's dial, so this IS the base tier and not a tier that
-/// never existed.
+/// and the decision read shut. Rule G's conjunct dials (its companion
+/// rewrite, its magnitude door, its exact quotient) are spelled shut
+/// with it through [`SymRules::without_canonical_root`], so this is one
+/// `SymRules` value with the base tier and not a tier that never
+/// existed.
 fn before() -> SymRules {
     SymRules {
-        canonical_root: false,
         decision_read: false,
-        ..SymRules::shipped()
+        ..SymRules::without_canonical_root()
     }
 }
 

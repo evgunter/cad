@@ -308,6 +308,24 @@ const SLAB_LEDGER: [&str; 3] = [
 /// comparisons of two rational CONSTANTS, and A0 decides those exactly
 /// now (`work/decide/a0-leaves-max-and-min-of-constants-opaque`), so
 /// there is nothing left for the instrument to report.
+///
+/// **What rule G's exact quotient moves** (`SymRules::root_quotient`,
+/// the only change between the two captures): the plate's
+/// `Early/Decision` digest, and nothing else — every count on every
+/// line identical, the slab's ledger and both largest forms unmoved.
+/// Its reach on the plate's nominal replay is 108 of the 208 root mints
+/// that reach it (ten distinct arguments, asked again across walks):
+/// on 76 of them the split would have keyed the root differently, on
+/// 32 it declined, and on each the quotient's root is a different form
+/// (counted by a local probe, reverted, and matching review r1's count
+/// at the rule's first head). No decision moves: the plate's split and
+/// receipt are unmoved (`sym_9_retry_interval`'s pin reads
+/// `[811, 0, 140, 462]` either way). One digest and not more is the
+/// ledger's charging rule read on this document: a memoized form is
+/// chained into the line of the walk and origin that first builds it,
+/// and these roots are first built by the decision walk — the pin
+/// holds that no other line moves, and that reading of it is not a
+/// separate measurement.
 const SLAB_MAX_TERMS: usize = 6;
 const PLATE_MAX_TERMS: usize = 252;
 
@@ -317,7 +335,7 @@ const PLATE_MAX_TERMS: usize = 252;
 const PLATE_LEDGER: &str = "\
      Plain/Decision calls 951 forms 15030 frozen 672 digest aa581ad9960b7ef704f978c1bb2d7ce3\n\
      Plain/Assertion calls 462 forms 2594 frozen 372 digest 702ce928fd05aeeb766afa8c0ae157bb\n\
-     Early/Decision calls 320 forms 7979 frozen 8 digest 5274cafc352ceecaf7e8fef294baa3f0\n\
+     Early/Decision calls 320 forms 7979 frozen 8 digest 2a62023a371bd4aacf1017c8e9f8029e\n\
      Early/Assertion calls 462 forms 3406 frozen 0 digest 4bcf903191f8a0a9db825a2798908440\n\
      Door/Decision calls 330 forms 11884 frozen 0 digest 90c99c9e033c9e0adf0032dacb84aee1\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
@@ -476,9 +494,8 @@ fn the_plains_ledger_lines_are_the_same_under_every_dial_set() {
         (
             "both new dials off",
             SymRules {
-                canonical_root: false,
                 decision_read: false,
-                ..SymRules::shipped()
+                ..SymRules::without_canonical_root()
             },
         ),
     ];

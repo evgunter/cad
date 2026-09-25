@@ -110,11 +110,12 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             && !off.canonical_root
             && !off.abs_square
             && !off.root_magnitude
+            && !off.root_quotient
             && !off.decision_read,
         "the algebra off: {off:?}"
     );
-    // TEN dials since SYM-9, and the two it added are rule G's own
-    // halves. Eight of them have been the list since DECIDE-3: rule E
+    // ELEVEN dials, and the last three are rule G's own conjuncts.
+    // Eight of them have been the list since DECIDE-3: rule E
     // (the quotient's common factor, SYM-5), rule F (the manifest sign,
     // SYM-8), rule G (the canonical root) and the decision read are
     // form-level algebra in the early walk like the other four, and
@@ -132,6 +133,10 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
     // before they existed. They are here because they must be the same
     // VALUE too: a tier shut two ways is one `SymRules` and rows
     // compare them (`m10_8_pins_interval`'s `a0_alone`).
+    //
+    // **`root_quotient` is the eleventh**: rule G's exact quotient — a
+    // root over `N/D` with `D | N` minted over the polynomial quotient
+    // — read as a conjunction with `canonical_root` for the same reason.
     //
     // **Both sets are written out WHOLE, field by field**, with no
     // rest pattern: a dial added to `SymRules` is then a compile error
@@ -153,6 +158,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             canonical_root: false,
             abs_square: false,
             root_magnitude: false,
+            root_quotient: false,
             decision_read: false,
             registered: true,
         },
@@ -174,10 +180,11 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             canonical_root: true,
             abs_square: true,
             root_magnitude: true,
+            root_quotient: true,
             decision_read: true,
             registered: true,
         },
-        "`shipped` is `without_the_algebra` with the ten algebra dials on, and nothing else"
+        "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"
     );
 }
 

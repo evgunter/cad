@@ -377,3 +377,77 @@ suspended the A/B protocol on 2026-09-23, so it finishes under it and
 its row is recorded on `main`; the orchestrator field spans Fable →
 Opus 5.5. **Block DECIDE-B1 closes** with slot 2 (DECIDE-4) unconsumed,
 per the suspension; DECIDE-4 runs on Opus under the review tiers.
+
+## 2026-09-24 — DECIDE-4 spec'd: rule D past the unit bulge, DUAL
+
+`rule-d-reaches-the-unit-bulge-only` is cut as DECIDE-4
+(`docs/DECIDE-4-SPEC.md`, branch `decide/4-bulge-reach` from
+`props/sign-hull` at `7f3c0cc3f`, the PR targeting `props/sign-hull`).
+Opus implementer.
+
+**Review tier: DUAL**, class M / NUMERIC. The reason: the unit changes
+what the tier decides across a family (every fillet, `Via` and tangent
+arc, `CircleSplit(n ≠ 2)` and every `restrict`-minted sub-arc — a
+third of the tour). The change is also a value-free rewrite over
+`abs`, which is where the record has found unsound folds before
+(SYM-8's `copysign` narrowing; DECIDE-3's side-condition source). If
+the unit closes at its Phase 1 measurement, the tier drops to a single
+STYLE review, and this log will say so when it happens.
+
+**The DR row's home, decided here:** `docs/DUAL-REVIEW-LOG.md` lives
+on `main` and not on `props/sign-hull`, so rule 8's "the row rides the
+unit's own PR as its last commit" cannot hold for a unit whose PR
+targets a props branch. The row rides the orchestrator's carry PR to
+`main` instead, as its last commit, and takes its DR number when that
+PR merges. The alternative, merging `main` into the unit's branch to
+carry the log, was rejected. It would bring `main` into
+`props/sign-hull` ahead of PROPS's own merge, which DECIDE-3 and SYM-9
+both avoided.
+
+**The route A / route B fork on the bulge's sign** is not decided here.
+The item leaves it to Ev with the orchestrator. The spec has Phase 1
+count both routes on today's tree, and stops before either is
+implemented. The sign-free part (Phase 2a) does not wait on it.
+
+## 2026-09-25 — DECIDE-4 merged into `props/sign-hull` (#3192)
+
+**What landed.**
+- Phase 1's attribution, and rule G's exact quotient (a root whose
+  argument's denominator divides its numerator exactly is minted over
+  the quotient).
+- The boss's last value-free residual is taken. The boss now certifies
+  0.73 of its real study, bounded by a real margin (`dihedral_wedge`).
+- No other split moves on nine documents, at +0–3% leaf cost.
+
+**What was filed.** The trade: a root re-keyed to `sqrt(Q)` no longer
+meets the split spelling `sqrt(N)/sqrt(D)`. It is filed as
+`the-exact-quotient-re-keys-a-root-the-split-met` (P2); the remedy is a
+canonical factorisation of a root's argument.
+
+**What is still open.** The bulge's sign waits on Ev's fork (`[ev]`
+#3186), and `rule-d-reaches-the-unit-bulge-only` stays open on it. If
+the ruling is route B, it is its own unit, since DECIDE-4 closed before
+the ruling.
+
+**The review.**
+- The dual on `334bb2aa2` gave APPROVE-WITH-FIXES twice: R1 0/7/4 and
+  R2 0/5/5. It was coded blind, byte 19, with no tally candidate and a
+  fair pair.
+- The adjudicated union fix pass A–L ran at `bfb059b7f`.
+- R1's delta found that the budget-sized step cap made one declined
+  division cost 0.78 s at the drive's budget. It was fixed at
+  `de02c07a1`: two necessary monomial conditions before any step, and a
+  remainder map so a step is linear in `|d|`. It now takes 0.3 ms.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer, first pass | 481k | 250 min |
+| implementer, fix pass | 171k | 100 min |
+| implementer, second pass | 39k | 35 min |
+| R1 | 287k | 52 min |
+| R1's delta | 88k | 32 min |
+| R2 | 292k | 51 min |
+| coder | 73k | — |
+

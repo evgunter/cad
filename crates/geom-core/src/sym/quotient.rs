@@ -62,8 +62,8 @@
 //!
 //! **Why the side conditions are free.** `g` divides `D`, so `g = 0`
 //! implies `D = 0`; in both steps the only condition is `D ≠ 0` at the
-//! point. A denominator has FOUR sources and the argument has to cover
-//! all four — it is NOT "only what the value channel divided by", and
+//! point. A denominator has FIVE sources and the argument has to cover
+//! all five — it is NOT "only what the value channel divided by", and
 //! saying that is the mistake this paragraph replaces.
 //!
 //! **(i) The numerators of the `Inv` nodes above the form.**
@@ -97,6 +97,12 @@
 //! in the shipped set): the new denominator `d` satisfies `d² = D` for
 //! the old `D`, and the site refuses a zero `d` outright, so `d = 0`
 //! iff `D = 0` — again a power of something already covered.
+//!
+//! **(v) Rule G's split denominators** (`root`'s canonical form): the
+//! `sqrt(D')` atom, the `|R|` atom (`R² = D'`) or the exact rational
+//! root that `sqrt(N/D) = sqrt(N)/sqrt(D)` leaves below, for `D'` the
+//! primitive part of a `D` the split proved positive — zero iff `D` is,
+//! so again a root of something already covered.
 //!
 //! On a box clause 1 admits, then, the two forms denote the same real
 //! function at every point, which is exactly what the theorem needs.
@@ -190,7 +196,7 @@
 //! `work/sym/derived-frame-placement-freezes-on-the-symbolic-lane`
 //! the numbers.
 
-use super::form::{Form, Mono, Poly, exp_of};
+use super::form::{Form, Mono, Poly, exp_of, mono_div};
 use super::rational::Rat;
 
 /// **The monomial in both `a` and `b`** — per indeterminate, the
@@ -246,17 +252,7 @@ pub(super) fn divide(p: &Poly, g: &Mono) -> Option<Poly> {
     }
     let mut terms: Vec<(Mono, Rat)> = Vec::with_capacity(p.terms().len());
     for (m, c) in p.terms() {
-        let mut rest = Mono::with_capacity(m.len());
-        for &(id, e) in m {
-            let d = exp_of(g, id);
-            if e < d {
-                return None;
-            }
-            if e > d {
-                rest.push((id, e - d));
-            }
-        }
-        terms.push((rest, c.clone()));
+        terms.push((mono_div(m, g)?, c.clone()));
     }
     terms.sort_by(|(a, _), (b, _)| a.cmp(b));
     Poly::from_sorted_terms(terms)
