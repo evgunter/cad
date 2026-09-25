@@ -2088,8 +2088,10 @@ fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
         ),
         ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
         ContainError::ArcLoopUnsupported { .. } => (
-            "its boundary has an arc the check cannot yet handle",
-            NOT_YET,
+            "its boundary is arcs over fewer than three corners, which the check cannot \
+             read as a region",
+            "Recourse: split an arc so the boundary has three corners, or draw the region \
+             as one circle",
         ),
     }
 }

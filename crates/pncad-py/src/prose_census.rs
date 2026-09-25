@@ -1797,7 +1797,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,
-        3,
+        1,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
@@ -1902,20 +1902,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is introduced by a pattern NESTED inside the field pattern\
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
-    ),
-    (
-        "crates/topo/src/validate.rs",
-        "CensusContact",
-        POSITIONAL,
-        2,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
-        "crates/topo/src/validate.rs",
-        "ValidationError",
-        POSITIONAL,
-        2,
-        "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/viewer/src/idpass.rs",
