@@ -1,0 +1,4 @@
+fork: full-revolve-split-planar-walls (GERM)
+dispatched: 2026-09-25
+byte: 216
+mapping: A=opus B=fable
