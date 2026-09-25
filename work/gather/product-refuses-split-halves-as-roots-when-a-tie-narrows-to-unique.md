@@ -1,12 +1,13 @@
 ---
 id: product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique
-kind: issue
+kind: unit
 title: product falsely refuses Naming when the two halves of one split are taken as two Part roots over an N2 tie the plane separates
-status: open
+status: review
 opened: 2026-09-24
 priority: P0
 cost: H
 refs: [product-refuses-naming-when-one-instance-is-placed-under-two-roots]
+branch: gather/split-halves-tie-merge
 ---
 
 Found by PR 3142's review (MAJOR 1), filed by the GATHER two-roots lane.
@@ -58,3 +59,21 @@ cross-body tie marked as a tie. Either way, the fix is right when both
 rows above gather into one `Entry::Tied` row, with the same shape the
 split root gets.
 
+## The fix
+
+The gather recovers the tie. `NameTable` marks a `Unique` row that is
+one piece of a tie separated across output bodies upstream:
+`NameTable::project` marks a tie it narrows to one candidate and keeps
+a mark its input already carried, a split's intact pass-through keeps
+the mark (`names::defer::pass_through`), and a `Transform` shares its
+input's table whole. `CarriedRows::carry` defers a marked row as it
+defers a tied one, so the pieces merge at the flush into the one
+`Entry::Tied` the split's own table holds. A lone `Part` publishes the
+same `Unique` row as before, and a lone `Part` root gathers it `Unique`.
+
+The two measurements are now passing rows asserting the gather, and
+each compares the two-halves product table with the split-root
+product table, row for row (`gather_placed_under_two_roots`,
+`split_halves_as_roots_over_a_one_{one,two}_tie_gather_one_tie`).
+`a_separated_piece_merges_through_a_transform_and_a_second_split`
+covers the other verbatim edges.

@@ -13,10 +13,10 @@
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EvalOptions,
-    EntityKind, Entry, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node,
-    PartSelect, PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf,
-    StableName, product, product_named,
+    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
+    EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
+    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf, StableName,
+    product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -709,9 +709,11 @@ fn a_separated_piece_merges_through_a_transform_and_a_second_split() {
     let (doc, moved) = shifted(doc, above, 0.0);
     let (doc, below) = half(doc, split, SplitHalf::Below);
     assert_eq!(doc.roots(), &[moved, below][..], "the premise");
-    every(&gathered(&doc), "a transformed half merges with the other", &|e| {
-        matches!(e, Entry::Tied(es) if es.len() == 2)
-    });
+    every(
+        &gathered(&doc),
+        "a transformed half merges with the other",
+        &|e| matches!(e, Entry::Tied(es) if es.len() == 2),
+    );
 
     let (doc, above) = half(whole.clone(), split, SplitHalf::Above);
     let (doc, plane) = insert(
@@ -730,9 +732,11 @@ fn a_separated_piece_merges_through_a_transform_and_a_second_split() {
     );
     let (resplit, below) = half(doc.clone(), split, SplitHalf::Below);
     assert_eq!(resplit.roots(), &[again, below][..], "the premise");
-    every(&gathered(&resplit), "a re-split half merges with the other", &|e| {
-        matches!(e, Entry::Tied(es) if es.len() == 2)
-    });
+    every(
+        &gathered(&resplit),
+        "a re-split half merges with the other",
+        &|e| matches!(e, Entry::Tied(es) if es.len() == 2),
+    );
 
     // The second split's lower half holds the candidate; a `Part` of it
     // projects an already-marked row, and keeps the mark.

@@ -268,13 +268,17 @@ pub(super) fn pass_through(
 /// through [`narrow_into`], the door `flush` and [`NameTable::project`]
 /// also narrow through, so no caller here can narrow differently.
 ///
-/// The deferral reads the SOURCE ENTRY's tie bit, never how many
+/// The deferral reads the SOURCE ROW's tie bit, never how many
 /// candidates survived into this one source — that count is 1 for
 /// each half of a separated tie, and reading it is what made the two
-/// halves of one document collide. A row whose source entry is
-/// `Unique` goes straight through `insert_ref`, so two roots aliasing
-/// a strict name is still a typed refusal, and so is a tie-descended
-/// name landing on one: the flush inserts into the same table.
+/// halves of one document collide. The bit is set for a `Tied` entry
+/// and for a `Unique` row the source table marks as one piece of a
+/// tie separated across output bodies upstream
+/// ([`NameTable::project`]; [`pass_through`] keeps the mark across a
+/// split that leaves the piece intact). Any other `Unique` row goes
+/// straight through `insert_ref`, so two roots aliasing a strict name
+/// is still a typed refusal, and so is a tie-descended name landing
+/// on one: the flush inserts into the same table.
 ///
 /// **The rule, at the generality it is written in.** Nothing here is
 /// about one root: the accumulator spans EVERY source, so candidates
@@ -283,16 +287,13 @@ pub(super) fn pass_through(
 /// split do. That is [`TieRows`]'s own rule — upstream candidates
 /// that were equally admissible stay equally admissible downstream —
 /// read at the gather's scope, where the operand is the whole source
-/// list. The merge needs every source to carry the name as a TIE, and
-/// the case a document builds is one split root's two output bodies,
-/// whose table keeps the tie across both. Two `Part` roots over the
-/// two halves do not get it: each `Part`'s table is the split's
-/// projected onto one half ([`NameTable::project`]), which narrows a
-/// half holding one candidate to `Unique`, so that half's row goes in
-/// strict and collides — here if both halves hold one, at
-/// [`CarriedRows::finish`] if the other holds several. Both are false
-/// refusals
-/// (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
+/// list. The merge needs every source to carry the name as a tie or
+/// as a marked piece of one. One split root's two output bodies carry
+/// it as a tie, since the split's table keeps the tie across both;
+/// two `Part` roots over the two halves carry it as pieces, since
+/// each `Part`'s table narrows the tie to the candidates in its half
+/// and marks a lone survivor. Both documents gather the same product
+/// table.
 ///
 /// **Why this door knows the gather's body model.** The source-body
 /// filter and the body-0 target live here rather than in the caller
@@ -345,19 +346,11 @@ impl CarriedRows {
     /// Narrows every deferred name onto the aggregate — once, after
     /// the last source has been carried.
     ///
-    /// **One of this door's two narrowing arms is live in the gather,
-    /// and it is the tie one.** `narrow_into` writes `Tied` when
-    /// several candidates were deferred under a name and `Unique` when
-    /// exactly one was; the second needs a tie whose candidates the
-    /// gather did not all carry, and no document builds one — a source
-    /// body is skipped only when it holds no solids, and a body that
-    /// holds a candidate holds a solid. So the `Unique` arm is
-    /// `narrow_into`'s to exercise from the emitters and
-    /// [`NameTable::project`], not this caller's, and a mutant that
-    /// stops this call narrowing a lone survivor reddens nothing in
-    /// the tree (measured, the T-review lane). Stated because the
-    /// alternative is a reader taking the Errors note below for the
-    /// whole of what is untested here.
+    /// **Both of `narrow_into`'s arms are live here.** It writes `Tied`
+    /// when several candidates were deferred under a name and `Unique`
+    /// when exactly one was — which is what a lone `Part` root over a
+    /// separated tie hands the gather: its one marked piece is
+    /// deferred, and nothing else arrives under the name.
     ///
     /// # Errors
     ///
@@ -365,21 +358,21 @@ impl CarriedRows {
     /// a row the table already holds, which for the product gather
     /// means a STRICT row under the same name.
     ///
-    /// A document reaches it when one source carries the name strict
-    /// and another carries it as a tie. Two sources agree on a name
-    /// only if both reach it VERBATIM, and verbatim is rare: every
-    /// emitter but three wraps what it carries (`FromA`/`FromB`,
-    /// `Instance`, `InPart`, `SplitFragment`), the three that do not
-    /// being `Transform`, a split's intact pass-through and a `Part`'s
-    /// projection. When both sources carry a common ancestor's WHOLE
-    /// table they share its strictly-named vertices too, and collide in
-    /// [`CarriedRows::carry`] before the flush. A `Part` carries only
-    /// one half, and [`NameTable::project`] narrows a tie with one
-    /// candidate in that half to `Unique`: two `Part` roots over the
-    /// halves of a split that separates a three-candidate tie one to
-    /// two share no vertex, and meet HERE, strict against deferred.
-    /// That refusal is false
-    /// (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
+    /// No document in the tree reaches it. It needs one source to carry
+    /// the name strict and another to carry it as a tie or a piece, and
+    /// two sources agree on a name only if both reach it VERBATIM:
+    /// every emitter but three wraps what it carries
+    /// (`FromA`/`FromB`, `Instance`, `InPart`, `SplitFragment`), the
+    /// three that do not being `Transform`, a split's intact
+    /// pass-through and a `Part`'s projection. A `Part` marks what it
+    /// narrows, and a split passes a mark on, so the one strict reading
+    /// of a tie a verbatim edge still writes is a split's own flush
+    /// narrowing a tie it CUT all but one candidate of — and a source
+    /// carrying that beside a source carrying the tie whole shares the
+    /// uncut candidate's boundary with it verbatim, so the two collide
+    /// in [`CarriedRows::carry`] first whenever any of that boundary
+    /// is strictly named. A document whose shared boundary is tied
+    /// throughout would reach this arm; none is built.
     pub(crate) fn finish(mut self, into: &mut NameTable) -> Result<(), DuplicateName> {
         self.0.flush(into)
     }
