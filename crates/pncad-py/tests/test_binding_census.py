@@ -2196,6 +2196,13 @@ NOT_BOUND = {
     # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
+    # The fold of several edits' maintenance rows into what is true of
+    # the document an ACTION ends at. Python has no multi-edit action:
+    # `Doc.apply` is one edit and answers that edit's own rows, and a
+    # cascade is composed caller-side one delete at a time, so there is
+    # no Python door whose answer this would be. A caller composing a
+    # cascade that wants the net is the day this becomes a gap.
+    "MaintenanceNet": SHAPE,
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.

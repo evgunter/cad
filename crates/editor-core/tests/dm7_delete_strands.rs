@@ -1126,17 +1126,15 @@ fn cascading_a_declare_away_reports_the_orphan_and_then_removes_it() {
     );
 }
 
-/// **The transient's subject is always in the doomed set**, so the
-/// CASCADE door can cancel it with a one-line filter and `apply`
-/// never needs cascade knowledge.
-///
-/// `apply` is a function of `(document, edit)` and answers what one
-/// delete did; the NET over an action is the cascade door's answer,
-/// which the viewer's session computes with this filter
-/// (`net_maintenance` in `crates/viewer`; the pre-click count is
-/// `work/offer/cascade-delete-shows-the-strand-count.md`). This row is
-/// the other half of the transient: the information needed to cancel
-/// exists one level up, at `cascade_delete_order`'s caller.
+/// **The transient is cancelled by the action's net, not by the
+/// door.** `apply` is a function of `(document, edit)` and answers what
+/// one delete did, so the cascade's first step reports the declaration
+/// orphaned and its second deletes it. The NET over the action is
+/// `MaintenanceNet`'s answer — the one spelling of which rows survive,
+/// which every caller holding a sequence folds through (the viewer's
+/// session; the pre-click count is
+/// `work/offer/cascade-delete-shows-the-strand-count.md`) — and it is
+/// empty here, so `apply` never needs cascade knowledge.
 #[test]
 fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let doc = ProfileDoc::empty_derived("dm7_orphan_cancellable", Tol::witness());
@@ -1147,25 +1145,19 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let doomed = cascade_delete_order(&doc, decl);
     let mut walked = doc;
     let mut rows: Vec<Maintenance> = Vec::new();
+    let mut net = editor_core::MaintenanceNet::new();
     for id in &doomed {
         let applied = delete(&walked, *id);
-        rows.extend(applied.maintenance);
+        rows.extend(applied.maintenance.clone());
+        net.push(applied.maintenance, &applied.doc);
         walked = applied.doc;
     }
     assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare: decl }]);
-    // Every row the run produced names a node the same run deleted,
-    // which is the filter a cascade door would apply.
-    let net: Vec<&Maintenance> = rows
-        .iter()
-        .filter(|row| match row {
-            Maintenance::OrphanedDeclare { declare } => !doomed.contains(declare),
-            Maintenance::Strand { .. }
-            | Maintenance::StrandedAppearance { .. }
-            | Maintenance::Rebound { .. }
-            | Maintenance::Cluster(_) => true,
-        })
-        .collect();
-    assert!(net.is_empty(), "the cascade's NET maintenance is empty");
+    assert_eq!(
+        net.finish(&walked),
+        Vec::new(),
+        "the cascade's NET maintenance is empty"
+    );
 }
 
 /// **What the orphaned declaration BECOMES**: the same delete that

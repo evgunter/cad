@@ -58,9 +58,9 @@ use std::sync::Arc;
 use pncad::document::{
     Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
     DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
-    LoggedEdit, LoopProgram, Maintenance, MateReach, Node, ParamName, PartReach, PartResolver,
-    ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply, assemble_gathered,
-    cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, MateReach, Node, ParamName, PartReach,
+    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
+    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2634,7 +2634,7 @@ impl DocSession {
         // what a single commit always cost.
         let mut produced: Option<Doc<ProfileProgram>> = None;
         let mut logged: Vec<LoggedEdit<ProfileProgram>> = Vec::new();
-        let mut reported: Vec<Vec<Maintenance>> = Vec::new();
+        let mut net = MaintenanceNet::new();
         let mut minted: Vec<Option<RecipeNodeId>> = Vec::new();
         while let Some(edit) = next(&minted) {
             let attempt = {
@@ -2648,7 +2648,7 @@ impl DocSession {
                         maintenance: applied.cluster_rows(),
                     });
                     minted.push(applied.record.minted);
-                    reported.push(applied.maintenance);
+                    net.push(applied.maintenance, &applied.doc);
                     produced = Some(applied.doc);
                 }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
@@ -2657,11 +2657,7 @@ impl DocSession {
         let Some(doc) = produced else {
             unreachable!("an action commits at least one edit")
         };
-        let mut outcome = self.record_action(ActionLanding {
-            logged,
-            reported,
-            doc,
-        });
+        let mut outcome = self.record_action(ActionLanding { logged, net, doc });
         // The ids the run minted, out to whoever asked for the action
         // — in the order the edits applied, which is the order a
         // caller that built one edit from another's id reasoned in.
@@ -2680,15 +2676,15 @@ impl DocSession {
     /// maintenance its edit performed — the same shape
     /// [`Self::commit_action`] records, so the history replays pure
     /// over the log whichever half produced the entry; both callers
-    /// produce it that way. Its `reported` rows go out on the outcome,
-    /// net over the action ([`net_maintenance`]).
+    /// produce it that way. Its maintenance goes out on the outcome,
+    /// net over the action ([`MaintenanceNet`]).
     fn record_action(&mut self, landing: ActionLanding) -> OpOutcome {
         let committed = landing
             .logged
             .iter()
             .map(|entry| entry.edit.clone())
             .collect();
-        let maintenance = net_maintenance(landing.reported, &landing.doc);
+        let maintenance = landing.net.finish(&landing.doc);
         self.history.commit_group(landing.logged, landing.doc);
         let pruned = self.display.prune(self.history.doc());
         self.request_eval();
@@ -2775,7 +2771,7 @@ fn accepted_order(
         let writes = edits.len();
         let mut landing = ActionLanding {
             logged: Vec::with_capacity(writes),
-            reported: Vec::new(),
+            net: MaintenanceNet::new(),
             doc: doc.clone(),
         };
         for edit in edits {
@@ -2785,7 +2781,7 @@ fn accepted_order(
                         edit,
                         maintenance: applied.cluster_rows(),
                     });
-                    landing.reported.push(applied.maintenance);
+                    landing.net.push(applied.maintenance, &applied.doc);
                     landing.doc = applied.doc;
                 }
                 Err(EditError::ProfileProgramRefused { .. }) => {
@@ -2804,7 +2800,17 @@ fn accepted_order(
         last: None,
     };
     match search.from(0, doc)? {
-        Some(landing) => Ok(landing),
+        Some(found) => {
+            let mut net = MaintenanceNet::new();
+            for (rows, after) in found.steps {
+                net.push(rows, &after);
+            }
+            Ok(ActionLanding {
+                logged: found.logged,
+                net,
+                doc: found.doc,
+            })
+        }
         None => {
             let Some(error) = search.last else {
                 unreachable!("a search with no order met at least one program refusal")
@@ -2816,75 +2822,23 @@ fn accepted_order(
 
 /// **Where an action lands**: its edits as the log records them, each
 /// with the cluster maintenance the door performed for it; every row
-/// the door REPORTED for them, one list per edit in the order they
-/// applied — the log
-/// keeps only the cluster acts, and these are what the outcome carries
-/// out; and the document they end at.
+/// the door REPORTED for them, folded as they applied — the log keeps
+/// only the cluster acts, and these are what the outcome carries out;
+/// and the document they end at.
 struct ActionLanding {
     logged: Vec<LoggedEdit<ProfileProgram>>,
-    reported: Vec<Vec<Maintenance>>,
+    net: MaintenanceNet,
     doc: Doc<ProfileProgram>,
 }
 
-/// **An action's maintenance, net of what the action itself made
-/// moot** — the rule [`OpOutcome::maintenance`] states, applied to the
-/// rows its edits reported in order, against the document the action
-/// ended at.
-///
-/// A strand's carrier and an orphan's declaration are LIVE in the
-/// document the edit that reported them produced, so one absent from
-/// `end` was removed by a later edit of the same action — a cascade
-/// delete reaches a declaration's consumer first and the declaration
-/// after it — and the row says nothing true of the document the user
-/// is left with. An appearance strand is moot the same way once `end`'s
-/// store no longer holds the key. A rebound whose `to` a later EDIT
-/// rewrites again folds into one row from the first `from` to the last
-/// `to`, at the first row's position, and a chain that ends where it
-/// began is no move at all. `reported` is one list per edit because
-/// one edit's rebounds are a single map, not a sequence.
-///
-/// Every other row — a cluster act, a strand whose carrier survived —
-/// passes through unaltered and in order: the door's report is the
-/// report, and this only removes what the action's own later edits
-/// took back.
-fn net_maintenance(reported: Vec<Vec<Maintenance>>, end: &Doc<ProfileProgram>) -> Vec<Maintenance> {
-    let mut net: Vec<Maintenance> = Vec::new();
-    for rows in reported {
-        // One edit's rebounds are ONE map applied at once — a swap
-        // reports `a → b` and `b → a` together — so a row chains only
-        // onto what EARLIER edits left, read before this edit's rows
-        // touch it.
-        let earlier: Vec<Option<StableName>> = net
-            .iter()
-            .map(|row| match row {
-                Maintenance::Rebound { to, .. } => Some(to.clone()),
-                Maintenance::Cluster(_)
-                | Maintenance::Strand { .. }
-                | Maintenance::StrandedAppearance { .. }
-                | Maintenance::OrphanedDeclare { .. } => None,
-            })
-            .collect();
-        for row in rows {
-            if let Maintenance::Rebound { from, to } = &row
-                && let Some(at) = earlier
-                    .iter()
-                    .position(|moved| moved.as_ref() == Some(from))
-                && let Some(Maintenance::Rebound { to: moved, .. }) = net.get_mut(at)
-            {
-                *moved = to.clone();
-                continue;
-            }
-            net.push(row);
-        }
-    }
-    net.retain(|row| match row {
-        Maintenance::Strand { node, .. } => end.node(*node).is_some(),
-        Maintenance::OrphanedDeclare { declare } => end.node(*declare).is_some(),
-        Maintenance::StrandedAppearance { name } => end.appearance().contains_key(name),
-        Maintenance::Rebound { from, to } => from != to,
-        Maintenance::Cluster(_) => true,
-    });
-    net
+/// Where the order search lands: the writes still to apply, in order,
+/// as logged entries; each write's reported rows beside the document it
+/// produced, which is what [`MaintenanceNet::push`] reads them against
+/// once the order is known; and the document they end at.
+struct SearchLanding {
+    logged: Vec<LoggedEdit<ProfileProgram>>,
+    steps: Vec<(Vec<Maintenance>, Doc<ProfileProgram>)>,
+    doc: Doc<ProfileProgram>,
 }
 
 /// [`accepted_order`]'s search state.
@@ -2908,12 +2862,12 @@ impl OrderSearch<'_> {
         &mut self,
         applied: u32,
         doc: &Doc<ProfileProgram>,
-    ) -> Result<Option<ActionLanding>, OrderFault> {
+    ) -> Result<Option<SearchLanding>, OrderFault> {
         let all = (1_u32 << self.edits.len()) - 1;
         if applied == all {
-            return Ok(Some(ActionLanding {
+            return Ok(Some(SearchLanding {
                 logged: Vec::new(),
-                reported: Vec::new(),
+                steps: Vec::new(),
                 doc: doc.clone(),
             }));
         }
@@ -2935,7 +2889,7 @@ impl OrderSearch<'_> {
                                 maintenance: next.cluster_rows(),
                             },
                         );
-                        rest.reported.insert(0, next.maintenance);
+                        rest.steps.insert(0, (next.maintenance, next.doc));
                         return Ok(Some(rest));
                     }
                 }
@@ -3066,13 +3020,13 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        ClusterMaintenance, Dimension, Doc, DocEdit, EditError, Expr, Maintenance, Node,
-        ProfileProgram, RecipeNodeId, RefusingReach, SlotId, StepArg, apply,
+        Dimension, Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId,
+        RefusingReach, SlotId, StepArg, apply,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
 
-    use super::{OrderFault, accepted_order, author::datum_node, net_maintenance};
+    use super::{OrderFault, accepted_order, author::datum_node};
     use crate::session::{DatumSpec, ProfileShape};
     use crate::sketch::{self, Notation};
 
@@ -3206,103 +3160,5 @@ mod tests {
             accepted_order(&doc, edits, Tol::witness(), &RefusingReach),
             Err(OrderFault::NoOrder(EditError::ProfileProgramRefused { .. }))
         ));
-    }
-
-    /// A face name on `node`'s lateral wall `segment` — the synthetic
-    /// spelling the net rows below move around.
-    fn wall(node: RecipeNodeId, segment: u32) -> pncad::prelude::StableName {
-        pncad::prelude::StableName {
-            kind: pncad::prelude::EntityKind::Face,
-            node,
-            path: vec![pncad::prelude::RoleSeg::Lateral(
-                pncad::prelude::ProfileEdgeRef {
-                    loop_index: 0,
-                    segment,
-                },
-            )],
-        }
-    }
-
-    fn moved(node: RecipeNodeId, from: u32, to: u32) -> Maintenance {
-        Maintenance::Rebound {
-            from: wall(node, from),
-            to: wall(node, to),
-        }
-    }
-
-    /// **A name moved by one edit and moved again by a later one is ONE
-    /// move**, from where it started to where it ended — and a round
-    /// trip is none. The path editor's one-slot writes can pass a loop
-    /// through the other sense on the way to the program the user
-    /// asked for, and the door answers each write; the outcome answers
-    /// the action.
-    #[test]
-    fn rebounds_across_edits_fold_into_the_actions_move() {
-        let (doc, profile) = square();
-        assert_eq!(
-            net_maintenance(
-                vec![vec![moved(profile, 0, 2)], vec![moved(profile, 2, 1)]],
-                &doc
-            ),
-            vec![moved(profile, 0, 1)]
-        );
-        assert_eq!(
-            net_maintenance(
-                vec![vec![moved(profile, 0, 2)], vec![moved(profile, 2, 0)]],
-                &doc
-            ),
-            Vec::new(),
-            "a name that ended where it began did not move"
-        );
-    }
-
-    /// **One edit's rebounds are one map, not a sequence**: a swap
-    /// inside a single edit is two moves, and neither folds into the
-    /// other.
-    #[test]
-    fn one_edits_swap_is_two_moves() {
-        let (doc, profile) = square();
-        let swap = vec![moved(profile, 0, 2), moved(profile, 2, 0)];
-        assert_eq!(net_maintenance(vec![swap.clone()], &doc), swap);
-    }
-
-    /// **A strand or an orphan whose subject the action went on to
-    /// delete is folded out; one whose subject survives is not**, and a
-    /// cluster act passes through whatever it names.
-    #[test]
-    fn a_row_about_a_node_the_action_deleted_is_folded_out() {
-        let (doc, profile) = square();
-        let gone = RecipeNodeId(9_999);
-        assert!(doc.node(gone).is_none(), "the premise");
-        let kept = Maintenance::Strand {
-            node: profile,
-            name: wall(gone, 0),
-        };
-        let cluster = Maintenance::Cluster(ClusterMaintenance::Drop {
-            gauge: gone,
-            frame: None,
-        });
-        assert_eq!(
-            net_maintenance(
-                vec![
-                    vec![
-                        Maintenance::Strand {
-                            node: gone,
-                            name: wall(profile, 0),
-                        },
-                        kept.clone(),
-                        Maintenance::OrphanedDeclare { declare: gone },
-                        Maintenance::OrphanedDeclare { declare: profile },
-                    ],
-                    vec![cluster.clone()],
-                ],
-                &doc
-            ),
-            vec![
-                kept,
-                Maintenance::OrphanedDeclare { declare: profile },
-                cluster
-            ]
-        );
     }
 }

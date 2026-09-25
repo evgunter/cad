@@ -261,7 +261,9 @@ pub enum Subject {
     /// [`crate::idpass::IdQueryLog`] already makes.
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
-    /// by the next act the document ACCEPTS.
+    /// by the next batch holding an operation [`acts`] counts: swept by
+    /// [`StatusUpdate::Clear`] when that batch refused nothing, and
+    /// replaced by the refusal when it did.
     ///
     /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
     /// which this shares with [`Self::Display`] and
@@ -1037,8 +1039,11 @@ impl<'a> Withdrawal<'a> {
 /// ([`maintenance_notice`], one notice per row in the outcome's own
 /// order). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
-/// frame's batch verdict is [`StatusUpdate::Clear`], and the next
-/// non-hover act retires them.
+/// frame's batch verdict is [`StatusUpdate::Clear`], which they
+/// outrank. What takes them off the line is the next frame whose batch
+/// holds any operation [`acts`] counts — [`batch_status`] answers it
+/// with [`StatusUpdate::Clear`] when nothing refused and with the
+/// refusal otherwise; a hover-only batch keeps them.
 ///
 /// **Destructured rather than field-read**, so a field added to
 /// [`OpOutcome`] is E0027 here and its author decides whether the
@@ -1681,7 +1686,7 @@ pub fn pick_refusal(error: &PickError) -> Message {
 
 /// **What a tool has to say** — an authoring panel's refusal, a
 /// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired by the next act the document accepts.
+/// retired the way that subject says.
 ///
 /// **The one door here that a type does not pin**, because its twelve
 /// sites render through [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`]

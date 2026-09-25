@@ -2219,8 +2219,7 @@ pub enum Maintenance {
     /// (`dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`),
     /// so the CASCADE door — the caller that holds
     /// [`cascade_delete_order`]'s answer — is where the net over an
-    /// action is computed; the viewer's session computes it for every
-    /// action it commits (`net_maintenance` in `crates/viewer`).
+    /// action is computed, by [`MaintenanceNet`].
     OrphanedDeclare {
         /// The `Declare` left with no consumer. It is LIVE in the
         /// document this edit produced — the surviving node is the
@@ -3161,6 +3160,164 @@ impl<P> Applied<P> {
                 | Maintenance::StrandedAppearance { .. }
                 | Maintenance::OrphanedDeclare { .. }
                 | Maintenance::Rebound { .. } => None,
+            })
+            .collect()
+    }
+}
+
+/// **An action's maintenance, net of what the action itself made
+/// moot** — the rows several accepted edits reported, folded into what
+/// is true of the document the action ENDS at.
+///
+/// [`Applied::maintenance`] is a function of one `(document, edit)`
+/// pair and answers what that edit did. An action — a cascade delete
+/// ([`cascade_delete_order`]'s sequence), a program written as several
+/// one-slot writes — is several edits, and a row one of them reported
+/// can be about nothing the action leaves behind. This is the one
+/// spelling of which rows survive, so every caller that holds a
+/// sequence (the viewer's session, the pre-click count a chrome states
+/// before a cascade) answers the same.
+///
+/// Fed one edit at a time with [`Self::push`], in the order they
+/// applied, each with the document THAT edit produced; closed with
+/// [`Self::finish`] against the document the last one produced.
+///
+/// # What survives
+///
+/// - A [`Maintenance::Rebound`] is about where a NAME is now. A later
+///   edit that rebinds its `to` again moves it on: the two rows are one
+///   move, from the first `from` to the last `to`, at the first row's
+///   position. A later edit after which no carrier holds its `to`
+///   ended the move — the name was stranded (that edit's own strand
+///   row says where it went) or its carrier was deleted — and the row
+///   is dropped, because its sentence ("every carrier of the name still
+///   denotes what it did") is no longer true. So is a later edit that
+///   rebinds ANOTHER name onto its `to`: a program map is injective
+///   over the segments it keeps, so a name another lands on was not
+///   kept. A move that ends where it began is no move at all.
+/// - A [`Maintenance::Strand`] survives when its carrier is live at the
+///   end AND still holds the stranded name: a carrier a later edit
+///   deleted, or whose name a later edit rewrote (a [`DocEdit::Rebind`]
+///   repairs exactly this), strands nothing.
+/// - A [`Maintenance::StrandedAppearance`] survives when the store
+///   still holds its key.
+/// - A [`Maintenance::OrphanedDeclare`] survives when the declaration
+///   is live at the end AND nothing consumes it: a later edit that
+///   deleted it, or gave it a consumer, took the report back.
+/// - A [`Maintenance::Cluster`] act always survives: it is registry
+///   state replay re-applies ([`LoggedEdit`]), not a claim about the
+///   end document.
+///
+/// Surviving rows keep the order the edits reported them in, each
+/// edit's rows in [`Applied::maintenance`]'s own order.
+///
+/// **One edit's rebounds are ONE map, not a sequence** — a swap
+/// reports `a → b` and `b → a` together — so an edit's rows are read
+/// against what EARLIER edits left, never against each other.
+#[derive(Debug, Clone, Default, PartialEq)]
+pub struct MaintenanceNet {
+    rows: Vec<Maintenance>,
+}
+
+impl MaintenanceNet {
+    /// No edit yet.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Fold in one edit's rows, `after` being the document that edit
+    /// produced.
+    ///
+    /// # Panics
+    ///
+    /// When two surviving rebounds would name one `to`: every rebound
+    /// kept tracks a distinct name's current spelling, and two names
+    /// spelled alike would be two carriers' names merged, which no
+    /// accepted edit does. It is a bug in this fold or in the door that
+    /// reported the rows, not a document state.
+    pub fn push<P>(&mut self, rows: Vec<Maintenance>, after: &Doc<P>) {
+        let held = |name: &StableName| {
+            after.name_carriers().any(|carrier| match carrier {
+                NameCarrier::Payload { name: now, .. } | NameCarrier::Store { name: now } => {
+                    now == name
+                }
+            })
+        };
+        let mut onward = vec![false; rows.len()];
+        let mut kept: Vec<Maintenance> = Vec::with_capacity(self.rows.len() + rows.len());
+        for earlier in self.rows.drain(..) {
+            let Maintenance::Rebound { from, to } = earlier else {
+                kept.push(earlier);
+                continue;
+            };
+            let chained = rows.iter().position(
+                |row| matches!(row, Maintenance::Rebound { from: moved, .. } if *moved == to),
+            );
+            if let Some(at) = chained {
+                let Maintenance::Rebound { to: next, .. } = &rows[at] else {
+                    unreachable!("row {at} was found as a rebound a moment ago")
+                };
+                onward[at] = true;
+                kept.push(Maintenance::Rebound {
+                    from,
+                    to: next.clone(),
+                });
+                continue;
+            }
+            let landed_on = rows
+                .iter()
+                .any(|row| matches!(row, Maintenance::Rebound { to: now, .. } if *now == to));
+            if !landed_on && held(&to) {
+                kept.push(Maintenance::Rebound { from, to });
+            }
+        }
+        kept.extend(
+            rows.into_iter()
+                .zip(onward)
+                .filter_map(|(row, folded)| (!folded).then_some(row)),
+        );
+        let mut spellings: Vec<&StableName> = kept
+            .iter()
+            .filter_map(|row| match row {
+                Maintenance::Rebound { to, .. } => Some(to),
+                Maintenance::Cluster(_)
+                | Maintenance::Strand { .. }
+                | Maintenance::StrandedAppearance { .. }
+                | Maintenance::OrphanedDeclare { .. } => None,
+            })
+            .collect();
+        let count = spellings.len();
+        spellings.sort();
+        spellings.dedup();
+        assert_eq!(
+            spellings.len(),
+            count,
+            "two surviving rebounds name one spelling: {kept:?}"
+        );
+        self.rows = kept;
+    }
+
+    /// The rows that survive, against `end` — the document the last
+    /// pushed edit produced.
+    pub fn finish<P: crate::ProfilePayload>(self, end: &Doc<P>) -> Vec<Maintenance> {
+        let consumed = |declare: RecipeNodeId| {
+            end.order().iter().any(|id| {
+                end.node(*id)
+                    .is_some_and(|node| node.inputs().contains(&declare))
+            })
+        };
+        self.rows
+            .into_iter()
+            .filter(|row| match row {
+                Maintenance::Strand { node, name } => end
+                    .node(*node)
+                    .is_some_and(|carrier| carrier.payload_names().contains(&name)),
+                Maintenance::StrandedAppearance { name } => end.appearance().contains_key(name),
+                Maintenance::OrphanedDeclare { declare } => {
+                    end.node(*declare).is_some() && !consumed(*declare)
+                }
+                Maintenance::Rebound { from, to } => from != to,
+                Maintenance::Cluster(_) => true,
             })
             .collect()
     }

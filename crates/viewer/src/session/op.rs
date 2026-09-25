@@ -1427,13 +1427,11 @@ pub struct OpOutcome {
     /// **Net over the action, not per edit.** One action can apply
     /// several edits (a cascade delete, a profile edit's one-slot
     /// writes), and a row an earlier edit reported can be made moot by
-    /// a later one: a strand whose carrying node, or an orphan whose
-    /// declaration, the same action went on to delete; an appearance
-    /// strand whose key the action's document no longer holds; a name
-    /// rewritten and then rewritten again, which is one move from
-    /// where it started to where it ended — or none, when it ended
-    /// where it started. Those are folded out; every other row is the
-    /// door's, unaltered.
+    /// a later one — a strand the action went on to repair or whose
+    /// carrier it deleted, an orphan it consumed again, a name it moved
+    /// twice. The rows are folded through
+    /// `pncad::document::MaintenanceNet`, which states which survive,
+    /// so this holds what is true of the document the action ended at.
     ///
     /// Empty on every operation that committed nothing, and on a
     /// gesture's previews: a preview enters no history, so nothing it
