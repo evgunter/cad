@@ -239,8 +239,9 @@ fn no_order_of_the_probe_corpus_refuses_several_shared_rims() {
             }
         }
     }
-    // 100 cells of this corpus fused on main and 60 more fuse now (two
-    // more get past the rim and refuse an undeclarable contact at the
-    // fourth member); the count pins both halves.
-    assert_eq!(fused, 160, "cells fused");
+    // 148 cells fuse. `row` and `rowids` refuse in all 24 orders here,
+    // because their (a, h) contact is undeclared and contact is judged
+    // pairwise (DM4); the 6 orders of each that fused when the fold
+    // judged contact, with `b` covering it, are the 12 the count lost.
+    assert_eq!(fused, 148, "cells fused");
 }

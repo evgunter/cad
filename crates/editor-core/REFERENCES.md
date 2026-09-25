@@ -227,7 +227,10 @@ So the chain goes, not the link:
   - Before the fold, each pair of members whose closed bounding boxes
     meet is judged by the pair verb, as the two-member union `m ∪ n`,
     with the declared pairs whose sites are `m` and `n`. Pairs whose
-    boxes are disjoint cannot touch, so they are not judged.
+    boxes are disjoint cannot touch, so they are not judged. The
+    judgement costs up to n(n−1)/2 two-member unions, bounded by that
+    box pruning; if it becomes a measured performance problem, it is
+    raised to Ev to be revisited, not optimized around the rule.
   - A pair that touches with the contact undeclared refuses
     `UndeclaredContact` exactly as the two-member union's operands do.
     It refuses in every member order.

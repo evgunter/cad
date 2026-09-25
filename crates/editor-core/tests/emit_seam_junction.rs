@@ -18,7 +18,7 @@ use crate::fixture::{fname, table, vertex_of, wall};
 
 use editor_core::{
     CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
-    StableName,
+    SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -86,6 +86,20 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     Fixture { doc, a, b, g, h }
 }
 
+/// The fixture's declarations: `a` and `b` flush, and, with `h`, `h`'s
+/// x = 1.0 wall resting on `a`'s x = 1 wall. `b` covers that contact,
+/// and it is a contact of the pair all the same (DM4).
+fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
+    let mut pairs = flush_pairs((f.a, f.a), (f.b, f.b));
+    pairs.extend(f.h.map(|h| {
+        (
+            SitedRef::new(f.a, fname(f.a, wall(1))),
+            SitedRef::new(h, fname(h, wall(3))),
+        )
+    }));
+    pairs
+}
+
 /// **The row's fixture, `[b, g, a, h]`, fuses, and its junction is
 /// the three lines meeting at `(0.3, 1, 1)`.**
 ///
@@ -95,9 +109,11 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 /// line's sides are member faces, one wrapper deep.
 #[test]
 fn a_seam_junction_in_a_declared_union_is_named_by_its_member_space_lines() {
-    let Fixture { doc, a, b, g, h } = fixture((0.5, 3.0), true);
+    let f = fixture((0.5, 3.0), true);
+    let pairs = declared(&f);
+    let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union, _) = declared_union(doc, &[b, g, a, h], flush_pairs((a, a), (b, b)));
+    let (docx, union, _) = declared_union(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let body = body_of(&ev, union);
@@ -163,13 +179,15 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
         ("three members", (0.5, 3.0), false),
         ("through the bottom cap", (-0.5, 1.0), false),
     ] {
-        let Fixture { doc, a, b, g, h } = fixture(g_z, with_h);
+        let f = fixture(g_z, with_h);
+        let pairs = declared(&f);
+        let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let mut named = BTreeSet::new();
         let mut fused = 0;
         let mut rim_named = 0;
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
@@ -187,6 +205,15 @@ fn a_junction_is_named_the_same_in_every_order_that_fuses() {
                         fused += 1;
                     }
                 }
+                // Declaring `(a, h)` reaches the seam-vertex residue
+                // where `a` and `h` fold before `b`, and only there
+                // (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
+                Some(NodeErrorKind::Naming(NamingError::Emission {
+                    what: "seam vertex parentage underdetermined from incident edges",
+                })) if h.is_some_and(|h| {
+                    let at = |m| order.iter().position(|x| *x == m);
+                    at(a) < at(b) && at(h) < at(b)
+                }) => {}
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
                 }

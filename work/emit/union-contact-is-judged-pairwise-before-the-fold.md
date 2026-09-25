@@ -44,3 +44,7 @@ rule as DM4 now states it (`crates/editor-core/REFERENCES.md`):
 The pre-pass is on WIRE's ground (`eval/wire.rs`), so name the crossing
 in the PR. A cheaper contact-only kernel door is optional, and belongs
 to REACH or ZIP.
+
+The pre-pass costs up to n(n−1)/2 two-member unions, bounded by box
+pruning. If this becomes a measured performance problem, it is raised
+to Ev to be revisited, not optimized around the rule (Ev on #3200).
