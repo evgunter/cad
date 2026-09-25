@@ -8,6 +8,7 @@ priority: P0
 cost: H
 refs: [product-refuses-naming-when-one-instance-is-placed-under-two-roots]
 branch: gather/split-halves-tie-merge
+pr: 3256
 ---
 
 Found by PR 3142's review (MAJOR 1), filed by the GATHER two-roots lane.
