@@ -259,9 +259,9 @@ impl SegTag {
             RoleSeg::BandFace(..) => Self::BandFace,
             RoleSeg::BandTrim { .. } => Self::BandTrim,
             RoleSeg::BandFoot(..) => Self::BandFoot,
-            RoleSeg::BandCross(..) => Self::BandCross,
+            RoleSeg::BandCross { .. } => Self::BandCross,
             RoleSeg::BandCut(..) => Self::BandCut,
-            RoleSeg::BandSlit(..) => Self::BandSlit,
+            RoleSeg::BandSlit { .. } => Self::BandSlit,
             RoleSeg::Inner(..) => Self::Inner,
             RoleSeg::Rim(..) => Self::Rim,
             RoleSeg::HoleRim { .. } => Self::HoleRim,
@@ -361,9 +361,9 @@ fn side_of(seg: &RoleSeg) -> Option<Side> {
         | RoleSeg::EndArc { .. }
         | RoleSeg::BandFace(_)
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -399,9 +399,7 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::BlendFace(n)
         | RoleSeg::CornerFace(n)
         | RoleSeg::BandFoot(n)
-        | RoleSeg::BandCross(n)
         | RoleSeg::BandCut(n)
-        | RoleSeg::BandSlit(n)
         | RoleSeg::Inner(n)
         | RoleSeg::Rim(n)
         | RoleSeg::HoleRim { of: n, .. }
@@ -417,6 +415,9 @@ fn name_args(seg: &RoleSeg) -> Vec<&StableName> {
         RoleSeg::FootVertex { vertex, support } => vec![vertex, support],
         RoleSeg::EndArc { vertex, edge } => vec![vertex, edge],
         RoleSeg::Merged(set) | RoleSeg::BandFace(set) => set.iter().collect(),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            std::iter::once(&**edge).chain(band).collect()
+        }
         // A verdict qualifier, not a role argument (see the doc note).
         RoleSeg::Fragment(Qualifier::SideOf(_) | Qualifier::OrderAlong { .. }) => Vec::new(),
         name_free_seg!() => Vec::new(),

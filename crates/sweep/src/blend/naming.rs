@@ -190,17 +190,31 @@ pub struct BlendNaming {
     /// the HOST support (planar wherever the rim has one, and a rim
     /// between two curved walls still mints these).
     pub rim_feet: Vec<(VertexKey, VertexKey)>,
-    /// Meridian split vertex ← the source meridian edge it split.
-    pub meridian_splits: Vec<(VertexKey, EdgeKey)>,
+    /// Meridian split vertex ← (the source meridian edge it split, the
+    /// SPLITTING band's closed chain as its source edges, sorted — the
+    /// same set that band's `bands` row carries). The band
+    /// discriminates for the reason `slits` states: two bands whose
+    /// rims are the two ends of one meridian segment each split that
+    /// segment's seam.
+    pub meridian_splits: Vec<(VertexKey, EdgeKey, Vec<EdgeKey>)>,
     /// The SURVIVING piece of a source edge the band's carve split ←
     /// that source edge: a seam meridian at a ladder rim's crossing, or
     /// a cap rim at a ruled band's transverse cap. (Present even when
     /// the surviving piece kept the source key — the piece is a
     /// fragment, so it is named as one.)
     pub meridian_remnants: Vec<(EdgeKey, EdgeKey)>,
-    /// A band's SLIT ← the source meridian whose upper piece became
-    /// it (the double-traversed torus meridian; one per band).
-    pub slits: Vec<(EdgeKey, EdgeKey)>,
+    /// A band's SLIT ← (the source meridian whose upper piece became
+    /// it, the SLITTING band's closed chain as its source edges,
+    /// sorted — the same set that band's `bands` row carries). One per
+    /// band, so the band discriminates: two bands whose rims are the
+    /// two ends of one meridian segment both slit that segment's seam,
+    /// and the meridian alone would give their slits one source.
+    ///
+    /// `meridian_remnants` carries no band, and needs none: a band that
+    /// splits a piece an earlier band recorded retires that row before
+    /// recording its own (`surgery::split_fragment`), so one source
+    /// meridian's surviving pieces are recorded once each.
+    pub slits: Vec<(EdgeKey, EdgeKey, Vec<EdgeKey>)>,
 
     /// What the blend retired from the source.
     pub dead: Retired,

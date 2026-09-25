@@ -270,6 +270,15 @@ fn rim_edge(block: RecipeNodeId, rim: Rim, segment: u32) -> StableName {
     )
 }
 
+/// A hole's whole rim as a band's identity: its source rim edges, as
+/// the sorted set a [`RoleSeg::BandFace`] argument is, and the `band`
+/// a [`RoleSeg::BandCross`] or [`RoleSeg::BandSlit`] carries.
+fn band_of(block: RecipeNodeId, rim: Rim) -> Vec<StableName> {
+    let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(block, rim, s)).collect();
+    set.sort();
+    set
+}
+
 /// A source rim VERTEX on the filleted cap — what a
 /// [`RoleSeg::BandFoot`] argument names.
 fn cap_vertex(block: RecipeNodeId, rim: Rim, vertex: u32) -> StableName {
@@ -514,7 +523,10 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                 &minted(
                     EntityKind::Vertex,
                     fillet,
-                    RoleSeg::BandCross(NameRef::new(source)),
+                    RoleSeg::BandCross {
+                        edge: NameRef::new(source),
+                        band: band_of(block, rim),
+                    },
                 ),
             );
             let p = point(body, cross);
@@ -663,11 +675,16 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let mut served: Vec<u32> = Vec::new();
     for (n, _) in t.iter() {
-        let RoleSeg::BandSlit(source) = &n.path[0] else {
+        let RoleSeg::BandSlit { edge: source, band } = &n.path[0] else {
             continue;
         };
         let rim = rim_of(source);
         let what = format!("the slit on hole {}", rim.loop_index);
+        assert_eq!(
+            *band,
+            band_of(block, rim),
+            "{what}: the slit carries the band that slit it — its own hole's rim"
+        );
         served.push(rim.loop_index);
         let j = match source.path.first() {
             Some(RoleSeg::LateralEdge(v)) => v.vertex,
@@ -682,7 +699,10 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
             &minted(
                 EntityKind::Vertex,
                 fillet,
-                RoleSeg::BandCross(NameRef::new((**source).clone())),
+                RoleSeg::BandCross {
+                    edge: NameRef::new((**source).clone()),
+                    band: band.clone(),
+                },
             ),
         );
         let foot = vertex_of(
@@ -781,7 +801,7 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         "one host foot per rim vertex"
     );
     assert_eq!(
-        count(t, |s| matches!(s, RoleSeg::BandCross(_))),
+        count(t, |s| matches!(s, RoleSeg::BandCross { .. })),
         2 * n,
         "one mate-side crossing per rim vertex"
     );
@@ -791,7 +811,7 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         "one surviving meridian piece per rim vertex"
     );
     assert_eq!(
-        count(t, |s| matches!(s, RoleSeg::BandSlit(_))),
+        count(t, |s| matches!(s, RoleSeg::BandSlit { .. })),
         n,
         "one slit keeps each band ring-free"
     );
@@ -854,7 +874,10 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                     &minted(
                         EntityKind::Vertex,
                         fillet,
-                        RoleSeg::BandCross(NameRef::new(m.clone())),
+                        RoleSeg::BandCross {
+                            edge: NameRef::new(m.clone()),
+                            band: band_of(block, rim),
+                        },
                     ),
                 ),
             );

@@ -342,7 +342,7 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
             "meridian_splits",
             rec.meridian_splits
                 .iter()
-                .map(|(_, e)| format!("{e:?}"))
+                .map(|(_, e, _)| format!("{e:?}"))
                 .collect(),
         );
         uniq(
@@ -354,7 +354,7 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
         );
         uniq(
             "slits",
-            rec.slits.iter().map(|(_, e)| format!("{e:?}")).collect(),
+            rec.slits.iter().map(|(_, e, _)| format!("{e:?}")).collect(),
         );
         // The MINTED side must be injective too: one key, one row.
         let mut minted: Vec<String> = rec
@@ -362,9 +362,9 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
             .iter()
             .map(|(k, _, _)| format!("e{k:?}"))
             .chain(rec.meridian_remnants.iter().map(|(k, _)| format!("e{k:?}")))
-            .chain(rec.slits.iter().map(|(k, _)| format!("e{k:?}")))
+            .chain(rec.slits.iter().map(|(k, _, _)| format!("e{k:?}")))
             .chain(rec.rim_feet.iter().map(|(k, _)| format!("v{k:?}")))
-            .chain(rec.meridian_splits.iter().map(|(k, _)| format!("v{k:?}")))
+            .chain(rec.meridian_splits.iter().map(|(k, _, _)| format!("v{k:?}")))
             .collect();
         let n = minted.len();
         minted.sort();

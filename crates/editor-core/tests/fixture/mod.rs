@@ -1266,9 +1266,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CornerFace(x)
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
-        | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
@@ -1283,6 +1281,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => std::iter::once(edge.as_ref()).chain(band).collect(),
         RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody

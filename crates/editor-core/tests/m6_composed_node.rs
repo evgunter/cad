@@ -235,9 +235,9 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         RoleSeg::BandFace(_) => "band",
         RoleSeg::BandTrim { .. } => "band trim",
         RoleSeg::BandFoot(_) => "band foot",
-        RoleSeg::BandCross(_) => "band cross",
+        RoleSeg::BandCross { .. } => "band cross",
         RoleSeg::BandCut(_) => "band cut",
-        RoleSeg::BandSlit(_) => "slit",
+        RoleSeg::BandSlit { .. } => "slit",
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
     let seen: BTreeSet<&str> = v.name_table.iter().map(|(n, _)| role(n)).collect();

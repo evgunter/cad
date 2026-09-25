@@ -607,9 +607,9 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         RoleSeg::BandFace(_) => write!(f, "a band face"),
         RoleSeg::BandTrim { .. } => write!(f, "a band trim edge"),
         RoleSeg::BandFoot(_) => write!(f, "a band foot"),
-        RoleSeg::BandCross(_) => write!(f, "a band crossing"),
+        RoleSeg::BandCross { .. } => write!(f, "a band crossing"),
         RoleSeg::BandCut(_) => write!(f, "a band cut"),
-        RoleSeg::BandSlit(_) => write!(f, "a band slit"),
+        RoleSeg::BandSlit { .. } => write!(f, "a band slit"),
         RoleSeg::Inner(_) => write!(f, "an inner entity"),
         RoleSeg::Rim(_) => write!(f, "a rim"),
         RoleSeg::HoleRim { hole, .. } => write!(f, "the rim of hole {hole}"),
@@ -2614,9 +2614,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::CornerFace(n)
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
-            | RoleSeg::BandCross(n)
             | RoleSeg::BandCut(n)
-            | RoleSeg::BandSlit(n)
             // The shell vocabulary: each argument is the SOURCE entity
             // the twin or rim was born for — derivation, not
             // discrimination (a hole rim's index discriminates, and is
@@ -2652,6 +2650,12 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             }
             RoleSeg::BandFace(names) => {
                 for n in names {
+                    visit(n, partners, f);
+                }
+            }
+            RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+                visit(edge, partners, f);
+                for n in band {
                     visit(n, partners, f);
                 }
             }
