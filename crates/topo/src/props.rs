@@ -344,17 +344,16 @@ pub(crate) fn mass_properties_with<T: Decide>(
     mass_properties_impl(body, &faces, band, &reporting_hook(quad), tol)
 }
 
-/// **The hook at the REPORTING level, one home**: the lane the caller
-/// holds, entered once over the whole schedule and read at the target
-/// ([`RoundOutcome::into_target`]), its answer always `Converged`
-/// because a reporting read has no window to stop in — and `Ok(None)`,
-/// no lane and not attempted, when the caller holds none. One function
-/// rather than a closure at each site: the whole-body walk
+/// **The hook at the REPORTING level**: [`round_hook`] entered once
+/// over the whole schedule and read at the target
+/// ([`RoundOutcome::into_target`]), so its answer is always `Converged`
+/// — a reporting read has no window to stop in — or `Ok(None)` when
+/// the caller holds no lane. The whole-body walk
 /// ([`mass_properties_with`]) and the per-shell walk
-/// ([`classify_shells_of`]) read at the same level through the same
-/// hook, and two copies of that are two things to keep equal. The
-/// closure captures a `Copy` of the lane and nothing else, so it is
-/// `Sync` as [`QuadHook`] needs.
+/// ([`classify_shells_of`]) read through it; it is the sign-level hook
+/// at one window rather than a second spelling of the lane, so the two
+/// levels cannot drift apart. The closure captures a `Copy` of the lane
+/// and nothing else, so it is `Sync` as [`QuadHook`] needs.
 #[allow(clippy::type_complexity)]
 fn reporting_hook<T: Decide>(
     quad: Option<QuadLane<T>>,
@@ -368,19 +367,19 @@ fn reporting_hook<T: Decide>(
     RoundWindow,
 ) -> Result<Option<RoundOutcome>, PropsError>
 + Sync {
-    move |body, surface, outer, hes, band, tol, _window| match quad {
-        Some(lane) => lane
-            .cut_face(body, surface, outer, hes, band, tol)
-            .map(|bounds| Some(RoundOutcome::Converged(bounds))),
-        None => Ok(None),
+    let rounds = round_hook(quad);
+    move |body, surface, outer, hes, band, tol, _window| {
+        rounds(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?
+            .map(|outcome| outcome.into_target().map(RoundOutcome::Converged))
+            .transpose()
     }
 }
 
 /// **The hook at SIGN level, one home**: the lane the caller holds,
 /// entered over exactly the [`RoundWindow`] the walk asks for, so a
 /// walk may stop between rounds and resume later — and `Ok(None)`, the
-/// closed form, when the caller holds none. [`reporting_hook`]'s
-/// windowed twin: the same lane, entered at two levels.
+/// closed form, when the caller holds none. [`reporting_hook`] is this
+/// hook at the whole schedule.
 ///
 /// With [`QuadLane::certified`] this is the certified quadrature, round
 /// by round; with `None` every face is the closed form's, finished at
@@ -399,11 +398,12 @@ fn round_hook<T: Decide>(
     Tol,
     RoundWindow,
 ) -> Result<Option<RoundOutcome>, PropsError>
-+ Sync {
++ Sync
++ Copy {
     move |body, surface, outer, hes, band, tol, window| match quad {
-        Some(lane) => lane
-            .cut_face_rounds(body, surface, outer, hes, band, tol, window)
-            .map(Some),
+        Some(lane) => {
+            (lane.cut_face_rounds)(body, surface, outer, hes, band, tol, window).map(Some)
+        }
         None => Ok(None),
     }
 }
@@ -684,9 +684,16 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     /// holding one solid hands here — comes back unchanged, run for
     /// run and round for round.
     ///
-    /// `quad` is the lane every part was derived through, and the one
-    /// the assembled certificate continues with: the parts of one check
-    /// are one door's walks, so they share it by construction.
+    /// `body`, `band`, `tol` and `quad` are what every part was derived
+    /// against and what the assembled certificate continues with. The
+    /// parts of one check are one door's walks, so they agree, and that
+    /// is asserted below rather than assumed: a part read at another
+    /// band, of another body or through another lane would sum terms
+    /// that are not one enclosure. The lane is compared by PRESENCE —
+    /// the only thing a caller chooses, since [`QuadLane::certified`] is
+    /// the one value it can hold; its pointer is `wiring_rows`' to pin,
+    /// and function-pointer equality is not a reliable identity to
+    /// panic on (a function may have several addresses).
     ///
     /// # Panics
     ///
@@ -711,6 +718,14 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         let mut by_face: slotmap::SecondaryMap<FaceKey, FaceRun<T>> = slotmap::SecondaryMap::new();
         let mut handed = 0usize;
         for part in parts {
+            assert!(
+                core::ptr::eq(part.body, body)
+                    && part.band == band
+                    && part.tol == tol
+                    && part.quad.is_some() == quad.is_some(),
+                "a sign certificate assembled from a part derived against another body, band, \
+                 tolerance or lane"
+            );
             for run in part.runs {
                 handed += 1;
                 by_face.insert(run.face, run);
@@ -740,8 +755,12 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
         }
     }
 
-    /// The certified volume bracket and its lever, at the round the
-    /// walk stopped on.
+    /// The volume bracket and its lever, at the round the walk stopped
+    /// on — as sound as the lane it was derived through: a CERTIFIED
+    /// bracket from [`QuadLane::certified`] at a certifying scalar, and
+    /// the closed form's value with pads of `0` from a `_structural`
+    /// door, which at a point scalar such as `f64` is a computed value
+    /// and not a certified enclosure.
     #[must_use]
     pub fn enclosure(&self) -> VolumeEnclosure<T> {
         fold_runs(&self.runs).0.enclosure()
@@ -888,6 +907,74 @@ impl<'b, T: Decide> SignCertificate<'b, T> {
     #[must_use]
     pub fn target_refusal(&self) -> Option<&PropsError> {
         self.refused.as_ref().map(|(_, e)| e)
+    }
+
+    /// **The number, or what is left when there is none** —
+    /// [`Self::refine_to_target`], with its refusal CLASSIFIED and the
+    /// bracket kept where one exists.
+    ///
+    /// A continuation refuses in two ways that a consumer must tell
+    /// apart. The schedule running out (a face's
+    /// [`PropsError::QuadratureBudget`]) is the case this certificate
+    /// exists for: the sign was decided, the body is valid, and its
+    /// volume is not measurable at this ε — so the bracket the check
+    /// decided on is the whole of what the quadrature is entitled to
+    /// say, and it comes back in [`TargetUnreached::bracket`]. Every
+    /// other refusal (an escalated decision, a poisoned bound, a
+    /// degenerate lever — met in a round the check never needed) leaves
+    /// no enclosure a caller may read, and the bracket is `None`.
+    ///
+    /// This is the one home of that classification: the import reader,
+    /// the Python measurement door and the tour ask it here rather than
+    /// each matching `geom_brep`'s refusal vocabulary two crates down.
+    ///
+    /// # Errors
+    ///
+    /// [`TargetUnreached`], carrying [`Self::refine_to_target`]'s
+    /// refusal verbatim.
+    pub fn measure(self) -> Result<MassProperties<T>, TargetUnreached<T>> {
+        let sign_level = self.enclosure();
+        self.refine_to_target().map_err(|refusal| {
+            let bracket = matches!(
+                refusal,
+                MassPropsError::Face {
+                    source: PropsError::QuadratureBudget { .. },
+                    ..
+                }
+            )
+            .then_some(sign_level);
+            TargetUnreached { refusal, bracket }
+        })
+    }
+}
+
+/// **A volume the continuation could not reach**
+/// ([`SignCertificate::measure`]): the refusal, and — exactly when the
+/// refusal is the schedule running out — the sign-level bracket the
+/// check decided on.
+#[derive(Clone, Debug)]
+pub struct TargetUnreached<T: Real> {
+    /// The refusal the reporting door makes on the same body, verbatim.
+    pub refusal: MassPropsError,
+    /// The bracket the certificate held before the continuation ran,
+    /// `Some` iff `refusal` is a face's
+    /// [`PropsError::QuadratureBudget`]: the body's sign is decided and
+    /// its volume lies in this bracket, which is as sound as the lane
+    /// it was derived through ([`SignCertificate::enclosure`]).
+    pub bracket: Option<VolumeEnclosure<T>>,
+}
+
+impl<T: Real> fmt::Display for TargetUnreached<T> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(f, "{}", self.refusal)?;
+        if let Some(bracket) = &self.bracket {
+            write!(
+                f,
+                " (the sign-level bracket is [{:?}, {:?}])",
+                bracket.volume_lo, bracket.volume_hi
+            )?;
+        }
+        Ok(())
     }
 }
 
@@ -2121,48 +2208,6 @@ impl<T: Decide + geom_core::CertifiedBounds> QuadLane<T> {
         Self {
             cut_face_rounds: quad_lane::cut_face_rounds::<T>,
         }
-    }
-}
-
-impl<T: Decide> QuadLane<T> {
-    /// The door's operation at the REPORTING level, reached by
-    /// [`reporting_hook`]: the whole schedule, read at the target.
-    ///
-    /// # Errors
-    ///
-    /// [`PropsError`] from the quadrature lane (budget, unsupported
-    /// inventory, escalations).
-    fn cut_face(
-        self,
-        body: &Body<T>,
-        surface: &Surface<T>,
-        outer: &[LoopEdge<T>],
-        hes: &[HalfEdgeKey],
-        band: Band,
-        tol: Tol,
-    ) -> Result<FaceCutBounds, PropsError> {
-        (self.cut_face_rounds)(body, surface, outer, hes, band, tol, RoundWindow::SCHEDULE)?
-            .into_target()
-    }
-
-    /// The door's operation at SIGN level, reached by [`round_hook`]:
-    /// the rounds `window` names and no others.
-    ///
-    /// # Errors
-    ///
-    /// As [`Self::cut_face`].
-    #[allow(clippy::too_many_arguments)]
-    fn cut_face_rounds(
-        self,
-        body: &Body<T>,
-        surface: &Surface<T>,
-        outer: &[LoopEdge<T>],
-        hes: &[HalfEdgeKey],
-        band: Band,
-        tol: Tol,
-        window: RoundWindow,
-    ) -> Result<RoundOutcome, PropsError> {
-        (self.cut_face_rounds)(body, surface, outer, hes, band, tol, window)
     }
 }
 

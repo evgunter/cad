@@ -3485,7 +3485,6 @@ MEMBERS_BOUND_AS = {
     "StepImportError::Placement": "StepImportError.variant",
     "StepImportError::Instance": "StepImportError.variant",
     "StepImportError::TierInvalid": "StepImportError.variant",
-    "StepImportError::EnclosureUncomputable": "StepImportError.variant",
     "StlError::DegenerateTriangle": "StlError.variant",
     "StlError::IndexOutOfRange": "StlError.variant",
     "StlError::TooManyTriangles": "StlError.variant",

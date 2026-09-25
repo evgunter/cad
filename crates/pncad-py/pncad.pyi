@@ -553,14 +553,9 @@ class StepImportError(PncadError):
     `malformed_real`, `topology`,
     `assembly`, `adoption`, `rim_off_wall_boundary`,
     `wall_column_structure`, `recognition_ambiguous`, `pcurves`,
-    `placement`, `instance`, `tier_invalid` or
-    `enclosure_uncomputable` — or `wireframe`, which is not a refusal
-    at all: the file parsed, to something this door does not adopt.
-
-    `enclosure_uncomputable` is not a validity refusal: the body passed
-    the at-rest gate, whose volume check decides a sign, and the volume
-    enclosure the report carries could not be measured at this
-    tolerance.
+    `placement`, `instance` or
+    `tier_invalid` — or `wireframe`, which is not a refusal at all:
+    the file parsed, to something this door does not adopt.
 
     `recognition_ambiguous` neither forwards nor withholds. The word
     names the CONDITION — a face that cannot import without promotion
@@ -4076,6 +4071,14 @@ class ImportReport:
     `report.body.mass_properties()` runs the certified quadrature a
     second time over the same body at the same band, and answers the
     same four fields bit for bit.
+
+    The gate decides each solid's volume SIGN, so it admits a valid
+    body whose volume is not measurable at this ε (a large rational
+    wall whose quadrature exhausts its schedule). The import still
+    succeeds; reading `enclosure` on such a report raises the same
+    measurement refusal `Body.validate_geometric_measured` raises,
+    carrying `volume_lo`/`volume_hi`/`surface_area` when the schedule
+    ran out.
 
     The three record lists are the adoption's own report, as data
     rather than prose: every boundary graph re-minted, every NURBS

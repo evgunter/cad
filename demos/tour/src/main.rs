@@ -423,35 +423,21 @@ fn reported(label: &str, body: &Body<f64>, tol: Tol) -> Measured {
 /// A gate's certificate, continued to the number where the quadrature
 /// can reach it.
 fn continued(label: &str, certificate: pncad::topo::SignCertificate<'_, f64>) -> Measured {
-    // Read the bracket BEFORE the continuation consumes the
-    // certificate: it is the enclosure check 7 decided this body's
-    // orientation on, and the only thing left to report if the
-    // continuation cannot reach the reporting target.
-    let sign_level = certificate.enclosure();
-    match certificate.refine_to_target() {
+    match certificate.measure() {
         Ok(props) => Measured::Number(props),
         // A body the gate ADMITTED whose schedule cannot reach the
         // reporting target: its sign is definite and its volume is not
         // measurable at this ε. The bracket is the whole of what the
         // quadrature is entitled to say, so the ribbon says it rather
-        // than the tour dying on a body the gate just certified. Every
-        // OTHER refusal is a body with no volume at all, and stays
-        // fail-loud.
-        //
-        // GAP (`memories/demo-purpose.md`): a consumer should not have
-        // to reach two crates down and re-spell
-        // `geom_brep::PropsError`'s arm to ask "is this the refusal my
-        // certificate warned about". The certificate knows —
-        // `SignCertificate::target_refusal` says so before the
-        // continuation runs — but reading it there means asking before
-        // there is an answer, and the certificate is consumed by the
-        // call that produces one. Filed as `work/perf`'s
-        // `budget-refusal-drops-the-enclosure-the-caller-needs`.
-        Err(pncad::topo::MassPropsError::Face {
-            source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
+        // than the tour dying on a body the gate just certified. The
+        // kernel classifies the refusal (`TargetUnreached::bracket`);
+        // every OTHER refusal is a body with no volume at all, and
+        // stays fail-loud.
+        Err(pncad::topo::TargetUnreached {
+            bracket: Some(bracket),
             ..
-        }) => Measured::Bracket(sign_level),
-        Err(e) => panic!("{label}: mass properties failed: {e:?}"),
+        }) => Measured::Bracket(bracket),
+        Err(unreached) => panic!("{label}: mass properties failed: {unreached}"),
     }
 }
 

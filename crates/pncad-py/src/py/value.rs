@@ -238,6 +238,26 @@ fn measurement_err(
     )
 }
 
+/// The refusal a door raises when a gate's certificate could not be
+/// continued to the number ([`topo::SignCertificate::measure`]): the
+/// measurement refusal, carrying the sign-level bracket as
+/// `volume_lo`/`volume_hi`/`surface_area` when the kernel classified
+/// the refusal as the schedule running out, and `None` on every other
+/// refusal because no other refusal has one. The classification is the
+/// kernel's ([`topo::TargetUnreached::bracket`]); this only spells it.
+fn unreached_err(py: Python<'_>, unreached: &topo::TargetUnreached<f64>) -> PyErr {
+    let bracket = unreached.bracket;
+    measurement_err(
+        py,
+        &unreached.refusal,
+        vec![
+            ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
+            ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
+            ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
+        ],
+    )
+}
+
 /// A float payload attribute, `None` where the door has no value for
 /// it — the "every field on every arm" shape a caller branches on.
 fn pyfloat(py: Python<'_>, value: Option<f64>) -> Py<PyAny> {
@@ -421,41 +441,10 @@ impl Body {
                 )?);
             }
         };
-        // The bracket has to be read BEFORE the continuation consumes
-        // the certificate, on the chance it turns out to be wanted.
-        //
-        // GAP (`memories/demo-purpose.md`): that read, and the
-        // two-crates-deep match below, are both the same missing
-        // affordance — a budget refusal is exactly the case that HAS
-        // a certified bracket and it carries neither the bracket nor
-        // its own classification. `SignCertificate::target_refusal`
-        // answers the classification but is unreachable once
-        // `refine_to_target` has consumed the certificate. Filed as
-        // `work/perf`'s
-        // `budget-refusal-drops-the-enclosure-the-caller-needs`.
-        let sign_level = certificate.enclosure();
         certificate
-            .refine_to_target()
+            .measure()
             .map(MassProperties::from)
-            .map_err(|err| {
-                let bracket = matches!(
-                    &err,
-                    topo::MassPropsError::Face {
-                        source: pncad::geom_brep::PropsError::QuadratureBudget { .. },
-                        ..
-                    }
-                )
-                .then_some(sign_level);
-                measurement_err(
-                    py,
-                    &err,
-                    vec![
-                        ("volume_lo", pyfloat(py, bracket.map(|b| b.volume_lo))),
-                        ("volume_hi", pyfloat(py, bracket.map(|b| b.volume_hi))),
-                        ("surface_area", pyfloat(py, bracket.map(|b| b.surface_area))),
-                    ],
-                )
-            })
+            .map_err(|unreached| unreached_err(py, &unreached))
     }
 
     /// **Tier 3′** — the ladder's fourth rung: tier 3's whole local
@@ -1968,9 +1957,10 @@ pub(crate) struct ImportReport {
     /// rest, checked before it was handed out.
     #[pyo3(get)]
     body: Body,
-    /// The at-rest gate's own enclosure of `body`.
-    #[pyo3(get)]
-    enclosure: MassProperties,
+    /// The at-rest gate's own enclosure of `body`, continued to the
+    /// number — or why it could not be (read through the `enclosure`
+    /// getter, which raises that refusal).
+    enclosure: Result<MassProperties, topo::TargetUnreached<f64>>,
     /// The import's input tolerance in metres: the file's declared
     /// uncertainty, which is a separate quantity from the kernel's ε.
     #[pyo3(get)]
@@ -1982,6 +1972,23 @@ pub(crate) struct ImportReport {
 
 #[pymethods]
 impl ImportReport {
+    /// The at-rest gate's own measurement of `body` — its certificate
+    /// continued to the number, not a second computation.
+    ///
+    /// # Errors
+    ///
+    /// The import SUCCEEDED either way: the gate decides each solid's
+    /// volume sign, and admits a valid body whose volume is not
+    /// measurable at this ε. Reading this on such a report raises the
+    /// measurement refusal `validate_geometric_measured` raises, with
+    /// the sign-level bracket when the schedule ran out.
+    #[getter]
+    fn enclosure(&self, py: Python<'_>) -> PyResult<MassProperties> {
+        self.enclosure
+            .clone()
+            .map_err(|unreached| unreached_err(py, &unreached))
+    }
+
     /// Every boundary graph the adoption re-minted, in resolution
     /// order — empty for a file the kernel represents as stated.
     #[getter]
@@ -2074,12 +2081,7 @@ pub(crate) fn import_step(
             coherence: _,
         }) => Ok(ImportReport {
             body: Body::plain(Arc::new(body)),
-            enclosure: MassProperties {
-                volume: enclosure.volume,
-                surface_area: enclosure.surface_area,
-                volume_pad: enclosure.volume_pad,
-                area_pad: enclosure.area_pad,
-            },
+            enclosure: enclosure.map(MassProperties::from),
             eps_in,
             normalizations: normalizations
                 .into_iter()
