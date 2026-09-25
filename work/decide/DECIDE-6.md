@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P2
 cost: D
 branch: decide/6-read-cost
+pr: 3229
 refs: [decision-read-triples-the-plate-pin-suites-wall-time]
 ---
 
