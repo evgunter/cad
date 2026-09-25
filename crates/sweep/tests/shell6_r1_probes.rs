@@ -26,7 +26,7 @@ use geom::Surface;
 use geom_brep::Nappe;
 use geom_core::{Point2, Point3, Tol, Vec2};
 use profile::{
-    ArcSweep, Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane, bulge_from_center,
+    ArcSweep, Profile, ProfileLoop, SketchPlane, bulge_from_center, test_support::bulge_loop,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
@@ -58,11 +58,11 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 }
 
 fn frustum(r0: f64, r1: f64) -> Body<f64> {
-    revolved(ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 0.0),
-        ProfileVertex::new(p2(r0, 0.0), 0.0),
-        ProfileVertex::new(p2(r1, H), 0.0),
-        ProfileVertex::new(p2(0.0, H), 0.0),
+    revolved(bulge_loop(vec![
+        (p2(0.0, 0.0), 0.0),
+        (p2(r0, 0.0), 0.0),
+        (p2(r1, H), 0.0),
+        (p2(0.0, H), 0.0),
     ]))
 }
 
@@ -294,17 +294,17 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
         image(r0, z0),
         image(r1, z1)
     );
-    let body = revolved(RawLoop::new(vec![
-        ProfileVertex::new(
+    let body = revolved(bulge_loop(vec![
+        (
             bottom,
             bulge_from_center(bottom, p2(r0, z0), p2(0.0, c0), ArcSweep::Ccw),
         ),
-        ProfileVertex::new(p2(r0, z0), 0.0),
-        ProfileVertex::new(
+        (p2(r0, z0), 0.0),
+        (
             p2(r1, z1),
             bulge_from_center(p2(r1, z1), top, p2(0.0, c1), ArcSweep::Ccw),
         ),
-        ProfileVertex::new(top, 0.0),
+        (top, 0.0),
     ]));
     (body, apex_y)
 }

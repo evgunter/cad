@@ -118,19 +118,19 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
 fn r2_the_cusp_reversal_residual_is_measured() {
     let lp = lune();
     let raw = profile::ProfileLoop::from(lp);
-    let v: Vec<profile::ProfileVertex<f64>> = raw
+    let v: Vec<(Point2<f64>, f64)> = raw
         .vertices()
         .iter()
         .zip(raw.bulges())
-        .map(|(&p, &b)| profile::ProfileVertex::new(p, b))
+        .map(|(&p, &b)| (p, b))
         .collect();
     let n = v.len();
     // The kiss is vertex 2 (the loop is: (0,4) → (0,2) → (0,0) kiss →
     // back). Incoming arc is v[1]→v[2]; outgoing arc is v[2]→v[3 % n].
     let tang_end = |a: usize, b: usize| {
-        let p0 = v[a].pos();
-        let p1 = v[b].pos();
-        let bulge = v[a].bulge();
+        let p0 = v[a].0;
+        let p1 = v[b].0;
+        let bulge = v[a].1;
         // End tangent of a circular arc: chord direction rotated by
         // +2*atan(bulge) ... at the END the rotation is +Δ where
         // tan(Δ/2) = bulge.
@@ -141,9 +141,9 @@ fn r2_the_cusp_reversal_residual_is_measured() {
         t / t.norm_squared().sqrt()
     };
     let tang_start = |a: usize, b: usize| {
-        let p0 = v[a].pos();
-        let p1 = v[b].pos();
-        let bulge = v[a].bulge();
+        let p0 = v[a].0;
+        let p1 = v[b].0;
+        let bulge = v[a].1;
         let d = p1 - p0;
         let delta: f64 = bulge.atan();
         let (s, c) = (-2.0f64 * delta).sin_cos();

@@ -307,6 +307,8 @@ pub(crate) fn is_writer(line: &str) -> bool {
         "RawLoop>::polygon",
         // The declaration verb, on any receiver.
         ".with_tangent_joints",
+        // The bulge-chain fixture helper, which reaches the lowering.
+        "bulge_loop",
     ]
     .iter()
     .any(|m| normal.contains(m))

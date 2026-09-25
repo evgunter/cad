@@ -28,7 +28,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ContactRecords, ValidationError};
 
@@ -42,10 +42,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// needs three vertices for a polygon with area, or needs one circle.
 fn lens(z0: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 0.6),
-        ProfileVertex::new(p2(1.0, 0.0), 0.6),
-    ]);
+    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(h), tol).unwrap().body

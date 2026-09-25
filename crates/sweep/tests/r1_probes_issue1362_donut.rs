@@ -14,16 +14,13 @@
 use crate::revolve_common;
 
 use geom_core::{Point3, Tol};
-use profile::RawLoop;
+use profile::{RawLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolvedKind, revolve};
 use topo::Body;
 
 fn donut() -> sweep::Revolved<f64> {
-    let lp = profile::ProfileLoop::new(vec![
-        profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
-        profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, 0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
     let vp = validated(vec![lp]);
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap()
 }
@@ -290,15 +287,15 @@ fn r1_sweeps_the_revolve_fixtures_for_more_structural_zeros() {
         ])])
     };
     let circle = || {
-        validated(vec![profile::ProfileLoop::new(vec![
-            profile::ProfileVertex::new(p2(1.0, 0.5), 1.0),
-            profile::ProfileVertex::new(p2(2.0, 0.5), 1.0),
+        validated(vec![bulge_loop(vec![
+            (p2(1.0, 0.5), 1.0),
+            (p2(2.0, 0.5), 1.0),
         ])])
     };
     let half_disc = || {
-        validated(vec![profile::ProfileLoop::new(vec![
-            profile::ProfileVertex::new(p2(0.0, -1.0), 1.0),
-            profile::ProfileVertex::new(p2(0.0, 1.0), 0.0),
+        validated(vec![bulge_loop(vec![
+            (p2(0.0, -1.0), 1.0),
+            (p2(0.0, 1.0), 0.0),
         ])])
     };
     let triangle = || {

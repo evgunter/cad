@@ -87,8 +87,8 @@ pub use ::profile::path::{
 // loop-minting door. `Segment` is what `ProfileLoop::segments` hands
 // back.
 pub use ::profile::{
-    ArcSweep, FilletLegShape, Profile, ProfileLoop, ProfileVertex, Segment, SketchPlane,
-    bulge_from_center, bulge_from_via,
+    ArcSweep, FilletLegShape, Profile, ProfileLoop, Segment, SketchPlane, bulge_from_center,
+    bulge_from_via,
 };
 
 // Validation: the gate, its typed refusals, and the canonical output.

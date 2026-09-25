@@ -52,7 +52,6 @@ test_utils::gated_to![
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::battery::{BlendRequest, run_battery};
 use sweep::blend::build::fillet_edges;
@@ -71,7 +70,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// Revolve a closed sketch loop about the sketch y-axis.
-fn revolved(verts: Vec<ProfileVertex<f64>>, rev: Revolution<f64>) -> Body<f64> {
+fn revolved(verts: Vec<(Point2<f64>, f64)>, rev: Revolution<f64>) -> Body<f64> {
     revolved_about_y(verts, rev, tol())
 }
 
@@ -117,11 +116,11 @@ fn neck_flare(a: f64, rev: Revolution<f64>) -> Body<f64> {
     let t30 = (30.0f64).to_radians().tan();
     revolved(
         vec![
-            ProfileVertex::new(p2(0.2 * a, 0.0), 0.0),
-            ProfileVertex::new(p2(a, 0.0), 0.0),
-            ProfileVertex::new(p2(a, 1.0), 0.0),
-            ProfileVertex::new(p2(a - t30, 2.0), 0.0),
-            ProfileVertex::new(p2(0.2 * a, 2.0), 0.0),
+            (p2(0.2 * a, 0.0), 0.0),
+            (p2(a, 0.0), 0.0),
+            (p2(a, 1.0), 0.0),
+            (p2(a - t30, 2.0), 0.0),
+            (p2(0.2 * a, 2.0), 0.0),
         ],
         rev,
     )
@@ -148,11 +147,11 @@ fn boss(r: f64) -> Body<f64> {
     let bulge = (sweep / 4.0).tan();
     revolved(
         vec![
-            ProfileVertex::new(p2(b, 0.0), 0.0),
-            ProfileVertex::new(p2(2.0 * r, 0.0), 0.0),
-            ProfileVertex::new(p2(2.0 * r, c), 0.0),
-            ProfileVertex::new(p2(rim_r, c), bulge),
-            ProfileVertex::new(p2(b, bore_y), 0.0),
+            (p2(b, 0.0), 0.0),
+            (p2(2.0 * r, 0.0), 0.0),
+            (p2(2.0 * r, c), 0.0),
+            (p2(rim_r, c), bulge),
+            (p2(b, bore_y), 0.0),
         ],
         Revolution::Full,
     )
@@ -319,10 +318,7 @@ fn a_co_surface_seam_still_refuses_tangential_at_exactly_zero_margin() {
     for _ in 0..fuzz::scaled(4) {
         let r = rng.range(0.5, 2.0);
         let ball = revolved(
-            vec![
-                ProfileVertex::new(p2(0.0, -r), 1.0),
-                ProfileVertex::new(p2(0.0, r), 0.0),
-            ],
+            vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)],
             Revolution::Full,
         );
         let seams = find_edges(

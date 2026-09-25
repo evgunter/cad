@@ -1945,18 +1945,18 @@ mod tests {
     #[test]
     #[should_panic(expected = "of a chart pole it is not being identified with")]
     fn a_rim_junction_inside_the_pole_band_trips_the_guard() {
-        use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+        use profile::{Profile, SketchPlane, test_support::bulge_loop};
         use std::collections::HashMap;
         let tol = geom_core::Tol::witness();
         let rho = 0.1f64;
         let (h, rc) = (0.5f64.sin(), 0.5f64.cos());
         let yt = (1.0 - rho * rho).sqrt();
         let bulge = ((yt.atan2(rho) - h.atan2(rc)) / 4.0).tan();
-        let profile_loop = ProfileLoop::new(vec![
-            ProfileVertex::new(geom_core::Point2::new(rc, h), bulge),
-            ProfileVertex::new(geom_core::Point2::new(rho, yt), 0.0),
-            ProfileVertex::new(geom_core::Point2::new(0.3, 1.3), 0.0),
-            ProfileVertex::new(geom_core::Point2::new(1.1, 0.9), 0.0),
+        let profile_loop = bulge_loop(vec![
+            (geom_core::Point2::new(rc, h), bulge),
+            (geom_core::Point2::new(rho, yt), 0.0),
+            (geom_core::Point2::new(0.3, 1.3), 0.0),
+            (geom_core::Point2::new(1.1, 0.9), 0.0),
         ]);
         let profile = Profile::new(SketchPlane::xy(), vec![profile_loop])
             .validate(tol)

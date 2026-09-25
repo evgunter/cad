@@ -16,7 +16,7 @@ use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// A point in the profile frame, from its two coordinates.
@@ -155,12 +155,12 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
         p.loops
             .iter()
             .map(|lp| {
-                ProfileLoop::new(
+                bulge_loop(
                     lp.vertices()
                         .iter()
                         .zip(lp.bulges())
                         .map(|(v, &b)| {
-                            ProfileVertex::new(
+                            (
                                 Point2::new(T::from_f64(v.x), T::from_f64(v.y)),
                                 T::from_f64(b),
                             )
@@ -175,9 +175,9 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
 
 /// A loop from `(x, y, bulge)` triples.
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
+            .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
             .collect(),
     )
 }

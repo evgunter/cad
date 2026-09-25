@@ -27,7 +27,7 @@ use common::*;
 use geom::{Curve3, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, FaceSurface, MefSite, MevSite};
 
@@ -111,10 +111,7 @@ fn r2r_independent_byte_digest() {
 /// through the iso walk. `m5_pr11_trimmed` pins that they tessellate
 /// watertight at every δ.
 fn tilted_halves() -> (Body<f64>, Body<f64>) {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 1.0),
-        ProfileVertex::new(p2(1.0, 0.0), 1.0),
-    ]);
+    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)]);
     let disc = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
