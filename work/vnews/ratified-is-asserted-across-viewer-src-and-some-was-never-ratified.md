@@ -244,10 +244,10 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
 
 - **Sweep 2a, authority phrasings:**
   `grep -rnI -E "\(Ev,|\bEv('s)? (ruled|ruling|decided|authoris|asked|agreed)|\bruling\b|\bruled\b|\brulings\b|\bsettled\b|recorded constraint|design question|\bsign-?off\b|\bagreed\b|open clause" --include=*.rs crates/viewer/src`.
-  I drop lines that already match `ratif`, `datums.rs` (where
-  "ruling" means grid lines), and the other geometric "ruled"/"ruling"
-  and `settled` (a value) spellings, by the exclusions in the command
-  I ran. That leaves 48 lines. Fifteen of those use the word in its
+  I drop lines that already match `ratif`, then drop
+  `grep -v -E "datums.rs|ruled (out|at|over|along|completely|on the frame|toward)|is ruled out|plane's ruling|the ruling (stops|reaches|runs|always|of part|is dense)|keeps the ruling|a ruling's|whose ruling lost|ruling legible|app.rs:96[56]"`.
+  Those are the grid-line senses of "ruling" and `app.rs`'s
+  `settled` variable. That leaves 48 lines. Fifteen of those use the word in its
   ordinary sense: `pickcache.rs:252,307`, `marks.rs:79,82,308,309`,
   `theme.rs:634`, `frame.rs:163,2086`, `session/op.rs:321`,
   `session/probe.rs:167`, `widgets.rs:1533`, `gpu.rs:68,1544` and
@@ -389,7 +389,7 @@ verdict column (population 1 / 2 / 3):
 
 | verdict | P1 | P2 | P3 |
 |---|---|---|---|
-| TRUE | 23 | 21 | 6 |
+| TRUE | 23 | 21 | 5 |
 | PARTIAL | 11 | 2 | 7 |
 | FALSE | 3 | 11 | 3 |
 | OUT | 2 | — | — |
