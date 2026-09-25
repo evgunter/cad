@@ -612,3 +612,36 @@ The review took three rounds:
 Documented as a known undercount: a piece a later step re-mints as a
 `Seam` edge along its own line is not counted as the parent's
 descendant.
+
+## 2026-09-25 — a declared flush union names vertices and member edges the same in every order (PR 3198)
+
+Four end passes in `emit_union::name_union` replace fold history with
+facts read off the finished body:
+- **`Flush`:** a flush stretch is named for the least member edge it
+  lies along.
+- **`least_vertex`:** a member corner is named for the least member
+  vertex, among faces that descend there.
+- **`crossing`:** a face crossing a member edge is `Seam{edge, face}`.
+- **`retire_into_merges`:** a seam side cites the merge only when the
+  merge is the face beside it. It never cites a duplicate or a false
+  adjacency.
+
+Absences on the rebind probe fell from 7398 to 816, with vertices and
+member-edge pieces at 0.
+
+The review found three regressions against main, all fixed with rows
+that go red:
+- a two-shell member refused;
+- the ZIP document refused `Duplicate`;
+- 46 seam sides named a face they do not border.
+
+A new permanent row checks seam adjacency across the corpus. Cost is
+about 1.1–1.3× main on a 100-step union chain.
+
+Closed `declared-flush-union-edge-and-vertex-names-follow-member-order`.
+
+Filed:
+- P1 `union-face-names-follow-fold-order` (the faces that remain; the
+  fork goes to Ev);
+- via the PR, zip's leftover-vertex row and EMIT's
+  `a-face-cut-and-merged-in-one-step-publishes-a-piece-under-the-name-its-merge-retires`.

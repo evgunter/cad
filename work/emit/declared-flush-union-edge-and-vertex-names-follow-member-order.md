@@ -2,10 +2,12 @@
 id: declared-flush-union-edge-and-vertex-names-follow-member-order
 kind: issue
 title: A declared flush union's edge, vertex and face names follow member order
-status: open
+status: closed
 opened: 2026-09-23
 priority: P1
 cost: H
+closed: 2026-09-25
+pr: 3198
 ---
 
 
