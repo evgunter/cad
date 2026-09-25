@@ -455,9 +455,9 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
     );
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 2);
-    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), 1.0_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
+    assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), 1.0_f64.to_bits());
     assert!(
         lowered.tangent_joints().is_empty(),
         "same-carrier joints declare nothing — there is no tangency to claim"
@@ -479,15 +479,15 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for v in lowered.vertices() {
-        assert_eq!(v.bulge().to_bits(), expected_bulge.to_bits());
+    for b in lowered.bulges() {
+        assert_eq!(b.to_bits(), expected_bulge.to_bits());
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
     for (k, v) in lowered.vertices().iter().enumerate() {
         let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
         let (s, c) = geom_core::Real::sin_cos(theta);
-        assert_eq!(v.pos().x.to_bits(), (1.0 + 0.4 * c).to_bits());
-        assert_eq!(v.pos().y.to_bits(), (0.5 + 0.4 * s).to_bits());
+        assert_eq!(v.x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
     assert!(
         lowered.tangent_joints().is_empty(),
@@ -562,16 +562,16 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     assert_eq!(lowered.vertices().len(), 3);
     let v1 = lowered.vertices()[1];
     assert_eq!(
-        (v1.pos().x.to_bits(), v1.pos().y.to_bits()),
+        (v1.x.to_bits(), v1.y.to_bits()),
         (0.5f64.to_bits(), 0.0f64.to_bits()),
         "the equator vertex is the authored point exactly"
     );
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), q.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), q.to_bits());
     assert_eq!(
-        v1.bulge().to_bits(),
+        lowered.bulges()[1].to_bits(),
         0x3fda827999fcef33,
         "the derived bulge is the retired verb's, bit for bit (got {:#x})",
-        v1.bulge().to_bits()
+        lowered.bulges()[1].to_bits()
     );
     assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
@@ -1194,12 +1194,12 @@ fn an_arc_no_radius_drew_records_no_emission() {
 /// neighbour that happens to be an arc too.
 fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
     let vs = closed.loop_.vertices();
-    let b = vs[i].bulge();
+    let b = closed.loop_.bulges()[i];
     if b == 0.0 {
         return None;
     }
-    let a = vs[i].pos();
-    let z = vs[(i + 1) % vs.len()].pos();
+    let a = vs[i];
+    let z = vs[(i + 1) % vs.len()];
     let chord = (z - a).norm_squared().sqrt();
     Some(chord * (1.0 + b * b) / (4.0 * b.abs()))
 }

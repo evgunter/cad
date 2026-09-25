@@ -220,7 +220,7 @@ fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
     pv.validated.loops()[0]
         .vertices()
         .iter()
-        .map(|vx| (vx.pos().x.to_bits(), vx.pos().y.to_bits()))
+        .map(|vx| (vx.x.to_bits(), vx.y.to_bits()))
         .collect()
 }
 

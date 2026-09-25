@@ -451,21 +451,28 @@ pub(crate) struct ProfilePre {
 /// an internal invariant break (validate's exact-reindexing contract),
 /// surfaced typed by the caller, never a panic.
 ///
-/// The match covers vertex POSITIONS, segment BULGES, and the declared
-/// joint set. Positions alone are NOT enough (PR #291 review MAJOR-1,
-/// both reviewers, executed): on a 2-vertex loop the forward and
-/// reversed maps agree on every position (index arithmetic mod 2), so
-/// a reversed hole circle — `circle()` lowers CCW, canonicalization
-/// orients holes CW — would recover `reversed: false` and swap the two
-/// semicircles' program names. Bulges disambiguate the parity exactly:
-/// canonicalization's reversal NEGATES bulges (bit-exact sign flip)
-/// and reindexes them (canonical segment k = program segment n−1−k
-/// traversed backward), while the identity carries them verbatim — so
-/// the bulge condition holds for precisely one orientation whenever
-/// any segment is an arc. (An all-straight loop
-/// has ±0.0 bulges either way, but needs n ≥ 3 to close, where
-/// positions already decide.) Declared joints ride the same maps and
-/// are checked as sets.
+/// The match covers vertex POSITIONS, the BULGE each segment was
+/// lowered from, and the declared joint set. Positions alone are NOT
+/// enough (PR #291 review MAJOR-1, both reviewers, executed): on a
+/// 2-vertex loop the forward and reversed maps agree on every position
+/// (index arithmetic mod 2), so a reversed hole circle — `circle()`
+/// lowers CCW, canonicalization orients holes CW — would recover
+/// `reversed: false` and swap the two semicircles' program names.
+/// Bulges disambiguate the parity exactly: canonicalization's reversal
+/// NEGATES bulges (bit-exact sign flip) and reindexes them (canonical
+/// segment k = program segment n−1−k traversed backward), while the
+/// identity carries them verbatim — so the bulge condition holds for
+/// precisely one orientation whenever any segment is an arc. (An
+/// all-straight loop has ±0.0 bulges either way, but needs n ≥ 3 to
+/// close, where positions already decide.) The bulge is the datum
+/// matched rather than an arc's sweep because it is present on every
+/// segment of both loops: a sub-tolerance arc is a validated `Line`
+/// with no sweep. Matching positions and bulges matches the stored
+/// segments too, because every stored segment is lowered from exactly
+/// those: its kind by the exact-zero rule (a line iff its bulge is
+/// ±0, which negation preserves) and an arc's carrier and sweep from
+/// its two positions and bulge alone. Declared joints
+/// ride the same maps and are checked as sets.
 pub(crate) fn derive_naming(
     validated: &ValidatedProfile<f64>,
     program_loops: &[ProfileLoop<f64>],
@@ -493,17 +500,16 @@ pub(crate) fn derive_naming(
                 };
                 let vmap = |k: u32| a.vertex(k) as usize;
                 let smap = |k: u32| a.segment(k) as usize;
-                let positions_ok =
-                    (0..n).all(|k| bits(&cv[k as usize].pos()) == bits(&pv[vmap(k)].pos()));
+                let positions_ok = (0..n).all(|k| bits(&cv[k as usize]) == bits(&pv[vmap(k)]));
                 if !positions_ok {
                     continue;
                 }
                 // Bulges: verbatim forward, negated under reversal —
                 // bit-exact either way.
                 let bulges_ok = (0..n).all(|k| {
-                    let pb = pv[smap(k)].bulge();
+                    let pb = pl.bulges()[smap(k)];
                     let want = if reversed { -pb } else { pb };
-                    cv[k as usize].bulge().to_bits() == want.to_bits()
+                    vl.segments()[k as usize].bulge.to_bits() == want.to_bits()
                 });
                 if !bulges_ok {
                     continue;

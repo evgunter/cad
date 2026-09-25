@@ -55,8 +55,8 @@ use pncad::document::{
 };
 use pncad::geom_core::{Point2, Tol};
 use pncad::profile::{
-    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ProfileVertex,
-    ReplayError, ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
+    ArcData, ArcMode, ArcSide, ArcSweep, Profile, ProfileError, ProfileLoop, ReplayError,
+    ReplayErrorKind, SketchPlane, SpecForms, Step, Target, TargetKind, TipState, Verb,
     arc_specs_at, replay,
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
@@ -1016,7 +1016,7 @@ pub fn preview(
         .zip(&closed_flags)
         .enumerate()
         .map(|(loop_, (lp, closed))| {
-            let (points, vertices) = flatten(lp.vertices(), chord)
+            let (points, vertices) = flatten(lp.vertices(), lp.bulges().iter().copied(), chord)
                 .map_err(|vertex| PreviewError::Unflattenable { loop_, vertex })?;
             Ok(PreviewLoop {
                 points,
@@ -1114,7 +1114,8 @@ pub fn committed(
             .loops()
             .iter()
             .map(|lp| {
-                flatten(lp.vertices(), chord).map(|(points, vertices)| PreviewLoop {
+                let bulges = lp.segments().iter().map(|s| s.bulge);
+                flatten(lp.vertices(), bulges, chord).map(|(points, vertices)| PreviewLoop {
                     points,
                     vertices,
                     closed: true,
@@ -1313,7 +1314,7 @@ fn drawable(point: [f64; 2]) -> bool {
 /// One loop as a closed polyline: every vertex, with each bulged
 /// segment subdivided finely enough that it sags less than `chord`.
 ///
-/// The bulge convention is [`ProfileVertex`]'s
+/// The bulge convention is [`pncad::profile::ProfileVertex`]'s
 /// — `b = tan(θ/4)` for the segment LEAVING each vertex, positive
 /// counterclockwise, the last vertex's belonging to the closing
 /// segment — so this reads the loop exactly as the kernel writes it
@@ -1329,7 +1330,8 @@ fn drawable(point: [f64; 2]) -> bool {
 /// through a corner nobody authored — the same defect one door
 /// along.
 fn flatten(
-    vertices: &[ProfileVertex<f64>],
+    vertices: &[Point2<f64>],
+    bulges: impl IntoIterator<Item = f64>,
     chord: f64,
 ) -> Result<(Vec<[f64; 2]>, Vec<usize>), usize> {
     let mut out: Vec<[f64; 2]> = Vec::with_capacity(vertices.len());
@@ -1339,9 +1341,8 @@ fn flatten(
     // indistinguishable from its ends — so the flattener, which is the
     // one place that knows, says it.
     let mut at: Vec<usize> = Vec::with_capacity(vertices.len());
-    for (index, vertex) in vertices.iter().enumerate() {
-        let from = vertex.pos();
-        let to = vertices[(index + 1) % vertices.len()].pos();
+    for (index, (&from, bulge)) in vertices.iter().zip(bulges).enumerate() {
+        let to = vertices[(index + 1) % vertices.len()];
         // The loop's own vertex, asked the same question its arcs are
         // asked below and asked BEFORE it is emitted. A replay whose
         // literals are all finite can still land one past the top of
@@ -1355,7 +1356,6 @@ fn flatten(
         }
         at.push(out.len());
         out.push(place);
-        let bulge = vertex.bulge();
         if bulge == 0.0 {
             continue;
         }

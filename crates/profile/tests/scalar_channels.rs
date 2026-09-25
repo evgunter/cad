@@ -33,9 +33,9 @@ fn skeleton_f64(vp: &ValidatedProfile<f64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos().x.to_bits(),
-                            v.pos().y.to_bits(),
-                            v.bulge().to_bits(),
+                            v.x.to_bits(),
+                            v.y.to_bits(),
+                            s.bulge.to_bits(),
                             kind_code(&s.kind),
                         )
                     })
@@ -56,9 +56,9 @@ fn skeleton_dual(vp: &ValidatedProfile<Dual64>) -> Skeleton {
                     .zip(lp.segments())
                     .map(|(v, s)| {
                         (
-                            v.pos().x.value.to_bits(),
-                            v.pos().y.value.to_bits(),
-                            v.bulge().value.to_bits(),
+                            v.x.value.to_bits(),
+                            v.y.value.to_bits(),
+                            s.bulge.value.to_bits(),
                             dual_kind_code(&s.kind),
                         )
                     })
@@ -186,13 +186,14 @@ fn dual_with_seeded_derivatives_still_decides_by_value_only() {
                 profile::ProfileLoop::new(
                     lp.vertices()
                         .iter()
-                        .map(|v| {
+                        .zip(lp.bulges())
+                        .map(|(v, &b)| {
                             profile::ProfileVertex::new(
                                 geom_core::Point2::new(
-                                    Dual::new(v.pos().x, f64::NAN),
-                                    Dual::new(v.pos().y, f64::NAN),
+                                    Dual::new(v.x, f64::NAN),
+                                    Dual::new(v.y, f64::NAN),
                                 ),
-                                Dual::new(v.bulge(), f64::NAN),
+                                Dual::new(b, f64::NAN),
                             )
                         })
                         .collect(),

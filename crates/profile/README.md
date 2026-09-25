@@ -145,8 +145,9 @@ the document vocabulary does not spell yet
 (`RecordedProgramError::VerbNotInDocumentVocabulary`).
 
 **V5 — The v1-form → program lift is a development tool.** `profile::lift`
-mints a chain- or carrier-vocabulary program from a vertex+bulge loop
-with declared joints: declared junctions become `.tangent()`, every
+mints a chain- or carrier-vocabulary program from a lowered loop (its
+vertices and the bulge each segment was lowered from) with declared
+joints: declared junctions become `.tangent()`, every
 other junction a sharp `line_to`/`arc_to`, the seam rotated to the first
 undeclared joint — and when there is none, seamed at 0 with the closing
 target carrying joint 0's declaration (`Start.arrives_tangent()`); no

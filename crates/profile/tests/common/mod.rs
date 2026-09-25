@@ -158,10 +158,11 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
                 ProfileLoop::new(
                     lp.vertices()
                         .iter()
-                        .map(|v| {
+                        .zip(lp.bulges())
+                        .map(|(v, &b)| {
                             ProfileVertex::new(
-                                Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
-                                T::from_f64(v.bulge()),
+                                Point2::new(T::from_f64(v.x), T::from_f64(v.y)),
+                                T::from_f64(b),
                             )
                         })
                         .collect(),
@@ -381,7 +382,7 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
     use profile::{PieceRole, Step};
     for (k, p) in closed.structure.pieces.iter().enumerate() {
-        let straight = closed.loop_.vertices()[k].bulge() == 0.0;
+        let straight = !matches!(closed.loop_.segments()[k], profile::Segment::Arc { .. });
         // (incoming side straight, arrival side straight) per fillet verb.
         let sides = match &closed.program[p.step] {
             Step::Fillet { .. } => (true, true),
@@ -473,9 +474,13 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         .zip(replayed.vertices())
         .enumerate()
     {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
+        assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
+        assert_eq!(
+            lowered.bulges()[i].to_bits(),
+            replayed.bulges()[i].to_bits(),
+            "vertex {i} bulge"
+        );
     }
     let mut la = lowered.tangent_joints().to_vec();
     let mut lb = replayed.tangent_joints().to_vec();

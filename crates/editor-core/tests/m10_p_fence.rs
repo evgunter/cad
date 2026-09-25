@@ -594,10 +594,10 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
             Ok(lp) => {
                 d.text("ok");
                 d.u64(lp.vertices().len() as u64);
-                for v in lp.vertices() {
-                    bits(d, v.pos().x);
-                    bits(d, v.pos().y);
-                    bits(d, v.bulge());
+                for (v, &b) in lp.vertices().iter().zip(lp.bulges()) {
+                    bits(d, v.x);
+                    bits(d, v.y);
+                    bits(d, b);
                 }
             }
             // Same reason as the corpus arm above: the eye's interval

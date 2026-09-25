@@ -1018,8 +1018,8 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let got = loop_.vertices();
     assert_eq!(got.len(), want.len(), "one vertex per authored point");
     for (i, (g, w)) in got.iter().zip(&want).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (w.pos().x, w.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), w.bulge(), "vertex {i} bulge");
+        assert_eq!((g.x, g.y), (w.pos().x, w.pos().y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], w.bulge(), "vertex {i} bulge");
     }
     assert!(
         loop_.tangent_joints().is_empty(),
@@ -1040,8 +1040,8 @@ fn the_polygon_door_emits_the_raw_vertex_table() {
     let hand = chain.vertices();
     assert_eq!(hand.len(), got.len());
     for (i, (g, h)) in got.iter().zip(hand).enumerate() {
-        assert_eq!((g.pos().x, g.pos().y), (h.pos().x, h.pos().y), "vertex {i}");
-        assert_eq!(g.bulge(), h.bulge(), "vertex {i} bulge");
+        assert_eq!((g.x, g.y), (h.x, h.y), "vertex {i}");
+        assert_eq!(loop_.bulges()[i], chain.bulges()[i], "vertex {i} bulge");
     }
     assert_eq!(chain.tangent_joints(), loop_.tangent_joints());
 }
@@ -2103,9 +2103,11 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         pncad::profile::replay(&steps, Tol::witness()).expect("the lifted program replays");
     assert_eq!(replayed.vertices().len(), authored.loop_.vertices().len());
     for (got, want) in replayed.vertices().iter().zip(authored.loop_.vertices()) {
-        assert_eq!(got.pos().x.to_bits(), want.pos().x.to_bits());
-        assert_eq!(got.pos().y.to_bits(), want.pos().y.to_bits());
-        assert_eq!(got.bulge().to_bits(), want.bulge().to_bits());
+        assert_eq!(got.x.to_bits(), want.x.to_bits());
+        assert_eq!(got.y.to_bits(), want.y.to_bits());
+    }
+    for (got, want) in replayed.bulges().iter().zip(authored.loop_.bulges()) {
+        assert_eq!(got.to_bits(), want.to_bits());
     }
 
     // And it evaluates as a document node.

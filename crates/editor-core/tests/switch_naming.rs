@@ -132,7 +132,7 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
         let vs = pv.validated.loops()[0].vertices();
         (0..vs.len())
             .min_by(|&i, &j| {
-                let (p, q) = (vs[i].pos(), vs[j].pos());
+                let (p, q) = (vs[i], vs[j]);
                 p.x.total_cmp(&q.x).then(p.y.total_cmp(&q.y))
             })
             .unwrap()
@@ -167,7 +167,7 @@ fn a_parameter_edit_that_moves_the_lex_min_corner_renumbers_nothing() {
         let ValuePayload::Profile(pv) = &ev.value(PROFILE).expect("profile").payload else {
             panic!("profile payload");
         };
-        let start = pv.validated.loops()[0].vertices()[0].pos();
+        let start = pv.validated.loops()[0].vertices()[0];
         assert_eq!(start.x.to_bits(), 1.0_f64.to_bits());
         assert_eq!(start.y.to_bits(), 0.0_f64.to_bits());
     }
@@ -277,7 +277,7 @@ fn program_vertex_zero_is_the_authored_entry() {
         let canonical_of_program_zero = (0..anchor.len)
             .find(|&k| anchor.vertex(k) == 0)
             .expect("program vertex 0 exists");
-        let v = verts[canonical_of_program_zero as usize].pos();
+        let v = verts[canonical_of_program_zero as usize];
         assert_eq!(
             v.x.to_bits(),
             1.0_f64.to_bits(),
@@ -362,14 +362,31 @@ fn hole_circle_anchor_recovers_reversal() {
         // carries the NEGATED bulge — bit-exact both.
         let p_end = (p_seg + 1) % n as usize;
         assert_eq!(
-            verts[c as usize].pos().x.to_bits(),
-            program.vertices()[p_end].pos().x.to_bits(),
+            verts[c as usize].x.to_bits(),
+            program.vertices()[p_end].x.to_bits(),
             "canonical seg {c} starts at program vertex {p_end}"
         );
+        let canonical = pv.validated.loops()[1].segments()[c as usize];
         assert_eq!(
-            verts[c as usize].bulge().to_bits(),
-            (-program.vertices()[p_seg].bulge()).to_bits(),
+            canonical.bulge.to_bits(),
+            (-program.bulges()[p_seg]).to_bits(),
             "canonical seg {c} carries program seg {p_seg}'s negated bulge"
+        );
+        // … and its canonical sweep is the program segment's, negated.
+        let (
+            profile::SegmentKind::Arc { sweep, .. },
+            profile::Segment::Arc {
+                sweep: program_sweep,
+                ..
+            },
+        ) = (canonical.kind, program.segments()[p_seg])
+        else {
+            panic!("a circle's segments are arcs");
+        };
+        assert_eq!(
+            sweep.to_bits(),
+            (-program_sweep).to_bits(),
+            "canonical seg {c} carries program seg {p_seg}'s negated sweep"
         );
     }
     // Denotation at the name layer: both semicircle walls exist under

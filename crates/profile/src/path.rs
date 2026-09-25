@@ -2456,10 +2456,7 @@ impl<T: Real> Core<T> {
     /// Seeds the entry vertex (the chain's provisional first vertex —
     /// a seam fillet may later retrim it to the seam arc's end).
     fn seed(&mut self, p: Point2<T>) {
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         self.start_pos = Some(p);
     }
 
@@ -2472,7 +2469,7 @@ impl<T: Real> Core<T> {
         }
         match self.verts.last_mut() {
             Some(v) => {
-                v.bulge = bulge;
+                *v = ProfileVertex::new(v.pos(), bulge);
             }
             None => {
                 return Err(PathError::UnderdeterminedLeg {
@@ -2534,10 +2531,7 @@ impl<T: Real> Core<T> {
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         Ok(())
     }
 
@@ -2546,10 +2540,7 @@ impl<T: Real> Core<T> {
     /// about an emitted arc beyond the tip's own incoming data.
     fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push(ProfileVertex::new(p, T::zero()));
         Ok(())
     }
 
@@ -2661,10 +2652,7 @@ impl<T: Real> Core<T> {
         let pieces = self.segment_pieces();
         let structure = self.take_structure();
         ClosedLoop {
-            loop_: ProfileLoop {
-                vertices: self.verts,
-                tangent_joints: self.tangent,
-            },
+            loop_: ProfileLoop::lower(&self.verts, self.tangent),
             program: self.program,
             structure: structure.into_record(spans, radii, pieces),
         }
@@ -3107,8 +3095,8 @@ impl<T: Decide> Core<T> {
         let n = self.verts.len();
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
-                let v = self.verts[i];
-                seg::build_seg(v.pos(), self.verts[(i + 1) % n].pos(), v.bulge(), band)
+                let (v, end) = (self.verts[i], self.verts[(i + 1) % n].pos());
+                seg::build_seg(v.pos(), end, v.lower_to(end), v.bulge(), band)
             };
             // A recorded index always names a vertex of the chain it was
             // recorded on: `record_fillet_arc` reads `verts.len() - 1`
@@ -3542,7 +3530,7 @@ impl<T: Decide> Core<T> {
                 site: "arc extension without an incoming segment",
             })?;
         let bulge = bulge_from_center(from, t1, centre, sweep);
-        self.verts[n - 2].bulge = bulge;
+        self.verts[n - 2] = ProfileVertex::new(from, bulge);
         self.verts[n - 1].pos = t1;
         Ok(())
     }
@@ -3742,14 +3730,8 @@ fn circle_kernel<T: Decide>(
         Err(source) => return Err(PathError::Escalated { source }),
     }
     Ok(ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(center.x + radius, center.y),
-            bulge: T::one(),
-        },
-        ProfileVertex {
-            pos: Point2::new(center.x - radius, center.y),
-            bulge: T::one(),
-        },
+        ProfileVertex::new(Point2::new(center.x + radius, center.y), T::one()),
+        ProfileVertex::new(Point2::new(center.x - radius, center.y), T::one()),
     ]))
 }
 
@@ -3777,10 +3759,10 @@ fn circle_split_kernel<T: Decide>(
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
             let (s, c) = theta.sin_cos();
-            ProfileVertex {
-                pos: Point2::new(center.x + radius * c, center.y + radius * s),
+            ProfileVertex::new(
+                Point2::new(center.x + radius * c, center.y + radius * s),
                 bulge,
-            }
+            )
         })
         .collect();
     Ok(ProfileLoop::new(vertices))
@@ -5530,6 +5512,7 @@ mod fillet_stored_form {
             kind: SegKind::Arc(seg::ArcGeom {
                 center: centre,
                 radius,
+                sweep: 4.0 * arc.bulge.atan(),
                 apex,
                 span_chord: arc.a.distance(apex),
                 turn: if arc.bulge >= 0.0 {
@@ -5578,7 +5561,9 @@ mod fillet_stored_form {
         let n = vs.len();
         let declared = lp.tangent_joints();
         (0..n).find(|&i| {
-            declared.contains(&i) && declared.contains(&((i + 1) % n)) && vs[i].bulge() != 0.0
+            declared.contains(&i)
+                && declared.contains(&((i + 1) % n))
+                && matches!(lp.segments()[i], crate::Segment::Arc { .. })
         })
     }
 
@@ -5597,20 +5582,28 @@ mod fillet_stored_form {
                 format!(
                     "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
                     lp.tangent_joints(),
-                    vs.iter().map(|v| v.bulge()).collect::<Vec<_>>()
+                    lp.bulges()
                 ),
                 [0.0; 2],
             );
         };
         let built: Vec<Result<Seg<f64>, SegIssue<f64>>> = (0..n)
-            .map(|i| seg::build_seg(vs[i].pos(), vs[(i + 1) % n].pos(), vs[i].bulge(), band))
+            .map(|i| {
+                seg::build_seg(
+                    vs[i],
+                    vs[(i + 1) % n],
+                    lp.segments()[i],
+                    lp.bulges()[i],
+                    band,
+                )
+            })
             .collect();
         let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
             Ok(_) => "ok".to_string(),
             Err(e) => format!("REFUSED: {}", short(&e.to_string())),
         };
-        let bulge = vs[s].bulge();
-        let chord = vs[s].pos().distance(vs[(s + 1) % n].pos());
+        let bulge = lp.bulges()[s];
+        let chord = vs[s].distance(vs[(s + 1) % n]);
         let head = format!(
             "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
             R * theta,
