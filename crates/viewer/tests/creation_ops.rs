@@ -41,7 +41,7 @@ use viewer::revolvetool::RevolveTool;
 use viewer::seats::{Seat, SeatError, SeatEvent};
 use viewer::session::{
     DatumSpec, DocSession, FaceSelection, Hovered, NodeKindWanted, ProfilePlane, ProfileShape,
-    Refusal, Selection, SessionOp,
+    Refusal, Selection, SessionOp, Step,
 };
 use viewer::sketch::Notation;
 
@@ -254,7 +254,12 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     }
     assert!(session.committed_doc().order().is_empty(), "back to empty");
     let at_root = session.perform(SessionOp::Undo);
-    assert!(matches!(at_root.refusal, Some(Refusal::NothingToDo)));
+    assert!(matches!(
+        at_root.refusal,
+        Some(Refusal::NothingToDo {
+            direction: Step::Undo
+        })
+    ));
     for _ in 0..4 {
         assert!(session.perform(SessionOp::Redo).refusal.is_none());
     }

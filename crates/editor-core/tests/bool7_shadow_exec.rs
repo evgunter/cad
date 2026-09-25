@@ -20,9 +20,10 @@ use std::sync::Arc;
 use editor_core::eval::WitnessSlot;
 use editor_core::{
     Axis3, BooleanOp, CancelToken, ContentKey, Diagnosis, DocEdit, EntityKind, Entry, EvalOptions,
-    EvalOutcome, Evaluation, FlipSource, FragmentGroups, NameTable, NamingKey, Node, ProfileDoc,
-    Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx, SHADOW_EXEC_MAX_PAIRS,
-    SideVerdict, SlotId, StableName, diff_verdicts, evaluate, resolve_with_prior,
+    EvalOutcome, Evaluation, FlipSource, FragmentGroups, GroupCutters, NameTable, NamingKey, Node,
+    ProfileDoc, Qualifier, RecipeNodeId, Resolution, ResolveError, RoleSeg, RunCtx,
+    SHADOW_EXEC_MAX_PAIRS, SideVerdict, SlotId, StableName, diff_verdicts, evaluate,
+    resolve_with_prior,
 };
 use fixture::{ang, insert, len, minted, on_frame, scl, step};
 use geom_core::Tol;
@@ -71,8 +72,24 @@ fn block(
 /// fully in y behind a `Transform`, subtracted at `cut`.
 struct Slot {
     doc: ProfileDoc,
+    /// The bar's own extrude, whose faces the cut's seams name.
+    bar: RecipeNodeId,
     tr: RecipeNodeId,
     cut: RecipeNodeId,
+}
+
+/// The bar's wall over profile segment `segment` (`block`'s profile
+/// runs counter-clockwise from `(x0, y0)`: wall 0 is y = y0, 1 is
+/// x = x1, 3 is x = x0).
+fn wall(bar: RecipeNodeId, segment: u32) -> StableName {
+    StableName {
+        kind: EntityKind::Face,
+        node: bar,
+        path: vec![RoleSeg::Lateral(editor_core::ProfileEdgeRef {
+            loop_index: 0,
+            segment,
+        })],
+    }
 }
 
 fn slot() -> Slot {
@@ -97,7 +114,12 @@ fn slot() -> Slot {
             declare: None,
         },
     );
-    Slot { doc, tr, cut }
+    Slot {
+        doc,
+        bar: b0,
+        tr,
+        cut,
+    }
 }
 
 /// Slides the bar along `axis` — the interaction-boundary edit.
@@ -410,13 +432,34 @@ fn the_orderalong_vanish_is_diagnosed_as_its_group_resizing() {
         ),
         "the row is about a ranked fragment: {name:?}"
     );
+    // The cutter whose seam vertex with the rim edge is gone is the
+    // other operand's cap VERTEX, a point on the edge, not a face.
+    let Diagnosis::GroupResized {
+        node,
+        was: 2,
+        now: 1,
+        cutters: GroupCutters::Read { gone, new },
+    } = vanished(res)
+    else {
+        panic!("expected a 2 -> 1 resize with its cutters read: {res:?}");
+    };
+    assert_eq!(*node, name.node);
+    assert!(new.is_empty(), "no cutter starts cutting: {new:?}");
+    let [cutter] = gone.as_slice() else {
+        panic!("one cutter stops cutting: {gone:?}");
+    };
+    assert_eq!(cutter.kind, EntityKind::Vertex, "{cutter:?}");
+    assert_ne!(cutter.node, name.node, "{cutter:?}");
     assert_eq!(
-        vanished(res),
-        &Diagnosis::GroupResized {
-            node: name.node,
-            was: 2,
-            now: 1,
-        }
+        cutter.path,
+        [RoleSeg::CapVertex(
+            editor_core::CapEnd::End,
+            editor_core::ProfileVertexRef {
+                loop_index: 0,
+                vertex: 0,
+            },
+        )],
+        "{cutter:?}"
     );
     assert!(f.offers.contains(&base_of(name)), "{:?}", f.offers);
 }
@@ -749,6 +792,13 @@ fn a_collapsed_sideof_group_is_diagnosed_group_resized_and_offers_the_survivor()
                 node: s.cut,
                 was: 2,
                 now: 1,
+                // The bar's two x walls still cut the cap, and its
+                // y = y0 wall, now short of the plate's far edge,
+                // crosses it too.
+                cutters: GroupCutters::Read {
+                    gone: vec![],
+                    new: vec![wall(s.bar, 0)],
+                },
             },
             "y = {to}"
         );
@@ -815,6 +865,12 @@ fn a_collapsed_orderalong_edge_group_at_the_cut_is_diagnosed_group_resized() {
                     node: s.cut,
                     was: 2,
                     now: 1,
+                    // The near rim edge: the bar has left it, both x
+                    // walls at once.
+                    cutters: GroupCutters::Read {
+                        gone: vec![wall(s.bar, 1), wall(s.bar, 3)],
+                        new: vec![],
+                    },
                 },
                 "y = {to}: {name:?}"
             );
@@ -1103,6 +1159,7 @@ fn a_group_that_stops_being_divided_is_resized_to_one_and_offers_the_base() {
             node: h.node,
             was: 2,
             now: 1,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     assert_eq!(f.offers, vec![h.base.clone()]);
@@ -1126,6 +1183,7 @@ fn a_group_whose_parent_no_longer_descends_is_resized_to_zero() {
             node: h.node,
             was: 2,
             now: 0,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     assert!(f.offers.is_empty(), "nothing survives to offer");
@@ -1152,6 +1210,7 @@ fn the_count_is_the_record_not_the_rows_spelled_from_the_base() {
             node: h.node,
             was: 2,
             now: 1,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
 }
@@ -1184,6 +1243,7 @@ fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
             node: h.node,
             was: 3,
             now: 2,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     // And growth: a group of two became three. The new members are
@@ -1211,6 +1271,7 @@ fn a_group_that_grows_is_resized_too_and_a_tie_inside_it_is_several_members() {
             node: h.node,
             was: 2,
             now: 3,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
 }
@@ -1238,6 +1299,7 @@ fn two_tied_parents_are_counted_one_parent_at_a_time() {
             node: h.node,
             was: 2,
             now: 1,
+            cutters: GroupCutters::NotSeamBounded,
         }
     );
     // Tied parents whose groups no longer agree have no one count.
@@ -1379,6 +1441,7 @@ fn the_group_is_read_by_kind_and_minting_node_not_by_path_alone() {
                 node: h.node,
                 was: 2,
                 now: 1,
+                cutters: GroupCutters::NotSeamBounded,
             },
             "decoy {decoy:?} was read"
         );
