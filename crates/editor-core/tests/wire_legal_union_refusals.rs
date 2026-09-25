@@ -1,20 +1,21 @@
-//! **Two emitter refusals an ordinary declared union reaches, and what
-//! the author is told when it does.**
+//! **An emitter refusal an ordinary declared union reaches, and what
+//! the author is told when it does — and one it no longer reaches.**
 //!
 //! `NamingError::Emission` means a mint-time fact disagreed with the
-//! result body — a kernel bug. Neither refusal pinned here is one:
-//! every recipe below is well formed, every member is an ordinary
-//! solid, and the bodies the fold builds are sound. What is missing is
-//! a naming RULE for the construction the fold produced, and these rows
-//! pin that the refusal says so rather than sending the author to file
-//! a bug against the kernel.
+//! result body — a kernel bug. The refusal pinned here is not one: the
+//! recipe is well formed, every member is an ordinary solid, and the
+//! bodies the fold builds are sound. What is missing is a naming RULE
+//! for the construction the fold produced, and the row pins that the
+//! refusal says so rather than sending the author to file a bug against
+//! the kernel. The second row is a construction that once refused the
+//! same way and now has its rule.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::corpus::body_of;
 use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, run};
 use crate::fixture::{fname, wall};
 
-use editor_core::{NamingError, NodeErrorKind, ProfileDoc, RimShare, SitedRef};
+use editor_core::{NamingError, NodeErrorKind, ProfileDoc, SitedRef};
 use geom_core::Tol;
 
 /// The sentence every emission-bug refusal opens with, written out
@@ -98,74 +99,34 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
     }
 }
 
-/// **A rim that is not unique refuses as a missing rule, naming the
-/// face pair.**
+/// **A rim that comes in several pieces no longer refuses.**
 ///
 /// `a` and `b` meet flush along x with their caps declared, so the
 /// fold's first step merges them; `g` is a slab that rises through the
 /// merged top cap and out through both y-walls. At step 2 a seam chord
-/// GUESSES that two faces it descended into the A operand carry its
-/// rim, and the pair does not have one.
-///
-/// The premise is what makes this a missing rule rather than a bug, so
-/// the row also pins WHICH caller raised it: `emit_sweep` asks the same
-/// walk about a body it built itself and calls the same answer an
-/// emission inconsistency.
+/// descends into two faces of the A operand that share their common
+/// line in several pieces, and the chord lies within exactly one of
+/// them, which names it (`emit_topo`'s `rim_holding`). This document
+/// refused `SharedRim { found: Several }` until that rule existed; the
+/// refusal's sentence stays pinned in `display_contract`.
 ///
 /// The recipe is legal: the same declaration over the same two members
 /// fuses on its own, and `g` is an ordinary overlapping solid declared
-/// against nothing.
+/// against nothing — and the three together fuse to the volume the
+/// geometry says.
 #[test]
-fn a_rim_that_is_not_unique_is_a_missing_rule_not_a_kernel_bug() {
+fn a_rim_in_several_pieces_is_named_not_refused() {
     let doc = ProfileDoc::empty_derived("wire_shared_rim", Tol::witness());
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
     let pairs = flush_pairs((a, a), (b, b));
 
-    // The declaration on its own is well formed and fuses.
-    let (docx, ab, _) = declared_union(doc.clone(), &[a, b], pairs.clone());
-    let ev = run(&docx);
-    assert!(failure(&ev, ab).is_none(), "{:?}", failure(&ev, ab));
-    let v = volume(body_of(&ev, ab));
-    assert!((v - 1.5).abs() < 1e-9, "the two members fuse: volume {v}");
-
     let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);
-    let shown = failure(&ev, union)
-        .map(ToString::to_string)
-        .unwrap_or_default();
-    let (face, other) = match failure(&ev, union) {
-        Some(NodeErrorKind::Naming(NamingError::SharedRim {
-            face, other, found, ..
-        })) => {
-            assert_eq!(
-                *found,
-                RimShare::Several,
-                "a split merged cap leaves the pair sharing TWO edges, not none"
-            );
-            (*face, *other)
-        }
-        other => panic!("wanted the shared-rim refusal, got {other:?}"),
-    };
-    assert_ne!(
-        face, other,
-        "the refusal names a PAIR; one face twice would be a different fact"
-    );
-    assert!(
-        !shown.contains(BUG_FRAMING),
-        "a legal document was told the kernel is broken: {shown}"
-    );
-    assert!(
-        shown.contains(&format!("{face:?}")) && shown.contains(&format!("{other:?}")),
-        "both faces of the pair reach the sentence: {shown}"
-    );
-    assert!(
-        shown.contains("operand node"),
-        "the keys are an OPERAND body's, so the sentence must say whose: {shown}"
-    );
-    assert!(
-        !shown.contains("  "),
-        "prose a human reads has no padded run in it: {shown}"
-    );
+    assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
+    // a ∪ b is 1.5; g (z = 0.5..3.5) adds 0.1 × 3 × 3 less its
+    // 0.1 × 1 × 0.5 inside.
+    let v = volume(body_of(&ev, union));
+    assert!((v - 2.35).abs() < 1e-9, "volume {v}");
 }

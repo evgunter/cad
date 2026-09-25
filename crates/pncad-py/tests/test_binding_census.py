@@ -1318,7 +1318,7 @@ BOUND_AS = {
     # They cross exactly as their carrier does — flattened to the tag
     # `EvaluationError.kind` answers, the `NodeErrorKind` row's shape
     # one level in. An `f64` evaluation cannot produce either today,
-    # which is the same sentence `MinClearanceRefusal` carries one
+    # which is the same sentence `ClearanceRefusal` carries one
     # roster down: the LANE decides.
     "ParamBoxError": "EvaluationError.kind",
     "SeedError": "EvaluationError.kind",
@@ -1477,6 +1477,24 @@ FAMILIES: dict[str, str] = {
         "asserting that a leg authored `25 * mm` reads back `mm` off "
         "the document slot — the disagreement with `Node.polygon` that "
         "opened the family, inverted."
+    ),
+    # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
+    # net-over-an-action rule) landed in `editor-core` with EMIT's
+    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
+    # `orphaned_declare` paragraph already tells a Python caller that a
+    # cascade's net is read off the document the walk ended at — by
+    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
+    # carries the finding.
+    "B-MAINT-NET": (
+        "the net of a sequence of accepted edits' maintenance rows — "
+        "`MaintenanceNet`, pushed one applied edit at a time and "
+        "finished against the end document. Closing it needs a Python "
+        "door that folds each `Doc.apply` result with the document it "
+        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
+        "points at instead of 'read it off the document', and one "
+        "Python row cascading a declared union's `Declare` away and "
+        "asserting an empty net."
     ),
 }
 
@@ -2196,6 +2214,7 @@ NOT_BOUND = {
     # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
+    "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.
@@ -2788,8 +2807,10 @@ NOT_BOUND = {
     # as `EvaluationError.kind == "measure_clearance_refused"`
     # (`src/tags.rs`), which is this bullet's ordinary shape. What is
     # NOT ordinary is that no Python evaluation can produce one: the
-    # refusal's only producer is
-    # `impl MinClearanceLane for geom_core::Interval`, and the binding
+    # refusal's only producer on the measure path is
+    # `impl MinClearanceLane for geom_core::Interval` (the leaf-level
+    # query engine refuses with it too, and the façade does not carry
+    # that engine at all), and the binding
     # evaluates at `f64` alone (`src/py/value.rs`), so the SCALAR is
     # what gates it. That is `profile_lift`'s
     # sentence above arriving on the refusal side: the door starts
@@ -2802,9 +2823,15 @@ NOT_BOUND = {
     # Its SIBLING went the other way and the pair is the measurement:
     # `MeasureUnavailableAt` is what the `f64` lane answers a
     # `min_clearance` WITH, so it is reachable today and is bound
-    # top-level under rule 1. One kernel file, one verb, two refusals,
-    # and the lane decides which of them a Python caller can ever see.
-    "MinClearanceRefusal": SHAPE,
+    # top-level under rule 1. One verb, two refusals, and the lane
+    # decides which of them a Python caller can ever see.
+    "ClearanceRefusal": SHAPE,
+    # Its `Budget` and `Selection` payloads, curated beside it so a
+    # Rust consumer can read the arm it matched. They cross exactly as
+    # their carrier does — inside the one tag — and no `f64` evaluation
+    # reaches them for the same reason.
+    "CellBudget": SHAPE,
+    "SelectionRefusal": SHAPE,
     # B-FACE-FRAME IS GONE FROM THIS ROSTER, closed at
     # LIB-B-FACE-FRAME, and the id left `FAMILIES` with it. It cited
     # exactly ONE name here — `face_carrier_kind` — which is now in
@@ -2883,6 +2910,12 @@ NOT_BOUND = {
     #     type whose two halves are what the doors take, the other a
     #     refusal flattened to a tag no `f64` evaluation can raise.
     #
+    #     (2026-09-24, PR #3188: `MinClearanceRefusal` is deleted — the
+    #     measure path carries the engine's own `ClearanceRefusal` — and
+    #     its entry is now `ClearanceRefusal`'s, with the two payloads
+    #     curated beside it, `CellBudget` and `SelectionRefusal`, all
+    #     three `SHAPE` for the same reason.)
+    #
     # THE CHARTER NAMED A SPELLING THIS FILE HAD ALREADY TAKEN. The
     # analysis lane's `MeasureUnavailable` bound at LIB-B-DISTRIBUTIONS
     # one unit earlier, and this family's `MeasureUnavailableAt` is a
@@ -2895,8 +2928,9 @@ NOT_BOUND = {
     # THE GATE, MEASURED, and it is not the one B-DISTRIBUTIONS found:
     # every name this family owns is curated in
     # `crates/pncad/src/document.rs`, which carries NO `cfg`. The limit is a
-    # LANE — see the `MinClearanceRefusal` entry — and it bites one
-    # refusal out of the family's whole surface.
+    # LANE — see the `ClearanceRefusal` entry — and it bites one
+    # refusal, with the two payloads curated beside it, out of the
+    # family's whole surface.
     #
     # WHAT THIS FILE COULD NOT SEE, in both directions. `Node::Measure`
     # and `Node::Assertion` are ARMS of `Node`, which rule 1 accounts
@@ -3041,7 +3075,7 @@ NOT_BOUND = {
     # WHAT WOULD MAKE THIS ROW STOP BEING HONEST, in `EvalOutcome`'s
     # shape: a Python surface that evaluates at a certified scalar. On
     # that day these are doors a caller can reach and every one of them
-    # owes a spelling or a `gap:`. `MinClearanceRefusal`'s entry two
+    # owes a spelling or a `gap:`. `ClearanceRefusal`'s entry two
     # screens up is the same sentence from the refusal side, and it is
     # the sharper statement of it: the LANE is what gates.
     "BoxAxis": SHAPE,

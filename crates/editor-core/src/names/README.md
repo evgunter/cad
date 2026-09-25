@@ -34,8 +34,8 @@ enum grouped by op: extrude (`Cap`, `Lateral`, ...), revolve (`Band`, `Pole`,
 (`SectionFace`, `SectionEdge`, `SplitFragment`, ...), blend (shared by fillet and
 chamfer, told apart by the minting node), `InPart`, pattern `Instance { i, of }`
 with `i` recipe-structural. Role arguments are themselves names; profile locators
-(`ProfileEdgeRef`, `ProfileVertexRef`) are the profile crate's canonical
-combinatorial identities, never enumeration indices.
+(`ProfileEdgeRef`, `ProfileVertexRef`) name a profile piece by the id its step
+was minted with, never by its position (below).
 Names contain no floats and no arena keys; a pass-through op (Transform,
 split-intact entity, a `Part`'s projection of one half or one instance) adds no
 segment, so `node` stays the original minter. Names
@@ -53,6 +53,49 @@ answer there, and the run's tips are the only named on-axis vertices. Totality
 is the check on that silence — `check_total` refuses a table leaving a LIVE body
 vertex unnamed, so a `None` standing over surviving geometry cannot pass.
 
+**N1, the profile pieces: authored things are named by minted ids.** A name
+spells what the author made by the id it was minted with, and what the kernel
+made by the verdicts that decided it. Nodes already follow this rule, and so do
+union members (`FromMember`, DM4). Profile pieces follow it as well:
+
+- **The id.** Every step of a profile program carries a `StepId` in the recipe.
+  It is minted from the document's monotone counter when the step is authored,
+  by `InsertNode` or `SetProgram`. Like a `RecipeNodeId`, it is never
+  positional and never reused, and it is unique across the whole document.
+- **The role.** A step draws its pieces from a fixed list of roles, one list
+  per verb:
+  - the run into a fillet, the fillet's arc, and the run out of it;
+  - piece `k` of a `circle_split` (the `n` is structural);
+  - the one carrier of a `circle`.
+- **The locator.** `ProfileEdgeRef { step, role }` names the piece that role
+  of that step drew. `ProfileVertexRef { step, role }` names the vertex where
+  that piece starts, in authored order. A locator holds no loop index and no
+  segment index.
+- **What cannot move it.** None of these changes what a locator denotes:
+  - a value edit;
+  - a change in which loop is the outer one, or in which way a loop runs;
+  - a document parameter passing through a state that does not replay;
+  - a `SetProgram` that keeps the step;
+  - a pin update over a child document that kept the step.
+- **Undrawn pieces vanish rather than alias.**
+  - A role the current values do not draw has no piece. An example is a run
+    that a `Zero` fit suppresses. A locator on it resolves `Vanished` until
+    the values draw it again.
+  - Two pieces on one carrier can be drawn as a single segment. That segment
+    answers to the earlier piece in authored order, and the later piece's
+    locator resolves `Vanished`.
+  - A step that `SetProgram` drops takes its id with it. A name on that step
+    keeps its spelling and resolves `Vanished`, and DM7's report names it.
+    Because the id is never minted again, no later program can draw it.
+- **The canonical numbering is not a name.** It is still the order in which
+  the emitters, the loft's correspondence and the viewer's per-segment marks
+  iterate (V3, DM8). When the name table is published, the naming anchor maps
+  each canonical segment to the step and role that drew it.
+- **Loft walls.** A loft pairs canonical segment `k` of every section into one
+  wall (DM8). The wall is named by the pieces that pairing joined: one locator
+  per section. If a value edit changes which pieces pair, the old wall's name
+  vanishes. It does not follow `k` to the new pairing.
+
 **N2 — Split discriminators are covariant margined predicates.** When one source
 yields n fragments, `Fragment(Qualifier)` follows the parent-bearing segment:
 `Qualifier::SideOf`, a sign vector of `name_frag_side_of` verdicts against the
@@ -63,8 +106,18 @@ the seam pair's `n_a × n_b` (the pair's `a` face first, one orientation
 whichever step cut the line; a union reading the pair in name order reads a
 swapped pair's rank from the other end), and otherwise — any other edge, or a
 seam between two same-named faces (two placements of one prototype) — the
-parent's own oriented carrier. Both run through `k_stats`, so fragment identity changes only at a
-recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
+parent's own oriented carrier. One case counts CELLS rather than fragments:
+a union's piece of a member edge, `FromMember(m, e)` + `OrderAlong { rank, of }`.
+The finished body's vertices on `e`'s segment (`name_frag_on_member_edge`)
+cut it into cells numbered along `e`'s oriented carrier in `m`'s body; `of`
+counts cells, not pieces — cells held by another member or by none count too,
+so some ranks below `of` index a cell no piece of `m` holds — and `rank` is
+the first cell the piece covers. That is an ordinal along the parent's
+oriented carrier, and it moves with neither member order nor which member
+keeps a flush stretch, as far as the boolean's output is itself order-free
+(`emit_union::rank_member_edges`). A seam vertex cites such an edge whole,
+`FromMember(m, e)`, never a piece. The verdicts run through `k_stats`,
+so fragment identity changes only at a recorded flip; an in-band margin refuses (`NamingError::Escalated`), never a
 silent pick, and an ambient tolerance that forms no classification band at all
 refuses (`NamingError::Band`) carrying the band constructor's own diagnostic —
 the overflow and the collapse want opposite repairs, so the refusal says which
