@@ -72,8 +72,8 @@ use geom_core::{
 };
 use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
-    PcurveMintError, ShellKey, SolidKey,
+    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, PcurveMintError, ShellKey, SolidKey,
 };
 
 use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
@@ -118,6 +118,20 @@ pub struct Lofted<T: Real> {
     /// residual pad accompanies it. [`crate::loft_parameters`] answers the
     /// same question BEFORE the body is built.
     pub section_params: Vec<f64>,
+    /// **The contacts the sections declared**: one `Tangent` pair per
+    /// declared cusp joint — the walls of the two canonical segments
+    /// meeting there, arriving wall first — loops in canonical order,
+    /// joints ascending. A joint counts when ANY section declares a
+    /// cusp there (sections pair by canonical index, so the wall pair
+    /// is one pair along the loft). Empty when no section declares a
+    /// cusp.
+    ///
+    /// The authors' declaration carried through the verb, not a
+    /// discovery. Tier 3's material arm exempts an edge with a NURBS
+    /// face by kind, so today a lofted cusp seam validates with or
+    /// without this record; it is carried so the declaration reaches
+    /// whatever reads the body's contacts, the same as the extrude's.
+    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -169,6 +183,24 @@ pub enum LoftError {
     DegenerateStacking {
         /// The slab — the pair [`SlabPair`] names.
         slab: usize,
+    },
+    /// The heading of a section's declared tangent joint — a
+    /// continuation or a cusp ([`Lofted::declared_contacts`]) —
+    /// escalated.
+    ///
+    /// Defense-in-depth: a verified tangent joint's headings are
+    /// parallel or antiparallel, so the decision's margin is the whole
+    /// lever arm — unreachable from validated sections, surfaced rather
+    /// than trusted.
+    CuspHeadingEscalated {
+        /// The section, in input order.
+        section: usize,
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the joint vertex.
+        vertex_index: usize,
+        /// The predicate-layer escalation.
+        source: Indeterminate,
     },
     /// One SLAB's stacking classification escalated (named predicate
     /// on the diagnostic).
@@ -222,6 +254,17 @@ impl fmt::Display for LoftError {
                 "loft {} are not apart at tolerance (a sliver-thin or in-plane slab), so \
                  the loft has no direction. Recourse: move the sections apart",
                 SlabPair(*slab)
+            ),
+            Self::CuspHeadingEscalated {
+                section,
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
+                f,
+                "whether the declared joint at section {section} loop {loop_index} vertex \
+                 {vertex_index} continues or reverses its heading is too close to call: \
+                 {source}"
             ),
             Self::StackingEscalated { slab, source } => write!(
                 f,
@@ -434,6 +477,12 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // sections' outer world loops are the ones walked just above, so
     // each section is traversed once for the whole assembly. ----
     stacking_fold::<T>(places, geometry, band, &bq[0], &tq[0])?;
+
+    // ---- The declared joints' headings: per loop, the canonical
+    // joints some section declares as a cusp (the extrude's step 7,
+    // one verb over). Decided on the canonical `f64` sections, like
+    // every other structural choice here (C6), sections in order. ----
+    let cusps = declared_cusps(geometry, band)?;
 
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
@@ -675,6 +724,15 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         "loft postcondition: result is not tier-2 valid (kernel bug)",
     );
 
+    // Loft never reverses a traversal, so `side_faces` is already in
+    // canonical segment order.
+    let declared_contacts = cusps
+        .iter()
+        .zip(&side_faces)
+        .flat_map(|(joints, walls)| {
+            crate::swept::cusp_contacts(joints, walls.len(), |s| Some(walls[s]))
+        })
+        .collect();
     Ok(Lofted {
         body: built,
         solid: seed.solid,
@@ -684,7 +742,43 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         side_faces,
         seam_edges,
         section_params: geometry.section_params.clone(),
+        declared_contacts,
     })
+}
+
+/// Per canonical loop, ascending, the joints at which SOME section
+/// declares a cusp ([`crate::swept::declared_cusp_joints`]).
+///
+/// A union and not a per-section list, because the wall pair is one
+/// pair along the whole loft: sections are paired by canonical index,
+/// so joint `v` of every section lies on the seam between walls
+/// `v − 1` and `v`. A section that declares the joint smooth, or does
+/// not declare it, takes nothing away from a section that declares it
+/// a cusp — the declaration is about the pair, and tier 3 reads it
+/// only where the wedge closes.
+fn declared_cusps(geometry: &LoftGeometry, band: Band) -> Result<Vec<Vec<usize>>, LoftError> {
+    let mut cusps: Vec<Vec<usize>> = vec![Vec::new(); geometry.walls.len()];
+    for (section, profile) in geometry.canonical.iter().enumerate() {
+        for (li, lp) in profile.loops().iter().enumerate() {
+            let joints = crate::swept::declared_cusp_joints(lp, li, band).map_err(|e| {
+                LoftError::CuspHeadingEscalated {
+                    section,
+                    loop_index: e.loop_index,
+                    vertex_index: e.vertex_index,
+                    source: e.source,
+                }
+            })?;
+            cusps
+                .get_mut(li)
+                .ok_or(LoftError::SectionStructure)?
+                .extend(joints);
+        }
+    }
+    for joints in &mut cusps {
+        joints.sort_unstable();
+        joints.dedup();
+    }
+    Ok(cusps)
 }
 
 /// **The loft body** (M6-PLAN unit 3, spec §1): skins

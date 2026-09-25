@@ -248,6 +248,9 @@ pub(super) fn build_partial<T: Decide>(
     }
 
     Ok(Revolved {
+        // `revolve` carries the profile's declarations over this: the
+        // builders see swept traversals, not the profile's joints.
+        declared_contacts: Vec::new(),
         body,
         solid: seed.solid,
         shell: seed.shell,

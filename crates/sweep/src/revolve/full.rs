@@ -303,6 +303,9 @@ fn build_lamina<T: Decide>(
         mer_c[s.canonical_segment] = Some(he_edge(&built, hes[j])?);
     }
     Ok(Revolved {
+        // `revolve` carries the profile's declarations over this: the
+        // builders see swept traversals, not the profile's joints.
+        declared_contacts: Vec::new(),
         body: built,
         solid: seed.solid,
         shell: seed.shell,
@@ -644,6 +647,9 @@ fn build_wire<T: Decide>(
     poles_c[segs[wvert(k)].canonical_vertex] = Some(pole_far);
     body.close_already_checked();
     Ok(Revolved {
+        // `revolve` carries the profile's declarations over this: the
+        // builders see swept traversals, not the profile's joints.
+        declared_contacts: Vec::new(),
         body: built,
         solid: seed.solid,
         shell: seed.shell,

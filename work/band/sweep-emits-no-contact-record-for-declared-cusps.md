@@ -77,3 +77,35 @@ known at mint time — the two side faces adjacent to the strut of a declared
 joint), or the decision is ratified the other way and the doc says the caller
 owns the declaration permanently. The first needs the `Lofted` twin considered
 with it; the second needs no code.
+
+## Closed
+
+Taken the first way: each sweep verb that can carry a declared cusp
+carries its record. `Extruded`, `Revolved` and `Lofted` grow
+`declared_contacts: Vec<DeclaredContact>` — one `Tangent` pair per
+declared cusp joint, the walls of the two canonical segments meeting
+there. Which declared joints are cusps is a new decision, because the
+profile records a joint as declared-tangent and not its direction (the
+`.cusp()` door emits the same declaration `.tangent()` does): the
+`declared_joint_heading` predicate in `crates/sweep/src/swept.rs`
+(`declared_cusp_joints`), shared by the three verbs.
+
+Measured against the tree, three of this file's premises moved:
+
+- **`m9_3_zip` is not one of these callers.** Its hand-built pair is
+  the rim a `topo::union_with` of two extrudes mints along a mated
+  `Tangent` ruling (a wedge-2π slit the union creates); neither
+  profile declares a cusp. It is item 4 of
+  `work/tang/declared-cusps-second-order-wedge-arm.md` (the M9-3 join
+  lane's emission) and stays hand-declared until that lands.
+- **Revolve reaches it.** A sphere–cone crescent (arc centred on the
+  axis, `.cusp()` onto its tangent line) revolves partially and fully
+  to a body that refused `UndeclaredCusp`; the full revolve of an
+  axis-touching one carries it on both π-bands.
+- **Loft builds it and tier 3 does not see it.** A loft of two lune
+  sections validated clean undeclared: tier 3's material arm exempts an
+  edge with a NURBS face by kind. `Lofted` carries the record anyway —
+  the declaration is the sections', and the exemption is tier 3's.
+
+The recipe layer and the product gate do not yet pick the record up:
+filed as `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`.

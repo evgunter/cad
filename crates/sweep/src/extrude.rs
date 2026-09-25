@@ -54,12 +54,22 @@
 //!    join's under-determined case — the arm in `upgrade_rim` says
 //!    why the second-order rule has nothing to add there);
 //!    Indeterminate ⇒ the typed [`ExtrudeError::SliverRim`].
+//! 7. **Declared contacts.** Every declared tangent joint that
+//!    REVERSES the heading — a cusp — sweeps a strut at material wedge
+//!    0 (2π on a hole loop), legal at rest exactly where its wall pair
+//!    is declared in `Tangent` contact. The profile declared it, so the
+//!    result carries it ([`Extruded::declared_contacts`]); which
+//!    declared joints are cusps is decided before any surgery, per
+//!    loop in canonical order, joints ascending, as the
+//!    `declared_joint_heading` predicate (a smooth declared joint is
+//!    wedge π and carries nothing).
 //!
-//! Everything runs in a fixed, documented order (D9): loops outer
-//! first then holes in canonical order; per loop, struts in traversal
-//! order, then side faces, then join classification; finally rim
-//! upgrades per loop, per segment, bottom before top. Two calls with
-//! identical inputs replay byte-identically.
+//! Everything runs in a fixed, documented order (D9): the declared
+//! joints' headings first; then loops outer first then holes in
+//! canonical order; per loop, struts in traversal order, then side
+//! faces, then join classification; finally rim upgrades per loop, per
+//! segment, bottom before top. Two calls with identical inputs replay
+//! byte-identically.
 
 use core::fmt;
 
@@ -74,8 +84,8 @@ use geom_core::{
 };
 use profile::{SegmentKind, ValidatedLoop, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite, ShellKey,
-    SolidKey, SurfaceKey,
+    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, ShellKey, SolidKey, SurfaceKey,
 };
 
 use crate::swept;
@@ -120,16 +130,17 @@ pub struct Extruded<T: Real> {
     ///
     /// **Tier 3 holds for every body whose joints and cap rims classify
     /// definitely transverse, and these two shapes are the whole of
-    /// what it does not cover** — both minted here and refused by
-    /// `topo::validate_geometric`:
+    /// what it does not cover** — both minted here:
     ///
-    /// - a DECLARED cusp joint (`.cusp()`) gives a rim edge subtending
-    ///   material wedge 0, refused undeclared
-    ///   (`topo::ValidationError::UndeclaredCusp`) — correctly, because
-    ///   this builder emits no contact record for the profile's
-    ///   declaration. Validate such a body through
-    ///   `topo::validate_geometric_declared`, passing the caller's own
-    ///   declaration;
+    /// - a DECLARED cusp joint (`.cusp()`) gives a strut subtending
+    ///   material wedge 0 (2π on a hole loop), which tier 3 holds legal
+    ///   exactly where its wall pair carries a `Tangent` declaration.
+    ///   The declaration is the profile's own, carried out in
+    ///   [`Extruded::declared_contacts`]: validated through
+    ///   `topo::validate_geometric_declared` with it, the body passes;
+    ///   `topo::validate_geometric`, which declares nothing, refuses it
+    ///   as `topo::ValidationError::UndeclaredCusp` — correctly, since
+    ///   that call says nobody meant the cusp;
     /// - a cap rim the dihedral lever reads definitely SMOOTH keeps the
     ///   conventional description (`upgrade_rim`'s smooth arm) and is
     ///   refused as `topo::ValidationError::SliverDihedral` under
@@ -167,6 +178,19 @@ pub struct Extruded<T: Real> {
     /// rest in the previous wall's chart where it does not (M5 PR 9 —
     /// neither keeps the scaffolding `MappedCurve` the mint left).
     pub strut_edges: Vec<Vec<EdgeKey>>,
+    /// **The contacts the profile declared**: one `Tangent` pair per
+    /// declared cusp joint (module docs, step 7) — the side walls of
+    /// the two canonical segments meeting there, arriving wall first —
+    /// loops in canonical order, joints ascending. Empty for a profile
+    /// with no declared cusp.
+    ///
+    /// This is the record tier 3 reads the strut's wedge-0 (or 2π) end
+    /// against: pass it to `topo::validate_geometric_declared`. It is
+    /// the author's declaration carried through the verb, not a
+    /// discovery — a joint the profile did not declare contributes
+    /// nothing, and a declared SMOOTH joint (wedge π, legal undeclared)
+    /// contributes nothing either.
+    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed failure of [`extrude`] (closed enum, D4 ¶3). Loop indices
@@ -220,6 +244,21 @@ pub enum ExtrudeError {
         /// Canonical index of the join vertex.
         vertex_index: usize,
         /// The classifier's diagnostic.
+        source: Indeterminate,
+    },
+    /// The heading of a declared tangent joint — a continuation or a
+    /// cusp (module docs, step 7) — escalated.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): a verified tangent
+    /// joint's headings are parallel or antiparallel, so the decision's
+    /// margin is the whole lever arm — unreachable from validated
+    /// profiles, surfaced rather than trusted.
+    CuspHeadingEscalated {
+        /// Canonical index of the loop.
+        loop_index: usize,
+        /// Canonical index of the joint vertex.
+        vertex_index: usize,
+        /// The predicate-layer escalation.
         source: Indeterminate,
     },
     /// The dihedral classification at a cap–wall rim edge escalated
@@ -306,6 +345,15 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the wall join at loop {loop_index} vertex {vertex_index} is neither a \
                  definite corner nor definitely smooth: {source}"
+            ),
+            Self::CuspHeadingEscalated {
+                loop_index,
+                vertex_index,
+                source,
+            } => write!(
+                f,
+                "whether the declared joint at loop {loop_index} vertex {vertex_index} \
+                 continues or reverses its heading is too close to call: {source}"
             ),
             Self::SliverRim {
                 loop_index,
@@ -479,10 +527,11 @@ struct LoopBase {
 /// the door runs its operators under one surgery scope
 /// (`topo::surgery`), so tier 1 is not re-derived per operator and the
 /// tier-2 debug assertion on the finished body, which subsumes it, is
-/// what this door pays — and passes tier 3 (`validate_geometric`)
-/// except in the two
-/// cases [`Extruded::body`] names. The caller re-validates at rest per
-/// the workspace convention.
+/// what this door pays — and passes tier 3
+/// (`validate_geometric_declared` over
+/// [`Extruded::declared_contacts`]) except at the smooth cap rim
+/// [`Extruded::body`] names. The caller re-validates at rest per the
+/// workspace convention.
 ///
 /// # Errors
 ///
@@ -534,6 +583,20 @@ pub fn extrude<T: Decide>(
     };
     let w_norm = w.norm();
     let top_place = Affine3::translation(w) * place;
+
+    // ---- The declared joints' headings (module docs, step 7): which
+    // declared joints are cusps, decided before any surgery. ----
+    let cusps: Vec<Vec<usize>> = profile
+        .loops()
+        .iter()
+        .enumerate()
+        .map(|(li, lp)| swept::declared_cusp_joints(lp, li, band))
+        .collect::<Result<_, _>>()
+        .map_err(|e| ExtrudeError::CuspHeadingEscalated {
+            loop_index: e.loop_index,
+            vertex_index: e.vertex_index,
+            source: e.source,
+        })?;
 
     // ---- Swept traversals and world points, per loop. ----
     let loops: Vec<Vec<WallSeg<T>>> = profile
@@ -749,6 +812,22 @@ pub fn extrude<T: Decide>(
         "extrude postcondition: result is not tier-2 valid (kernel bug)",
     );
 
+    // ---- Step 7: the profile's declared contacts, on the walls they
+    // name. `side_faces` is in swept order; the pairing is canonical,
+    // so each wall is looked up by the canonical segment it swept. ----
+    let declared_contacts = loops
+        .iter()
+        .zip(&side_faces)
+        .zip(&cusps)
+        .flat_map(|((segs, faces), joints)| {
+            let mut by_canonical: Vec<Option<FaceKey>> = vec![None; segs.len()];
+            for (seg, &face) in segs.iter().zip(faces) {
+                by_canonical[seg.chord.canonical_segment] = Some(face);
+            }
+            swept::cusp_contacts(joints, segs.len(), |s| by_canonical[s])
+        })
+        .collect();
+
     Ok(Extruded {
         body: built,
         solid: seed.solid,
@@ -757,6 +836,7 @@ pub fn extrude<T: Decide>(
         bottom: bottom_face,
         side_faces,
         strut_edges,
+        declared_contacts,
     })
 }
 

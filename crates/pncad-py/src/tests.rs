@@ -4533,6 +4533,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "cap_plane",
             "cosurface_escalated",
+            "cusp_heading_escalated",
             "degenerate_extrusion",
             "extrusion_escalated",
             "oblique_extrusion",
@@ -4639,6 +4640,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "band",
             "cap_plane",
+            "cusp_heading_escalated",
             "degenerate_stacking",
             "euler",
             "pcurve",
@@ -5126,6 +5128,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "band",
             "cap_plane",
             "cosurface_escalated",
+            "cusp_heading_escalated",
             "degenerate_angle",
             "degenerate_axis",
             "full_range_angle",
@@ -5635,6 +5638,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("contact_contradicted", 2),
     ("corrupt", 3),
     ("cosurface_escalated", 2),
+    ("cusp_heading_escalated", 3),
     ("dangling_geometry", 2),
     // Three, and ALL THREE are one fact: `parse_error_tag`,
     // `persist_error_tag` and `edit_error_tag` each mean "the document

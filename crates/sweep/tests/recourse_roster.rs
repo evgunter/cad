@@ -108,6 +108,7 @@ const UNROUTED: &[(&str, &str)] = &[
     ("side_planes_cosurface", COSURFACE),
     ("wall_arcs_cosurface", COSURFACE),
     ("wall_lines_cosurface", COSURFACE),
+    ("declared_joint_heading", CUSP_HEADING),
 ];
 
 const AXIS: &str = "the revolve axis's own classifications: an escalation here is typed on \
@@ -118,6 +119,9 @@ const LOFT: &str = "the loft's section stacking, typed on `LoftError`";
 const TUBE: &str = "the tube door's window and wall classifications, typed on `TubeError` — \
                     whose Display names which of the two tube doors a wall escalation came \
                     from";
+const CUSP_HEADING: &str = "the declared joints' continuation-or-cusp decision the extrude, \
+                            revolve and loft share; the escalation is typed on that verb's \
+                            error";
 const COSURFACE: &str = "the swept traversal's cosurface decision, one row name per calling \
                          verb; the escalation is typed on that verb's error";
 
