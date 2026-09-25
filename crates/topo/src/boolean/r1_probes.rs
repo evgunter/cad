@@ -418,3 +418,84 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
         other => panic!("the four-root ray through the hole did not certify: {other:?}"),
     }
 }
+
+/// The pose the generic-pose sweep found (seed `0x2ce3095461764e3a`, at
+/// ε = 1e-12): a ray all but perpendicular to the axis, whose odd
+/// coefficient `q̂ ≈ −1.2e-4` is decided nonzero, so the resolvent's one
+/// real root is `z ≈ q̂²/c1 ≈ 1.3e-9` — the root Cardano's form would
+/// assemble as a difference of order-one terms.
+///
+/// The truth is the pose's own quartic solved in exact rational
+/// arithmetic on these f64 inputs: its Sturm count is 2 and bisection
+/// brackets each root to 1e-45. The row holds both scalars to it at the
+/// band the sweep drew — a FIXED band, so every ε leg asserts the same
+/// pose, which the run's band would escalate at 1e-9 and 1e-6 — the f64
+/// roots to within 1e-12, and the `Interval` roots to an enclosure that
+/// contains the truth and is no wider than 1e-9.
+#[test]
+fn r1_the_near_perpendicular_ray_keeps_its_roots() {
+    use geom_core::{Bounds, Interval, Real};
+    const TRUTH: [f64; 2] = [-0.932_255_799_041_234_0, -0.320_660_420_293_933_6];
+    let o = [0.6165109851873778, -0.4322368608327216, -1.7665919240171966];
+    let d = [
+        -0.7793351131793784,
+        3.340316168992811e-5,
+        -0.6266073573218832,
+    ];
+    let pinned = Band::new(1e-12, 1e-11).unwrap();
+    let (c, a) = centre_and_axis();
+    let f64_roots = match line_torus_roots(
+        Point3::new(o[0], o[1], o[2]),
+        Vec3::new(d[0], d[1], d[2]),
+        c,
+        a,
+        1.0,
+        0.9,
+        pinned,
+    ) {
+        Ok(TorusRoots::Certified { count, ts }) => {
+            assert_eq!(count, 2, "F64 COUNT: the exact Sturm count is 2");
+            let mut v = ts[..count].to_vec();
+            v.sort_by(|x, y| x.partial_cmp(y).unwrap());
+            v
+        }
+        other => panic!("F64: the near-perpendicular ray did not certify: {other:?}"),
+    };
+    for (got, want) in f64_roots.iter().zip(TRUTH) {
+        assert!(
+            (got - want).abs() < 1e-12,
+            "F64 ROOT: {got:e} against the exact {want:e}, off by {:e}",
+            (got - want).abs()
+        );
+    }
+    let iv = Interval::from_f64;
+    match line_torus_roots(
+        Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+        Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        iv(1.0),
+        iv(0.9),
+        pinned,
+    ) {
+        Ok(TorusRoots::Certified { count, ts }) => {
+            assert_eq!(count, 2, "INTERVAL COUNT: the exact Sturm count is 2");
+            let mut v = ts[..count].to_vec();
+            v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
+            for (got, want) in v.iter().zip(TRUTH) {
+                assert!(
+                    got.lo() <= want && want <= got.hi(),
+                    "INTERVAL CONTAINMENT: [{:e}, {:e}] excludes the exact root {want:e}",
+                    got.lo(),
+                    got.hi()
+                );
+                assert!(
+                    got.hi() - got.lo() < 1e-9,
+                    "INTERVAL WIDTH: the enclosure of {want:e} is {:e} wide",
+                    got.hi() - got.lo()
+                );
+            }
+        }
+        other => panic!("INTERVAL: the near-perpendicular ray did not certify: {other:?}"),
+    }
+}

@@ -2834,29 +2834,72 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// * three real roots — Viète's trigonometric form, whose `−P/3` is
 ///   positive exactly when three real roots exist, so the square root is
 ///   real by the branch's own premise, and whose `k = 0` member is the
-///   largest;
-/// * one real root — Cardano's, on [`cbrt`].
+///   largest. The caller reaches it only with four real quartic roots,
+///   where the resolvent's roots are squares of real sums, so none is
+///   negative and the largest is at least a third of their sum `−c2`:
+///   removing the shift `c2/3` then adds magnitudes rather than
+///   cancelling them;
+/// * one real root — Cardano's, on [`cbrt`], assembled so that no step
+///   subtracts nearly equal quantities (below).
+///
+/// # The one-real-root branch carries no cancellation
+///
+/// With `x³ + P x + Q` the depressed cubic and `s = c2/3` its shift, the
+/// real root is `z = A + B − s`, where `A³` and `B³` are Cardano's two
+/// radicands. Two subtractions in that form can lose every digit, and
+/// the resolvent reaches both:
+///
+/// * **Inside a radicand.** `−Q/2 − √(Q²/4 + P³/27)` cancels whenever
+///   `P³/27` is small beside `Q²/4`. Only the radicand whose two terms
+///   share a sign goes through [`cbrt`]; its partner comes from
+///   `AB = −P/3`.
+/// * **Against the shift.** When the real root is small beside the other
+///   two, `A + B` and `s` agree in their leading digits and `A + B − s`
+///   keeps only their rounding. That is the resolvent of every ray whose
+///   odd coefficient `q̂` is small but decided nonzero (a ray all but
+///   perpendicular to the axis, or passing near the midplane): its real
+///   root is `≈ q̂²/c1`, and `A + B − s` would compute it as a difference
+///   of order-one terms, multiplying the radicands' relative error by
+///   `|s|/z` — a factor the [`cbrt`] magnitude argument does not cover.
+///
+/// The product of the three roots is `−c0`, and the complex pair `w, w̄`
+/// has `|w|² = (x/2 + s)² + ¾(A − B)²` — a sum of squares, whose
+/// `x/2 + s` cancels only when the real root is LARGE (`z ≈ −3s`). So
+/// `z = −c0/|w|²` is accurate exactly where `A + B − s` is not, and
+/// `z + 2·Re w = −3s` makes at least one of `|z|`, `|w|` as large as
+/// `|s|`. The two forms are blended by `τ = z²/(z² + |w|²)`, small
+/// precisely when `z` is and near one precisely when `|w|` is small, so
+/// the blend takes the well-conditioned form without branching on a
+/// value, which this scalar cannot do. Both forms are the same root, so
+/// at the `Interval` scalar each encloses it and so does
+/// `τ·z₁ + (1 − τ)·z₂`, for every `τ` its enclosure holds.
 fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: bool) -> T {
     let three = T::from_f64(3.0);
     let two = T::from_f64(2.0);
     let shift = c2 / three;
     let p = c1 - c2.powi(2) / three;
     let q = c2.powi(3) * two / T::from_f64(27.0) - c2 * c1 / three + c0;
-    let x = if three_real {
+    if three_real {
         let scale = (T::zero() - p / three).max(T::zero()).sqrt();
         let arg = (three * q) / (two * p) * (T::zero() - three / p).max(T::zero()).sqrt();
         // The argument is a cosine by construction; clamping is the
         // rounding guard, not a decision (an out-of-range value here
         // would be a rounding artefact of the branch's own premise).
         let arg = arg.max(T::zero() - T::one()).min(T::one());
-        two * scale * (arg.acos() / three).cos()
-    } else {
-        let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
-            .max(T::zero())
-            .sqrt();
-        cbrt(T::zero() - q / two + inner) + cbrt(T::zero() - q / two - inner)
-    };
-    x - shift
+        return two * scale * (arg.acos() / three).cos() - shift;
+    }
+    let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
+        .max(T::zero())
+        .sqrt();
+    // `Q/2` and `inner·sgn Q` share a sign, so their sum does not cancel.
+    let a = T::zero() - cbrt(q / two + inner.copysign(q));
+    let b = (T::zero() - p) / (three * a);
+    let x = a + b;
+    let direct = x - shift;
+    let pair = (x / two + shift).powi(2) + T::from_f64(0.75) * (a - b).powi(2);
+    let product = (T::zero() - c0) / pair;
+    let weight = direct.powi(2) / (direct.powi(2) + pair);
+    weight * direct + (T::one() - weight) * product
 }
 
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
