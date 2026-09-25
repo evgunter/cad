@@ -67,3 +67,26 @@ Incoming from main: `product-instance-output-body-index-saturates` (P4,
 E), filed by the index-narrowing sweep. It is folded into the E-row
 batch, because it is a one-site change of the same shape the batch
 already carries.
+
+## 2026-09-25 — PR 3141's style review, adjudicated
+
+The review is the style tier, on head `f9678ce63`. Its main finding is the
+trap the style brief names: row 2 closed a two-spellings finding by
+minting `target_roles` as a third home, while `spec_arg_access!` and
+`step_arg_access!` kept their own copy of the target twins. Sent back to
+the lane to unify; if unification is not clean, the lane corrects the
+prose and files a P1 row naming every home. The lane's parking of row 5
+and repricing of row 6, which it had written only as prose, are now
+set in their headers in the same fix pass.
+
+**A class noted, not scheduled:** there are three functions named
+`output_body` with different meanings (`product.rs`'s narrowing,
+`names/interrogate.rs`'s body fetch, and `SplitHalf::output_body`). This
+is naming hygiene (P4). No row is filed, because the fix is a rename
+best made by whoever next edits two of the three.
+
+**A correction carried to PR 3142:** editor-core does have panic paths.
+`unreachable!` is the sanctioned mechanism for an observable kernel bug
+(`Cargo.toml` `[workspace.lints.clippy]`, D9's D2 addendum). 3142's
+reason for keeping the tie-flush arm typed is corrected to the true one:
+a document reaches it.
