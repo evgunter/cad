@@ -10193,6 +10193,7 @@ mod offset_fit_door_rows {
 /// re-export further out (the `pncad` prelude, `pncad-py`), and a door
 /// whose name kept its shape while its meaning moved.
 #[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod door_roster {
     use std::collections::BTreeSet;
 
