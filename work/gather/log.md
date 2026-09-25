@@ -143,3 +143,19 @@ single STYLE review. It is chosen now because it is the P1 row on ground
 no live lane holds. `product-gate-says-verbatim-then-states-the-difference`
 and `three-walks-over-the-name-carrying-edges` both touch `product.rs`,
 so they wait for the split-halves lane (PR 3256).
+
+## 2026-09-25 — the E-row batch merges
+
+PR 3141 merged. Tier: single STYLE review, with the fix pass on the same
+PR. Five rows closed: the slot label, the target roles, the sentinel
+region, the refusing scan, and the instance index.
+`frame-linear-generic-door-has-no-consumers` is parked on VERDICT's
+`the-scalar-lift-convention-mints-doors-faster-than-consumers`.
+`wire-rs-accumulation-residue-…` is now priced `D` and covers only the
+comment ratio. The review's main finding was that the fix had minted a
+third home for the target roles, and it was closed rather than
+disclosed: the accessor macros now read `target_roles` through
+`target_coord`. Filed: `step-arg-roles-are-spelled-in-three-homes` (P1,
+D), for every non-target role, and LIB's
+`prose-census-negative-reads-are-guarded-only-by-a-non-empty-allowlist`
+(P3).
