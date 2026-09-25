@@ -13,9 +13,10 @@
 //! Where members run flush, which member the fold kept a stretch for is
 //! member order too; the published table names such a stretch, its
 //! corners and its crossings for what the finished body holds
-//! (`emit_union::Flush`), so every vertex and member-edge piece is
-//! published in every fused order, and the flush documents below
-//! publish one table in all of them.
+//! (`emit_union::Flush`), and its faces and seam edges for their parents
+//! (`emit_union::name_by_parents`), so every name is published in every
+//! fused order, and every document below publishes one table in all of
+//! them.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::BTreeMap;
@@ -341,25 +342,16 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// publish reds, unless it is one of [`KNOWN_MIXED`] exactly as pinned
 /// there (`work/emit/union-refuses-in-some-member-orders-and-publishes-in-others.md`).
 ///
-/// A name one fused order publishes and another does not fails the row
-/// when it is a vertex or a piece of a member edge ([`order_free_class`]):
-/// those are named for what the finished body holds, so they are the
-/// same in every order. Faces, and the seam edges that cite them, are
-/// reported, not failed: how a face both merged and cut, or cut in two
-/// steps, is named still follows the fold
-/// (`declared-flush-union-edge-and-vertex-names-follow-member-order`, P1).
-///
-/// On main (the #3168 review's probe of the corpus plus the r1–r3
-/// fixtures), 25 of 305 pairs of fused orders rebound 20 distinct names;
-/// ranking over the pieces a member KEEPS left
-/// `r2ends`, `r2endsg` and `r4tri` rebinding, because which member keeps
-/// a flush stretch depends on order.
+/// A name one fused order publishes and another does not fails the row,
+/// whatever it names: a vertex, a piece of a member edge, a face or a
+/// seam edge. Each is named for what the finished body holds — a face
+/// for its parent and the parents across its seams, a seam edge for the
+/// parents it lies between (N2, N3) — so it is the same in every order.
 #[test]
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
     let mut mixed = Vec::new();
-    let mut absent = 0;
-    let mut order_bound = Vec::new();
+    let mut absent = Vec::new();
     for case in cases() {
         let mut seen: BTreeMap<(String, StableName), (String, String)> = BTreeMap::new();
         // tag → (order, refusal or None, published names)
@@ -435,23 +427,16 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
                     if ns.contains(name) {
                         continue;
                     }
-                    absent += 1;
-                    if order_free_class(name) {
-                        order_bound.push(format!("{} {tag} {at}: {name:?}", case.label));
-                    }
+                    absent.push(format!("{} {tag} {at}: {name:?}", case.label));
                 }
             }
         }
     }
-    eprintln!(
-        "names published in one fused order and absent in another: {absent} (order, name) pairs"
-    );
     assert!(
-        order_bound.is_empty(),
-        "{} vertex or member-edge names are published in one fused order and absent in \
-         another; the first: {:?}",
-        order_bound.len(),
-        order_bound.first()
+        absent.is_empty(),
+        "{} names are published in one fused order and absent in another; the first: {:?}",
+        absent.len(),
+        absent.first()
     );
     let known: Vec<String> = KNOWN_MIXED
         .iter()
@@ -470,43 +455,18 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
 /// A published table as [`signature`] reads it.
 type Signatures = BTreeMap<StableName, String>;
 
-/// The names [`a_name_two_member_orders_both_publish_denotes_the_same_geometry`]
-/// requires every fused order to publish: every vertex, and every piece
-/// of a member edge.
-fn order_free_class(name: &StableName) -> bool {
-    match (name.kind, name.path.first()) {
-        (EntityKind::Vertex, _) => true,
-        (EntityKind::Edge, Some(RoleSeg::FromMember { of, .. })) => of.kind == EntityKind::Edge,
-        _ => false,
-    }
-}
-
-/// The cases whose every fused order publishes one table: a flush pair
-/// alone or with a slab through, beside or across its flush stretch; a
-/// member flush with two others; three members each flush with the
-/// other two; a member touching another along a line; a declared union
-/// nested in an undeclared one.
-const ORDER_FREE: &[&str] = &[
-    "abc", "fam010", "fam011", "fam020", "fam021", "fam100", "fam101", "fam102", "fam110",
-    "fam111", "fam112", "fam120", "fam121", "fam122", "fam210", "fam211", "fam220", "fam221",
-    "r2ends", "r4tri", "r4touch", "r3nest",
-];
-
-/// **A declared flush union publishes one table in every member order
-/// that fuses.** For each of [`ORDER_FREE`], every fused order's table —
-/// every name, and what each denotes ([`signature`]) — is the same.
-///
-/// On main these differed in which member a flush stretch and its
-/// corners were named for, in whether a seam cited a member's face or
-/// the merge it retired into, and in whether a slab's crossing of a
-/// merged rim was a junction of three seams or a vertex on the rim.
+/// **A union publishes one table in every member order that fuses.**
+/// For every case, and each union of a nested one, with at least two
+/// fused orders, every fused order's table — every name, and what each
+/// denotes ([`signature`]) — is the same: a flush pair alone or with a
+/// slab through, beside or across its flush stretch; a face merged and
+/// cut, or cut by several members; a member flush with two others;
+/// three members each flush with the other two; a member touching
+/// another along a line; a declared union nested in an undeclared one.
 #[test]
 fn a_flush_union_publishes_one_table_in_every_member_order() {
     let mut checked = 0;
-    for case in cases()
-        .into_iter()
-        .filter(|c| ORDER_FREE.contains(&c.label.as_str()))
-    {
+    for case in cases() {
         // tag → (order, its table)
         let mut tables: BTreeMap<String, Vec<(String, Signatures)>> = BTreeMap::new();
         runs(&case, |at, ev, _, unions| {
@@ -520,14 +480,13 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
             }
         });
         for (tag, published) in tables {
-            assert!(
-                published.len() >= 2,
-                "{} {tag}: {} fused orders",
-                case.label,
-                published.len()
-            );
-            let (first_at, first) = &published[0];
-            for (at, table) in &published[1..] {
+            let [(first_at, first), rest @ ..] = published.as_slice() else {
+                continue;
+            };
+            if rest.is_empty() {
+                continue;
+            }
+            for (at, table) in rest {
                 let only_first: Vec<_> = first.keys().filter(|n| !table.contains_key(*n)).collect();
                 let only_this: Vec<_> = table.keys().filter(|n| !first.contains_key(*n)).collect();
                 assert!(
@@ -545,9 +504,8 @@ fn a_flush_union_publishes_one_table_in_every_member_order() {
         }
     }
     assert_eq!(
-        checked,
-        ORDER_FREE.len() + 1,
-        "cases checked (r3nest has two unions)"
+        checked, 45,
+        "unions with two or more fused orders checked (a nested case has two unions)"
     );
 }
 

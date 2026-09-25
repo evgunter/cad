@@ -3575,8 +3575,9 @@ fn wire_union<
             table,
         })
         .collect();
-    let table = names::name_union(id, &acc_body, &acc_table, &member_views, tol)
-        .map_err(NodeErrorKind::Naming)?;
+    let (table, published_groups) =
+        names::name_union(id, &acc_body, &acc_table, &member_views, tol)
+            .map_err(NodeErrorKind::Naming)?;
     let mut body = (*acc_body).clone();
     // ONCE, over the finished body, and not per fold step: the stamp
     // numbers a node's minted descriptions from zero, so a second pass
@@ -3611,7 +3612,11 @@ fn wire_union<
         }),
         table,
     )
-    .grouped(Arc::new(names::FragmentGroups::folded(id, &step_groups))))
+    .grouped(Arc::new(names::FragmentGroups::folded(
+        id,
+        &step_groups,
+        &published_groups,
+    ))))
 }
 
 /// One declared pair as the recipe carries it: the two SITED
