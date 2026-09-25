@@ -108,22 +108,87 @@ use geom_core::Tol;
 // The step vocabulary
 // ------------------------------------------------------------------
 
-/// **The target vocabulary — ONE declaration, THREE projections.**
+/// **The tag half of a payload vocabulary — THREE projections of one
+/// variant list.**
+///
+/// Given a payload enum's variant names, this expands exactly three
+/// things: the payload-free tag enum, that tag's `ALL` (every variant,
+/// in declaration order), and the payload → tag read-back method. It
+/// is called from inside `target_forms!`, `arc_modes!` and
+/// `transition_table!`, each of which declares its payload enum from
+/// the same list and hands the names here, so the three tag halves are
+/// ONE expansion rather than three parallel ones. What it does not
+/// take is the payload side: the three payload enums differ in variant
+/// SHAPE (a tuple variant and two unit ones; struct variants with
+/// per-mode fields; the verb table's row grammar), and each declaring
+/// macro keeps its own grammar for that.
+///
+/// **What calls it.** A macro that projects a payload enum onto a
+/// payload-free tag expands these three — tag enum, `ALL`, read-back
+/// — and calls this rather than spelling another copy. A macro that
+/// expands only an `ALL` (a closed vocabulary with no payload to read
+/// a tag back from) is not that shape and does not belong here.
+///
+/// **Each tag variant's rustdoc names its payload variant** rather
+/// than repeating that variant's prose: the payload's docs describe
+/// what the payload carries, which is false of a tag that carries
+/// nothing.
+///
+/// **The read-back is `#[must_use]`, all three alike.** The three are
+/// one door expanded three times, so they carry one attribute set; the
+/// returned tag is the method's only effect. This is the rule for
+/// these three doors, not a crate-wide convention.
+macro_rules! tag_projections {
+    (
+        $(#[doc = $tdoc:literal])*
+        tag $tag:ident of $payload:ident;
+        $(#[doc = $adoc:literal])*
+        const ALL;
+        $(#[doc = $rdoc:literal])*
+        fn $read:ident;
+        variants { $($name:ident)* }
+    ) => {
+        $(#[doc = $tdoc])*
+        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+        pub enum $tag {
+            $(
+                #[doc = concat!("The tag of [`", stringify!($payload), "::", stringify!($name), "`].")]
+                $name
+            ),*
+        }
+
+        impl $tag {
+            $(#[doc = $adoc])*
+            #[doc(hidden)]
+            pub const ALL: &'static [$tag] = &[$( $tag::$name ),*];
+        }
+
+        impl<T: Real> $payload<T> {
+            $(#[doc = $rdoc])*
+            #[must_use]
+            pub fn $read(&self) -> $tag {
+                match self {
+                    $( $payload::$name { .. } => $tag::$name ),*
+                }
+            }
+        }
+    };
+}
+
+/// **The target vocabulary — ONE declaration, FOUR projections.**
 ///
 /// A target form is named exactly once here, and the macro expands
-/// the name into [`Target`]'s variant, the [`TargetKind`] tag, and
-/// that tag's membership in `TargetKind::ALL`. So the form SET has
+/// the name into [`Target`]'s variant and, through `tag_projections!`,
+/// the [`TargetKind`] tag, that tag's membership in `TargetKind::ALL`,
+/// and its arm in the [`Target::kind`] read-back. So the form SET has
 /// one home, and a census anchored on `ALL` cannot fall behind a form
 /// the vocabulary gains — the same construction `arc_modes!` gives
 /// the mode vocabulary one level up and `transition_table!` gives the
 /// verbs one level above that.
 ///
-/// It is a SECOND small macro rather than a generalisation of
-/// `arc_modes!`: the two vocabularies differ in variant SHAPE (modes
-/// are struct variants carrying per-mode fields, forms are a tuple
-/// variant and two unit ones), so one grammar over both is more
-/// machinery than a second use buys. What they share is the property,
-/// not the expansion.
+/// The payload half is this macro's own because its variant SHAPE is
+/// its own (a tuple variant and two unit ones); the tag half is
+/// `tag_projections!`'s, shared with the other two.
 macro_rules! target_forms {
     (
         $(
@@ -143,29 +208,21 @@ macro_rules! target_forms {
             $( $(#[doc = $doc])* $name $(($payload))? ),*
         }
 
-        /// Which form a target names — [`Target`]'s tag, one value per
-        /// variant, projected from the same declaration.
-        ///
-        /// It is what a census over the target vocabulary is keyed on,
-        /// exactly as [`ArcMode`] is for the modes: a target travels
-        /// inside a verb AND inside an arc spec, so a form that fails to
-        /// reach a downstream spelling is invisible to both the
-        /// verb-keyed and the mode-keyed checks.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum TargetKind {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl TargetKind {
+        tag_projections! {
+            /// Which form a target names — [`Target`]'s tag, one value per
+            /// variant, projected from the same declaration.
+            ///
+            /// It is what a census over the target vocabulary is keyed on,
+            /// exactly as [`ArcMode`] is for the modes: a target travels
+            /// inside a verb AND inside an arc spec, so a form that fails to
+            /// reach a downstream spelling is invisible to both the
+            /// verb-keyed and the mode-keyed checks.
+            tag TargetKind of Target;
             /// Every target form the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
             /// vocabulary rather than behind it.
-            #[doc(hidden)]
-            pub const ALL: &'static [TargetKind] = &[$( TargetKind::$name ),*];
-        }
-
-        impl<T: Real> Target<T> {
+            const ALL;
             /// Which form this target names.
             ///
             /// A read-back door rather than a convenience, on
@@ -174,12 +231,8 @@ macro_rules! target_forms {
             /// form it is, and re-deriving that by matching the forms at
             /// every such site is how a new form goes missing from one
             /// of them.
-            #[must_use]
-            pub fn kind(&self) -> TargetKind {
-                match self {
-                    $( Target::$name { .. } => TargetKind::$name ),*
-                }
-            }
+            fn kind;
+            variants { $($name)* }
         }
     };
 }
@@ -225,11 +278,12 @@ impl<T: Real> ArcData<T> {
     }
 }
 
-/// **The arc-mode vocabulary — ONE declaration, THREE projections.**
+/// **The arc-mode vocabulary — ONE declaration, FOUR projections.**
 ///
 /// A mode is named exactly once here, and the macro expands the name
-/// into [`ArcData`]'s variant, the [`ArcMode`] tag, and that tag's
-/// membership in [`ArcMode::ALL`]. So the mode SET has one home, and
+/// into [`ArcData`]'s variant and, through `tag_projections!`, the
+/// [`ArcMode`] tag, that tag's membership in [`ArcMode::ALL`], and its
+/// arm in the [`ArcData::mode`] read-back. So the mode SET has one home, and
 /// the census anchored on `ALL` cannot fall behind a mode the
 /// vocabulary gains — the same construction, one level down, that
 /// `transition_table!` gives the verb vocabulary through
@@ -266,34 +320,23 @@ macro_rules! arc_modes {
             $( $(#[doc = $doc])* $name { $($(#[doc = $fdoc])* $f : $ft),* } ),*
         }
 
-        /// Which mode an arc spec names — [`ArcData`]'s tag, one value
-        /// per variant, projected from the same declaration.
-        ///
-        /// It is what a census over the mode vocabulary is keyed on,
-        /// exactly as [`Verb`] is for the verb vocabulary: the mode
-        /// travels INSIDE a verb, so a mode that fails to reach a
-        /// downstream spelling is invisible to every verb-keyed check.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum ArcMode {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl ArcMode {
+        tag_projections! {
+            /// Which mode an arc spec names — [`ArcData`]'s tag, one value
+            /// per variant, projected from the same declaration.
+            ///
+            /// It is what a census over the mode vocabulary is keyed on,
+            /// exactly as [`Verb`] is for the verb vocabulary: the mode
+            /// travels INSIDE a verb, so a mode that fails to reach a
+            /// downstream spelling is invisible to every verb-keyed check.
+            tag ArcMode of ArcData;
             /// Every arc mode the vocabulary declares, in declaration
             /// order — enumerated from the same declaration as the
             /// variants, so a census keyed on it grows with the
             /// vocabulary rather than behind it.
-            #[doc(hidden)]
-            pub const ALL: &'static [ArcMode] = &[$( ArcMode::$name ),*];
-        }
-
-        impl<T: Real> ArcData<T> {
+            const ALL;
             /// The mode this spec names.
-            pub fn mode(&self) -> ArcMode {
-                match self {
-                    $( ArcData::$name { .. } => ArcMode::$name ),*
-                }
-            }
+            fn mode;
+            variants { $($name)* }
         }
     };
 }
@@ -387,19 +430,23 @@ impl<T: Real> ArcData<T> {
     }
 }
 
-/// **The transition table — ONE declaration, SIX projections**
+/// **The transition table — ONE declaration, NINE projections**
 /// (PATHS-DESIGN §2c rounds 13–15, lean (a)).
 ///
 /// A verb is declared exactly once, with one `on` row per lattice
-/// state it is well-typed at, and the macro expands each row into all
-/// six artifacts: the **typed method** on that state, the **driver
-/// arm** in [`apply`], the [`Step`] variant, the [`Verb`] tag, the
-/// verb's row set ([`Verb::states`]) and, for an arc-spec verb, the
-/// forms its spec takes there ([`arc_specs_at`]). So none of those is
-/// written twice and no two of them can drift: a missing row is
-/// missing from all six, consistently and loudly, and an inconsistent
-/// pair is unwritable because there is no second place to write it.
-/// Those six are the whole of what the macro expands.
+/// state it is well-typed at. The macro expands each ROW into the
+/// **typed method** on that state (a `free` row: the free function),
+/// the **driver arm** in [`apply`], the state's entry in the verb's
+/// row set ([`Verb::states`]) and, for an arc-spec verb, the forms its
+/// spec takes there ([`arc_specs_at`]); and each VERB into the
+/// [`Step`] variant, its `Display` word, and — through
+/// `tag_projections!` — the [`Verb`] tag, its membership in
+/// [`Verb::ALL`], and its arm in the [`Step::verb`] read-back. So none
+/// of those is written twice and no two of them can drift: a missing
+/// row is missing from every projection it feeds, consistently and
+/// loudly, and an
+/// inconsistent pair is unwritable because there is no second place
+/// to write it. Those nine are the whole of what the macro expands.
 ///
 /// **The round-9 exhaustiveness pressure does NOT ride this table.**
 /// That pressure is over the ARC-MODE vocabulary — [`ArcData`] — and
@@ -417,8 +464,9 @@ impl<T: Real> ArcData<T> {
 ///
 /// # What the table does not reach
 ///
-/// The count is FOUR because four is what fits inside this crate, not
-/// because four is all there are. `editor-core` spells the same
+/// The projections stop at this crate's edge because that is as far as
+/// the macro reaches, not because they are all the spellings there
+/// are. `editor-core` spells the same
 /// vocabulary twice more — an expression-valued document form and a
 /// serde-bearing persisted form — because a step there carries `Expr`s
 /// and must serialize, and G1 layering keeps both out of `profile`.
@@ -527,35 +575,33 @@ macro_rules! transition_table {
             $( $(#[doc = $doc])* $name $({ $($(#[doc = $fdoc])* $f : $ft),* })? $(( $($tt),* ))? ),*
         }
 
-        /// Which verb a step names — the `verb` half of a
-        /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
-        /// variant, projected from the same declaration.
-        ///
-        /// Its `Display` is the AUTHORING SPELLING — the word the
-        /// algebra calls the verb (`line_to`, `arc_fillet`), declared
-        /// on the row beside the variant so the two cannot disagree
-        /// and neither outlives the row. That is the word for a
-        /// sentence about the step a person wrote; `Debug` is the
-        /// variant identifier, for a sentence about the table
-        /// coordinate ([`ReplayError`]'s rendering states which is
-        /// which).
-        ///
-        /// The SKETCH program's verb, not the kernel's: that one is
-        /// `verbs::Verb` (an operation on a body). No signature takes
-        /// both; outside the owning crate, prose spells the crate and
-        /// code imports at most one of the two per file.
-        #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-        pub enum Verb {
-            $( $(#[doc = $doc])* $name ),*
-        }
-
-        impl Verb {
+        tag_projections! {
+            /// Which verb a step names — the `verb` half of a
+            /// [`ReplayErrorKind::Transition`]. One value per [`Step`]
+            /// variant, projected from the same declaration.
+            ///
+            /// Its `Display` is the AUTHORING SPELLING — the word the
+            /// algebra calls the verb (`line_to`, `arc_fillet`), declared
+            /// on the row beside the variant so the two cannot disagree
+            /// and neither outlives the row. That is the word for a
+            /// sentence about the step a person wrote; `Debug` is the
+            /// variant identifier, for a sentence about the table
+            /// coordinate ([`ReplayError`]'s rendering states which is
+            /// which).
+            ///
+            /// The SKETCH program's verb, not the kernel's: that one is
+            /// `verbs::Verb` (an operation on a body). No signature takes
+            /// both; outside the owning crate, prose spells the crate and
+            /// code imports at most one of the two per file.
+            tag Verb of Step;
             /// Every verb the table declares, in declaration order —
             /// the row set, enumerated from the same declaration, so
             /// the replay-coverage census cannot fall behind a verb
             /// the table gains (`tests/path_program.rs`).
-            #[doc(hidden)]
-            pub const ALL: &'static [Verb] = &[$( Verb::$name ),*];
+            const ALL;
+            /// The verb this step names.
+            fn verb;
+            variants { $($name)* }
         }
 
         /// The word the verb is CALLED — the authoring spelling, which
@@ -565,15 +611,6 @@ macro_rules! transition_table {
                 f.write_str(match self {
                     $( Verb::$name => $said ),*
                 })
-            }
-        }
-
-        impl<T: Real> Step<T> {
-            /// The verb this step names.
-            pub fn verb(&self) -> Verb {
-                match self {
-                    $( Step::$name { .. } => Verb::$name ),*
-                }
             }
         }
 

@@ -38,9 +38,9 @@
 //!
 //! **The shape is the repo's**, not a new one:
 //! `crates/profile/src/path/program.rs`'s `arc_modes!` and
-//! `transition_table!` are the same construction ("ONE declaration,
-//! THREE projections") on the kernel side, and this is the viewer's
-//! two-projection case. No derive crate, and therefore no new
+//! `transition_table!` are the same construction (one declaration,
+//! every projection expanded from it) on the kernel side, and this is
+//! the viewer's two-projection case. No derive crate, and therefore no new
 //! dependency in a crate whose default-feature graph is deliberately
 //! the kernel's.
 //!

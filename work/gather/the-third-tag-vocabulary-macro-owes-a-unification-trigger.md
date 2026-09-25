@@ -81,3 +81,16 @@ have to re-derive the reasoning:
 Not fixed from there, deliberately: this row has its own subject and
 reaching into it from a prose unit would have been a second surface
 decision nobody asked for.
+
+## Decision (2026-09-25)
+
+**The trigger counts a macro that expands the same tag projections**:
+a payload-free tag enum, its `ALL`, and the payload → tag read-back.
+Measured, `transition_table!` expands all three for `Verb` (the enum,
+`Verb::ALL`, and `Step::verb`'s `Step::$name { .. } => Verb::$name`
+arm), not only the `ALL` idiom — so the trigger had already fired.
+The three tag halves are now one inner macro, `tag_projections!`,
+which each declaring macro calls with its variant names; the payload
+halves stay per-macro because their variant shapes differ. The
+macro's own rustdoc states which macros belong on it. The expansion
+table is in the PR body.
