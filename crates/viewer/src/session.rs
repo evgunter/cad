@@ -56,11 +56,12 @@ use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
 use pncad::document::{
-    Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension, DimensionError, Doc,
-    DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError, EvalOptions, Evaluation, Expr,
-    LoggedEdit, LoopProgram, Maintenance, MaintenanceNet, MateReach, Node, ParamName, PartReach,
-    PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId, Subject, apply,
-    assemble_gathered, cascade_delete_order, parse_expr, product_recorded, run_checks_on,
+    Applied, Assembly, AssemblyError, BooleanOp, ChecksConfig, ChecksReport, Dimension,
+    DimensionError, Doc, DocEdit, DocParam, DocParamValue, DocRef, DocumentId, EditError,
+    EvalOptions, Evaluation, Expr, LoggedEdit, LoopProgram, MaintenanceNet, MateReach, Node,
+    ParamName, PartReach, PartResolver, ProductError, ProfileProgram, RecipeNodeId, SlotId,
+    Subject, apply, assemble_gathered, cascade_delete_order, parse_expr, product_recorded,
+    run_checks_on,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
@@ -2648,7 +2649,7 @@ impl DocSession {
                         maintenance: applied.cluster_rows(),
                     });
                     minted.push(applied.record.minted);
-                    net.push(applied.maintenance, &applied.doc);
+                    net.push(&applied);
                     produced = Some(applied.doc);
                 }
                 Err(error) => return OpOutcome::refused(Refusal::Edit(Box::new(error))),
@@ -2781,7 +2782,7 @@ fn accepted_order(
                         edit,
                         maintenance: applied.cluster_rows(),
                     });
-                    landing.net.push(applied.maintenance, &applied.doc);
+                    landing.net.push(&applied);
                     landing.doc = applied.doc;
                 }
                 Err(EditError::ProfileProgramRefused { .. }) => {
@@ -2802,8 +2803,8 @@ fn accepted_order(
     match search.from(0, doc)? {
         Some(found) => {
             let mut net = MaintenanceNet::new();
-            for (rows, after) in found.steps {
-                net.push(rows, &after);
+            for step in &found.steps {
+                net.push(step);
             }
             Ok(ActionLanding {
                 logged: found.logged,
@@ -2832,12 +2833,12 @@ struct ActionLanding {
 }
 
 /// Where the order search lands: the writes still to apply, in order,
-/// as logged entries; each write's reported rows beside the document it
-/// produced, which is what [`MaintenanceNet::push`] reads them against
-/// once the order is known; and the document they end at.
+/// as logged entries; each write's accepted edit, which
+/// [`MaintenanceNet::push`] folds once the order is known; and the
+/// document they end at.
 struct SearchLanding {
     logged: Vec<LoggedEdit<ProfileProgram>>,
-    steps: Vec<(Vec<Maintenance>, Doc<ProfileProgram>)>,
+    steps: Vec<Applied<ProfileProgram>>,
     doc: Doc<ProfileProgram>,
 }
 
@@ -2889,7 +2890,7 @@ impl OrderSearch<'_> {
                                 maintenance: next.cluster_rows(),
                             },
                         );
-                        rest.steps.insert(0, (next.maintenance, next.doc));
+                        rest.steps.insert(0, next);
                         return Ok(Some(rest));
                     }
                 }

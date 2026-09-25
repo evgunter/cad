@@ -37,7 +37,7 @@ fn net_of(
     for edit in edits {
         let step = applied(&at, edit);
         each.push(step.maintenance.clone());
-        net.push(step.maintenance, &step.doc);
+        net.push(&step);
         at = step.doc;
     }
     (net.finish(&at), each, at)
@@ -320,13 +320,13 @@ fn moved(node: RecipeNodeId, from: u32, to: u32) -> Maintenance {
 fn rebounds_across_edits_fold_into_the_actions_move() {
     let (doc, n) = holding_three_walls();
     let mut net = MaintenanceNet::new();
-    net.push(vec![moved(n, 0, 2)], &doc);
-    net.push(vec![moved(n, 2, 1)], &doc);
+    net.push_rows(&[moved(n, 0, 2)], &doc);
+    net.push_rows(&[moved(n, 2, 1)], &doc);
     assert_eq!(net.finish(&doc), vec![moved(n, 0, 1)]);
 
     let mut round = MaintenanceNet::new();
-    round.push(vec![moved(n, 0, 2)], &doc);
-    round.push(vec![moved(n, 2, 0)], &doc);
+    round.push_rows(&[moved(n, 0, 2)], &doc);
+    round.push_rows(&[moved(n, 2, 0)], &doc);
     assert_eq!(round.finish(&doc), Vec::new());
 }
 
@@ -337,7 +337,7 @@ fn one_edits_swap_is_two_moves() {
     let (doc, n) = holding_three_walls();
     let swap = vec![moved(n, 0, 2), moved(n, 2, 0)];
     let mut net = MaintenanceNet::new();
-    net.push(swap.clone(), &doc);
+    net.push_rows(&swap, &doc);
     assert_eq!(net.finish(&doc), swap);
 }
 
@@ -348,8 +348,8 @@ fn one_edits_swap_is_two_moves() {
 fn a_later_rebound_onto_the_same_spelling_ends_the_earlier_one() {
     let (doc, n) = holding_three_walls();
     let mut net = MaintenanceNet::new();
-    net.push(vec![moved(n, 0, 2)], &doc);
-    net.push(vec![moved(n, 1, 2)], &doc);
+    net.push_rows(&[moved(n, 0, 2)], &doc);
+    net.push_rows(&[moved(n, 1, 2)], &doc);
     assert_eq!(net.finish(&doc), vec![moved(n, 1, 2)]);
 }
 
@@ -359,17 +359,101 @@ fn a_later_rebound_onto_the_same_spelling_ends_the_earlier_one() {
 fn a_rebound_no_carrier_holds_any_more_is_not_reported() {
     let (doc, n) = holding_three_walls();
     let mut net = MaintenanceNet::new();
-    net.push(vec![moved(n, 0, 7)], &doc);
-    net.push(Vec::new(), &doc);
+    net.push_rows(&[moved(n, 0, 7)], &doc);
+    net.push_rows(&[], &doc);
     assert_eq!(net.finish(&doc), Vec::new());
 }
 
 /// **Two surviving rebounds naming one spelling is a bug, and says
-/// so** — no accepted edit merges two names, so the fold refuses to
-/// carry a report that claims one did.
+/// so.** No sequence of accepted edits reaches it — the proof is on
+/// `MaintenanceNet::push`: `reshape_report` is the one producer of a
+/// rebound, reports one row per `from` through an injective map, and
+/// `DocEdit::Rebind`, the door that merges names, reports no rebound —
+/// so this row reaches the assertion only through the hand-row entry
+/// point, which is what it exists to do.
 #[test]
 #[should_panic(expected = "two surviving rebounds name one spelling")]
 fn two_rebounds_onto_one_spelling_is_refused_loudly() {
     let (doc, n) = holding_three_walls();
-    MaintenanceNet::new().push(vec![moved(n, 0, 2), moved(n, 1, 2)], &doc);
+    MaintenanceNet::new().push_rows(&[moved(n, 0, 2), moved(n, 1, 2)], &doc);
+}
+
+/// **A rebound whose spelling a later edit strands is not a rebound any
+/// more** — the name is still held, so "no carrier holds it" does not
+/// catch it, but it denotes nothing, which is the strand's sentence.
+#[test]
+fn a_rebound_a_later_strand_names_is_not_reported() {
+    let (doc, n) = holding_three_walls();
+    let lost = Maintenance::Strand {
+        node: RecipeNodeId(99),
+        name: fname(n, wall(2)),
+    };
+    let mut net = MaintenanceNet::new();
+    net.push_rows(&[moved(n, 0, 2)], &doc);
+    net.push_rows(std::slice::from_ref(&lost), &doc);
+    let rows = net.finish(&doc);
+    assert!(
+        !rows
+            .iter()
+            .any(|row| matches!(row, Maintenance::Rebound { .. })),
+        "the move was taken back by the strand: {rows:?}"
+    );
+}
+
+/// **The same sequence on real edits**: a triangle's apex dragged below
+/// its base flips the loop, and a frame on another block that names the
+/// base wall is rebound to follow it; deleting the triangle's extrude
+/// then strands that frame's (rewritten) name. The action leaves one
+/// fact — the frame names a wall of a deleted node — and the rebound
+/// is not reported beside it.
+#[test]
+fn a_rebound_then_a_delete_of_its_minting_node_reports_only_the_strand() {
+    let doc = ProfileDoc::empty_derived("net-rebound-then-delete", Tol::witness());
+    let (doc, kept) = block(doc, (5.0, 6.0), (0.0, 1.0), 0.0, 1.0);
+    let (doc, plane) = insert(doc, crate::fixture::xy_frame());
+    let pt = |x: f64, y: f64| [len(x), len(y)];
+    let (doc, profile) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::Chain(vec![
+                ProgramStep::At(pt(0.0, 0.0)),
+                ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
+                ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
+                ProgramStep::LineTo(ProgramTarget::Start),
+            ])],
+        }),
+    );
+    let (doc, ext) = insert(
+        doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let (doc, frame) = frame_on(doc, kept, loop_wall(ext, 0, 0));
+    let flip = DocEdit::SetParam {
+        node: profile,
+        slot: editor_core::SlotId::Profile {
+            loop_: 0,
+            step: 2,
+            arg: editor_core::StepArg::TargetY,
+        },
+        expr: len(-1.0),
+    };
+    let (net, each, _) = net_of(&doc, vec![flip, DocEdit::DeleteNode { id: ext }]);
+    assert_eq!(
+        each[0],
+        vec![Maintenance::Rebound {
+            from: loop_wall(ext, 0, 0),
+            to: loop_wall(ext, 0, 2),
+        }],
+        "the premise: the flip rebinds the frame's name"
+    );
+    let strand = Maintenance::Strand {
+        node: frame,
+        name: loop_wall(ext, 0, 2),
+    };
+    assert!(each[1].contains(&strand), "the premise: {:?}", each[1]);
+    assert_eq!(net, vec![strand]);
 }

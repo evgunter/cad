@@ -1478,6 +1478,24 @@ FAMILIES: dict[str, str] = {
         "the document slot — the disagreement with `Node.polygon` that "
         "opened the family, inverted."
     ),
+    # THE SIXTH ARRIVED WITH ITS DOOR. `MaintenanceNet` (DM7's
+    # net-over-an-action rule) landed in `editor-core` with EMIT's
+    # `the-viewer-drops-every-dm7-rename-report`, and the stub's
+    # `orphaned_declare` paragraph already tells a Python caller that a
+    # cascade's net is read off the document the walk ended at — by
+    # hand, since nothing bound folds the rows. `crates/pncad-py/*` is
+    # LIB's ground; `work/lib/python-has-no-maintenance-net-door`
+    # carries the finding.
+    "B-MAINT-NET": (
+        "the net of a sequence of accepted edits' maintenance rows — "
+        "`MaintenanceNet`, pushed one applied edit at a time and "
+        "finished against the end document. Closing it needs a Python "
+        "door that folds each `Doc.apply` result with the document it "
+        "produced, a `pncad.pyi` entry the `orphaned_declare` paragraph "
+        "points at instead of 'read it off the document', and one "
+        "Python row cascading a declared union's `Declare` away and "
+        "asserting an empty net."
+    ),
 }
 
 #: Curated names with no Python spelling at all, by family.
@@ -2196,13 +2214,7 @@ NOT_BOUND = {
     # bind.
     "LoggedEdit": SHAPE,
     "apply_logged": SHAPE,
-    # The fold of several edits' maintenance rows into what is true of
-    # the document an ACTION ends at. Python has no multi-edit action:
-    # `Doc.apply` is one edit and answers that edit's own rows, and a
-    # cascade is composed caller-side one delete at a time, so there is
-    # no Python door whose answer this would be. A caller composing a
-    # cascade that wants the net is the day this becomes a gap.
-    "MaintenanceNet": SHAPE,
+    "MaintenanceNet": f"{GAP}: B-MAINT-NET the net of a sequence of edits' maintenance rows",
     "EvalOptions": SHAPE,
     # A two-variant enum flattened to the boolean that answers it:
     # `Evaluation.canceled`, bound at LIB-B-CANCEL.

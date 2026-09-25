@@ -117,17 +117,23 @@ In the viewer the door is `DocSession::commit_run` (under
 `orphaned_declare` paragraph states the transient in one sentence
 rather than pointing at a door the external consumer cannot reach.
 
-The cancellation is one line, and the reviewer measured it: the
+The cancellation is `editor_core::MaintenanceNet`, not a filter
+written at the door. The reviewer's first measure was one line — the
 subject of a transient orphan row is ALWAYS in the doomed set, so
-`rows.filter(|row| !matches!(row, OrphanedDeclare { declare } if
-doomed.contains(declare)))` is the whole of it. Pinned by
+`doomed.contains(declare)` cancels it — but that covers the orphan
+arm over a cascade alone: a strand whose carrier a later step
+repairs or deletes, an orphan a later step consumes again, and a
+rename a later step moves on or strands are the same question, and
+`MaintenanceNet::finish` answers every one against the end document.
+Pinned by
 `dm7_delete_strands::the_orphan_transient_is_cancellable_at_the_cascade_door`
 (written on `review/orphan-rv` as
 `rv_the_orphan_transient_is_cancellable_at_the_cascade_door` and
 adopted into the unit's suite), whose last assertion is that
-`MaintenanceNet`'s answer over the cascade is empty. The pre-click
-count below can fold through the same type over a cascade applied to
-a scratch copy, rather than re-spelling the rule.
+`MaintenanceNet`'s answer over the cascade is empty, and by
+`crates/editor-core/tests/maintenance_net.rs`. The pre-click count
+below can fold through the same type over a cascade applied to a
+scratch copy, rather than re-spelling the rule.
 
 The pre-click count adds, to the strand number above, the `Declare`s
 **outside** `doomed` every one of whose consumers is **inside** it. A

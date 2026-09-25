@@ -1148,8 +1148,8 @@ fn the_orphan_transient_is_cancellable_at_the_cascade_door() {
     let mut net = editor_core::MaintenanceNet::new();
     for id in &doomed {
         let applied = delete(&walked, *id);
-        rows.extend(applied.maintenance.clone());
-        net.push(applied.maintenance, &applied.doc);
+        net.push(&applied);
+        rows.extend(applied.maintenance);
         walked = applied.doc;
     }
     assert_eq!(rows, vec![Maintenance::OrphanedDeclare { declare: decl }]);
