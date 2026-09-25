@@ -231,6 +231,27 @@ pub(super) fn put(
     }
 }
 
+/// Inserts a row that carries its operand's name VERBATIM — a
+/// split's pass-through of an entity it did not cut — through [`put`],
+/// and keeps the operand row's separated-piece mark on it
+/// ([`NameTable::project`]): a verbatim edge adds no segment, so the
+/// row is still that piece of that tie, and a gather merging it with
+/// the tie's other pieces has to be able to tell.
+pub(super) fn pass_through(
+    t: &mut NameTable,
+    tie: &mut TieRows,
+    operand: &NameTable,
+    up: Upstream,
+    e: super::table::EntityRef,
+) -> Result<(), DuplicateName> {
+    let piece = operand.is_separated_piece(&up.name);
+    put(t, tie, up.tied, up.name.clone(), e)?;
+    if piece {
+        t.mark_separated_piece(up.name);
+    }
+    Ok(())
+}
+
 /// **The gather's carry**: several source tables re-keyed onto ONE
 /// aggregate table, with the tie-descended rows accumulated and
 /// narrowed once at the end.
@@ -309,7 +330,7 @@ impl CarriedRows {
     ) -> Result<(), DuplicateName> {
         for (name, entry) in from.iter_refs() {
             let (candidates, from_tie) = match entry {
-                Entry::Unique(e) => (core::slice::from_ref(e), false),
+                Entry::Unique(e) => (core::slice::from_ref(e), from.is_separated_piece(name)),
                 Entry::Tied(es) => (es.as_slice(), true),
             };
             for e in candidates.iter().filter(|e| e.body == ix) {

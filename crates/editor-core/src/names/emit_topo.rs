@@ -15,7 +15,7 @@ use topo::splitting::{PlaneSide, SplitNaming};
 use topo::{Body, EdgeKey, FaceKey, Provenance, VertexKey};
 
 use super::canonical;
-use super::defer::{TieRows, Upstream, mint_candidates, put, upstream_name};
+use super::defer::{TieRows, Upstream, mint_candidates, pass_through, put, upstream_name};
 use super::discriminate::{CHORD_ON_RIM, Extent, band, order_along, side_of_face};
 use super::emit::{
     Incidence, NamingError, Rim, RimShare, edge_ends, ent, face_half_edges, name1, rim_between,
@@ -397,7 +397,7 @@ fn name_split_edges_vertices<T: Decide>(
             {
                 // Intact operand edge: pass-through.
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Edge(e)))?;
-                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Edge(e)))?;
+                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Edge(e)))?;
                 continue;
             }
             if target_table
@@ -437,7 +437,7 @@ fn name_split_edges_vertices<T: Decide>(
                     .is_some()
             {
                 let up = upstream_name(target_table, target_node, ent(0, EntityKey::Vertex(v)))?;
-                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Vertex(v)))?;
+                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Vertex(v)))?;
                 continue;
             }
             // Resolve the birth record — directly, or through the
@@ -1926,7 +1926,7 @@ fn name_split_faces<T: Decide>(
                     vec![ent(s.ix, EntityKey::Face(f))],
                     Parent::Elsewhere,
                 );
-                put(t, tie, up.tied, up.name, ent(s.ix, EntityKey::Face(f)))?;
+                pass_through(t, tie, target_table, up, ent(s.ix, EntityKey::Face(f)))?;
             } else {
                 groups
                     .entry((root, s.ix))

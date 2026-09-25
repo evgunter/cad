@@ -11,7 +11,7 @@
 //! so that a downstream name EMBEDS this table's row rather than a
 //! copy of it. An emitter reading an operand wants the `_ref` twin.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
@@ -123,10 +123,18 @@ pub enum Entry {
 pub struct NameTable {
     forward: BTreeMap<NameRef, Entry>,
     reverse: BTreeMap<EntityRef, NameRef>,
+    /// The `Unique` rows that are one piece of a tie SEPARATED across
+    /// output bodies upstream: [`NameTable::project`] narrowed the tie
+    /// to the one candidate in the selected body, or a verbatim edge
+    /// carried such a row on unchanged. A reader of this table sees a
+    /// `Unique` row either way; the mark is for a reader that MERGES
+    /// tables, which needs to know the other pieces may arrive under
+    /// the same name (`defer::CarriedRows`).
+    separated: BTreeSet<NameRef>,
     sealed: Sealed,
 }
 
-// The two maps and nothing else. Whether a table has been sealed is a
+// The rows and their marks, and nothing else. Whether a table has been sealed is a
 // SCHEDULE-dependent bit — which reader reached it first — so it must
 // not be printable into a message, a digest or a golden, and this impl
 // is what keeps it off every one of them.
@@ -142,11 +150,13 @@ impl core::fmt::Debug for NameTable {
         let Self {
             forward,
             reverse,
+            separated,
             sealed: _,
         } = self;
         f.debug_struct("NameTable")
             .field("forward", forward)
             .field("reverse", reverse)
+            .field("separated", separated)
             .finish_non_exhaustive()
     }
 }
@@ -288,6 +298,21 @@ impl NameTable {
     /// through [`NameRef`]'s order cache instead of a structural walk.
     pub(super) fn entry_of(&self, name: &NameRef) -> Option<&Entry> {
         self.forward.get(name)
+    }
+
+    /// Whether `name`'s row is one piece of a tie separated across
+    /// output bodies upstream (the `separated` field's doc).
+    pub(super) fn is_separated_piece(&self, name: &NameRef) -> bool {
+        self.separated.contains(name)
+    }
+
+    /// Marks `name`'s row as one piece of a separated tie. Only a
+    /// `Unique` row takes the mark: a `Tied` row already says it is a
+    /// tie, and a name with no row has nothing to mark.
+    pub(super) fn mark_separated_piece(&mut self, name: NameRef) {
+        if matches!(self.forward.get(&name), Some(Entry::Unique(_))) {
+            self.separated.insert(name);
+        }
     }
 
     /// [`NameTable::insert`] by handle — the door that preserves
@@ -451,6 +476,14 @@ impl NameTable {
     /// cutting either holds one in each half. The projection is what
     /// separates them, and the split's own table stays `Tied`.
     ///
+    /// A row the projection narrows to `Unique` that way is MARKED as
+    /// one piece of a separated tie, and so is a `Unique` row the
+    /// input already marked. Nothing that reads the projected table
+    /// sees the mark — it holds one `Unique` row — but a gather that
+    /// takes both halves as sources reads it, and merges the pieces
+    /// back into the one tie the split's own table holds
+    /// (`defer::CarriedRows::carry`).
+    ///
     /// # Errors
     ///
     /// [`DuplicateName`], the insert doors' own. Not reachable by
@@ -469,13 +502,20 @@ impl NameTable {
                 Entry::Unique(e) => {
                     if e.body == body {
                         out.insert_ref(name.clone(), rekey(e))?;
+                        if self.is_separated_piece(name) {
+                            out.mark_separated_piece(name.clone());
+                        }
                     }
                 }
                 Entry::Tied(es) => {
                     let kept: Vec<EntityRef> =
                         es.iter().filter(|e| e.body == body).map(rekey).collect();
+                    let narrowed = kept.len() == 1;
                     if !kept.is_empty() {
                         super::defer::narrow_into(&mut out, name.clone(), kept)?;
+                    }
+                    if narrowed {
+                        out.mark_separated_piece(name.clone());
                     }
                 }
             }
