@@ -4018,8 +4018,9 @@ fn attach_contact<T: Decide + Bounds>(
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
     let transverse = matches!(
         carrier,
-        ContactCarrier::Chord | ContactCarrier::TransverseArc { .. }
+        ContactCarrier::Chord
     );
+    let probe_arc = matches!(carrier, ContactCarrier::TransverseArc { .. });
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
             let len = p0.distance(p1);
@@ -4105,7 +4106,24 @@ fn attach_contact<T: Decide + Bounds>(
                 ));
             };
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
+            let v = must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band);
+            if probe_arc {
+                let vs = must_carry_over_edge(surf2, surf1, &curve, t0, t1, extent, band);
+                let kinds = (geom_brep::SurfaceKind::of(surf1), geom_brep::SurfaceKind::of(surf2));
+                let mut st = String::new();
+                for i in 1..geom_brep::CERT_SAMPLES - 1 {
+                    let t = geom_brep::sample_param(t0, t1, i);
+                    let (p, tau) = curve.ders1(t);
+                    let a = geom_brep::tangent_second_order(surf1, surf2, p, tau, extent, band);
+                    let b = geom_brep::tangent_second_order(surf2, surf1, p, tau, extent, band);
+                    let d = geom_brep::classify_dihedral(surf1, surf2, p, extent, band);
+                    st += &format!(" [i{} sin={:?} k12={:?} k21={:?} arm={:?} dih={:?}]", i, a.jet.sin_theta, a.jet.kappa_rel, b.jet.kappa_rel, a.arm, d);
+                }
+                eprintln!("PROBE edge={:?} kinds={:?} fixture_order={:?} swapped={:?}{}", edge, kinds, v, vs, st);
+                if std::env::var("PROBE_SWAP").is_ok() { vs } else { v }
+            } else {
+                v
+            }
         };
         match verdict {
             MustCarryVerdict::JetDeterminate => {
