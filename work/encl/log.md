@@ -432,3 +432,23 @@ census rows) before it merges.
 **Single review, style**: a refusal's claim and payload, a fixture and
 a doc note, readable as they stand. Priced:
 `kernel-defect-endings-and-repair-labels-have-no-shared-home` P4/D.
+
+## PR 3270 merged (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `e69f42c5d8`. Main had moved
+under it by then. A `solid_contain.rs` Cardano `copysign` site and
+ATREST's DR-6 landed first, and both conflicted: the Sym manifest's
+claim (1), and the dual-review log. The branch merged main and kept
+both sides. The Cardano paragraph follows this PR's `tangent.rs`
+finding, and this PR's row became **DR-7** (fair pairs 6). The merge
+commit `6bac7db4ef` changed prose only. The combined tree passed
+geom-core's census rows (22/22, including the table-vs-tree row), fmt,
+and clippy on geom-brep and sweep, and it merged on that.
+`tangent-parallel-certifier-passes-a-transverse-arc` is closed.
+Priced:
+- `must-carry-over-edge-reads-a-transverse-edge-as-under-determined`
+  P1/D. In one surface order a transverse edge is stored under the
+  tangent branch's conventional chart: one geometric fact, two
+  descriptions by argument order.
+- `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing` P3/D. It
+  refuses in the safe direction, under the wrong named cause.

@@ -2,12 +2,13 @@
 id: tangent-parallel-certifier-passes-a-transverse-arc
 kind: issue
 title: certify: TangentParallel admits a 90-degree crossing described as a tangent intersection
-status: review
+status: closed
 opened: 2026-09-05
 priority: P0
 cost: H
 branch: encl/tangent-parallel-transverse-arc
 pr: 3270
+closed: 2026-09-26
 ---
 
 ## Finding (a reviewer's mutant on PR 1897)
