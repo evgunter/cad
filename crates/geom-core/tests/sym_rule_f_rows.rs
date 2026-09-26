@@ -905,7 +905,7 @@ fn the_copysign_mint_sites_the_tree_holds_are_these() {
         ("crates/profile/src/sugar.rs", 2),
         ("crates/sweep/src/blend/arms.rs", 1),
         ("crates/sweep/src/revolve/axis.rs", 1),
-        ("crates/topo/src/boolean/solid_contain.rs", 1),
+        ("crates/topo/src/boolean/solid_contain.rs", 2),
     ]
     .into_iter()
     .map(|(f, n)| (f.to_owned(), n))

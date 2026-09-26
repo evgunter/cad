@@ -3998,9 +3998,23 @@ jobs:
       # certified`, which `eps_regression` runs at every ε here and which
       # asserts nothing; the scene walk the render and budget lanes run
       # does not narrate them.
+      #
+      # NEXTEST, SO THE SUITE'S BINARIES SHARE ONE POOL. `cargo test` runs
+      # test binaries one after another, and this suite is a handful of
+      # long single-threaded tests in two binaries: the bin's unit tests
+      # (~8.6 min, three of them minutes each) and then `eps_regression`
+      # (~12.6 min, three whole-tour runs). Run in sequence they left this
+      # row the last job to finish in 160 of 278 full PR runs
+      # (2026-09-22..25, median 28 min). One nextest pool overlaps the
+      # two; the tests and what they assert are unchanged.
+      - name: install cargo-nextest (pinned, official prebuilt)
+        if: matrix.row == 'release-default'
+        uses: ./.github/actions/install-nextest
+        with:
+          version: ${{ env.NEXTEST_VERSION }}
       - name: demos tour suite (the #99 ε pin + the tour's own probes)
         if: matrix.row == 'release-default'
-        run: cd demos/tour && cargo test --release
+        run: cd demos/tour && cargo nextest run --release --no-fail-fast
       # THE COMMITTED DIE CORPUS IS STILL THE SCENE THAT AUTHORED IT.
       # `crates/editor-core/tests/corpus/die_composed_tour.rs` registers
       # the tour's composed die by replaying committed BYTES, because

@@ -998,7 +998,7 @@ pub fn assert_naming_totality<T: Real>(
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
@@ -1006,7 +1006,7 @@ pub fn assert_naming_totality<T: Real>(
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
     // (e) recorded once each.
@@ -1030,8 +1030,8 @@ pub fn assert_naming_totality<T: Real>(
     let fragments: Vec<(EdgeKey, EdgeKey)> = rec
         .meridian_remnants
         .iter()
-        .chain(rec.slits.iter())
         .copied()
+        .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {
