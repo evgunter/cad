@@ -292,3 +292,19 @@ Rulings, sent to the lane:
    announced on DECIDE's log.
 
 Review stays dual, dispatched once these settle.
+
+## 2026-09-26 — the merge gate moves local while hosted CI queues
+
+Ev (in chat): hosted CI is queueing badly, so running CI locally is
+fine. From here, until Ev says hosted is back:
+- **The gate.** Every PATHS push and merge is gated on
+  `local-scripts/ci-local.sh --full`. That script is the ci.yml mirror,
+  and its parity is checked by `check-ci-mirror-parity.py`. It takes
+  the machine's build slot itself.
+- **Hosted CI.** Its conclusion is read when it arrives. A hosted red
+  that arrives after merge is fixed forward on main at once.
+- **Implementer and fix-pass briefs** run `ci-local.sh --full` before
+  pushing, and report its summary block. They do not wait on hosted.
+
+#3254's current head already has a green hosted run (36195442188). Its
+dual review is in flight on 8c275c72.
