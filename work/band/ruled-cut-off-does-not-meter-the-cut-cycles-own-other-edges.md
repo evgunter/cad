@@ -2,8 +2,9 @@
 id: ruled-cut-off-does-not-meter-the-cut-cycles-own-other-edges
 kind: issue
 title: blend: the ruled cut-off meters the cap's OTHER cycles against the sliver, not the non-rim edges of the cycle it cuts
-status: open
+status: closed
 opened: 2026-09-25
+closed: 2026-09-26
 priority: P1
 cost: D
 ---
@@ -35,3 +36,24 @@ A fixture first (an extruded D-rod whose flat carries a small notch
 beside the upper crease, inside the sliver at `ROD_FILLET`), measured
 against today's tree: does the carve return a body, and does tier 3
 accept it? Then the finite-edge meter, or a typed refusal.
+
+## Measured (2026-09-26, review of `band/cap-ring-in-sliver`)
+
+Live, not hypothetical: an L-shaped channel cut into the D-rod's
+outline from the flat below the upper foot, whose tip reaches
+`x = 0.295, y ∈ [0.385, 0.39]` (inside the sliver, `≈ 0.1045` from the
+ball centre), carved, passed tier 3, and returned exactly the
+channel-free `ΔV = −2·A·L` — before and after the unit that added the
+cap meter.
+
+## Closed by (`band/cap-ring-in-sliver`)
+
+The cap meter now reads EDGES, each over its own stored window
+(`piece_distance` / `piece_along` in `crates/sweep/src/blend/surgery.rs`),
+not whole carriers, so the rim's neighbours on the rim's own circle are
+no obstacle: `ring_clearance_pass` arm (c) meters every edge of the cut
+cycle except the two rims the cut shortens (`CapSliver::rims`,
+`crates/sweep/src/blend/open/ruled.rs`) exactly as it meters the cap's
+other cycles. The channel refuses `RingClearance` at the cap:
+`band_ruled_cap_ring::a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance`.
+

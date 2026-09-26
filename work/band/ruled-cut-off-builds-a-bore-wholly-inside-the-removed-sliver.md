@@ -12,11 +12,12 @@ cost: H
 ## Finding
 
 A convex ruled crease's cut-off removes a sliver from each transverse
-cap. Every other cycle of the cap is metered before the carve
+cap. Every other edge of the cap is metered before the carve
 (`ring_clearance_pass` arm (c), `crates/sweep/src/blend/surgery.rs`;
-`CapSliver` and `rim_reach` in `crates/sweep/src/blend/open/ruled.rs`)
-against the closed ANNULUS `r ≤ ‖p − c‖ ≤ reach` about the section
-centre `c`, which encloses the sliver, and by each edge's WHOLE carrier.
+`CapSliver` in `crates/sweep/src/blend/open/ruled.rs`), each over its
+own window, against a region ENCLOSING the sliver: the annulus
+`r ≤ ‖p − c‖ ≤ reach` about the section centre `c`, cut down to the
+half-plane `(p − c)·(V − c)/‖V − c‖ ≥ floor` the sliver lies in.
 Anything not definitely clear refuses `RingClearance` at the cap.
 
 Two things that meter leaves on the table:
@@ -35,15 +36,16 @@ Two things that meter leaves on the table:
    blend carve does today; `kfmrh`/`kef` over the bore's walls is the
    likely shape. It was not attempted in the unit that added the meter
    because (a) has no closed form in the tree yet.
-2. **The annulus over-reaches the sliver.** It includes the part of
-   the annulus on the far side of `c` from the old vertex — kept
-   material under the ball's section — so a bore within
-   `[r, reach]` of `c` but away from the corner refuses where it is
-   clear. Tightening to the wedge between the rays from `c` through the
-   two feet is sound only once "the sliver lies inside that wedge" is
-   argued for circle rims (the rim piece stays on one side of the line
-   through `c` and the foot unless it passes the circle's far point);
-   a line-carrier edge is likewise metered by its infinite line.
+2. **The region over-reaches the sliver.** It is exact on the D-rod's
+   line-and-wall corner up to the half-plane's tilt, but it is still
+   an enclosure: an edge is cleared only if it lies wholly inside the
+   ball's section, wholly beyond `reach`, or wholly short of `floor`,
+   so an edge that leaves the region by different faces at different
+   points — e.g. one running from inside the ball's section out across
+   the annulus on the far side of `c` — refuses where it is clear.
+   And the half-plane's direction is `V − c`, not the chord normal of
+   the two feet, which leaves a thin wedge of kept material near each
+   foot inside the region on corners where the two differ.
 
 ## What the taker owes
 

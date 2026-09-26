@@ -70,19 +70,21 @@ row at each fixture (the D-rod bore and the keyhole bore).
 
 Both routes measured red as stated, plus a third the item did not
 name: a bore STRADDLING the cut-off arc also carved and tier 3 accepted
-it. Every cycle a convex cut-off leaves on its cap — the cap's rings,
-and its outer cycle where the cut runs in a ring — is now metered
-before any mutation by the ring carry-through pass (arm (c) of
-`ring_clearance_pass`, `crates/sweep/src/blend/surgery.rs`) under
-`fillet3_ring_clearance`, against the annulus that encloses the sliver
-(`CapSliver`, `rim_reach` in `crates/sweep/src/blend/open/ruled.rs`).
-Rows: `band_ruled_cap_ring` (the D-rod: inside, straddling, two clear)
+it; and a fourth found in review: a channel in the cut cycle's own
+outline reaching into the sliver
+(`ruled-cut-off-does-not-meter-the-cut-cycles-own-other-edges`, closed
+by the same branch). Every edge a convex cut-off leaves on its cap —
+those of the cap's other cycles, and those of the cut cycle other than
+the two rims it shortens — is now metered before any mutation by the
+ring carry-through pass (arm (c) of `ring_clearance_pass`,
+`crates/sweep/src/blend/surgery.rs`) under `fillet3_ring_clearance`,
+each over its own window, against a region that encloses the sliver
+(`CapSliver` in `crates/sweep/src/blend/open/ruled.rs`). Rows:
+`band_ruled_cap_ring` (the D-rod: inside, straddling, channel; clear
+bores, a square drive hole, a bore on the far side of the ball centre)
 and `review_band_ruled_ring_probes` (the keyhole: inside, clear).
 
-Deviations, each filed: the meter is an enclosing annulus by whole
-carriers, so a definite negative reads "meets the annulus", not "meets
-the sliver", and the bore wholly inside the sliver refuses rather than
-vanishing
-(`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver`); the
-cut cycle's own non-rim edges are not metered
-(`ruled-cut-off-does-not-meter-the-cut-cycles-own-other-edges`).
+Deviation, filed: the meter is an enclosing region, so a definite
+negative reads "meets the region", not "meets the sliver", and the
+bore wholly inside the sliver refuses rather than vanishing
+(`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver`).

@@ -795,8 +795,13 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
      whose edges are lines and circles \u{2014} a support face's own rings included, which \
      must be circles; cut a feature that leaves any other ring AFTER the blend rather \
      than before it";
-/// The recourse for a ring the blend's trimline would consume (the
-/// surgery's ring carry-through check).
+/// The recourse for a ring the blend's trimline would consume, or a
+/// cap edge in the corner a convex ruled cut-off removes (the surgery's
+/// ring carry-through check). Both halves hold for both: a smaller
+/// blend moves the trimline back towards its edge and shrinks the
+/// removed corner towards the old vertex, which no edge but the two
+/// rims reaches; and the feature — a bore, or a notch in the cap's
+/// outline — can be moved clear.
 ///
 /// **A caller reaches this when the ring's closest approach to a
 /// requested edge lands OFF the screen's sample lattice.** The
@@ -813,7 +818,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
 /// keeps that measured — as a property of that fixture, not of the
 /// door (PR 1753).
 pub const FILLET3_RING_RECOURSE: &str =
-    "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
+    "reduce the blend size, or move the feature that lies in the material the blend removes";
 /// The recourse for a support pair outside the analytic-arm table —
 /// it names the banked unit. Only a fillet caller reads it: the
 /// chamfer's arm table is its own early return
@@ -1206,20 +1211,22 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through — or a cycle of a transverse cap (a
-    /// ring, or the outer cycle where the cut runs in a ring) meets
-    /// the annulus enclosing the sliver a convex ruled cut-off removes
-    /// from that cap, so the cut would leave the cycle outside the
-    /// region it bounds. Exact closed form (circle-vs-line /
-    /// circle-vs-circle), never sampled.
+    /// of carrying it through — or an edge of a transverse cap that a
+    /// convex ruled cut-off leaves on it (an edge of a ring, or of the
+    /// cycle the cut runs in other than the two rims it shortens) is
+    /// not definitely clear of a region enclosing the sliver the cut
+    /// removes, so the cut would cross it or leave it outside the
+    /// region it bounds. Exact closed form over the stored carriers and
+    /// windows, never sampled.
     RingClearance {
         /// The face — a support, or a ruled band's cap — whose ring
-        /// or cycle is too close.
+        /// or edge is too close.
         face: FaceKey,
-        /// The ring-to-trimline clearance in meters, as
-        /// `fillet3_ring_clearance` classified it: definitely negative,
-        /// or decided Zero — which is the ring sitting ON the trimline,
-        /// never "no clearance was certified".
+        /// The clearance in meters, as `fillet3_ring_clearance`
+        /// classified it — of the ring from the trimline on a support,
+        /// of the edge from the region enclosing the sliver on a cap:
+        /// definitely negative, or decided Zero — which is the ring or
+        /// edge touching it, never "no clearance was certified".
         margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the
@@ -1459,8 +1466,8 @@ impl fmt::Display for BlendError {
             ),
             Self::RingClearance { margin, .. } => write!(
                 f,
-                "a ring of a face the blend cuts sits inside a blend's setback ({margin}). \
-                 Recourse: {FILLET3_RING_RECOURSE}"
+                "a ring or edge of a face the blend cuts lies in the material the blend \
+                 removes ({margin}). Recourse: {FILLET3_RING_RECOURSE}"
             ),
             Self::Certify { site, source } => {
                 write!(f, "{site} — {source}")

@@ -540,14 +540,7 @@ BOUNDS_ALLOWLIST=(
   'crates/sweep/src/blend/build.rs 5 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/surgery.rs 14 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   'crates/sweep/src/blend/open/planar.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
-  # ruled.rs 3 -> 4: `rim_reach`, the cap sliver's reach over one rim
-  # piece, read inside `RuledPlan::plan` (already `Decide + Bounds`). It
-  # takes the foot's split parameter from `seam_split_param` (the
-  # surgery's `Decide + Bounds` door, the one the carve itself calls)
-  # and reads the piece's span against half a turn as a BOUNDS-lane
-  # representation read with a sound fallback — the same seam and the
-  # same use of the bracket as the carve's split, nothing wider.
-  'crates/sweep/src/blend/open/ruled.rs 4 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
+  'crates/sweep/src/blend/open/ruled.rs 3 M5 PR 12 (orchestrator ruling 2026-08-03), the edge-blend battery'
   # M6-2, the SSI rung-3 certificate.
   'crates/geom-brep/src/pcurve_cache.rs 7 M6-2, the SSI rung-3 certificate'
   'crates/geom-brep/src/ssi.rs 2 M6-2, the SSI rung-3 certificate'

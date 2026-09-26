@@ -200,7 +200,8 @@ fn the_boolean_route_to_the_exact_containment_backstop_is_blocked() {
 /// about the PIP's centre, `dc` off the axis the host's outer boundary
 /// is centred on. The containment margin is therefore `1 − (dc + si)`
 /// with `dc ≠ 0` — the only fixture in the tree where the outer-cycle
-/// circle arm's `trim_inside_other` reads anything but `1 − si`, and
+/// walk's reading of a boundary arc (its nearest approach to the trim
+/// centre, less `si`) is anything but `1 − si`, and
 /// the only one where the two circles can genuinely CROSS rather than
 /// merely nest the wrong way round (two coaxial circles never cross).
 ///

@@ -103,9 +103,9 @@
 //! trilean whose margin (meters) is the closed-form clearance between
 //! a support face's ring and a blend's trimline — circle-vs-line and
 //! circle-vs-circle, exact, never sampled — and, on a transverse cap a
-//! convex ruled band cuts off, between each cycle the cut leaves on the
-//! cap and the annulus enclosing the sliver it removes. Positive
-//! carries the cycle through; zero/negative refuses typed
+//! convex ruled band cuts off, between each edge the cut leaves on the
+//! cap and a region enclosing the sliver it removes. Positive carries
+//! the ring or edge through; zero/negative refuses typed
 //! ([`BlendError::RingClearance`]); in-band escalates with the same
 //! recourse (two-tolerance, D4 ¶1 addendum). And the must-carry rule
 //! over every contact edge at the description pass (`attach_contact`,
@@ -1993,9 +1993,9 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
     }
 }
 
-/// **The three clearances between a blend TRIM circle and one other
-/// circle of the same face**, meters, all closed forms over the two
-/// stored circles. Which one a caller reads is fixed by what the trim
+/// **The two clearances between a blend TRIM circle and one other
+/// whole circle of the same face — a ring —**, meters, both closed forms
+/// over the two stored circles. Which one a caller reads is fixed by what the trim
 /// circle REPLACES on that face, never by which reads better.
 ///
 /// - [`CircleMargins::external`] — the two circles are separated,
@@ -2003,10 +2003,6 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 ///   lies OUTSIDE the other circle and must not reach it: every ring of
 ///   a ladder rim's host, and every ring of a seam-split annulus rim's
 ///   wall.
-/// - [`CircleMargins::trim_inside_other`] — the other circle CONTAINS
-///   the trim circle. Read it when the other circle is the host face's
-///   own outer boundary, because the host lies inside that boundary and
-///   a trim circle nested in it with room to spare is the healthy case.
 /// - [`CircleMargins::other_inside_trim`] — the trim circle contains the
 ///   other one. Read it when the trim BECOMES the face's outer boundary
 ///   — a hostless annulus rim, whose carve excises everything between
@@ -2015,10 +2011,15 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
 ///
 /// Choosing wrongly is not conservative in either direction: a ring in
 /// the excised strip reads POSITIVE under `external` when the two
-/// circles are small and far apart on the face, and a boundary that
-/// contains the trim reads minus the sum of the radii under it.
+/// circles are small and far apart on the face, and a ring that
+/// contains a hostless trim reads minus the sum of the radii under
+/// `other_inside_trim`.
 ///
-/// **The two containment readings are the same real predicate 2's
+/// A host's OUTER boundary is not read here: its edges are arcs and
+/// segments, not whole circles, and the ladder walk meters each over
+/// its own window ([`piece_distance`]).
+///
+/// **The containment reading is the same real predicate 2's
 /// boundary-pair screen computes, in closed form.** For any two circles
 /// in one plane its
 /// `gap − setback_here − setback_there` IS the containment margin of
@@ -2035,23 +2036,199 @@ struct CircleMargins<T> {
     /// `‖cj − ci‖ − si − aj`: separation of two circles that lie
     /// outside each other.
     external: T,
-    /// `aj − (‖cj − ci‖ + si)`: how much room the OTHER circle has
-    /// around the trim circle it encloses.
-    trim_inside_other: T,
     /// `si − (‖cj − ci‖ + aj)`: how much room the TRIM circle has around
     /// the other circle it encloses.
     other_inside_trim: T,
 }
 
-/// The three margins of [`CircleMargins`] for a trim circle `(ci, si)`
+/// The two margins of [`CircleMargins`] for a trim circle `(ci, si)`
 /// and one other circle `(cj, aj)`, both read from stored carriers.
 fn circle_margins<T: Real>((ci, si): (Point3<T>, T), (cj, aj): (Point3<T>, T)) -> CircleMargins<T> {
     let d = (cj - ci).norm();
     CircleMargins {
         external: d - si - aj,
-        trim_inside_other: aj - (d + si),
         other_inside_trim: si - (d + aj),
     }
+}
+
+/// A boundary piece: a stored carrier and the window on it the piece
+/// covers.
+pub(super) type Piece<'b, T> = (&'b Curve3<T>, (T, T));
+
+/// **An edge's stored carrier and window**, where its geometry is
+/// certified: the point set every clearance below reads is the carrier
+/// over that window, never the whole carrier.
+///
+/// # Errors
+///
+/// [`BlendError::BodyNotIntact`] when the edge does not resolve.
+pub(super) fn stored_piece<T: Decide>(
+    body: &Body<T>,
+    edge: EdgeKey,
+) -> Result<Option<Piece<'_, T>>, BlendError> {
+    let e = body
+        .get_edge(edge)
+        .ok_or_else(|| not_intact(EntityId::Edge(edge), "a boundary edge a clearance reads"))?;
+    Ok(body
+        .get_curve_geom(e.curve)
+        .and_then(|g| g.certified())
+        .map(|c| (c.carrier(), c.params())))
+}
+
+/// **How near and how far one boundary piece comes to a point `c`**:
+/// `(near, far)` with `near ≤ ‖p − c‖ ≤ far` for every point `p` of
+/// `carrier` over the window `(ta, tb)`, in closed form; `None` for a
+/// carrier with no closed form here (neither a line nor a circle).
+///
+/// On a LINE the distance is convex, so `far` is the larger end and
+/// `near` the distance to `c`'s foot clamped into the segment. On a
+/// CIRCLE the distance is a function of the angle from the circle's
+/// point nearest `c` alone, growing monotonically to that point's
+/// antipode, so over an arc each extreme is at an end unless the arc
+/// holds the point that realises it, where it is the whole circle's.
+/// Which applies is [`arc_misses`]'s read, which only ever chooses the
+/// tighter of two sound values.
+pub(super) fn piece_distance<T: Bounds>(
+    carrier: &Curve3<T>,
+    (ta, tb): (T, T),
+    c: Point3<T>,
+) -> Option<(T, T)> {
+    let (pa, pb) = (point_at(carrier, ta)?, point_at(carrier, tb)?);
+    let (da, db) = ((pa - c).norm(), (pb - c).norm());
+    match *carrier {
+        Curve3::Line { .. } => {
+            let d = pb - pa;
+            let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
+            Some(((pa + d * s - c).norm(), da.max(db)))
+        }
+        Curve3::Circle {
+            center: o,
+            axis,
+            radius,
+            ..
+        } => {
+            let w = c - o;
+            let h = w.dot(axis);
+            let plane = w - axis * h;
+            let rho = plane.norm();
+            let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+            let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();
+            // With `c` on the axis every point of the circle is both
+            // nearest and farthest, and the whole circle's values are
+            // the answer.
+            if rho.lo() <= 0.0 {
+                return Some((whole_near, whole_far));
+            }
+            let toward = plane * (radius / rho);
+            let near = if arc_misses(carrier, (ta, tb), o + toward) {
+                da.min(db)
+            } else {
+                whole_near
+            };
+            let far = if arc_misses(carrier, (ta, tb), o - toward) {
+                da.max(db)
+            } else {
+                whole_far
+            };
+            Some((near, far))
+        }
+        _ => None,
+    }
+}
+
+/// **How low and how high one boundary piece reaches along a unit
+/// direction `u`**: `(low, high)` with `low ≤ (p − c)·u ≤ high` for
+/// every point `p` of `carrier` over the window `(ta, tb)`, in closed
+/// form; `None` for a carrier with no closed form here. A linear
+/// function is extreme at a segment's ends; on a circle it is a
+/// function of the angle from the point farthest along `u` alone, so
+/// over an arc each extreme is at an end unless the arc holds that
+/// point (for `high`) or its antipode (for `low`) — [`arc_misses`]'s
+/// read, as in [`piece_distance`].
+pub(super) fn piece_along<T: Bounds>(
+    carrier: &Curve3<T>,
+    (ta, tb): (T, T),
+    c: Point3<T>,
+    u: Vec3<T>,
+) -> Option<(T, T)> {
+    let (la, lb) = (
+        (point_at(carrier, ta)? - c).dot(u),
+        (point_at(carrier, tb)? - c).dot(u),
+    );
+    match *carrier {
+        Curve3::Line { .. } => Some((la.min(lb), la.max(lb))),
+        Curve3::Circle {
+            center: o,
+            axis,
+            radius,
+            ..
+        } => {
+            let mid = (o - c).dot(u);
+            let plane = u - axis * u.dot(axis);
+            let nu = plane.norm();
+            let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
+            // With `u` along the axis the function is constant on the
+            // circle.
+            if nu.lo() <= 0.0 {
+                return Some((whole_low, whole_high));
+            }
+            let toward = plane * (radius / nu);
+            let low = if arc_misses(carrier, (ta, tb), o - toward) {
+                la.min(lb)
+            } else {
+                whole_low
+            };
+            let high = if arc_misses(carrier, (ta, tb), o + toward) {
+                la.max(lb)
+            } else {
+                whole_high
+            };
+            Some((low, high))
+        }
+        _ => None,
+    }
+}
+
+/// **A line or circle carrier's point at `t`**, through the carrier's
+/// own point expression (`origin + dir·t`; [`Curve3::circle_at`], the
+/// door `eval`'s circle arm calls). `None` for any other carrier.
+fn point_at<T: Real>(carrier: &Curve3<T>, t: T) -> Option<Point3<T>> {
+    match *carrier {
+        Curve3::Line { origin, dir } => Some(origin + dir * t),
+        Curve3::Circle {
+            center,
+            axis,
+            radius,
+            u_ref,
+        } => Some(Curve3::circle_at(center, axis, radius, u_ref, t)),
+        _ => None,
+    }
+}
+
+/// **Whether the circle arc over `(ta, tb)` certainly misses the circle
+/// point `q`**: `q`'s angle past `ta`, read in `(0, τ]` (the branch
+/// `Curve3::param_near` takes anchored half a turn past `ta`), is
+/// certainly beyond the arc's span and certainly short of a full turn
+/// (a full turn is `q` at the arc's start).
+///
+/// A BOUNDS-lane read of the stored window, and not a decision: its one
+/// use is to choose, for an extreme over the arc, between the arc's
+/// ends and the whole circle's value, and the whole circle's value
+/// bounds the arc's whichever way the truth lies. So `false` — the
+/// answer wherever the bracket is not certain, and for a window of a
+/// full turn or more, which holds every point — only ever loosens a
+/// bound; and where the bracket is uncertain because `q` sits at an end
+/// of the arc, the end's value is the extreme anyway.
+fn arc_misses<T: Bounds>(carrier: &Curve3<T>, (ta, tb): (T, T), q: Point3<T>) -> bool {
+    let Curve3::Circle { center, axis, .. } = *carrier else {
+        return false;
+    };
+    let Some(anchor) = point_at(carrier, ta + T::pi()) else {
+        return false;
+    };
+    let (w, radial) = (q - center, anchor - center);
+    let past = T::pi() + w.dot(axis.cross(radial)).atan2(w.dot(radial));
+    (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
 }
 
 /// The test-support door to [`ring_clearance`]: the same function, made
@@ -2075,7 +2252,7 @@ pub fn ring_clearance_for_tests<T: Decide + Bounds>(
 
 /// The pre-mutation honesty pass (module docs): every ring of every
 /// touched support face must clear every blend trimline by a definite
-/// margin, in closed form — and every cycle a convex ruled cut-off
+/// margin, in closed form — and every edge a convex ruled cut-off
 /// leaves on its cap must clear the sliver it removes.
 fn ring_clearance_pass<T: Decide + Bounds>(
     body: &Body<T>,
@@ -2224,20 +2401,18 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         let RimShape::Ladder { .. } = rim.shape else {
             continue;
         };
-        // Scoped honestly. The CIRCLE arm reads both relations a
-        // boundary circle can stand in to the trim circle
-        // ([`CircleMargins`]) and clears on either. The LINE arm
-        // measures the INFINITE carrier line, so one false-refusal
-        // class is left: a distant line edge whose EXTENSION passes
-        // near the trim circle, which reads negative where the finite
-        // edge is nowhere near. It stays unmeasured, and errs in the
-        // conservative direction — a body that hits it refuses
-        // `RingClearance` loudly rather than passing silently, which is
-        // why it is a false refusal and not a soundness hole.
-        // A cycle edge of any OTHER carrier kind is skipped: this walk
-        // is the closed-form one, and nothing exact can be said about a
-        // NURBS boundary from stored data, so those pairs are left to
-        // predicate 2's sampled sweep, which meters them all.
+        // Each boundary EDGE — its carrier over its stored window, not
+        // the carrier — must keep the trim circle off it: every point
+        // of the edge farther from the trim centre than the trim radius
+        // ([`piece_distance`]'s `near`). On a circle edge that is the
+        // arc's own reading of both relations a boundary circle can
+        // stand in to the trim ([`CircleMargins`]: containing it, or a
+        // convex arc merely separated from it), and both failing is the
+        // carve consuming its own host. An edge of any OTHER carrier
+        // kind, or one whose geometry is not certified, is skipped: this
+        // walk is the closed-form one, and nothing exact can be said
+        // about a NURBS boundary from stored data, so those pairs are
+        // left to predicate 2's sampled sweep, which meters them all.
         let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
             not_intact(
                 EntityId::Face(rim.host0()),
@@ -2245,58 +2420,39 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             )
         })?;
         for he in outer {
-            let Some(h) = body.get_half_edge(he) else {
+            let edge = body
+                .get_half_edge(he)
+                .ok_or_else(|| not_intact(EntityId::HalfEdge(he), "a rim host's boundary"))?
+                .edge;
+            let Some((carrier, window)) = stored_piece(body, edge)? else {
                 continue;
             };
-            let Some(e) = body.get_edge(h.edge) else {
+            let Some((near, _)) = piece_distance(carrier, window, ci) else {
                 continue;
             };
-            let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
-                continue;
-            };
-            match *c.carrier() {
-                Curve3::Line { origin, dir } => {
-                    let d = ci - origin;
-                    let margin = (d - dir * d.dot(dir)).norm() - si;
-                    ring_clearance(rim.host0(), margin, band)?;
-                }
-                Curve3::Circle { center, radius, .. } => {
-                    // Either relation clears: the boundary circle
-                    // CONTAINS the trim circle (the host lies inside its
-                    // own outer boundary), or the edge is a convex arc
-                    // of a mixed cycle whose full circle encloses
-                    // nothing and the two are merely separated. Both
-                    // negative is the carve consuming its own host.
-                    let m = circle_margins((ci, si), (center, radius));
-                    ring_clearance(rim.host0(), m.external.max(m.trim_inside_other), band)?;
-                }
-                _ => {}
-            }
+            ring_clearance(rim.host0(), near - si, band)?;
         }
     }
-    // (c) Ruled cut-offs: every cycle of a cap OTHER than the one the
-    // cut runs in stays on the cap through the cut-off `mef`, so every
-    // edge of it must clear the annulus that encloses the sliver the
-    // cut removes ([`CapSliver`](super::open::ruled::CapSliver)). Each
-    // edge is metered by its WHOLE carrier — the full circle, the
-    // infinite line — so a clear carrier is a clear edge, and the
-    // direction this errs in is a loud refusal of an edge whose
-    // carrier, not the edge, meets the annulus. A circle is clear
-    // inside the section circle's open disc (the ball's section, kept
-    // material), or outside the annulus's outer circle, or enclosing
-    // it; a line only beyond the outer circle. A carrier of any other
-    // kind, or a lone-vertex cycle, has no closed form here, and no
-    // other pass meters the cap, so it refuses rather than being
-    // skipped.
+    // (c) Ruled cut-offs: the cut-off `mef` runs one arc across a cap
+    // and moves the run from foot to foot through the old vertex off
+    // it, so every OTHER edge of the cap — each edge of its other
+    // cycles, and each edge of the cut cycle except the two rims the
+    // cut shortens — stays on the cap and must be clear of the sliver
+    // the cut removes. Each is metered, over its own window, against
+    // the region [`CapSliver`](super::open::ruled::CapSliver) proves
+    // encloses that sliver ([`CapSliver::clearance`](super::open::ruled::CapSliver::clearance)).
+    // A cut-cycle edge clear of the sliver cannot be crossed by the
+    // arc, and a clear edge of another cycle is neither crossed nor
+    // carried off with the sliver. An edge whose carrier has no closed
+    // form here, one with no certified geometry, or a lone-vertex
+    // cycle refuses rather than being skipped: unlike (b)'s host
+    // boundary, no sampled screen meters a cap.
     for plan in ruled {
         for s in plan.removed_slivers() {
             let fd = body
                 .get_face(s.cap)
                 .ok_or_else(|| not_intact(EntityId::Face(s.cap), "a ruled cut-off's cap"))?;
-            let others = core::iter::once(fd.outer)
-                .chain(fd.rings.iter().copied())
-                .filter(|&lp| lp != s.cut);
-            for lp in others {
+            for lp in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
                 let lone = body
                     .get_loop(lp)
                     .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
@@ -2310,37 +2466,23 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 let walk = loop_walk(body, lp)
                     .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
                 for (_, _, edge) in walk {
-                    let e = body
-                        .get_edge(edge)
-                        .ok_or_else(|| not_intact(EntityId::Edge(edge), "a cap cycle edge"))?;
-                    let Some(c) = body.get_curve_geom(e.curve).and_then(|g| g.certified()) else {
+                    if lp == s.cut && s.rims.contains(&edge) {
+                        continue;
+                    }
+                    let Some((carrier, window)) = stored_piece(body, edge)? else {
                         return Err(unbuilt_geometry(
                             EntityId::Edge(edge),
                             "a cycle edge of a cap beside a ruled cut-off carries no certified \
                              carrier",
                         ));
                     };
-                    let margin = match *c.carrier() {
-                        Curve3::Line { origin, dir } => {
-                            let d = s.center - origin;
-                            (d - dir * d.dot(dir)).norm() - s.reach
-                        }
-                        Curve3::Circle { center, radius, .. } => {
-                            let inner = circle_margins((s.center, s.radius), (center, radius));
-                            let outer = circle_margins((s.center, s.reach), (center, radius));
-                            inner
-                                .other_inside_trim
-                                .max(outer.external)
-                                .max(outer.trim_inside_other)
-                        }
-                        _ => {
-                            return Err(unbuilt_geometry(
-                                EntityId::Edge(edge),
-                                "a cycle edge of a cap beside a ruled cut-off is neither a line \
-                                 nor a circle, the only carriers the sliver meter covers",
-                            ));
-                        }
-                    };
+                    let margin = s.clearance(carrier, window).ok_or_else(|| {
+                        unbuilt_geometry(
+                            EntityId::Edge(edge),
+                            "a cycle edge of a cap beside a ruled cut-off is neither a line nor \
+                             a circle, the only carriers the sliver meter covers",
+                        )
+                    })?;
                     ring_clearance(s.cap, margin, band)?;
                 }
             }
@@ -4319,5 +4461,97 @@ mod tests {
         // the selection retires: it would hand back the sphere trim.
         let blind = rim_trim_circles(e, &swapped, true).expect("circles");
         assert_eq!(blind.0.1, a.1.1, "slot-blind trim_a IS the sphere trim");
+    }
+
+    /// **A boundary piece's extremes are its ends' unless the piece
+    /// holds the point that realises one, and then the whole
+    /// circle's** ([`super::piece_distance`], [`super::piece_along`]),
+    /// on the unit circle about the origin in the `xy` plane. Each
+    /// arm is reached both ways: an arc that misses the critical point
+    /// reads its larger or smaller end, and one that holds it (or a
+    /// window of a full turn) reads the whole circle's value — which is
+    /// what a rim piece passing its circle's far point would read, a
+    /// case no assembly fixture builds. A window stored a turn off the
+    /// principal range reads the same as its principal twin.
+    #[test]
+    fn a_pieces_extremes_are_its_ends_unless_it_holds_the_critical_point() {
+        use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI, TAU};
+        use geom::Curve3;
+
+        use super::{piece_along, piece_distance};
+
+        let circle = Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let at = |t: f64| Point3::new(t.cos(), t.sin(), 0.0);
+        let close = |a: f64, b: f64, what: &str| {
+            assert!((a - b).abs() <= 1e-14, "{what}: {a} vs {b}");
+        };
+        // Distance from (3, 0): nearest at angle 0 (2), farthest at π (4).
+        let c = Point3::new(3.0, 0.0, 0.0);
+        let d = |t: f64| (at(t) - c).norm();
+        let (near, far) = piece_distance(&circle, (FRAC_PI_4, FRAC_PI_2), c).expect("circle");
+        close(
+            near,
+            d(FRAC_PI_4),
+            "an arc missing both reads its nearer end",
+        );
+        close(far, d(FRAC_PI_2), "and its farther end");
+        let (near, far) = piece_distance(&circle, (-FRAC_PI_4, FRAC_PI_4), c).expect("circle");
+        close(
+            near,
+            2.0,
+            "an arc holding the nearest point reads the circle's",
+        );
+        close(far, d(FRAC_PI_4), "its farther end still reads the end");
+        let (_, far) =
+            piece_distance(&circle, (3.0 * FRAC_PI_4, 5.0 * FRAC_PI_4), c).expect("circle");
+        close(
+            far,
+            4.0,
+            "an arc holding the farthest point reads the circle's",
+        );
+        let (near, _) =
+            piece_distance(&circle, (TAU + FRAC_PI_4, TAU + FRAC_PI_2), c).expect("circle");
+        close(near, d(FRAC_PI_4), "a window a turn off reads as its twin");
+        let (near, far) = piece_distance(&circle, (0.5, 0.5 + TAU), c).expect("circle");
+        close(near, 2.0, "a full turn holds every point");
+        close(far, 4.0, "a full turn holds every point");
+        // Along +y from the origin: highest at π/2, lowest at 3π/2.
+        let u = Vec3::new(0.0, 1.0, 0.0);
+        let o = Point3::new(0.0, 0.0, 0.0);
+        let (low, high) = piece_along(&circle, (0.0, FRAC_PI_4), o, u).expect("circle");
+        close(low, 0.0, "an arc missing both reads its lower end");
+        close(high, FRAC_PI_4.sin(), "and its higher end");
+        let (low, high) = piece_along(&circle, (0.0, 3.0 * FRAC_PI_4), o, u).expect("circle");
+        close(
+            high,
+            1.0,
+            "an arc holding the highest point reads the circle's",
+        );
+        close(low, 0.0, "its lower end still reads the end");
+        let (low, _) = piece_along(&circle, (PI, TAU), o, u).expect("circle");
+        close(
+            low,
+            -1.0,
+            "an arc holding the lowest point reads the circle's",
+        );
+        // A segment: the nearest point is the clamped foot, not the
+        // carrier's.
+        let line = Curve3::Line {
+            origin: Point3::new(0.0, 0.0, 0.0),
+            dir: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (near, far) =
+            piece_distance(&line, (1.0, 2.0), Point3::new(0.0, 1.0, 0.0)).expect("line");
+        close(near, 2.0_f64.sqrt(), "a segment's near is its clamped foot");
+        close(far, 5.0_f64.sqrt(), "and its far its farther end");
+        let (low, high) =
+            piece_along(&line, (1.0, 2.0), o, Vec3::new(1.0, 0.0, 0.0)).expect("line");
+        close(low, 1.0, "a segment's low is an end");
+        close(high, 2.0, "and its high the other");
     }
 }
