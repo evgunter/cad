@@ -13,9 +13,9 @@ use core::f64::consts::PI;
 use crate::common::approx::band;
 use geom_brep::SurfaceKind;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
+use geom_core::{Point2, Vec3};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::{ball_poled_y, cube};
+use sweep::test_support::{ball_poled, cube};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::query::{self, SurfaceKindSet};
 use topo::readback::euler_counts;
@@ -36,40 +36,6 @@ const RIM_R: f64 = 0.02;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
-    let ball = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), Tol::witness());
-    let y = Vec3::new(0.0, 1.0, 0.0);
-    let axis = y.cross(pole);
-    let placed = if axis.norm() < 1e-12 {
-        if y.dot(pole) > 0.0 {
-            ball
-        } else {
-            topo::transform_rigid(
-                &ball,
-                &Affine3::rotation_about_axis(
-                    geom_core::Point3::new(0.0, 0.0, 0.0),
-                    Vec3::new(1.0, 0.0, 0.0),
-                    PI,
-                ),
-                Tol::witness(),
-            )
-            .unwrap()
-        }
-    } else {
-        topo::transform_rigid(
-            &ball,
-            &Affine3::rotation_about_axis(
-                geom_core::Point3::new(0.0, 0.0, 0.0),
-                axis.normalize(),
-                y.dot(pole).clamp(-1.0, 1.0).acos(),
-            ),
-            Tol::witness(),
-        )
-        .unwrap()
-    };
-    topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 fn layout(n: u32) -> Vec<(f64, f64)> {
@@ -140,12 +106,12 @@ fn pip_placements() -> Vec<(Vec3<f64>, Vec3<f64>)> {
 
 fn pip_tool() -> Body<f64> {
     let places = pip_placements();
-    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1);
+    let mut tool = ball_poled(PIP_R, places[0].0, places[0].1, Tol::witness());
     for (c, n) in &places[1..] {
         tool = boolean_op_with(
             BooleanOp::Union,
             &tool,
-            &ball_poled(PIP_R, *c, *n),
+            &ball_poled(PIP_R, *c, *n, Tol::witness()),
             &BooleanDeclarations::none(),
             SweepStrategy::Realized,
             Tol::witness(),

@@ -541,6 +541,50 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
 }
 
+/// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
+///
+/// The axis matters: `revolve` puts the ball's poles on the sketch
+/// axis, and a plane×sphere section taken against a chart whose polar
+/// axis is TILTED to the plane is a typed frontier of the split-join
+/// (`the azimuth-anchored arc-side rule needs a polar section`). A pip
+/// is cut by a face plane, so its ball is charted with the pole along
+/// that face's normal and the section stays polar by construction.
+/// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
+/// most; this door takes any.
+pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
+    let ball = ball_about_origin(r, tol);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let axis = y.cross(pole);
+    let placed = if axis.norm() < 1e-12 {
+        if y.dot(pole) > 0.0 {
+            ball
+        } else {
+            topo::transform_rigid(
+                &ball,
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    core::f64::consts::PI,
+                ),
+                tol,
+            )
+            .unwrap()
+        }
+    } else {
+        topo::transform_rigid(
+            &ball,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                axis.normalize(),
+                y.dot(pole).clamp(-1.0, 1.0).acos(),
+            ),
+            tol,
+        )
+        .unwrap()
+    };
+    topo::transform_rigid(&placed, &Affine3::translation(c), tol).unwrap()
+}
+
 /// **The toroidal spool**: an annular meridian whose outer wall is an
 /// off-axis 60° ARC, revolved about the sketch y-axis by `rev`.
 ///
