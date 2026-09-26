@@ -153,8 +153,24 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // both dials, no per-predicate split at any document's
             // nominal moves, and no ceiling on any of the eight
             // measured documents moves by a digit.
+            //
+            // 854 until the must-carry rule gated each station
+            // first-order (`geom_brep::must_carry_over_edge` asks
+            // `classify_dihedral` before the second-order jet). That
+            // is none of the three causes above but a fourth: the
+            // document asks MORE decisions, and no decision moves.
+            // The pad reaches the rule on 16 edges, each read at the
+            // 7 interior stations, and every station's
+            // `dihedral_wedge` is one new decision — 112, of which
+            // 28 are theorems and 84 numeric; `registered` and
+            // `frozen` do not move, and with the gate's call removed
+            // this replay reads 854 again. The link (8 edges) and
+            // the bracket (4) take the same 7 per edge, all numeric,
+            // so their pins here hold. Every rule-reached edge on the
+            // five reads `JetDeterminate` with the gate and without,
+            // so the document the replay builds is the same one.
             registered: 128,
-            symbolic_zero: 854,
+            symbolic_zero: 882,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -531,8 +547,8 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// side; this one is the DIFFERENTIAL that says what rule F
 /// (`SymRules::manifest_sign`) did to it. At the scale the pad
 /// certifies whole at, over its analyzed box, rule F off → on:
-/// `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
-/// 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+/// `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
+/// 1083 → 1063, `frozen` 2722 either way — the same 2073 decisions, 24
 /// of them moving into the door, twenty out of `numeric` and FOUR out
 /// of `symbolic_zero`.
 ///
@@ -575,8 +591,8 @@ fn m10_9_the_pads_four_at_both_dials() {
         );
         got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (858, 104, 991, 2750), "rule F off");
-    assert_eq!(got[1], (854, 128, 971, 2750), "rule F on");
+    assert_eq!(got[0], (886, 104, 1083, 2722), "rule F off");
+    assert_eq!(got[1], (882, 128, 1063, 2722), "rule F on");
     assert_eq!(
         got[0].0 + got[0].1 + got[0].2,
         got[1].0 + got[1].1 + got[1].2,

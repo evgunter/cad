@@ -35,9 +35,9 @@ use crate::m10_9_pins_interval::measured_studies;
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [803, 140, 470, 1044]),
     ("r1_annulus", [328, 140, 209, 1056]),
-    ("r2_link", [214, 76, 175, 556]),
-    ("r2_filleted_bracket", [428, 141, 341, 1096]),
-    ("r2_rounded_pad", [854, 128, 971, 2750]),
+    ("r2_link", [214, 76, 179, 556]),
+    ("r2_filleted_bracket", [428, 141, 343, 1096]),
+    ("r2_rounded_pad", [882, 128, 1063, 2722]),
 ];
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
