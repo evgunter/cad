@@ -57,17 +57,15 @@
 //!    description; this certifies the BODY, which is what "import is
 //!    adoption" has to mean if it means anything.
 //!
-//!    Asked once per `MANIFOLD_SOLID_BREP` **on that solid's own
-//!    body**, and once on the assembled body. Per solid because
-//!    several of the gate's invariants are whole-body sums (check 7's
-//!    +V is the boundary flux over every shell), so an inside-out
-//!    solid can be cancelled by a right-side-out neighbour and the
-//!    aggregate reads Zero, which is exempt — "every imported solid
-//!    passes the gate" is only true if each solid is a subject. The
-//!    refusal names which one. There is exactly one place in this
-//!    crate that calls the validator (`gate`), and it is
-//!    unconditional there: no body kind is exempt, no verdict class is
-//!    filtered (an escalated verdict refuses like any other —
+//!    Asked once on the assembled body (tier 3′, `gate3`) and, where
+//!    [`topo::per_part_gate_owed`] says the file owes it — more than
+//!    one instance — once per placed instance **on that solid's own
+//!    body** (tier 3, `gate`), so the refusal names the
+//!    `MANIFOLD_SOLID_BREP` it is about. Why each solid is asked is
+//!    `docs/DESIGN.md` import step 4. Those two functions are the only
+//!    places this crate calls the validator, and neither holds an
+//!    opinion: no body kind is exempt, no verdict class is filtered
+//!    (an escalated verdict refuses like any other —
 //!    escalate-never-guess).
 //!
 //!    This is D9 engineering convention 2 applied to the door #260
@@ -800,15 +798,10 @@ pub fn import_step(
                 // The per-solid subject of the shared gate (below),
                 // asked about the PLACED copy — the body that ships —
                 // when `topo::per_part_gate_owed` says the aggregate
-                // owes it. That policy counts the aggregate's SOLIDS,
-                // and the instance count IS that count here, enforced
-                // rather than assumed: each instance is one
-                // `build_one_solid` body, `transform_rigid` keeps its
-                // solid count, and `topo::graft_disjoint` refuses a
-                // source that is not exactly one solid and appends one
-                // solid per call — so every shipped body holds
-                // `instances.len()` solids, and any other count is a
-                // typed refusal of the import.
+                // owes it. The instance count IS the shipped body's
+                // solid count: `topo::graft_disjoint` below refuses any
+                // copy that is not exactly one solid (derivation:
+                // `work/gather/product-gate-says-verbatim-then-states-the-difference.md`).
                 if topo::per_part_gate_owed(model.instances.len()) {
                     gate(&one, Some(spec.id), tol)?;
                 }
@@ -1101,8 +1094,8 @@ mod declaration_tests {
         );
         assert!(
             topo::per_part_gate_owed(2),
-            "two solids no longer owe the per-part gate: the import loop \
-             would ship an inverted part hidden by a whole-body sum"
+            "two solids no longer owe the per-part gate: a refusal about one \
+             instance of an assembly would stop naming its MANIFOLD_SOLID_BREP"
         );
     }
 

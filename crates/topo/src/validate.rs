@@ -3109,17 +3109,15 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 
 /// **Whether an aggregate of `aggregate_solids` solids owes its parts
 /// the at-rest gate one by one** (F8/D7) — the one statement of that
-/// policy; every caller that gathers parts into one body and gates it
-/// asks here rather than spelling the threshold itself.
+/// policy. A caller that gathers parts into one body and gates it asks
+/// here rather than spelling the threshold itself.
 ///
-/// A gathered aggregate is gated at rest twice, for two subjects: each
-/// part's OWN body first, so a refusal names the part it is about and
-/// arrives before the part is grafted, and then the aggregate, which
-/// owns the cross-part structure (shared arena integrity, the contact
-/// census) no part can see. Why the parts are asked at all is
-/// `docs/DESIGN.md`'s import step 4 (D7) — whole-body sums letting an
-/// inside-out part cancel against its neighbour — and whether that
-/// reason survives check 7 deciding each solid's sign on its own faces
+/// Such an aggregate is gated at rest for two subjects: each part on
+/// its own body, so a refusal names the part it is about and arrives
+/// before the part is grafted, and then the aggregate. `docs/DESIGN.md`
+/// import step 4 states why each part is asked: whole-body sums letting
+/// an inside-out part cancel against its neighbour. Whether that still
+/// holds now that check 7 reads each solid's sign on its own faces
 /// ([`validate_geometric`]) is an open question
 /// (`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
 /// This function decides only WHEN the parts are asked.
@@ -3129,16 +3127,27 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// geometry. It is skipped as an IDENTITY, never as an exemption: the
 /// aggregate gate still runs, on that same solid.
 ///
-/// The count is over the aggregate's SOLIDS — not over its sources,
-/// one of which may carry several solids, and not over any other unit
-/// a caller holds. A caller counting something else owes the reason its
-/// count IS the solid count, at the call.
+/// **The count is over the aggregate's SOLIDS**, and the two callers
+/// do not mean the same thing by a part:
 ///
-/// The dependents, by name: `step_import::import_step`'s
-/// materialization loop and `editor_core::product_recorded`'s per-source
-/// pass call this, and step-import's `vertex_rest_contact` takes its
-/// answer at one solid (`false`: nothing gates the parts before the
-/// aggregate's declarations resolve) as a premise.
+/// - `step_import::import_step` gates each placed instance, which is one
+///   solid, with tier 3; its aggregate gate is tier 3′, the
+///   declared-contact census, which is where the cross-part structure
+///   is checked. Its instance count IS its solid count, and it says why
+///   at the call.
+/// - `editor_core::product_recorded` gates each SOURCE body whole, and a
+///   source may carry several solids; its aggregate gate is tier 3,
+///   with the cross-part census left to the assembly gate above it. So
+///   a lone source of several solids is gated twice on the same
+///   geometry, as a part and as the aggregate. Whether that caller
+///   should count its sources instead is an open question
+///   (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`).
+///
+/// A caller that counts something else owes the reason its count IS
+/// the solid count, at the call. The two callers above are held to
+/// consulting this function by a source-reading guard in each crate
+/// (`tests/per_part_gate_policy.rs`); a new caller is held to it by
+/// convention only.
 #[must_use]
 pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {
     aggregate_solids > 1
@@ -11545,5 +11554,21 @@ mod offset_fit_door_rows {
         let free = geom_brep::recertify_approx(&approx, tol, band)
             .expect("the free function agrees that it re-certifies");
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
+    }
+}
+
+#[cfg(test)]
+mod per_part_gate_rows {
+    use super::per_part_gate_owed;
+
+    /// The threshold itself, at the policy's home: no solid and one
+    /// solid owe nothing beyond the aggregate gate; two and more owe
+    /// each part its own. A consumer that argues from one side of it
+    /// pins that side where it argues (step-import's
+    /// `the_per_part_policy_still_skips_a_lone_solid`).
+    #[test]
+    fn the_per_part_gate_is_owed_from_two_solids_up() {
+        let owed: Vec<bool> = (0..=3).map(per_part_gate_owed).collect();
+        assert_eq!(owed, [false, false, true, true]);
     }
 }

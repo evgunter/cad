@@ -43,9 +43,9 @@
 //! ([`validate_geometric`](crate::validate_geometric)) is what says
 //! whether the result is a body. Know what that gate proves: the
 //! structural tiers, then tier 3's LOCAL battery — every check reads
-//! one face, one edge, or one edge–face pair, and the one whole-body
-//! check (the +V signed volume) SUMS flux, so overlapping positive
-//! volumes only reinforce it. Two grafted solids share no edge, so no
+//! one face, one edge, or one edge–face pair, and the +V signed
+//! volume is read per solid, on that solid's own faces. Two grafted
+//! solids share no edge, so no
 //! tier-3 check ever compares one against the other: solids that
 //! OVERLAP or TOUCH pass `validate_geometric` undetected. The gate
 //! with cross-solid reach is the tier-3′ form

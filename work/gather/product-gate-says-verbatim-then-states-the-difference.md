@@ -230,7 +230,11 @@ instance↔solid equivalence this row derived. The module doc, the
 `vertex_rest_contact`'s premise cite the function by name.
 
 Guards: `per_part_gate_policy.rs` in `editor-core/tests` and
-`step-import/tests` (the per-part gate call sits inside the one
-`if topo::per_part_gate_owed(` block, code view), and
-`declaration_tests::the_per_part_policy_still_skips_a_lone_solid`
-(the premise `vertex_rest_contact` argues from).
+`step-import/tests` hold that each caller CALLS the policy around its
+per-part gate (code view). The editor-core file also pins the gather's
+behaviour on both sides of the threshold and at the sources-vs-solids
+seam (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`);
+step-import's is pinned by `review_r1_tier_gate_probes.rs`. `topo`
+pins the threshold itself (`per_part_gate_rows`), and
+`declaration_tests::the_per_part_policy_still_skips_a_lone_solid` pins
+the premise `vertex_rest_contact` argues from.

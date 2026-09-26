@@ -58,8 +58,9 @@
 //! beside it, whose value channel is bit-identical, is the validation
 //! of record. Disjoint multi-solid bodies are tier-3 legal.
 //! Know what the aggregate gate proves: tier 3 is a LOCAL battery
-//! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
-//! volume that SUMS), so solids that OVERLAP pass THIS call undetected
+//! (per-face, per-edge, per-edge–face-pair, plus each solid's signed
+//! volume, read on that solid's own faces), so no check compares one
+//! solid against another and solids that OVERLAP pass THIS call undetected
 //! — inter-solid interference is not among its checks. Undeclared
 //! cross-instance contact is A5's hard error and interference fits are
 //! C6's recorded-gate-skips territory; both are decided by the tier-3′
@@ -839,10 +840,14 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
 
     // Pass 2: the per-source gate, asked where `topo::per_part_gate_owed`
     // says the product owes it. The policy counts the aggregate's
-    // SOLIDS, and so does this sum — not sources: one source may itself
-    // carry several (an instantiated sub-assembly), and the graft below
-    // carries every solid of every source into the aggregate, so this is
-    // the product's solid count.
+    // SOLIDS, and so does this sum: the graft below carries every solid
+    // of every source into the aggregate. But the PART gated here is a
+    // SOURCE, gated whole, and one source may carry several solids (an
+    // instantiated sub-assembly, a pattern) — so a lone multi-solid
+    // source is gated twice on the same geometry, here and as the
+    // aggregate. That is today's behaviour, pinned by
+    // `per_part_gate_policy.rs`; whether this call should count sources
+    // instead is `work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`.
     let total_solids: usize = sources
         .iter()
         .map(|(_, _, b, _, _, _)| b.solids().count())

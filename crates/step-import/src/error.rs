@@ -339,10 +339,13 @@ pub enum StepImportError {
     TierInvalid {
         /// The `MANIFOLD_SOLID_BREP` id of the solid asked about on its
         /// own, or `None` when the verdict is about the whole assembled
-        /// body (which for a one-solid file is the same body — see
-        /// [`crate::import_step`]).
+        /// body. A one-instance file is only ever asked as the whole
+        /// body ([`topo::per_part_gate_owed`]), so its refusals carry
+        /// `None`.
         solid: Option<u64>,
-        /// The tier-1/2/3 verdicts, verbatim.
+        /// The verdicts, verbatim: tiers 1–3 for a solid asked on its
+        /// own, tiers 1–3′ (the declared-contact census) for the
+        /// assembled body.
         errors: Vec<topo::ValidationError>,
     },
 }
