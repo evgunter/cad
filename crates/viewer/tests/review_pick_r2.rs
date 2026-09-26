@@ -43,7 +43,7 @@
 use editor_core::resolve::{crossing, ray_triangle};
 use viewer::pickindex::PickIndex;
 
-use crate::common::corpus_pick::{FlatReference, over_every_landing, wide_aim};
+use crate::common::corpus_pick::{FlatReference, over_every_landing, too_wide, wide_aim};
 use crate::fixture::pick::det_and_conditioning;
 
 #[derive(Default)]
@@ -87,7 +87,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         let (v, dir, reach) = (aim.at, aim.dir, aim.reach);
         tally.rays += 1;
         let ray = aim.ray();
-        let mut best: Option<(f64, [f64; 3])> = None;
+        let mut best: Option<(f64, Option<[f64; 3]>)> = None;
         let mut refused_here = 0usize;
         for flat in &reference.parts {
             for cand in flat.tree.ray(&ray) {
@@ -110,12 +110,7 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
                 if let Some(span) = ray_triangle(&ray, tri)
                     && best.is_none_or(|(b, _)| span.t < b)
                 {
-                    let t = span.t;
-                    let bounds = cross
-                        .expect("an admitted candidate has a certified determinant")
-                        .barycentrics
-                        .map(|(_, err)| err);
-                    best = Some((t, bounds));
+                    best = Some((span.t, too_wide(&ray, tri)));
                 }
             }
         }
@@ -123,14 +118,11 @@ fn sweep(name: &str, step: &str, index: &PickIndex, tally: &mut Tally) {
         if refused_here > 0 {
             tally.rays_with_a_refusal += 1;
         }
-        if let Some((t, bounds)) = best {
+        if let Some((t, wide)) = best {
             if (t - reach).abs() < 1e-9 {
                 tally.grazes += 1;
             }
-            // A NaN bound is not a bound and must red
-            // this row, not slip through a comparison it
-            // fails.
-            if bounds.iter().any(|&b| b.is_nan() || b >= 1.0) {
+            if let Some(bounds) = wide {
                 tally.wide_winners.push(format!(
                     "{name} after {step}: {dir:?} through {v:?} at reach {reach}: \
                      winner at t {t} with bounds {bounds:?}"

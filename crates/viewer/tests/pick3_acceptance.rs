@@ -30,13 +30,11 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bvh::Ray;
-use editor_core::resolve::crossing;
 use editor_core::{Evaluation, HitTestError, RecipeNodeId};
 use viewer::pickindex::PickIndex;
 
 use crate::common::corpus_pick::{
-    FlatHit, FlatReference, over_every_landing, tie_rays_for, wide_aim,
+    FlatHit, FlatReference, over_every_landing, tie_rays_for, too_wide, wide_aim,
 };
 use crate::fixture::pick::listed;
 
@@ -57,15 +55,6 @@ fn by_rounded_t(seen: &[FlatHit]) -> Option<FlatHit> {
             b
         }
     })
-}
-
-/// The widest barycentric bound the winning candidate carries.
-fn widest_bound(reference: &FlatReference, ray: &Ray, win: &FlatHit) -> f64 {
-    crossing(ray, &reference.parts[win.part].corners[win.item])
-        .expect("an admitted candidate has a certified determinant")
-        .barycentrics
-        .iter()
-        .fold(0.0f64, |w, &(_, err)| w.max(err))
 }
 
 // ---------------------------------------------------------------
@@ -192,7 +181,7 @@ fn tie_sweep(
                     table.beyond_or_miss += 1;
                 }
                 for win in &exhaustive {
-                    if widest_bound(&reference, &ray, win) >= 1.0 {
+                    if too_wide(&ray, &reference.parts[win.part].corners[win.item]).is_some() {
                         table.wide_winners += 1;
                     }
                 }

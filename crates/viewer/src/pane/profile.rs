@@ -460,15 +460,15 @@ mod tests {
     #![allow(clippy::panic)]
 
     use eframe::egui;
-    use pncad::document::{Dimension, Doc, DocEdit, Expr, Node, ProfileProgram, apply};
+    use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::Step;
 
     use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
     use crate::drafts::Drafts;
     use crate::pane::headless::painted_while_hovering;
-    use crate::session::author::datum_node;
     use crate::sketch;
+    use crate::test_support::{inserted, xy_frame};
 
     /// **Drawing the editor never rewrites a document value.** A
     /// committed `circle_split` above the form's count cap (the
@@ -478,23 +478,11 @@ mod tests {
     #[test]
     fn drawing_a_locked_split_circle_above_the_cap_leaves_it_alone() {
         use crate::forms::{MAX_CIRCLE_SPLIT, ShapeEdits};
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
-        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let doc = Doc::empty_derived("probe", Tol::witness());
-        let frame = datum_node(crate::session::DatumSpec::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node: frame },
+        let (doc, plane) = inserted(
+            &Doc::empty_derived("probe", Tol::witness()),
+            xy_frame(),
             Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("frame")
-        .doc;
-        let plane = *doc.order().last().expect("the frame");
+        );
         let n = MAX_CIRCLE_SPLIT + 1;
         // **The figure's scale is the run's ε times a constant, and
         // that is forced.** A circle split n ways is conditioned
@@ -604,15 +592,8 @@ mod tests {
             loops,
             ids: Vec::new(),
         });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("the document admits a split circle above the form's cap")
-        .doc;
-        let profile = *doc.order().last().expect("the profile");
+        // The document admits a split circle above the form's cap.
+        let (doc, profile) = inserted(&doc, node, Tol::witness());
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         assert!(!edit.moved(), "fresh load");

@@ -36,7 +36,7 @@ use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
-use crate::common::corpus_pick::{FlatHit, FlatReference, ring_bump, tie_rays_for};
+use crate::common::corpus_pick::{FlatHit, FlatReference, ring_bump, tie_rays_for, too_wide};
 use crate::corpus;
 use crate::fixture::pick::{AXES, aimed, listed};
 
@@ -373,17 +373,11 @@ fn reference_answers(
         .map(|(i, ray)| {
             let (expected, tied) = reference.pick(ray);
             for hit in &expected {
-                let tri = &reference.parts[hit.part].corners[hit.item];
-                let bounds = crossing(ray, tri)
-                    .expect("an answered candidate's determinant is certified")
-                    .barycentrics
-                    .map(|(_, err)| err);
-                // A NaN bound is not a bound and must red this row,
-                // not slip through a `b >= 1.0` that a NaN fails.
+                let wide = too_wide(ray, &reference.parts[hit.part].corners[hit.item]);
                 assert!(
-                    !bounds.iter().any(|&b| b.is_nan() || b >= 1.0),
+                    wide.is_none(),
                     "{name} after {step}: ray {i} ({ray:?}) is answered by {hit:?} whose widest \
-                     barycentric bounds are {bounds:?} — an interval that wide covers [0, 1] and \
+                     barycentric bounds are {wide:?} — an interval that wide covers [0, 1] and \
                      the exact test refuses it"
                 );
             }

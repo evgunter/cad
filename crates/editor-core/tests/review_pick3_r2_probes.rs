@@ -31,7 +31,7 @@
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
     "crates/bvh/src/",
-    "crates/editor-core/tests/fixture/pick.rs",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture::pick::{aimed, near_tangent};

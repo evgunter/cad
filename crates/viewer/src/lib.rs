@@ -84,6 +84,11 @@ pub mod tools;
 pub mod tree;
 mod vocab;
 
+/// The fixture doors this crate's unit tests author documents with —
+/// the same file `tests/common` mounts, so both read one definition.
+#[cfg(test)]
+mod test_support;
+
 #[cfg(feature = "app")]
 pub mod app;
 #[cfg(feature = "app")]

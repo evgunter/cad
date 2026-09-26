@@ -27,7 +27,7 @@
 //!   answer.
 
 use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, answer_of, ray_triangle};
+use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
 use editor_core::{DocEdit, Evaluation, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use viewer::pickindex::PickIndex;
@@ -173,6 +173,32 @@ impl FlatReference {
             .collect();
         (per_face, tied)
     }
+}
+
+/// **An answered candidate's barycentric error bounds, when they are
+/// too wide for it to BE an answer** — or `None` when they are not.
+///
+/// A value inside `[0, 1]` whose rounding interval is `1` or wider
+/// covers the admissible range, and the exact test (`ray_triangle`'s
+/// INFORM half) refuses it; so over every candidate the door or the
+/// reference answered with, this is `None`, and a row counts or
+/// asserts the ones that are not. A NaN bound is not a bound, and is
+/// answered as too wide rather than slipping through a `>= 1.0` that a
+/// NaN fails.
+///
+/// # Panics
+///
+/// If the candidate's determinant is not certified: an answered
+/// candidate's always is.
+pub fn too_wide(ray: &Ray, tri: &[Point3<f64>; 3]) -> Option<[f64; 3]> {
+    let bounds = crossing(ray, tri)
+        .expect("an answered candidate's determinant is certified")
+        .barycentrics
+        .map(|(_, err)| err);
+    bounds
+        .iter()
+        .any(|&b| b.is_nan() || b >= 1.0)
+        .then_some(bounds)
 }
 
 // ---------------------------------------------------------------
