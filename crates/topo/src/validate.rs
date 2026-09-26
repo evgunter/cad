@@ -9157,9 +9157,7 @@ mod tests {
             let gated: Vec<(FaceKey, LoopKey, LoopKey)> = body
                 .faces
                 .iter()
-                .filter(|(_, f)| {
-                    !f.rings.is_empty() && nesting_normal(&body, f.surface).is_some()
-                })
+                .filter(|(_, f)| !f.rings.is_empty() && nesting_normal(&body, f.surface).is_some())
                 .map(|(k, f)| (k, f.outer, f.rings[0]))
                 .collect();
             ringed += gated.len();
@@ -9601,7 +9599,10 @@ mod tests {
             p(10.0, 10.0, 0.0),
             p(0.0, 10.0, 0.0),
         ];
-        for (name, x0, x1, inside) in [("in the lune", 10.5, 11.5, true), ("past the arc", 13.0, 14.0, false)] {
+        for (name, x0, x1, inside) in [
+            ("in the lune", 10.5, 11.5, true),
+            ("past the arc", 13.0, 14.0, false),
+        ] {
             let ring = vec![
                 p(x0, 4.0, 0.0),
                 p(x1, 4.0, 0.0),
@@ -9639,7 +9640,10 @@ mod tests {
             );
             let got = nesting_words(&body, band, tol);
             if inside {
-                assert!(got.is_empty(), "{name}: the lune is the loop's region: {got:?}");
+                assert!(
+                    got.is_empty(),
+                    "{name}: the lune is the loop's region: {got:?}"
+                );
             } else {
                 assert!(
                     got.iter().any(|e| matches!(
