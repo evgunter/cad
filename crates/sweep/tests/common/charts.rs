@@ -4,17 +4,14 @@
 //! **Routing rule** (`common/mod.rs`'s, applied here): what a suite
 //! drives an offset door WITH. The doors take a move per group of
 //! faces sharing one surface key, so every suite that calls one builds
-//! this partition first; it was written out in each of them before it
-//! came here. Not `sweep::test_support`, whose consumers are
+//! this partition first, and builds it here. Not `sweep::test_support`, whose consumers are
 //! other crates: every consumer is in this one. Not [`super::orient`]
 //! or [`super::cap_rims`], which read a body a suite has built rather
 //! than the input a suite hands a door.
 //!
-//! **The partition's order is part of what it returns**: groups in the
-//! order their first face appears in the face arena, and each group's
-//! faces in arena order. A suite that reads `moves[0]` or prints the
-//! moves depends on it, and every copy this replaced produced exactly
-//! that order.
+//! **The partition's order**: groups in the order their first face
+//! appears in the face arena, and each group's faces in arena order —
+//! deterministic, so a printed move set reads the same run to run.
 //!
 //! **Deliberately NOT absorbed**, and the whole of it:
 //! `shell10_r2_probes::chart_of`, the ONE chart a given face wears — a
