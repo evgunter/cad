@@ -734,7 +734,7 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                     "d = {d}: {msg}"
                 );
                 assert!(
-                    msg.contains("Recourse: use a larger offset distance"),
+                    msg.contains("Recourse: use an offset distance of larger magnitude"),
                     "d = {d}: {msg}"
                 );
                 assert!(!msg.contains("inf"), "d = {d}: prints a bound: {msg}");

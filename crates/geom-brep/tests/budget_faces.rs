@@ -540,7 +540,10 @@ fn each_faces_message_names_its_lever() {
     }
     .to_string();
     assert!(n.contains("offset distance of 0.0000001 m"), "{n}");
-    assert!(n.contains("Recourse: use a larger offset distance"), "{n}");
+    assert!(
+        n.contains("Recourse: use an offset distance of larger magnitude"),
+        "{n}"
+    );
     // The never-finite message names no knob of the loop, and no
     // tolerance to loosen to: there is no bound to size one against.
     assert!(

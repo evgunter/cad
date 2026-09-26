@@ -177,10 +177,13 @@ pub enum MeterError {
     ///
     /// A `floor` of exactly zero is the loud answer of a cell the
     /// normal turns too far inside, which splitting the face clear of
-    /// the degeneracy answers. A regular patch refusing here means
+    /// the degeneracy (a pole, cusp or pinch — a point the user can
+    /// see) answers. A regular patch refusing here means
     /// [`OFFSET_METER_LADDER`] ran out of rungs on it, and the payload
     /// is what decides a further rung, which is why the message asks
-    /// for the numbers to be reported.
+    /// for the numbers to be reported. It renders `floor` and
+    /// `speed_lever`; `thinness` is their quotient, so the report
+    /// recovers all three.
     NormalFloor {
         /// The certified lower bound on `‖S_u × S_v‖` (m² per unit
         /// parameter area) — zero when no cell could be certified.
@@ -219,26 +222,26 @@ impl core::fmt::Display for MeterError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
             Self::NormalFloor {
-                floor, thinness, ..
+                floor, speed_lever, ..
             } => write!(
                 f,
-                "the face's surface normal cannot be proved non-zero (normal floor {floor}, \
-                 chart thinness {thinness} m), so its offset is not defined. Recourse: split \
-                 the face clear of the degenerate point and offset the pieces; if the face \
-                 is regular, report these numbers"
+                "the face's surface normal cannot be proved non-zero (smallest normal \
+                 length {floor} m² per unit parameter area, parameter speed {speed_lever} m), \
+                 so it has no offset. Recourse: split the face clear of any pole, cusp or \
+                 pinch; if it has none, report these numbers"
             ),
             Self::CurvatureHeadroom { reach, .. } => write!(
                 f,
-                "the offset distance reaches the face's radius of curvature on the side it \
-                 bends toward ({reach} m), so the offset would fold over itself. Recourse: \
-                 use a distance below {reach} m, or offset to the other side"
+                "the offset distance's magnitude reaches the face's radius of curvature on \
+                 the side it bends toward ({reach} m), so the offset would fold over itself. \
+                 Recourse: use an offset distance of magnitude below {reach} m, or offset to \
+                 the other side"
             ),
-            Self::Escalated { source } => {
-                write!(
-                    f,
-                    "whether the face can be offset is too close to call: {source}"
-                )
-            }
+            Self::Escalated { source } => write!(
+                f,
+                "whether the face can be offset is too close to call: \
+                 {source}"
+            ),
         }
     }
 }
@@ -739,26 +742,25 @@ pub fn meter_patch(
     d: f64,
     band: Band,
 ) -> Result<(PatchRegularity, PatchCollapse), MeterResult> {
-    let mut last: Option<MeterError> = None;
-    for splits in OFFSET_METER_LADDER {
+    // One rung: a patch-bound refusal ends the ladder (the outer
+    // `Result`); a meter's verdict is the rung's own (the inner one).
+    let rung = |splits| -> Result<Result<(PatchRegularity, PatchCollapse), MeterError>, _> {
         let cells = patch_cells_refined(base, splits).map_err(MeterResult::PatchBound)?;
         let reg = patch_regularity(&cells);
         let coll = patch_collapse(&cells, d);
-        match offset_normal_floor(&reg, band).and_then(|()| {
-            offset_curvature_headroom(&coll, band)?;
-            Ok(())
-        }) {
-            Ok(()) => return Ok((reg, coll)),
-            Err(e) => last = Some(e),
+        Ok(offset_normal_floor(&reg, band)
+            .and_then(|()| offset_curvature_headroom(&coll, band))
+            .map(|()| (reg, coll)))
+    };
+    // The ladder is a non-empty array, so this pattern is irrefutable
+    // and the finest rung's verdict is the answer by construction.
+    let [coarser @ .., finest] = OFFSET_METER_LADDER;
+    for splits in coarser {
+        if let Ok(readings) = rung(splits)? {
+            return Ok(readings);
         }
     }
-    Err(MeterResult::Meter(last.unwrap_or(
-        MeterError::NormalFloor {
-            floor: 0.0,
-            thinness: 0.0,
-            speed_lever: 0.0,
-        },
-    )))
+    rung(finest)?.map_err(MeterResult::Meter)
 }
 
 /// What [`meter_patch`] refuses with: a meter's own verdict, or the
@@ -813,8 +815,8 @@ mod tests {
     #[test]
     fn every_meter_error_arm_names_a_recourse() {
         // A vocabulary, not a part-of-speech test: an arm that names
-        // the lever the caller turns satisfies the claim the same way
-        // an imperative does.
+        // what the caller changes satisfies the claim the same way an
+        // imperative does.
         const RECOURSE_WORDS: &[&str] = &["split", "ask", "report", "offset to"];
         let band = Band::new(1e-9, 1e-8).unwrap();
         let margins = [
