@@ -213,25 +213,25 @@ fn a_granted_crossing_union_with_a_torus_band_completes_in_containment() {
 }
 
 /// **E2E row 2 — the refused pose.** The same brick raised into the
-/// torus band's box (y ∈ [1.05, 1.45] overlaps the whole-torus box
-/// y ∈ [1.25 ± R_arc] ≈ [0.97, 1.53]) must refuse naming the
-/// (Torus, _) pair — even
-/// though the brick still genuinely intersects the solid only through
-/// supported faces, the box MAY meet and the gate has no arm for the
-/// pair.
+/// torus band (y ∈ [1.05, 1.45] against the band's y ∈ [1.25 ± R_arc]
+/// ≈ [0.97, 1.53]). The torus is on the union's KIND roster, so the
+/// gate admits the pair; the crossing layer records the brick's plane
+/// against the torus band, and the union stops at the JOIN's germ
+/// frame, which has no `(Torus, Plane)` arm. That is the join-side door
+/// the torus gate admission was told to expect, measured.
 #[test]
-fn the_same_union_posed_into_the_torus_box_refuses_naming_the_pair() {
+fn the_same_union_posed_into_the_torus_band_stops_at_the_germ_frame() {
     let a = vase();
     let b = brick((-1.0, 1.0), (1.05, 1.45), (-1.0, 1.0), Tol::witness());
-    let err = topo::union(&a, &b, Tol::witness())
-        .expect_err("a torus face whose box may meet the brick must gate the union");
-    let BooleanError::CurvedPairUnsupported {
-        op: None,
-        kind: geom_brep::SurfaceKind::Torus,
+    let err =
+        topo::union(&a, &b, Tol::witness()).expect_err("a torus × plane germ has no join arm");
+    let BooleanError::GermFrameUnsupported {
+        a_kind: geom_brep::SurfaceKind::Torus,
+        b_kind: geom_brep::SurfaceKind::Plane,
         ..
     } = err
     else {
-        panic!("expected the pair-scoped torus refusal, got {err:?}");
+        panic!("expected the germ frame's (Torus, Plane) refusal, got {err:?}");
     };
 }
 
@@ -396,9 +396,12 @@ fn a_probe_on_a_tilted_cones_locus_is_always_refused() {
 /// **Row 5 — the torus twin.** Every point of the tube of a TILTED
 /// torus must be inside its box; the extreme in-plane points
 /// `center + (R + r)·û` are the ones a wrong perpendicular bound
-/// (`(R + r)·√(1 − aᵢ²) + r·|aᵢ|` mis-derived) drops first.
+/// (`(R + r)·√(1 − aᵢ²) + r·|aᵢ|` mis-derived) drops first. The torus
+/// is on the union's KIND roster, so the witness is the sweep's
+/// candidate set rather than the gate: each probe must be EXAMINED
+/// against the torus face.
 #[test]
-fn a_probe_on_a_tilted_toruss_locus_is_always_refused() {
+fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
     let axis = Vec3::new(1.0, 2.0, 2.0).normalize();
     let center = Point3::new(2.5, 0.5, 3.0);
     let (major, minor) = (0.8, 0.2);
@@ -409,6 +412,11 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_refused() {
         minor_radius: minor,
         u_ref: axis.orthonormal_basis().0,
     });
+    let torus_face = a
+        .faces()
+        .find(|(_, f)| matches!(a.get_surface(f.surface), Some(geom::Surface::Torus { .. })))
+        .map(|(k, _)| k)
+        .expect("the brick carries the torus face");
     let u_ref = axis.orthonormal_basis().0;
     let v_ref = axis.cross(u_ref);
     for k in 0..8 {
@@ -426,15 +434,30 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_refused() {
                 "a probe ON the torus tube (azimuth {t:.2}, radial {radial}) must \
                  overlap the torus box"
             ));
+            // The torus is on the union's KIND roster, so the gate is
+            // no longer the oracle. The sweep is: a probe edge examined
+            // against the torus face is a pair the face's box let
+            // through, and on this relabelled face (its boundary is
+            // not on the torus) the crossing layer refuses naming that
+            // very face. A probe the box excluded would reduce clean.
+            // At a coarse band the quartic itself may escalate on the
+            // pose, which is the same evidence: only an examined pair
+            // runs the torus root lane.
+            let examined = match &err {
+                BooleanError::CurvedPierceUnsupported {
+                    operand: topo::Operand::A,
+                    face,
+                    ..
+                } => *face == torus_face,
+                BooleanError::Escalated { diag } => diag
+                    .predicate
+                    .is_some_and(|p| p.starts_with("bool_ray_torus")),
+                _ => false,
+            };
             assert!(
-                matches!(
-                    err,
-                    BooleanError::CurvedPairUnsupported {
-                        kind: geom_brep::SurfaceKind::Torus,
-                        ..
-                    }
-                ),
-                "azimuth {t:.2}: expected the torus pair refusal, got {err:?}"
+                examined,
+                "azimuth {t:.2}: expected the probe to be examined against the \
+                 torus face, got {err:?}"
             );
         }
     }

@@ -130,13 +130,14 @@
 //!    scene is where a PART met it while trying to be a part: the pot
 //!    touches the axis at both ends, so nothing on it is a candidate
 //!    and the lid had to be bored to have one.
-//! 4. **The teapot is four solids because the operand gate refuses
-//!    both joins — at TWO DIFFERENT RUNGS of it, and the second one
-//!    moved when the spout became a canal.**
+//! 4. **The teapot is four solids because both joins refuse — at TWO
+//!    DIFFERENT DOORS, each of which has moved.**
 //!
-//!    handle ∪ pot is torus × SPHERE — the belly is a spherical
-//!    zone — so `CurvedPairUnsupported`, a FACE-KIND pair with no
-//!    wired arm, pinned in wall 2.
+//!    handle ∪ pot used to be torus × SPHERE at the operand gate. The
+//!    torus is on the union's KIND roster now, so the join gets past
+//!    the gate and stops at the maximal-faces precondition on the POT:
+//!    `NonMaximalFaces`, its full revolve's planar walls split in two,
+//!    pinned in wall 2.
 //!
 //!    spout ∪ pot used to be the same shape of refusal — cone × plane
 //!    — and it is not any more. A loft's walls are `Nurbs`, and the
@@ -152,12 +153,11 @@
 //!    body's own edges, which is a narrower and more useful frontier.
 //!    Wall 3 pins the new variant and the note carries the payload.
 //!
-//!    Read wall 2's refusal for what it NAMES rather than what it
-//!    causes: the gate is pair-scoped and box-conservative, so it
-//!    reports the first pair whose boxes MAY meet, and a reader who
-//!    took the text for the cause would be reading the wrong pair (the
-//!    wall-7 lesson). The schedule is the banked germ-chord lanes and
-//!    #1057's two C5 arms. **Both refusals arrive through the
+//!    Wall 2 is past the operand gate: the handle's torus is on the
+//!    union's KIND roster, and the join stops at the maximal-faces
+//!    precondition on the vessel, whose full revolve mints its planar
+//!    walls split in two. The schedule behind that is the revolve's
+//!    split-wall question, then the banked germ-chord lanes. **Both refusals arrive through the
 //!    DOCUMENT**: each join is a `Node::Boolean` that lowers to the
 //!    same kernel `union` and fails at `evaluate`, and what the note
 //!    quotes is that node's own carried refusal rather than a second
@@ -167,8 +167,8 @@
 //!    both survived a re-authoring that moved one: the same physical
 //!    face, the mouth-rim annulus at `y = 1/8`, was `FaceKey(1v1)`
 //!    when the cup came from a plane scan and became `FaceKey(2v1)`
-//!    once it came from the document. Wall 2 matches on `operand`,
-//!    `kind` and `other_kind`; wall 3 now matches on `operand` alone,
+//!    once it came from the document. Wall 2 matches on `operand`
+//!    (the vessel's split planar walls); wall 3 matches on `operand` alone,
 //!    because the variant it pins carries no kinds — the edge key it
 //!    does carry is exactly the sort of value a probe must not pin.
 //! 5. **A spout the shape of a spout IS authorable — and this row was
@@ -1347,8 +1347,11 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
 /// only a tolerance and builds its own operands: nothing outside that
 /// scene's probe reads what it makes.
 fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
-    // WALL 2 — the handle joined to the pot. A curved x curved pair at
-    // the operand gate; the germ roster has no arm for it.
+    // WALL 2 — the handle joined to the pot. The handle's torus is on
+    // the union's KIND roster, so the gate has nothing to say about
+    // it; the join stops one door on, at the maximal-faces
+    // precondition, on the VESSEL: its full revolve mints split planar
+    // walls that F7 refuses.
     crate::walls::wall(
         "teapot",
         2,
@@ -1358,14 +1361,8 @@ fn wall_probes(ev: &Evaluation<f64>, r: &Recipe) {
         |e| {
             matches!(
                 e,
-                BooleanError::CurvedPairUnsupported {
-                    op: None,
-                    operand: Operand::B,
-                    kind: SurfaceKind::Torus,
-                    // The pot's belly is a SPHERE now, not the squared
-                    // pot's cylinder: same gate, and the pair it names
-                    // is the pair the geometry actually has.
-                    other_kind: SurfaceKind::Sphere,
+                BooleanError::NonMaximalFaces {
+                    operand: Operand::A,
                     ..
                 }
             )
@@ -2402,11 +2399,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              angle's cosine and sine come back as {cos_t} and {sin_t}, which are the \
              direction's components bit for bit; that is reported and not asserted, \
              because a bitwise pin here would gate the scene on one libm's last ulp. Neither JOINS, and they refuse at TWO \
-             DIFFERENT RUNGS of the operand gate. handle ∪ vessel: {handle_refusal} — \
-             the pair-scoped rung, a germ PAIR (torus × sphere) with no wired arm, and \
-             note that a pair the gate NAMES need not be the pair the model cares about: \
-             box overlap is a MAY, so it reports the first pair whose boxes may meet. \
-             spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
+             DIFFERENT DOORS. handle ∪ vessel: {handle_refusal} — the handle's torus \
+             is on the union's roster, so the join gets past the operand gate and stops \
+             at the maximal-faces precondition on the VESSEL, whose full revolve mints \
+             its planar walls split in two. spout ∪ vessel: {spout_refusal} — and THIS one moved when the spout became \
              a canal. A loft's walls are Nurbs and the pair rung HAS a Nurbs arm, so the \
              request now gets past it and dies one door in, on an EDGE of the spout: \
              rung-3 carriers are what the curved zip MINTS, not what it consumes, so the \
@@ -2419,7 +2415,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              is the evaluation's own carried refusal. NEITHER PROBE PINS AN ARENA KEY, which is \
              why both survived a re-authoring that moved one — the mouth-rim annulus at \
              y = 1/8 was FaceKey(1v1) off the plane scan and is FaceKey(2v1) off the \
-             document. Wall 2 matches on operand and the two kinds; wall 3 matches on \
+             document. Wall 2 matches on the operand; wall 3 matches on \
              the OPERAND alone, because the variant it now pins carries no kinds and the \
              edge key it does carry is exactly the sort of value a probe must not pin. The lofted canal above \
              is what a potter would draw and it IS authorable; what is not is a SWEPT \
