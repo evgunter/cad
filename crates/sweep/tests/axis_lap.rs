@@ -31,7 +31,11 @@
 //! - a flat cutter with a thin half-rod on the axis leaves role
 //!   resolution only the rim's CHORD midpoint to probe, which is on
 //!   neither flanking region, and the join refuses `SectionLoopMixed`
-//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`).
+//!   (`work/zip/role-resolution-interior-tiers-certify-only-planar-region-faces`);
+//! - a blind D pocket in a block builds from the bottom face (its floor's
+//!   chord has the D's arc between its ends) and refuses `JoinDesync`
+//!   from the top
+//!   (`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -256,4 +260,54 @@ fn a_chord_midpoint_probe_reads_both_loops_alike() {
             r.err()
         );
     }
+}
+
+/// The block `[−1, 1]² × [0, 1]` minus a D-profile rod (chord `x = 0.3`,
+/// major arc `r = 0.5` about the origin) extruded `1.0` from `z = z0`.
+fn d_pocket(z0: f64) -> Result<Body<f64>, BooleanError> {
+    let block = extruded(
+        SketchPlane::xy(),
+        polygon(&[(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]),
+        1.0,
+    );
+    let c = sweep::test_support::rod_chord_at(0.3);
+    let d = extruded(
+        SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0))),
+        bulge_loop(vec![
+            (Point2::new(0.3, c.half), c.wall_bulge),
+            (Point2::new(0.3, -c.half), 0.0),
+        ]),
+        1.0,
+    );
+    topo::subtract(&block, &d, tol()).map(|r| r.body().expect("a body remains").body.clone())
+}
+
+/// **A blind D pocket, from either face.** Entering through the BOTTOM
+/// face, the block's floor meets the D's flat wall along a chord whose
+/// ends are adjacent on the floor's new ring with the major arc between
+/// them — the plane×plane arm's conic question — and the pocket builds:
+/// it certifies at rest and its volume is the block less the D's area
+/// over the pocket's depth `0.5`. Entering through the TOP face it
+/// refuses `JoinDesync` in the join's internal words (the ring-run
+/// winding decides `Zero`), which
+/// `work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`
+/// carries.
+#[test]
+fn a_blind_d_pocket_builds_from_below_and_refuses_from_above() {
+    let bottom = d_pocket(-0.5).expect("the bottom-entry pocket builds");
+    assert_sound(
+        &bottom,
+        4.0 - (PI * R * R - segment(0.3)) * 0.5,
+        "the bottom-entry D pocket",
+    );
+    let err = d_pocket(0.5).expect_err("the top-entry pocket refuses");
+    assert!(
+        matches!(
+            err,
+            BooleanError::JoinDesync {
+                what: "ring-run winding is degenerate (zero enclosed area)"
+            }
+        ),
+        "{err:?}"
+    );
 }
