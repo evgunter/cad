@@ -627,41 +627,29 @@ fn dual_lane_value_channel_matches_f64_bitwise() {
     // value channels equal the f64 build bitwise (tangent data never
     // decides).
     use geom_core::{Dual, Dual64};
-    let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
-        bulge_loop(
-            lp.vertices()
-                .iter()
-                .zip(lp.bulges())
-                .map(|(v, &b)| {
-                    (
-                        Point2::new(Dual::constant(v.x), Dual::constant(v.y)),
-                        Dual::constant(b),
-                    )
-                })
-                .collect(),
-        )
-    };
     let f = extrude(
         &validated(vec![l_loop()]),
         Extrusion::Distance(1.0),
         Tol::witness(),
     )
     .unwrap();
-    let dp = Profile::new(SketchPlane::<Dual64>::xy(), vec![lift(&l_loop())])
-        .validate(Tol::witness())
-        .unwrap();
+    let dp = Profile::new(
+        SketchPlane::<Dual64>::xy(),
+        vec![l_loop().map_scalar(Dual::constant)],
+    )
+    .validate(Tol::witness())
+    .unwrap();
     let d = extrude(
         &dp,
         Extrusion::Distance(Dual::constant(1.0)),
         Tol::witness(),
     )
     .unwrap();
-    // The dual takes the structural half: checks 1-6, 8 and 9, which is
-    // where the certificates compared below are produced. The one check
-    // it does not run is the +V volume invariant, whose enclosure a
-    // dual may not certify — and the f64 row beside it runs the
-    // composed door on the same construction, so this is a narrower
-    // assertion about the same body rather than a weaker subject.
+    // The dual takes the `_structural` twin: the whole battery holding no
+    // certified lane (check 7 through the closed form, which computes on
+    // this planar body), and where the certificates compared below are
+    // produced — and the f64 row beside it runs the composed door on the
+    // same construction, so both scalars answer the same question.
     assert_eq!(
         topo::validate_geometric_structural(&d.body, Tol::witness()),
         Ok(())

@@ -418,3 +418,281 @@ fn r1_the_hole_ray_certifies_exactly_four_roots() {
         other => panic!("the four-root ray through the hole did not certify: {other:?}"),
     }
 }
+
+/// The pose the generic-pose sweep found (seed `0x2ce3095461764e3a`, at
+/// ε = 1e-12): a ray all but perpendicular to the axis, whose odd
+/// coefficient `q̂ ≈ −1.2e-4` is decided nonzero, so the resolvent's one
+/// real root is `z ≈ q̂²/c1 ≈ 1.3e-9` — the root Cardano's form would
+/// assemble as a difference of order-one terms.
+///
+/// The truth is the pose's own quartic solved in exact rational
+/// arithmetic on these f64 inputs: its Sturm count is 2 and bisection
+/// brackets each root to 1e-45. The row holds both scalars to it at the
+/// band the sweep drew — a FIXED band, so every ε leg asserts the same
+/// pose, which the run's band would escalate at 1e-9 and 1e-6 — the f64
+/// roots to within 1e-12, and the `Interval` roots to an enclosure that
+/// contains the truth and is no wider than 1e-9.
+#[test]
+fn r1_the_near_perpendicular_ray_keeps_its_roots() {
+    use geom_core::{Bounds, Interval, Real};
+    const TRUTH: [f64; 2] = [-0.932_255_799_041_234, -0.320_660_420_293_933_6];
+    let o = [0.6165109851873778, -0.4322368608327216, -1.7665919240171966];
+    let d = [
+        -0.7793351131793784,
+        3.340316168992811e-5,
+        -0.6266073573218832,
+    ];
+    let pinned = Band::new(1e-12, 1e-11).unwrap();
+    let (c, a) = centre_and_axis();
+    let f64_roots = match line_torus_roots(
+        Point3::new(o[0], o[1], o[2]),
+        Vec3::new(d[0], d[1], d[2]),
+        c,
+        a,
+        1.0,
+        0.9,
+        pinned,
+    ) {
+        Ok(TorusRoots::Certified { count, ts }) => {
+            assert_eq!(count, 2, "F64 COUNT: the exact Sturm count is 2");
+            let mut v = ts[..count].to_vec();
+            v.sort_by(|x, y| x.partial_cmp(y).unwrap());
+            v
+        }
+        other => panic!("F64: the near-perpendicular ray did not certify: {other:?}"),
+    };
+    for (got, want) in f64_roots.iter().zip(TRUTH) {
+        assert!(
+            (got - want).abs() < 1e-12,
+            "F64 ROOT: {got:e} against the exact {want:e}, off by {:e}",
+            (got - want).abs()
+        );
+    }
+    let iv = Interval::from_f64;
+    match line_torus_roots(
+        Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+        Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        iv(1.0),
+        iv(0.9),
+        pinned,
+    ) {
+        Ok(TorusRoots::Certified { count, ts }) => {
+            assert_eq!(count, 2, "INTERVAL COUNT: the exact Sturm count is 2");
+            let mut v = ts[..count].to_vec();
+            v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
+            for (got, want) in v.iter().zip(TRUTH) {
+                assert!(
+                    got.lo() <= want && want <= got.hi(),
+                    "INTERVAL CONTAINMENT: [{:e}, {:e}] excludes the exact root {want:e}",
+                    got.lo(),
+                    got.hi()
+                );
+                assert!(
+                    got.hi() - got.lo() < 1e-9,
+                    "INTERVAL WIDTH: the enclosure of {want:e} is {:e} wide",
+                    got.hi() - got.lo()
+                );
+            }
+        }
+        other => panic!("INTERVAL: the near-perpendicular ray did not certify: {other:?}"),
+    }
+}
+
+/// A generic ray whose resolvent's depressed constant `Q` is a few ulps
+/// from zero, so its `Interval` enclosure straddles zero. The ray must
+/// certify there: a Cardano radicand chosen by `copysign(…, Q)` would
+/// turn the straddle into a whole-line root and escalate `Invalid`. The
+/// truth is the pose's exact root pair; the ±1e-12 is `d`'s own 5.9e-16
+/// departure from unit.
+#[test]
+fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
+    use geom_core::{Bounds, Interval, Real};
+    const ROOTS: [f64; 2] = [2.198_813_713_696_078, 4.602_155_907_842_552];
+    let (o, d) = (
+        [-3.747999552668488, -0.6565569277642699, -0.832630206695418],
+        [
+            0.9412606460021874,
+            0.3369297354810353,
+            -0.022511100289074278,
+        ],
+    );
+    let iv = Interval::from_f64;
+    match line_torus_roots(
+        Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+        Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+        Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+        Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+        iv(1.0),
+        iv(0.9),
+        Band::new(1e-12, 1e-11).unwrap(),
+    ) {
+        Ok(TorusRoots::Certified { count, ts }) => {
+            assert_eq!(count, 2);
+            let mut v = ts[..count].to_vec();
+            v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
+            for (got, want) in v.iter().zip(ROOTS) {
+                assert!(
+                    got.lo() - 1e-12 <= want
+                        && want <= got.hi() + 1e-12
+                        && got.hi() - got.lo() < 1e-9,
+                    "[{:e}, {:e}] vs {want:e}",
+                    got.lo(),
+                    got.hi()
+                );
+            }
+        }
+        other => panic!("Q straddles zero here and the ray must still certify: {other:?}"),
+    }
+}
+
+/// The resolvent's depressed constant `Q`, spelled as
+/// `cubic_largest_real_root` spells it from `line_torus_roots`'
+/// coefficients — here only to check the walk below crosses `Q = 0`,
+/// which is that row's premise rather than its claim.
+fn resolvent_q<T: geom_core::Real>(o: [T; 3], d: [T; 3], rr: T, r: T) -> T {
+    let dot = |x: [T; 3], y: [T; 3]| x[0] * y[0] + x[1] * y[1] + x[2] * y[2];
+    let (two, three, four) = (T::from_f64(2.0), T::from_f64(3.0), T::from_f64(4.0));
+    let b = dot(o, d);
+    let perp = [o[0] - d[0] * b, o[1] - d[1] * b, o[2] - d[2] * b];
+    let (m, n, e) = (dot(perp, perp), perp[1], d[1]);
+    let big_m = m + rr.powi(2) - r.powi(2);
+    let p = two * big_m - four * rr.powi(2) * (T::one() - e.powi(2));
+    let q_hat = T::from_f64(8.0) * rr.powi(2) * e * n;
+    let s = big_m.powi(2) - four * rr.powi(2) * (m - n.powi(2));
+    let (c2, c1, c0) = (two * p, p.powi(2) - four * s, T::zero() - q_hat.powi(2));
+    c2.powi(3) * two / T::from_f64(27.0) - c2 * c1 / three + c0
+}
+
+/// `Q = 0` is a codimension-one surface of GENERIC rays, so one pose on
+/// it is weak evidence. Five unrelated rays found on it (by bisecting
+/// `Q` along the origin's axial coordinate, each with a definite
+/// discriminant and an order-one `q̂`) are each walked across it by
+/// offsets from 1e-8 down to 1e-15 on either side. Every ray of every
+/// walk must certify at BOTH scalars, agree in count with the geometric
+/// oracle, and — at `Interval` — enclose the oracle's roots in less
+/// than 1e-9. The walk asserts its own premise: `Q` changes sign along
+/// it at `f64`, and at least one of its `Interval` enclosures of `Q`
+/// straddles zero.
+#[test]
+fn r1_the_q_zero_surface_certifies_on_both_sides() {
+    use geom_core::{Bounds, Interval, Real};
+    const BASES: [([f64; 3], [f64; 3]); 5] = [
+        (
+            [-1.0570034110010258, -1.2591002478973186, 0.9056068382391222],
+            [0.8831526396789883, 0.43221370376568374, -0.1822984621580361],
+        ),
+        (
+            [-0.6199171520953191, 2.16351195309624, -2.7205039162934623],
+            [-0.45567824377849847, 0.5607732491905882, -0.691296391672323],
+        ),
+        (
+            [1.1939666023774276, -1.6847529160703743, 0.44654226155202625],
+            [0.638505070624459, -0.7599931189159066, -0.12133315287804632],
+        ),
+        (
+            [0.6751673060667622, -0.2987541742458132, 0.07296883461191639],
+            [
+                -0.24693981883060998,
+                -0.6563869361596056,
+                -0.7128652859516386,
+            ],
+        ),
+        (
+            [-0.46647491233403304, 1.5667199101032885, 1.9138738786876903],
+            [
+                -0.02420391296253917,
+                0.44702148428280625,
+                0.8941957074303694,
+            ],
+        ),
+    ];
+    const STEPS: [f64; 11] = [
+        -1e-8, -1e-11, -1e-13, -1e-14, -1e-15, 0.0, 1e-15, 1e-14, 1e-13, 1e-11, 1e-8,
+    ];
+    let pinned = Band::new(1e-12, 1e-11).unwrap();
+    let (c, a) = centre_and_axis();
+    let iv = Interval::from_f64;
+    for (k, (base, d)) in BASES.into_iter().enumerate() {
+        let (mut signs, mut straddles) = (Vec::new(), 0usize);
+        for h in STEPS {
+            let o = [base[0], base[1] + h, base[2]];
+            signs.push(resolvent_q(o, d, 1.0, 0.9).signum());
+            let q_iv = resolvent_q(o.map(iv), d.map(iv), iv(1.0), iv(0.9));
+            if q_iv.lo() <= 0.0 && 0.0 <= q_iv.hi() {
+                straddles += 1;
+            }
+            let (truth, _) = oracle_roots(
+                Point3::new(o[0], o[1], o[2]),
+                Vec3::new(d[0], d[1], d[2]),
+                c,
+                a,
+                1.0,
+                0.9,
+            );
+            assert_eq!(
+                truth.len(),
+                2,
+                "PREMISE: base {k} step {h:e} is a two-root ray"
+            );
+            let at = format!("base {k}, step {h:e}");
+            match line_torus_roots(
+                Point3::new(o[0], o[1], o[2]),
+                Vec3::new(d[0], d[1], d[2]),
+                c,
+                a,
+                1.0,
+                0.9,
+                pinned,
+            ) {
+                Ok(TorusRoots::Certified { count, ts }) => {
+                    assert_eq!(count, 2, "F64 COUNT at {at}");
+                    let mut v = ts[..count].to_vec();
+                    v.sort_by(|x, y| x.partial_cmp(y).unwrap());
+                    for (got, want) in v.iter().zip(&truth) {
+                        assert!(
+                            (got - want).abs() < 1e-11,
+                            "F64 ROOT at {at}: {got:e} vs {want:e}"
+                        );
+                    }
+                }
+                other => panic!("F64 at {at} did not certify: {other:?}"),
+            }
+            match line_torus_roots(
+                Point3::new(iv(o[0]), iv(o[1]), iv(o[2])),
+                Vec3::new(iv(d[0]), iv(d[1]), iv(d[2])),
+                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
+                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
+                iv(1.0),
+                iv(0.9),
+                pinned,
+            ) {
+                Ok(TorusRoots::Certified { count, ts }) => {
+                    assert_eq!(count, 2, "INTERVAL COUNT at {at}");
+                    let mut v = ts[..count].to_vec();
+                    v.sort_by(|x, y| x.lo().partial_cmp(&y.lo()).unwrap());
+                    for (got, want) in v.iter().zip(&truth) {
+                        assert!(
+                            got.lo() - 1e-11 <= *want
+                                && *want <= got.hi() + 1e-11
+                                && got.hi() - got.lo() < 1e-9,
+                            "INTERVAL at {at}: [{:e}, {:e}] vs {want:e}",
+                            got.lo(),
+                            got.hi()
+                        );
+                    }
+                }
+                other => panic!("INTERVAL at {at} did not certify: {other:?}"),
+            }
+        }
+        assert!(
+            signs.first() != signs.last(),
+            "PREMISE: base {k}'s walk does not cross Q = 0 ({signs:?})"
+        );
+        assert!(
+            straddles > 0,
+            "PREMISE: no Interval Q straddles zero on base {k}'s walk"
+        );
+    }
+}

@@ -11,7 +11,7 @@
 //! so that a downstream name EMBEDS this table's row rather than a
 //! copy of it. An emitter reading an operand wants the `_ref` twin.
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 
 use topo::{EdgeKey, FaceKey, VertexKey};
 
@@ -123,10 +123,35 @@ pub enum Entry {
 pub struct NameTable {
     forward: BTreeMap<NameRef, Entry>,
     reverse: BTreeMap<EntityRef, NameRef>,
+    /// **The separated-piece mark** — the one statement of it; every
+    /// other doc that mentions the mark points here.
+    ///
+    /// A split that separates an N2 tie without cutting its candidates
+    /// holds some in each half, and its own table keeps the one `Tied`
+    /// row across both. [`NameTable::project`] narrows that tie to the
+    /// candidates in the selected half, and a half holding ONE writes
+    /// the name `Unique` — correctly, for any reader of that half. This
+    /// set records that such a `Unique` row is one piece of a tie
+    /// separated across output bodies upstream. `project` marks what it
+    /// narrows that way and keeps a mark its input already carried; a
+    /// split's intact pass-through keeps it (`defer::pass_through`);
+    /// a `Transform` shares its input's table, mark included. Every
+    /// edge that sets or keeps it names the row VERBATIM, so a marked
+    /// row is still that piece of that tie.
+    ///
+    /// No lookup reads the mark. Its one reader is the product gather
+    /// (`defer::CarriedRows::carry`), which defers a marked row as it
+    /// defers a tied one, so two `Part` roots over the halves merge
+    /// back into the one `Entry::Tied` the split root would gather,
+    /// while a lone `Part` root's single piece narrows back to
+    /// `Unique`. A row that is NOT a separated piece must stay
+    /// unmarked: the gather inserts it strict, which is what makes two
+    /// roots carrying one entity refuse rather than tie.
+    separated: BTreeSet<NameRef>,
     sealed: Sealed,
 }
 
-// The two maps and nothing else. Whether a table has been sealed is a
+// The rows and their marks, and nothing else. Whether a table has been sealed is a
 // SCHEDULE-dependent bit — which reader reached it first — so it must
 // not be printable into a message, a digest or a golden, and this impl
 // is what keeps it off every one of them.
@@ -142,11 +167,13 @@ impl core::fmt::Debug for NameTable {
         let Self {
             forward,
             reverse,
+            separated,
             sealed: _,
         } = self;
         f.debug_struct("NameTable")
             .field("forward", forward)
             .field("reverse", reverse)
+            .field("separated", separated)
             .finish_non_exhaustive()
     }
 }
@@ -288,6 +315,25 @@ impl NameTable {
     /// through [`NameRef`]'s order cache instead of a structural walk.
     pub(super) fn entry_of(&self, name: &NameRef) -> Option<&Entry> {
         self.forward.get(name)
+    }
+
+    /// Whether `name`'s row is one piece of a tie separated across
+    /// output bodies upstream (the `separated` field's doc).
+    pub(super) fn is_separated_piece(&self, name: &NameRef) -> bool {
+        self.separated.contains(name)
+    }
+
+    /// Marks `name`'s row as one piece of a separated tie. Every caller
+    /// marks a row it has just written `Unique`, so a `Tied` or absent
+    /// row here is the caller's bug, asserted rather than skipped: a
+    /// `Tied` row already says it is a tie, and a name with no row has
+    /// nothing to mark.
+    pub(super) fn mark_separated_piece(&mut self, name: NameRef) {
+        debug_assert!(
+            matches!(self.forward.get(&name), Some(Entry::Unique(_))),
+            "only a Unique row is marked as a separated piece"
+        );
+        self.separated.insert(name);
     }
 
     /// [`NameTable::insert`] by handle — the door that preserves
@@ -451,6 +497,10 @@ impl NameTable {
     /// cutting either holds one in each half. The projection is what
     /// separates them, and the split's own table stays `Tied`.
     ///
+    /// A row narrowed to `Unique` that way, and a `Unique` row the
+    /// input already marked, carry the separated-piece mark (the
+    /// `separated` field's doc).
+    ///
     /// # Errors
     ///
     /// [`DuplicateName`], the insert doors' own. Not reachable by
@@ -469,13 +519,20 @@ impl NameTable {
                 Entry::Unique(e) => {
                     if e.body == body {
                         out.insert_ref(name.clone(), rekey(e))?;
+                        if self.is_separated_piece(name) {
+                            out.mark_separated_piece(name.clone());
+                        }
                     }
                 }
                 Entry::Tied(es) => {
                     let kept: Vec<EntityRef> =
                         es.iter().filter(|e| e.body == body).map(rekey).collect();
+                    let narrowed = kept.len() == 1;
                     if !kept.is_empty() {
                         super::defer::narrow_into(&mut out, name.clone(), kept)?;
+                    }
+                    if narrowed {
+                        out.mark_separated_piece(name.clone());
                     }
                 }
             }

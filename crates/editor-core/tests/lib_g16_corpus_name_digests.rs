@@ -151,8 +151,8 @@ const PINNED: &[(&str, u64)] = &[
     // arrival moved no other row.
     ("part_select", 0x3e52_4c0e_2d96_88a9),
     ("loft_prism", 0xeb00_6a33_5df4_7a35),
-    ("die_composed", 0x3a80_c95f_729d_6c66),
-    ("die_composed_tour", 0x87ae_a9bd_1262_efdb),
+    ("die_composed", 0xe56d_368a_fc21_c0f2),
+    ("die_composed_tour", 0x811a_ce38_6d44_56c9),
     ("plate_param", 0x263a_704c_add8_e71a),
     ("kiss_carry", 0x5beb_8e24_6a92_26f2),
     // LIB-TUBE. Both tables are minted by `name_revolve` — the
