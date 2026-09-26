@@ -304,3 +304,17 @@ an unfailable `hull_sup <= eps`; three spellings of the fixture target;
 the census's `home_seen` per routine; a rename; and bit comparison
 instead of a Debug string. Filed: `(tol, band)` travel as a redundant
 pair (the class, on this slate).
+
+## PR 3274 fix pass read (2026-09-26)
+
+(ENCL orchestrator) Head `c4f5d26cdc`. Read by the orchestrator, not
+re-reviewed. The structural item landed as asked: `OffsetFitLane` holds
+`mint` and ONE `certify` (`certify_offset_over`, over the
+`(description, fit, window)` triple); `recertify` unpacks the surface
+into it; `remap_offset_certificate` is deleted; the rounds override has
+one spelling (`OffsetCertificate::carrying_rounds`); and the Tol door's
+certifier closes over `Tol` while only the `_at` instrument closes over
+a number. Filed: `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`.
+The lane stopped building when the disk ran short, so the sweep rows and
+the 1e-6 and 1e-12 rows are unverified on this head; the local gate is
+their verification. Gate queue: 3272 (running) → 3275 → 3274.
