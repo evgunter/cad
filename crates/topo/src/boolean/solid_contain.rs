@@ -2839,40 +2839,101 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 ///   negative and the largest is at least a third of their sum `−c2`:
 ///   removing the shift `c2/3` then adds magnitudes rather than
 ///   cancelling them;
-/// * one real root — Cardano's, on [`cbrt`], assembled so that no step
-///   subtracts nearly equal quantities (below).
+/// * one real root — Cardano's, on [`cbrt`], assembled so that no
+///   cancellation reaches the root's RELATIVE accuracy (below).
 ///
-/// # The one-real-root branch carries no cancellation
+/// # The one-real-root branch keeps the root's relative accuracy
 ///
 /// With `x³ + P x + Q` the depressed cubic and `s = c2/3` its shift, the
-/// real root is `z = A + B − s`, where `A³` and `B³` are Cardano's two
-/// radicands. Two subtractions in that form can lose every digit, and
-/// the resolvent reaches both:
+/// real root is `z = x − s` with `x = a + b`, where `a³`, `b³` are
+/// Cardano's two radicands `−Q/2 ± √(Q²/4 + P³/27)` and `ab = −P/3`. Two
+/// subtractions in that form can lose every digit, and the resolvent
+/// reaches both:
 ///
-/// * **Inside a radicand.** `−Q/2 − √(Q²/4 + P³/27)` cancels whenever
-///   `P³/27` is small beside `Q²/4`. Only the radicand whose two terms
-///   share a sign goes through [`cbrt`]; its partner comes from
-///   `AB = −P/3`.
+/// * **Inside a radicand.** One of the two cancels whenever `P³/27` is
+///   small beside `Q²/4`. Only `|Q|/2 + √(…)`, whose terms are both
+///   non-negative, goes through [`cbrt`], as `A`; its partner's
+///   magnitude comes from `|ab| = |P|/3`, as `B = P/(3A)`, and
+///   `x = −sgn Q·(A − B)`.
 /// * **Against the shift.** When the real root is small beside the other
-///   two, `A + B` and `s` agree in their leading digits and `A + B − s`
-///   keeps only their rounding. That is the resolvent of every ray whose
-///   odd coefficient `q̂` is small but decided nonzero (a ray all but
+///   two, `x` and `s` agree in their leading digits and `x − s` keeps
+///   only their rounding. That is the resolvent of every ray whose odd
+///   coefficient `q̂` is small but decided nonzero (a ray all but
 ///   perpendicular to the axis, or passing near the midplane): its real
-///   root is `≈ q̂²/c1`, and `A + B − s` would compute it as a difference
-///   of order-one terms, multiplying the radicands' relative error by
-///   `|s|/z` — a factor the [`cbrt`] magnitude argument does not cover.
+///   root is `≈ q̂²/c1`, and `x − s` would multiply the relative error of
+///   `x` by `|s|/z` — a factor the [`cbrt`] magnitude argument does not
+///   cover.
+///
+/// # Where `Q`'s sign goes, and why its zero is harmless
+///
+/// `Q = 0` is not a degenerate pose: it is a codimension-one surface of
+/// GENERIC rays (there the real root is simply `z = −s`), and at the
+/// `Interval` scalar its neighbourhood is where an enclosure of `Q`
+/// straddles zero and `copysign` answers with the hull of both signs.
+/// So the sign is transferred only onto `A − B`, which VANISHES at
+/// `Q = 0` — there `A³ = √(P³/27)`, so `A = √(P/3) = B` — making
+/// `x = (A − B)·sgn(−Q)` continuous across the surface, and its
+/// straddling enclosure `[−|A − B|, |A − B|]` as narrow as `x` itself
+/// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
+/// instead, which does not vanish there: the radicand straddles zero,
+/// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
+/// every digit for (review MINOR-1 on PR 3255;
+/// `r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
+/// cone arms' quadratic formula has the same hazard with no such way
+/// out, because the sign there picks WHICH root the formula names:
+/// `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead`.
+///
+/// `A − B` itself cancels when `x` is small beside `A`, which costs an
+/// ABSOLUTE error `≈ ulp·A`, and only for `P > 0`: for `P < 0`, `B < 0`
+/// and `A − B` is a sum of magnitudes. Where `x − s` carries weight
+/// below (`|z| ≥ |w|`), that absolute error is a relative one of the
+/// root: `B > 0` makes `|w|² ≥ ¾(A + B)² ≥ ¾A²`, so `|z| ≥ (√3/2)·A`.
+///
+/// # The shift, by a fraction rather than a blend
 ///
 /// The product of the three roots is `−c0`, and the complex pair `w, w̄`
-/// has `|w|² = (x/2 + s)² + ¾(A − B)²` — a sum of squares, whose
+/// has `|w|² = (x/2 + s)² + ¾(A + B)²` — a sum of squares, whose
 /// `x/2 + s` cancels only when the real root is LARGE (`z ≈ −3s`). So
-/// `z = −c0/|w|²` is accurate exactly where `A + B − s` is not, and
+/// `−c0/|w|²` is accurate exactly where `d = x − s` is not, and
 /// `z + 2·Re w = −3s` makes at least one of `|z|`, `|w|` as large as
-/// `|s|`. The two forms are blended by `τ = z²/(z² + |w|²)`, small
-/// precisely when `z` is and near one precisely when `|w|` is small, so
-/// the blend takes the well-conditioned form without branching on a
-/// value, which this scalar cannot do. Both forms are the same root, so
-/// at the `Interval` scalar each encloses it and so does
-/// `τ·z₁ + (1 − τ)·z₂`, for every `τ` its enclosure holds.
+/// `|s|`. The two are weighted by `τ = d²/(d² + |w|²)`, small precisely
+/// when `z` is, and since `(−c0/|w|²)·|w|² = −c0`,
+///
+/// ```text
+/// τ·d + (1 − τ)·(−c0/|w|²) = (d³ − c0) / (d² + |w|²)
+/// ```
+///
+/// which takes the well-conditioned form without branching on a value
+/// (this scalar cannot) and without an interval weight: spelled as a
+/// blend, `τ`'s enclosure is as wide as `d`'s relative width even at
+/// `τ ≈ 1`, and multiplies `|z|` twice. The denominator is positive,
+/// `|w|² ≥ ¾(A + B)²`.
+///
+/// # What the `Interval` instantiation encloses
+///
+/// Not the root. Every step after [`cbrt`] is a fixed composition, so
+/// the enclosure holds the value this function takes with `cbrt`'s
+/// truncated power `x^{(1−4^{-27})/3}` in place of the cube root — a
+/// bias of relative size `δ ≤ 1.5e-15` in `A` (`cbrt`'s own doc) that no
+/// interval widens to cover. The construction's job is that `δ` reaches
+/// `z` as a RELATIVE error of its own order rather than multiplied by
+/// `|s|/z`: through `d` it moves `x` by `δ·(A + B)`, which the weight
+/// `d²/(d² + |w|²)` scales to at most `δ·|z|/√3`; through `|w|²` it
+/// moves a sum of squares by `≤ 2δ` relative. That is what
+/// `r1_the_near_perpendicular_ray_keeps_its_roots` checks against the
+/// pose's exact roots — a biased enclosure that missed them would fail
+/// it — and at 1e-15 against the 1e-9 width that row allows, the bias is
+/// not what an enclosure's width is made of.
+///
+/// # `P = Q = 0`
+///
+/// There the radicand `|Q|/2 + √(…)` is exactly zero, `A = 0`, and
+/// `B = P/(3A)` is `0/0`: the f64 result is NaN. It is not reached: the
+/// cubic then has a TRIPLE root, i.e. a zero discriminant, which this
+/// branch's caller has decided definitely negative. And if a rounding
+/// ever did produce it, the NaN is loud where it lands: the caller's
+/// `bool_ray_torus_split_lead` reads a NaN margin as `Invalid` and
+/// escalates, rather than returning a plausible root.
 fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: bool) -> T {
     let three = T::from_f64(3.0);
     let two = T::from_f64(2.0);
@@ -2891,15 +2952,15 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
     let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
         .max(T::zero())
         .sqrt();
-    // `Q/2` and `inner·sgn Q` share a sign, so their sum does not cancel.
-    let a = T::zero() - cbrt(q / two + inner.copysign(q));
-    let b = (T::zero() - p) / (three * a);
-    let x = a + b;
-    let direct = x - shift;
-    let pair = (x / two + shift).powi(2) + T::from_f64(0.75) * (a - b).powi(2);
-    let product = (T::zero() - c0) / pair;
-    let weight = direct.powi(2) / (direct.powi(2) + pair);
-    weight * direct + (T::one() - weight) * product
+    // Both terms non-negative: the sum does not cancel, and needs no sign.
+    let big_a = cbrt(q.abs() / two + inner);
+    let big_b = p / (three * big_a);
+    // `A − B` vanishes at `Q = 0`, so its sign transfer is continuous
+    // there (the doc above).
+    let x = (big_a - big_b).copysign(T::zero() - q);
+    let d = x - shift;
+    let pair = (x / two + shift).powi(2) + T::from_f64(0.75) * (big_a + big_b).powi(2);
+    (d.powi(3) - c0) / (d.powi(2) + pair)
 }
 
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
@@ -2956,8 +3017,13 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    was chosen.
 /// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
 ///    largest real root is not positive, which contradicts its own
-///    constant term `−q̂² < 0` on the branch that computed it. A
-///    rounding-scale contradiction: uncertain, graze.
+///    constant term `−q̂² < 0` on the branch that computed it.
+///    Uncertain, graze. It is NOT only a rounding-scale contradiction,
+///    though the ladder was first written as if it were: a `q̂` small
+///    enough that the root `≈ q̂²/c1` falls inside the band, but large
+///    enough to clear rung 2, reaches it too — a legitimate root refused
+///    on its size (`work/contact/torus-split-lead-escalates-a-
+///    legitimately-small-resolvent-root.md`).
 /// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
 ///    has a zero discriminant, i.e. a double root, which contradicts the
 ///    definite discriminant of rung 1. Uncertain, graze.
@@ -3108,7 +3174,13 @@ pub(super) fn line_torus_roots<T: Decide>(
     } else {
         // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
         // whose constant term is negative, so its LARGEST real root is
-        // positive and is the well-conditioned choice. The resolvent
+        // positive — the one root whose square root splits the quartic
+        // over the reals. On four real quartic roots the resolvent has
+        // three and the largest is at least a third of their sum; on two
+        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+        // (a ray all but perpendicular to the axis), which is where
+        // `cubic_largest_real_root`'s conditioning has to come from its
+        // own construction rather than from the choice. The resolvent
         // shares the quartic's discriminant, so the branch is the sign
         // already decided above rather than a second decision.
         let z = cubic_largest_real_root(

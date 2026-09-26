@@ -46,3 +46,14 @@ wants a named frame decision on `b2` (the shape
 `split_conic_phase_frame` takes in `crates/topo/src/splitting/classify.rs`,
 with the naive formula on its Zero arm), and that is a new k-stats
 predicate. It needs its own unit.
+
+The torus PR first shipped exactly this hazard: its Cardano radicand
+took `copysign(√(Q²/4 + P³/27), Q)`, and its review found generic rays
+on the `Q = 0` surface escalating `Invalid` at `Interval` (MINOR-1 on
+PR 3255). Its fix does NOT transfer here, and the reason is the point.
+There the sign picks between two representations of the SAME root, so
+it can be moved onto `A − B`, a factor that vanishes at `Q = 0`, and
+the two-sided hull is then as narrow as the root itself. Here the sign
+of `b2` picks WHICH of two roots the stable formula names, and at
+`b2 = 0` the two are `±√disc/a2`, which do not coincide. So no factor
+vanishes, and the frame decision above is still the repair.
