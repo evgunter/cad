@@ -2,10 +2,13 @@
 id: seat-line-takes-a-hand-built-slice-while-seats-holds-the-roles
 kind: issue
 title: seat_line takes a hand-built (Seat, Option<RecipeNodeId>) slice, so five panels re-list roles a Seats value already holds
-status: open
+status: closed
 opened: 2026-09-20
 priority: P3
 cost: E
+closed: 2026-09-25
+branch: vnews/one-seat-line
+pr: 3281
 ---
 
 
@@ -66,3 +69,26 @@ VNEWS's: `crates/viewer/src/seats.rs`,
 `crates/viewer/src/pane/create.rs`. `revolvetool.rs`, `combine.rs`
 and the other tool modules are named as evidence, not as fix sites,
 unless the second shape is chosen.
+
+## Closed (`vnews/one-seat-line`, PR 3281, 2026-09-25)
+
+**`seat_line` takes `&Seats`; the per-tool door is the mate tool's
+alone.** The fork was decided by which value knows the roles. For
+every seated tool that value is its `Seats`, so `seat_line(&Seats)`
+reads the roles and their order off it (a private `Seats::each`, one
+entry per SEAT — a one-seat tool's role-twice is read once, by the
+same private `arity` the pick rule now reads) and the seven tools
+expose `seats()`. A per-tool door handing pairs over would have moved
+each hand-list from the panel into the tool, one file closer to the
+`Seats::new` it duplicates but still a second statement of it. The
+mate tool holds no `Seats`, so its door is on the value that DOES know
+its roles — `MateToolState::line` — and both doors compose through one
+function, `seats::picks_line`. Neither re-opens the other: the
+composition is shared below both, and each role list is stated once,
+where the state is.
+
+All seven seated panels (the row counted five; the part and duplicate
+panels had landed since) now call `pane::create::seats_row(ui,
+tool.seats(), theme)` and name no `Seat`. Pinned by
+`pane::create::tests::the_boolean_panel_says_which_operand_each_pick_is`
+(headless, fixed text) and `combine_ops::the_seat_line_names_the_roles`.

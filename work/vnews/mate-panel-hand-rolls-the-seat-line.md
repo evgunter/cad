@@ -2,10 +2,13 @@
 id: mate-panel-hand-rolls-the-seat-line
 kind: issue
 title: The mate panel composes its own seat line, with the list mark and the empty-state sentence spelled a second time
-status: open
+status: closed
 opened: 2026-09-19
 priority: P3
 cost: E
+closed: 2026-09-25
+branch: vnews/one-seat-line
+pr: 3281
 ---
 
 
@@ -86,3 +89,33 @@ since.
 VNEWS's: `crates/viewer/src/pane/create.rs`, and
 `crates/viewer/src/seats.rs` for the noun-drift half.
 `pane/create.rs` is a double claim (also `chrome`, `view`, `vseam`).
+
+## Closed (`vnews/one-seat-line`, PR 3281, 2026-09-25)
+
+**Routed through one composer, not given the constant.** The line's
+shape — empty-state sentence, one `role: pick` item per seat, `—` for
+an open one, joined on `"; "` — is now `seats::picks_line`, and the
+mate panel reaches it through `MateToolState::line` (`matetool.rs`),
+which hands it the two sides (`MateSide::name`, as `pick a`/`pick b`)
+and each held pick as `face of feature N`. The module-doc argument
+that keeps the mate tool off `Seats` is about the STATE and the
+survival rule, and it still stands; `seats`' header now says the line
+is the one thing the two share. The panel body is one call,
+`pane::create::mate_picks_row`, which draws the line in the advisory
+voice every seated panel's line takes (the old panel drew the idle and
+one-pick arms `weak` and only the two-pick arm advisory).
+
+**The noun is `feature`, through `tree::node_number`**, in the mate
+panel's line and in both drop notices (`SeatEvent::PickLost`,
+`MateToolEvent::PickLost`), so the one-pick and two-pick arms no longer
+disagree and `seats.rs` no longer calls one `RecipeNodeId` two things.
+Checked rather than assumed: every chrome surface that names a node
+by number routes `node_number` (combo entries, the properties heading,
+the delete label, the tree's `see feature N` pointer), whose own doc
+rules `node 3` out of a surface; the tree rows themselves carry no
+number. `node N` survives in typed refusal prose, which is
+`work/author/chrome-calls-one-node-two-names`'s open direction question
+and not this row's — evidence added there.
+
+Pinned by `pane::create::tests::the_mate_panel_says_its_picks_in_the_seated_panels_line`
+against fixed text, driven through `crate::pane::headless`.
