@@ -138,7 +138,7 @@ census: Ok
 ## kitchen_sink
 solids=8 faces=48 edges=128 vertices=96
 assemble: Err(AtRest)
-census: 66 findings
+census: 70 findings
 UndeclaredContact { contact: VertexVertex { a: VertexKey(1v1), b: VertexKey(29v1) }, witness: "(0.0, 0.0, 0.0)" }
 UndeclaredContact { contact: VertexVertex { a: VertexKey(1v1), b: VertexKey(92v1) }, witness: "(0.0, 0.0, 0.0)" }
 UndeclaredContact { contact: VertexVertex { a: VertexKey(2v1), b: VertexKey(30v1) }, witness: "(1.0, 0.0, 0.0)" }
@@ -205,10 +205,14 @@ CensusUndecidable { a: Face(FaceKey(21v1)), b: Face(FaceKey(48v1)), what: "a cur
 CensusUndecidable { a: Face(FaceKey(22v1)), b: Face(FaceKey(48v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Face(FaceKey(24v1)), b: Face(FaceKey(48v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(1v1)), what: "every corner of one lies on the other's boundary, so the corners cannot place it. There is no way through yet for a designed resting fit; otherwise move them until their bounding boxes no longer overlap" }
+CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(8v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }
+CensusUndecidable { a: Solid(SolidKey(3v1)), b: Solid(SolidKey(4v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }
+CensusUndecidable { a: Solid(SolidKey(3v1)), b: Solid(SolidKey(8v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }
+CensusUndecidable { a: Solid(SolidKey(4v1)), b: Solid(SolidKey(8v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }
 ## cut_cylinder
 solids=2 faces=8 edges=12 vertices=8
 assemble: Err(AtRest)
-census: 11 findings
+census: 12 findings
 UndeclaredContact { contact: VertexVertex { a: VertexKey(3v1), b: VertexKey(7v1) }, witness: "(0.5, 0.0, 0.3453318751951884)" }
 UndeclaredContact { contact: VertexVertex { a: VertexKey(4v1), b: VertexKey(8v1) }, witness: "(-0.5, 0.0, 0.6546681248048116)" }
 CensusUndecidable { a: Face(FaceKey(2v1)), b: Face(FaceKey(6v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
@@ -220,6 +224,7 @@ CensusUndecidable { a: Face(FaceKey(3v1)), b: Face(FaceKey(8v1)), what: "a curve
 CensusUndecidable { a: Face(FaceKey(6v1)), b: Face(FaceKey(4v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Face(FaceKey(7v1)), b: Face(FaceKey(4v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
 CensusUndecidable { a: Face(FaceKey(4v1)), b: Face(FaceKey(8v1)), what: "a curved face of one is within reach of the other, and the kernel cannot yet tell whether curved faces of two parts touch. There is no way through yet for a designed contact; otherwise move the parts until their bounding boxes no longer overlap" }
+CensusUndecidable { a: Solid(SolidKey(1v1)), b: Solid(SolidKey(2v1)), what: "another finding left their boundaries unchecked, and this one cannot be decided until that is resolved. Recourse: resolve that finding first" }
 ## measured_web
 solids=1 faces=6 edges=12 vertices=8
 assemble: Ok

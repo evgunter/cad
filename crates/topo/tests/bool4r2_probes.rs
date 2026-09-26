@@ -200,16 +200,16 @@ fn contact_kind(c: &CensusContact) -> &'static str {
 }
 
 /// **Two cubes overlapping by half, sharing y and z extents.** The same
-/// touch-only crossing shape as the straddle, but here the box GATE
-/// separates both orderings (neither hull sits inside the other's
-/// reach), so the material test never runs: the pair is cleared at the
-/// gate, as it was at the base — a partial overlap that produces no
-/// pierce has no arm in the census. This row pins today's (wrong)
-/// clear; the hole is filed as
-/// `work/contact/partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate.md`
-/// and this row is what moves when it closes.
+/// touch-only crossing shape as the straddle: the two materials overlap
+/// over `[1, 2] × [0, 2]²`, yet the sweeps see only touches — coplanar
+/// faces, edges lying in faces, corners on edges. The box gate separates
+/// both orderings (neither hull sits inside the other's reach), so the
+/// material test does not run; but the boundaries meet, so the gate does
+/// not clear the pair on its own, and the touch analysis reads the
+/// coplanar same-normal faces' touches as the two materials passing into
+/// each other.
 #[test]
-fn two_half_overlapping_cubes_are_cleared_at_the_gate() {
+fn two_half_overlapping_cubes_refuse_as_a_mixed_touch() {
     let a = common::brick::<f64>((0.0, 2.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let b = common::brick::<f64>((1.0, 3.0), (0.0, 2.0), (0.0, 2.0), Tol::witness());
     let body = assembly(&a, &b);
@@ -217,8 +217,14 @@ fn two_half_overlapping_cubes_are_cleared_at_the_gate() {
         .expect_err("the undeclared touches refuse");
     assert!(crossings(&errors).is_empty(), "{errors:?}");
     let placements = placement_findings(&errors);
-    println!("half-overlap placement findings: {placements:?}");
-    assert!(placements.is_empty(), "{placements:?}");
+    assert!(
+        matches!(
+            placements[..],
+            [ValidationError::CensusUndecidable { what, .. }]
+                if what.contains("one passes into the other where they touch")
+        ),
+        "{placements:?}"
+    );
 }
 
 /// **A three-solid arena**: the L-bracket, a part floating in its

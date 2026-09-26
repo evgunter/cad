@@ -346,7 +346,8 @@ fn tampered_declaration_is_stale() {
 /// A hand-built genuine self-intersection — two interpenetrating cube
 /// shells in ONE body, no declarations — is `UndeclaredContact`, hard:
 /// the census's proper-crossing lanes (edge-face pierce / edge-edge
-/// cross) have no backing path by design.
+/// cross) have no backing path by design. The instance arm refuses the
+/// pair on those crossings.
 #[test]
 fn hand_built_self_intersection_is_undeclared() {
     let mut body = mapped_cube(
@@ -361,10 +362,18 @@ fn hand_built_self_intersection_is_undeclared() {
     let errors =
         validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()).unwrap_err();
     assert!(!errors.is_empty());
-    assert!(
+    // Beside the findings, the instance arm's one refusal of the pair.
+    assert_eq!(
         errors
             .iter()
-            .all(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+            .map(|e| match e {
+                ValidationError::CensusUndecidable { what, .. } =>
+                    what.contains("another finding reports their boundaries crossing"),
+                _ => false,
+            })
+            .collect::<Vec<_>>(),
+        [true],
         "{errors:?}"
     );
     assert!(

@@ -557,10 +557,21 @@ fn unattributed_is_only_a_finding_no_declaration_answers_for() {
             }
             undeclared += 1;
             let rendered = format!("{:?}", finding.error);
+            // The census's instance arm refuses a solid pair whose
+            // boundaries meet in a crossing: no declaration answers for
+            // a placement either.
             assert!(
                 ["UndeclaredContact", "UndeclaredCusp", "CensusEscalated"]
                     .iter()
-                    .any(|arm| rendered.contains(arm)),
+                    .any(|arm| rendered.contains(arm))
+                    || matches!(
+                        finding.error,
+                        topo::ValidationError::CensusUndecidable {
+                            a: topo::EntityId::Solid(_),
+                            b: topo::EntityId::Solid(_),
+                            ..
+                        }
+                    ),
                 "an unattributed finding is one no declaration answers for: {rendered}"
             );
         }
