@@ -58,6 +58,12 @@ impl BooleanTool {
         }
     }
 
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
     /// The held first operand — the body a subtraction KEEPS.
     pub fn a(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
@@ -126,6 +132,12 @@ impl SplitTool {
         }
     }
 
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
     /// The held target body.
     pub fn target(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
@@ -183,6 +195,12 @@ impl TransformTool {
         Self {
             seats: Seats::one(Seat::TransformBody),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.
@@ -296,6 +314,12 @@ impl PatternTool {
         Self {
             seats: Seats::new([Seat::PatternBody, Seat::PatternAxis]),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.
@@ -502,6 +526,12 @@ impl PartTool {
         }
     }
 
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
+    }
+
     /// The held split, if one was picked.
     pub fn split(&self) -> Option<RecipeNodeId> {
         self.seats.held(0)
@@ -586,6 +616,12 @@ impl DuplicateTool {
         Self {
             seats: Seats::one(Seat::DuplicateBody),
         }
+    }
+
+    /// The seats, roles and picks together — what the panel's line is
+    /// composed from ([`crate::seats::seat_line`]).
+    pub fn seats(&self) -> &Seats {
+        &self.seats
     }
 
     /// The held body.

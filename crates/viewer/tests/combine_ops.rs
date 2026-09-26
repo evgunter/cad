@@ -1725,22 +1725,39 @@ fn the_open_tool_consumes_the_selection_stream() {
 
 /// The seat line names WHICH pick is which — the fact that decides
 /// what a subtraction removes — and says so before anything is picked.
+///
+/// Read off each tool's own seats, so the roles and their order are
+/// the tool's: a one-seat tool says one item, not its role twice.
 #[test]
 fn the_seat_line_names_the_roles() {
+    let doc = Doc::empty_derived("seat-line", Tol::witness());
+    let mut boolean = BooleanTool::new();
+    assert_eq!(seat_line(boolean.seats()), "no picks yet");
+    boolean.pick(&doc, RecipeNodeId(3));
     assert_eq!(
-        seat_line(&[(Seat::OperandA, None), (Seat::OperandB, None)]),
-        "no picks yet"
-    );
-    assert_eq!(
-        seat_line(&[
-            (Seat::OperandA, Some(RecipeNodeId(3))),
-            (Seat::OperandB, None),
-        ]),
+        seat_line(boolean.seats()),
         "first operand: feature 3; second operand: —"
     );
+    let mut transform = TransformTool::new();
+    transform.pick(&doc, RecipeNodeId(7));
     assert_eq!(
-        seat_line(&[(Seat::TransformBody, Some(RecipeNodeId(7)))]),
+        seat_line(transform.seats()),
         "transformed body: feature 7"
+    );
+}
+
+/// **A dropped pick is called what the panel called it** — `feature
+/// N`, the word [`tree::node_number`] spells, and not a second noun
+/// for the same held node.
+#[test]
+fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
+    let lost = SeatEvent::PickLost {
+        seat: Seat::OperandB,
+        node: RecipeNodeId(4),
+    };
+    assert_eq!(
+        lost.to_string(),
+        "the second operand pick (feature 4) is no longer in the document; the tool dropped it"
     );
 }
 
