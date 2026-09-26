@@ -25,8 +25,8 @@ use std::sync::Arc;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId, StableName,
-    unparse,
+    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
+    StableName, unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -430,16 +430,7 @@ fn assert_flat_reference(
                 .collect::<Vec<_>>()
                 .join(" | ")
         };
-        let actual = match index.pick(eval, ray) {
-            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
-            Ok(None) => "miss".to_owned(),
-            Err(HitTestError::Ambiguous { hits }) => hits
-                .iter()
-                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
-                .collect::<Vec<_>>()
-                .join(" | "),
-            Err(e) => format!("refused: {e}"),
-        };
+        let actual = rendered(index, eval, ray);
         assert_eq!(
             actual, expected,
             "{name} after {step}: ray {i} ({tied} tied; {ray:?}) picks differently from the \
@@ -469,21 +460,27 @@ fn descriptor(
     )
 }
 
-/// A pick's answer as comparable bits.
+/// **The door's answer to `ray` as comparable bits**: the hit, `miss`,
+/// the tied faces of a refusal joined, or any other refusal's text —
+/// every shape the door can answer in, so a differential over two
+/// indexes compares them all rather than panicking past one.
+fn rendered(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> String {
+    match index.pick(eval, ray) {
+        Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
+        Ok(None) => "miss".to_owned(),
+        Err(HitTestError::Ambiguous { hits }) => hits
+            .iter()
+            .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        Err(e) => format!("refused: {e}"),
+    }
+}
+
+/// A pick's answer as comparable bits, ray by ray.
 fn hits(index: &PickIndex, session: &DocSession, rays: &[Ray]) -> Vec<String> {
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    rays.iter()
-        .map(|ray| match index.pick(eval, ray) {
-            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
-            Ok(None) => "miss".to_owned(),
-            Err(HitTestError::Ambiguous { hits }) => hits
-                .iter()
-                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
-                .collect::<Vec<_>>()
-                .join(" | "),
-            Err(e) => format!("refused: {e}"),
-        })
-        .collect()
+    rays.iter().map(|ray| rendered(index, eval, ray)).collect()
 }
 
 /// One landing's reading: the picture's face count, and how many rays
