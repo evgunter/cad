@@ -110,34 +110,69 @@ thirteen and its body counted eleven; **the class was sixteen**:
   (a pointer, kept, as below).
 
 **The fold.** The module docs' `# Key validity: stale vs. foreign`
-section is the one home. It gains one paragraph: a door that answers
-THROUGH its key carries a foreign key onward, in two shapes (two
-lookups composed; a solid's member list), with each shape's consequence
-stated there once. Every door above now keeps only its own `None`
-contract and links to the section by anchor
-(`self#key-validity-stale-vs-foreign`, and `crate::body#…` from
-`readback`). The banner comment points to the section too.
+section is the one home. It gains one paragraph that sorts the doors by
+what a foreign key costs, as a CLASS of three shapes, each stated
+there once:
+
+- a door that reads the key's own slot (an arena, or a side table
+  parallel to one) hands back one wrong entity's row;
+- a door that chains lookups carries the key onward, to a well-formed
+  answer about the wrong entity;
+- a door that answers a collection (a member list, or a cycle or orbit
+  walked from the key) hands back another entity's whole collection.
+
+Every door keeps its own `None` contract and carries ONE link phrase
+to the section by anchor (`self#key-validity-stale-vs-foreign`, and
+`crate::body#…` from `readback` and `geometry`). A slot-reading door's
+phrase is *"[a foreign key is not caught]"*, so a reader hovering in an
+IDE still sees the hazard. A chaining or collection door's phrase names
+its own shape. The argument itself stays only in the section.
+
+**Widened to the whole class in the fix pass.** The first cut linked
+only the 16 doors that restated the clause. That left the same-shape
+doors unlinked, and a banner claiming every door linked. Now linked as
+well:
+- the chaining doors `mate` and `half_edge_end`;
+- the collection doors `loop_cycle` and `vertex_orbit`;
+- the side-table reads `edge_/vertex_/face_provenance_of`, whose
+  *"`None` iff the key is stale"* was false for a foreign key on a live
+  slot and now says "if";
+- `surface_/curve_/point_source`, `surface_/curve_/point_origin`,
+  `surface_field_source`, `pcurve` and `null_face_pair`;
+- the two hidden test doors, `flipped_face_sense_for_tests` and
+  `with_entity_removed_for_tests`, whose "iff" was false the same way.
+
+Rendered under the gate's flags, `struct.Body.html` carries 32 links to
+the anchor. The two hidden test doors do not render.
+**Not linked: the `pub` writers** (`set_*_source`,
+`set_surface_field_source`, `attach_pcurve`, `detach_pcurve`). None of
+them answers a read, and the section makes no claim about them.
 
 **Divergent members, kept.** The four long forms differ from the short
 form in substance, not only in wording. A lookup whose foreign key lands
 on a live slot hands back one wrong entity. A door answering *through*
 the key hands back a well-formed answer about the wrong owner, or
 another solid's whole member list. So the difference is kept: its
-consequence moved into the home as the paragraph above, and each of
-the four doors states which shape it is (a fact about that door) and
-links. The `Body` struct's `# Lineage-scoped keys` section is kept as
+consequence moved into the home's taxonomy, and each of the four doors
+says which shape it is, in its own words, with the link. The `Body` struct's `# Lineage-scoped keys` section is kept as
 it was, with its pointer retargeted to the anchor: it argues the other
 face of the coin (lineage-scoped keys are what the interval replay
 relies on), which the module section does not state.
 
 **The second family** (*"`None` is the only refusal this door can
-make"*, three doors). `solid_of_face` stays its home, and
-`shells_of_solid` already pointed there. `face_of_half_edge`'s
-restatement now points there too: *"the argument transfers hop for hop,
-the half-edge's loop standing where the face's shell stands there"*.
+make"*, three doors). `solid_of_face` stays the home of its own
+face→shell→solid populations, and `shells_of_solid` already pointed
+there. `face_of_half_edge` keeps its OWN statement, in its own words:
+a caller whose refusal names which key went stale (the half-edge's, or
+its loop's) keeps its walk. `solid_of_face`'s populations are
+face→shell→solid, not half-edge→loop→face, so borrowing them would
+have been wrong.
 
 **Also folded where the unit stood**: `readback.rs`'s `Display` comment
 restated `DanglingRef`'s two lanes and now points to that type's docs.
+`topo/src/geometry.rs`'s module docs now link the anchor.
+`geom-brep/src/keys.rs` cannot link upward, so its prose now names the
+`topo::body` module docs rather than `topo::Body`.
 `get_curve_geom`'s `since M3 PR 1` archaeology went with its
 parenthetical.
 
@@ -150,9 +185,8 @@ parenthetical.
   section (kept, as above) and `a_stale_key_has_no_origin`'s rustdoc,
   which is a test citing the module docs and not a door. What neither
   pass can see is a restatement worded with none of those phrases.
-- Pointers left as they were: `crates/topo/src/geometry.rs`'s module
-  docs, which point at `Body`, and `crates/geom-brep/src/keys.rs`, whose
-  plain-text pointer cannot link, because `geom-brep` sits below `topo`.
+- Pointers retargeted rather than rewritten: `crates/topo/src/geometry.rs`
+  and `crates/geom-brep/src/keys.rs` (above).
 - Not this class: the repo-wide pass also hit the `Dangling` two-lanes
   argument in `lib`'s crates. It is filed there as
   `work/lib/dangling-two-lanes-argument-is-restated-outside-danglingref.md`.
@@ -163,4 +197,6 @@ parenthetical.
 clean. rustdoc does not check an anchor fragment, so the rendered HTML
 was read: `body/index.html` carries `id="key-validity-stale-vs-foreign"`,
 `struct.Body.html` has 16 links to it, and `ReadbackError`'s page has 1.
+After the fix pass: 32 on `struct.Body.html`, 1 on `ReadbackError`, and
+1 on `geometry/index.html`.
 

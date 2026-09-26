@@ -180,3 +180,17 @@ they are reached and unasserted by design; that is filed as
 Unplanted, both `m10_p_fence` fences pass, which pins the door
 bit-identical to the hand walk it replaced at that fixture.
 
+**Re-planted after the fix pass** (`&self` receivers, `try_replay_at`
+homed). All five profile plants gave the same red sets as above (9, 7,
+7, 3, 3 of 530, each summing to 530). The editor-core pair gave 4/4 on
+`panic!` and 2/4 on the swapped centre, as before. Two plants in the
+homed `common::try_replay_at`:
+- `panic!` on entry reds 7 of 530: every `cert4r1_e2e` and
+  `generic_replay` row that calls it.
+- Lifting through `|c| T::from_f64(c * 2.0)` (a different answer)
+  reds 3: `generic_replay`'s Dual bit-identity, Interval containment
+  and escalation rows. The `cert4r1_e2e` rows stay green, because their
+  one fixture is a Center-mode step whose every scalar is a length, so
+  doubling all of them is a uniform scale, and those rows assert
+  properties a scale preserves.
+
