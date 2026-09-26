@@ -7,14 +7,13 @@ Opened 2026-09-20 by SYM's priority-seam cut
 
 ## The slate
 
-**27.5 budget points** of dispatchable work against a ceiling of 30, at DECIDE-6's close (2026-09-25): the read's row closed and rule G's leaf-cost row (D) replaced it.
+**25 budget points** of dispatchable work against a ceiling of 30, at DECIDE-7's close (2026-09-26): rule G's leaf-cost row (D) closed, and its two filed rows are P3.
 
 | pri | item | cost | title |
 |---|---|---|---|
 | P1 | `declared-tangency-needs-the-registered-identity-door` | H | a constructor-declared tangency (Fillet's carrier_line_circle) is a live consumer for the registered-identity door M10-8 left unbuilt |
 | P1 | `revolve-carriers-state-only-the-rim` | H | the revolve latitude carriers register the rim identity but cannot state the span one: the builder is never handed the far endpoint |
 | P2 | `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2` | H | rule G costs the link's carrier_on_surface_2 four theorems at one attempt per rung (88 -> 84, eight more through the door); with the kept-atom ladder the predicate reads 88/0/8/12, the eight to the door on the coefficient ring and two numeric on the term budget |
-| P2 | `rule-g-is-the-link-and-pads-leaf-cost` | D | rule G is the link's and the pad's leaf cost: shutting it takes the pad's release leaf 73.8s to 17.2s and the link's 8.5s to 3.8s, where shutting the decision read moves neither |
 | P2 | `the-exact-quotient-re-keys-a-root-the-split-met` | H | DECIDE-4's exact quotient re-keys a root to sqrt(Q), so it no longer meets the split spelling sqrt(N)/sqrt(D): a canonical factorisation of a root's argument is the remedy |
 | P2 | `the-apothems-sign-is-a-value-read` | H | the apothem's sign: six arc-family decisions on a parameter bulge are zero exactly where the apothem L(1-b^2)/(4b) is positive, which only a value read reaches |
 
@@ -37,6 +36,10 @@ suites' cost, and rule G is (`rule-g-is-the-link-and-pads-leaf-cost`,
 which replaces the read's row on the slate). Both P1 rows stay gated:
 the declared tangency on ROUND's open Fillet-centre row, and the revolve
 carriers on E6.
+DECIDE-7 merged 2026-09-26 (#3246): rule G's leaf cost was the per-node
+reduction re-run over repeat inputs, now memoised per session with no
+form moved (the pad's release leaf 74 → 28 s).
+`rule-g-is-the-link-and-pads-leaf-cost` closed with it.
 `a0-leaves-max-and-min-of-constants-opaque` closed with DECIDE-3 and
 `coefficient-ring-width-is-not-monotone-in-reach` (SYM's) with SYM-9.
 

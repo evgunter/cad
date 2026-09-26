@@ -2,11 +2,12 @@
 id: rule-g-is-the-link-and-pads-leaf-cost
 kind: issue
 title: rule G is the link's and the pad's leaf cost: shutting it takes the pad's release leaf 73.8s to 17.2s and the link's 8.5s to 3.8s, where shutting the decision read moves neither
-status: dispatched
+status: closed
 priority: P2
 cost: D
 opened: 2026-09-25
-refs: [decision-read-triples-the-plate-pin-suites-wall-time, DECIDE-6]
+refs: [decision-read-triples-the-plate-pin-suites-wall-time, DECIDE-6, DECIDE-7]
+closed: 2026-09-26
 ---
 
 
@@ -236,9 +237,12 @@ on the release leaf instrument before and after the fix pass: the pad
   link and the boss are identical, the diff of the two outputs with
   times stripped being empty.
 - **Splits at the nominal**, `m10_10_splits_at_the_nominal_under_a_rule_set`:
-  identical for the plate, the bracket and the annulus. The row is
-  killed at the pad's nominal on this box in both runs (memory), so it
-  reaches neither the link nor the boss.
+  identical for the plate, the bracket, the annulus, the link and the
+  boss, the last two selected with `CAD_M10_10_DOCS` and taken again
+  under `CAD_M10_10_RETRY=default` (the pad's nominal is not takeable
+  on this box). The review re-took receipts and ledgers on the seven
+  scales with the kept-atom ladder as well, and the splits under
+  `ring_512`: identical.
 - **Walk ledgers** (every walk's call and form counts, frozen counts
   and the digest chain of every form built): identical before and
   after on the pad's release leaf (both rule sets), the pad's dev leaf
@@ -278,3 +282,19 @@ filed as `work/decide/rule-gs-magnitude-door-never-asks-rule-c`.
 The door walk re-derives the early walk's forms node by node, and it
 still does. The memo absorbs that repetition at the reduction, which
 is where its cost was, and not at the walk.
+
+## Closed (DECIDE-7, 2026-09-26)
+
+Closed by DECIDE-7 (#3246). The part of rule G's cost that could go
+without moving a form went: the repeat reductions, 45 s of the pad's
+57 s. At the fix head the pad's release leaf is 28.30 s, the link's
+4.78 s, and `m10_10_pins` in dev 174.16 s, every receipt and ledger
+unchanged.
+
+**What rule G still costs:** 17.8 s on the pad's release leaf (28.85
+against 11.09 s shut), all of it first-time reductions over the larger
+forms rule G leaves.
+- **10.6 s** is refusals at the quotient's product. It is filed as
+  `work/sym/the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`.
+- **The rest** is rule G's price as the spec's stop rule records it.
+  No cheaper spelling of the same atoms was named, so none is filed.
