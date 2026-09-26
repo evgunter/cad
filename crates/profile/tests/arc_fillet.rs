@@ -225,6 +225,49 @@ fn line_arc_internal_validates_with_declared_tangency() {
     validates_with_declared_joints(lp, &[2, 3]);
 }
 
+/// **A short run out on the arrival circle is the fillet's run out**:
+/// the line×arc internal corner with its entry moved `turn` radians
+/// past T2 along the radius-2 arrival circle, so the closing arc — the
+/// fused verb's run out — spans a chord of about `2·turn` meters. However
+/// short, that arc lies on the arrival circle, so it builds and is named
+/// the fillet step's `RunOut`; the fused `fillet_arc` has no `Leg` to
+/// name it instead.
+#[test]
+fn a_short_closing_run_out_on_the_arrival_circle_is_named_the_run_out() {
+    use profile::{Piece, PieceRole};
+    let t2 = line_arc_internal(0.5).expect("the fillet fits").vertices()[3];
+    let past_t2 = t2.y.atan2(t2.x);
+    for turn in [1e-7, 3e-8, 1e-8] {
+        let entry = p2(2.0 * (past_t2 + turn).cos(), 2.0 * (past_t2 + turn).sin());
+        let closed = Open
+            .at(entry)
+            .line_to(p2(0.0, 0.0), Tol::witness())
+            .and_then(|o| o.toward(2.0, 0.0, Tol::witness()))
+            .and_then(|o| {
+                o.fillet_arc(
+                    0.5,
+                    Center {
+                        c: p2(0.0, 0.0),
+                        winding: ArcSweep::Ccw,
+                        p: Start,
+                    },
+                    Tol::witness(),
+                )
+            })
+            .unwrap_or_else(|e| panic!("entry {turn:e} rad past T2: {e:?}"));
+        let pieces = &closed.structure.pieces;
+        assert_eq!(
+            pieces.last().copied(),
+            Some(Piece {
+                step: 3,
+                role: PieceRole::RunOut,
+            }),
+            "entry {turn:e} rad past T2: {pieces:?}"
+        );
+        common::pinned(closed);
+    }
+}
+
 #[test]
 fn line_arc_external_validates_with_declared_tangency() {
     let lp = line_arc_external(0.5).expect("the fillet fits");

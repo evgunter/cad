@@ -745,8 +745,8 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
     (
         "path_run_out_carrier",
         "an emitted segment told apart from a fillet's arrival carrier: its end's lateral \
-         miss from the arrival ray, or its circle's centre separation plus radius difference \
-         from the arrival circle",
+         miss from the arrival ray and its advance along it, or its end's and arc midpoint's \
+         radial misses from the arrival circle",
     ),
     (
         "path_seam_arrival_lever",

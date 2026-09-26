@@ -2238,18 +2238,37 @@ struct PendingRunOut<T: Real> {
 impl<T: Decide> PendingRunOut<T> {
     /// Whether the segment of `kind` from `from` to `to` with `bulge`
     /// lies on this run's carrier: a straight segment whose end is on
-    /// the arrival ray's line, or an arc whose circle is the arrival
-    /// circle. The segment's start is the chain head the fillet arc
-    /// left on the carrier.
+    /// the arrival ray — on its line and ahead of the chain head — or
+    /// an arc whose end and midpoint are on the arrival circle. The
+    /// segment's start is the chain head the fillet arc left on the
+    /// carrier, so the two points the test reads are the ones the
+    /// segment could still take off it.
     ///
-    /// The ray's margin is the end's lateral displacement from the
-    /// line in meters — the number `on_ray_extent` classifies for a
-    /// `to` continuation, from the same anchor along the same
-    /// direction, so a target that continuation accepted rides here.
-    /// The circle's is the carrier-identity sum d + |Δr|. Both are
-    /// decided on the linear band under their own key, because the
-    /// question is which step a segment is named for, not whether the
-    /// chain is sound; an undecidable margin escalates.
+    /// The ray's lateral margin is the end's displacement from the line
+    /// in meters — the number `on_ray_extent` classifies for a `to`
+    /// continuation, from the same anchor along the same direction, so
+    /// a target that continuation accepted rides here. Its advance
+    /// `dir·(to − from)` must be definitely positive: the ray is a
+    /// half-line, and a segment leaving the head backward along its
+    /// line is not on it.
+    ///
+    /// The circle's margin is a POINT deviation — the sum of the end's
+    /// and the arc midpoint's radial misses — where
+    /// [`carriers_are_identical`] reads CARRIER identity, d + |Δr|
+    /// between two whole circles. Rebuilding this segment's circle from
+    /// its chord and bulge would cost ~ε·R²/chord in the centre, so a
+    /// short run genuinely on the circle would read as off it or as
+    /// undecidable; each point's miss is instead rounded at ε·R
+    /// whatever the chord. Three points on one circle fix it, and the
+    /// head is the third.
+    ///
+    /// Every margin is decided on the linear band under its own key,
+    /// because the question is which step a segment is named for, not
+    /// whether the chain is sound. An undecidable margin escalates
+    /// rather than guessing a name: a name is a durable locator an edit
+    /// later resolves, so a guess would silently move it to another
+    /// step's segment, which is exactly the failure the naming exists
+    /// to prevent.
     fn rides(
         &self,
         kind: FirstSeg,
@@ -2257,19 +2276,35 @@ impl<T: Decide> PendingRunOut<T> {
         to: Point2<T>,
         bulge: T,
     ) -> Result<bool, PathError<T>> {
-        let margin = match (self.carrier, kind) {
-            (ArrivalCarrier::Ray { anchor, dir }, FirstSeg::Line) => dir.unit.perp_dot(to - anchor),
-            (ArrivalCarrier::Circle(circle), FirstSeg::Arc) => {
-                let own = arc_carrier(from, to, bulge);
-                (own.center - circle.center).norm_squared().sqrt()
-                    + (own.radius - circle.radius).abs()
-            }
-            _ => return Ok(false),
-        };
         let band = linear_band(self.tol)?;
-        match decide("path_run_out_carrier", Margin::of(margin), band) {
-            Ok(sign) => Ok(sign == Sign::Zero),
+        let on = |margin: T| match decide("path_run_out_carrier", Margin::of(margin), band) {
+            Ok(sign) => Ok(sign),
             Err(source) => Err(PathError::Escalated { source }),
+        };
+        match (self.carrier, kind) {
+            (ArrivalCarrier::Ray { anchor, dir }, FirstSeg::Line) => {
+                if on(dir.unit.perp_dot(to - anchor))? != Sign::Zero {
+                    return Ok(false);
+                }
+                Ok(on(dir.unit.dot(to - from))? == Sign::Positive)
+            }
+            (ArrivalCarrier::Circle(circle), FirstSeg::Arc) => {
+                // The arc's midpoint in `arc_carrier`'s convention:
+                // the sagitta `bulge·L/2` off the chord's midpoint,
+                // against the chord's left normal (a positive bulge
+                // winds counter-clockwise).
+                let half = T::from_f64(0.5);
+                let chord = to - from;
+                let mid = from + chord * half - Vec2::new(-chord.y, chord.x) * (bulge * half);
+                // A distance's square root inside the margin, as in
+                // `carriers_are_identical`: the miss is a length in
+                // meters, and the band is a length.
+                let miss = |p: Point2<T>| {
+                    ((p - circle.center).norm_squared().sqrt() - circle.radius).abs()
+                };
+                Ok(on(miss(to) + miss(mid))? == Sign::Zero)
+            }
+            _ => Ok(false),
         }
     }
 }
@@ -2382,20 +2417,9 @@ pub struct Core<T: Real> {
     /// An emission off that carrier is not the run out, whatever its
     /// kind, and is the piece of the step that draws it.
     ///
-    /// The lattice decides which emissions can follow. A circle run out
-    /// is emitted by the same fused-verb resolution that emits the arc,
-    /// immediately after it. A ray run out whose arrival verb draws the
-    /// next segment itself (`line_to`, the far-end anchor, the straight
-    /// close) is the same. One whose arrival only binds the tip (`at`,
-    /// `toward`, `angle`) leaves the tip directed along the arrival
-    /// ray, and every straight segment the chain emits from a directed
-    /// tip departs along that ray: a leg, a `to` continuation, the
-    /// continuation close, or the next fillet's run in. Whatever else
-    /// can follow it draws an arc on another carrier —
-    /// `tangent_arc_to`, a fused verb's incoming arc, a fillet arc
-    /// sprung off the tip. The naming does not lean on any of that: it
-    /// reads each candidate's geometry, so a verb the lattice admits
-    /// later names its segment correctly without this field changing.
+    /// The lattice decides which emissions can follow; the naming reads
+    /// each candidate's geometry, so a verb the lattice admits later
+    /// names its segment correctly without this field changing.
     run_out: Option<PendingRunOut<T>>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
@@ -4042,21 +4066,23 @@ impl<T: Decide> PartialPath<T, HasPos<WithIncoming>, NoAng> {
     /// same fact `line(len)` gates on its authored length: a target
     /// behind the departure, or on top of it, is a leg of non-positive
     /// length ([`PathError::NonpositiveLeg`]), not a target that misses.
-    /// **Sibling measurement, cross-declared** (R1 S1): this and
-    /// [`tangent_arc_geom`](Self::tangent_arc_geom) compute the SAME
-    /// four lines — `d = target − at`, `along = û·d`, `across = û⊥·d`,
-    /// then a banded decision — under two different predicate keys, and
-    /// neither used to admit the other existed.
+    /// **Sibling measurement, cross-declared** (R1 S1): this,
+    /// [`tangent_arc_geom`](Self::tangent_arc_geom) and
+    /// [`PendingRunOut::rides`]'s ray arm compute the SAME displacement
+    /// — `d = target − at`, `across = û⊥·d` (and here and in the
+    /// tangent arc, `along = û·d`), then a banded decision — under
+    /// three different predicate keys.
     ///
     /// They are kept separate deliberately rather than shared, because
     /// the keys are the point: this site classifies `across` as a
     /// declared target's MISS (`path_continuation_target_offset`, an
-    /// authored-data disagreement), while the tangent-arc site
-    /// classifies the same number as a degenerate-arc condition. The
-    /// funnel key is what tells a margin telemetry reader which question
-    /// was being answered, so collapsing them would lose the
-    /// distinction that makes the funnel worth having. What was missing
-    /// was the cross-reference, not the sharing.
+    /// authored-data disagreement), the tangent-arc site classifies the
+    /// same number as a degenerate-arc condition, and the run-out site
+    /// as which step an emitted segment is named for
+    /// (`path_run_out_carrier`). The funnel key is what tells a margin
+    /// telemetry reader which question was being answered, so
+    /// collapsing them would lose the distinction that makes the funnel
+    /// worth having.
     fn on_ray_extent(
         at: Point2<T>,
         ang: Dir<T>,
@@ -5548,6 +5574,9 @@ mod tests {
         };
         assert_eq!(named(ray, Point2::new(3.0, 0.0), 0.0), run_out);
         assert_eq!(named(ray, Point2::new(3.0, 1.0), 0.0), own_leg);
+        // On the ray's line but behind the chain head: the ray is a
+        // half-line, and a segment leaving backward along it is not on it.
+        assert_eq!(named(ray, Point2::new(0.0, 0.0), 0.0), own_leg);
 
         // The arrival circle: the unit circle about the origin. The
         // quarter from (1, 0) to (0, 1) rides it (bulge tan(π/8)); the
@@ -5560,6 +5589,18 @@ mod tests {
         let quarter = (core::f64::consts::PI / 8.0).tan();
         assert_eq!(named(circle, Point2::new(0.0, 1.0), quarter), run_out);
         assert_eq!(named(circle, Point2::new(0.0, 1.0), 1.0), own_leg);
+        // A short arc on the circle rides it however short: the end and
+        // the arc's midpoint are each within rounding of the circle, a
+        // miss that does not grow as the chord shrinks.
+        for chord in [1e-7, 1e-8] {
+            let turn = 2.0 * (chord / 2.0f64).asin();
+            let to = Point2::new(turn.cos(), turn.sin());
+            assert_eq!(
+                named(circle, to, (turn / 4.0).tan()),
+                run_out,
+                "a {chord:e} m chord along the arrival circle"
+            );
+        }
 
         // A segment of the other kind never rides, whatever its ends.
         assert_eq!(named(ray, Point2::new(0.0, 1.0), quarter), own_leg);
