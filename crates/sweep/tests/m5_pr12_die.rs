@@ -14,11 +14,9 @@
 use core::f64::consts::PI;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use geom_core::{Affine3, Point2, Vec3};
 use sweep::blend::build::fillet_edges;
-use sweep::test_support::cube;
-use sweep::{Revolution, RevolveAxis, revolve};
+use sweep::test_support::{ball_poled_y, cube};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
@@ -46,7 +44,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// is cut by a face plane, so its ball is charted with the pole along
 /// that face's normal and the section stays polar by construction.
 fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
-    let ball = ball_at(r, Vec3::new(0.0, 0.0, 0.0));
+    let ball = ball_poled_y(r, Vec3::new(0.0, 0.0, 0.0), Tol::witness());
     let y = Vec3::new(0.0, 1.0, 0.0);
     let axis = y.cross(pole);
     let placed = if axis.norm() < 1e-12 {
@@ -77,21 +75,6 @@ fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>) -> Body<f64> {
         .unwrap()
     };
     topo::transform_rigid(&placed, &Affine3::translation(c), Tol::witness()).unwrap()
-}
-
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
 }
 
 /// The blank: the cube with every edge filleted.

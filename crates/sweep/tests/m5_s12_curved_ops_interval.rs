@@ -23,7 +23,7 @@ pub(crate) mod certified {
     use geom_core::Tol;
 
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
+    use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
@@ -60,12 +60,11 @@ pub(crate) mod certified {
     /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
     /// `review_arceval_r1_probes`'s E2 row builds it from here too.
     pub(crate) fn recut_ball() -> Body<Interval> {
-        topo::transform_rigid(
-            &sweep::test_support::ball_poled_y(iv(1.0), Tol::witness()),
-            &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
+        sweep::test_support::ball_poled_y(
+            iv(1.0),
+            Vec3::new(iv(1.5), iv(1.5), iv(0.5)),
             Tol::witness(),
         )
-        .unwrap()
     }
 
     /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.

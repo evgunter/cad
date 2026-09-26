@@ -483,11 +483,23 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
     )
 }
 
-/// A radius-`r` ball about the origin with its polar axis along `+y`:
+/// A radius-`r` ball centred at `c` with its polar axis along `+y`:
 /// the half-disc lamina — the semicircle out of `(0, -r)` and the
 /// straight diameter back — revolved a full turn about the sketch
-/// y-axis, which is where the revolve puts a ball's poles.
-pub fn ball_poled_y<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+/// y-axis, which is where the revolve puts a ball's poles, then
+/// translated to `c`. [`ball_poled_z`] is the same ball turned onto
+/// `+z` before it is placed.
+pub fn ball_poled_y<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
+    r: T,
+    c: Vec3<T>,
+    tol: Tol,
+) -> Body<T> {
+    topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
+}
+
+/// The two ball doors' common first step: the lamina revolved about
+/// the sketch y-axis, at the origin.
+fn ball_about_origin<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
     revolved_about_y_at(
         vec![
             (Point2::new(T::zero(), -r), T::one()),
@@ -517,7 +529,7 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     tol: Tol,
 ) -> Body<T> {
     let poled = topo::transform_rigid(
-        &ball_poled_y(r, tol),
+        &ball_about_origin(r, tol),
         &Affine3::rotation_about_axis(
             Point3::new(T::zero(), T::zero(), T::zero()),
             Vec3::new(T::one(), T::zero(), T::zero()),

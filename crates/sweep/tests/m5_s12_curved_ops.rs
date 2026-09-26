@@ -45,7 +45,8 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::ball_poled_y;
+use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
@@ -131,23 +132,6 @@ fn notched() -> Body<f64> {
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
 /// full height.
 const NOTCH: f64 = PI * 0.25 / 2.0;
-
-/// The unit ball of the PR 9c acceptance: two half-sphere bands on ONE
-/// sphere surface, translated to `centre`.
-fn ball_at(centre: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
-}
 
 /// A body's face senses in arena order.
 fn senses(body: &Body<f64>) -> Vec<bool> {
@@ -460,7 +444,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     let zone = 11.0 * PI / 12.0;
     let cut = both_lanes(BooleanOp::Subtract, &a, &b);
@@ -537,7 +521,7 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.
     let above = Point3::new(2.0, 2.0, 1.4);

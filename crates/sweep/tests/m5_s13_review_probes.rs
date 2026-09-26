@@ -19,16 +19,10 @@ use crate::common::operands::slab;
 use core::f64::consts::PI;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::brick;
-use sweep::{Revolution, RevolveAxis, revolve};
+use geom_core::{Affine3, Mat3, Point3, Vec3};
+use sweep::test_support::{ball_poled_y, brick};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 fn slack() -> f64 {
     (1e3 * Tol::witness().get().eps).max(1e-9)
@@ -36,21 +30,6 @@ fn slack() -> f64 {
 
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
-}
-
-fn ball_at(r: f64, centre: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
 }
 
 /// Rotate `body` about `pivot` by `theta` around the world x-axis.
@@ -89,7 +68,7 @@ fn cap(r: f64, h: f64) -> f64 {
 #[test]
 fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
     let fin = brick((0.0, 4.0), (1.9, 2.1), (0.0, 0.8), Tol::witness());
-    let ball = ball_at(0.6, Vec3::new(2.0, 2.0, 1.2));
+    let ball = ball_poled_y(0.6, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let decls = BooleanDeclarations::none();
     let r = boolean_op_with(
         BooleanOp::Union,
@@ -129,7 +108,7 @@ fn probe_belly_pierce_no_silent_answer_and_lanes_agree() {
 /// the scan's tangency arm refuses typed, never answers.
 #[test]
 fn probe_exact_tangency_from_inside_refuses_typed() {
-    let b = ball_at(0.5, Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("tangency must not answer");
     let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
         panic!("expected the scan's tangency arm, got {err:?}");
@@ -149,7 +128,7 @@ fn probe_exact_tangency_from_inside_refuses_typed() {
 /// any fallback — so this pin is stable).
 #[test]
 fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
-    let b = ball_at(0.5, Vec3::new(0.3, 2.0, 1.2));
+    let b = ball_poled_y(0.5, Vec3::new(0.3, 2.0, 1.2), Tol::witness());
     let err = topo::union(&slab(), &b, Tol::witness()).expect_err("edge escape must not certify");
     let BooleanError::CurvedPierceUnsupported { .. } = err else {
         panic!("expected the pierce frontier, got {err:?}");
@@ -161,7 +140,7 @@ fn probe_edge_escape_refuses_typed_at_the_pierce_frontier() {
 #[test]
 fn probe_flipped_row_replays_bit_identical() {
     let a = slab();
-    let b = ball_at(1.0, Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
     let decls = BooleanDeclarations::none();
     let one = boolean_op_with(
         BooleanOp::Union,
@@ -198,7 +177,7 @@ fn probe_flipped_row_replays_bit_identical() {
 /// not just the perpendicular fixture: green with the exact cap volume.
 #[test]
 fn probe_tilted_chart_recut_still_cuts_exact() {
-    let b0 = ball_at(0.5, Vec3::new(2.0, 2.0, 1.2));
+    let b0 = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let b = rot_x_about(&b0, Vec3::new(2.0, 2.0, 1.2), 0.3);
     let cut = boolean_op_with(
         BooleanOp::Subtract,
@@ -226,7 +205,7 @@ fn probe_tilted_chart_recut_still_cuts_exact() {
 /// an exact answer are both honest; a wrong volume is not.
 #[test]
 fn probe_near_parallel_axis_never_answers_wrong() {
-    let b0 = ball_at(0.5, Vec3::new(2.0, 2.0, 1.2));
+    let b0 = ball_poled_y(0.5, Vec3::new(2.0, 2.0, 1.2), Tol::witness());
     let b = rot_x_about(
         &b0,
         Vec3::new(2.0, 2.0, 1.2),
@@ -274,8 +253,8 @@ fn probe_near_parallel_axis_never_answers_wrong() {
 #[test]
 fn probe_nested_spheres_union_to_the_outer_ball() {
     use core::f64::consts::PI;
-    let big = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
-    let small = ball_at(0.3, Vec3::new(2.0, 2.0, 0.2));
+    let big = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
+    let small = ball_poled_y(0.3, Vec3::new(2.0, 2.0, 0.2), Tol::witness());
     let out = topo::union(&big, &small, Tol::witness())
         .expect("the whole-sphere containment arm answers");
     let body = &out.body().expect("a body").body;
@@ -353,7 +332,7 @@ fn probe_two_nonparallel_escapes_refuse_typed() {
     let r = 0.4;
     let (cx, cy, cz) = (0.383, 2.0, 0.85);
     let pivot = Vec3::new(cx, cy, cz);
-    let b0 = ball_at(r, pivot);
+    let b0 = ball_poled_y(r, pivot, Tol::witness());
     let b1 = rot_x_about(&b0, pivot, -0.2137);
     let b = rot_y_about(&b1, pivot, 0.312);
     let decls = BooleanDeclarations::none();

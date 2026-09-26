@@ -15,31 +15,10 @@
 use core::f64::consts::PI;
 
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{Revolution, RevolveAxis, revolve};
+use geom_core::Vec3;
+use sweep::test_support::ball_poled_y;
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations, BooleanError};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// A radius-`r` ball at `c` (poles on +Y; meridian circle in z = 0).
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
-}
 
 fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, BooleanError> {
     let out = boolean_op_with(
@@ -64,8 +43,8 @@ fn union(a: &Body<f64>, b: &Body<f64>, strategy: SweepStrategy) -> Result<f64, B
 /// recorded, retired exactly as predicted there.
 #[test]
 fn far_disjoint_balls_union_under_both_strategies() {
-    let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
-    let b = ball_at(1.0, Vec3::new(7.0, 2.0, 0.0));
+    let a = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
+    let b = ball_poled_y(1.0, Vec3::new(7.0, 2.0, 0.0), Tol::witness());
     let vr = union(&a, &b, SweepStrategy::Realized).expect("realized: disjoint union");
     let vi = union(&a, &b, SweepStrategy::Idealized)
         .expect("idealized: the definite-miss certificate clears the examined pair");
@@ -79,8 +58,8 @@ fn far_disjoint_balls_union_under_both_strategies() {
 /// one-sided verdict exists, and the curved pierce door stays.
 #[test]
 fn overlapping_balls_keep_the_pierce_frontier() {
-    let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
-    let b = ball_at(1.0, Vec3::new(3.2, 2.0, 0.0));
+    let a = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
+    let b = ball_poled_y(1.0, Vec3::new(3.2, 2.0, 0.0), Tol::witness());
     let err = union(&a, &b, SweepStrategy::Realized)
         .expect_err("a crossing circle has no one-sided verdict");
     assert!(
@@ -96,8 +75,8 @@ fn overlapping_balls_keep_the_pierce_frontier() {
 fn in_band_clearance_escalates_through_the_funnel() {
     let tol = Tol::witness().get();
     let delta = 5.0 * tol.eps; // strictly inside [eps, K*eps)
-    let a = ball_at(1.0, Vec3::new(2.0, 2.0, 0.0));
-    let b = ball_at(1.0, Vec3::new(4.0 + delta, 2.0, 0.0));
+    let a = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.0), Tol::witness());
+    let b = ball_poled_y(1.0, Vec3::new(4.0 + delta, 2.0, 0.0), Tol::witness());
     let err =
         union(&a, &b, SweepStrategy::Realized).expect_err("an in-band clearance cannot classify");
     match &err {

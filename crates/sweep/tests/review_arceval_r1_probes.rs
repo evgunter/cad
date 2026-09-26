@@ -48,7 +48,7 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, Real, Tol};
+    use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
     use crate::m5_s12_curved_ops_interval::certified::{
         RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball,
@@ -71,7 +71,11 @@ mod certified {
         const R: f64 = 0.6;
         const Z_CUT: f64 = 0.3;
         let cut = topo::subtract(
-            &ball_poled_y(Interval::from_f64(R), Tol::witness()),
+            &ball_poled_y(
+                Interval::from_f64(R),
+                Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+                Tol::witness(),
+            ),
             &block(Z_CUT, 1.0),
             Tol::witness(),
         )
