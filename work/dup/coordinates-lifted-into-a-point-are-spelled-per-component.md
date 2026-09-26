@@ -1,7 +1,7 @@
 ---
 id: coordinates-lifted-into-a-point-are-spelled-per-component
 kind: issue
-title: A point or vector built at T from f64 coordinates that are not already a Point/Vec is spelled per component at 44 sites; pncad::authoring's p2/p3/v2/v3 are the only door and sit uphill
+title: Whether geom_core should carry a public literal constructor (a point or vector at T from f64 coordinates) below pncad::authoring's p2/p3/v2/v3 — a question for the owner of geom-core's public surface
 status: open
 opened: 2026-09-24
 priority: P3
@@ -9,88 +9,104 @@ cost: D
 ---
 
 
-## Finding
+## What is left
 
-Filed by the `dup/scalar-lift-home` lane (the PR that closed
-`the-componentwise-scalar-lift-has-no-shared-home`). That unit folded
-every lift whose SOURCE is already a `Point2`/`Point3`/`Vec2`/`Vec3`
-onto the leaf door `map` (`p.map(T::from_f64)`). Its census also found
-the neighbouring class it could not fold: a point or vector **built at
-`T` from `f64` coordinates that are not a point value** — bare
-arguments (`|x, y, z| Point3::new(T::from_f64(x), …)`), a `[f64; 3]`
-row (`Vec3::new(T::from_f64(r[0]), …)`), a tuple (`CYL_ORIGIN.0`).
-There is no `Point3<f64>` to call `map` on, so `map` does not serve
-them without first building one (`Point3::new(x, y, z).map(T::from_f64)`),
-which no site does.
+One question, and it is a design question, not a fold: **is a public
+door in `geom_core` wanted that builds a `Point2`/`Point3`/`Vec2`/`Vec3`
+at a scalar `T` from `f64` coordinates?** Today the only public door of
+that shape is `pncad::authoring`'s `p2`/`p3`/`v2`/`v3`, which is uphill
+of every crate below `pncad`, so each crate that wants one spells its
+own. Adding one to `geom_core` would be new public API on the kernel's
+leaf crate, so it is the call of whoever owns that surface, not a
+duplication lane's.
 
-**44 groups at `71f8ce204`** (PR 3242's head after its last `main`
-merge). This is the one count; every other mention defers to it. The
-instrument is the unit's denominator-first pass: every
-`<path>::from_f64(`/`::constant(` call whose argument is a component
-read or a bare `x`/`y`/`z`, over `git ls-files` with no path argument,
-grouped by file, callee and receiver. It finds 46 bare, array and tuple
-groups. Four of them build no point (listed below), which leaves 42.
-The callee-agnostic second pass (any `F(R.x), F(R.y)`) adds 2 more
-through a local alias, for 44:
+Everything that could be folded without that call was folded in the PR
+recorded below; what remains are the per-crate homes and the scattered
+single copies such a door would serve.
 
-- **Bare coordinates, 33**: `crates/pncad/src/authoring.rs` ×5 (the
-  public `p2`/`p3`/`v2`/`v3` doors and `polygon`'s `at`),
-  `crates/sweep/src/test_support.rs` ×3 (`corners`, `waisted_at`,
-  `bowl_at`), `crates/topo/src/test_support_fixtures.rs` ×3 (the prism
-  builders' vertex maps, and `holed_block`'s `pt`), `crates/geom-brep/tests/shared/point.rs` ×2
-  (`p3`, `v3`), `review_m2_pr3_certify.rs` ×2 (`ipt`, `ivec`),
-  `onb_c_payoff_interval.rs`, `crates/geom/tests/dual_foot_tangent.rs`,
-  `crates/profile/tests/{cert4r2_e2e,interval_lane,review_s2_probe,scalar_channels_probe}.rs`,
-  `crates/sweep/tests/{cert_m2r1_passes,extrude_interval,issue93_az_intersect,m5_pr6_pcurves,mass_props_interval,review_m2_pr4_interval,review_m2_pr5_interval,review_m2_pr7_interval,revolve_interval,sf2a_r2_interval_probe}.rs`
-  (eight of those ten are the same `fn p2(x, y) -> Point2<Interval>`),
-  `crates/topo/tests/cube_doors_agree.rs`, and an `iv` closure in
-  `crates/geom-core/src/real.rs`'s test module.
-- **A `[f64; N]` row, 8**: `crates/topo/src/boolean/solid_contain.rs`,
-  `chart_bound.rs`, `chart_region.rs` (`SCHEDULE_2D`),
-  `splitting/containment.rs`, `splitting/order.rs` — five PRODUCTION
-  sites lifting the ray-direction `SCHEDULE` tables, which are typed
-  `[[f64; N]; M]` rather than as vectors — and
-  `crates/geom-core/tests/{onb_signed_zero_evidence,r2_cert3_probes}.rs`,
-  `crates/topo/tests/review_m3_pr55.rs`.
-- **A tuple, 1**: `crates/topo/tests/fixture/mod.rs` (`CYL_ORIGIN`).
-- **Through a local alias, 2**: `crates/geom-brep/tests/interior_iso_review.rs`
-  (`let f = T::from_f64;` then `Point2::new(f(p0.0), f(p0.1))` and the
-  `Vec2` beside it).
+## The honest cost of a downhill door
 
-Not members, and why: `geom-core/src/dual.rs` (`atan2` arguments, no
-point), `topo/src/chart_region.rs`'s `decomposition_witness` closure
-(two scalar arguments), `topo/tests/review_ssiflat_r2_probes.rs` (`arc`
-lifted to two scalars), `demos/tour/src/klein.rs` (two scalar arguments;
-and demos are never converted).
+What it would buy is small, and that belongs in front of the owner:
 
-**Blind spots.** The instrument sees only the callee names
-`from_f64`/`constant` and the second pass's `F(R.x), F(R.y)` shape. So
-`crates/geom-brep/tests/review_m5_pr7_enclosure.rs`'s
-`[ring(axis.x), ring(axis.y), ring(axis.z)]`, where `ring` wraps
-`Interval::point`, is found only by the second pass and is out of class
-here (its target is an array, not a point). The instrument also needs
-the lift to be written at the coordinate; a coordinate lifted into a named local several statements
-before the constructor, further than the grouping window, is not
-grouped. A macro-assembled constructor is not seen at all.
+- **The spelling it would replace is already one expression at a door
+  that exists.** `Point3::new(x, y, z).map(T::from_f64)` is the
+  componentwise lift through `map`, which is public and downhill
+  (`geom_core::linalg`). A constructor would save the `.map(...)`.
+- **The copies are already at one home per crate where a crate has
+  many**: `sweep`'s suites at `tests/common/interval.rs` (`iv`, `p2`,
+  `p3`, `v3` at `Interval`), `geom-brep`'s at `tests/shared/point.rs`
+  (generic `p3`/`v3`) and `tests/shared/interval.rs`, and `topo`'s
+  prism fixtures at `test_support_fixtures.rs`'s `identity_map`.
+- **A generic door does not serve the densest home.** `sweep`'s
+  interval suites call these where nothing fixes the scalar (a vertex
+  inside a `vec!`), so a `T: Real` door would need a turbofish at the
+  sites it exists to shorten — which is why that home is monomorphic
+  at `Interval`. `geom-brep`'s generic `p3` needed one type annotation
+  where it replaced `review_m2_pr3_certify.rs`'s monomorphic `ipt`
+  (`survives_interval_line_certification`).
+- **What it would collapse**, at `360eb7320` plus the fold: the three
+  homes above, `pncad::authoring`'s four doors (which could delegate),
+  and these single copies — `topo/src/boolean/join.rs`'s test module
+  (`iv`/`p3`/`v3`), `topo/tests/trim_3_chart_bound.rs` (`iv`/`p2`),
+  `topo/tests/review_m2_pr3.rs` (`sp`/`wp` over a local `f`),
+  `topo/tests/cube_doors_agree.rs` (two inline lifts),
+  `geom-brep/tests/arc_eval_anchor.rs` (`p2`),
+  `geom-brep/tests/interior_iso_review.rs` (`f` over a tuple),
+  `geom-core/src/real.rs`'s test `iv` closure,
+  `profile/tests/interval_lane.rs` (`ip2`) with its closure twin in
+  `cert4r2_e2e.rs`, and the `Probe` pair in `review_s2_probe.rs` /
+  `scalar_channels_probe.rs` (`pp`). The `profile` pairs are two local
+  closures and one suite helper: a crate-local home for them would be
+  new vocabulary for four sites, so they were left to this question
+  (method item 6).
 
-## The shape of a home
+Nothing drifts at any of these, because every one routes through
+`Real::from_f64`, the one lift door; that is why this stays P3 and
+why the answer may well be "no door".
 
-Two different questions, and a unit takes them apart:
+Out of this row: the `f64` constructors that lift nothing
+(`fn p2(x, y) -> Point2<f64> { Point2::new(x, y) }` and its kin),
+which are `f64-point-aliases-are-copied-beside-their-binarys-home`.
 
-1. The **`SCHEDULE` tables** are a typing question on `topo`'s ground:
-   typed as `Vec3<f64>`/`Vec2<f64>` constants (both `new`s are
-   `const fn`), each of the five production sites becomes
-   `r.map(T::from_f64)` on the existing door, and no new API is needed.
-2. The **literal constructors** (`p2`/`p3`/`v2`/`v3` and their private
-   copies) have exactly one public door, `pncad::authoring`, and it is
-   uphill of every crate that copies it. Whether a downhill home in
-   `geom_core` is wanted, or whether the copies are fine as the suites'
-   own vocabulary (most are one-line and read well), is the design
-   question; method item 6 applies site by site.
+## What was folded (PR #PRNUM, 2026-09-26)
+
+- **The `SCHEDULE` tables.** There were never five tables: the five
+  production lifts read two consts, `splitting::containment::SCHEDULE`
+  (3-D; read by `containment`, `order` and `boolean::solid_contain`)
+  and `chart_region::SCHEDULE_2D` (read by `chart_region` and
+  `chart_bound`), distinct by dimension. Both are now typed
+  `[Vec3<f64>; 16]` / `[Vec2<f64>; 16]`, and all five lifts are
+  `r.map(T::from_f64)`. Bit-identity was shown by a throwaway in-crate
+  test holding the old `[[f64; N]; 16]` literals verbatim from
+  `360eb7320`: every component's `to_bits` equal, and every lifted
+  component's `lo`/`hi` bits equal between the old per-component
+  spelling and `map`, at `f64` and at `Interval` (160 lifted
+  components). Its divergent control, one entry moved by one ulp, red.
+- **`sweep`'s interval literals**: 42 helper definitions across 29
+  suites of the one `all` binary (22 `iv`, 14 `p2`, 5 `p3`, 1 `v3`;
+  nine of the files nest them inside a module), plus
+  `m5_pr11_quad_interval`'s `i` and `m5_pr6_pcurves`'s `ip2` closure,
+  onto one home, `tests/common/interval.rs`, registered in
+  `common/mod.rs`'s routing list.
+- **`geom-brep`**: `review_m2_pr3_certify.rs`'s `ipt`/`ivec` and
+  `onb_c_payoff_interval.rs`'s `p` closure onto `shared::point`.
+- **`topo`**: `test_support_fixtures.rs`'s three identical point-lift
+  closures handed to `prism_ops` onto one private `identity_map`.
+
+## Why the first census missed most of `sweep`
+
+The row's instrument grouped calls to `from_f64`/`constant` written at
+the coordinate. Twenty-two of `sweep`'s suites lift through a local
+`fn iv`, so their `p2`/`p3`/`v3` never spell `from_f64` at a coordinate
+and were invisible to it — the blind spot the row itself disclosed ("a
+coordinate lifted into a named local"), at the scale of a whole
+binary. The re-take used the construction instead: every `fn` whose
+arguments are two or three `f64` and whose return type is a
+`Point`/`Vec`, over `git grep` with no path argument, and the same for
+closures, each read by its body.
 
 ## Why this row is on this slate
 
-The finding is one thing spelled many times, which is this program's
-charter, and it was measured by the unit that folded its neighbour. The
-`SCHEDULE` half lands on `topo`'s ground and the `pncad` half on
-`lib`'s; either owner may claim the row by `git mv`.
+The finding was one thing spelled many times, which is this program's
+charter. What is left is `geom-core`'s surface; its owner may claim the
+row by `git mv`.
