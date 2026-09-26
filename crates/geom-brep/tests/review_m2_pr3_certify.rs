@@ -680,21 +680,7 @@ mod interval_lane {
     use super::*;
     use geom_core::{Bounds, Interval, Real};
 
-    fn ipt(x: f64, y: f64, z: f64) -> Point3<Interval> {
-        Point3::new(
-            Interval::from_f64(x),
-            Interval::from_f64(y),
-            Interval::from_f64(z),
-        )
-    }
-
-    fn ivec(x: f64, y: f64, z: f64) -> geom_core::Vec3<Interval> {
-        geom_core::Vec3::new(
-            Interval::from_f64(x),
-            Interval::from_f64(y),
-            Interval::from_f64(z),
-        )
-    }
+    use crate::shared::point::{p3 as ipt, v3 as ivec};
 
     /// Regression for the fixed bug: plane-adjacent dihedrals must NOT
     /// poison through the curvature-arm min fold (from_f64(MAX) is a
@@ -742,7 +728,7 @@ mod interval_lane {
     /// the interval lane (no NaI leaks anywhere in the schedule).
     #[test]
     fn survives_interval_line_certification() {
-        let p0 = ipt(0.0, 0.0, 0.0);
+        let p0: Point3<Interval> = ipt(0.0, 0.0, 0.0);
         let p1 = ipt(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec::line_between(p0, p1);
         let c = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
