@@ -38,8 +38,13 @@ mod certified {
     /// the other side).
     #[test]
     fn a_point_bracket_margin_reports_as_a_thin_enclosure() {
-        let err = ring_clearance(FaceKey::default(), Interval::from_f64(-0.05), band())
-            .expect_err("a ring inside the trimline refuses");
+        let err = ring_clearance(
+            FaceKey::default(),
+            sweep::blend::Convexity::Convex,
+            Interval::from_f64(-0.05),
+            band(),
+        )
+        .expect_err("a ring inside the trimline refuses");
         match err {
             BlendError::RingClearance { margin, .. } => {
                 assert_eq!(margin.predicate, "fillet3_ring_clearance");
@@ -69,8 +74,13 @@ mod certified {
     #[test]
     fn a_wide_enclosure_margin_reports_as_an_enclosure_and_not_an_endpoint() {
         let wide = Interval::from_bounds(-0.2, -0.05);
-        let err = ring_clearance(FaceKey::default(), wide, band())
-            .expect_err("an enclosure wholly below zero refuses definitely");
+        let err = ring_clearance(
+            FaceKey::default(),
+            sweep::blend::Convexity::Convex,
+            wide,
+            band(),
+        )
+        .expect_err("an enclosure wholly below zero refuses definitely");
         match err {
             BlendError::RingClearance { margin, .. } => {
                 assert_eq!(margin.sign, Sign::Negative);

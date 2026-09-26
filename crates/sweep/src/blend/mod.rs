@@ -795,8 +795,18 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
      whose edges are lines and circles \u{2014} a support face's own rings included, which \
      must be circles; cut a feature that leaves any other ring AFTER the blend rather \
      than before it";
-/// The recourse for a ring the blend's trimline would consume (the
-/// surgery's ring carry-through check).
+/// The recourse for a ring or edge in the part of a face the blend
+/// replaces — a support's strip between its edge and the trimline,
+/// or the corner a convex ruled cut-off removes from a cap (the
+/// surgery's ring carry-through check). It names neither material
+/// side, because the check refuses on both
+/// ([`BlendError::RingClearance`]'s `chain` says which, and its
+/// sentence renders it): the strip is cut away under a convex band and
+/// buried under a concave one. Both halves hold for every case: a
+/// smaller blend moves the trimline back towards its edge and shrinks
+/// the removed corner towards the old vertex, which no edge but the
+/// two rims reaches; and the feature — a bore, or a notch in the cap's
+/// outline — can be moved clear.
 ///
 /// **A caller reaches this when the ring's closest approach to a
 /// requested edge lands OFF the screen's sample lattice.** The
@@ -813,7 +823,7 @@ pub const FILLET3_GEOMETRY_RECOURSE: &str = "the blend reads only planes (and, f
 /// keeps that measured — as a property of that fixture, not of the
 /// door (PR 1753).
 pub const FILLET3_RING_RECOURSE: &str =
-    "reduce the blend size, or move the feature whose ring sits inside the blend's setback";
+    "reduce the blend size, or move the feature clear of the part of the face the blend replaces";
 /// The recourse for a support pair outside the analytic-arm table —
 /// it names the banked unit. Only a fillet caller reads it: the
 /// chamfer's arm table is its own early return
@@ -1206,15 +1216,33 @@ pub enum BlendError {
     /// (`fillet3_ring_clearance`): a ring of a support face sits
     /// within (or in band of) a blend trimline, so splitting the face
     /// along that trimline would consume the ring's feature instead
-    /// of carrying it through. Exact closed form (circle-vs-line /
-    /// circle-vs-circle), never sampled.
+    /// of carrying it through — or an edge of a transverse cap that a
+    /// convex ruled cut-off leaves on it (an edge of a ring, or of the
+    /// cycle the cut runs in other than the two rims it shortens) is
+    /// not definitely clear of a region enclosing the sliver the cut
+    /// removes, so the cut would cross it or leave it outside the
+    /// region it bounds. Exact closed form over the stored carriers and
+    /// windows, never sampled.
+    ///
+    /// The ring or edge lies in the part of the face the blend
+    /// replaces, and what happens to that part is the chain's
+    /// convexity: a convex band cuts it away, a concave one buries it
+    /// under the material it adds. The support meters refuse on both
+    /// sides; the cap meter only on the convex one, since a concave
+    /// cut-off's sliver is void of the source.
     RingClearance {
-        /// The support face whose ring is too close.
+        /// The face — a support, or a ruled band's cap — whose ring
+        /// or edge is too close.
         face: FaceKey,
-        /// The ring-to-trimline clearance in meters, as
-        /// `fillet3_ring_clearance` classified it: definitely negative,
-        /// or decided Zero — which is the ring sitting ON the trimline,
-        /// never "no clearance was certified".
+        /// The convexity of the chain whose blend reaches the ring or
+        /// edge — which of the two things the blend does to the part
+        /// of the face it lies in, and so which sentence renders.
+        chain: Convexity,
+        /// The clearance in meters, as `fillet3_ring_clearance`
+        /// classified it — of the ring from the trimline on a support,
+        /// of the edge from the region enclosing the sliver on a cap:
+        /// definitely negative, or decided Zero — which is the ring or
+        /// edge touching it, never "no clearance was certified".
         margin: ClassifiedMargin,
     },
     /// **The result's pcurve caches could not be re-minted** after the
@@ -1452,11 +1480,17 @@ impl fmt::Display for BlendError {
                 "{detail} — at {at}: the blend surgery contradicted its own earlier \
                  steps (a kernel bug); nothing about the body needs changing"
             ),
-            Self::RingClearance { margin, .. } => write!(
-                f,
-                "a ring of a support face sits inside a blend's setback ({margin}). \
-                 Recourse: {FILLET3_RING_RECOURSE}"
-            ),
+            Self::RingClearance { margin, chain, .. } => {
+                let fate = match chain {
+                    Convexity::Convex => "cuts away with the material it removes",
+                    Convexity::Concave => "buries under the material it adds",
+                };
+                write!(
+                    f,
+                    "a ring or edge lies in the part of a face the blend {fate} ({margin}). \
+                     Recourse: {FILLET3_RING_RECOURSE}"
+                )
+            }
             Self::Certify { site, source } => {
                 write!(f, "{site} — {source}")
             }
@@ -1619,7 +1653,8 @@ mod recourse_tests {
     /// that variant appends is chosen by its TAG, so one witness would
     /// leave the other route unrendered and unchecked.
     /// `FaceClearanceUncertified` appears twice for the same reason —
-    /// its recourse is chosen by `cross_chain`.
+    /// its recourse is chosen by `cross_chain`. `RingClearance` appears
+    /// twice because its sentence is chosen by `chain`.
     ///
     /// `Escalated` appears at all three sites because what decides its
     /// RENDERING is the variant of its payload, one level below the
@@ -1764,6 +1799,12 @@ mod recourse_tests {
             },
             BlendError::RingClearance {
                 face: FaceKey::default(),
+                chain: Convexity::Convex,
+                margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
+            },
+            BlendError::RingClearance {
+                face: FaceKey::default(),
+                chain: Convexity::Concave,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
             },
             BlendError::Certify {
@@ -1862,6 +1903,41 @@ mod recourse_tests {
                 "no seeded variant appends {sentence:?} — either the constant is dead or \
                  the variant that appends it is unseeded"
             );
+        }
+    }
+
+    /// **`RingClearance` says what the blend does to the part of the
+    /// face the ring or edge lies in, per material side**: cuts it away
+    /// under a convex chain, buries it under a concave one — and never
+    /// the other side's verb, since both sides refuse through this one
+    /// variant.
+    #[test]
+    fn the_ring_clearance_sentence_follows_the_chains_convexity() {
+        for (chain, says, never) in [
+            (
+                Convexity::Convex,
+                "cuts away with the material it removes",
+                "adds",
+            ),
+            (
+                Convexity::Concave,
+                "buries under the material it adds",
+                "removes",
+            ),
+        ] {
+            let text = BlendError::RingClearance {
+                face: FaceKey::default(),
+                chain,
+                margin: ClassifiedMargin {
+                    predicate: "fillet3_ring_clearance",
+                    reading: MarginDiag::Value(-1e-3),
+                    band: Band::new(1e-9, 1e-6).expect("a band"),
+                    sign: Sign::Negative,
+                },
+            }
+            .to_string();
+            assert!(text.contains(says), "{chain}: {text}");
+            assert!(!text.contains(never), "{chain}: {text}");
         }
     }
 

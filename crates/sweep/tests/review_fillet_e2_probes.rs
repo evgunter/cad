@@ -144,23 +144,98 @@ fn the_ring_recourse_reaches_the_front_door_off_the_sample_lattice_and_is_follow
     assert_eq!(edges.len(), 12, "the dimple leaves the twelve box edges");
 
     let err = refusal(&dimpled, &edges, 0.72, "a setback inside the sampled gap");
-    let BlendError::RingClearance { margin, .. } = err else {
+    let text = err.to_string();
+    let BlendError::RingClearance { chain, margin, .. } = err else {
         panic!("the exact ring check is what refuses past the screen, got {err:?}")
     };
+    assert_eq!(
+        chain,
+        sweep::blend::Convexity::Convex,
+        "the prism's edges are convex"
+    );
+    assert!(
+        text.contains(
+            "lies in the part of a face the blend cuts away with the material it removes"
+        ) && !text.contains("adds"),
+        "a convex band cuts the ring away: {text}"
+    );
     assert_eq!(margin.predicate, "fillet3_ring_clearance");
     assert!(
         margin.value().is_some_and(|m| m < 0.0 && m > -0.01),
         "the ring sits 0.7172 from the edge and the setback is 0.72: {margin}"
     );
     assert!(
-        err.to_string().contains(FILLET3_RING_RECOURSE),
-        "the caller is handed the ring recourse: {err}"
+        text.contains(FILLET3_RING_RECOURSE),
+        "the caller is handed the ring recourse: {text}"
     );
     // Followed: "reduce the blend size" builds.
     builds(&dimpled, &edges, 0.715, "the reduced blend size");
     // And past the sampled gap the screen answers, as the PR's row pins
     // on its axis-aligned fixture.
     let screened = refusal(&dimpled, &edges, 0.73, "a setback past the sampled gap");
+    assert!(
+        matches!(screened, BlendError::FaceClearanceUncertified { .. }),
+        "the screen answers once the sampled gap is exceeded too, got {screened:?}"
+    );
+}
+
+/// **The same refusal on the CONCAVE side, and its sentence says so.**
+/// The ring check meters every support ring against every trimline
+/// whatever the chain's convexity, and a concave band ADDS material: a
+/// ring within its setback is buried under the band, not cut away. So
+/// `RingClearance` carries the chain's convexity and renders the fate
+/// that is true of it.
+///
+/// The fixture is the vented cavity (`common::cavity`), its round vent
+/// moved to `(2.125, 1.7)`: its mouth — a ring of radius 0.5 in the
+/// cavity's ceiling — sits `g = 0.2` from the ceiling's `y = 1` edge,
+/// and its nearest point to that edge lies at `x = 2.125`, halfway
+/// between two of the edge's `CHAIN_SAMPLES` stations (`2.0`, `2.25`).
+/// The screen therefore reads `√(0.2² + 0.125²) ≈ 0.2358`, and a
+/// concave setback (the radius, at a right-angled edge) between the two
+/// is passed by the screen and refused by the exact ring check at
+/// `g − r`. Measured: `r = 0.199` carves, `0.201` refuses here,
+/// `0.24` is answered by the screen.
+#[test]
+fn the_ring_refusal_beside_a_concave_band_says_the_band_buries_the_ring() {
+    use crate::common::cavity::{brick, cavity_edges, cut, rod};
+    use sweep::blend::Convexity;
+    let block = brick(Point3::new(0.0, 0.0, 0.0), Point3::new(4.0, 4.0, 4.0));
+    let vent = rod(p2(2.125, 1.7), 0.5, 2.5, 5.0);
+    let cavity = brick(Point3::new(1.0, 1.0, 1.0), Point3::new(3.0, 3.0, 3.0));
+    let body = cut("cavity", &cut("vent", &block, &vent), &cavity);
+    validate_geometric(&body, tol()).expect("the off-centre vented cavity is valid");
+    let edges = cavity_edges(&body);
+    assert_eq!(edges.len(), 12, "the cavity's twelve concave edges");
+
+    let err = refusal(&body, &edges, 0.22, "a setback inside the sampled gap");
+    let text = err.to_string();
+    let BlendError::RingClearance { chain, margin, .. } = err else {
+        panic!("the exact ring check is what refuses past the screen, got {err:?}")
+    };
+    assert_eq!(chain, Convexity::Concave, "the cavity's chain is concave");
+    assert!(
+        margin
+            .value()
+            .is_some_and(|m| (m - (0.2 - 0.22)).abs() < 1e-12),
+        "the ring sits 0.2 from the edge and the setback is 0.22: {margin}"
+    );
+    assert!(
+        text.contains("lies in the part of a face the blend buries under the material it adds"),
+        "a concave band buries the ring: {text}"
+    );
+    assert!(
+        !text.contains("removes"),
+        "and nothing is said to be removed: {text}"
+    );
+    assert!(
+        text.contains(FILLET3_RING_RECOURSE),
+        "the caller is handed the ring recourse: {text}"
+    );
+    // Followed: "reduce the blend size" builds.
+    builds(&body, &edges, 0.19, "the reduced blend size");
+    // Past the sampled gap the screen answers first.
+    let screened = refusal(&body, &edges, 0.24, "a setback past the sampled gap");
     assert!(
         matches!(screened, BlendError::FaceClearanceUncertified { .. }),
         "the screen answers once the sampled gap is exceeded too, got {screened:?}"

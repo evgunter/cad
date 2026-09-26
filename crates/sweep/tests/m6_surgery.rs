@@ -439,9 +439,11 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
     let face = pipped.faces().next().unwrap().0;
     let tol = Tol::witness().get();
     // Definite pass.
-    ring_clearance(face, 0.05, band()).expect("a definite clearance carries the ring");
+    ring_clearance(face, sweep::blend::Convexity::Convex, 0.05, band())
+        .expect("a definite clearance carries the ring");
     // Definite refuse, typed with the margin as payload.
-    let err = ring_clearance(face, -0.05, band()).expect_err("a consumed ring refuses");
+    let err = ring_clearance(face, sweep::blend::Convexity::Convex, -0.05, band())
+        .expect_err("a consumed ring refuses");
     match err {
         sweep::blend::BlendError::RingClearance { margin, .. } => {
             assert_eq!(margin.predicate, "fillet3_ring_clearance");
@@ -449,13 +451,16 @@ fn ring_clearance_trio_definite_pass_definite_refuse_in_band_escalate() {
         }
         other => panic!("expected RingClearance, got {other}"),
     }
-    let text = ring_clearance(face, -0.05, band()).unwrap_err().to_string();
+    let text = ring_clearance(face, sweep::blend::Convexity::Convex, -0.05, band())
+        .unwrap_err()
+        .to_string();
     assert!(
         text.contains("ring") && text.contains("reduce the blend size"),
         "refusal names the situation and the recourse: {text}"
     );
     // In band: escalates through the funnel with the SAME recourse.
-    let err = ring_clearance(face, 5.0 * tol.eps, band()).expect_err("in-band escalates");
+    let err = ring_clearance(face, sweep::blend::Convexity::Convex, 5.0 * tol.eps, band())
+        .expect_err("in-band escalates");
     match &err {
         sweep::blend::BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_ring_clearance"));

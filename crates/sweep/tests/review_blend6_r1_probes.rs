@@ -167,6 +167,7 @@ fn seeds() -> Vec<BlendError> {
         },
         BlendError::RingClearance {
             face: FaceKey::default(),
+            chain: sweep::blend::Convexity::Convex,
             margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
         },
         BlendError::Certify {

@@ -137,3 +137,23 @@ Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
 MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
 has its measured red-first row.
+
+## 2026-09-26 — `ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` closed (PR #3271)
+
+The silent-wrong path the D-hole unit widened is shut: before any `mef`,
+a convex ruled cut-off meters every cap edge but the two rims it
+shortens — other rings and the cut cycle's own other edges — against a
+region enclosing the removed sliver (annulus about the section centre,
+cut by a half-plane), and refuses `RingClearance` on the cap. Full
+review found two MAJORs: the first meter tested straight edges by their
+infinite line (a square drive hole on a D-shaft's axis refused), and the
+cut cycle's own edges were unmetered (an L-channel into the sliver carved
+silently wrong — the lane had filed it P1 "unmeasured"). The fix pass
+gave edge metering one windowed home (the ladder rim's outer walk now
+uses it too) and closed both; a delta review found them closed by rows
+that go red on revert, plus one MINOR (the sentence said "removes" on
+concave bands), fixed by `RingClearance` carrying the chain's convexity.
+Remaining false refusals are disclosed on
+`ruled-cut-off-builds-a-bore-wholly-inside-the-removed-sliver` (P2).
+Filed: `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned` (P2),
+`arc-window-membership-has-three-spellings` (P1).
