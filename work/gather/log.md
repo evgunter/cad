@@ -359,3 +359,22 @@ builds queued behind it. GATHER's lanes now run cargo directly. Disk is
 the constraint that remains: incremental off, no build below 5 GB free,
 and targets deleted after use. `ci-local.sh` still takes its slots
 internally, but nothing else waits on them.
+
+## 2026-09-26 — CI relief: `[skip ci]`, lighter builds, and a combined battery
+
+Ev, to all orchestrators: hosted CI is struggling. Units may be combined
+into one PR, and a PR merged on local green takes `[skip ci]`. For disk,
+use line-tables-only debug info and incremental off. GATHER's response:
+- Every commit pushed to a GATHER branch, and every merge the
+  orchestrator makes on local green, carries `[skip ci]`. A side effect:
+  a skipped push to main does not re-render `work/STATUS.md`.
+- Batteries run with `CARGO_INCREMENTAL=0
+  CARGO_PROFILE_DEV_DEBUG=line-tables-only
+  CARGO_PROFILE_TEST_DEBUG=line-tables-only`.
+- **One battery for three reviewed PRs.** 3259 (`956377dd3`), 3143
+  (`7bd5e222c`, carrying DR-8 and the item close) and 3280 (`d1517b453`)
+  are merged, in that order, over `origin/main` in `/home/user/gather-int`
+  (`b3760d11d`), cleanly. One battery runs on that tree. If it is green,
+  the three merge in that order, each with `[skip ci]`. The tree tested
+  is the tree that lands, provided main has not moved in between; if it
+  has, the orchestrator re-checks the merge for conflicts before merging.
