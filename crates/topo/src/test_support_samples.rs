@@ -390,6 +390,22 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            last_round: geom_brep::LastRound::Improved,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
+        },
+        OffsetFitError::BudgetExhausted {
+            budget: 4096,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            last_round: geom_brep::LastRound::DidNotImprove,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -397,26 +413,37 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 0.1,
             tolerance: 1e-6,
-            last_finite: Some(3e-6),
+            best: Some(geom_brep::BestBound {
+                bound: 3e-6,
+                grid: (48, 64),
+            }),
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 1e-8,
             tolerance: 1e-6,
-            last_finite: None,
+            best: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::WindowUnsupported {
             window: geom::ApproxWindow {
