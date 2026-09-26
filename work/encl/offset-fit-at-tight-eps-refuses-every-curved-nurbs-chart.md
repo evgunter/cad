@@ -2,10 +2,11 @@
 id: offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart
 kind: issue
 title: at eps 1e-12 the offset fit refuses every curved NURBS chart, and the mint's cost at the default eps is unmeasured on a body
-status: open
+status: dispatched
 opened: 2026-09-05
 priority: P0
 cost: H
+branch: encl/offset-fit-tight-eps
 ---
 
 **Owner: the offset fit's — PROPS / S-CERT
