@@ -2,8 +2,9 @@
 id: census-containment-refusal-carriage-has-no-executed-fixture
 kind: issue
 title: the census's point-in-face refusal carriage (CensusUnsupported::Containment) has no fixture that reaches it through the public door: the lens cap it rode on is walked on its carriers
-status: open
+status: closed
 opened: 2026-09-26
+closed: 2026-09-26
 priority: P3
 cost: E
 ---
@@ -39,3 +40,22 @@ face with a spiric or NURBS edge (like the census unit tests'
 `half_disc_cap_and_far_cube`, which builds through `mev`/`mef` with a
 carrier spec), or a public fixture once the cavity's volume lands. The
 editor-core attribution suite still pins the three causes by value.
+
+## Closed by CONTACT-4's fix pass
+
+`census::tests::a_spiric_caps_refusal_reaches_the_census_as_itself`
+executes the carriage. Its fixture is `spiric_cap_and_near_cube`:
+- a planar cap in `x = 1/2`, built through `mev`/`mef` with a certified
+  spiric carrier (the section of the torus `R = 2, r = 1`) and its
+  chord;
+- a cube grafted beside it, whose `x = 1/2` face lies outside the cap
+  but inside the ball the spiric arc is held in.
+
+Under the exact sweep the census pushes `CensusUnsupported` about the
+FACE with cause `Containment(ArcLoopUnsupported)`. The row also asserts
+the "no fabricated margin" invariant: there is no `CensusEscalated` with
+an `Invalid` margin or a `pm_census_containment` /
+`bool_contfp_boundary` predicate.
+
+`RayExhausted` and `Corrupt` still have no executed body. The sweep
+suite's header says so.

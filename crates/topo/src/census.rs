@@ -5415,6 +5415,76 @@ mod tests {
         body
     }
 
+    /// A planar cap in the plane `x = 1/2` bounded by one SPIRIC arc —
+    /// the section of the torus `R = 2, r = 1` about the `z` axis, over
+    /// its minor angle `[−π/2, π/2]` — and the chord closing it, with a
+    /// cube grafted in beside it whose `x = 1/2` face lies in the cap's
+    /// plane, outside the cap and inside the ball the spiric arc is held
+    /// in (its midpoint `(1/2, √8.75, 0)`, reach `(π/2)·r(R − r)/√((R −
+    /// r)² − 1/4) ≈ 1.81`).
+    fn spiric_cap_and_near_cube() -> Body<f64> {
+        use geom::Curve3;
+        use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
+        use std::f64::consts::FRAC_PI_2;
+        let tol = Tol::witness();
+        let (big_r, r, offset) = (2.0f64, 1.0f64, 0.5f64);
+        let spiric = Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: big_r,
+            minor_radius: r,
+            offset,
+        };
+        let (p0, p1) = (spiric.eval(-FRAC_PI_2), spiric.eval(FRAC_PI_2));
+        let mut body = Body::<f64>::new();
+        let seed = body.mvfs(p0).expect("a seed");
+        let plane = body.add_surface(Surface::Plane {
+            origin: Point3::new(offset, 0.0, 0.0),
+            normal: Vec3::unit_x(),
+            u_ref: Vec3::unit_y(),
+        });
+        let torus = body.add_surface(Surface::Torus {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::unit_x(),
+        });
+        let arc = body
+            .mev(
+                MevSite::Lone {
+                    r#loop: seed.r#loop,
+                },
+                p1,
+                EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: torus,
+                        s2: plane,
+                        witness: spiric.eval(0.0),
+                    },
+                    carrier: spiric,
+                    param_start: -FRAC_PI_2,
+                    param_end: FRAC_PI_2,
+                },
+                tol,
+            )
+            .expect("the spiric arc");
+        body.mef(
+            MefSite::Chords {
+                he1: arc.he_minus,
+                he2: arc.he_plus,
+            },
+            EdgeCurveSpec::line_between(p1, p0),
+            FaceSurface::Shared(plane),
+            tol,
+        )
+        .expect("the chord closes the cap");
+        let cube = cube_at(Vec3::new(offset, 3.9, -0.5), tol);
+        crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
+        body
+    }
+
     fn rendered(errors: &[ValidationError]) -> Vec<String> {
         errors.iter().map(|e| format!("{e:?}")).collect()
     }
@@ -5806,9 +5876,96 @@ mod tests {
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
             assert!(r.is_restriction_of(i), "{name}: order");
         }
-        assert!(
-            !ideal.vf.examined.is_empty(),
-            "the exact sweep asks the cap about the far coplanar vertices"
+        // The decided answer itself: each far vertex lies OUTSIDE the
+        // cap, which a wrong `In` would turn into a contact finding.
+        let cap = body
+            .faces()
+            .find(|(_, f)| {
+                matches!(body.get_surface(f.surface), Some(Surface::Plane { .. }))
+                    && match body.loops[f.outer].boundary {
+                        LoopBoundary::Cycle { first } => {
+                            body.loop_cycle(first).is_some_and(|c| c.len() == 2)
+                        }
+                        _ => false,
+                    }
+            })
+            .map(|(k, _)| k)
+            .expect("the cap: a plane face of two edges");
+        let mut asked = 0;
+        for (_, v) in body.vertices() {
+            let p = body.points[v.point];
+            if p.z != 0.0 || p.x < 5.0 {
+                continue;
+            }
+            asked += 1;
+            assert_eq!(
+                crate::boolean::contfp(&body, cap, Vec3::unit_z(), p, band()),
+                Ok(FaceContainment::Out),
+                "a far vertex in the cap's plane at {p:?}"
+            );
+        }
+        assert_eq!(
+            asked, 4,
+            "the cube's four bottom vertices lie in the cap's plane"
         );
+        assert!(
+            ideal_errors.iter().all(|e| !matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexOnFace { face, .. },
+                    ..
+                } if *face == cap
+            )),
+            "no far vertex is a contact with the cap: {ideal_errors:?}"
+        );
+    }
+
+    /// The census's point-in-face refusal, executed: a vertex in the
+    /// spiric cap's plane inside the ball its spiric arc is held in, so
+    /// every scheduled ray from it could meet that arc. The census
+    /// carries the door's own refusal — `CensusUnsupported` about the
+    /// FACE, cause `Containment(ArcLoopUnsupported)` — and no
+    /// `CensusEscalated` over a margin nothing metred.
+    #[test]
+    fn a_spiric_caps_refusal_reaches_the_census_as_itself() {
+        let body = spiric_cap_and_near_cube();
+        let (errors, _) = census_traces(
+            &body,
+            &ContactRecords::default(),
+            band(),
+            Tol::witness(),
+            Some(RegionLane::certified()),
+            CensusStrategy::Idealized,
+        );
+        let refused = errors
+            .iter()
+            .filter(|e| {
+                matches!(
+                    e,
+                    ValidationError::CensusUnsupported {
+                        subject: CensusSubject::Entity(EntityId::Face(_)),
+                        cause: CensusUnsupportedCause::Containment(
+                            ContainError::ArcLoopUnsupported { .. }
+                        ),
+                    }
+                )
+            })
+            .count();
+        assert!(
+            refused > 0,
+            "the spiric cap refuses the near vertices: {errors:?}"
+        );
+        for e in &errors {
+            if let ValidationError::CensusEscalated { cause } = e {
+                assert!(
+                    !matches!(cause.margin, geom_core::MarginDiag::Invalid)
+                        && !matches!(
+                            cause.predicate,
+                            Some("pm_census_containment" | "bool_contfp_boundary")
+                        ),
+                    "a census escalation over a margin nothing metred: {e:?}"
+                );
+            }
+        }
     }
 }

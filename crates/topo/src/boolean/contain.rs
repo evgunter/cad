@@ -8,7 +8,7 @@
 //! point computed from shared geometry); the sliver band escalates
 //! typed (F6); definite margins walk on. Interior/exterior then comes
 //! from one walk over the outer loop and every ring, which reads each
-//! edge on its own CARRIER ([`point_in_carrier_loop`]): a line is its
+//! edge on its own CARRIER ([`crate::splitting::containment::carrier_loop_side`]): a line is its
 //! chord, a circle or ellipse arc is crossed on its conic, and an edge
 //! on a carrier with no crossing row refuses typed wherever it could
 //! matter.
@@ -17,7 +17,10 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
-use crate::splitting::containment::{ArcTrim, ArcTrimRows, arc_trim, point_in_carrier_loop};
+use crate::ray_parity::{self, ParityRows};
+use crate::splitting::containment::{
+    ConicArc, ConicArcError, ConicHit, ConicRows, carrier_loop_side,
+};
 use crate::splitting::{LoopContainment, PointInLoopError};
 use crate::validate::decide;
 
@@ -59,8 +62,12 @@ pub enum ContainError {
     /// A **loop no available walk expresses at this point**: it has an
     /// edge on a carrier the in-plane walk has no crossing row for (a
     /// spiric, a spline), and the point lies within reach of that edge,
-    /// where a crossing could change the answer. A point definitely
-    /// clear of the loop's reach is answered `Out` and never lands here.
+    /// where a crossing could change the answer: every scheduled ray
+    /// from the point could meet a ball that edge lies in.
+    ///
+    /// The name is older than that meaning. It is kept because tier 3's
+    /// census renders this arm (`validate.rs`, ATREST's ground), and a
+    /// rename has to move that match with it.
     ArcLoopUnsupported {
         /// The loop whose region no available walk expresses.
         r#loop: crate::entity::LoopKey,
@@ -146,32 +153,26 @@ pub fn contfp<T: Decide>(
     }
 
     // Interior/exterior: inside the outer loop AND outside every ring,
-    // each read on its edges' own carriers. The walk's `None` is an
-    // edge it cannot cross within reach of `q`: a refusal, typed.
-    let inside = |lk| -> Result<LoopContainment, ContainError> {
-        point_in_carrier_loop(body, lk, normal, q, band)?
-            .ok_or(ContainError::ArcLoopUnsupported { r#loop: lk })
-    };
-    match inside(face_data.outer)? {
-        LoopContainment::Out => return Ok(FaceContainment::Out),
-        LoopContainment::In => {}
-        LoopContainment::OnBoundary => {
-            return Err(ContainError::Escalated(invalid(
-                band,
-                "bool_contfp_boundary",
-            )));
+    // each read on its edges' own carriers by a walk that trusts the
+    // pre-pass above — `q` is definitely off every edge — so it answers
+    // `In` or `Out`. Its `None` is an edge it cannot cross standing in
+    // the way of every ray: a refusal, typed.
+    let inside = |lk| -> Result<bool, ContainError> {
+        match carrier_loop_side(body, lk, normal, q, band)? {
+            Some(LoopContainment::In) => Ok(true),
+            Some(LoopContainment::Out) => Ok(false),
+            Some(LoopContainment::OnBoundary) => {
+                unreachable!("a walk told the point is off the boundary answers In or Out")
+            }
+            None => Err(ContainError::ArcLoopUnsupported { r#loop: lk }),
         }
+    };
+    if !inside(face_data.outer)? {
+        return Ok(FaceContainment::Out);
     }
     for &ring in &face_data.rings {
-        match inside(ring)? {
-            LoopContainment::Out => {}
-            LoopContainment::In => return Ok(FaceContainment::Out),
-            LoopContainment::OnBoundary => {
-                return Err(ContainError::Escalated(invalid(
-                    band,
-                    "bool_contfp_boundary",
-                )));
-            }
+        if inside(ring)? {
+            return Ok(FaceContainment::Out);
         }
     }
     Ok(FaceContainment::In)
@@ -249,12 +250,14 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 /// circle may run in opposite senses and are still arcs of the same
 /// point set, which is all this asks.
 ///
-/// **That row decides nothing about `q`.** A point reaching here is
-/// definitely off every boundary arc by more than the band (the
-/// boundary pre-pass owns the near-boundary case), so arcs whose
-/// circles agree to within the band cannot disagree about which side
-/// of them `q` lies on. A definite disagreement is simply not this
-/// class; an ESCALATION escalates, exactly as every row of
+/// **That row classifies the loop, not a point.** Arcs whose circles
+/// agree to within the band are read as one circle, and the class is
+/// sound for a point definitely off every boundary arc by more than the
+/// band — such a point cannot lie between two circles that close. That
+/// premise is the CALLER's: check 9 places a ring vertex against the
+/// outer loop's own boundary in its contact arms before it asks
+/// [`disc_side`] which side the vertex lies on. A definite disagreement
+/// is simply not this class; an ESCALATION escalates, exactly as every row of
 /// [`curved_face_containment`] does — an in-band margin is not a
 /// licence to fall through to a walk whose domain this loop is
 /// outside.
@@ -397,14 +400,16 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// [`contfp`] always stated; running it per loop let an outer-edge
 /// hit shadow a ring vertex, fixed here with its red-then-green row
 /// below) — then edge interiors over all loops, each edge on the row
-/// its carrier has: a `Line` is its chord, and a `Circle` is asked its
-/// own carrier and trim ([`point_on_arc`]). Every other carrier gets no
-/// verdict here, because its chord is a different curve — on a planar
-/// face an elliptical rim's chord runs through the face INTERIOR — and
-/// a point on one reaches the caller's region walk, which reads the
-/// edge on its own carrier. Rows, one home: `bool_contact_vertex`,
-/// `bool_contact_edge_span` (×2), `bool_contact_edge`, and — for the
-/// arc disposition — `bool_contact_arc{,_span,_end,_trim}`.
+/// its carrier has: a `Line` is the distance to its closed segment
+/// ([`ray_parity::on_segment`]), and a circle or an ellipse is asked its
+/// own conic and trim ([`ConicArc::hit`], the same arithmetic the
+/// carrier walk runs, so a point this pass places off an arc is off it
+/// for the walk too). A spiric or spline edge gets no verdict: its
+/// chord is a different curve, and the region walk refuses inside a
+/// ball its locus lies in. This is [`contfp`]'s ONE boundary pass: the
+/// walk after it trusts it and runs none of its own. Rows, one home:
+/// `bool_contact_vertex`, `bool_contact_edge{,_length}`, and — for the
+/// conic disposition — `bool_contact_arc{,_span,_end,_trim}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[crate::entity::LoopKey],
@@ -432,127 +437,71 @@ fn boundary_pre_pass<T: Decide>(
         let cycle = loop_cycle_points(body, lk)?;
         for (i, (_, he, a)) in cycle.iter().enumerate() {
             let edge_key = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
-            // Which rows may decide this edge, by carrier. A chord row
-            // on a conic answers about the CHORD, not the edge, so only
-            // a line takes it.
+            let b = cycle[(i + 1) % cycle.len()].2;
             let carrier = body
                 .get_edge(edge_key)
                 .and_then(|e| body.get_curve_geom(e.curve))
                 .and_then(crate::null::CurveGeom::certified)
                 .map(|c| (c.carrier().clone(), c.params()));
-            match carrier {
-                // A `Line` boundary IS its chord: the rows below are
-                // exact for it.
-                Some((geom::Curve3::Line { .. }, _)) => {}
-                // A `Circle` boundary takes its own exact arc rows: an
-                // arc's chord runs through a planar face's interior,
-                // and a rim arc's chord is a cap's diameter.
-                Some((
-                    geom::Curve3::Circle {
-                        center,
-                        axis,
-                        radius,
-                        u_ref,
+            let on = match carrier {
+                // A `Line` boundary IS its chord, and null scaffolding is
+                // read as its chord, as the region walk reads it.
+                Some((geom::Curve3::Line { .. }, _)) | None => {
+                    ray_parity::on_segment(*a, b, q, &EDGE_ROWS, band)
+                        .map_err(ContainError::Escalated)?
+                }
+                // A conic boundary is read on its own conic and trim —
+                // never its chord, which on a planar face runs through
+                // the interior. Anything else (a spiric, a spline) has
+                // no row here and no verdict: the region walk holds it
+                // as a ball it refuses inside.
+                Some((carrier, span)) => match ConicArc::of(&carrier, span, CONIC_ROWS, band) {
+                    Ok(None) => continue,
+                    Ok(Some(k)) => match k
+                        .hit(q, CONIC_ROWS, band)
+                        .map_err(ContainError::Escalated)?
+                    {
+                        ConicHit::On => true,
+                        ConicHit::Off | ConicHit::Carrier => false,
+                        // Within the band of the carrier's end, which the
+                        // vertex pass above placed definitely clear of
+                        // both of this edge's vertices: the stored vertex
+                        // is off its own edge's end by more than the
+                        // band, which is not a body this door can read.
+                        ConicHit::End => return Err(ContainError::Corrupt),
                     },
-                    (t0, t1),
-                )) => {
-                    if point_on_arc(q, center, axis, radius, u_ref, t0, t1, band)? == Some(true) {
-                        return Ok(Some(FaceContainment::OnEdge(edge_key)));
+                    Err(ConicArcError::Escalated(diag)) => {
+                        return Err(ContainError::Escalated(diag));
                     }
-                    continue;
-                }
-                // Null scaffolding is read as its chord, as the region
-                // walk reads it.
-                None => {}
-                // No exact row: no verdict rather than a chord's.
-                Some(_) => continue,
-            }
-            let b = cycle[(i + 1) % cycle.len()].2;
-            let e = b - *a;
-            let len = e.norm();
-            let ehat = e.normalize();
-            // Span gates: q's projection strictly interior to [a, b]
-            // (endpoint neighborhoods already decided above).
-            let s0 = (q - *a).dot(ehat);
-            let s1 = len - s0;
-            let interior = matches!(
-                decide("bool_contact_edge_span", Margin::of(s0), band),
-                Ok(Sign::Positive)
-            ) && matches!(
-                decide("bool_contact_edge_span", Margin::of(s1), band),
-                Ok(Sign::Positive)
-            );
-            if !interior {
-                continue;
-            }
-            let perp = Margin::norm3((q - *a).cross(ehat));
-            match decide("bool_contact_edge", perp, band) {
-                Ok(Sign::Zero) => return Ok(Some(FaceContainment::OnEdge(edge_key))),
-                Ok(Sign::Positive) => {}
-                Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(invalid(band, "bool_contact_edge")));
-                }
-                Err(diag) => return Err(ContainError::Escalated(diag)),
+                    Err(ConicArcError::WoundPastPeriod) => return Err(ContainError::Corrupt),
+                },
+            };
+            if on {
+                return Ok(Some(FaceContainment::OnEdge(edge_key)));
             }
         }
     }
     Ok(None)
 }
 
-/// Is `q` on the INTERIOR of the arc `(center, axis, radius, u_ref)`
-/// over `[t0, t1]`? `Some(true)` on it, `Some(false)` definitely off
-/// it, `None` when `q` lies within the band of an end (the vertex pass
-/// owns those) or the arc spans a whole period (a closed edge, with no
-/// interior this pass names).
-///
-/// Every margin is a length. The point's exact distance FROM THE
-/// CIRCLE (`bool_contact_arc` — radial and axial residuals folded, so
-/// one row covers both ways off the carrier), after the period guard
-/// (`bool_contact_arc_span`); then the trim, as
-/// distances in [`arc_trim`] (`bool_contact_arc_end`, the distance to
-/// either end, and `bool_contact_arc_trim`, which side of the ends).
-/// Neither of the trim rows is compressed near an end, so an end's
-/// neighbourhood is the band's own width along the carrier on a short
-/// arc and a near-full one alike.
-#[allow(clippy::too_many_arguments)] // one arc datum, each argument named
-pub(super) fn point_on_arc<T: Decide>(
-    q: Point3<T>,
-    center: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    u_ref: Vec3<T>,
-    t0: T,
-    t1: T,
-    band: Band,
-) -> Result<Option<bool>, ContainError> {
-    const ROWS: ArcTrimRows = ArcTrimRows {
-        end: "bool_contact_arc_end",
-        trim: "bool_contact_arc_trim",
-    };
-    match decide(
-        "bool_contact_arc_span",
-        Margin::levered(T::tau() - (t1 - t0), radius),
-        band,
-    ) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(None),
-        Err(diag) => return Err(ContainError::Escalated(diag)),
-    }
-    let Some((radial, r_norm)) =
-        point_on_circle(q, center, axis, radius, band).map_err(ContainError::Escalated)?
-    else {
-        return Ok(Some(false));
-    };
-    // On the carrier: the trim decides which arc of it, in the circle's
-    // own frame, where it is the unit circle.
-    let v_ref = axis.cross(u_ref);
-    let dir = (radial.dot(u_ref) / r_norm, radial.dot(v_ref) / r_norm);
-    match arc_trim(dir, (t0, t1), radius, ROWS, band).map_err(ContainError::Escalated)? {
-        ArcTrim::On => Ok(Some(true)),
-        ArcTrim::Off => Ok(Some(false)),
-        ArcTrim::End => Ok(None),
-    }
-}
+/// The pre-pass's rows for a straight edge: [`ray_parity::on_segment`]
+/// reads `segment` (the edge's own length, the degeneracy gate) and
+/// `boundary` (the distance from `q` to the closed segment) and nothing
+/// else, so `side` and `advance` are never minted.
+const EDGE_ROWS: ParityRows = ParityRows {
+    segment: "bool_contact_edge_length",
+    boundary: "bool_contact_edge",
+    side: "bool_contact_edge_side",
+    advance: "bool_contact_edge_advance",
+};
+
+/// The pre-pass's rows for a conic edge ([`ConicArc::hit`]).
+const CONIC_ROWS: ConicRows = ConicRows {
+    span: "bool_contact_arc_span",
+    on: "bool_contact_arc",
+    end: "bool_contact_arc_end",
+    trim: "bool_contact_arc_trim",
+};
 
 /// **Point-in-face containment on a CURVED chart** — the face-level
 /// analog of the solid door's chart trim
@@ -850,11 +799,11 @@ fn iso_bounded_wall<T: Decide>(
 /// definite-positive one would silently answer "off the carrier" where
 /// this one escalates.
 ///
-/// Two callers, two different verdicts from the same three arms:
-/// [`point_on_arc`] turns a definite miss into `Some(false)`, and the
-/// boolean reduction's point split turns it into a broken-invariant
-/// refusal, because a split point was placed on that carrier by an
-/// exact row upstream.
+/// Its caller, the boolean reduction's point split, turns a definite
+/// miss into a broken-invariant refusal, because a split point was
+/// placed on that carrier by an exact row upstream. The boundary
+/// pre-pass asks the same distance of a conic edge under the same row
+/// name ([`ConicArc::hit`]), folded the same way.
 pub(super) fn point_on_circle<T: Decide>(
     q: Point3<T>,
     center: Point3<T>,
@@ -977,39 +926,56 @@ mod tests {
     /// from an end is on or off the arc for every `s` past the band —
     /// including the `ε < s < 10ε / sin(w/2)` stretch a cosine window
     /// compresses into its zero or escalation zone — and only within
-    /// the band is it the vertex pass's.
+    /// the band is it the end's.
     #[test]
     fn an_arcs_end_zone_is_the_bands_own_width() {
         let band = Band::linear(Tol::witness()).unwrap();
         let eps = band.zero();
-        let (r, c) = (10.0, geom_core::Point3::new(0.0, 0.0, 0.0));
-        let (axis, u) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let r = 10.0;
+        let carrier = geom::Curve3::Circle {
+            center: geom_core::Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
         let at = |theta: f64| geom_core::Point3::new(r * theta.cos(), r * theta.sin(), 0.0);
         for (t0, t1) in [(0.0, 0.02), (0.0, core::f64::consts::TAU - 0.02)] {
-            let ask = |q| point_on_arc(q, c, axis, r, u, t0, t1, band).expect("decided");
+            let Ok(Some(k)) = ConicArc::of(&carrier, (t0, t1), CONIC_ROWS, band) else {
+                panic!("a circle arc under a period");
+            };
+            let ask = |q| k.hit(q, CONIC_ROWS, band).expect("decided");
             for s in [20.0 * eps, 50.0 * eps, 500.0 * eps, 5000.0 * eps] {
                 let d = s / r;
                 assert_eq!(
                     ask(at(t1 - d)),
-                    Some(true),
+                    ConicHit::On,
                     "w = {t1}: {s} m inside the end"
                 );
-                assert_eq!(ask(at(t1 + d)), Some(false), "w = {t1}: {s} m past the end");
+                assert_eq!(
+                    ask(at(t1 + d)),
+                    ConicHit::Carrier,
+                    "w = {t1}: {s} m past the end"
+                );
                 assert_eq!(
                     ask(at(t0 + d)),
-                    Some(true),
+                    ConicHit::On,
                     "w = {t1}: {s} m inside the start"
                 );
                 assert_eq!(
                     ask(at(t0 - d)),
-                    Some(false),
+                    ConicHit::Carrier,
                     "w = {t1}: {s} m before the start"
                 );
             }
             assert_eq!(
                 ask(at(t1 + 0.5 * eps / r)),
-                None,
+                ConicHit::End,
                 "w = {t1}: within the band of the end"
+            );
+            assert_eq!(
+                ask(at(t0 - 0.5 * eps / r)),
+                ConicHit::End,
+                "w = {t1}: within the band of the start"
             );
         }
     }

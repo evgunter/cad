@@ -857,3 +857,30 @@ walk. When it does, they have no caller left and ATREST retires them.
   `check-9-and-classify-contain-describe-contfps-retired-polygon-walk`.
 
 Signed: (CONTACT-4 lane)
+
+**Addendum, after CONTACT-4's review (same branch).** Four more edits
+in the walk:
+
+- **A conic edge's boundary reading is one function,
+  `ConicArc::hit`.** It gives the distance from the conic, with the
+  out-of-plane miss folded in, then `arc_trim`. The walk's pre-pass
+  calls it, and so does `contain`'s now. `ConicArc` is `pub(crate)` and
+  carries its window once, as the end parameters.
+- **`carrier_loop_side` is new.** It is the walk without its boundary
+  verdict, for a caller whose own pre-pass has decided `q` is off every
+  edge; `contfp` is that caller. `point_in_loop`'s ray walk is split out
+  as `polygon_walk` for the same use.
+- **The spiric/spline refusal is confined.** Each such edge is held as
+  its own ball: a spiric arc's is centred at `P(mid)`, with reach = the
+  oval's speed bound × half the width. A ray that could meet the ball
+  is abandoned like a graze. The loop answers along any ray that
+  misses them all, and `None` comes back only where none does.
+  `pis_arc_capped_poses::a_spiric_bounded_face_refuses_only_within_its_reach`
+  now pins three things: the far point is `Out`, the loop's vertex is
+  on the boundary, and a point ON the spiric refuses. Before, the
+  vertex refused from inside the old whole-loop ball.
+- **`point_in_arc_loop_conic_on` is a distance now**, where it was
+  the signed `ρ − 1`. `point_in_arc_loop_reach` is a ray's clearance
+  from a ball.
+
+Signed: (CONTACT-4 lane)

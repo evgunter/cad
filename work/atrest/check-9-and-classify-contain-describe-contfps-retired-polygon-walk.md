@@ -38,3 +38,23 @@ the same walk).
 
 ATREST-12 is likely to rewrite the gate comment anyway. The
 `classify_contain` sentence is user-facing, so it matters more.
+
+**Four more sites** (found by the CONTACT-4 review):
+
+- **`validate.rs:593-596`**, `CensusUnsupportedCause::Containment`'s
+  doc: *"an arc-bearing loop no walk expresses"*. The arm now means a
+  spiric or spline edge whose ball every scheduled ray from the point
+  could meet.
+- **`validate.rs:5572-5575`**, check 9's instruments paragraph. It says
+  the arm pools `point_in_loop_*` *"the way `boolean::contfp` … already
+  pool[s]"*, and that `disc_side` is *"the row `contfp` decides the
+  same class on"*. `contfp` reads neither now.
+  - An all-line loop reaches `point_in_loop`'s walk without its
+    pre-pass, under the same `point_in_loop_*` names.
+  - A disc loop reaches the carrier walk under `point_in_arc_loop_*`.
+- **`validate.rs:6497`**, `nesting_region`'s doc: *"the classifier
+  `boolean::contfp` dispatches its own walks on"*. `contfp` no longer
+  asks `loop_shape`.
+- **`validate.rs:6530`**, `NestingRegion`'s doc: *"`contfp` dispatches
+  on `LoopShape` itself because it answers every class"*. That is no
+  longer true for the same reason.

@@ -2,8 +2,9 @@
 id: contfp-has-no-typed-on-edge-row-for-an-elliptic-arc
 kind: issue
 title: contfp's boundary pre-pass has no typed OnEdge row for an elliptic arc edge: a point on one escalates bool_contfp_boundary from the region walk instead of naming the edge
-status: open
+status: closed
 opened: 2026-09-26
+closed: 2026-09-26
 priority: P2
 cost: D
 ---
@@ -40,3 +41,18 @@ walk's `ConicArc` frame to be reachable from `contain.rs`.
 `reduce.rs`'s `split_other_at_point` refuses `Ellipse` separately
 (`PointSplitCarrierUnsupported`), so both have to move before an
 elliptic `OnEdge` is useful to the reduction.
+
+## Closed by CONTACT-4's fix pass
+
+`contfp` now has one boundary pre-pass, and it reads a circle or an
+ellipse edge on its own conic and trim (`splitting::containment::ConicArc::hit`).
+A point on an elliptic edge reads `OnEdge(edge)`, or `OnVertex` within
+the band of an end. Measured by the review probe on the cut cylinder's
+section faces: 80 of 80 on-edge points, where the head before the fix
+pass gave a minted `Escalated(bool_contfp_boundary)`. The row
+`contfp_reads_arcs_on_their_carriers::a_point_on_an_ellipse_edge_reads_on_the_boundary`
+pins it.
+
+`reduce.rs`'s `split_other_at_point` still refuses an `Ellipse` edge
+with `PointSplitCarrierUnsupported`. That variant is the reduction's
+own, documented typed refusal, and it is not this row's.

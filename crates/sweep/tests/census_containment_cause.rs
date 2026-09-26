@@ -11,21 +11,23 @@
 //! field a reader uses to judge how close the call was. Nothing was
 //! posed and nothing was poisoned.
 //!
-//! **No refusal arm has an executed fixture here.** A lens cap — two
+//! **The refusal arm's fixture is crate-internal.** A lens cap — two
 //! arcs of two circles over two vertices — is walked on its carriers,
 //! so a box standing on it is a contact the census DECIDES, which the
-//! row below pins. The arm
-//! that is left refuses a loop with a spiric or spline edge, asked
-//! about a point within that edge's reach, and no body that reaches the
-//! census through the public door has one: the sectioned torus vessel's
-//! cavity, whose moved section cap is bounded by a spiric rim, stops at
-//! its volume first. `RayExhausted` needs a configuration every one of
-//! sixteen directions grazes, and unwalkable topology cannot arrive
-//! through the public door at all — `validate_pseudomanifold` runs
-//! referential integrity before the census. All three are routed by one
-//! match and pinned by the `CensusUnsupportedCause` rows in
-//! `editor-core`'s attribution suite; that is disclosed, not claimed as
-//! executed coverage (`work/contact/census-containment-refusal-carriage-has-no-executed-fixture.md`).
+//! row below pins. The arm that is left refuses a loop with a spiric or
+//! spline edge where every ray from the point could meet it, and no body
+//! that reaches the census through the public door has one: the
+//! sectioned torus vessel's cavity, whose moved section cap is bounded
+//! by a spiric rim, stops at its volume first. So the carriage and the
+//! "no fabricated margin" invariant are executed on a hand-built spiric
+//! cap in `topo`'s census unit tests
+//! (`a_spiric_caps_refusal_reaches_the_census_as_itself`).
+//! `RayExhausted` needs a configuration every one of sixteen directions
+//! grazes, and unwalkable topology cannot arrive through the public door
+//! at all — `validate_pseudomanifold` runs referential integrity before
+//! the census; both are routed by the same match and pinned by the
+//! `CensusUnsupportedCause` rows in `editor-core`'s attribution suite,
+//! which is disclosed, not claimed as executed coverage.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

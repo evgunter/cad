@@ -267,17 +267,16 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Eight names carry the K vocabulary and never reach the funnel**, so
+**Seven names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 248 and a reader who greps for one
 should know why. They live only in an `Indeterminate.predicate` —
 six through `predicate: Some("…")` (`carrier_kind`,
 `contact_tangent_independent`, `contact_rest_senses_opposed`,
 `contact_rest_ladder_invariant`, `transversality`, `validate_probe`),
-one through an `invalid(band, "…")` helper (`bool_contfp_boundary`),
 and one — `plane_nurbs_transversality_reported` — as the name argument
 of a `k_stats::gate_measured` call, which records the escalation on the
 open frame but classifies nothing, so it is outside this table for the
-same reason the other seven are.
+same reason the other six are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 
@@ -392,8 +391,8 @@ which is what actually moves the number.
 
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
-| boolean/contain.rs:83–115 | bool_contact_vertex/edge_span/edge | point/span/perpendicular distances | m | OK |
-| boolean/contain.rs (`point_on_arc`, through `splitting::containment::arc_trim`) | bool_contact_arc_end / bool_contact_arc_trim | the unit-circle chord from the point's direction to either end, and the chordal-defect sum `(|e − m| − |p − m|) + (|p + m| − |e + m|)`, each levered by the radius: lengths, never smaller than the arc length to the nearer end | m | OK (CONTACT-4) |
+| boolean/contain.rs (`boundary_pre_pass`) | bool_contact_vertex / bool_contact_edge_length / bool_contact_edge | point distance; a straight edge's own length (the degeneracy gate) and the distance from the point to its closed segment, through `ray_parity::on_segment` | m | OK (CONTACT-4) |
+| boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::ConicArc::hit`) | bool_contact_arc_span / bool_contact_arc / bool_contact_arc_end / bool_contact_arc_trim | `(τ − w)` levered by the smaller semi-axis; the distance from the conic, `√(((ρ − 1)·lever)² + axial²)` — exact for a circle (the same quantity `point_on_circle` meters under this name), a lower bound for an ellipse; the unit-circle chord to either end and the chordal-defect sum `(|e − m| − |p − m|) + (|p + m| − |e + m|)`, levered: lengths, never smaller than the arc length to the nearer end | m | OK (CONTACT-4) |
 | boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless); verified CODE-READ + suites-green only — the rare germ-fan lane fires in none of the unit's live twin/probe configs (review MINOR-2, stated) |
 | boolean/insert.rs:262 | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm | m | OK |
 | boolean/join.rs:567/803 | bool_join_chord | germ-site chord LENGTH (the degeneracy gate: Zero ⇒ coincident sites, no polygon edge) | m | OK |
@@ -446,9 +445,9 @@ which is what actually moves the number.
 | ray_parity.rs (via `containment.rs`'s `ROWS`) | point_in_loop boundary/side/advance | distances; m²/m advance | m | OK |
 | splitting/containment.rs (the frame gate) | point_in_loop_arm | sin(member, plane normal) × loop extent (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | ray_parity.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
-| splitting/containment.rs (`point_in_carrier_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the conics' reach in the extent; `|q − anchor| − ball` (a length) | m | OK (ATREST-9) |
+| splitting/containment.rs (`point_in_carrier_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the conics' reach in the extent; a ray's distance from an uncrossable edge's ball less its reach, `|w − d·max(w·d, 0)| − reach` (a length) | m | OK (ATREST-9; reach row CONTACT-4) |
 | splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _on / _window / _disc / _advance | unit-circle quantities levered by the conic's SMALLER semi-axis: (τ − width), (ρ − 1), (cos Δ − cos h), (1 − h²)/2 — exact lengths for a circle (the last is (r² − h²)/2r, the perpendicular-offset form), a lower bound for an ellipse (escalates more, never less); the root's advance t is metres along a unit ray | m | OK (ATREST-9) |
-| splitting/containment.rs (`arc_trim`, the boundary pre-pass) | point_in_arc_loop_conic_end / point_in_arc_loop_conic_trim | the same two unit-circle distances as `bool_contact_arc_end/_trim`, levered by the conic's smaller semi-axis: exact for a circle, a lower bound for an ellipse | m | OK (CONTACT-4) |
+| splitting/containment.rs (`ConicArc::hit`, the boundary pre-pass) | point_in_arc_loop_conic_on / point_in_arc_loop_conic_end / point_in_arc_loop_conic_trim | the same three distances as `bool_contact_arc/_end/_trim` (the `on` row is a distance now, not the signed `ρ − 1`), levered by the conic's smaller semi-axis: exact for a circle, a lower bound for an ellipse | m | OK (CONTACT-4) |
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |

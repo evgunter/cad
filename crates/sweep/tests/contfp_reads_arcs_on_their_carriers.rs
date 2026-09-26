@@ -255,17 +255,20 @@ fn a_short_arc_is_on_and_off_at_the_bands_own_width() {
     );
     let cap = cap_at(&body, 1.0);
     let at = |theta: f64| Point3::new(r * theta.cos(), r * theta.sin(), 1.0);
-    for s in [50.0 * eps(), 500.0 * eps()] {
-        let inside = ask(&body, cap, at(w - s / r));
-        assert!(
-            matches!(inside, FaceContainment::OnEdge(_)),
-            "{s} m inside the end is on the arc: {inside:?}"
-        );
-        assert_eq!(
-            ask(&body, cap, at(w + s / r)),
-            FaceContainment::Out,
-            "{s} m past the end is off the face"
-        );
+    // Each end, with the direction that runs INTO the arc from it.
+    for (end, into) in [(0.0, 1.0), (w, -1.0)] {
+        for s in [50.0 * eps(), 500.0 * eps()] {
+            let inside = ask(&body, cap, at(end + into * s / r));
+            assert!(
+                matches!(inside, FaceContainment::OnEdge(_)),
+                "{s} m inside the end at {end} is on the arc: {inside:?}"
+            );
+            assert_eq!(
+                ask(&body, cap, at(end - into * s / r)),
+                FaceContainment::Out,
+                "{s} m past the end at {end} is off the face"
+            );
+        }
     }
 }
 
@@ -289,21 +292,126 @@ fn a_near_full_arc_is_on_and_off_at_the_bands_own_width() {
     );
     let cap = cap_at(&body, 1.0);
     let at = |theta: f64| Point3::new(r * theta.cos(), r * theta.sin(), 1.0);
-    for s in [50.0 * eps(), 500.0 * eps()] {
-        let inside = ask(&body, cap, at(b - s / r));
-        assert!(
-            matches!(inside, FaceContainment::OnEdge(_)),
-            "{s} m inside the end is on the arc: {inside:?}"
-        );
-        assert_eq!(
-            ask(&body, cap, at(b + s / r)),
-            FaceContainment::Out,
-            "{s} m past the end, in the mouth, is off the face"
-        );
+    // The arc runs counterclockwise from `a` the long way round to `b`.
+    for (end, into) in [(a, 1.0), (b, -1.0)] {
+        for s in [50.0 * eps(), 500.0 * eps()] {
+            let inside = ask(&body, cap, at(end + into * s / r));
+            assert!(
+                matches!(inside, FaceContainment::OnEdge(_)),
+                "{s} m inside the end at {end} is on the arc: {inside:?}"
+            );
+            assert_eq!(
+                ask(&body, cap, at(end - into * s / r)),
+                FaceContainment::Out,
+                "{s} m past the end at {end}, in the mouth, is off the face"
+            );
+        }
     }
     // Deep in the body, far from the polygon through its three vertices.
     assert_eq!(
         ask(&body, cap, Point3::new(-5.0, 0.0, 1.0)),
         FaceContainment::In
     );
+}
+
+/// A disc prism cut by a plane tilted 0.3 rad: the section face is
+/// bounded by two ELLIPSE arcs over two vertices.
+fn cut_cylinder() -> Body<f64> {
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let tall =
+        sweep::test_support::prism(vec![(p2(-1.0, 0.0), 1.0), (p2(1.0, 0.0), 1.0)], 2.5, tol());
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 0.0, 1.25),
+        normal: Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos()),
+    };
+    let result = split(&tall, &plane, tol()).expect("the plane cuts the prism");
+    let SplitPart::Body(above) = result.above else {
+        panic!("the part above the cut is a body");
+    };
+    above
+}
+
+/// The section face of [`cut_cylinder`] — the planar face whose edges
+/// are ellipses — with its unit normal and its elliptic edges.
+fn section(body: &Body<f64>) -> ((FaceKey, Vec3<f64>), Vec<topo::EdgeKey>) {
+    for (k, f) in body.faces() {
+        let Some(&Surface::Plane { normal, .. }) = body.get_surface(f.surface) else {
+            continue;
+        };
+        let topo::LoopBoundary::Cycle { first } = body.get_loop(f.outer).unwrap().boundary else {
+            continue;
+        };
+        let ellipses: Vec<_> = body
+            .loop_cycle(first)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .filter(|&e| {
+                let c = body.get_edge(e).and_then(|e| body.get_curve_geom(e.curve));
+                matches!(
+                    c.and_then(|c| c.certified()).map(|c| c.carrier()),
+                    Some(geom::Curve3::Ellipse { .. })
+                )
+            })
+            .collect();
+        if !ellipses.is_empty() {
+            return ((k, normal), ellipses);
+        }
+    }
+    panic!("the cut has a section face bounded by ellipses");
+}
+
+/// A point ON an elliptic edge of the section face is on the boundary:
+/// the pre-pass reads the ellipse on its own conic and trim, so the
+/// answer names the edge (or, within the band of an end, the vertex) —
+/// never an escalation over a margin nothing metred.
+#[test]
+fn a_point_on_an_ellipse_edge_reads_on_the_boundary() {
+    let body = cut_cylinder();
+    let (cap, ellipses) = section(&body);
+    let mut asked = 0;
+    for e in ellipses {
+        let curve = body
+            .get_curve_geom(body.get_edge(e).unwrap().curve)
+            .unwrap()
+            .certified()
+            .unwrap();
+        let (t0, t1) = curve.params();
+        for i in 0..40 {
+            let q = curve
+                .carrier()
+                .eval(t0 + (t1 - t0) * (f64::from(i) + 0.371) / 40.0);
+            let got = ask(&body, cap, q);
+            assert!(
+                matches!(got, FaceContainment::OnEdge(k) if k == e)
+                    || matches!(got, FaceContainment::OnVertex(_)),
+                "a point on the ellipse at {q:?} reads {got:?}"
+            );
+            asked += 1;
+        }
+    }
+    assert!(asked >= 40, "the section's ellipses were asked");
+}
+
+/// The same edge through the census: a brick whose corner sits on the
+/// section's elliptic edge, off both of its vertices. The census reports
+/// the contact and no escalation over a margin nothing metred.
+#[test]
+fn the_census_reads_a_corner_on_an_ellipse_edge_without_a_minted_margin() {
+    let mut body = cut_cylinder();
+    // At azimuth π/2 the section plane stands at z = 1.25, so the corner
+    // (0, 1, 1.25) is on the ellipse; the brick reaches away from the
+    // cylinder in x and y and below the cut in z.
+    let brick = sweep::test_support::brick((0.0, 0.3), (1.0, 1.3), (0.95, 1.25), tol());
+    topo::graft_disjoint(&mut body, &brick, tol()).expect("two solids meeting at a point");
+    let errors = topo::validate_pseudomanifold(&body, &ContactRecords::default(), tol())
+        .expect_err("a corner on the section's edge is a contact");
+    for e in &errors {
+        if let ValidationError::CensusEscalated { cause } = e {
+            assert!(
+                !matches!(cause.margin, geom_core::MarginDiag::Invalid),
+                "a census escalation over a margin nothing metred: {e:?}"
+            );
+        }
+    }
 }

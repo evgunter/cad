@@ -602,10 +602,12 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
 
 /// **An edge with no crossing row refuses only where it could matter.**
 /// The sectioned vessel's cavity carries planar faces bounded by
-/// SPIRICS (a plane's section of the offset torus). A point on such a
-/// face's plane but outside a ball holding the whole loop is outside
-/// the face; a point inside that ball — here the loop's own vertex —
-/// is refused typed rather than read off a chord.
+/// SPIRICS (a plane's section of the offset torus). The walk holds such
+/// an edge as a ball its arc lies in and steers its rays clear of it: a
+/// point far away along the face's plane is outside the face, the
+/// loop's own vertex is on its boundary (a straight edge leaves it), and
+/// a point ON the spiric — inside its ball, where every ray could meet
+/// the arc — is refused typed rather than read off a chord.
 #[test]
 fn a_spiric_bounded_face_refuses_only_within_its_reach() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -635,10 +637,25 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         Some(Some(false)),
         "far outside the loop's reach, the face is missed"
     );
-    let got = topo::test_support::point_in_face(&cavity, spiric_face, vertex, band);
+    assert_eq!(
+        topo::test_support::point_in_face(&cavity, spiric_face, vertex, band).ok(),
+        Some(None),
+        "the loop's own vertex is on its boundary"
+    );
+    let on_spiric = loop_half_edges(&cavity, data.outer)
+        .into_iter()
+        .find_map(|he| {
+            let edge = cavity.get_edge(cavity.get_half_edge(he)?.edge)?;
+            let curve = cavity.get_curve_geom(edge.curve)?.certified()?;
+            let (t0, t1) = curve.params();
+            matches!(curve.carrier(), geom::Curve3::Spiric { .. })
+                .then(|| curve.carrier().eval((t0 + t1) * 0.5))
+        })
+        .expect("the face's spiric edge");
+    let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
     assert!(
         matches!(got, Err(PointInSolidError::EdgeCarrierUnsupported { face }) if face == spiric_face),
-        "within the loop's reach the face refuses typed, got {got:?}"
+        "on the spiric the face refuses typed, got {got:?}"
     );
 }
 

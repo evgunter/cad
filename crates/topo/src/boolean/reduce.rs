@@ -2037,7 +2037,7 @@ fn split_at<T: Decide>(
 /// `p` must lie ON the carrier for the azimuth to name the event: the
 /// distance from `p` to the circle (radial and axial misses folded, the
 /// exact hypotenuse) is classified on `bool_contact_arc` — the same row
-/// [`super::contain::point_on_arc`] uses for the same quantity — before
+/// the boundary pre-pass uses for the same quantity — before
 /// the parameter is taken. The angular half of "on the ARC" is not
 /// repeated here: `split_edge`'s interiority gate is exactly that
 /// question, metered in metres at the radius.
@@ -2073,9 +2073,9 @@ fn split_other_at_point<T: Decide>(
         ..
     } = *curve.carrier()
     {
-        // On the carrier? The row and its impossible-negative arm have
-        // one body, shared with `super::contain::point_on_arc`, which
-        // asks the same question of the same quantity.
+        // On the carrier? `point_on_circle` is the row's body, with its
+        // impossible-negative arm; the boundary pre-pass's conic arm
+        // asks the same distance under the same row name.
         match super::contain::point_on_circle(p, center, axis, radius, band) {
             Ok(Some(_)) => {}
             // The caller placed the event ON this edge; a point
@@ -2093,7 +2093,7 @@ fn split_other_at_point<T: Decide>(
         // assumed: past a period the azimuth aliases by 2π silently,
         // and `split_edge`'s interiority gate cannot see it (an aliased
         // parameter is still inside a span that long). The row is the
-        // period guard `super::contain::point_on_arc` already spells,
+        // period guard the boundary pre-pass's conic arm already spells,
         // metered the same way; a full turn is `Zero` and passes.
         match decide(
             "bool_split_span_period",
