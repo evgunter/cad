@@ -2,7 +2,8 @@
 id: suite-headers-instruct-on-ignored-rows-they-no-longer-have
 kind: issue
 title: Suite headers carry standing instructions about ignored rows the file no longer has
-status: open
+status: closed
+closed: 2026-09-26
 opened: 2026-09-20
 priority: P4
 cost: E
@@ -99,3 +100,34 @@ headers. It spans `crates/editor-core`, `crates/geom-core`,
 ground holds it. It sits here because this program found it and is the
 program whose method names the class; S-TINT is the likelier long-term
 owner, and may claim it by `git mv`.
+
+## Closed
+
+Settled by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
+`0c1932667`.
+
+- **The open member is rewritten**: `sweep/tests/p1b_r1_probes.rs`'s
+  `coplanar_split_products_carry_no_scaffold_at_rest`. #1152 landed
+  (PR 1378), the row gates, and two more of its sentences had gone
+  stale with the instruction: `describe_section_boundary` no longer
+  has the empty smooth arm it quoted, and
+  `m3_pr3_split::notched_block_end_to_end` asserts tier 3, not tier 2.
+  The doc now says what the row checks and why the cut is the one
+  that stales a citation, in the present tense.
+- **Drive-by**: `review_gui0_r1`'s
+  `framing_at_an_extreme_aspect_should_contain_or_refuse` carried an
+  "UN-IGNORED in the fix pass" history note and a quote of `fitted`'s
+  doc that the doc no longer says; rewritten to the containment
+  postcondition it gates.
+- **Census re-taken** with instrument (2) over every tracked `.rs`
+  file: 16 files. The four new since the row's measurement
+  (`geom-core/tests/interval_exact_fuzz.rs`,
+  `geom-core/tests/sym11_witness_kind_rows.rs`,
+  `sweep/tests/extrude_interval.rs`,
+  `sweep/tests/sym11_far_placement_rows.rs`) are all true past tense.
+- **The third bucket is checked**, which the row left open: every
+  claim about another file's ignored row is true at the base —
+  `m10_8_arc_family_interval.rs` (5 `#[ignore]`),
+  `m10_10_evidence_interval.rs` (10), `cert3_evidence.rs` (3),
+  `k-lint/tests/threshold_provenance.rs` (4); `roster.rs` states the
+  general libtest fact.

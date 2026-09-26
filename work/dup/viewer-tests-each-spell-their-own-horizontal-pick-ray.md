@@ -2,7 +2,8 @@
 id: viewer-tests-each-spell-their-own-horizontal-pick-ray
 kind: issue
 title: Seven private spellings of the horizontal axis-aligned pick ray in crates/viewer/tests
-status: open
+status: closed
+closed: 2026-09-26
 opened: 2026-09-20
 priority: P4
 cost: D
@@ -56,3 +57,22 @@ and `view` (`work.py territory`), so there is no single ground-owner to
 file it with, and the subject — one construction spelled more than once
 — is S-DUP's charter. Any of the five may claim it by `git mv`.
 
+## Closed
+
+Folded by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
+`0c1932667`.
+
+- **Census re-taken** with the row's instrument (`git grep -n -A3 'Ray
+  {' -- crates/viewer/tests`, every `dir` that is a unit axis other
+  than ±z): the same seven in six files, plus one the row predates,
+  `index_memo`'s `aimed_along_y` — a standoff measured back from an
+  aimed POINT (`REACH`, an input a row compares an answer against),
+  the table-built family's shape, so not a member.
+- **The doors**, beside `down_at` / `up_at`: `common::along_x(sense,
+  y, z)` and `common::along_y(sense, x, z)`, one body (`level`) that
+  refuses a sense other than ±1. Two doors with a sign, not four
+  named ones: every site already thinks of its ray as "along x,
+  toward −x", and the sign is the one argument that varies.
+- **Routed**: all seven. `select_pick::at_the_wall` stays as the name
+  of the plate's wall, over the door.
+- The plants and their per-row red lists are in the PR body.

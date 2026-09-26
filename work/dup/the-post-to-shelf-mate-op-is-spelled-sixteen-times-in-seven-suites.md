@@ -2,7 +2,8 @@
 id: the-post-to-shelf-mate-op-is-spelled-sixteen-times-in-seven-suites
 kind: issue
 title: The post-top to shelf-bottom SessionOp::AddMate is written out sixteen times across seven viewer suites
-status: open
+status: closed
+closed: 2026-09-26
 opened: 2026-09-24
 priority: P4
 cost: E
@@ -60,3 +61,35 @@ cost: E
 `crates/viewer/tests/` is claimed by `chrome`, `tcost`, `tint`, `vdoc`
 and `view` with no single ground-owner; the class is one construction
 spelled sixteen times, which is this program's charter.
+
+## Closed
+
+Folded by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
+`0c1932667`.
+
+- **Census re-taken on the atom**, every `in_part(<instance>,
+  &bench.shelf_bottom)` under `crates/viewer/tests/` (`git grep -n
+  shelf_bottom -- crates/viewer/tests`, read site by site): **17**
+  op sites, not 16 — `frame_policy.rs` had two
+  (`a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames`
+  as well as `a_superseded_free_move_is_news_the_ranking_shows`). The
+  two non-members stand as the row read them.
+- **The home**: `common::asm::seat_op(bench, post, class, alignment)`,
+  and `seat_op_under` for `instance_authoring`'s row, which mates a
+  shelf instance it authored itself. Every one of the 17 routes
+  through it; `add_seat_mate` and `add_seat` are gone, `tree_badges`'
+  three `add_mate` closures are gone, and `msolve4`'s `add_rest`
+  stays as the named offender over the door.
+- **Commit and pump** has one home too, `common::commit_mate` (the
+  insert, the `Node::Mate` kind check, the pump), moved out of
+  `mate_tool_flow`. Every site that inserted a seat mate and pumped
+  takes it; the two `tree_badges` rows that author two mates into ONE
+  evaluation keep `session_insert` and say why in the door's doc.
+- **X4 twins folded in the same files**: the middle-of-the-shelf seat
+  alignment written out longhand twice (`review_gui4_r1::seat`,
+  `instance_authoring::seat_alignment`) and once as a local wrapper
+  (`assembly_display::seat_alignment`) is `asm::middle_seat`; the mate
+  tool's seat choice written out three times beside `asm::seat`
+  (`review_gui4_r1::rest_choice`, `review_gui4_r2::seat`, an inline
+  one in `assembly_walk`) routes to `asm::seat`.
+- The plants and their per-row red lists are in the PR body.

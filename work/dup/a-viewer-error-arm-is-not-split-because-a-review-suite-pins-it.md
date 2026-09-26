@@ -121,3 +121,39 @@ my two arguments was wrong — is answered by which door refused."* It
 mentions no suite. **Deleting the review-suite sentence therefore
 leaves the decision standing**, which is why the choice this row hands
 over is a real one and not a forced split.
+
+## Re-read at `0c1932667`: the paragraph above does not carry it either
+
+The S-DUP `viewer-drain` lane (2026-09-26) was asked to make the fix
+if it is a small change in `crates/viewer/src`. It is not, and the
+reason is sharper than the one above:
+
+- **The argument the row leans on fails for the doors it names.**
+  `camera.rs`'s `UnusableBounds` doc says the caller's question
+  *"which of my two arguments was wrong — is answered by which door
+  refused"*. `Camera::framing` and `Camera::fitted` each take BOTH
+  arguments and refuse either one as `UnusableBounds` (`fitted`'s
+  `aspect <= 0.0` guard, and `sphere`'s refusal of the box), so for
+  them which door refused answers nothing.
+- **The single-argument doors are about the VIEWPORT, not bounds.**
+  `Camera::projection_matrix` (a non-positive aspect),
+  `Camera::ray_through` and `datums::datum_view` (a viewport with no
+  area) all answer `UnusableBounds` for a pane, and
+  `pane/viewport.rs`'s datum-overlay comment already says so of the
+  badge that shows it: *"Either way the badge names an argument nobody
+  passed."*
+- So deleting the review-suite sentence would leave a decline resting
+  on an argument that does not hold, and restating it means choosing
+  the vocabulary: split out an aspect/viewport arm (a public API
+  change in `viewer`, with `review_gui0_r1`'s aspect row, `datum_draw`'s
+  viewport row and `error_display`'s prose rows re-spelt), or keep one
+  arm with a new reason. That is the owner's call on `viewer`'s error
+  vocabulary, not a duplication lane's. **Left open** for `view`
+  (or `chrome` / `vgeom`), who may claim it by `git mv`.
+
+Sites naming the arm at the base, by name: `review_gui0_r1`'s two
+`Err(CameraError::UnusableBounds)` rows (the aspect case is
+`Camera::framing(&plate_bounds(), 0.0)`), `error_display`'s four
+constructions and one prose assertion, `datum_draw`'s viewport row;
+in `src/`, `datums::datum_view`'s doc and guard and
+`pane/viewport.rs`'s datum-overlay comment.
