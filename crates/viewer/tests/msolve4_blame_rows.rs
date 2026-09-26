@@ -149,7 +149,7 @@ fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat(),
+            common::asm::middle_seat_alignment(),
         ),
     );
     let (_, first) = check(&session, tol, "sound alone");
@@ -210,7 +210,7 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat(),
+            common::asm::middle_seat_alignment(),
         ),
     );
     check(&session, tol, "held alone");
@@ -221,7 +221,7 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+            common::asm::contradicting_seat_alignment(),
         ),
     );
     let (_, ev) = check(&session, tol, "contradiction");

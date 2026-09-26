@@ -230,7 +230,7 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat(),
+            common::asm::middle_seat_alignment(),
         ),
     );
     let offender = common::session_insert(
@@ -334,7 +334,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat(),
+            common::asm::middle_seat_alignment(),
         ),
     );
     let added = common::commit_mate(
@@ -343,7 +343,7 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+            common::asm::contradicting_seat_alignment(),
         ),
     );
 
@@ -444,7 +444,7 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
             &bench,
             bench.post_a,
             ContactClass::Rest,
-            common::asm::middle_seat(),
+            common::asm::middle_seat_alignment(),
         ),
     );
     let offender = common::session_insert(

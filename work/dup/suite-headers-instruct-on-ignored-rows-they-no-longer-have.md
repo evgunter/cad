@@ -127,8 +127,9 @@ Settled by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
   `sweep/tests/extrude_interval.rs`,
   `sweep/tests/sym11_far_placement_rows.rs`) are all true past tense.
 - **The third bucket is checked**, which the row left open: every
-  claim about another file's ignored row is true at the base —
-  `m10_8_arc_family_interval.rs` (5 `#[ignore]`),
-  `m10_10_evidence_interval.rs` (10), `cert3_evidence.rs` (3),
-  `k-lint/tests/threshold_provenance.rs` (4); `roster.rs` states the
-  general libtest fact.
+  claim about another file's ignored row is true at the base. The
+  counts are ATTRIBUTES, by `grep -cE '^\s*#\[ignore'` (line-anchored,
+  so prose mentions of the attribute do not count):
+  `m10_8_arc_family_interval.rs` 4, `m10_10_evidence_interval.rs` 8,
+  `cert3_evidence.rs` 2, `k-lint/tests/threshold_provenance.rs` 1.
+  `roster.rs` states the general libtest fact.

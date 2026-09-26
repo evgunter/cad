@@ -60,7 +60,7 @@ fn proposal_frames_agree_with_the_standalone_part_documents() {
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
 
     // The oracle: resolve each pinned part from the store (the same
@@ -140,11 +140,9 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    session.pump();
+    common::commit_mate(&mut session, proposal.op());
 
     let centre = [
         asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
@@ -154,7 +152,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     let (_, eval) = session.landed_pair().expect("landed");
     let view = session.display_view();
     // Upward ray from below: post_b's bottom cap, now at z = -height.
-    let up = asm::up_at(centre[0], centre[1]);
+    let up = asm::under_shelf();
     let under = index
         .pick_for(eval, &up, &view)
         .expect("the pick answers")
@@ -181,14 +179,7 @@ fn the_solved_seat_hangs_the_post_under_the_shelf() {
     // And the post vacated its authored spot.
     assert!(
         index
-            .pick_for(
-                eval,
-                &asm::down_at(
-                    asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-                    asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-                ),
-                &view,
-            )
+            .pick_for(eval, &asm::over_post_b(), &view,)
             .expect("the pick answers")
             .is_none(),
         "nothing remains at post_b's authored position"
@@ -244,14 +235,7 @@ fn a_rotating_probe_is_picked_at_its_drawn_position() {
     );
     assert!(
         index
-            .pick_for(
-                eval,
-                &asm::down_at(
-                    asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-                    asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-                ),
-                &view,
-            )
+            .pick_for(eval, &asm::over_post_b(), &view,)
             .expect("the pick answers")
             .is_none(),
         "the authored position is vacated while the probe stands"
@@ -266,13 +250,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     let tol = Tol::witness();
     let bench = asm::bench("r2sameinst", tol);
     let session = asm::open_bench(&bench, tol);
-    let top = asm::pick_face(
-        &session,
-        &asm::down_at(
-            asm::POST_B_AT[0] + asm::POST_SECTION / 2.0,
-            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-        ),
-    );
+    let top = asm::pick_face(&session, &asm::over_post_b());
     // A side face, picked with a horizontal ray at half height.
     let side = asm::pick_face(
         &session,
@@ -286,7 +264,7 @@ fn two_different_faces_of_one_instance_refuse_same_pick() {
     let (doc, eval) = session.landed_pair().expect("landed");
     assert!(
         matches!(
-            tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()),
+            tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()),
             Err(viewer::matetool::MateToolError::SamePick { head })
                 if head == bench.post_b
         ),
@@ -310,10 +288,9 @@ fn a_contradictory_second_mate_fails_typed_and_undo_recovers() {
     tool.pick(b.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
-    session.perform(proposal.op());
-    session.pump();
+    common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "{row:?}");
     }
@@ -374,7 +351,7 @@ fn a_landing_mate_kills_an_in_flight_gesture() {
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -420,7 +397,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     tool.pick(b);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
 
     session.perform(SessionOp::BeginFreeMove {
@@ -490,18 +467,7 @@ fn hide_survives_the_mate_that_discards_the_probe() {
     assert_eq!(scene.stats().probe_parts, 0, "no probe survives the mate");
     // The solved placement is under the shelf; hidden means the
     // upward ray finds the SHELF's underside, not the seated post.
-    let (_, eval) = session.landed_pair().expect("landed");
-    let under = index
-        .pick_for(
-            eval,
-            &asm::up_at(
-                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-            ),
-            &session.display_view(),
-        )
-        .expect("the pick answers")
-        .expect("the shelf's underside answers");
+    let under = asm::shelf_underside(&session);
     assert_eq!(
         under.node, bench.shelf_i,
         "the seated post stays hidden at its new placement"

@@ -523,10 +523,10 @@ fn framing_contains_and_is_tight_across_realistic_aspects() {
 /// the bounds projects inside the frustum — and `Camera` refuses rather
 /// than inventing state everywhere else. At an extreme aspect the
 /// fitting distance leaves the scene-derived zoom band, and `fitted`
-/// refuses `CameraError::Unfittable` there rather than clamping. So the
-/// two acceptable answers are fit or refuse, and this row gates both:
-/// a clamped camera that does not contain its scene, returned `Ok`,
-/// reds it.
+/// refuses `CameraError::Unfittable` there rather than clamping. This
+/// row checks containment on every `Ok` — a clamped camera that does
+/// not contain its scene reds it — and accepts any `Err` without
+/// reading its kind.
 #[test]
 fn framing_at_an_extreme_aspect_should_contain_or_refuse() {
     let bounds = plate_bounds();

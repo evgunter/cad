@@ -162,7 +162,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     // The quarter turn about z maps the part's (x, y) footprint
     // [0,s]×[0,s] to [−s,0]×[0,s]; the shift puts its centre here.
     let s = asm::POST_SECTION;
-    let post_a_top = common::face_at(
+    let post_a_top = common::displayed_face_at(
         &session,
         &index,
         &asm::down_at(-0.05 - s / 2.0, 0.04 + s / 2.0),
@@ -171,14 +171,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
         post_a_top.node, rot_post,
         "the rotated instance is where the placement puts it"
     );
-    let shelf_bottom = common::face_at(
-        &session,
-        &index,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     assert_eq!(shelf_bottom.node, rot_shelf);
 
     let mut tool = MateTool::new();
@@ -186,7 +179,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     tool.pick(shelf_bottom.clone());
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the tool proposes");
 
     // The independent derivation: the picked face's WORLD pose, read
@@ -236,10 +229,7 @@ fn r1_the_minted_alignment_is_the_placement_inverse_of_the_picked_world_pose() {
     );
 
     // The edit lands once and the document stays green.
-    let outcome = session.perform(proposal.op());
-    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    assert_eq!(outcome.committed.len(), 1, "exactly one committed edit");
-    session.pump();
+    common::commit_mate(&mut session, proposal.op());
     for row in session.tree_rows() {
         assert_eq!(row.status, RowStatus::Ok, "after the mate: {row:?}");
     }
@@ -416,7 +406,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat(),
+        asm::middle_seat_alignment(),
     ));
     assert!(first.refusal.is_none(), "{:?}", first.refusal);
     assert_eq!(first.committed.len(), 1);
@@ -449,7 +439,7 @@ fn r1_hide_probe_and_mate_compose_without_a_silent_state() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat(),
+        asm::middle_seat_alignment(),
     ));
     session.pump();
     let rows = session.tree_rows();
@@ -674,18 +664,16 @@ fn r1_every_offered_class_is_executable_and_a_tangent_commit_is_unassemblable() 
     // A committed Tangent: green document, refused assembly.
     let bench = asm::bench("r1tangent", tol);
     let mut session = asm::open_bench(&bench, tol);
-    let outcome = session.perform(asm::seat_op(
-        &bench,
-        bench.post_b,
-        ContactClass::Tangent,
-        asm::middle_seat(),
-    ));
-    assert!(
-        outcome.refusal.is_none(),
-        "a Tangent mate commits: {:?}",
-        outcome.refusal
+    // A Tangent mate commits: the insert door admits it.
+    common::commit_mate(
+        &mut session,
+        asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
     for row in session.tree_rows() {
         assert_eq!(
             row.status,
@@ -792,7 +780,7 @@ fn r1_the_probe_gestures_order_and_identity_edges() {
         &bench,
         bench.post_b,
         ContactClass::Rest,
-        asm::middle_seat(),
+        asm::middle_seat_alignment(),
     ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert!(
@@ -850,12 +838,12 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     let index = asm::index_of(&session);
     let s = asm::POST_SECTION;
 
-    let top = common::face_at(
+    let top = common::displayed_face_at(
         &session,
         &index,
         &asm::down_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
     );
-    let bottom = common::face_at(
+    let bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(asm::POST_B_AT[0] + s / 2.0, asm::POST_B_AT[1] + s / 2.0),
@@ -868,7 +856,7 @@ fn r1_two_faces_of_one_instance_refuse_before_any_edit() {
     tool.pick(top);
     tool.pick(bottom);
     let (doc, eval) = session.landed_pair().expect("landed");
-    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat()) {
+    match tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice()) {
         Err(viewer::matetool::MateToolError::SamePick { head }) => {
             assert_eq!(head, bench.post_b);
         }

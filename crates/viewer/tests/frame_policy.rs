@@ -2981,7 +2981,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
 
     // Then they mate it, and that placement is discarded under them.
-    let mate = asm::seat_op(&bench, bench.post_b, ContactClass::Rest, asm::middle_seat());
+    let mate = asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [superseded] = &outcome.withdrawn.superseded[..] else {

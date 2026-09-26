@@ -638,7 +638,7 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
     dir
 }
 
-// --- the pick seam: one index build, one axis-aligned ray -----------
+// --- the pick seam: the index, the aimed rays, the displayed pick ----
 //
 // A suite picks against an index built from four values the session
 // already holds — the landed document and evaluation, the generation
@@ -653,6 +653,10 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
 // are what `index_memo` exists to compare, so a suite that reached the
 // plain door through the memo's packaging would have nothing left to
 // check.
+//
+// The rays are axis-aligned — vertical (`down_at`, `up_at`) or level
+// (`along_x`, `along_y`) — and the pick below reads the session's
+// display view, which is what makes it the viewport's pick.
 
 use pncad::geom_core::Vec3;
 use pncad::select::Ray;
@@ -749,13 +753,14 @@ pub fn up_at(x: f64, y: f64) -> Ray {
 /// **The face `ray` meets, picked the way the viewport picks it** —
 /// through `index` against `session`'s landed evaluation and its
 /// display view, so a hidden instance is not picked and a probed one is
-/// picked where it is drawn.
+/// picked where it is drawn. (`PickIndex::face_at` is the same pick
+/// under no display view; the name says which one a row reads.)
 ///
 /// # Panics
 ///
-/// If the pick refuses or the ray meets no face: a row aims its ray at
-/// a face it means to pick.
-pub fn face_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
+/// If the session has no landed evaluation, the pick refuses, or the
+/// ray meets no face: a row aims its ray at a face it means to pick.
+pub fn displayed_face_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("landed");
     index
         .face_at_for(eval, ray, &session.display_view())

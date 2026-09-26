@@ -108,8 +108,13 @@ fn pick(tools: &mut Tools, doc: &Doc<ProfileProgram>, edge: &EdgeSelection) -> V
     tools.feed(doc, &[SessionOp::Select(Selection::Edge(edge.clone()))])
 }
 
-/// A node's single body's volume, with the seam pumped.
-fn body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
+/// A node's volume, with the seam pumped — **only if its value is a
+/// plain `ValuePayload::Body`**.
+///
+/// Narrower than `common::body_volume`, which also takes a boolean's
+/// body: a fillet or chamfer evaluates to a plain body, so a blend
+/// node answering a boolean value here is a failure, not a volume.
+fn plain_body_volume(session: &mut DocSession, node: RecipeNodeId, tol: Tol) -> f64 {
     session.pump();
     let eval = session.evaluation().expect("the inline seam landed");
     let ValuePayload::Body(body) = &eval
@@ -215,7 +220,7 @@ fn a_box_fillet_authors_from_picks_with_a_canonical_selection() {
     assert_eq!(*selection, all_edge_names(&session, target));
 
     // And it is a solid: a filleted cube has less volume than the cube.
-    let filleted = body_volume(&mut session, fillet, tol);
+    let filleted = plain_body_volume(&mut session, fillet, tol);
     assert!(
         filleted < SIDE.powi(3) && filleted > 0.9 * SIDE.powi(3),
         "a 1 mm fillet takes a little off a 10 mm cube: {filleted}"
@@ -264,9 +269,9 @@ fn the_chamfer_twin_authors_the_other_node_from_the_same_picks() {
     // d does: the fillet keeps the quarter-disc the chamfer cuts flat
     // across. Asserted as an inequality between two authored solids
     // rather than against a recorded number.
-    let chamfered = body_volume(&mut session, chamfer, tol);
+    let chamfered = plain_body_volume(&mut session, chamfer, tol);
     let mut twin = session_with_fillet(tol);
-    let filleted = body_volume(&mut twin.0, twin.1, tol);
+    let filleted = plain_body_volume(&mut twin.0, twin.1, tol);
     assert!(
         chamfered < filleted,
         "chamfer {chamfered} vs fillet {filleted}"
@@ -583,7 +588,7 @@ fn an_authored_blend_saves_and_reloads() {
     let mut tools = picked_all(&session, target);
     let op = blend(&tools).fillet_op(len(BLEND)).expect("commits");
     let fillet = commit(&mut session, &mut tools, op);
-    let volume = body_volume(&mut session, fillet, tol);
+    let volume = plain_body_volume(&mut session, fillet, tol);
 
     let dir = common::tempdir("gauth5-blend");
     let path = dir.join("blended.pncad");
@@ -603,7 +608,7 @@ fn an_authored_blend_saves_and_reloads() {
         session.committed_doc().bit_eq(&authored),
         "the reloaded document is the authored one, bit for bit"
     );
-    let reloaded = body_volume(&mut session, fillet, tol);
+    let reloaded = plain_body_volume(&mut session, fillet, tol);
     assert_eq!(
         volume.to_bits(),
         reloaded.to_bits(),

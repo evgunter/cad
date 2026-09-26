@@ -138,10 +138,13 @@ reason is sharper than the one above:
 - **The single-argument doors are about the VIEWPORT, not bounds.**
   `Camera::projection_matrix` (a non-positive aspect),
   `Camera::ray_through` and `datums::datum_view` (a viewport with no
-  area) all answer `UnusableBounds` for a pane, and
-  `pane/viewport.rs`'s datum-overlay comment already says so of the
-  badge that shows it: *"Either way the badge names an argument nobody
-  passed."*
+  area) all answer `UnusableBounds` for a pane. `pane/viewport.rs`'s
+  datum-overlay comment says as much of the badge that shows it, where
+  an infinite pane reaches the matrix as either `NotFinite { what:
+  "aspect" }` or `UnusableBounds`: *"Either way the badge names an
+  argument nobody passed; what this writes names the side of the pane
+  that was not a number of pixels."* The complaint covers both arms,
+  so it is evidence about the vocabulary, not about this arm alone.
 - So deleting the review-suite sentence would leave a decline resting
   on an argument that does not hold, and restating it means choosing
   the vocabulary: split out an aspect/viewport arm (a public API

@@ -168,13 +168,15 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    session.perform(common::asm::seat_op(
-        &bench,
-        bench.post_b,
-        ContactClass::Tangent,
-        common::asm::middle_seat(),
-    ));
-    session.pump();
+    common::commit_mate(
+        &mut session,
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Tangent,
+            common::asm::middle_seat_alignment(),
+        ),
+    );
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),
         "this row's premise is a refused gate: {:?}",
