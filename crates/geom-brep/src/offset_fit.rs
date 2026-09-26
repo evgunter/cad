@@ -814,7 +814,7 @@ pub use geom::OffsetCertificate;
 /// Refuses — never degrades — on a patch whose chart normal is not
 /// certifiably non-degenerate, on an offset distance that reaches the
 /// patch's curvature reach, on budget exhaustion, and on a refinement
-/// loop that stops converging while it still has rounds in hand.
+/// loop whose strongest step stops lowering the bound.
 ///
 /// Geometry only: no `Surface` variant, no storage, no topology. The
 /// base and `d` travel as arguments; the intensional
@@ -848,12 +848,12 @@ pub use geom::OffsetCertificate;
 /// [`OffsetFitError`] — the two door meters and their escalations,
 /// the patch-bound refusals, the interpolation stack's refusals,
 /// non-finite samples, and the refinement loop's four terminations —
-/// [`OffsetFitError::BudgetExhausted`] and
-/// [`OffsetFitError::SampleCapReached`] each carrying the achieved
-/// bound, [`OffsetFitError::RefinementStalled`]
-/// carrying the bound the loop stopped improving on, and
-/// [`OffsetFitError::BoundNotFinite`] carrying the smallest finite bound
-/// any round reached, or none.
+/// [`OffsetFitError::BudgetExhausted`],
+/// [`OffsetFitError::SampleCapReached`] and
+/// [`OffsetFitError::RefinementStalled`] each carrying the last grid's
+/// bound and the smallest any round reached, and
+/// [`OffsetFitError::BoundNotFinite`] carrying that smallest finite
+/// bound, or none.
 // SHELL-TOLERANCE-CHAIN BEGIN — the sentinel
 // `topo/tests/shell_tolerance_chain.rs` reads. Between here and the END
 // sentinel are this module's five PRODUCTION doors, the one site that
@@ -986,17 +986,8 @@ pub fn fit_offset_at(
         // falls back to marking BOTH directions; a both-directions
         // round that still does not improve is not a budget problem
         // and does not become one — it refuses, named.
-        let stalled = |grid: (usize, usize)| {
-            expiry(
-                Stop::Stall,
-                round,
-                grid,
-                achieved,
-                best,
-                d,
-                tolerance,
-            )
-        };
+        let stalled =
+            |grid: (usize, usize)| expiry(Stop::Stall, round, grid, achieved, best, d, tolerance);
         // The verdict is taken BEFORE the budget test, on every round
         // including the last: a last round whose strongest step gained
         // nothing is the stall, and the budget face below is reached

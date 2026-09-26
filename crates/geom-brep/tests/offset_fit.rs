@@ -664,7 +664,11 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
         best, prev.hull_sup,
         "the face's best bound is not the smallest the run reached"
     );
-    assert_eq!(best_grid, prev_fit.control_counts(), "the best bound's grid");
+    assert_eq!(
+        best_grid,
+        prev_fit.control_counts(),
+        "the best bound's grid"
+    );
     assert!(
         !msg.contains("still improving"),
         "the message says a round that rose was improving: {msg}"
@@ -1177,7 +1181,10 @@ fn the_second_non_improving_round_is_the_stalls_face() {
         let (fit, cert) = fit_offset_at(&base, d, best, band()).unwrap_or_else(|e| {
             panic!("saddle d={d:e}: a request at the best bound {best:e} refused: {e}")
         });
-        assert_eq!(cert.hull_sup, best, "saddle d={d:e}: the best bound read back");
+        assert_eq!(
+            cert.hull_sup, best,
+            "saddle d={d:e}: the best bound read back"
+        );
         assert_eq!(fit.control_counts(), best_grid, "saddle d={d:e}: its grid");
         assert!(cert.rounds < rounds, "saddle d={d:e}");
         assert!(
