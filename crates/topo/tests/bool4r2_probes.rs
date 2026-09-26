@@ -88,13 +88,18 @@ fn point_of(body: &Body<f64>, v: topo::VertexKey) -> Point3<f64> {
 ///
 /// Every vertex of each instance is outside-or-on the other (the
 /// part's `(1.5, 3, z)` corners float in the concavity), so the clear
-/// is what the touches decide — and two of the part's vertices,
-/// `(1.5, 1, z)`, sit on the bracket's face-boundary EDGE `y = 1`, a
-/// vertex-on-edge touch with no local side analysis yet. The arm
-/// blocks on it typed. The pair is REFUSED, not cleared and not
-/// decided.
+/// is what the touches decide. The local cone analysis reads the
+/// crossing where it happens: each of the bracket's wall edges lying in
+/// the part's top and bottom faces has its material on the same side
+/// of that face as the part's, and so does the part's vertex `(0.5, 1,
+/// z)` on the bracket's floor and ceiling. (The part's `(1.5, 1, z)`
+/// corners on the bracket's edge `y = 1` ARE rests — the part is above
+/// `y = 1` there and the bracket below — and the bracket's inner-corner
+/// vertices `(1, 1, z)` on the part's edges are saddles the analysis
+/// does not decide; a decided crossing outranks both.) The pair is
+/// REFUSED as a crossing, not cleared.
 #[test]
-fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch() {
+fn a_straddling_part_with_touch_only_crossings_is_refused_as_a_crossing() {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::brick::<f64>((0.5, 1.5), (1.0, 3.0), (0.0, 1.0), Tol::witness());
     let body = assembly(&l.body, &part);
@@ -130,7 +135,7 @@ fn a_straddling_part_with_touch_only_crossings_is_blocked_on_an_unanalysed_touch
         matches!(
             placements[0],
             ValidationError::CensusUndecidable { what, .. }
-                if what.contains("the check cannot yet tell which side each is on")
+                if what.contains("one passes into the other where they touch")
         ),
         "{placements:?}"
     );
@@ -201,7 +206,7 @@ fn contact_kind(c: &CensusContact) -> &'static str {
 /// gate, as it was at the base — a partial overlap that produces no
 /// pierce has no arm in the census. This row pins today's (wrong)
 /// clear; the hole is filed as
-/// `work/bool/partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate.md`
+/// `work/contact/partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate.md`
 /// and this row is what moves when it closes.
 #[test]
 fn two_half_overlapping_cubes_are_cleared_at_the_gate() {
@@ -352,7 +357,7 @@ fn embedded_witness_is_the_fifth_vertex_in_arena_order() {
 /// inside: every vertex is probed, so the inside corner decides —
 /// `InstanceInterference` with the bracket as `outer` — undeclared and
 /// with the three touches declared alike. (The three touches are also
-/// mixed-side at the wall, which the side analysis would block; the
+/// mixed-side at the wall, which the cone analysis would block; the
 /// `In` vertex is decided first.) This row reds if a first-`Out`
 /// clear is ever restored.
 #[test]

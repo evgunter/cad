@@ -1,13 +1,12 @@
 ---
 id: declared-faces-has-no-cross-solid-check
 kind: issue
-title: Declared.faces has no cross-solid check, so a contact record naming two faces of the SAME solid would back events within it
+title: An intra-solid PATCH record is admitted into the census's backing index with no reading of its own (curve records are the designed cusp channel; patches have no such role)
 status: open
 opened: 2026-09-16
 refs: [750]
 priority: P3
-cost: E
-rides_with: CONTACT-1
+cost: D
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time
@@ -27,3 +26,28 @@ on; difficulty S.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Measured by CONTACT-1 (2026-09-25): the premise does not hold for curve records
+
+A structural refusal at `Declared::index` of every `curves`/`patches`
+record whose faces share a solid was built and run, and it refuses a
+designed channel: `tier3_tests::the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are`
+(`crates/topo/src/tier3_tests.rs`) declares a cusp as a `CurveContact`
+between two side faces of ONE prism and expects the body to certify —
+a body's own curve records ARE its `Tangent` declarations (the 3′
+channel). With the refusal the row fails (`Err([...within one
+solid...])` against `Ok(())`), so the change was reverted and the item
+left unfixed. What survives: an intra-solid PATCH record (two faces of
+one solid overlapping over an area) has no such reading; whether the
+check should be patches-only, or should instead keep intra-solid pairs
+out of the census's backing index while leaving the 3′ channel alone,
+is a design question for this item's next dispatch.
+
+## Re-homed at CONTACT-1's close (2026-09-26)
+
+No longer rides CONTACT-1. The premise as first filed is false: a
+same-solid curve record is the designed 3′ cusp declaration. What
+remains is the patches question above. Should `Declared::index` refuse
+intra-solid patch records, or keep intra-solid pairs out of the
+backing index and leave the 3′ channel alone? That is a design
+question, so the row is costed `D`.

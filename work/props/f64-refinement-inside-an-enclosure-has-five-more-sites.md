@@ -136,3 +136,5 @@ width to reach the residual. The two-line change is exactly this row's
 "cheapest of the five", and it is now the one with a consumer waiting on
 it. What it moves elsewhere (every composite bound in the tree reads this
 fold) has not been measured here; that re-baseline is the fix's own.
+
+**A consumer that moves with it (ENCL, PR 3294):** `geom-brep`'s `tests/offset_fit.rs` `the_second_non_improving_round_is_the_stalls_face` pins `RefinementStalled` on the saddle wall at `d = ±5e-10` and `1e-6`, target 1e-14; if the convex form makes those requests certify, re-find a stalling request, and failing that, drive the loop with a `#[cfg(test)]` scripted-bound seam (`work/encl/offset-fit-stall-face-has-no-fixture.md`'s option) rather than deleting the row.
