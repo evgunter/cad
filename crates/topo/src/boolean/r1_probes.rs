@@ -500,12 +500,12 @@ fn r1_the_near_perpendicular_ray_keeps_its_roots() {
     }
 }
 
-/// Review MINOR-1 on PR 3255, as the reviewer wrote it: a generic ray
-/// whose resolvent's depressed constant `Q` is a few ulps from zero, so
-/// its `Interval` enclosure straddles zero. Main certified it; a Cardano
-/// radicand chosen by `copysign(…, Q)` turned the straddle into a
-/// whole-line root and escalated `Invalid`. The truth is the pose's
-/// exact root pair; the ±1e-12 is `d`'s own 5.9e-16 departure from unit.
+/// A generic ray whose resolvent's depressed constant `Q` is a few ulps
+/// from zero, so its `Interval` enclosure straddles zero. The ray must
+/// certify there: a Cardano radicand chosen by `copysign(…, Q)` would
+/// turn the straddle into a whole-line root and escalate `Invalid`. The
+/// truth is the pose's exact root pair; the ±1e-12 is `d`'s own 5.9e-16
+/// departure from unit.
 #[test]
 fn r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval() {
     use geom_core::{Bounds, Interval, Real};

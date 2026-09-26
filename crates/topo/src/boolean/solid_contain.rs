@@ -2877,8 +2877,7 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
 /// instead, which does not vanish there: the radicand straddles zero,
 /// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
-/// every digit for (review MINOR-1 on PR 3255;
-/// `r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
+/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
 /// cone arms' quadratic formula has the same hazard with no such way
 /// out, because the sign there picks WHICH root the formula names:
 /// `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead`.
@@ -3018,8 +3017,8 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 /// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
 ///    largest real root is not positive, which contradicts its own
 ///    constant term `−q̂² < 0` on the branch that computed it.
-///    Uncertain, graze. It is NOT only a rounding-scale contradiction,
-///    though the ladder was first written as if it were: a `q̂` small
+///    Uncertain, graze. It is NOT only a rounding-scale contradiction:
+///    a `q̂` small
 ///    enough that the root `≈ q̂²/c1` falls inside the band, but large
 ///    enough to clear rung 2, reaches it too — a legitimate root refused
 ///    on its size (`work/contact/torus-split-lead-escalates-a-

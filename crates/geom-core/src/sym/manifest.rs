@@ -47,19 +47,18 @@
 //! `sym12_the_copysign_census_at_the_nominal`, and its gating half
 //! `sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`);
 //! so the reach either arm has MEASURED is the orthonormal basis's
-//! atoms alone. `solid_contain.rs`'s second site (the Cardano root's
-//! `(A − B).copysign(−Q)`, PR 3255) was minted after that census and
-//! re-asked only on the plate, the bracket and the annulus (0 atoms
-//! each; the run is OOM-killed on the next document on a small box).
-//! The claim still covers it without the other four, by construction
-//! rather than by measurement: that site runs only inside the
-//! one-real-root branch of `cubic_largest_real_root`, in the same call
-//! as `cbrt`'s own `copysign`, and both flow into the one returned `z`.
-//! Before the new site, `cbrt`'s arguments there were the signed forms
-//! `−Q/2 ± √(…)`, so every such `z` carried a `copysign` atom and the
-//! census found none standing in a decided residual — so no decided
-//! residual held a `z` from that branch, and the new atom exists only
-//! inside one. (2) The sites the tree holds at this commit, outside
+//! atoms alone. `solid_contain.rs`'s second site, the Cardano root's
+//! `(A − B).copysign(−Q)`, is measured directly on the plate, the
+//! bracket and the annulus (0 atoms each; the run is OOM-killed on the
+//! next document on a small box), and covered on the other four by
+//! construction: it runs only inside the one-real-root branch of
+//! `cubic_largest_real_root`, in the same call as `cbrt`'s own
+//! `copysign`, and both flow into the one returned `z`. The census's
+//! measurement of those four documents was taken at a head where
+//! `cbrt`'s arguments in that branch were the signed forms
+//! `−Q/2 ± √(…)`, so every `z` the branch returned carried a `copysign`
+//! atom; none stood in a decided residual, so no `z` from that branch
+//! does, and this site's atom exists only inside one. (2) The sites the tree holds at this commit, outside
 //! this module and the scalar impls that merely forward the function:
 //! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
