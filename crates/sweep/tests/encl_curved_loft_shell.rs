@@ -16,39 +16,47 @@
 //!    that ends at a moved corner has to be re-anchored, and that
 //!    seam's carrier is a lofted spline where the face-replacement
 //!    door's re-anchor lane carries only lines and circles.
-//! 2. Each saddle wall, offset alone at the shell thickness, reaches
-//!    the fit, and the fit's reach at that `d` is [`SADDLE_FIT_REACH`].
-//!    At a looser ε the fit certifies and the door refuses
-//!    structurally (the fitted chart's boundary, O4); at a tighter one
-//!    the fit refuses.
+//! 2. A saddle wall, offset alone at the shell thickness, reaches the
+//!    fit, and the fit's budget-limited reach at that `d` is
+//!    [`SADDLE_FIT_REACH`]. At a looser ε the fit certifies and the
+//!    door refuses structurally (the fitted chart's boundary, O4); at a
+//!    tighter one the fit refuses.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_brep::OffsetFitError;
 use geom_core::Tol;
-use topo::{Body, FaceKey, ReplaceFaceError, ShellError};
+use topo::{FaceKey, ReplaceFaceError, ShellError};
 
-use crate::common::approx::{band, twisted_loft};
+use crate::common::approx::{band, nurbs_walls, twisted_loft};
 
 /// The wall thickness these rows shell and offset at, in metres: 2.5%
 /// of the 2 m section, a thickness a user would ask for.
 const THICKNESS: f64 = 0.05;
 
-/// The tightest ε at which a saddle wall's offset fit certifies at
-/// `|d| =` [`THICKNESS`], measured on this fixture: the loop certifies
-/// at 1e-6 in 3 rounds (sup bound 4.28e-7) and refuses at 1e-9 and at
-/// 1e-12 with the round budget spent on a 27×17 grid at an achieved sup
-/// bound of 4.1427e-9, identical at both signs of `d`. A fit refusal
-/// whose achieved bound exceeds this is the engine reaching less far
-/// than it does today; a certificate at an ε below it is the engine
-/// reaching further. Either moves the boundary and reds.
-const SADDLE_FIT_REACH: f64 = 4.2e-9;
+/// A saddle wall's **budget-limited** reach at `|d| =` [`THICKNESS`]:
+/// the sup bound the fit loop reaches on its last round under the
+/// shipped round budget and sample cap, where it refuses
+/// `BudgetExhausted` on a 27×17 grid. Measured on this fixture at
+/// 4.1427e-9 at both signs of `d` (every wall agrees to 5 digits); the
+/// loop certifies at 1e-6 in 3 rounds (sup bound 4.28e-7).
+///
+/// It is a reach under the loop's current budget, not the fit's
+/// arithmetic floor: with the budget raised the same wall's bound keeps
+/// falling for two more rounds before it turns (to 1.15e-9). A change
+/// that moves the rounds this loop runs moves this number, and the row
+/// reds in either direction beyond [`REACH_BAND`].
+const SADDLE_FIT_REACH: f64 = 4.1427e-9;
 
-fn is_spline_wall(body: &Body<f64>, face: FaceKey) -> bool {
-    matches!(
-        body.get_face(face).and_then(|f| body.get_surface(f.surface)),
-        Some(geom::Surface::Nurbs(n)) if !n.is_placeholder()
-    )
+/// The relative band around [`SADDLE_FIT_REACH`] inside which a
+/// refusal's achieved bound counts as the same reach: wide enough for
+/// the last-digit drift an unrelated rounding change produces (the
+/// four walls and both signs spread by 1e-5 relative), narrow enough
+/// that any real change in how far the loop reaches reds.
+const REACH_BAND: f64 = 1e-2;
+
+fn is_spline_wall(walls: &[(FaceKey, impl Sized)], face: FaceKey) -> bool {
+    walls.iter().any(|(k, _)| *k == face)
 }
 
 /// The shell of the curved loft refuses at a CAP, re-anchoring a
@@ -56,6 +64,7 @@ fn is_spline_wall(body: &Body<f64>, face: FaceKey) -> bool {
 #[test]
 fn shelling_the_curved_loft_refuses_at_a_wall_seam_before_any_fit() {
     let body = twisted_loft(0.3);
+    let walls = nurbs_walls(&body);
     let e = topo::shell(&body, THICKNESS, Tol::witness())
         .expect_err("a spline-walled body does not shell today");
     let ShellError::Face { face, error } = &e else {
@@ -70,14 +79,20 @@ fn shelling_the_curved_loft_refuses_at_a_wall_seam_before_any_fit() {
         "the refusing face is not a cap: {e}"
     );
     match error.as_ref() {
-        ReplaceFaceError::CarrierLaneUnsupported { edge, .. } => {
+        ReplaceFaceError::CarrierLaneUnsupported { edge, what } => {
+            // The re-anchor lane's own refusal, not any of the door's
+            // other carrier-lane sites.
+            assert_eq!(
+                *what, "a re-anchored carrier that is neither a line nor a circle",
+                "the carrier-lane refusal came from another site: {e}"
+            );
             let halves = body.get_edge(*edge).expect("the refused edge resolves");
             let sides: Vec<FaceKey> = [halves.he_plus, halves.he_minus]
                 .into_iter()
                 .filter_map(|he| body.face_of_half_edge(he))
                 .collect();
             assert!(
-                sides.len() == 2 && sides.iter().all(|k| is_spline_wall(&body, *k)),
+                sides.len() == 2 && sides.iter().all(|k| is_spline_wall(&walls, *k)),
                 "the refused edge is not a seam between two spline walls: {e}"
             );
         }
@@ -85,30 +100,38 @@ fn shelling_the_curved_loft_refuses_at_a_wall_seam_before_any_fit() {
     }
 }
 
-/// Each saddle wall at the shell thickness: the fit runs, and which side
-/// of [`SADDLE_FIT_REACH`] the run's ε sits on decides the refusal.
+/// One saddle wall at the shell thickness, both signs: the fit runs, and
+/// which side of [`SADDLE_FIT_REACH`] the run's ε sits on decides the
+/// refusal.
 #[test]
 fn a_saddle_walls_offset_at_shell_thickness_reaches_its_measured_bound() {
     let body = twisted_loft(0.3);
-    let wall = body
-        .faces()
-        .map(|(k, _)| k)
-        .find(|k| is_spline_wall(&body, *k))
+    let (wall, _) = *nurbs_walls(&body)
+        .first()
         .expect("the loft has spline walls");
     let eps = Tol::witness().eps();
+    let (lo, hi) = (
+        SADDLE_FIT_REACH * (1.0 - REACH_BAND),
+        SADDLE_FIT_REACH * (1.0 + REACH_BAND),
+    );
+    assert!(
+        eps < lo || eps > hi,
+        "ε = {eps:e} sits inside the reach band [{lo:e}, {hi:e}], where this row cannot \
+         say which arm is right"
+    );
     for d in [THICKNESS, -THICKNESS] {
         let mut b = body.clone();
         let e = topo::replace_face_offset(&mut b, wall, d, band(), Tol::witness())
             .expect_err("a fitted wall's boundary cannot follow it");
         match e {
             ReplaceFaceError::FittedBoundaryUnsupported { .. } => assert!(
-                eps >= SADDLE_FIT_REACH,
+                eps > hi,
                 "d = {d}: the fit certified at ε = {eps:e}, below its measured reach \
-                 {SADDLE_FIT_REACH:e} — the engine reaches further now; re-baseline"
+                 {SADDLE_FIT_REACH:e} — the loop reaches further now; re-baseline"
             ),
             ReplaceFaceError::Fit { error, .. } => {
                 assert!(
-                    eps < SADDLE_FIT_REACH,
+                    eps < lo,
                     "d = {d}: the fit refused at ε = {eps:e}, where it certifies today: {error}"
                 );
                 let achieved = match error {
@@ -118,9 +141,10 @@ fn a_saddle_walls_offset_at_shell_thickness_reaches_its_measured_bound() {
                     other => panic!("d = {d}: expected a refinement refusal, got {other}"),
                 };
                 assert!(
-                    achieved > eps && achieved <= SADDLE_FIT_REACH,
-                    "d = {d}: achieved {achieved:e} against ε = {eps:e} and the measured \
-                     reach {SADDLE_FIT_REACH:e}"
+                    (lo..=hi).contains(&achieved),
+                    "d = {d}: achieved {achieved:e}, outside the measured reach \
+                     {SADDLE_FIT_REACH:e} ± {REACH_BAND} — the loop's reach moved; \
+                     re-baseline"
                 );
             }
             other => panic!("d = {d}: expected the fit or the fitted boundary, got {other}"),

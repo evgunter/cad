@@ -127,7 +127,7 @@ run:
 |---|---|---|---|
 | `bowed()`, `d = 0.05` | 1e-12 | stalls at round 7, 2.49e-9 | certifies at round 9, 49×49, 7.92e-13 (bound ≤ 2.1× on-locus every round) |
 | twisted-loft saddle wall, `d = 0.05` | 1e-9 | bound bottoms out at 1.15e-9 (round 8), rises to 9.2e-9, stalls | certifies at round 9, 49×26, 3.87e-10 |
-| same | 1e-12 | as above | certifies at round 16, 187×96, 6.40e-13 (41 s) |
+| same | 1e-12 | as above | certifies at round 16, 187×96, 6.40e-13 (41 s: release, one traced run, 4-core container shared with two other lanes) |
 | same wall, `d = 5e-10` | 1e-14 | stalls at round 4, 1.29e-11 | certifies at round 3, 7.99e-15 |
 
 Rounds 0–5 are bit-for-bit or last-digit identical under both forms on

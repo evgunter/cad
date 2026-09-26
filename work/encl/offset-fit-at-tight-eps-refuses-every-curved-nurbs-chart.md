@@ -1,7 +1,7 @@
 ---
 id: offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart
 kind: issue
-title: at eps 1e-12 the offset fit refuses every curved NURBS chart, and the mint's cost at the default eps is unmeasured on a body
+title: the offset fit's certified bound rises from round 6 on, from Bézier-insertion width, so tight-eps fits refuse; and no NURBS-walled body shells, so the body-level cost has no operand
 status: dispatched
 opened: 2026-09-05
 priority: P0
@@ -68,7 +68,8 @@ The lane that took this row measured before touching any number; the
 PR carries the traces. What the measurement changed about the row:
 
 **§1's table, re-taken** (`bowed()`, `d = ±0.05`, identical at both
-signs, release build):
+signs; release build, single run each, on a 4-core container shared with
+two other lanes):
 
 | target | outcome | rounds | cells | achieved `hull_sup` | wall |
 |---|---|---|---|---|---|
@@ -96,7 +97,9 @@ rather than here.
 **With the convex form, the budget question is real and measured:**
 1e-12 on `bowed()` needs 9 rounds and 49 samples per direction (shipped
 6 and 48), mints in 4.3 s and re-certifies in 1.2 s per validation call
-per face (2,116 cells, 2,401 control points).
+per face (2,116 cells, 2,401 control points). These and the saddle
+timings below are release builds, best of 3, on a 4-core container
+shared with two other lanes.
 
 **Two claims in §1 no longer hold as written.**
 

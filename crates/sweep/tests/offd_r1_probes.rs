@@ -363,18 +363,21 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
 /// a door that fired for the wrong reason from one that fired for the
 /// right one, which is the whole thing this row exists to check.
 ///
-/// **And the row is ε-DEPENDENT on the curved fixture, which is the
-/// point of it.** The offset door's fit target is the run's
-/// ε_precision — the door takes the tolerance WITNESS and derives no
-/// number of its own — and a genuinely curved base cannot always reach
-/// it: below [`CURVED_FIT_REACH`] the twisted loft's saddle wall
-/// stalls, so the door refuses at the FIT and the boundary
+/// **The curved fixture's outcome depends on ε, and on every ε row CI
+/// gates it is the structural arm.** The offset door's fit target is
+/// the run's ε_precision — the door takes the tolerance WITNESS and
+/// derives no number of its own — and a genuinely curved base cannot
+/// always reach it: below [`CURVED_FIT_REACH`] the twisted loft's
+/// saddle wall stalls, so the door refuses at the FIT and the boundary
 /// re-description is never attempted. That is D4's blessed
-/// ε-tightening consequence, not a defect, so this row pins BOTH arms
-/// instead of one. What it does NOT allow is the fit refusing on the
-/// PLANAR fixture: a planar spline's offset is a planar spline, which
-/// the interpolation reproduces exactly at any ε, so a fit refusal
-/// there would be a real defect and reds.
+/// ε-tightening consequence, not a defect. [`CURVED_FIT_REACH`] sits
+/// below every CI row, so the `Fit` arm below is reached only by a run
+/// configured tighter than CI's (`CAD_TOLERANCE_EPS=1e-14` reaches
+/// it), and on CI the arm's job is to red if the fit starts refusing
+/// where it reaches today. What the row does NOT allow is the fit
+/// refusing on the PLANAR fixture: a planar spline's offset is a planar
+/// spline, which the interpolation reproduces exactly at any ε, so a
+/// fit refusal there would be a real defect and reds.
 /// The tightest ε at which the twisted loft's saddle wall still
 /// certifies its offset fit at this row's `d = 5e-10`, measured on this
 /// fixture: it certifies at 1e-12 (1 refinement round, sup bound

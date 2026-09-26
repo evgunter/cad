@@ -14,7 +14,8 @@ and found that no such body shells at any ε.
 ## Measured
 
 `topo::shell(&body, 0.05, Tol::witness())` on three bodies lofted
-through `sweep::loft_body`, at the default ε:
+through `sweep::loft_body`, at the default ε (release build, single
+runs, on a 4-core container shared with two other lanes):
 
 | body | faces | refusal | wall time |
 |---|---|---|---|
