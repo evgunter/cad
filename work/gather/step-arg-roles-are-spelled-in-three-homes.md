@@ -2,12 +2,13 @@
 id: step-arg-roles-are-spelled-in-three-homes
 kind: unit
 title: Every StepArg role except the target pair is assigned three times in program.rs: the resolvers, the enumeration and the accessor macros
-status: review
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 branch: gather/step-arg-roles-one-home
 pr: 3264
+closed: 2026-09-26
 ---
 
 ## Finding
@@ -68,3 +69,13 @@ The two agreement censuses now hold by construction, so the unit adds
 checks each role against an independent reading of which kernel field
 the role names, which catches a table row that pairs a role with the
 wrong field.
+
+## Closed (2026-09-26)
+
+Merged as PR 3264, on a green local `ci-local.sh` battery (Ev,
+2026-09-26: merge on local green), with `[skip ci]`. Tier: single FULL
+review, raised from STYLE at landing. Every `StepArg` role is declared
+once, in `loop_roles!`. Chain steps resolve through their own rows.
+`radius_arg_of` is derived from the table. Residue filed: EDIT's
+`node-slot-tables-are-spelled-three-times-in-node-rs` (P1), and LIB's
+`polygon-door-refuses-at-point-slots-its-corners-do-not-live-at` (P3).
