@@ -514,8 +514,10 @@ where
 ///
 /// This fixture is the rocker eye and the vesica lens, built through
 /// the typed surface and replayed at the digest's scalar. It uses no
-/// API the lift introduced (`replay` is pre-lift), so it travels to a
-/// pre-lift tree with the rest of this file. A row that REFUSES is
+/// API the lift introduced (`replay` is pre-lift). Its embedding goes
+/// through `profile::Step::map_scalar`, which is younger than the lift,
+/// so on a tree older than that door the embed is written out
+/// by hand to carry this file across. A row that REFUSES is
 /// digested as its refusal: the eye does not certify at `Interval`
 /// (see `profile`'s `generic_replay` census for why), and "refuses
 /// with this message" is as much a bit of behaviour to hold still as

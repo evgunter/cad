@@ -15,9 +15,9 @@
 
 use crate::common;
 
-use common::tol;
+use common::{tol, try_replay_at};
 use geom_core::Point2;
-use profile::{ArcSweep, Center, Open, ProfileLoop, ReplayError, Step, replay};
+use profile::{ArcSweep, Center, Open, Step};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -42,13 +42,6 @@ fn my_eye() -> Vec<Step<f64>> {
         )
         .unwrap();
     loop_.program.clone()
-}
-
-fn try_replay_at<T: profile::ArcCarrierScalar>(
-    program: &[Step<f64>],
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
-    let embedded: Vec<Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    replay(&embedded, tol())
 }
 
 /// The f64 lane: my tangency replays, and the anchor-coincident corner

@@ -162,6 +162,16 @@ pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     )
 }
 
+/// Replays a recorded `f64` program at `T`, at the suite tolerance: each
+/// step lifted through `Step::map_scalar(T::from_f64)`, the exact
+/// embedding.
+pub fn try_replay_at<T: profile::ArcCarrierScalar>(
+    program: &[profile::Step<f64>],
+) -> Result<ProfileLoop<T>, profile::ReplayError<T>> {
+    let lifted: Vec<profile::Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
+    profile::replay(&lifted, tol())
+}
+
 /// A loop from `(x, y, bulge)` triples.
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
     bulge_loop(

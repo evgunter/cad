@@ -33,21 +33,14 @@
 
 use crate::common;
 
-use common::{coverage_corpus, tol};
+use common::{coverage_corpus, tol, try_replay_at};
 use geom_core::{Dual64, Point2, Real};
-use profile::{ProfileLoop, ReplayError, Step, replay};
+use profile::{ProfileLoop, ReplayError, Step};
 
 /// One corpus row's program, embedded and replayed at `T`.
 fn replay_at<T: profile::ArcCarrierScalar>(program: &[Step<f64>]) -> ProfileLoop<T> {
     try_replay_at(program)
         .unwrap_or_else(|e| panic!("the corpus program refused at the lifted scalar: {e}"))
-}
-
-fn try_replay_at<T: profile::ArcCarrierScalar>(
-    program: &[Step<f64>],
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
-    let embedded: Vec<Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
-    replay(&embedded, tol())
 }
 
 /// The `Dual64` instantiation: same structure, same value bits, zero

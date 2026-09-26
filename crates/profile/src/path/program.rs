@@ -1887,13 +1887,13 @@ impl<T: Real> Step<T> {
     /// change of SCALAR, never of geometry: a similarity scale, which
     /// moves lengths and leaves angles and bulges, is not spelled with
     /// it.
-    ///
-    /// Exhaustive over the step vocabulary, the arc-spec modes and the
-    /// target forms, with no wildcard arm, so a variant any of the three
-    /// gains fails to compile here rather than falling through.
     #[must_use]
-    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> Step<U> {
-        match self {
+    pub fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Step<U> {
+        // Exhaustive over the step vocabulary, and through the two rungs
+        // over the arc-spec modes and the target forms, with no wildcard
+        // arm: a variant any of the three gains fails to compile here
+        // rather than falling through.
+        match *self {
             Step::At(p) => Step::At(p.map(&f)),
             Step::Angle(theta) => Step::Angle(f(theta)),
             Step::Toward { dx, dy } => Step::Toward {
@@ -1951,8 +1951,8 @@ impl<T: Real> Target<T> {
     /// The same target at another scalar — [`Step::map_scalar`]'s rung
     /// for the target a verb or an arc spec carries. The form is
     /// structural and travels unchanged.
-    pub(crate) fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> Target<U> {
-        match self {
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> Target<U> {
+        match *self {
             Target::Point(p) => Target::Point(p.map(f)),
             Target::Start => Target::Start,
             Target::StartArriving => Target::StartArriving,
@@ -1964,8 +1964,8 @@ impl<T: Real> ArcData<T> {
     /// The same arc spec at another scalar — [`Step::map_scalar`]'s
     /// rung for the spec an arc verb carries. The mode, winding and
     /// side are structural and travel unchanged.
-    pub(crate) fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> ArcData<U> {
-        match self {
+    pub(crate) fn map_scalar<U: Real>(&self, f: impl Fn(T) -> U) -> ArcData<U> {
+        match *self {
             ArcData::Radius { r, side } => ArcData::Radius { r: f(r), side },
             ArcData::Bulge { target, b } => ArcData::Bulge {
                 target: target.map_scalar(&f),
