@@ -149,26 +149,15 @@ pub fn quarter_bulge() -> f64 {
 
 /// Lifts an `f64` profile to any scalar (exact embedding per
 /// `Real::from_f64`).
+///
+/// `Profile::map_scalar` except for the plane: this mints `xy` at `T`
+/// rather than lifting `p`'s, and every caller's profile is on `xy`.
 pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     Profile::new(
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| {
-                bulge_loop(
-                    lp.vertices()
-                        .iter()
-                        .zip(lp.bulges())
-                        .map(|(v, &b)| {
-                            (
-                                Point2::new(T::from_f64(v.x), T::from_f64(v.y)),
-                                T::from_f64(b),
-                            )
-                        })
-                        .collect(),
-                )
-                .with_tangent_joints(lp.tangent_joints().to_vec())
-            })
+            .map(|lp| lp.map_scalar(T::from_f64))
             .collect(),
     )
 }

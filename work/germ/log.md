@@ -162,3 +162,22 @@ re-checks, on the same terms for both. The dual log row rides the PR last.
 3. **One function for two quantities.** `curvature_lever_arm` serves both a
    curvature bound and a gradient-to-metres scale. Tightening one loosens
    the other.
+## 2026-09-26 — the ray-torus counterexample closes (PR 3255)
+
+The fault was in `line_torus_roots`: Cardano cancellation in the resolvent's
+one real root on near-perpendicular rays. The oracle and the criterion were
+right. Tier: a single full review, because no certified output excluded the
+truth. That review found one MINOR: the first fix's `copysign` on a
+non-vanishing radicand made `Interval` rays whose resolvent `Q` straddles
+zero (a codimension-1 surface of generic rays) escalate `Invalid`, where
+main certified them. The fix pass moved the sign onto `A − B`, which
+vanishes there. A re-check held on emulation. The gate was hosted.
+
+**A class, recorded at adjudication:** `copysign` on a sign that can
+straddle zero at `Interval`, followed by a division, turns the straddle into
+an entire-line enclosure and an `Invalid` escalation. It is safe only where
+the factor the sign lands on vanishes with the sign; there the sign picks a
+representation of one root. Where the sign picks WHICH root (the cylinder
+and cone near-root, `ray-wall-and-cone-near-root-cancels-over-a-small-lead`),
+it needs a frame decision instead. Any new `copysign` site in the register
+(`sym_rule_f_rows`) should be read against this.

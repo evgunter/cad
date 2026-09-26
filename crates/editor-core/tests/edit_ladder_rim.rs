@@ -279,6 +279,15 @@ fn rim_edge(
     )
 }
 
+/// A hole's whole rim as a band's identity: its source rim edges, as
+/// the sorted set a [`RoleSeg::BandFace`] argument is, and the `band`
+/// a [`RoleSeg::BandCross`] or [`RoleSeg::BandSlit`] carries.
+fn band_of(doc: &editor_core::ProfileDoc, block: RecipeNodeId, rim: Rim) -> Vec<StableName> {
+    let mut set: Vec<StableName> = (0..2).map(|s| rim_edge(doc, block, rim, s)).collect();
+    set.sort();
+    set
+}
+
 /// A source rim VERTEX on the filleted cap — what a
 /// [`RoleSeg::BandFoot`] argument names.
 fn cap_vertex(
@@ -550,7 +559,10 @@ fn a_band_crossing_lies_on_the_meridian_its_name_carries() {
                 &minted(
                     EntityKind::Vertex,
                     fillet,
-                    RoleSeg::BandCross(NameRef::new(source)),
+                    RoleSeg::BandCross {
+                        edge: NameRef::new(source),
+                        band: band_of(&doc, block, rim),
+                    },
                 ),
             );
             let p = point(body, cross);
@@ -699,11 +711,16 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
     let (body, sbody) = (corpus::body_of(&ev, fillet), corpus::body_of(&ev, block));
     let mut served: Vec<u32> = Vec::new();
     for (n, _) in t.iter() {
-        let RoleSeg::BandSlit(source) = &n.path[0] else {
+        let RoleSeg::BandSlit { edge: source, band } = &n.path[0] else {
             continue;
         };
         let rim = rim_of(&doc, block, source);
         let what = format!("the slit on hole {}", rim.loop_index);
+        assert_eq!(
+            *band,
+            band_of(&doc, block, rim),
+            "{what}: the slit carries the band that slit it — its own hole's rim"
+        );
         served.push(rim.loop_index);
         let j = match source.path.first() {
             Some(RoleSeg::LateralEdge(_)) => position_of(&doc, block, source).1,
@@ -718,7 +735,10 @@ fn a_slit_runs_along_the_meridian_it_was_slit_along() {
             &minted(
                 EntityKind::Vertex,
                 fillet,
-                RoleSeg::BandCross(NameRef::new((**source).clone())),
+                RoleSeg::BandCross {
+                    edge: NameRef::new((**source).clone()),
+                    band: band.clone(),
+                },
             ),
         );
         let foot = vertex_of(
@@ -817,7 +837,7 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         "one host foot per rim vertex"
     );
     assert_eq!(
-        count(t, |s| matches!(s, RoleSeg::BandCross(_))),
+        count(t, |s| matches!(s, RoleSeg::BandCross { .. })),
         2 * n,
         "one mate-side crossing per rim vertex"
     );
@@ -827,7 +847,7 @@ fn the_totality_and_the_counts_read_no_argument_at_all() {
         "one surviving meridian piece per rim vertex"
     );
     assert_eq!(
-        count(t, |s| matches!(s, RoleSeg::BandSlit(_))),
+        count(t, |s| matches!(s, RoleSeg::BandSlit { .. })),
         n,
         "one slit keeps each band ring-free"
     );
@@ -890,7 +910,10 @@ fn the_closest_pair_a_row_must_tell_apart_is_a_mint_and_its_source() {
                     &minted(
                         EntityKind::Vertex,
                         fillet,
-                        RoleSeg::BandCross(NameRef::new(m.clone())),
+                        RoleSeg::BandCross {
+                            edge: NameRef::new(m.clone()),
+                            band: band_of(&doc, block, rim),
+                        },
                     ),
                 ),
             );
@@ -947,4 +970,57 @@ fn the_neighbour_arm_is_measured_against_the_plates_closest_two_meridians() {
         "NEAR = {NEAR} is not a decade-clear margin below the separation {min} the \
          neighbour arm rules a meridian out by"
     );
+}
+
+/// **A rim edge's rebind suggestions are its trim arcs, never a slit.**
+///
+/// A slit's `band` names the rim edges of the band that made it, and
+/// that is DISCRIMINATION: the slit replaces a piece of a MERIDIAN,
+/// not any rim edge. So a vanished rim edge is offered the two band
+/// trimlines that replace it and nothing else, while a vanished
+/// meridian is offered its slit.
+///
+/// The runtime value that makes it false: the suggestion list. A walk
+/// that treats `band` as derivation adds the hole's slit to every rim
+/// edge's list.
+#[test]
+fn a_rim_edges_rebind_suggestions_are_its_trims_and_not_its_bands_slit() {
+    let (doc, block, fillet) = plate();
+    let ev = fixture::run(&doc, &EvalOptions::default());
+    for rim in rims() {
+        let what = format!("hole {}", rim.loop_index);
+        for s in 0..2 {
+            let edge = rim_edge(&doc, block, rim, s);
+            let got = editor_core::rebind_suggestions(&ev, &edge);
+            let roles: Vec<&RoleSeg> = got.iter().map(|n| &n.path[0]).collect();
+            assert_eq!(
+                roles.len(),
+                2,
+                "{what}, rim edge {s}: its host and mate trimlines, got {got:#?}"
+            );
+            assert!(
+                roles
+                    .iter()
+                    .all(|r| matches!(r, RoleSeg::BandTrim { edge: e, .. } if **e == edge)),
+                "{what}, rim edge {s}: only the trimlines replacing it, got {got:#?}"
+            );
+        }
+        let slits: Vec<StableName> = table(&ev, fillet)
+            .iter()
+            .filter(|(n, _)| {
+                matches!(&n.path[..], [RoleSeg::BandSlit { band, .. }] if *band == band_of(&doc, block, rim))
+            })
+            .map(|(n, _)| n.clone())
+            .collect();
+        let [slit] = &slits[..] else {
+            panic!("{what}: one slit per band, got {slits:#?}");
+        };
+        let RoleSeg::BandSlit { edge: meridian, .. } = &slit.path[0] else {
+            unreachable!("filtered on BandSlit above")
+        };
+        assert!(
+            editor_core::rebind_suggestions(&ev, meridian).contains(slit),
+            "{what}: the meridian the slit was cut from is offered it"
+        );
+    }
 }

@@ -782,3 +782,50 @@ and "where two of their edges cross or touch". No test pins any of
 them. Re-word them if ATREST prefers other phrasing.
 
 Signed (PATHS orchestrator).
+
+## 2026-09-28 — ATREST-3, -6, -8, -11 merged; I broke main once, and what changed
+
+**Merged since the last entry:** ATREST-3 (#3191 — tier 3′ decides check
+7 at sign level through the one `plus_v_by_sign`; the certificate doors
+return the `SignCertificate` the check decided on; import no longer
+refuses a body the kernel admits, per DESIGN import step 4; dual review
+recorded as DR-4, no tally candidate, fair), ATREST-6 (#3183 — check 1
+names a poisoned or unrepresentable analytic datum), ATREST-11 (#3217 —
+check 9 sees a ring crossing or touching its outer loop, so the nesting
+arm's no-crossing premise is CHECKED for line and circle edges; its
+review went NOT-MERGEABLE-AS-IS twice, each time on a false refusal the
+arms introduced, and each fix pass showed the reviewer's probe red
+before green), ATREST-8 (#3185 — Ev's concision request; every at-rest
+finding the viewer draws fits 75 words with a recourse that is true; a
+delta review of its first fix pass caught two FALSE SENTENCES the fix
+had introduced, including a contradiction reason that inverted the fact
+on a live Boolean path).
+
+**I broke main.** ATREST-11 added three `RingContact` variants; ATREST-8
+added a `Display` arm matching on `RingContact`. Each PR was green on
+its own head and GitHub reported both `CLEAN`, but I merged ATREST-8
+without re-gating it against ATREST-11 already being on main, and the
+combination was non-exhaustive (E0004) under the full test build. The
+ATREST-9 lane found it; another program's lane fixed main independently
+(`ea1c6ded1`) while my hotfix (#3236) was still gating, and I closed
+mine unmerged. **The landing step now refuses any head that lacks a
+`.rs`/`.toml`/`.lock` change main has since taken** — the check I
+skipped, and the one that then caught my own hotfix racing the other
+fix.
+
+**A second disk emergency.** The box hit 100% during reviews and sat at
+97–99% for most of a day, mostly other programs' build directories.
+Every idle ATREST target and one idle clone were reclaimed; reviewers
+went static; lanes were told local results from the full window were
+suspect and hosted CI is the record.
+
+**Findings that landed on other programs' slates, for the close-out's
+note to Ev:** a P0 on CARVE (the sweep verbs mint inside-out caps on a
+profile with a large convex arc; tier 3 now refuses those bodies —
+CARVE has no orchestrator); a P0 on CONTACT (with ellipse faces read
+right, the cylinder WALL arm of point-in-solid gives false `In` on a
+tilted section — pre-existing, found by ATREST-9) and a P1 (a revolved
+tube escalates on 88% of probes), CONTACT having no orchestrator
+either; an `[ev]`-shaped row on EXCH (import's per-instance gate reads
+every assembly face twice now that check 7 is per solid, and retiring
+it changes DESIGN import step 4's text).
