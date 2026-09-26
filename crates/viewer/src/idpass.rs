@@ -158,8 +158,12 @@ impl IdQueryLog {
 /// id buffer did not make.
 #[derive(Clone, Debug, PartialEq)]
 pub enum IdAnswer {
-    /// [`IdMap::NOTHING`], the clear value: no geometry under the
-    /// cursor.
+    /// [`IdMap::NOTHING`], the id buffer's clear value.
+    ///
+    /// **Not only "no geometry under the cursor".** The channel also
+    /// carries [`IdMap::NOTHING`] for a readback that failed, so this
+    /// arm holds both until the channel word tells them apart
+    /// (`work/fit/id-readback-failure-reads-as-nothing-under-the-cursor`).
     Nothing,
     /// A drawn patch, by the name the index has for it.
     Named(StableName),
@@ -179,6 +183,30 @@ pub enum IdAnswer {
         /// The id the id buffer read back.
         id: u32,
     },
+}
+
+impl core::fmt::Display for IdAnswer {
+    /// Each arm in the words of the layer that raised it: a name
+    /// through [`name_and_path`], an unnamed patch through its own
+    /// refusal's `Display`, and an unassigned id as the picture's own
+    /// fact. The id is `id N` in every arm that carries one, because
+    /// it is one `u32` read out of the id buffer, whatever it turns out
+    /// to denote.
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Nothing => f.write_str("nothing"),
+            Self::Named(name) => f.write_str(&name_and_path(name)),
+            Self::Unnamed { id, error } => write!(f, "id {id}, a drawn patch: {error}"),
+            Self::Unassigned { id } => write!(f, "id {id}, which no patch of this picture draws"),
+        }
+    }
+}
+
+/// A name as a sentence about two DIFFERING answers renders it: kind
+/// and minting node through [`StableName`]'s own `Display`, then the
+/// role path ([`Disagreement`]'s `Display` says why both halves).
+fn name_and_path(name: &StableName) -> String {
+    format!("{name} ({:?})", name.path)
 }
 
 impl IdAnswer {
@@ -215,11 +243,12 @@ pub struct Disagreement {
 }
 
 impl core::fmt::Display for Disagreement {
-    /// Each side renders through [`StableName`]'s own `Display` — kind
-    /// and minting node, the half a user can act on — followed by the
-    /// role path.
+    /// The id side renders through [`IdAnswer`]'s own `Display`. Every
+    /// NAME on either side renders through [`StableName`]'s `Display`
+    /// — kind and minting node, the half a user can act on — followed
+    /// by the role path ([`name_and_path`]).
     ///
-    /// BOTH halves are load-bearing here, which is what makes this
+    /// BOTH halves of a name are load-bearing here, which is what makes this
     /// message different from every other one in this crate. The name's
     /// `Display` omits the path deliberately, so two names differing
     /// only in their derivation would render identically; the path
@@ -238,26 +267,20 @@ impl core::fmt::Display for Disagreement {
     /// silently. In the pattern it is E0027 instead.
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let Self { from_gpu, from_ray } = self;
-        let one = |name: &StableName| format!("{name} ({:?})", name.path);
-        let gpu = match from_gpu {
-            IdAnswer::Nothing => "nothing".to_owned(),
-            IdAnswer::Named(name) => one(name),
-            IdAnswer::Unnamed { id, error } => {
-                format!("patch {id}, which the index has no name for ({error})")
-            }
-            IdAnswer::Unassigned { id } => format!("id {id}, which no patch of this picture draws"),
-        };
         let ray = match &from_ray[..] {
             [] => "nothing".to_owned(),
-            [name] => one(name),
+            [name] => name_and_path(name),
             tied => format!(
                 "tied between {}",
-                tied.iter().map(one).collect::<Vec<_>>().join(" and ")
+                tied.iter()
+                    .map(name_and_path)
+                    .collect::<Vec<_>>()
+                    .join(" and ")
             ),
         };
         write!(
             f,
-            "picking paths disagree at the cursor: id buffer {gpu}, ray {ray}"
+            "picking paths disagree at the cursor: id buffer {from_gpu}, ray {ray}"
         )
     }
 }
@@ -303,7 +326,9 @@ impl Disagreement {
 /// them is the depth buffer's rounding, not a contradiction of
 /// anything the kernel claimed. They disagree when the id buffer
 /// names a face outside the set, nothing where the ray named
-/// something, or something where the ray named nothing.
+/// something, or something where the ray named nothing — and
+/// whenever it answers an id the index cannot name
+/// ([`IdAnswer::Unnamed`], [`IdAnswer::Unassigned`]; below).
 ///
 /// # A refused ray path is no verdict
 ///

@@ -1842,6 +1842,36 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     );
 }
 
+/// **An id the index draws but cannot name is said as that id, in the
+/// naming layer's own words.** No document plants the naming layer's
+/// bug arm, so the state is built directly: the id side of a
+/// disagreement, holding the refusal the index would have stored.
+/// The sentence is fixed here, and the refusal rides through its own
+/// `Display` once, unaltered.
+#[test]
+fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
+    let error = HitTestError::Unnamed {
+        node: RecipeNodeId(2),
+        entity: editor_core::names::EntityRef {
+            body: 0,
+            key: editor_core::names::EntityKey::Body,
+        },
+    };
+    let report = idpass::Disagreement {
+        from_gpu: idpass::IdAnswer::Unnamed {
+            id: 9,
+            error: error.clone(),
+        },
+        from_ray: Vec::new(),
+    };
+    assert_eq!(
+        report.to_string(),
+        format!(
+            "picking paths disagree at the cursor: id buffer id 9, a drawn patch: {error}, ray nothing"
+        )
+    );
+}
+
 /// **The diagnostic's subject is the PATCH under the cursor, and the
 /// hover stopped being that answer when edges became pickable.**
 ///
