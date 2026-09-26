@@ -2,7 +2,7 @@
 id: the-apothems-sign-is-a-value-read
 kind: issue
 title: the apothem's sign: six arc-family decisions on a parameter bulge are zero exactly where the apothem L(1-b^2)/(4b) is positive, which only a value read reaches
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P2
 cost: H
