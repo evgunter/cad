@@ -260,3 +260,14 @@ been removed under it, which is a second instance of the worktree slip
 logged above. Orchestrator rule: remove a lane's worktree only after the
 lane has reported AND its PR has merged, and never while it may still
 be acting on a message.
+
+**Superseded again, by main's #3276** (`dbfff2e9c`). The guard's override
+now certifies that "this run should not be hosted", which covers a
+hosted queue deeper than the run takes. So GATHER's lanes run the full
+`ci-local.sh` battery with
+`CAD_LOCAL_CI_OVERRIDE=i-certify-this-run-should-not-be-hosted` once a
+change is final. It self-serializes across all build slots. Per the
+guard, merging on the local battery before the hosted run lands is the
+owner's call. The orchestrator reads Ev's "feel free to run ci locally"
+as that call, merges on a green battery, leaves the hosted run in place,
+and names the basis at each merge.
