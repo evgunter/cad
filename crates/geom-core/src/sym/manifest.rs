@@ -41,13 +41,21 @@
 //! mint site whether named below or not: on the seven measured
 //! documents whose nominal replay the shape report can take (the
 //! plate, the annulus, the link, the bracket, R1's segment boss, both
-//! D-tabs), no `copysign` atom from ANY site stands in any residual
-//! the tier is asked to decide, with rule F on or shut
+//! D-tabs), the `copysign` atoms that stand in a residual the tier is
+//! asked to decide are `geom-brep/src/tangent.rs`'s jet sign and no
+//! other site's, with rule F on or shut
 //! (`m10_10_evidence_interval`'s
-//! `sym12_the_copysign_census_at_the_nominal`, and its gating half
-//! `sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`);
-//! so the reach either arm has MEASURED is the orthonormal basis's
-//! atoms alone. (2) The sites the tree holds at this commit, outside
+//! `sym12_the_copysign_census_at_the_nominal`). They stand only in
+//! `tangent_normal_parallel` residuals, on the two documents with a
+//! fillet tangency: the bracket (7 of its 14 such residuals, one
+//! distinct atom) and the link (14 of 28, two distinct atoms). There
+//! they are `copysign(1, X)` over an `X` the syntax does not show
+//! signed, so neither arm folds them, and the tier's counts are the
+//! same with rule F on or shut. On the five cheap documents none
+//! stands at all, which the gating half
+//! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
+//! asserts. So the reach either arm has MEASURED is still the
+//! orthonormal basis's atoms alone. (2) The sites the tree holds at this commit, outside
 //! this module and the scalar impls that merely forward the function:
 //! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
