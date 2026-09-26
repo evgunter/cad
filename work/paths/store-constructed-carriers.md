@@ -83,3 +83,15 @@ seven minus two.
 `ValidatedSegment::bulge` has no reader left in `geom-brep`, `topo` or
 `sweep`. Its readers are the lift (profile), `anchor`, the `stackup`
 digest and `viewer::flatten`.
+
+**The sweep boundary is in this unit's check (from #3254's review).**
+`geom_brep::SketchSegment::Arc` carries `a, b, centre, radius, sweep`.
+`eval` reads `a`, `centre` and `sweep`; `sweep::skin::segment_curve`
+(public through `sweep` and `pncad`) also trusts `radius`; nothing
+checks their consistency at the type's door, so an inconsistent
+`radius` converts through `segment_curve` while certification, which
+reads `eval`, passes. The validate-time endpoint-on-carrier check owed
+here must cover the segment as it crosses into `geom-brep`, not only the
+profile's stored segment. Taking `segment_curve`'s radius from
+`|a − centre|` was tried and moves the elbow's STEP golden, sidecars and
+mesh digests, so it was left for this unit.

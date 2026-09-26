@@ -56,10 +56,26 @@ use geom_core::{Affine3, Point2, Point3, Real, Vec2, Vec3};
 /// here.
 ///
 /// An arc's fields are redundant by design — the endpoints lie on the
-/// carrier, and the sweep turns `a` into `b` about `centre` — and the
-/// redundancy is verified where the data is minted (the profile's
-/// validation, or the builder that authored the edge), not here.
-/// Certification is what checks a description against its carrier.
+/// carrier, and the sweep turns `a` into `b` about `centre` — and
+/// **nothing checks that redundancy at this type's door**. What reads
+/// each field:
+///
+/// - [`SketchSegment::eval`] (and so certification, which meters the
+///   description against its carrier through it) reads `a`, `centre`
+///   and `sweep` only. It reads neither `b` nor `radius`: the locus it
+///   describes is `a` turned about `centre`.
+/// - [`SketchSegment::restrict`] reads what `eval` reads and carries
+///   `radius` through.
+/// - `sweep::skin::segment_curve`, public through `sweep` and `pncad`,
+///   builds its NURBS from `a`, `b`, `centre`, `radius` and `sweep`, and
+///   trusts `radius`. A segment whose `radius` disagrees with
+///   `|a − centre|` converts to a different circle from the one `eval`
+///   describes, and nothing refuses it.
+///
+/// A segment the sweep mints from a validated profile carries the
+/// profile's carrier, whose consistency validation owns (the
+/// endpoint-on-carrier check `store-constructed-carriers` adds). A
+/// segment built by hand is only as consistent as its author made it.
 #[derive(Clone, Copy, Debug)]
 pub enum SketchSegment<T: Real> {
     /// The straight chord from `a` to `b`; `s` sweeps it affinely.
