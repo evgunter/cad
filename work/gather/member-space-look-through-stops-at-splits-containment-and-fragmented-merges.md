@@ -1,12 +1,15 @@
 ---
 id: member-space-look-through-stops-at-splits-containment-and-fragmented-merges
-kind: issue
-title: A member-space declaration resolves through merges only: a face consumed by a split, by containment, or inside a fragmented merged row is still order-shaped
-status: open
+kind: unit
+title: A member-space declaration on a face the fold left in pieces, split or inside a fragmented merged row, refuses naming the composition instead of an order-shaped Vanished
+status: closed
 opened: 2026-09-07
 refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: H
+branch: gather/member-space-typed-refusals
+pr: 3143
+closed: 2026-09-26
 ---
 
 ## What
@@ -45,9 +48,16 @@ DOCM-8 reviews on head `6d433b6f`:
 
 ## Where it contradicts what is written
 
-Nothing now. The three prose sites (`wire.rs` `route_declarations`,
-`node.rs` `Node::Union`, `names/role.rs` `RoleSeg::FromMember`) and
-N3 state the bound — merges only — and name this file.
+Nothing, once this unit lands. The prose sites (`wire.rs`
+`route_declarations` and `look_through_fold`, `node.rs` `Node::Union`,
+`names/role.rs` `RoleSeg::FromMember`) and DM4 in
+`crates/editor-core/REFERENCES.md` state all three cases: a merge is
+looked through, a face consumed whole is satisfied (#3213), and a face
+the fold left in pieces refuses with `ConsumedByFold` naming the split
+or the fragmented merge — including the non-monotone case where a
+face split and then contained in every piece fuses. The look-through
+was `look_through_merges` when the sections below were written; it is
+`look_through_fold` now, because it also refuses.
 
 ## What a look-through into fragmented rows would need
 
@@ -150,3 +160,17 @@ re-measure: the `ContactContradicted` arm in four of the containment
 orders (the wall IS a row at the step the pair is fed to), and that the
 base refused six of six before the merge look-through, so that
 look-through is a strict improvement and is not what is being undone.
+
+## Containment left this row (Ev, #3200, 2026-09-25)
+
+Ev's contact ruling on #3200 came after PR 2677 and supersedes it for
+containment: a declared pair whose face the fold consumed whole is
+SATISFIED, not refused (DM4, `crates/editor-core/REFERENCES.md`). That
+case is built by `union-contact-is-judged-pairwise-before-the-fold`
+(PR 3213), on top of its pairwise pre-pass: `drop_consumed` drops such a
+pair after `look_through_merges`, pinned by
+`docm8_flat_merged::a_member_face_contained_whole_satisfies_its_pair_and_a_contradicted_one_refuses`.
+This row builds only the split and the fragmented merge. The two compose
+because a face `drop_consumed` treats as consumed whole has, by
+`names::face_descends_from`, no descendant row, and `fold_descent`
+classifies only descendant rows.

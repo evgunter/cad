@@ -969,10 +969,12 @@ pub enum RoleSeg {
     /// the step its pair is fed to, to the accumulation's `Merged` row
     /// whose flat constituent set holds it. A face another member
     /// contained whole leaves no row behind, and a pair naming it is
-    /// satisfied. A face surviving only in pieces — split, or inside a
-    /// merged row later fragmented — is not looked through, and a pair
-    /// naming it is order-shaped ([`crate::Node::Union`] states the
-    /// bound).
+    /// satisfied. A face surviving only in pieces — split by a later
+    /// member, or inside a merged row later fragmented — has no one
+    /// entity to resolve to, and a pair naming it refuses, saying which
+    /// of the two consumed it; once every piece is contained whole, no
+    /// piece survives and the pair is satisfied instead
+    /// ([`crate::Node::Union`] states the rule).
     ///
     /// That is a statement about the WRAPPER, and about nothing else.
     /// Which of a union's names exist at all is still the pair verb's

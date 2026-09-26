@@ -192,12 +192,12 @@ pub use report::{
     HistogramRow, LeafHistogram, MassBasis, MassBudget, ReportCache, leaf_histogram, report_key,
 };
 pub use resolve::{
-    Diagnosis, FlipSet, FlipSource, GroupCutters, HitTestError, MeshPatchKey, NodeVerdictDelta,
-    PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure, ResolveError,
-    ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS, ShadowExecRefusal,
-    TieWitness, Tombstone, UpstreamCause, VerdictFlip, appearance_rebind_suggestions,
-    apply_with_names, body_name, derivation_nodes, diff_verdicts, edge_name,
-    enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
+    Diagnosis, FlipSet, FlipSource, FoldConsumption, GroupCutters, HitTestError, MeshPatchKey,
+    NodeVerdictDelta, PredicateDivergence, RecipeEditRef, Resolution, ResolutionFailure,
+    ResolveError, ResolveIndeterminate, Resolved, RunCtx, RunStatus, SHADOW_EXEC_MAX_PAIRS,
+    ShadowExecRefusal, TieWitness, Tombstone, UpstreamCause, VerdictFlip,
+    appearance_rebind_suggestions, apply_with_names, body_name, derivation_nodes, diff_verdicts,
+    edge_name, enrich_appearance_loss, enrich_appearance_loss_with_prior, entity_name, face_name,
     rebind_suggestions, resolve, resolve_with_prior, vertex_name,
 };
 pub use resolve::{

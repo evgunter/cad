@@ -1540,6 +1540,38 @@ fn the_path_and_upstream_scopes_state_which_one_answered() {
     }
 }
 
+/// A fold consumption points at the union that minted the name and
+/// says WHICH composition consumed the entity, in words a reader can
+/// tell apart — a split and
+/// a merge split later are two different sentences — and says why
+/// nothing is offered in its place.
+#[test]
+fn a_fold_consumption_names_the_composition_and_why_nothing_is_offered() {
+    use editor_core::FoldConsumption;
+    let banned = ["ConsumedByFold", "FoldConsumption", "FragmentedMerge"];
+    for (by, wants) in [
+        (
+            FoldConsumption::Split,
+            &["split it into fragments", "none is offered"][..],
+        ),
+        (
+            FoldConsumption::FragmentedMerge,
+            &[
+                "a declared merge consumed it",
+                "split the merged face",
+                "none is offered",
+            ][..],
+        ),
+    ] {
+        let d = Diagnosis::ConsumedByFold { by };
+        assert_f6(
+            &d,
+            &[&["the union that minted it"][..], wants].concat(),
+            &banned,
+        );
+    }
+}
+
 /// Refusals that name a stable name FORWARD its `Display` rather than
 /// re-spelling the kind-plus-minting-node phrase. The expectation is
 /// built from the impl, so a copy that stops tracking it fails here —

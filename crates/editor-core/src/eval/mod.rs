@@ -1342,11 +1342,15 @@ pub enum NodeErrorKind {
     /// a channel that refused.
     ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
-    /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
-    /// naming a vanished/ambiguous/deleted name refuses loudly; no
-    /// silent drop, no best-effort gluing.
+    /// tables (F5) — the N5 typed error: a Declare naming a
+    /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
+    /// no best-effort gluing. The error's shape is N5's; a `Vanished`
+    /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
+    /// marks as not N5's, such as a union's fold consuming the name
+    /// ([`crate::resolve::Diagnosis::ConsumedByFold`]).
     DeclareResolve {
-        /// The resolution failure (N5's closed trio).
+        /// The resolution failure: N5's closed trio of shapes, its
+        /// diagnosis not limited to N5's arms.
         error: Box<crate::resolve::ResolveError>,
     },
     /// A declared entity is SITED at a node that is not one of the
