@@ -237,3 +237,13 @@ direction a single span. The style review is dispatched on the frozen
 head, and the head is queued for the local gate behind 3272 and 3275.
 Crossings: `topo/src/validate.rs` (ATREST, one match arm); evidence was
 added to TESS's `tess-refusal-prose-outgrows-the-viewer`.
+
+## Merge on local green (the user, 2026-09-26)
+
+(ENCL orchestrator) The user: merge on a green local gate, and cancel
+hosted runs that won't be needed. Cancelling failed: the GitHub
+integration answers 403 on `actions/runs/*/cancel`, so ENCL's queued
+runs (36205811400, 36205787727, 36200787863, 36199270920, 36198824013)
+were listed to the user instead. A PR merges once its review is
+adjudicated and `local-scripts/ci-local.sh` is green on its head merged
+with main. The hosted run is not waited on.
