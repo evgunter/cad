@@ -444,3 +444,12 @@ PASS apart from the known `corrupt input (release profile)` false red,
 plus filter SKIPs. Ev reports that the hosted queue is tolerable again,
 so 3259, 3143 and 3280 merged main `360eb7320` without `[skip ci]`
 (`a9aed8377`, `94aaa2eff`, `9bf006420`) and merge on hosted green.
+
+**3143, 3259 and 3280 merged on hosted green (2026-09-26, about 22:30).**
+Hosted CI took about 20 minutes for each, against about 4 hours for the
+local battery. Merge commits: 3143 `e9b5ddd33`, 3259 `1e9f6336d`, 3280
+`dd483883d`, all with `[skip ci]`. The GATHER review queue is empty.
+Residue each filed is open on its owner's slate: EMIT's fold-minted
+contact verdict, CURVED's indeterminates outside the funnel, LIB's
+prose census, GATHER's per-part-gate sources issue, and MIRROR's
+topo_release pin.
