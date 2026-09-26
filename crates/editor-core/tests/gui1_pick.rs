@@ -12,11 +12,11 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
-    PickTarget, ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face,
-    resolve,
+    PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
+use fixture::pick::ray;
 use fixture::{insert, len, on_frame};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::Tol;
 use mesh::{FacePatch, Mesh};
 use topo::Body;
 
@@ -30,13 +30,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
 }
 
 /// A unit cube `[0,1]³` shifted by `dx` along x, as one extrude node.

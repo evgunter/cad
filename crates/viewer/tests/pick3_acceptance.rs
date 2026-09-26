@@ -30,155 +30,24 @@
 
 use std::collections::{BTreeMap, BTreeSet};
 
-use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
-use editor_core::{
-    DocEdit, Evaluation, Expr, HitTestError, PickHit, ProfileDoc, RecipeNodeId, SlotId, unparse,
-};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use editor_core::{Evaluation, HitTestError, RecipeNodeId};
 use viewer::pickindex::PickIndex;
-use viewer::session::{DocSession, SessionOp};
 
-use crate::common;
-use crate::common::corpus_index;
-use crate::corpus;
-
-fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
-    let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
-        return None;
-    };
-    Some(SessionOp::SetSlotExpression {
-        node,
-        slot,
-        text: unparse(&expr),
-    })
-}
-
-fn ring_bump(doc: &ProfileDoc) -> SessionOp {
-    let env = doc.param_env::<f64>();
-    for &node in doc.order().iter().rev() {
-        let (slot, expr): (SlotId, Expr) = match doc.node(node).expect("a node") {
-            editor_core::Node::Extrude { distance, .. } => {
-                let value = editor_core::eval(distance, &env).expect("a literal distance");
-                (SlotId::Distance, common::len(value * 1.03125))
-            }
-            editor_core::Node::Revolve { angle, .. } => {
-                let value = editor_core::eval(angle, &env).expect("a literal angle");
-                (SlotId::RevolveAngle, common::ang(value * 0.96875))
-            }
-            _ => continue,
-        };
-        let _: RecipeNodeId = node;
-        return SessionOp::SetSlotExpression {
-            node,
-            slot,
-            text: unparse(&expr),
-        };
-    }
-    panic!("no extrude or revolve in the ring")
-}
+use crate::common::corpus_pick::{
+    FlatHit, FlatReference, over_every_landing, tie_rays_for, too_wide, wide_aim,
+};
+use crate::fixture::pick::listed;
 
 // ---------------------------------------------------------------
-// The exhaustive walk: every candidate box the ray meets, through
-// `ray_triangle` and `TSpan::survivors`. No early-out, no order of its
-// own.
+// The exhaustive walk is `common::corpus_pick`'s `FlatReference`: every
+// candidate box the ray meets, through `ray_triangle` and the door's
+// own `answer_of`. No early-out, no order of its own.
 // ---------------------------------------------------------------
-
-struct FlatPart {
-    tree: Bvh,
-    corners: Vec<[Point3<f64>; 3]>,
-    /// Which patch — and so which FACE — each flat triangle belongs
-    /// to: the door groups its survivors by face, so the reference
-    /// has to know the grouping too.
-    face: Vec<usize>,
-}
-
-fn flatten(index: &PickIndex) -> Vec<FlatPart> {
-    index
-        .parts()
-        .iter()
-        .map(|part| {
-            let mesh = part.mesh();
-            let mut corners = Vec::new();
-            let mut boxes = Vec::new();
-            let mut face = Vec::new();
-            for (pi, p) in mesh.patches.iter().enumerate() {
-                for tri in &p.triangles {
-                    let c = tri.map(|i| mesh.positions[i as usize]);
-                    boxes.push(Aabb::from_points(c).expect("three points box"));
-                    corners.push(c);
-                    face.push(pi);
-                }
-            }
-            FlatPart {
-                tree: Bvh::build(&boxes),
-                corners,
-                face,
-            }
-        })
-        .collect()
-}
-
-/// One admitted candidate, with where it came from.
-#[derive(Clone, Copy, Debug)]
-struct Seen {
-    part: usize,
-    item: usize,
-    span: TSpan,
-}
-
-/// Every admitted candidate on `ray`, part by part and, within a part,
-/// in flat triangle order — the order `pick_face` lists a refusal's
-/// faces in, so [`TSpan::survivors`] over this slice answers the
-/// certified tie the way the door does.
-fn every(parts: &[FlatPart], ray: &Ray) -> Vec<Seen> {
-    let mut seen = Vec::new();
-    for (part, flat) in parts.iter().enumerate() {
-        let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
-        items.sort_unstable();
-        for item in items {
-            if let Some(span) = ray_triangle(ray, &flat.corners[item]) {
-                seen.push(Seen { part, item, span });
-            }
-        }
-    }
-    seen
-}
-
-/// **What the door answers for**: the survivors of the certified
-/// order, in the door's own list order. Empty is the miss; one face
-/// is the hit; several faces are the refusal, and the whole list is
-/// what `Pruned == Every` is now a claim about.
-///
-/// The FACES, not the triangles: several triangles of one face are
-/// one answer, at the HULL of their intervals and the smallest
-/// rounded `t` among them. `part`/`item` stay the min-`t` member's,
-/// which is the triangle the point comes from.
-///
-/// **The merge is the door's own callable**, [`answer_of`], as the
-/// order above it is [`TSpan::survivors`]. What this file is a
-/// reference FOR is the enumeration — every candidate box the ray
-/// meets, no early-out — and restating the merge beside it would only
-/// build a second door for the sweep to agree with.
-fn winners(parts: &[FlatPart], seen: &[Seen]) -> Vec<Seen> {
-    let candidates: Vec<(TSpan, (usize, usize))> = seen
-        .iter()
-        .map(|s| (s.span, (s.part, parts[s.part].face[s.item])))
-        .collect();
-    answer_of(&candidates)
-        .faces()
-        .into_iter()
-        .map(|face| Seen {
-            span: face.span,
-            ..seen[face.member]
-        })
-        .collect()
-}
 
 /// `main`'s order: the rounded `t`, then position. The OLD door, kept
 /// as the oracle the wide aim's `aim_lost` column is measured against
 /// — not a second spelling of this one.
-fn by_rounded_t(seen: &[Seen]) -> Option<Seen> {
+fn by_rounded_t(seen: &[FlatHit]) -> Option<FlatHit> {
     seen.iter().copied().reduce(|b, c| {
         if c.span.t < b.span.t || (c.span.t == b.span.t && (c.part, c.item) < (b.part, b.item)) {
             c
@@ -186,15 +55,6 @@ fn by_rounded_t(seen: &[Seen]) -> Option<Seen> {
             b
         }
     })
-}
-
-/// The widest barycentric bound the winning candidate carries.
-fn widest_bound(parts: &[FlatPart], ray: &Ray, win: &Seen) -> f64 {
-    crossing(ray, &parts[win.part].corners[win.item])
-        .expect("an admitted candidate has a certified determinant")
-        .barycentrics
-        .iter()
-        .fold(0.0f64, |w, &(_, err)| w.max(err))
 }
 
 // ---------------------------------------------------------------
@@ -269,60 +129,6 @@ struct WideTable {
     aim_lost_examples: Vec<String>,
 }
 
-fn dirs() -> [Vec3<f64>; 6] {
-    [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, -1.0),
-    ]
-}
-
-fn tie_rays_for(index: &PickIndex) -> Vec<(Ray, f64)> {
-    let mut ext = 0.0f64;
-    let mut targets = Vec::new();
-    for part in index.parts() {
-        let mesh = part.mesh();
-        for p in &mesh.positions {
-            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
-        }
-        let stride = mesh.boundaries.len().div_ceil(40).max(1);
-        for boundary in mesh.boundaries.iter().step_by(stride) {
-            let pts: Vec<Point3<f64>> = boundary
-                .points
-                .iter()
-                .map(|&i| mesh.positions[i as usize])
-                .collect();
-            if let Some(&first) = pts.first() {
-                targets.push(first);
-            }
-            if let [a, b, ..] = pts[..] {
-                targets.push(Point3::new(
-                    (a.x + b.x) * 0.5,
-                    (a.y + b.y) * 0.5,
-                    (a.z + b.z) * 0.5,
-                ));
-            }
-        }
-    }
-    let reach = 4.0 * ext.max(1e-3);
-    let mut rays = Vec::new();
-    for at in targets {
-        for dir in dirs() {
-            rays.push((
-                Ray {
-                    origin: at - dir * reach,
-                    dir,
-                },
-                reach,
-            ));
-        }
-    }
-    rays
-}
-
 /// `Pruned == Every` over the tie-break aim, and the aim's own shape.
 fn tie_sweep(
     name: &str,
@@ -331,11 +137,11 @@ fn tie_sweep(
     eval: &Evaluation<f64>,
     table: &mut TieTable,
 ) {
-    let parts = flatten(index);
+    let reference = FlatReference::of(index);
     for (ray, reach) in tie_rays_for(index) {
         table.rays += 1;
-        let exhaustive = winners(&parts, &every(&parts, &ray));
-        let door = answers(index, eval, &ray);
+        let (exhaustive, _) = reference.pick(&ray);
+        let door = listed(index.pick(eval, &ray));
         if door.len() > 1 {
             table.refused += 1;
         }
@@ -375,23 +181,12 @@ fn tie_sweep(
                     table.beyond_or_miss += 1;
                 }
                 for win in &exhaustive {
-                    if widest_bound(&parts, &ray, win) >= 1.0 {
+                    if too_wide(&ray, &reference.parts[win.part].corners[win.item]).is_some() {
                         table.wide_winners += 1;
                     }
                 }
             }
         }
-    }
-}
-
-/// The door's whole answer as a list: the one hit, the empty miss, or
-/// the tied faces of a refusal. The refusal is an ANSWER about the ray
-/// — every hit in it is true — so both sweeps read it that way.
-fn answers(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> Vec<PickHit> {
-    match index.pick(eval, ray) {
-        Ok(hit) => hit.into_iter().collect(),
-        Err(HitTestError::Ambiguous { hits }) => hits,
-        Err(other) => panic!("the index is of this evaluation: {other}"),
     }
 }
 
@@ -404,14 +199,7 @@ fn wide_sweep(
     eval: &Evaluation<f64>,
     table: &mut WideTable,
 ) {
-    let parts = flatten(index);
-    let mut ext = 0.0f64;
-    for part in index.parts() {
-        for p in &part.mesh().positions {
-            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
-        }
-    }
-    let reaches = [1.48, 3.0, 4.0 * ext.max(1e-3)];
+    let reference = FlatReference::of(index);
     // Each part's patch names, and which patches each of its positions
     // belongs to: the aim knows WHICH FACE it aimed at, and a hit on
     // another face at the same depth is not that aim kept.
@@ -423,187 +211,125 @@ fn wide_sweep(
                 .expect("the parts are of this evaluation")
         })
         .collect();
-    for (pi, part) in index.parts().iter().enumerate() {
-        let mesh = part.mesh();
-        let mut faces_at: BTreeMap<u32, BTreeSet<usize>> = BTreeMap::new();
-        for (patch, p) in mesh.patches.iter().enumerate() {
-            for tri in &p.triangles {
-                for &corner in tri {
-                    faces_at.entry(corner).or_default().insert(patch);
-                }
-            }
-        }
-        let positions = &mesh.positions;
-        let stride = positions.len().div_ceil(1500).max(1);
-        for (vi, v) in positions.iter().enumerate().step_by(stride) {
-            // The faces this vertex is a corner of, as the keys a hit
-            // carries.
-            let aimed_faces: Vec<(RecipeNodeId, u32, &pncad::prelude::StableName)> = faces_at
-                .get(&(vi as u32))
-                .into_iter()
-                .flatten()
-                .filter_map(|&patch| names[pi][patch].as_ref().ok())
-                .map(|name| (part.node(), part.body(), name))
-                .collect();
-            let is_aimed = |node: RecipeNodeId, body: u32, name: &pncad::prelude::StableName| {
-                aimed_faces
-                    .iter()
-                    .any(|(n, b, aimed)| *n == node && *b == body && *aimed == name)
-            };
-            for dir in dirs() {
-                for reach in reaches {
-                    let ray = Ray {
-                        origin: *v - dir * reach,
-                        dir,
-                    };
-                    table.rays += 1;
-                    let main = by_rounded_t(&every(&parts, &ray));
-                    let here = answers(index, eval, &ray);
-                    // The aim is ANSWERED FOR when the door names the
-                    // aimed vertex's OWN face at the aimed parameter —
-                    // one of the faces it names when it answers, any of
-                    // them when it refuses, because a refusal that
-                    // lists the aimed face has not lost it. By identity
-                    // and not by depth alone: a different face at the
-                    // same parameter is a different answer.
-                    let at_reach = |t: f64| (t - reach).abs() < 1e-9;
-                    let aimed_main = main.is_some_and(|s| {
-                        at_reach(s.span.t)
-                            && names[s.part][parts[s.part].face[s.item]]
-                                .as_ref()
-                                .is_ok_and(|name| {
-                                    is_aimed(
-                                        index.parts()[s.part].node(),
-                                        index.parts()[s.part].body(),
-                                        name,
-                                    )
-                                })
-                    });
-                    let aimed_here = here
-                        .iter()
-                        .any(|h| at_reach(h.t) && is_aimed(h.node, h.body, &h.name));
-                    if here.len() > 1 {
-                        table.refused += 1;
-                        *table.tied_arity.entry(here.len()).or_default() += 1;
-                        if here.len() > 3 {
-                            table
-                                .wide_arity_examples
-                                .entry(here.len())
-                                .or_insert_with(|| {
-                                    format!(
-                                        "{name}/{step}: {} faces {dir:?} through {v:?} reach \
-                                         {reach}: {}",
-                                        here.len(),
-                                        here.iter()
-                                            .map(|h| format!(
-                                                "[node {:?} body {} {} {:?} t {}]",
-                                                h.node, h.body, h.name, h.name.path, h.t
-                                            ))
-                                            .collect::<Vec<_>>()
-                                            .join(" | ")
-                                    )
-                                });
-                        }
-                        // What the identity rule costs, counted rather
-                        // than argued: refusals the DEPTH rule alone
-                        // would have called the aim kept, and how many
-                        // of them the identity rule still does.
-                        if here.iter().any(|h| at_reach(h.t)) {
-                            table.refused_at_the_aim += 1;
-                            table.refused_naming_the_aim += usize::from(aimed_here);
-                        }
-                    }
-                    table.aimed_main += usize::from(aimed_main);
-                    table.aimed_interval += usize::from(aimed_here);
-                    table.aim_gained += usize::from(aimed_here && !aimed_main);
-                    if aimed_main && !aimed_here {
-                        table.aim_lost += 1;
-                        if table.aim_lost_examples.len() < 8 {
-                            table.aim_lost_examples.push(format!(
-                                "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: \
-                                 main {:?} door {:?}",
-                                main.map(|s| s.span.t),
-                                here.iter().map(|h| h.t).collect::<Vec<_>>()
-                            ));
-                        }
-                    }
-                    // "Moved" reads the NEAREST of what the door names,
-                    // not the first entry of a list whose order decides
-                    // nothing.
-                    let front = here.iter().min_by(|left, right| left.t.total_cmp(&right.t));
-                    if let (Some(m), Some(h)) = (main, front)
-                        && m.span.t.to_bits() != h.t.to_bits()
-                    {
-                        table.moved += 1;
-                        if h.t > m.span.t {
-                            table.moved_farther += 1;
-                        }
+    let faces_at: Vec<BTreeMap<u32, BTreeSet<usize>>> = index
+        .parts()
+        .iter()
+        .map(|part| {
+            let mut faces_at: BTreeMap<u32, BTreeSet<usize>> = BTreeMap::new();
+            for (patch, p) in part.mesh().patches.iter().enumerate() {
+                for tri in &p.triangles {
+                    for &corner in tri {
+                        faces_at.entry(corner).or_default().insert(patch);
                     }
                 }
             }
-        }
-    }
-}
-
-/// Every landing the aims run over: the gallery ring at open and after
-/// its bump, then each parametric corpus document the same way. ONE
-/// pass — both aims run per landing, because the landings are what
-/// this file pays for.
-fn over_every_landing(mut sweep: impl FnMut(&str, &str, &PickIndex, &Evaluation<f64>)) {
-    let tol = Tol::witness();
-    {
-        let text = common::gallery_ring_at(tol);
-        let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-        let doc = loaded.snapshot;
-        let bump = ring_bump(&doc);
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        let index = corpus_index(&session);
-        sweep(
-            "gallery_ring",
-            "open",
-            &index,
-            session.landed_pair().expect("a landed pair").1,
+            faces_at
+        })
+        .collect();
+    for aim in wide_aim(index) {
+        let (pi, part, v, dir, reach) = (
+            aim.part,
+            &index.parts()[aim.part],
+            aim.at,
+            aim.dir,
+            aim.reach,
         );
-        let outcome = session.perform(bump);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-        let index = corpus_index(&session);
-        sweep(
-            "gallery_ring",
-            "the first edit",
-            &index,
-            session.landed_pair().expect("a landed pair").1,
-        );
-    }
-    for doc in corpus::documents() {
-        let Some(bump) = bump_op(&doc) else {
-            continue;
+        // The faces this vertex is a corner of, as the keys a hit
+        // carries.
+        let aimed_faces: Vec<(RecipeNodeId, u32, &pncad::prelude::StableName)> = faces_at[pi]
+            .get(&(aim.vertex as u32))
+            .into_iter()
+            .flatten()
+            .filter_map(|&patch| names[pi][patch].as_ref().ok())
+            .map(|name| (part.node(), part.body(), name))
+            .collect();
+        let is_aimed = |node: RecipeNodeId, body: u32, name: &pncad::prelude::StableName| {
+            aimed_faces
+                .iter()
+                .any(|(n, b, aimed)| *n == node && *b == body && *aimed == name)
         };
-        let mut session = DocSession::inline(doc.doc.clone(), tol);
-        session.pump();
-        if session.evaluation().is_none() {
-            continue;
+        let ray = aim.ray();
+        table.rays += 1;
+        let main = by_rounded_t(&reference.every(&ray));
+        let here = listed(index.pick(eval, &ray));
+        // The aim is ANSWERED FOR when the door names the
+        // aimed vertex's OWN face at the aimed parameter —
+        // one of the faces it names when it answers, any of
+        // them when it refuses, because a refusal that
+        // lists the aimed face has not lost it. By identity
+        // and not by depth alone: a different face at the
+        // same parameter is a different answer.
+        let at_reach = |t: f64| (t - reach).abs() < 1e-9;
+        let aimed_main = main.is_some_and(|s| {
+            at_reach(s.span.t)
+                && names[s.part][s.patch].as_ref().is_ok_and(|name| {
+                    is_aimed(
+                        index.parts()[s.part].node(),
+                        index.parts()[s.part].body(),
+                        name,
+                    )
+                })
+        });
+        let aimed_here = here
+            .iter()
+            .any(|h| at_reach(h.t) && is_aimed(h.node, h.body, &h.name));
+        if here.len() > 1 {
+            table.refused += 1;
+            *table.tied_arity.entry(here.len()).or_default() += 1;
+            if here.len() > 3 {
+                table
+                    .wide_arity_examples
+                    .entry(here.len())
+                    .or_insert_with(|| {
+                        format!(
+                            "{name}/{step}: {} faces {dir:?} through {v:?} reach \
+                             {reach}: {}",
+                            here.len(),
+                            here.iter()
+                                .map(|h| format!(
+                                    "[node {:?} body {} {} {:?} t {}]",
+                                    h.node, h.body, h.name, h.name.path, h.t
+                                ))
+                                .collect::<Vec<_>>()
+                                .join(" | ")
+                        )
+                    });
+            }
+            // What the identity rule costs, counted rather
+            // than argued: refusals the DEPTH rule alone
+            // would have called the aim kept, and how many
+            // of them the identity rule still does.
+            if here.iter().any(|h| at_reach(h.t)) {
+                table.refused_at_the_aim += 1;
+                table.refused_naming_the_aim += usize::from(aimed_here);
+            }
         }
-        let index = corpus_index(&session);
-        sweep(
-            doc.name,
-            "open",
-            &index,
-            session.landed_pair().expect("a landed pair").1,
-        );
-        let outcome = session.perform(bump);
-        if outcome.refusal.is_some() {
-            continue;
+        table.aimed_main += usize::from(aimed_main);
+        table.aimed_interval += usize::from(aimed_here);
+        table.aim_gained += usize::from(aimed_here && !aimed_main);
+        if aimed_main && !aimed_here {
+            table.aim_lost += 1;
+            if table.aim_lost_examples.len() < 8 {
+                table.aim_lost_examples.push(format!(
+                    "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: \
+                     main {:?} door {:?}",
+                    main.map(|s| s.span.t),
+                    here.iter().map(|h| h.t).collect::<Vec<_>>()
+                ));
+            }
         }
-        session.pump();
-        let index = corpus_index(&session);
-        sweep(
-            doc.name,
-            "the first edit",
-            &index,
-            session.landed_pair().expect("a landed pair").1,
-        );
+        // "Moved" reads the NEAREST of what the door names,
+        // not the first entry of a list whose order decides
+        // nothing.
+        let front = here.iter().min_by(|left, right| left.t.total_cmp(&right.t));
+        if let (Some(m), Some(h)) = (main, front)
+            && m.span.t.to_bits() != h.t.to_bits()
+        {
+            table.moved += 1;
+            if h.t > m.span.t {
+                table.moved_farther += 1;
+            }
+        }
     }
 }
 

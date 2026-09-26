@@ -32,6 +32,10 @@
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
 
+/// The corpus pick suites' walk: their landings, their single-level
+/// reference and their two aims.
+pub mod corpus_pick;
+
 use bvh::Aabb;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
@@ -101,21 +105,23 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId, apply,
+    RecipeNodeId,
 };
 use pncad::geom_core::Tol;
 use viewer::sketch::{Notation, ProfileShape};
 
-/// Apply one edit, answering the new document and any minted id.
-pub fn edited(
-    doc: &Doc<ProfileProgram>,
-    edit: DocEdit<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
-        .expect("the fixture's edit applies");
-    (applied.doc, applied.record.minted)
-}
+// The literal, edit, frame and rectangle doors are `viewer`'s own
+// `src/test_support.rs`, mounted here by path and re-exported, so the
+// crate's unit-test modules and these suites read ONE definition: a
+// unit-test module cannot import a `tests/` tree, and this binary can
+// compile a `src/` file. That file speaks only through `pncad` for
+// exactly this reason. A suite says `common::len` as before.
+#[path = "../../src/test_support.rs"]
+mod src_doors;
+pub use src_doors::{
+    ang, edited, frame, inserted, len, len_mm, len2, len3, rectangle, rectangle_loop, scl, scl2,
+    scl3, square, xy_frame,
+};
 
 /// **A document holding one declared parameter and nothing else** —
 /// the fixture both panel suites build their parameter rows on.
@@ -136,18 +142,6 @@ pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfilePr
         tol,
     )
     .0
-}
-
-/// Insert a node through the document's own door (`apply`, no
-/// session), answering the new document and the minted id. The op
-/// vocabulary's door is [`session_insert`].
-pub fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
-    (doc, minted.expect("an insert mints an id"))
 }
 
 /// The `&mut` spelling of `inserted`: insert a node in place and
@@ -171,58 +165,6 @@ pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, t
     *doc = applied;
 }
 
-/// A sketch frame node's payload.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: len3(origin),
-        u: scl3(u),
-        v: scl3(v),
-    })
-}
-
-/// The world xy frame's payload — the plane these fixtures sketch on.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-}
-
-/// An axis-aligned rectangular loop, `w` by `h`, its lower-left
-/// corner at `origin` in the plane's own coordinates, counter-clockwise
-/// from that corner — the loop [`rectangle`] draws, for a
-/// `SessionOp::AddProfile` that takes loops rather than a node.
-///
-/// # Panics
-///
-/// Unless `w` and `h` are both positive: a non-positive side would
-/// turn the winding or collapse the loop, and "lower-left,
-/// counter-clockwise" would stop being true of what it returns.
-pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram {
-    assert!(
-        w > 0.0 && h > 0.0,
-        "a rectangle has positive sides: {w} x {h}"
-    );
-    let [x0, y0] = origin;
-    LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
-        .expect("finite corners")
-}
-
-/// An axis-aligned rectangular profile node's payload on `plane`:
-/// [`rectangle_loop`] drawn on it. `square` is this with two equal
-/// sides at the plane origin, and a fixture whose block sits elsewhere
-/// moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![rectangle_loop(origin, w, h)],
-        ids: Vec::new(),
-    })
-}
-
-/// A square profile node's payload on `plane`, `side` metres on a side,
-/// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
-    rectangle(plane, [0.0, 0.0], side, side)
-}
-
 /// **A frame and a square drawn on it**, answering the document and the
 /// PROFILE's id — two nodes where a fixture used to insert one, because
 /// a profile names the plane it is drawn on.
@@ -241,49 +183,6 @@ pub fn framed_square(
 /// is the axis decision reads the refusal instead.
 pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
-}
-
-/// A length literal.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
-}
-
-/// A length literal that remembers it was WRITTEN in millimetres —
-/// `len` lowers canonically and carries no notation, which is what a
-/// row about the unit a literal keeps cannot use.
-pub fn len_mm(metres: f64) -> Expr {
-    Expr::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
-        .expect("a finite length")
-}
-
-/// A dimensionless literal.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// An angle literal.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
-}
-
-/// Three length literals — a datum origin, a translation.
-pub fn len3(v: [f64; 3]) -> [Expr; 3] {
-    [len(v[0]), len(v[1]), len(v[2])]
-}
-
-/// Three dimensionless literals — a normal, a direction, an axis.
-pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
-    [scl(v[0]), scl(v[1]), scl(v[2])]
-}
-
-/// Two length literals — a point in a sketch frame's own coordinates.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
-    [len(v[0]), len(v[1])]
-}
-
-/// Two dimensionless literals — a direction in a sketch frame.
-pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
-    [scl(v[0]), scl(v[1])]
 }
 
 /// One form template lowered CANONICALLY — what a suite means when it
@@ -725,13 +624,10 @@ pub fn corpus_index(session: &DocSession) -> PickIndex {
     index_of(session, corpus_delta())
 }
 
-/// A ray straight down through `(x, y)` from height `z`.
-pub fn down_from(x: f64, y: f64, z: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, z),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
+/// A ray straight down through `(x, y)` from height `z` —
+/// `crate::fixture::pick`'s, re-exported rather than re-written, as the
+/// mate heads below are: `editor-core`'s pick suites aim the same ray.
+pub use crate::fixture::pick::down_from;
 
 /// [`down_from`] at one metre up — above anything the plate- and
 /// assembly-scale fixtures build. A suite whose fixture reaches higher,

@@ -22,11 +22,11 @@
 use std::collections::BTreeMap;
 use std::sync::Arc;
 
-use bvh::{Aabb, Bvh, Ray};
-use editor_core::resolve::{TSpan, answer_of, crossing, ray_triangle};
+use bvh::{Aabb, Ray};
+use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
-    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, PickHit, ProfileDoc,
-    RecipeNodeId, SlotId, StableName, unparse,
+    Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
+    StableName, unparse,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -36,7 +36,9 @@ use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
+use crate::common::corpus_pick::{FlatHit, FlatReference, ring_bump, tie_rays_for, too_wide};
 use crate::corpus;
+use crate::fixture::pick::{AXES, aimed, listed};
 
 fn fnv(h: &mut u64, x: u64) {
     for b in x.to_le_bytes() {
@@ -323,20 +325,10 @@ fn rays_for(index: &PickIndex) -> Vec<Ray> {
         (lo.z + hi.z) * 0.5,
     );
     let ext = (hi - lo).norm().max(1e-3);
-    let mut rays = Vec::new();
-    for dir in [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, -1.0),
-    ] {
-        rays.push(Ray {
-            origin: c - dir * (2.0 * ext),
-            dir,
-        });
-    }
+    let mut rays: Vec<Ray> = AXES
+        .into_iter()
+        .map(|dir| aimed(c, dir, 2.0 * ext))
+        .collect();
     let aabb = Aabb {
         min_x: lo.x,
         min_y: lo.y,
@@ -348,187 +340,7 @@ fn rays_for(index: &PickIndex) -> Vec<Ray> {
     for corner in common::corners(&aabb) {
         let toward = c - corner;
         if toward.norm() > 0.0 {
-            rays.push(Ray {
-                origin: corner - toward,
-                dir: toward,
-            });
-        }
-    }
-    rays
-}
-
-/// **The single-level reference.** One flat tree per part over EVERY
-/// triangle of its mesh, patch-major in the mesh's patch order, and
-/// the exact test on every candidate the tree hands back — no
-/// early-out — nearest `t` with ties to the lower `(part, flat
-/// triangle)` position. Test-only. Whatever shape the production
-/// index takes — one tree per mesh, a tree per patch under a tree
-/// over the patches — its answer to every ray is this one's, hit for
-/// hit: the minimum over the per-triangle tests, each of which reads
-/// the ray and the triangle alone. The service's early-out on the
-/// conservative entry is a cost measure, and [`Walk::Pruned`] is how
-/// `reference_answers` says on every ray that it did not change the
-/// minimum: what it can change in principle is a near-tie decided by
-/// the rounding of `t` (`pick_face`'s docs), and the row is where
-/// that would show.
-struct FlatPart {
-    tree: Bvh,
-    corners: Vec<[Point3<f64>; 3]>,
-    /// Flat triangle position → (patch position, triangle position).
-    owner: Vec<(usize, usize)>,
-}
-
-struct FlatReference {
-    parts: Vec<FlatPart>,
-}
-
-/// One reference hit: which part, patch and triangle, over what `t`
-/// interval.
-#[derive(Clone, Copy, Debug)]
-struct FlatHit {
-    part: usize,
-    /// Flat triangle position within the part.
-    item: usize,
-    patch: usize,
-    span: TSpan,
-}
-
-impl FlatHit {
-    /// The rounded parameter — what the service reports.
-    fn t(&self) -> f64 {
-        self.span.t
-    }
-}
-
-impl FlatReference {
-    fn of(index: &PickIndex) -> Self {
-        let parts = index
-            .parts()
-            .iter()
-            .map(|part| {
-                let mesh = part.mesh();
-                let mut corners = Vec::new();
-                let mut owner = Vec::new();
-                let mut boxes = Vec::new();
-                for (pi, patch) in mesh.patches.iter().enumerate() {
-                    for (ti, tri) in patch.triangles.iter().enumerate() {
-                        let c = tri.map(|i| mesh.positions[i as usize]);
-                        boxes.push(Aabb::from_points(c).expect("three points box"));
-                        corners.push(c);
-                        owner.push((pi, ti));
-                    }
-                }
-                FlatPart {
-                    tree: Bvh::build(&boxes),
-                    corners,
-                    owner,
-                }
-            })
-            .collect();
-        Self { parts }
-    }
-
-    /// **What the door answers for**: one hit per FACE of the certified
-    /// tie, in the order the door lists them, and how many candidates
-    /// the tie holds — which is what says a ray of the tie-break row
-    /// actually tied.
-    ///
-    /// EVERY candidate box the ray meets is tested: this is the
-    /// reference, and the service's early-out is what it is a
-    /// reference for. Neither half of the RULE is restated — the
-    /// candidates are offered to [`answer_of`] in `(part, flat
-    /// position)` order, and that callable is the door's own, order
-    /// and face grouping together. What is this file's own is the
-    /// enumeration.
-    fn pick(&self, ray: &Ray) -> (Vec<FlatHit>, usize) {
-        let mut hits: Vec<FlatHit> = Vec::new();
-        for (part, flat) in self.parts.iter().enumerate() {
-            let mut items: Vec<usize> = flat.tree.ray(ray).into_iter().map(|c| c.item).collect();
-            items.sort_unstable();
-            for item in items {
-                let Some(span) = ray_triangle(ray, &flat.corners[item]) else {
-                    continue;
-                };
-                let (patch, _) = flat.owner[item];
-                hits.push(FlatHit {
-                    part,
-                    item,
-                    patch,
-                    span,
-                });
-            }
-        }
-        let candidates: Vec<(TSpan, (usize, usize))> = hits
-            .iter()
-            .map(|hit| (hit.span, (hit.part, hit.patch)))
-            .collect();
-        let faces = answer_of(&candidates).faces();
-        // How many candidates the tie holds — the sum of the groups'
-        // memberships is the survivor count, which is what says a ray
-        // of the tie-break row actually tied.
-        let tied = faces.iter().map(|face| face.members).sum();
-        let per_face = faces
-            .into_iter()
-            .map(|face| FlatHit {
-                span: face.span,
-                ..hits[face.member]
-            })
-            .collect();
-        (per_face, tied)
-    }
-}
-
-/// **The tie-break row**: rays aimed exactly at the points two or more
-/// patches share — a boundary polyline's first point (a vertex or
-/// chord point every incident face's triangles have as a corner) and
-/// the midpoint of its first segment (a point on the shared edge) —
-/// along the six axis directions from outside the picture. A hit
-/// there is a hit for every incident triangle at one `t`, across
-/// patches and, where bodies touch, across parts: the case the door's
-/// set rule is about, and the one it refuses on.
-fn tie_rays_for(index: &PickIndex) -> Vec<Ray> {
-    let mut ext = 0.0f64;
-    let mut targets = Vec::new();
-    for part in index.parts() {
-        let mesh = part.mesh();
-        for p in &mesh.positions {
-            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
-        }
-        // At most ~40 boundaries per part, spread over the polyline list.
-        let stride = mesh.boundaries.len().div_ceil(40).max(1);
-        for boundary in mesh.boundaries.iter().step_by(stride) {
-            let pts: Vec<Point3<f64>> = boundary
-                .points
-                .iter()
-                .map(|&i| mesh.positions[i as usize])
-                .collect();
-            if let Some(&first) = pts.first() {
-                targets.push(first);
-            }
-            if let [a, b, ..] = pts[..] {
-                targets.push(Point3::new(
-                    (a.x + b.x) * 0.5,
-                    (a.y + b.y) * 0.5,
-                    (a.z + b.z) * 0.5,
-                ));
-            }
-        }
-    }
-    let reach = 4.0 * ext.max(1e-3);
-    let mut rays = Vec::new();
-    for at in targets {
-        for dir in [
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(-1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, -1.0),
-        ] {
-            rays.push(Ray {
-                origin: at - dir * reach,
-                dir,
-            });
+            rays.push(aimed(corner, toward, 1.0));
         }
     }
     rays
@@ -561,17 +373,11 @@ fn reference_answers(
         .map(|(i, ray)| {
             let (expected, tied) = reference.pick(ray);
             for hit in &expected {
-                let tri = &reference.parts[hit.part].corners[hit.item];
-                let bounds = crossing(ray, tri)
-                    .expect("an answered candidate's determinant is certified")
-                    .barycentrics
-                    .map(|(_, err)| err);
-                // A NaN bound is not a bound and must red this row,
-                // not slip through a `b >= 1.0` that a NaN fails.
+                let wide = too_wide(ray, &reference.parts[hit.part].corners[hit.item]);
                 assert!(
-                    !bounds.iter().any(|&b| b.is_nan() || b >= 1.0),
+                    wide.is_none(),
                     "{name} after {step}: ray {i} ({ray:?}) is answered by {hit:?} whose widest \
-                     barycentric bounds are {bounds:?} — an interval that wide covers [0, 1] and \
+                     barycentric bounds are {wide:?} — an interval that wide covers [0, 1] and \
                      the exact test refuses it"
                 );
             }
@@ -624,16 +430,7 @@ fn assert_flat_reference(
                 .collect::<Vec<_>>()
                 .join(" | ")
         };
-        let actual = match index.pick(eval, ray) {
-            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
-            Ok(None) => "miss".to_owned(),
-            Err(HitTestError::Ambiguous { hits }) => hits
-                .iter()
-                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
-                .collect::<Vec<_>>()
-                .join(" | "),
-            Err(e) => format!("refused: {e}"),
-        };
+        let actual = rendered(index, eval, ray);
         assert_eq!(
             actual, expected,
             "{name} after {step}: ray {i} ({tied} tied; {ray:?}) picks differently from the \
@@ -641,19 +438,6 @@ fn assert_flat_reference(
         );
     }
     ties
-}
-
-/// **The service's whole answer**, as the list the door's two shapes
-/// share: the one hit, the empty miss, or the tied faces of the
-/// refusal. Every probe below reads the door through this, because a
-/// certified tie between faces is an ANSWER about the ray and not an
-/// error to unwrap past.
-fn service_answers(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> Vec<PickHit> {
-    match index.pick(eval, ray) {
-        Ok(hit) => hit.into_iter().collect(),
-        Err(HitTestError::Ambiguous { hits }) => hits,
-        Err(other) => panic!("the pick resolves: {other}"),
-    }
 }
 
 /// One answered face as comparable bits: which body, which name,
@@ -676,21 +460,27 @@ fn descriptor(
     )
 }
 
-/// A pick's answer as comparable bits.
+/// **The door's answer to `ray` as comparable bits**: the hit, `miss`,
+/// the tied faces of a refusal joined, or any other refusal's text —
+/// every shape the door can answer in, so a differential over two
+/// indexes compares them all rather than panicking past one.
+fn rendered(index: &PickIndex, eval: &Evaluation<f64>, ray: &Ray) -> String {
+    match index.pick(eval, ray) {
+        Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
+        Ok(None) => "miss".to_owned(),
+        Err(HitTestError::Ambiguous { hits }) => hits
+            .iter()
+            .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
+            .collect::<Vec<_>>()
+            .join(" | "),
+        Err(e) => format!("refused: {e}"),
+    }
+}
+
+/// A pick's answer as comparable bits, ray by ray.
 fn hits(index: &PickIndex, session: &DocSession, rays: &[Ray]) -> Vec<String> {
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    rays.iter()
-        .map(|ray| match index.pick(eval, ray) {
-            Ok(Some(hit)) => descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point),
-            Ok(None) => "miss".to_owned(),
-            Err(HitTestError::Ambiguous { hits }) => hits
-                .iter()
-                .map(|hit| descriptor(hit.node, hit.body, &hit.name, hit.t, hit.point))
-                .collect::<Vec<_>>()
-                .join(" | "),
-            Err(e) => format!("refused: {e}"),
-        })
-        .collect()
+    rays.iter().map(|ray| rendered(index, eval, ray)).collect()
 }
 
 /// One landing's reading: the picture's face count, and how many rays
@@ -799,7 +589,7 @@ fn assert_same_picture(
     );
     // The seam's meshes are the fresh ones (asserted above), so one
     // reference over the fresh meshes is the reference for both.
-    rays.extend(tie_rays_for(fresh));
+    rays.extend(tie_rays_for(fresh).into_iter().map(|(ray, _)| ray));
     let reference = FlatReference::of(fresh);
     let answers = reference_answers(name, step, &reference, &rays);
     let fresh_ties = assert_flat_reference(name, step, fresh, &answers, session, &rays);
@@ -1077,7 +867,7 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
-    let (node, slot, expr) = first_length_slot(&doc);
+    let (node, slot, expr) = ring_bump(&doc);
     let original = doc
         .node(node)
         .expect("a node")
@@ -1122,7 +912,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
-    let (node, slot, expr) = first_length_slot(&doc);
+    let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit {
         node,
         slot,
@@ -1141,7 +931,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let corner = Point3::new(0.22558061449274294, 0.0, 0.0448707740637096);
     let reach = REACH;
-    let ray = aimed_along_y(corner, 1.0);
+    let ray = aimed(corner, Vec3::new(0.0, 1.0, 0.0), REACH);
     let same = |p: &Point3<f64>, q: &Point3<f64>| {
         (p.x.to_bits(), p.y.to_bits(), p.z.to_bits())
             == (q.x.to_bits(), q.y.to_bits(), q.z.to_bits())
@@ -1193,7 +983,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
         );
     }
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    let picked = service_answers(&index, eval, &ray);
+    let picked = listed(index.pick(eval, &ray));
     assert_eq!(
         picked.iter().map(|h| h.t.to_bits()).collect::<Vec<_>>(),
         answers.iter().map(|h| h.t().to_bits()).collect::<Vec<_>>(),
@@ -1249,7 +1039,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let text = common::gallery_ring_at(tol);
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
-    let (node, slot, expr) = first_length_slot(&doc);
+    let (node, slot, expr) = ring_bump(&doc);
     let bump = Edit {
         node,
         slot,
@@ -1268,7 +1058,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
         common::index_at(&session, common::corpus_delta()).expect("the bumped ring indexes");
     let vertex = Point3::new(0.245_196_320_100_807_58, 0.0, 0.048_772_580_504_032_18);
     let reach = REACH;
-    let ray = aimed_along_y(vertex, -1.0);
+    let ray = aimed(vertex, Vec3::new(0.0, -1.0, 0.0), REACH);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1439,7 +1229,7 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         -1.952_075_113_318_894_5,
     );
     let reach = REACH;
-    let ray = aimed_along_y(vertex, 1.0);
+    let ray = aimed(vertex, Vec3::new(0.0, 1.0, 0.0), REACH);
     assert!(
         index.parts().iter().any(|part| {
             part.mesh().positions.iter().any(|p| {
@@ -1506,7 +1296,7 @@ fn a_wide_candidates_interval_reaching_the_aimed_vertex_refuses_with_both() {
         "and so is the edge-on candidate short of it: {answers:?}"
     );
     let (_, eval) = session.landed_pair().expect("a landed pair");
-    let picked = service_answers(&index, eval, &ray);
+    let picked = listed(index.pick(eval, &ray));
     assert_eq!(
         picked.iter().map(|h| h.t.to_bits()).collect::<Vec<_>>(),
         ts,
@@ -1543,38 +1333,7 @@ const RING_WIDE_CANDIDATE_CONDITIONING: f64 = 7.19e-16;
 /// something.
 const REACH: f64 = 1.48;
 
-/// A ray along `sense` y (`1.0` or `-1.0`) whose target `p` lies
-/// [`REACH`] along it.
-fn aimed_along_y(p: Point3<f64>, sense: f64) -> Ray {
-    Ray {
-        origin: Point3::new(p.x, p.y - sense * REACH, p.z),
-        dir: Vec3::new(0.0, sense, 0.0),
-    }
-}
-
 /// The ring probe's answer: the chord point's parameter as the
 /// winning triangle's exact test rounds it. Re-derive from the
 /// probe's failure message if the ring's tessellation changes.
 const RING_CORNER_T: f64 = 1.48;
-
-/// The last extrude distance or revolve angle in the document, scaled
-/// — the gallery ring's own bump.
-fn first_length_slot(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
-    let env = doc.param_env::<f64>();
-    for &node in doc.order().iter().rev() {
-        match doc.node(node).expect("a node") {
-            editor_core::Node::Extrude { distance, .. } => {
-                let value = editor_core::eval(distance, &env).expect("a literal distance");
-                let expr = common::len(value * 1.03125);
-                return (node, SlotId::Distance, expr);
-            }
-            editor_core::Node::Revolve { angle, .. } => {
-                let value = editor_core::eval(angle, &env).expect("a literal angle");
-                let expr = common::ang(value * 0.96875);
-                return (node, SlotId::RevolveAngle, expr);
-            }
-            _ => {}
-        }
-    }
-    panic!("no extrude or revolve in the document")
-}

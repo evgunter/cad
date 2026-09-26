@@ -2793,10 +2793,7 @@ mod tests {
         let e1: Vec3<f64> = tri[1] - tri[0];
         let e2: Vec3<f64> = tri[2] - tri[0];
         let target = tri[0] + e1 * 0.25 + e2 * 0.125;
-        let ray = Ray {
-            origin: target - dir,
-            dir,
-        };
+        let ray = ray_through(target, dir, 1.0);
         let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
             .expect("a certified determinant")
             .barycentrics;
@@ -2874,10 +2871,7 @@ mod tests {
         let b = Point3::new(1.0, 0.0, zeta + xi);
         let c = Point3::new(0.0, 1.0, 0.0);
         let dir = Vec3::new(1.0, 1.0, zeta);
-        let ray = Ray {
-            origin: b - dir,
-            dir,
-        };
+        let ray = ray_through(b, dir, 1.0);
         let abc = [a, b, c];
         let bca = [b, c, a];
         let det_abc = crossing(&ray, &abc).expect("certified").det;
@@ -2917,10 +2911,7 @@ mod tests {
             ("b", [a, b8, c], b8),
             ("c", [a, b8, c], c),
         ] {
-            let ray = Ray {
-                origin: corner - dir,
-                dir,
-            };
+            let ray = ray_through(corner, dir, 1.0);
             assert!(crossing(&ray, &tri).is_some());
             assert_eq!(
                 ray_triangle(&ray, &tri),
