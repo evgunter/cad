@@ -798,11 +798,18 @@ pub fn import_step(
                     _ => one,
                 };
                 // The per-solid subject of the shared gate (below),
-                // asked about the PLACED copy — the body that ships.
-                // With one instance the per-solid and aggregate
-                // subjects are the same body, so this call is skipped
-                // as an identity, never as an exemption.
-                if model.instances.len() > 1 {
+                // asked about the PLACED copy — the body that ships —
+                // when `topo::per_part_gate_owed` says the aggregate
+                // owes it. That policy counts the aggregate's SOLIDS,
+                // and the instance count IS that count here, enforced
+                // rather than assumed: each instance is one
+                // `build_one_solid` body, `transform_rigid` keeps its
+                // solid count, and `topo::graft_disjoint` refuses a
+                // source that is not exactly one solid and appends one
+                // solid per call — so every shipped body holds
+                // `instances.len()` solids, and any other count is a
+                // typed refusal of the import.
+                if topo::per_part_gate_owed(model.instances.len()) {
                     gate(&one, Some(spec.id), tol)?;
                 }
                 topo::graft_disjoint(&mut body, &one, tol).map_err(|source| {
@@ -814,8 +821,9 @@ pub fn import_step(
                 // The A7 record, minted where the instance is: `index`
                 // is the graft order, and the graft appends one solid
                 // per call, so it IS the shipped body's `solids()`
-                // order (pinned by `the_assembly_record_indexes_the_
-                // shipped_solids`).
+                // order (pinned by `freecad.rs`'s
+                // `the_assembly_record_retains_the_occurrence_structure`
+                // and `the_assembly_record_covers_a_file_that_places_nothing`).
                 record.push(PlacedInstance {
                     index,
                     solid: spec.id,
@@ -842,23 +850,14 @@ pub fn import_step(
             // certifies the BODY, which is what `StepImport::Solid`
             // promises at rest.
             //
-            // Asked twice, for two different subjects. Several of the
-            // gate's invariants are WHOLE-BODY sums — check 7's +V is
-            // the boundary flux summed over every shell — so a solid
-            // stated inside-out cancels against a right-side-out
-            // neighbour and the aggregate reads Zero, which is exempt.
-            // "Every imported solid passes the gate" therefore has to
-            // mean each INSTANCE's own body, which is exactly the body
-            // the materialization loop above already holds, and the
-            // refusal names which `MANIFOLD_SOLID_BREP` it came from.
-            // The aggregate pass stays: it is the subject that owns
-            // the cross-solid structure (shared arena integrity, edges
-            // across shells) no per-solid view can see.
-            //
-            // With one instance the two subjects are the same body, so
-            // the per-solid call would re-run the aggregate call on
-            // identical geometry — skipped as an identity, never as an
-            // exemption.
+            // Asked for two subjects, and when the first is asked at
+            // all is `topo::per_part_gate_owed`'s to say, with its
+            // reason (a whole-body sum hides an inverted part; one
+            // solid is one subject, not two). Here the per-solid
+            // subject is each INSTANCE's own body, which is exactly the
+            // body the materialization loop above already holds, and
+            // the refusal names which `MANIFOLD_SOLID_BREP` it came
+            // from; the aggregate subject is the shipped body.
             //
             // The per-solid subject is the PLACED copy (M8): the body
             // that ships is the union of exactly these, so gating them
@@ -948,13 +947,13 @@ fn gate(body: &topo::Body<f64>, solid: Option<u64>, tol: Tol) -> Result<(), Step
 /// not a verdict, and rides on the enclosure rather than refusing the
 /// import.
 ///
-/// **What the import as a whole pays is more than this gate.** A file
-/// holding several instances gates each placed solid on its own first
-/// ([`gate`], tier 3), so every face of an assembly is read once there
-/// and once again here: a two-instance assembly of certifying solids
-/// records twice one measurement's quadrature verdicts through
-/// `import_step`. A one-instance file skips the per-solid gate and pays
-/// this one only.
+/// **What the import as a whole pays is more than this gate.** Where
+/// [`topo::per_part_gate_owed`] asks for it, each placed solid is gated
+/// on its own first ([`gate`], tier 3), so every face of an assembly is
+/// read once there and once again here: a two-instance assembly of
+/// certifying solids records twice one measurement's quadrature
+/// verdicts through `import_step`. Where it does not, the import pays
+/// this gate only.
 fn gate3(
     body: &topo::Body<f64>,
     records: &topo::ContactRecords,
@@ -1004,12 +1003,16 @@ fn resolve_declarations(
 /// the body that produced it. That is a corrupt-body state, and no
 /// caller here can prove it away: the aggregate body reaches this
 /// resolution before any gate has run on it, and the per-solid gate
-/// above sees only the pre-graft copies and only when more than one
-/// instance ships. Passing over such a vertex would silently
-/// understate the census — a resolvable anchor would report as
-/// `DeclarationUnresolved` with the wrong `found`, a three-way
-/// coincidence would resolve as exactly two — so the census refuses
-/// with [`StepImportError::VertexWithoutPoint`] instead.
+/// above sees only the pre-graft copies, and only where
+/// [`topo::per_part_gate_owed`] asks for it — which at one solid it
+/// does not, so a one-instance import reaches here with NO gate run on
+/// any of its geometry (the premise
+/// `the_per_part_policy_still_skips_a_lone_solid` pins). Passing over
+/// such a vertex would silently understate the census — a resolvable
+/// anchor would report as `DeclarationUnresolved` with the wrong
+/// `found`, a three-way coincidence would resolve as exactly two — so
+/// the census refuses with [`StepImportError::VertexWithoutPoint`]
+/// instead.
 fn vertex_rest_contact(
     candidates: impl Iterator<Item = (topo::VertexKey, Option<geom_core::Point3<f64>>)>,
     at: [f64; 3],
@@ -1074,6 +1077,32 @@ mod declaration_tests {
             [records.vv[0].a, records.vv[0].b],
             [keys[0], keys[1]],
             "the record names the two vertices at the anchor"
+        );
+    }
+
+    /// **The premise [`vertex_rest_contact`]'s refusal is argued from**,
+    /// read off the policy's one home rather than restated: at one
+    /// solid the per-part gate is not owed, so a one-instance import
+    /// runs no gate on any of its geometry before its declarations
+    /// resolve. Two solids owe it, which is the other side of the same
+    /// threshold and what makes the lone-solid answer a threshold rather
+    /// than "never".
+    ///
+    /// Red here means `topo::per_part_gate_owed` changed its answer.
+    /// The refusal may well still be right — the per-part gate sees only
+    /// pre-graft copies — but its doc argues from this answer, so
+    /// re-read that argument before re-pinning.
+    #[test]
+    fn the_per_part_policy_still_skips_a_lone_solid() {
+        assert!(
+            !topo::per_part_gate_owed(1),
+            "the per-part gate is now owed by a lone solid: \
+             `vertex_rest_contact`'s premise no longer holds as written"
+        );
+        assert!(
+            topo::per_part_gate_owed(2),
+            "two solids no longer owe the per-part gate: the import loop \
+             would ship an inverted part hidden by a whole-body sum"
         );
     }
 

@@ -127,8 +127,8 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// two grafts of one source produce two disjoint key ranges. Validity
 /// remains the caller's to establish — this is a raw transplant, and a
 /// multi-solid source's solids are gated by the same at-rest validator
-/// as any other body's (the step-import loop's per-solid-then-aggregate
-/// shape).
+/// as any other body's: each part on its own when
+/// [`crate::per_part_gate_owed`] says so, then the aggregate.
 ///
 /// # Errors
 ///

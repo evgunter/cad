@@ -3107,6 +3107,41 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
     }
 }
 
+/// **Whether an aggregate of `aggregate_solids` solids owes its parts
+/// the at-rest gate one by one** (F8/D7) — the one statement of that
+/// policy; every caller that gathers parts into one body and gates it
+/// asks here rather than spelling the threshold itself.
+///
+/// A gathered aggregate is gated at rest as ONE body, and that subject
+/// is not enough on its own: several of the gate's invariants are
+/// WHOLE-BODY sums — check 7's +V is the boundary flux summed over
+/// every shell ([`validate_geometric`]) — so a part stated inside-out
+/// cancels against a right-side-out neighbour and the aggregate reads
+/// Zero, which is exempt. "Every part passes the gate" therefore means
+/// each part's OWN body is asked first, and the refusal names the part.
+/// The aggregate is asked after, because it owns the cross-part
+/// structure (shared arena integrity, the census) no part can see.
+///
+/// **With one solid the part and the aggregate are the same body**, so
+/// the per-part call would re-run the aggregate call on identical
+/// geometry. It is skipped as an IDENTITY, never as an exemption: the
+/// aggregate gate still runs, on that same solid.
+///
+/// The count is over the aggregate's SOLIDS — not over its sources,
+/// one of which may carry several solids, and not over any other unit
+/// a caller holds. A caller counting something else owes the reason its
+/// count IS the solid count, at the call.
+///
+/// The dependents, by name: `step_import::import_step`'s
+/// materialization loop and `editor_core::product_recorded`'s per-source
+/// pass call this, and step-import's `vertex_rest_contact` takes its
+/// answer at one solid (`false`: nothing gates the parts before the
+/// aggregate's declarations resolve) as a premise.
+#[must_use]
+pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {
+    aggregate_solids > 1
+}
+
 /// Validates a body as a **tier-3 "geometric" solid** (M2 PR 3 — the
 /// tier's start): all of tier 2 ([`validate_closed`]), then the
 /// geometric re-checks at rest, in documented order:

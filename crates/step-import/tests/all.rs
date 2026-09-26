@@ -83,6 +83,8 @@ mod onb_wild_normal_census;
 mod p1b_r1_import_scan;
 #[path = "parser.rs"]
 mod parser;
+#[path = "per_part_gate_policy.rs"]
+mod per_part_gate_policy;
 #[path = "perf12_census_goldens.rs"]
 mod perf12_census_goldens;
 #[path = "poleguard.rs"]

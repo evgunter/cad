@@ -410,7 +410,8 @@ pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
-    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
+    contact_marks_declared_structural, contact_marks_structural, per_part_gate_owed, validate,
+    validate_closed,
     validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
     validate_geometric_declared, validate_geometric_structural,
     validate_geometric_structural_declared, validate_pseudomanifold,
