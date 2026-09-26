@@ -4,6 +4,8 @@ kind: issue
 title: SignCertificate::measure's budget-refusal bracket is the sign-level one, thousands of times wider than what the continuation computed before refusing
 status: open
 opened: 2026-09-26
+priority: P3
+cost: D
 ---
 
 

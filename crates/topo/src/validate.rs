@@ -771,12 +771,12 @@ pub enum ValidationError {
     /// The stored certificate is never read (O5's never-trust
     /// posture): the two-limb bound is re-derived per validation call
     /// from the description and the fit, and classified against the
-    /// **run's** ε_precision rather than the tolerance the surface
-    /// carries (O3's ratified claim is what tier 3 verifies; the stored
-    /// tolerance is the mint's parameter). A fit that has drifted from
-    /// what it claims to approximate — coarsened, edited, grafted onto
-    /// another base — reports here, naming the limb that caught it, and
-    /// so does one minted looser than the ε this run demands.
+    /// **run's** ε_precision (O3's ratified claim is what tier 3
+    /// verifies; the surface stores no tolerance). A fit that has
+    /// drifted from what it claims to approximate — coarsened, edited,
+    /// grafted onto another base — reports here, naming the limb that
+    /// caught it, and so does one minted looser than the ε this run
+    /// demands.
     ApproxCertification {
         /// The face whose approximating surface failed.
         face: FaceKey,
@@ -4615,9 +4615,8 @@ pub(crate) fn tier3_local_checks_marked<
             // unchecked claim in tier 3.
             //
             // **Classified against the RUN's ε, exactly as every edge
-            // carrier is** — never against the surface's own stored
-            // tolerance. O3's ratified claim is `≤ ε_precision`, and a
-            // mint's parameter is not that claim; see
+            // carrier is**: the surface stores no tolerance, and O3's
+            // ratified claim is `≤ ε_precision`; see
             // `geom_brep::OffsetFitLane::recertify` for the argument,
             // and for why ε-tightening turning a loosely-minted surface
             // red is D4's blessed behaviour rather than a regression.
