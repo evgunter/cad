@@ -646,6 +646,12 @@ pub(crate) fn census_and_certify<T: Decide + Bounds>(
 /// The differential door: the census under `strategy`, with every
 /// sweep's examined and accepted pairs recorded. Reference surface
 /// (`sweep-testing`), exactly like [`crate::boolean::sweep_traces`].
+///
+/// Unlike the validator's door, this one runs the census WITHOUT the
+/// tier-1 gate: on a body tier 1 would refuse (a split vertex orbit, a
+/// dangling key), the touch analysis reports
+/// [`Undecided::CorruptInstance`] — a kernel defect — about a body the
+/// caller never validated. The sentence is only as true as the caller.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces<T: Decide + Bounds>(
     body: &Body<T>,
@@ -672,6 +678,7 @@ pub fn census_traces<T: Decide + Bounds>(
 /// [`census_traces`] with one face's box planted EMPTY, so that face is
 /// examined against nothing: the degradation the differential suites'
 /// superset comparator must catch (`boolean::reduce`'s pin (iii)).
+/// Runs without the tier-1 gate, as [`census_traces`] does.
 #[cfg(feature = "sweep-testing")]
 pub fn census_traces_planted<T: Decide + Bounds>(
     body: &Body<T>,
@@ -3011,20 +3018,32 @@ const TOUCH_SPAN: &str = "census_touch_span";
 /// ray's side of a plane, a face normal's alignment with one, a
 /// dihedral, a tilt — standing for a FACE: a boundary ray and a sector
 /// bisector for the faces they bound, a face normal and a dihedral's
-/// far bound for their own face, a half-space's normal for its face. A
-/// face is planar, so a tilt of the reading moves the face's far points
-/// by the tilt times the face's extent, not by the length of whichever
-/// chord happens to name the direction. Every reading is therefore
-/// levered (`Margin::levered`) at the lever of the face it stands for:
-/// the distance from the touch point `p` to that face's farthest
-/// boundary vertex, the value this function returns — and where a
-/// reading stands for more than one face, at the largest of their
-/// levers. A tilt that moves a face's farthest vertex off the plane by
-/// more than the band therefore never reads zero.
+/// far bound for their own face, a half-space's normal for its face.
+/// Every reading is levered (`Margin::levered`) at the lever of the face
+/// it stands for: the distance from the touch point `p` to that face's
+/// farthest boundary vertex, the value this function returns — and
+/// where a reading stands for more than one face, at the largest of
+/// their levers.
 ///
-/// `None` when the face is outside the planar snapshot or has no
-/// boundary vertex with a position — a body the census's tier-1
-/// precondition does not admit.
+/// **What the rule does not hold.** A levered reading equals a face's
+/// distance from the plane only when the reading IS the face's tilt. A
+/// ray's side is `sin θ · sin α` for a face tilted `θ` about its other
+/// bounding ray, where `α` is the sector's angle: in an obtuse sector
+/// near 180°, and at a thin corner of a non-convex face, `sin α` is
+/// small and a face whose far vertex leaves the plane by many times the
+/// band can still read zero at a ray. In every pose measured, the
+/// pair-level reading (the edge-in-face wedge along the dipping face)
+/// refuses the pair anyway, and no end-to-end wrong clear has been
+/// shown. The row `census::tests::an_obtuse_sector_is_read_through_its_rays`
+/// pins the local reading, and
+/// `work/contact/touch-cone-readings-are-levered-directions-not-face-distances.md`
+/// is the redesign that closes the gap: a face's side of a candidate
+/// plane decided by its boundary vertices' signed distances, in metres.
+///
+/// `None` when the face is outside the planar snapshot (curved) or has
+/// no boundary vertex with a position. Tier 1 admits curved faces; it
+/// is the callers' order that keeps this arm unreached for them — every
+/// cone refuses a curved face as unreadable before asking its lever.
 fn touch_lever<T: Real>(geo: &Geo<T>, face: FaceKey, p: Point3<T>) -> Option<T> {
     planar_face(geo, face)?
         .boundary
@@ -3261,6 +3280,18 @@ impl<T: Decide> Cone<T> {
         band: Band,
     ) -> Self {
         let n = rays.len();
+        // The chain's invariant (`ConeKind::Fan`), checked where it is
+        // cheap: every piece sweeps counterclockwise under 180°.
+        debug_assert!(
+            (0..n).all(|k| !matches!(
+                rays[(k + 1) % n]
+                    .cross(rays[k])
+                    .dot(normals[k])
+                    .sign_within(band),
+                Ok(Sign::Negative | Sign::Zero)
+            )),
+            "a fan piece of 180° or more"
+        );
         let (mut convex, mut reflex, mut in_band) = (false, false, false);
         for k in 0..n {
             if let RayKind::Edge(_) = kinds[k] {
@@ -3369,6 +3400,11 @@ impl<T: Decide> Cone<T> {
             .and_then(|he| body.vertex_orbit(he))
             .filter(|o| !o.is_empty())
             .ok_or(TouchVerdict::Corrupt)?;
+        debug_assert_eq!(
+            body.half_edges.iter().filter(|(_, h)| h.start == v).count(),
+            orbit.len(),
+            "one orbit visits every half-edge leaving the vertex"
+        );
         let base = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?;
         let chord = |he: HalfEdgeKey| -> Result<Vec3<T>, TouchVerdict> {
             let edge = body.get_half_edge(he).ok_or(TouchVerdict::Corrupt)?.edge;
@@ -6398,16 +6434,9 @@ mod tests {
     /// The touch analysis's verdict on every touch finding of `body`,
     /// by kind — through [`TouchSite`], the census's own mapping.
     fn touch_verdicts(body: &Body<f64>) -> Vec<(&'static str, TouchVerdict)> {
-        let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
-        let geo = snapshot(body);
-        census_and_certify(body, &ContactRecords::default(), band, tol, None)
-            .iter()
-            .filter_map(|e| match e {
-                ValidationError::UndeclaredContact { contact, .. } => TouchSite::of(contact),
-                _ => None,
-            })
-            .map(|site| {
+        sites(body)
+            .into_iter()
+            .map(|(site, verdict)| {
                 let kind = match site {
                     TouchSite::VertexVertex(..) => "VertexVertex",
                     TouchSite::VertexOnEdge(..) => "VertexOnEdge",
@@ -6415,7 +6444,7 @@ mod tests {
                     TouchSite::VertexOnFace(..) => "VertexOnFace",
                     TouchSite::EdgeInFace(..) => "EdgeFaceOverlap",
                 };
-                (kind, site.verdict(body, &geo, band))
+                (kind, verdict)
             })
             .collect()
     }
@@ -6788,7 +6817,7 @@ mod tests {
                 RayKind::Edge(None),
                 RayKind::InFace,
             ],
-            vec![x, x, -x, -x],
+            vec![-x, -x, x, x],
             vec![1.0; 4],
             false,
             band,
@@ -6970,6 +6999,156 @@ mod tests {
                 .collect();
                 assert!(others.is_empty(), "{name} @ {ang}: {others:?}");
             }
+        }
+    }
+
+    /// **An obtuse sector is read through its rays — the known gap, pinned.**
+    /// A prism over `(0,0), (1,0), (1,1), (−1,1), (−1,δ)` rests its
+    /// corner `(0,0)` on the floor; the corner's bottom sector is just
+    /// under 180° and the bottom face is sheared so its far edge dips
+    /// 30 times the zero threshold below the floor. A ray's side reading
+    /// is the face's tilt times `sin α` of the sector, so both bounding
+    /// rays read on the floor and the corner's vertex-on-face touch
+    /// reads as a REST although the face dips. The pair is still
+    /// refused: the edge-in-face wedge along the dipping face reads it.
+    /// This row pins both halves so the redesign in
+    /// `work/contact/touch-cone-readings-are-levered-directions-not-face-distances.md`
+    /// moves the local half deliberately.
+    #[test]
+    fn an_obtuse_sector_is_read_through_its_rays() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let phi = 30.0 * band.zero();
+        let prof = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (-1.0, 1.0),
+            (-1.0, 0.01),
+        ];
+        let body = on_floor(|b| {
+            mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                Point3::new(x, y, z - phi * y)
+            })
+        });
+        let geo = snapshot(&body);
+        let got = sites(&body);
+        let corner: Vec<TouchVerdict> = got
+            .iter()
+            .filter(|(site, _)| match site {
+                TouchSite::VertexOnFace(v, _) => geo
+                    .vmap
+                    .get(v)
+                    .is_some_and(|q| q.x.abs() < 1e-9 && q.y.abs() < 1e-9),
+                _ => false,
+            })
+            .map(|&(_, t)| t)
+            .collect();
+        assert_eq!(corner, [TouchVerdict::Rest], "the known local gap: {got:?}");
+        assert!(
+            got.iter()
+                .any(|&(site, t)| matches!(site, TouchSite::EdgeInFace(..))
+                    && t != TouchVerdict::Rest),
+            "the pair-level wedge refuses: {got:?}"
+        );
+    }
+
+    /// The dihedral each vertical-edge ray of `v` reads, from the real
+    /// fan `Cone::vertex` builds.
+    fn vertical_dihedrals(body: &Body<f64>, vs: &[VertexKey]) -> Vec<Option<Sign>> {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let geo = snapshot(body);
+        vs.iter()
+            .map(|&v| {
+                let cone = Cone::vertex(body, &geo, v, band).expect("a planar corner");
+                let ConeKind::Fan { rays, kinds, .. } = &cone.kind else {
+                    panic!("a fan");
+                };
+                let k = rays
+                    .iter()
+                    .position(|r| r.z.abs() > 0.9)
+                    .expect("the vertical edge");
+                match kinds[k] {
+                    RayKind::Edge(s) => s,
+                    RayKind::InFace => panic!("an edge ray"),
+                }
+            })
+            .collect()
+    }
+
+    /// **A dihedral is read at its far face, on real geometry.** A prism
+    /// whose profile turns by a sliver at `(0,0)`: a 1 m side and a
+    /// 3 cm side, 1 cm tall, meet at a vertical edge convex by `15·zero`
+    /// per metre.
+    /// At the bottom corner the dihedral's far face is the long side, and
+    /// read at that face's lever the edge is decidedly convex; at the
+    /// top corner the orbit runs the other way, the far face is the
+    /// short side, and read at its lever the edge reads flat. Levered at
+    /// the previous face instead, or a hundred times short, the two
+    /// readings swap or both go flat, and this row goes red.
+    #[test]
+    fn a_dihedral_is_read_at_its_far_face_on_a_real_corner() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let dev = 15.0 * band.zero();
+        let prof = [
+            (0.0, 0.0),
+            (1.0, 0.0),
+            (1.0, 1.0),
+            (-0.03, 1.0),
+            (-0.03, 0.03 * dev),
+        ];
+        let prism = crate::test_support_fixtures::prism_z::<f64>(&prof, 0.0, 0.01, Tol::witness());
+        let got = vertical_dihedrals(&prism.body, &[prism.bottom[0], prism.top[0]]);
+        assert_eq!(
+            got,
+            [Some(Sign::Negative), Some(Sign::Zero)],
+            "bottom, top: {got:?}"
+        );
+    }
+
+    /// **A ray is read at the larger of its two faces' levers.** A
+    /// plate's 90° tip, 3 cm chords, rests on the floor; the bottom face
+    /// is tilted about ONE chord, so only the other chord ray carries
+    /// the dip, 12 times the zero threshold per metre. That ray bounds
+    /// the long bottom face (lever about 1.1 m: decidedly below the
+    /// floor) and a short side face (lever about 5 cm: on the floor);
+    /// read at the side face's lever alone, the tip reads as a rest. Both chords are tried, so whichever of the ray's two
+    /// pieces the chain lists first, the tip is not a rest.
+    #[test]
+    fn a_ray_is_read_at_the_larger_of_its_faces() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let phi = 12.0 * band.zero();
+        let prof = [
+            (1.0, 0.5),
+            (0.97, 0.53),
+            (0.0, 1.0),
+            (0.0, 0.0),
+            (0.97, 0.47),
+        ];
+        for side in [-1.0, 1.0] {
+            let body = on_floor(|b| {
+                mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                    let d = (-(x - 1.0) + side * (y - 0.5)) / 2f64.sqrt();
+                    Point3::new(x, y, z - phi * d)
+                })
+            });
+            let geo = snapshot(&body);
+            let got = sites(&body);
+            let tip: Vec<TouchVerdict> = got
+                .iter()
+                .filter(|(site, _)| match site {
+                    TouchSite::VertexOnFace(v, _) => geo
+                        .vmap
+                        .get(v)
+                        .is_some_and(|q| (q.x - 1.0).abs() < 1e-9 && (q.y - 0.5).abs() < 1e-9),
+                    _ => false,
+                })
+                .map(|&(_, t)| t)
+                .collect();
+            assert!(!tip.is_empty(), "{side}: {got:?}");
+            assert!(
+                tip.iter().all(|&t| t != TouchVerdict::Rest),
+                "{side}: {tip:?}"
+            );
         }
     }
 }

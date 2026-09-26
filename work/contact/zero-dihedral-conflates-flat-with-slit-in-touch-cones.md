@@ -11,8 +11,8 @@ cost: E
 
 Filed by CONTACT-1's dual-review fix pass (R1). In
 `crates/topo/src/census.rs` the touch cones decide an edge's dihedral
-as the sign of one dot (`census_touch_dihedral`, in `Cone::wedge` and
-`Cone::vertex`); `Zero` is read as a flat 180° seam (`RayKind::Edge`,
+as the sign of one dot (`census_touch_dihedral`, decided in
+`Cone::fan` for the fans `Cone::wedge` and `Cone::vertex` build); `Zero` is read as a flat 180° seam (`RayKind::Edge`,
 `ConeShape::Flat`). A folded edge — 0° or 360°, the two faces lying on
 each other — reads `Zero` too. `geom_brep::classify_material_pairing`
 makes exactly this distinction (aligned against opposed senses). The

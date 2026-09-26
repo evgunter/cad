@@ -24,7 +24,7 @@ convexity readers that have drifted from it:
   orbit walk) — the splitting lane's twin of the same walk.
 - `boolean/vtxfac.rs` (`classify_vertex_on_face`) — a vertex-on-face
   classification over the same neighbourhood.
-- Convexity: `census_touch_dihedral` (`Cone::vertex`, `Cone::wedge`) is
+- Convexity: `census_touch_dihedral` (decided in `Cone::fan`) is
   a third reader beside `geom_brep::classify_dihedral` (census.rs's
   crossing rung, `validate.rs` tier 3, `boolean/ops.rs`,
   `boolean/rim_wedge.rs`, `splitting/finish.rs`) and
