@@ -2,10 +2,13 @@
 id: blend-slit-name-collides-when-two-rims-share-a-meridian
 kind: issue
 title: the blend name emitter refuses a roll of two rims whose bands slit ONE seam meridian (RoleSeg::BandSlit has no discriminator)
-status: open
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: H
+closed: 2026-09-26
+pr: 3245
+branch: band/band-slit-discriminator
 ---
 
 `fillet_edges` rolls the teapot lid's three latitude rims in ONE
