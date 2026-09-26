@@ -86,9 +86,11 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// latitude rims all funnel here. Smooth descends one order through
 /// the must-carry rule over the edge
 /// ([`geom_brep::must_carry_over_edge`] — the lane gate and the
-/// certification schedule's interior stations, in its one home);
-/// Indeterminate is the typed error built by `sliver`, at the
-/// first-order classification and at the second-order rule alike.
+/// certification schedule's interior stations, in its one home), and a
+/// station the rule reads transverse refuses
+/// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
+/// error built by `sliver`, at the first-order classification and at
+/// the rule alike.
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -179,6 +181,13 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 // the same answer the transverse arm's `Err` below
                 // gives, and the same one the extrude strut gives.
                 MustCarryVerdict::InBand(source) => return Err(sliver(source)),
+                // A station reads the join a corner where the witness
+                // read it smooth: this arm's premise is refuted, and
+                // the edge refuses rather than store a description
+                // neither reading chose.
+                MustCarryVerdict::Transverse => {
+                    return Err(RevolveError::SmoothJoinRefuted { edge });
+                }
             }
             Ok(())
         }

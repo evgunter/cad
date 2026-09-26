@@ -35,7 +35,9 @@
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
 //!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
-//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver,
+//!    a transverse station ⇒ the typed
+//!    [`ExtrudeError::SmoothJoinRefuted`]),
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
@@ -260,6 +262,21 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The must-carry rule read a station of a strut definitely
+    /// transverse ([`geom_brep::MustCarryVerdict::Transverse`]) after
+    /// the join's witness classified definitely smooth: the geometry
+    /// refuted the premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
+    /// along the strut, so their normals are constant along it and
+    /// every station reads what the witness read. Reaching this means
+    /// the inputs carried something a validated profile cannot, and it
+    /// is surfaced rather than stored under a description neither
+    /// reading chose.
+    SmoothJoinRefuted {
+        /// The strut edge whose station refuted the smooth premise.
+        edge: EdgeKey,
+    },
     /// A cap plane failed Newell certification (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
@@ -336,6 +353,12 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
                  is neither a definite corner nor definitely smooth: {source}"
+            ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the wall join along {edge:?} classified definitely smooth at its witness \
+                 but definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
             ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
@@ -981,7 +1004,7 @@ fn sweep_loop<T: Decide>(
                 // `Intersection`. Under-determined keeps the
                 // conventional description BY THE PREDICATE; in-band
                 // escalates as the same typed sliver (F6). The gate,
-                // the stations and the three-way policy are the
+                // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
                 let carrier = strut_carrier(qs[j], w);
@@ -1063,6 +1086,15 @@ fn sweep_loop<T: Decide>(
                             loop_index,
                             vertex_index: segs[j].chord.canonical_vertex,
                             source,
+                        });
+                    }
+                    // A station reads the join a corner where the
+                    // midpoint read it smooth: this arm's premise is
+                    // refuted, and the strut refuses rather than
+                    // store a description neither reading chose.
+                    geom_brep::MustCarryVerdict::Transverse => {
+                        return Err(ExtrudeError::SmoothJoinRefuted {
+                            edge: struts[j].edge,
                         });
                     }
                 }

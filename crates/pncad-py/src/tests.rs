@@ -4545,6 +4545,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "side_plane",
             "sliver_join",
             "sliver_rim",
+            "smooth_join_refuted",
         ],
         delegates: &[],
     },
@@ -5147,6 +5148,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "sliver_join",
             "sliver_radius",
             "sliver_rim",
+            "smooth_join_refuted",
             "underflowed_axis",
             "unsupported_toroid",
             "vertex_crosses_axis",
@@ -5723,6 +5725,7 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     // The slot-addressed half of the four above, same pin.
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
+    ("smooth_join_refuted", 2),
     ("split", 2),
     ("step_ids", 2),
     ("step_map_diverged", 2),

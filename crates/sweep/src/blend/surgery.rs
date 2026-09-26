@@ -109,9 +109,13 @@
 //! over every contact edge at the description pass (`attach_contact`,
 //! through [`geom_brep::must_carry_over_edge`]):
 //! **`tangent_second_order`** at the certification schedule's seven
-//! interior stations — jet-determinate stores the intrinsic tangency,
-//! under-determined the conventional chart image, in-band refuses
-//! [`BlendError::Escalated`] at the link. Everything else in this
+//! interior stations, each first gated by the first-order wedge
+//! (`dihedral_wedge` behind its `dihedral_arm`) —
+//! jet-determinate stores the intrinsic tangency, under-determined the
+//! conventional chart image, in-band refuses [`BlendError::Escalated`]
+//! at the link, and a transverse station refuses
+//! [`BlendError::SurgeryInvariant`]: the routing sends every contact
+//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -4075,13 +4079,10 @@ fn attach_contact<T: Decide + Bounds>(
         // the locus that the geometry does not have. The description
         // is chosen for what the geometry IS, not for what a later
         // gate would catch. Routed through the tangent branch below
-        // instead, a cut-off arc is caught only in one surface order:
-        // with the cap as `s1` the must-carry rule reads it
-        // jet-determinate and the certificate refuses the tangent
-        // description at `TangentParallel`; with the band as `s1` the
-        // rule reads it under-determined and the conventional chart
-        // image is stored and passes tier 3
-        // (`work/encl/must-carry-over-edge-reads-a-transverse-edge-as-under-determined.md`).
+        // instead, a cut-off arc reads `Transverse` at the must-carry
+        // rule's first-order gate in either surface order, and that
+        // branch refuses it as the surgery contradicting its own
+        // routing.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
@@ -4090,12 +4091,13 @@ fn attach_contact<T: Decide + Bounds>(
         // definitely-smooth join, whose description is the must-carry
         // rule's to decide over the whole edge
         // (`geom_brep::must_carry_over_edge` — the lane gate, the
-        // certification schedule's interior stations and the three-way
-        // answer, in their one home). The rule decides; this site does
-        // not argue. Jet-determinate stores the intrinsic tangency,
+        // certification schedule's interior stations and the verdict,
+        // in their one home). The rule decides; this site does not
+        // argue. Jet-determinate stores the intrinsic tangency,
         // under-determined the conventional chart image, in-band
         // refuses typed at the door (D4 ¶3) — never silently either
-        // side.
+        // side — and a transverse station refutes this branch's
+        // smooth premise, refused as the invariant it breaks.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         let verdict = {
             let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {
@@ -4141,6 +4143,21 @@ fn attach_contact<T: Decide + Bounds>(
                 return Err(BlendError::Escalated {
                     site: BlendSite::Link { edge: link },
                     source,
+                });
+            }
+            // A station reads the join a corner: this branch's premise
+            // — a definitely-smooth join — is refuted by the geometry.
+            // The carrier kind routed the edge here, and every kind
+            // whose surfaces cross at an angle is routed to the
+            // transverse branch above, so reaching this arm is the
+            // surgery contradicting its own routing, announced rather
+            // than repaired by storing a description the routing did
+            // not choose.
+            MustCarryVerdict::Transverse => {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(edge),
+                    detail: "a contact edge routed as a smooth join reads definitely \
+                             transverse at a certification station",
                 });
             }
         }
