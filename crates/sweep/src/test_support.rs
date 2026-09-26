@@ -483,6 +483,33 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
     )
 }
 
+/// A radius-`r` ball centred at `c` with its polar axis along `+y`:
+/// the half-disc lamina — the semicircle out of `(0, -r)` and the
+/// straight diameter back — revolved a full turn about the sketch
+/// y-axis, which is where the revolve puts a ball's poles, then
+/// translated to `c`. [`ball_poled_z`] is the same ball turned onto
+/// `+z` before it is placed.
+pub fn ball_poled_y<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
+    r: T,
+    c: Vec3<T>,
+    tol: Tol,
+) -> Body<T> {
+    topo::transform_rigid(&ball_about_origin(r, tol), &Affine3::translation(c), tol).unwrap()
+}
+
+/// The two ball doors' common first step: the lamina revolved about
+/// the sketch y-axis, at the origin.
+fn ball_about_origin<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+    revolved_about_y_at(
+        vec![
+            (Point2::new(T::zero(), -r), T::one()),
+            (Point2::new(T::zero(), r), T::zero()),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
 /// A radius-`r` ball centred at `c` with its polar axis along `+z`: the
 /// revolve puts a ball's poles on the sketch axis, and a plane×sphere
 /// section against a chart whose polar axis is tilted to the plane is a
@@ -501,16 +528,8 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     c: Vec3<T>,
     tol: Tol,
 ) -> Body<T> {
-    let ball = revolved_about_y_at(
-        vec![
-            (Point2::new(T::zero(), -r), T::one()),
-            (Point2::new(T::zero(), r), T::zero()),
-        ],
-        crate::Revolution::Full,
-        tol,
-    );
     let poled = topo::transform_rigid(
-        &ball,
+        &ball_about_origin(r, tol),
         &Affine3::rotation_about_axis(
             Point3::new(T::zero(), T::zero(), T::zero()),
             Vec3::new(T::one(), T::zero(), T::zero()),
@@ -520,6 +539,50 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     )
     .unwrap();
     topo::transform_rigid(&poled, &Affine3::translation(c), tol).unwrap()
+}
+
+/// A radius-`r` ball centred at `c` with its POLAR AXIS along `pole`.
+///
+/// The axis matters: `revolve` puts the ball's poles on the sketch
+/// axis, and a plane×sphere section taken against a chart whose polar
+/// axis is TILTED to the plane is a typed frontier of the split-join
+/// (`the azimuth-anchored arc-side rule needs a polar section`). A pip
+/// is cut by a face plane, so its ball is charted with the pole along
+/// that face's normal and the section stays polar by construction.
+/// [`ball_poled_y`] and [`ball_poled_z`] name the two poles suites use
+/// most; this door takes any.
+pub fn ball_poled(r: f64, c: Vec3<f64>, pole: Vec3<f64>, tol: Tol) -> Body<f64> {
+    let ball = ball_about_origin(r, tol);
+    let y = Vec3::new(0.0, 1.0, 0.0);
+    let axis = y.cross(pole);
+    let placed = if axis.norm() < 1e-12 {
+        if y.dot(pole) > 0.0 {
+            ball
+        } else {
+            topo::transform_rigid(
+                &ball,
+                &Affine3::rotation_about_axis(
+                    Point3::new(0.0, 0.0, 0.0),
+                    Vec3::new(1.0, 0.0, 0.0),
+                    core::f64::consts::PI,
+                ),
+                tol,
+            )
+            .unwrap()
+        }
+    } else {
+        topo::transform_rigid(
+            &ball,
+            &Affine3::rotation_about_axis(
+                Point3::new(0.0, 0.0, 0.0),
+                axis.normalize(),
+                y.dot(pole).clamp(-1.0, 1.0).acos(),
+            ),
+            tol,
+        )
+        .unwrap()
+    };
+    topo::transform_rigid(&placed, &Affine3::translation(c), tol).unwrap()
 }
 
 /// **The toroidal spool**: an annular meridian whose outer wall is an
@@ -998,7 +1061,7 @@ pub fn assert_naming_totality<T: Real>(
         .iter()
         .map(|(e, _, _)| *e)
         .chain(rec.meridian_remnants.iter().map(|(e, _)| *e))
-        .chain(rec.slits.iter().map(|(e, _)| *e))
+        .chain(rec.slits.iter().map(|(e, _, _)| *e))
         .chain(rec.trims.iter().map(|(e, _, _)| *e))
         .chain(rec.arcs.iter().map(|(e, _, _)| *e))
         .collect();
@@ -1006,7 +1069,7 @@ pub fn assert_naming_totality<T: Real>(
         .rim_feet
         .iter()
         .map(|(v, _)| *v)
-        .chain(rec.meridian_splits.iter().map(|(v, _)| *v))
+        .chain(rec.meridian_splits.iter().map(|(v, _, _)| *v))
         .chain(rec.feet.iter().map(|(v, _, _)| *v))
         .collect();
     // (e) recorded once each.
@@ -1030,8 +1093,8 @@ pub fn assert_naming_totality<T: Real>(
     let fragments: Vec<(EdgeKey, EdgeKey)> = rec
         .meridian_remnants
         .iter()
-        .chain(rec.slits.iter())
         .copied()
+        .chain(rec.slits.iter().map(|(e, m, _)| (*e, *m)))
         .collect();
     for e in &minted_edges {
         match fragments.iter().find(|(k, _)| k == e) {

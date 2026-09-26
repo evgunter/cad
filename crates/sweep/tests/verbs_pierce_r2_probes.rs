@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
@@ -193,34 +194,6 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     );
 }
 
-/// The door-table claim names `Join(SectionLoopMixed)` for the
-/// box-through-cap row; the shipped test asserts only `Join(_)`.
-/// Print the exact payload.
-#[test]
-fn r2_the_box_cap_refusal_payload_is_printed() {
-    let tol = Tol::witness();
-    let lp = profile::circle(p2(0.0, 0.0), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
-    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
-        .unwrap()
-        .body;
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
-    match topo::union(&a, &b, tol) {
-        Err(e) => {
-            println!("box-through-cap refusal: {e:?}");
-            assert!(
-                matches!(
-                    e,
-                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                ),
-                "the door table names this payload, so it is pinned: {e:?}"
-            );
-        }
-        Ok(r) => panic!("expected the typed refusal, got {r:?}"),
-    }
-}
-
 /// Calibration for the PR's cosurface design claim (door-2 evidence
 /// item 4): what does the PLANAR substrate do with an undeclared
 /// value-coincident cap-to-cap union (two stacked boxes)? If this
@@ -297,17 +270,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
         .unwrap()
         .body;
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(90.0), b120), (at(210.0), b120), (at(330.0), b120)]);
-    let plane = SP::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
-    let boss_profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.6), tol)
-        .unwrap()
-        .body;
+    let boss = three_arc_cylinder(p2(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
     let mut body = plate.clone();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();

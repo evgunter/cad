@@ -60,36 +60,13 @@ fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("combine-start", tol), tol)
 }
 
-/// A box of `size`, authored through the creation doors: one
-/// rectangle profile on world XY, one extrude.
-fn boxed(session: &mut DocSession, size: [f64; 3]) -> RecipeNodeId {
-    let plane = common::xy_frame_in(session);
-    let profile = session_insert(
-        session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: size[0],
-                height: size[1],
-            })],
-        },
-    );
-    session_insert(
-        session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(size[2]),
-        },
-    )
-}
-
 /// The two overlapping blocks (module docs), the second placed by a
 /// transform. Answers the session and the two BODY nodes, in the order
 /// the module's constants name them.
 fn two_boxes(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
-    let a = boxed(&mut session, A);
-    let raw_b = boxed(&mut session, B);
+    let a = common::xy_box_in(&mut session, A);
+    let raw_b = common::xy_box_in(&mut session, B);
     let b = session_insert(
         &mut session,
         SessionOp::AddTransform {
@@ -238,7 +215,7 @@ fn subtraction_is_not_commutative_in_the_authored_order() {
 fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let a = boxed(&mut session, A);
+    let a = common::xy_box_in(&mut session, A);
     let plane = common::xy_frame_in(&mut session);
     let profile = session_insert(
         &mut session,
@@ -340,7 +317,7 @@ fn the_boolean_door_refuses_a_non_body_seat_and_a_self_boolean() {
 fn the_split_door_takes_a_body_and_a_datum_plane() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let cut = 0.004;
     let plane = session_insert(
         &mut session,
@@ -410,7 +387,7 @@ fn the_split_door_takes_a_body_and_a_datum_plane() {
 fn several_bodies_are_not_one_body_at_a_seat() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -476,7 +453,7 @@ fn several_bodies_are_not_one_body_at_a_seat() {
 fn the_transform_door_places_a_body_with_literal_slots() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let placed = session_insert(
         &mut session,
         SessionOp::AddTransform {
@@ -540,7 +517,7 @@ fn the_transform_door_places_a_body_with_literal_slots() {
 fn the_pattern_door_spells_its_count_structurally() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let axis = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -713,7 +690,7 @@ fn the_fused_door_mints_one_body_a_boolean_seat_takes() {
 fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let proto = boxed(&mut session, B);
+    let proto = common::xy_box_in(&mut session, B);
     // A step shorter than the prototype is wide: every pair of copies
     // meets.
     let crowded = session_insert(
@@ -774,7 +751,7 @@ fn overlapping_placements_refuse_on_the_fused_nodes_own_badge() {
 fn a_fused_pattern_round_trips_through_save_and_open() {
     let tol = Tol::witness();
     let mut authoring = session(tol);
-    let proto = boxed(&mut authoring, B);
+    let proto = common::xy_box_in(&mut authoring, B);
     let fused = session_insert(
         &mut authoring,
         SessionOp::AddPlacedUnion {
@@ -831,7 +808,7 @@ fn a_fused_pattern_round_trips_through_save_and_open() {
 fn undo_and_redo_walk_the_fused_pattern_out_and_back() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let proto = boxed(&mut session, B);
+    let proto = common::xy_box_in(&mut session, B);
     let before = session.committed_doc().clone();
     let states = session.history().len();
     let fused = session_insert(
@@ -891,7 +868,7 @@ fn the_output_choice_names_both_doors_and_defaults_to_instances() {
 
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, B);
+    let body = common::xy_box_in(&mut session, B);
     let mut tool = PatternTool::new();
     tool.pick(session.committed_doc(), body);
     for (output, label) in PatternOutputChoice::ALL {
@@ -921,7 +898,7 @@ fn the_output_choice_names_both_doors_and_defaults_to_instances() {
 fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -931,7 +908,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
             },
         },
     );
-    let other = boxed(&mut session, B);
+    let other = common::xy_box_in(&mut session, B);
     // Real edge names for the two blend doors: their seat refusals are
     // about the TARGET, so the selection has to be the kind of thing a
     // user would actually have picked rather than an empty vector that
@@ -1104,7 +1081,7 @@ fn a_refusal_at_any_body_seated_door_leaves_no_history_state() {
 fn a_non_positive_count_refuses_at_the_node_not_at_the_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     for count in [0, -3] {
         let pattern = session_insert(
             &mut session,
@@ -1358,16 +1335,7 @@ fn every_seats_wanted_kind_is_the_one_its_door_refuses_by() {
     let tol = Tol::witness();
     let (mut session, body, _) = two_boxes(tol);
     let sketch_frame = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(sketch_frame),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.01,
-                height: 0.01,
-            })],
-        },
-    );
+    let profile = common::rectangle_in(&mut session, sketch_frame, 0.01, 0.01);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -1603,16 +1571,7 @@ fn a_pick_both_seats_admit_and_a_pick_neither_does_follow_the_plain_rule() {
     // A profile is neither a body nor a plane, so the split tool has
     // no seat to steer it to.
     let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.01,
-                height: 0.01,
-            })],
-        },
-    );
+    let profile = common::rectangle_in(&mut session, plane, 0.01, 0.01);
     let doc = session.committed_doc();
     let mut split = SplitTool::new();
     split.pick(doc, a);
@@ -2298,7 +2257,7 @@ fn drawn_volume(session: &mut DocSession, tol: Tol) -> f64 {
 /// A box, and a pattern of two of it stepped clear along +x.
 fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let pattern = session_insert(
         &mut session,
         SessionOp::AddPattern {
@@ -2320,7 +2279,7 @@ fn box_and_pattern(tol: Tol) -> (DocSession, RecipeNodeId, RecipeNodeId) {
 fn a_part_projects_the_named_half_of_a_split() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -2529,7 +2488,7 @@ fn a_part_of_a_pattern_takes_the_pattern_out_of_the_drawn_set() {
 fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let one = A[0] * A[1] * A[2];
     assert!(near(drawn_volume(&mut session, tol), one), "one to start");
 
@@ -2576,7 +2535,7 @@ fn duplicating_a_body_leaves_two_roots_and_two_drawn_copies() {
 fn duplicating_is_one_undo() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     session.pump();
     let before = session.committed_doc().clone();
     assert!(
@@ -2606,7 +2565,7 @@ fn duplicating_is_one_undo() {
 fn a_duplicates_copy_moves_on_its_own() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     session.pump();
     let one = A[0] * A[1] * A[2];
     let outcome = session.perform(SessionOp::Duplicate { input: body });
@@ -2701,7 +2660,7 @@ fn a_duplicates_copy_moves_on_its_own() {
 fn the_part_seats_track_the_evaluators_part_door() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -2814,7 +2773,7 @@ fn the_part_seats_track_the_evaluators_part_door() {
 fn the_part_tools_seats_route_a_pick_to_the_one_that_can_hold_it() {
     let tol = Tol::witness();
     let (mut session, _body, pattern) = box_and_pattern(tol);
-    let body = boxed(&mut session, B);
+    let body = common::xy_box_in(&mut session, B);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -2893,14 +2852,7 @@ fn the_part_and_duplicate_tools_close_on_their_own_edits() {
 /// down at `(x, y)` — the viewport's own door, not a hand-built
 /// selection.
 fn picked_from_above(session: &DocSession, x: f64, y: f64) -> Selection {
-    let index = common::asm::index_of(session);
-    let (_, eval) = session.landed_pair().expect("landed");
-    Selection::Face(
-        index
-            .face_at_for(eval, &common::asm::down_at(x, y), &session.display_view())
-            .expect("the pick answers")
-            .expect("the ray hits"),
-    )
+    Selection::Face(common::asm::pick_face(session, &common::asm::down_at(x, y)))
 }
 
 /// A literal slot's value, read back off the committed node.
@@ -2933,7 +2885,7 @@ fn separation_findings(session: &mut DocSession) -> usize {
 /// copy's node and where its centre now is in plan.
 fn a_moved_copy(tol: Tol, lift: f64) -> (DocSession, RecipeNodeId, [f64; 2]) {
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     session.pump();
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3061,7 +3013,7 @@ fn the_part_tool_seats_a_pattern_picked_in_the_viewport() {
 fn a_duplicate_lands_clear_of_its_original() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     session.pump();
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3092,7 +3044,7 @@ fn a_duplicate_lands_clear_of_its_original() {
 fn a_duplicate_keeps_the_notes_promise() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     session.pump();
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3124,7 +3076,7 @@ fn a_duplicate_keeps_the_notes_promise() {
     // A 1 × 100 × 100 mm plate, thin along +x.
     let plate = [0.001, 0.1, 0.1];
     let mut session = self::session(tol);
-    let body = boxed(&mut session, plate);
+    let body = common::xy_box_in(&mut session, plate);
     session.pump();
     let outcome = session.perform(SessionOp::Duplicate { input: body });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
@@ -3184,7 +3136,7 @@ fn duplicating_a_several_body_value_is_refused() {
 fn duplicating_before_anything_has_landed_is_refused() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let out = session.perform(SessionOp::Duplicate { input: body });
     assert!(
         matches!(
@@ -3202,7 +3154,7 @@ fn duplicating_before_anything_has_landed_is_refused() {
 fn the_part_tool_seats_a_split_picked_in_the_viewport() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let body = boxed(&mut session, A);
+    let body = common::xy_box_in(&mut session, A);
     let plane = session_insert(
         &mut session,
         SessionOp::AddDatum {
@@ -3238,24 +3190,7 @@ fn the_part_tool_seats_a_split_picked_in_the_viewport() {
 fn a_duplicate_is_not_measured_off_a_picture_older_than_the_document() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.01,
-                height: 0.02,
-            })],
-        },
-    );
-    let extrude = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let extrude = common::xy_box_in(&mut session, [0.01, 0.02, 0.01]);
     let turned = session_insert(
         &mut session,
         SessionOp::AddTransform {

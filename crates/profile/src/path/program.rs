@@ -440,7 +440,7 @@ impl<T: Real> ArcData<T> {
     /// its arcs out of the record silently.
     ///
     /// **Its mirror is a document-layer table.** `editor-core`'s
-    /// `spec_slots` decides, over the same six modes, whether the spec
+    /// `spec_roles` decides, over the same six modes, whether the spec
     /// holds a `CarrierRadius`/`CarrierRadius2` ARGUMENT — the address
     /// the emission this predicate admits is read against. The two
     /// decide one fact in two crates, and

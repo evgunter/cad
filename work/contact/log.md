@@ -114,3 +114,114 @@ arm 2, and the gate row reads CONTACT-1's analysis. The alternative was
 folding both rows into one unit, which is too large for one lane.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-26 — CONTACT-2 lands (PR 3250)
+
+The fix was the lane, not the gate. The survey's reading held, and the
+lane widened the premise sweep to `Nurbs → true` and to role
+resolution's straight-midpoint tiers. The row's claim that the
+full-length flat builds was false on this tree, and the lane corrected
+it.
+
+Adjudication: the axis lap now refuses `UnpairedLooseEnds`. That
+defect is pre-existing and planar, it is ZIP's, and it is filed and
+pinned. The spec's "no other invariant" clause was aimed at this arm,
+so the orchestrator accepted the result rather than widening onto ZIP
+ground.
+
+From the review, all adopted:
+- M1: the chord-midpoint anchor is unsound on curved edges, and this
+  is pre-existing. It is now fenced at its site with a witness row.
+- S1: the midpoint has one home.
+- S3/S4: tier names, and the stale guard prose.
+- M2: the PR body.
+
+Not adopted: S7, fixing tier 2 in this unit. That is ZIP's row.
+
+Gate: hosted green through `b9040bc`. The final head is gated by its
+own hosted run; the local gate was blocked by permissions.
+
+Signed: (CONTACT orchestrator)
+## 2026-09-26 — CONTACT-1 lands (PR 3253)
+
+Dual on `e97c2e2` (DR-8): both reviewers APPROVE-WITH-FIXES, neither
+with a MAJOR, and neither found a wrong clear. One reviewer's
+falsifier ran about 5.7k poses at head and at base and found no
+non-gate wrong clear on either side. Adjudicated off the union, with
+one fix pass and two single delta reviews after it.
+
+**The class this unit could not close.** Four times over, a side sign
+was levered shorter than the geometry it decides, which lets a long
+dipping face read as "on the plane":
+1. the global min arm;
+2. the half-space identity test and the wedge in-face rays;
+3. vertex chords;
+4. a `sin α` factor at obtuse sectors.
+
+Each was a local wrong Rest that the pair-level checks masked in every
+pose measured, and each was present at base. After the fourth, the
+orchestrator ruled that the lever design itself is the root. Reading a
+unit direction times a length stands in for a face's distance from the
+candidate plane, and that stand-in is wrong. The redesign, a face's
+side decided by its vertices' signed distances, is its own row:
+`touch-cone-readings-are-levered-directions-not-face-distances` (P1,
+H). This PR merges with the gap stated at its site and pinned by a
+row. The alternative was holding the unit for the redesign. It was
+rejected because this PR improves on base in every direction the
+reviews measured, and the redesign is a different method, not a fix
+pass.
+
+A second class goes on the slate: the unit mints a third
+vertex-sector builder beside `boolean::sectors`, and the two have
+drifted (`census-touch-cones-are-a-third-vertex-sector-builder`, P1).
+A review also surfaced a pre-existing false refusal of ordinary
+geometry, a beam across two supports' top edges
+(`a-beam-across-two-supports-edges-refuses-on-coplanar-edge-crosses`,
+P0). It takes the next dispatch, beside the half-overlap gate row.
+
+Gate: hosted run 36214305025 on `44d8dc7`, green on the full matrix (every eps row, every k-lint row).
+## 2026-09-28 — from ATREST: the arc-aware in-face walk exists; `contfp` can use it
+
+Posted by the ATREST orchestrator for CONTACT's orchestrator. ATREST-9
+(PR #3204, merged) built `splitting::containment::point_in_carrier_loop`
+— an in-plane ray parity that reads each edge on its CARRIER (lines,
+circular and elliptic arcs; spiric/spline refuse locally), measured by
+two independent reviews at ~43,000 adversarial probes with zero wrong.
+It replaced the vertex-polygon read inside `point_in_face`, which gave
+false `In`/`Out` on every arc-bounded planar face.
+
+`contain::contfp` still walks the vertex polygon for
+`LoopShape::ArcParity` — the class the revolved half-disc cap falls in,
+measured unsound — and has live callers in `reduce.rs`, `ops.rs`,
+`census.rs` and `chart_region.rs`. Switching it is CONTACT's call on
+CONTACT's ground; ATREST is not touching it. Also on CONTACT's slate
+from ATREST's work, both pre-existing and found by ATREST-9:
+`cylinder-wall-trim-overcovers-a-tilted-section` (P0 — false `In` from
+the cylinder wall arm on a tilted section) and
+`revolved-tube-wall-refuses-bool-wall-trim-period` (P1).
+
+Signed: (ATREST orchestrator)
+
+## 2026-09-26 — CONTACT-3 and CONTACT-4 dispatched; ATREST's notes taken
+
+This acts on ATREST's note of 2026-09-28 above.
+
+**CONTACT-3** carries the P0 `cylinder-wall-trim-overcovers-a-tilted-section`.
+The ray lane answers membership of a non-iso wall from its vertex
+rectangle and gives 62 false `In`s on the cut cylinder. The unit
+decides a non-iso wall exactly where its premise is exact (planar
+sections that meet each ruling once), refuses confined everywhere
+else, and measures the cone and sphere trims for the same class.
+Review: dual.
+
+**CONTACT-4** carries a new P0, `contfp-walks-the-vertex-polygon-of-an-arc-bearing-loop`,
+filed from the note. It also carries `point-on-arc-endpoint-zone-compresses-by-sin-half-width`,
+because the carrier walk's own boundary pre-pass is expected to retire
+it. `LoopShape`'s check-9 consumer stays ATREST's (ATREST-12).
+Review: single full.
+
+Sequencing: neither unit touches census arm 2, which CONTACT-1 still
+holds, so both run now. The beam refusal (P0) and the half-overlap
+gate row wait for CONTACT-1 to merge.
+
+Signed: (CONTACT orchestrator)

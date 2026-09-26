@@ -97,6 +97,7 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
+use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -122,23 +123,45 @@ pub const RATIONAL_CERT_SPLITS: usize = 16;
 /// carries the prose its consumers print, so a lifted consumer's
 /// message is this module's message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster `topo`'s sample list iterates (this crate's
+// `test-support` feature, test builds only): fieldless, so the enum is
+// its own discriminant.
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum PatchBoundError {
-    /// A degree-0 direction — a degenerate patch description.
+    /// A degree-0 direction — a degenerate patch description: a
+    /// degree-0 locus is a step function rather than a surface
+    /// direction, and the form is a designed absence.
     DegreeZero,
-    /// A degree-1 direction carrying interior knots: a C⁰ crease.
+    /// A degree-1 direction carrying interior knots: a C⁰ crease. The
+    /// interpolation Taylor bound needs C¹.
     Degree1Crease,
     /// A direction whose interior multiplicity equals its degree: a
-    /// C⁰ crease.
+    /// C⁰ crease. The interpolation Taylor bound needs C¹.
     Crease,
     /// A rational description with a non-positive or non-finite
-    /// weight — the convex-combination licence never held.
+    /// weight — the convex-combination licence every hull fact rests
+    /// on never held. Supplying strictly positive weights lets the face
+    /// certify through the rational arm; the door that mints a NURBS
+    /// surface refuses these already, so a face reaching this bound
+    /// carrying one is also a finding.
     NonPositiveWeight,
-    /// The same, discovered after the fixed rational refinement.
+    /// The same, discovered after the fixed rational refinement: the
+    /// refined weight ENCLOSURE reaches zero. Positivity survives knot
+    /// insertion in ℝ, and the refinement's two barycentric ratios are
+    /// both non-negative, so no weight RATIO can reach this; what does
+    /// is a weight so small that its product with a ratio UNDERFLOWS to
+    /// zero, which needs a subnormal near the bottom of the `f64` range.
     RefinedWeightLostPositivity,
-    /// The fixed rational refinement failed to materialise.
+    /// The fixed rational refinement failed to materialise. Outside
+    /// the certified inventory: the fixed schedule inserts knots into a
+    /// direction that already passed the C¹ gate, and insertion into a
+    /// valid clamped vector is total, so the description that reached
+    /// this is reported rather than repaired.
     RefinementFailed,
     /// A direction whose once-differenced knot vector failed to
-    /// materialise.
+    /// materialise. Outside the certified inventory: a direction that
+    /// passed the C¹ gate has a valid once-differenced vector, so the
+    /// description that reached this is reported rather than repaired.
     DerivedKnots,
 }
 
@@ -148,49 +171,32 @@ impl PatchBoundError {
     pub fn note(self) -> &'static str {
         match self {
             Self::DegreeZero => {
-                "degree-0 NURBS direction (a degenerate face description) — a degree-0 \
-                 locus is a step function rather than a surface direction, and the form \
-                 is a designed absence: describe the direction at degree 1 or above"
+                "NURBS face of degree 0 in one direction, which is a step rather than a \
+                 surface: describe that direction at degree 1 or above"
             }
             Self::Degree1Crease => {
-                "degree-1 NURBS direction with interior knots (a C⁰ crease) — \
-                 the interpolation Taylor bound needs C¹; split the face at \
+                "NURBS face of degree 1 with a sharp crease inside it: split the face at \
                  the crease"
             }
             Self::Crease => {
-                "NURBS direction with a C⁰ crease (interior multiplicity = \
-                 degree) — the interpolation Taylor bound needs C¹; split \
-                 the face at the crease"
+                "NURBS face with a sharp crease inside it: split the face at the crease"
             }
             Self::NonPositiveWeight => {
-                "rational NURBS face with a non-positive or non-finite weight — an \
-                 illegal rational description: the convex-combination licence every \
-                 hull fact rests on requires strictly positive weights, so supply them \
-                 and the face certifies through the rational arm. The door that mints a \
-                 NURBS surface refuses these already, so a face that reaches this bound \
-                 carrying one is worth reporting too"
+                "rational NURBS face with a non-positive or non-finite weight, which \
+                 describes no valid surface: supply strictly positive, finite weights"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
-                 the certified inventory: positivity survives knot insertion in ℝ, and the \
-                 refinement's two barycentric ratios are both non-negative, so no weight \
-                 RATIO can reach this; what does is a weight so small that its product with \
-                 a ratio UNDERFLOWS to zero, which needs a subnormal near the bottom of the \
-                 f64 range. Describe the face at a weight scale f64 can hold — scaling \
-                 every weight by one constant describes the same surface — or report the \
-                 description"
+                "rational NURBS face whose weights are too small to refine without one \
+                 rounding to zero: describe the face with every weight scaled up by one \
+                 constant, which is the same surface"
             }
             Self::RefinementFailed => {
-                "NURBS face whose refinement fails to materialise — outside the certified \
-                 inventory: the fixed schedule inserts knots into a direction that already \
-                 passed the C¹ gate, and insertion into a valid clamped vector is total, \
-                 so report the description that reached this rather than repairing one"
+                "NURBS face that could not be subdivided for bounding, which a valid face \
+                 always allows: report the face's description"
             }
             Self::DerivedKnots => {
-                "NURBS direction whose derivative knot vector fails to materialise — \
-                 outside the certified inventory: a direction that passed the C¹ gate has \
-                 a valid once-differenced vector, so report the description that reached \
-                 this rather than repairing one"
+                "NURBS face whose derivative could not be formed, which a valid face always \
+                 allows: report the face's description"
             }
         }
     }
@@ -338,8 +344,9 @@ fn refine_chain(
     kv: &KnotVector,
     splits: usize,
 ) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
-    let plans = geom_core::spline::algebra::refine_plan_homogeneous(kv, &split_points(kv, splits))
-        .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let plans =
+        geom_core::spline::algebra::refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
+            .map_err(|_| PatchBoundError::RefinementFailed)?;
     let refined = plans
         .last()
         .map_or_else(|| kv.clone(), |p| p.knots().clone());
@@ -385,45 +392,10 @@ pub fn derived_knots(kv: &KnotVector) -> Result<KnotVector, PatchBoundError> {
 }
 
 /// The interior split points of the fixed rational refinement
-/// schedule for one knot vector ([`RATIONAL_CERT_SPLITS`] equal
-/// pieces per nonempty span), skipping any split point floating point
-/// collapses onto a span end — refinement is a tightening, never a
-/// correctness condition.
+/// schedule for one knot vector: [`equal_split_points`] at
+/// [`RATIONAL_CERT_SPLITS`] pieces per nonempty span.
 pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
-    split_points(kv, RATIONAL_CERT_SPLITS)
-}
-
-/// **Near-twin, recorded and deliberately not unified**:
-/// `geom_brep::props::quad`'s `knot_aligned_cuts` builds the same
-/// concept for the rational patch-flux composite — a knot-aligned
-/// subdivision of a parameter range, with its own sliver guard — and
-/// arrived at the same sliver lesson independently. Unifying the two
-/// is Track R's consolidation ground (C-m/D30, gated behind #723),
-/// not either caller's.
-///
-/// The interior split points that cut every nonempty span of `kv`
-/// into `splits` equal pieces, skipping any point floating point
-/// collapses onto a span end — refinement is a tightening, never a
-/// correctness condition (the speed meter's rule, verbatim).
-pub fn split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
-    let mut add = Vec::new();
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let (Some(&lo), Some(&hi)) = (kv.knots().get(span), kv.knots().get(span + 1)) else {
-            continue;
-        };
-        for k in 1..splits {
-            #[allow(clippy::cast_precision_loss)]
-            let f = k as f64 / splits as f64;
-            let u = lo + (hi - lo) * f;
-            if u > lo && u < hi {
-                add.push(u);
-            }
-        }
-    }
-    add
+    equal_split_points(kv, RATIONAL_CERT_SPLITS)
 }
 
 /// A coefficient net as certification enclosures — the shared tensor assembly,
@@ -731,7 +703,6 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // the knot differencing.
     let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
     let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
-    let (kv_u, kv_v) = (&kv_u, &kv_v);
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
     let (nu0, nv0) = n.control_counts();
     let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
@@ -759,13 +730,13 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // linear span pre-refinement — the C¹ gate — and refinement's
     // inserted knots are removable), so those nets are `None` and
     // their terms exact zeros; the CROSS terms stay.
-    let kv_u1 = (pu >= 2).then(|| derived_knots(kv_u)).transpose()?;
-    let kv_v1 = (pv >= 2).then(|| derived_knots(kv_v)).transpose()?;
-    let w_nets = DNets::build(&w_grid, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref());
+    let kv_u1 = (pu >= 2).then(|| derived_knots(&kv_u)).transpose()?;
+    let kv_v1 = (pv >= 2).then(|| derived_knots(&kv_v)).transpose()?;
+    let w_nets = DNets::build(&w_grid, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref());
     let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
     let a_nets: Vec<DNets> = a_base
         .iter()
-        .map(|g| DNets::build(g, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
+        .map(|g| DNets::build(g, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
     // The refined control points, `P = A / w` per channel, ONCE for the
     // whole net. Each is read by every cell whose window covers it —
@@ -890,7 +861,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
             }
             cells.push(cell_from(
-                (span_extent(kv_u, su), span_extent(kv_v, sv)),
+                (span_extent(&kv_u, su), span_extent(&kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
             ));
         }

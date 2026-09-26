@@ -29,3 +29,11 @@ Decide whether the facade's contract includes a non-certifying
 scalar. If it does, export the `_structural` half beside the certified
 one (and let the binding census count the new rows); if it does not,
 say so at the prelude's section 5 so the asymmetry reads as a choice.
+
+## The count, re-taken (2026-09-25, ATREST-10)
+
+The five `_structural` twins above are ten on main at ATREST-10 (PR
+#3227): the eight at-rest doors in `validate.rs`'s door roster (every
+certified door's twin, `_certificate` and `_declared` forms included —
+two of them added by that unit) and `props`' two measurement twins. The
+prelude exports none of them.

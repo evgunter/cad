@@ -40,18 +40,16 @@ use crate::common;
 use std::path::Path;
 
 use common::asm;
-use common::{body_volume, len, near, session_insert, shape};
+use common::{body_volume, near};
 use pncad::document::{Doc, DocumentId, Frame, RecipeNodeId};
 use pncad::geom_core::{Point3, Tol, Vec3};
-use pncad::select::{Ray, Resolution, RunCtx, resolve};
+use pncad::select::{Resolution, RunCtx, resolve};
 use viewer::camera::{self, Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault};
 use viewer::input::ViewportSize;
 use viewer::matetool::{MateTool, MateToolState};
-use viewer::pickindex::PickIndex;
 use viewer::session::{
-    AtRestBadge, DocSession, FaceSelection, Hovered, ProfilePlane, ProfileShape, Refusal,
-    Selection, SessionOp,
+    AtRestBadge, DocSession, FaceSelection, Hovered, Refusal, Selection, SessionOp,
 };
 use viewer::tree::RowStatus;
 
@@ -101,21 +99,7 @@ fn author_box_part(
         name: name.to_owned(),
     });
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-    let plane = common::xy_frame_in(session);
-    let profile = session_insert(
-        session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle { width, height })],
-        },
-    );
-    let extrude = session_insert(
-        session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(depth),
-        },
-    );
+    let extrude = common::xy_box_in(session, [width, height, depth]);
     assert!(
         near(body_volume(session, extrude, tol), width * height * depth),
         "the {name} part's volume is its box"
@@ -123,16 +107,6 @@ fn author_box_part(
     let saved = session.perform(SessionOp::Save(file.to_path_buf()));
     assert!(saved.refusal.is_none(), "{:?}", saved.refusal);
     session.committed_doc().id()
-}
-
-/// Pick a face through the session's real ray path, under the current
-/// display view (parked parts are picked where they are drawn).
-fn pick_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
-    let (_, eval) = session.landed_pair().expect("landed");
-    index
-        .face_at_for(eval, ray, &session.display_view())
-        .expect("the pick answers")
-        .expect("the ray hits")
 }
 
 /// Componentwise closeness at the solve's tolerance.
@@ -469,9 +443,10 @@ fn the_windmill_story() {
     // underside (picked where it is DRAWN — the parked spot), then the
     // tower's top. One committed edit; the same outcome reports the
     // hub's probe superseded — discarded, not zeroed.
-    let hub_bottom = pick_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
+    let hub_bottom =
+        common::displayed_face_at(&session, &index, &asm::up_at(HUB_PARK[0], HUB_PARK[1]));
     assert_eq!(hub_bottom.node, hub_i, "the parked hub is picked");
-    let tower_top = pick_at(&session, &index, &asm::down_at(0.0, 0.0));
+    let tower_top = common::displayed_face_at(&session, &index, &asm::down_at(0.0, 0.0));
     assert_eq!(tower_top.node, tower_i);
     let mut tool = MateTool::new();
     tool.pick(hub_bottom);
@@ -479,7 +454,7 @@ fn the_windmill_story() {
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
     let seat_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the seat proposes")
     };
     let outcome = session.perform(seat_proposal.op());
@@ -601,13 +576,13 @@ fn the_windmill_story() {
     park(&mut session, sail_a, SAIL_A_PARK);
     park(&mut session, sail_b, SAIL_B_PARK);
     let index = asm::index_of(&session);
-    let sail_a_bottom = pick_at(
+    let sail_a_bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(SAIL_A_PARK[0], SAIL_A_PARK[1]),
     );
     assert_eq!(sail_a_bottom.node, sail_a);
-    let sail_b_bottom = pick_at(
+    let sail_b_bottom = common::displayed_face_at(
         &session,
         &index,
         &asm::up_at(SAIL_B_PARK[0], SAIL_B_PARK[1]),
@@ -616,23 +591,11 @@ fn the_windmill_story() {
     // The hub's front and back walls, picked at the seated hub's
     // mid-height from either side.
     let wall_z = TOWER_HEIGHT + HUB_SIDE / 2.0;
-    let front_wall = pick_at(
-        &session,
-        &index,
-        &Ray {
-            origin: Point3::new(0.0, -1.0, wall_z),
-            dir: Vec3::new(0.0, 1.0, 0.0),
-        },
-    );
+    let front_wall =
+        common::displayed_face_at(&session, &index, &common::along_y(1.0, 0.0, wall_z));
     assert_eq!(front_wall.node, hub_i, "the seated hub's front wall");
-    let back_wall = pick_at(
-        &session,
-        &index,
-        &Ray {
-            origin: Point3::new(0.0, 1.0, wall_z),
-            dir: Vec3::new(0.0, -1.0, 0.0),
-        },
-    );
+    let back_wall =
+        common::displayed_face_at(&session, &index, &common::along_y(-1.0, 0.0, wall_z));
     assert_eq!(back_wall.node, hub_i, "the seated hub's back wall");
     assert_ne!(front_wall.name, back_wall.name, "two distinct walls");
 
@@ -641,7 +604,7 @@ fn the_windmill_story() {
     tool.pick(front_wall);
     let sail_a_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
-        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+        tool.proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the first sail proposes")
     };
     let outcome = session.perform(sail_a_proposal.op());
@@ -690,7 +653,7 @@ fn the_windmill_story() {
     let sail_b_proposal = {
         let (doc, eval) = session.landed_pair().expect("landed");
         let base = tool
-            .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
+            .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
             .expect("the second sail proposes");
         // Turn the roll: of the derived reference and its in-plane
         // quarter turn (for unit vectors, r turned 90° about n is

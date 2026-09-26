@@ -15,6 +15,7 @@ use crate::shared::point::p3 as p;
 use geom::surfaces::nurbs::NurbsSurface;
 use geom_brep::patch_bound::{PatchCell, patch_cells};
 use geom_core::Bounds;
+use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::knots::KnotVector;
 use geom_core::{Point3, Vec3};
 
@@ -374,9 +375,9 @@ fn cert10r1_the_residual_is_f64_knot_refinement_not_the_recurrence() {
     }
     let splits = 16;
     let r = n
-        .refine_knots_u(&geom_brep::patch_bound::split_points(n.knots_u(), splits))
+        .refine_knots_u(&equal_split_points(n.knots_u(), splits))
         .and_then(|r| {
-            let sp = geom_brep::patch_bound::split_points(r.knots_v(), splits);
+            let sp = equal_split_points(r.knots_v(), splits);
             r.refine_knots_v(&sp)
         })
         .expect("refine");

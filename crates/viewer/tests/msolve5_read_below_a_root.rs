@@ -63,7 +63,7 @@ fn read_below_a_root(bench: &asm::Bench, tol: Tol) -> (std::path::PathBuf, Assem
             a: common::head(asm::in_part(post, &bench.post_top)),
             b: common::head_at(lifted, b.clone()),
             class: ContactClass::Rest,
-            alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
+            alignment: asm::middle_seat_alignment(),
         },
         tol,
     );

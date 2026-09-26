@@ -22,8 +22,8 @@ use topo::{Body, ShellError, SolidKey};
 
 use crate::common::approx::band;
 use crate::shell8_common::{
-    beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of,
-    solid_of_vertex, tol, top_chart, volume,
+    beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol,
+    top_chart, volume,
 };
 use crate::verbs_shell::{hollow_box, v, vessel};
 
@@ -273,10 +273,11 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
         .expect("one solid's charts move together");
     let after = points(&work);
     assert_eq!(before.len(), after.len(), "no vertex minted or killed");
+    let owners = topo::SolidOwners::of(&pair);
     let mut moved = 0usize;
     for ((k, b), (k2, a)) in before.iter().zip(after.iter()) {
         assert_eq!(k, k2, "the vertex arena kept its order");
-        if solid_of_vertex(&pair, *k) == solids[1] {
+        if owners.vertex(*k).expect("every vertex has an owning solid") == solids[1] {
             assert_eq!(
                 bits(b),
                 bits(a),

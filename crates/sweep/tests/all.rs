@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "band_declared_cusp_contacts.rs"]
+mod band_declared_cusp_contacts;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -99,6 +101,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "pis_arc_capped_poses.rs"]
+mod pis_arc_capped_poses;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -148,6 +152,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "axis_lap.rs"]
+mod axis_lap;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -184,6 +190,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -471,6 +479,9 @@ mod reporting_door_bit_digest;
 
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
+
+#[path = "thread_count_probe_populations.rs"]
+mod thread_count_probe_populations;
 
 #[path = "sign_walk_plus_v.rs"]
 mod sign_walk_plus_v;

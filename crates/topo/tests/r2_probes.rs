@@ -9,7 +9,7 @@
 use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Point3, Tol};
 use topo::test_support::CylFrame;
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
+use topo::{ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -60,14 +60,12 @@ fn r2_tilted_disjoint_hairline_pair_certifies_false_positive() {
     let theta = 3e4 * eps;
     let r = 1.0_f64;
     let w = 2000.0 * eps;
-    let mut ba = Body::<f64>::new();
-    let Some(fa) = try_wall_sheet(&mut ba, CylFrame::canonical(r), 9001, 0.2, 1.2, 0.0, w) else {
+    let Some((ba, fa)) = try_wall_sheet(CylFrame::canonical(r), 9001, 0.2, 1.2, 0.0, w) else {
         println!("the fixture cannot be minted at this ε — standing down");
         return;
     };
     let bframe = CylFrame::tilted(r, theta);
-    let mut bb = Body::<f64>::new();
-    let Some(fb) = try_wall_sheet(&mut bb, bframe, 9002, 0.3, 1.3, -0.3 * w, 0.7 * w) else {
+    let Some((bb, fb)) = try_wall_sheet(bframe, 9002, 0.3, 1.3, -0.3 * w, 0.7 * w) else {
         println!("the tilted fixture cannot be minted at this ε — standing down");
         return;
     };
@@ -134,11 +132,9 @@ fn r2_bridged_band_tilt_large_radius_certifies_beyond_eps() {
     let theta = 8.0 * eps;
     let r = 100.0_f64;
     let w = 100.0 * eps;
-    let mut ba = Body::<f64>::new();
-    let fa = wall_sheet(&mut ba, CylFrame::canonical(r), 9003, 0.2, 1.2, 0.0, w);
+    let (ba, fa) = wall_sheet(CylFrame::canonical(r), 9003, 0.2, 1.2, 0.0, w);
     let bframe = CylFrame::tilted(r, theta);
-    let mut bb = Body::<f64>::new();
-    let fb = wall_sheet(&mut bb, bframe, 9004, 0.3, 1.3, -0.3 * w, 0.7 * w);
+    let (bb, fb) = wall_sheet(bframe, 9004, 0.3, 1.3, -0.3 * w, 0.7 * w);
     // Max z over B's trim: 0.7w − r·sinθ·cos(1.3) — every point of B
     // below it; A's trim at z ∈ [0, w].
     let max_z_b = 0.7 * w * theta.cos() - r * theta.sin() * (1.3_f64).cos();
@@ -172,10 +168,8 @@ fn r2_what_does_the_short_tilt_pair_actually_return() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
     let (aframe, bframe) = (CylFrame::canonical(1.0), CylFrame::tilted(1.0, tilt));
-    let mut ba = Body::<f64>::new();
-    let fa = wall_sheet(&mut ba, aframe, 9101, 0.2, 1.6, 0.0, 1e-3);
-    let mut bb = Body::<f64>::new();
-    let fb = wall_sheet(&mut bb, bframe, 9102, 0.2, 1.6, 0.0, 1e-3);
+    let (ba, fa) = wall_sheet(aframe, 9101, 0.2, 1.6, 0.0, 1e-3);
+    let (bb, fb) = wall_sheet(bframe, 9102, 0.2, 1.6, 0.0, 1e-3);
     let short = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
     println!("short tilt pair verdict: {short:?}");
     // RE-MEASURED at the fix pass. On the pre-fix head this pair
@@ -204,9 +198,8 @@ fn r2_seam_hugging_pair_is_frame_invariant_both_ways() {
     // B-chart: [0.55, 1.0] − mid-chart), z [0.1, 0.6] and [0.2, 0.5].
     // World θ = 0.7 − u_B, so world [-0.2, 0.3] is u_B [0.4, 0.9]: the
     // two windows are the whole subject, so they are adjacent lines.
-    let (mut ba, mut bb) = (Body::<f64>::new(), Body::<f64>::new());
-    let fa = wall_sheet(&mut ba, frame_a, 9005, -0.15, 0.15, 0.1, 0.6);
-    let fb = wall_sheet(&mut bb, frame_b, 9006, 0.4, 0.9, 0.25 - 0.5, 0.25 - 0.2);
+    let (ba, fa) = wall_sheet(frame_a, 9005, -0.15, 0.15, 0.1, 0.6);
+    let (bb, fb) = wall_sheet(frame_b, 9006, 0.4, 0.9, 0.25 - 0.5, 0.25 - 0.2);
     let ab = verdict_class(declared_pair_overlap(
         &ba,
         fa,
@@ -248,10 +241,8 @@ fn r2_diag_mintable_tilts() {
                 // One frame, two windows — the pair under test is two
                 // trims of ONE description, so the frame is named once.
                 let f = CylFrame::tilted(r, theta);
-                let mut bb = Body::<f64>::new();
-                let fb = wall_sheet(&mut bb, f, 9300, 0.3, 1.3, -0.3 * w, 0.7 * w);
-                let mut bb2 = Body::<f64>::new();
-                let fb2 = wall_sheet(&mut bb2, f, 9301, 0.2, 1.2, 0.0, w);
+                let (bb, fb) = wall_sheet(f, 9300, 0.3, 1.3, -0.3 * w, 0.7 * w);
+                let (bb2, fb2) = wall_sheet(f, 9301, 0.2, 1.2, 0.0, w);
                 verdict_class(declared_pair_overlap(
                     &bb,
                     fb,
@@ -276,12 +267,10 @@ fn r2_diag_mintable_tilts() {
 #[test]
 fn r2_flush_cylinder_seat_declines_touching_boundary() {
     let (frame_a, frame_b) = (CylFrame::canonical(1.0), CylFrame::opposed(0.7));
-    let mut ba = Body::<f64>::new();
-    let fa = wall_sheet(&mut ba, frame_a, 9007, 0.2, 1.6, 0.0, 0.5);
-    let mut bb = Body::<f64>::new();
+    let (ba, fa) = wall_sheet(frame_a, 9007, 0.2, 1.6, 0.0, 0.5);
     // world z [0.5, 1.0] = v_B [0.25 − 1.0, 0.25 − 0.5]; azimuth
     // [0.5, 1.3] = u_B [0.7 − 1.3, 0.7 − 0.5].
-    let fb = wall_sheet(&mut bb, frame_b, 9008, -0.6, 0.2, -0.75, -0.25);
+    let (bb, fb) = wall_sheet(frame_b, 9008, -0.6, 0.2, -0.75, -0.25);
     let got = declared_pair_overlap(&ba, fa, &bb, fb, ContactVerdict::Definite, band());
     match got {
         Err(ChartRegionError::TouchingBoundary) => {}

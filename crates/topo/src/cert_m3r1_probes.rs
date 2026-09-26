@@ -18,11 +18,7 @@
 //! The cube this drives, its two construction steps and the chord-line
 //! and Newell-plane specs under them are [`crate::test_support_fixtures`]'s
 //! — the crate's shared Euler-op fixture family, named by path because
-//! this module is in-crate. Nothing box-shaped is built here. It is not
-//! the crate's only Euler-op box sequence:
-//! `crate::splitting::reassembly::quad_prism` is a second one under
-//! `src/`, filed on S-DUP's
-//! `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
+//! this module is in-crate. Nothing box-shaped is built here.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
@@ -149,8 +145,9 @@ fn edge_cert_count(r: &Result<(), Vec<ValidationError>>) -> String {
     }
 }
 
-/// The six at-rest doors, in one order: the three whose bound names the
-/// certification right, then their three `_structural` twins.
+/// Six at-rest doors — the three passes' plain forms and their three
+/// `_structural` twins, in that order; the full roster is
+/// `validate.rs`'s module-doc table.
 const DOOR_NAMES: [&str; 6] = [
     "validate_geometric",
     "validate_pseudomanifold",
@@ -192,8 +189,9 @@ fn m3_a_corrupt_m7_8_wall_is_caught_at_every_door_whose_bound_names_the_right() 
     for (name, d) in DOOR_NAMES.iter().zip(&before) {
         eprintln!("[m3 door table] certified body  {name:34} {d}");
     }
-    // The described-NURBS face has no certified flux lane, so check 7
-    // answers `VolumeUncomputable` at the composed doors; what this row
+    // The described-NURBS face has no flux the closed form computes, and
+    // no certified flux lane either, so check 7 answers
+    // `VolumeUncomputable` at every door that reaches it; what this row
     // measures is check 2, so the premise is "no EdgeCertification".
     for d in &before {
         assert!(

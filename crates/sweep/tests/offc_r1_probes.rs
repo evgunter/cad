@@ -356,9 +356,8 @@ fn a_degraded_curved_fit_goes_red_at_tier_three() {
             description: geom::SurfaceDescription::Offset { base, d: D },
             fit: coarsened,
             window: good.window(),
-            tolerance: good.tolerance(),
         },
-        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
+        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
