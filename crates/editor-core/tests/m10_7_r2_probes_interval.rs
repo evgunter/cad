@@ -367,71 +367,10 @@ fn r2_re_derives_the_slab_ceiling() {
     }
 }
 
-/// **D9, independently**: the same drive repeated, and the same drive
-/// under the rayon schedule, produce byte-identical serializations,
-/// content keys and receipts.
-///
-/// This row ASSERTS.
-#[test]
-fn r2_the_drive_is_bit_identical_across_repeats_and_the_rayon_schedule() {
-    let tol = Tol::witness();
-    let (doc, _, _) = bracket(1.0e-3, tol);
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let run = |parallel: bool| {
-        let v = drive(
-            &doc,
-            &analyzed,
-            &DriveConfig {
-                parallel,
-                max_leaves: 256,
-                ..DriveConfig::default()
-            },
-            tol,
-        )
-        .expect("the bracket's nominal builds");
-        (
-            v.serialize(),
-            format!("{:?}", v.content_key()),
-            v.decisions(),
-        )
-    };
-    let a = run(false);
-    let b = run(false);
-    let c = run(true);
-    assert_eq!(a.0, b.0, "two sequential drives serialized differently");
-    assert_eq!(a.1, b.1, "two sequential drives keyed differently");
-    assert_eq!(a.2, b.2, "two sequential drives counted differently");
-    assert_eq!(a.0, c.0, "the rayon schedule serialized differently");
-    assert_eq!(a.1, c.1, "the rayon schedule keyed differently");
-    assert_eq!(
-        a.2, c.2,
-        "the rayon schedule counted differently — a per-leaf session leaked"
-    );
-}
-
-/// **Claim 1, on R2's own document**: the tier off serializes with NO
-/// symbolic line at all, and the tier on serializes with one.
-///
-/// This row ASSERTS. It is the half of the tier-off differential that
-/// does not need the merge base in hand; the byte differential against
-/// the merge base is run out-of-tree and reported in the review.
-#[test]
-fn r2_the_tier_off_serialization_carries_no_symbolic_line() {
-    let tol = Tol::witness();
-    let (doc, _, _) = bracket(1.0e-3, tol);
-    let off = drive_at(&doc, SymbolicDials::off(), tol).expect("tier off drives");
-    let on = drive_at(&doc, SymbolicDials::default(), tol).expect("tier on drives");
-    assert!(
-        !off.contains("decisions symbolic_zero"),
-        "the tier-off serialization carried an E12 line:\n{off}"
-    );
-    assert!(
-        on.contains("decisions symbolic_zero"),
-        "the tier-on serialization carried no E12 line:\n{on}"
-    );
-}
-
-/// **A zero-term budget is claim 1 again, from inside the scalar.**
+/// **A zero-term budget reproduces the tier-off verdict, from inside the
+/// scalar.** (The tier-off serialization carrying no symbolic line at
+/// all is `m10_3_driver_interval`'s
+/// `the_tier_off_reproduces_the_pre_e12_refusal`.)
 ///
 /// This row ASSERTS.
 #[test]
