@@ -40,11 +40,11 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
+use pncad::document::{ClassAdmission, Frame};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::ContactClass;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use viewer::matetool::{MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -141,36 +141,20 @@ fn the_exit_demo_walk() {
     // the probed post's top cap AT ITS DRAWN (probed) position; the
     // second is the shelf's underside, picked from below.
     let mut tool = MateTool::new();
-    let view = session.display_view();
-    let (_, eval) = session.landed_pair().expect("landed");
-    let post_top = index
-        .pick_for(
-            eval,
-            &asm::down_at(
-                asm::POST_B_AT[0] + 0.03 + asm::POST_SECTION / 2.0,
-                asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
-            ),
-            &view,
-        )
-        .expect("answers")
-        .expect("the probed post is picked where it is drawn");
-    assert_eq!(post_top.node, bench.post_b);
-    tool.pick(viewer::session::FaceSelection {
-        name: post_top.name.clone(),
-        node: post_top.node,
-        body: post_top.body,
-    });
-    let shelf_bottom = index
-        .face_at_for(
-            eval,
-            &asm::up_at(
-                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-            ),
-            &view,
-        )
-        .expect("answers")
-        .expect("the shelf's underside is picked");
+    let post_top = common::displayed_face_at(
+        &session,
+        &index,
+        &asm::down_at(
+            asm::POST_B_AT[0] + 0.03 + asm::POST_SECTION / 2.0,
+            asm::POST_B_AT[1] + asm::POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(
+        post_top.node, bench.post_b,
+        "the probed post is picked where it is drawn"
+    );
+    tool.pick(post_top);
+    let shelf_bottom = common::displayed_face_at(&session, &index, &asm::under_shelf());
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(shelf_bottom);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
@@ -193,18 +177,7 @@ fn the_exit_demo_walk() {
     // discarded, not zeroed.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(
-            doc,
-            eval,
-            &session.eval_options(),
-            tol,
-            MateChoice {
-                class: ContactClass::Rest,
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
-        )
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat_choice())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

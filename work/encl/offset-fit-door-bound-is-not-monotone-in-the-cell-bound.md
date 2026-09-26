@@ -2,10 +2,12 @@
 id: offset-fit-door-bound-is-not-monotone-in-the-cell-bound
 kind: issue
 title: offset_fit: tightening a cell bound can raise the door's hull_sup, because the refinement marking reads the sup
-status: open
+status: dispatched
 opened: 2026-09-12
 priority: P4
 cost: E
+branch: encl/offset-fit-loop-faces
+rides_with: offset-fit-budget-face-speaks-for-a-round-whose-bound-rose
 ---
 
 

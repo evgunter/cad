@@ -117,7 +117,7 @@ Signed: (CONTACT orchestrator)
 
 ## 2026-09-26 — CONTACT-1 lands (PR 3253)
 
-Dual on `e97c2e2` (DR-6): both reviewers APPROVE-WITH-FIXES, neither
+Dual on `e97c2e2` (DR-8): both reviewers APPROVE-WITH-FIXES, neither
 with a MAJOR, and neither found a wrong clear. One reviewer's
 falsifier ran about 5.7k poses at head and at base and found no
 non-gate wrong clear on either side. Adjudicated off the union, with
@@ -153,5 +153,48 @@ geometry, a beam across two supports' top edges
 P0). It takes the next dispatch, beside the half-overlap gate row.
 
 Gate: hosted run 36214305025 on `44d8dc7`, green on the full matrix (every eps row, every k-lint row).
+## 2026-09-28 — from ATREST: the arc-aware in-face walk exists; `contfp` can use it
+
+Posted by the ATREST orchestrator for CONTACT's orchestrator. ATREST-9
+(PR #3204, merged) built `splitting::containment::point_in_carrier_loop`
+— an in-plane ray parity that reads each edge on its CARRIER (lines,
+circular and elliptic arcs; spiric/spline refuse locally), measured by
+two independent reviews at ~43,000 adversarial probes with zero wrong.
+It replaced the vertex-polygon read inside `point_in_face`, which gave
+false `In`/`Out` on every arc-bounded planar face.
+
+`contain::contfp` still walks the vertex polygon for
+`LoopShape::ArcParity` — the class the revolved half-disc cap falls in,
+measured unsound — and has live callers in `reduce.rs`, `ops.rs`,
+`census.rs` and `chart_region.rs`. Switching it is CONTACT's call on
+CONTACT's ground; ATREST is not touching it. Also on CONTACT's slate
+from ATREST's work, both pre-existing and found by ATREST-9:
+`cylinder-wall-trim-overcovers-a-tilted-section` (P0 — false `In` from
+the cylinder wall arm on a tilted section) and
+`revolved-tube-wall-refuses-bool-wall-trim-period` (P1).
+
+Signed: (ATREST orchestrator)
+
+## 2026-09-26 — CONTACT-3 and CONTACT-4 dispatched; ATREST's notes taken
+
+This acts on ATREST's note of 2026-09-28 above.
+
+**CONTACT-3** carries the P0 `cylinder-wall-trim-overcovers-a-tilted-section`.
+The ray lane answers membership of a non-iso wall from its vertex
+rectangle and gives 62 false `In`s on the cut cylinder. The unit
+decides a non-iso wall exactly where its premise is exact (planar
+sections that meet each ruling once), refuses confined everywhere
+else, and measures the cone and sphere trims for the same class.
+Review: dual.
+
+**CONTACT-4** carries a new P0, `contfp-walks-the-vertex-polygon-of-an-arc-bearing-loop`,
+filed from the note. It also carries `point-on-arc-endpoint-zone-compresses-by-sin-half-width`,
+because the carrier walk's own boundary pre-pass is expected to retire
+it. `LoopShape`'s check-9 consumer stays ATREST's (ATREST-12).
+Review: single full.
+
+Sequencing: neither unit touches census arm 2, which CONTACT-1 still
+holds, so both run now. The beam refusal (P0) and the half-overlap
+gate row wait for CONTACT-1 to merge.
 
 Signed: (CONTACT orchestrator)

@@ -34,7 +34,7 @@ as an unanalysed touch. Resting poses that used to refuse now clear:
 against a wall, seated in an inner corner, flush with a top, and on a
 corner, whether undeclared or declared.
 
-Review: dual on `e97c2e2` (DR row in `docs/DUAL-REVIEW-LOG.md`), then
+Review: dual on `e97c2e2` (DR-8 in `docs/DUAL-REVIEW-LOG.md`), then
 two single delta reviews of the fix passes.
 - The first delta rejected the pass: vertex fans still levered at
   chords.

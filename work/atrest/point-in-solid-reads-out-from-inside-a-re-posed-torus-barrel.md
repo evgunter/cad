@@ -2,12 +2,14 @@
 id: point-in-solid-reads-out-from-inside-a-re-posed-torus-barrel
 kind: issue
 title: point_in_solid_faces answers Out for a point strictly inside a rigidly re-posed torus-walled shell (the hollowed torus barrel), where the unposed body answers In
-status: dispatched
+status: closed
 opened: 2026-09-24
 priority: P0
 cost: D
 refs: [tier-3-does-not-check-shell-roles-per-solid]
 parent: ATREST-9
+closed: 2026-09-25
+pr: 3204
 ---
 
 
