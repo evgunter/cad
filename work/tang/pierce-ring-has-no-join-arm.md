@@ -128,3 +128,19 @@ pose, and the run/chord pairing is the first thing to read there.
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## 2026-09-24 — the planar-cap door was point-in-solid's misread (ATREST-9)
+
+The `planar cap` row of the table above (`verbs_pierce.rs`, a box
+driven through a cylinder cap → `SectionLoopMixed`) now unions to the
+truth, `6.643185307179586`, tier 3 `Ok`; so does
+`verbs_pierce_r1_probes`' box through an annular cap. The join
+resolves a pierce region's role by probing the other operand with
+`point_in_solid` (`join.rs`, `resolve_roles_geometric`), and that
+walk's planar arm read the arc-bounded cap as its zero-area vertex
+polygon — so the probe read the cap as transparent and the role came
+back mixed. Fixed on `atrest/9-pis-torus-pose` (the planar arm crosses
+arcs on their circles). Which of this row's other doors (the wall
+rows, the engraving pose) shared that cause is unmeasured; the
+engraving pose's "a ring in a line-bounded planar face joins" control
+is consistent with it.

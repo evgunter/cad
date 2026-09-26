@@ -154,7 +154,7 @@ pub enum ProductError {
     /// Two roots that place one body through transforms and part
     /// selections refuse earlier, as
     /// [`ProductError::PlacedUnderTwoRoots`]. The routes a document
-    /// still has to this arm are three:
+    /// still has to this arm are two:
     ///
     /// - **A split's intact pass-through.** A split root beside another
     ///   root over the split's target shares whichever of the target's
@@ -164,23 +164,16 @@ pub enum ProductError {
     ///   are compared as written, so `Instance(1)` beside
     ///   `Instance(0 + 1)` passes the recipe check and the per-root
     ///   carry refuses.
-    /// - **Two halves of one split taken as two `Part` roots, over a
-    ///   tie the plane separates.** Each `Part` narrows the tie to the
-    ///   candidates in its own half (`NameTable::project`), so a half
-    ///   holding one candidate carries the name STRICT. With one
-    ///   candidate per half both halves are strict and the per-root
-    ///   carry refuses; with one in one half and several in the other,
-    ///   the strict row meets the deferred tie at the flush. Both are
-    ///   FALSE refusals — no body is placed twice —
-    ///   (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
     ///
     /// Rows arriving under one tied name MERGE into one `Entry::Tied`
-    /// rather than colliding when every source carries the name as a
-    /// tie — which is what a split ROOT hands the gather for a tie its
-    /// plane separates, since the split's own table keeps the tie
-    /// across both output bodies. What that costs is stated where it
-    /// lands: the product genuinely holds two entities under the one
-    /// name, and a selection that matches both refuses
+    /// rather than colliding — which is what a split ROOT hands the
+    /// gather for a tie its plane separates, since the split's own
+    /// table keeps the tie across both output bodies. The two halves
+    /// taken as two `Part` roots merge the same way, through the
+    /// separated-piece mark (`NameTable`'s `separated` field). What
+    /// that costs is stated where it lands: the
+    /// product genuinely holds two entities under the one name, and a
+    /// selection that matches both refuses
     /// (`SelectRefusal::TiedDisagrees`) instead of the gather refusing
     /// for it.
     Naming {
@@ -912,12 +905,6 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // A refusal here names the node that MINTED the colliding name
     // rather than a root: the collision is between rows that arrived
     // from different sources, so no one root is its author.
-    //
-    // A document reaches it when two `Part` roots take the two halves
-    // of one split over a tie the plane separates unevenly: the half
-    // holding one candidate carries the name strict, the other defers
-    // it, and they meet here. That refusal is false
-    // (`work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`).
     tie_rows
         .finish(&mut names)
         .map_err(|e| ProductError::Naming {

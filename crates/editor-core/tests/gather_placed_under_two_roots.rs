@@ -13,9 +13,10 @@
 use crate::fixture;
 
 use editor_core::{
-    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EvalOptions,
-    Evaluation, Expr, MateFrame, MatePrimitive, MateRole, Node, PartSelect, PatternKind,
-    ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf, product,
+    Alignment, AxisSense, CapEnd, ContactClass, Datum, DocEdit, DocumentId, EntityKind, Entry,
+    EvalOptions, Evaluation, Expr, MateFrame, MatePrimitive, MateRole, NameTable, Node, PartSelect,
+    PatternKind, ProductError, ProductErrorKind, ProfileDoc, RecipeNodeId, SplitHalf, StableName,
+    product, product_named,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{head_at, insert, len, on_frame, scl, solve, step, xform};
@@ -476,15 +477,13 @@ fn rv_selection_rides_down_through_a_transform() {
     );
 }
 
-// ---- false refusals the recipe check does not cause, pinned ----
+// ---- a split's halves as roots over a tie the plane separates ----
 //
 // Two halves of one split taken as two `Part` roots place no body
-// twice, yet the gather refuses them when the plane separates an N2
-// tie: each `Part` projects the split's table onto its half, and a half
-// holding ONE candidate carries the tied name strict. Measured here as
-// the current behaviour, to be flipped when
-// `work/gather/product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique.md`
-// is fixed.
+// twice, and gather the product the split root gathers. The mechanism
+// is the separated-piece mark (`NameTable`'s `separated` field). The
+// rows below pin the merge through every verbatim edge, and pin that
+// two roots carrying ONE entity still refuse.
 
 /// A 4×4×4 block less a cutter whose prongs, each `(y0, y1)`, cross the
 /// x = 4 wall at z ∈ [1, 3]: the prongs' far ends leave cap fragments
@@ -533,15 +532,21 @@ fn cutter(doc: ProfileDoc, prongs: &[(f64, f64)]) -> (ProfileDoc, RecipeNodeId) 
     )
 }
 
-/// The cutter's subtract split at y = `y`, the split as the only root
-/// (which gathers: its own table keeps the tie across both halves),
-/// then both halves taken as `Part` roots. Answers (doc, subtract,
-/// above, below).
+/// The cutter's subtract split at y = `y`: the document with the split
+/// as the only root, and the same document with both halves taken as
+/// `Part` roots instead. Answers (split-root doc, halves doc,
+/// subtract, above, below).
 fn halves_over_a_tie(
     label: &str,
     prongs: &[(f64, f64)],
     y: f64,
-) -> (ProfileDoc, RecipeNodeId, RecipeNodeId, RecipeNodeId) {
+) -> (
+    ProfileDoc,
+    ProfileDoc,
+    RecipeNodeId,
+    RecipeNodeId,
+    RecipeNodeId,
+) {
     let doc = ProfileDoc::empty_derived(label, Tol::witness());
     let (doc, sub) = cutter(doc, prongs);
     let (doc, plane) = insert(
@@ -551,6 +556,219 @@ fn halves_over_a_tie(
             normal: [scl(0.0), scl(1.0), scl(0.0)],
         }),
     );
+    let (whole, split) = insert(
+        doc,
+        Node::Split {
+            target: sub,
+            tool: plane,
+        },
+    );
+    assert_eq!(whole.roots(), &[split][..], "the premise: the split alone");
+    let (doc, above) = half(whole.clone(), split, SplitHalf::Above);
+    let (doc, below) = half(doc, split, SplitHalf::Below);
+    assert_eq!(
+        doc.roots(),
+        &[above, below][..],
+        "the premise: two Part roots"
+    );
+    (whole, doc, sub, above, below)
+}
+
+/// The subtract's tied FACE names in `table`, each with its candidate
+/// count.
+fn tied_faces(table: &NameTable, sub: RecipeNodeId) -> Vec<(StableName, usize)> {
+    table
+        .iter()
+        .filter(|(n, _)| n.node == sub && n.kind == EntityKind::Face)
+        .filter_map(|(n, e)| match e {
+            Entry::Tied(es) => Some((n.clone(), es.len())),
+            Entry::Unique(_) => None,
+        })
+        .collect()
+}
+
+/// **The two halves gather, as the split does.** Both documents gather;
+/// their product tables are EQUAL, so each name the plane separated is
+/// one `Entry::Tied` over the candidates of both halves; and that tie is
+/// the one the split's own table holds, with every candidate. The `Part`
+/// holding one candidate still publishes the separated name `Unique`.
+/// Answers the separated tie's candidate count.
+///
+/// The tables compare with `==`, entity keys included, which holds
+/// because the roots `[Above, Below]` graft in the order the split root
+/// grafts its bodies (`SplitHalf::output_body`); the aggregate's keys
+/// are minted in graft order. Reordering the roots would reorder the
+/// keys under the same names.
+fn halves_gather_as_the_split_does(label: &str, prongs: &[(f64, f64)], y: f64) -> usize {
+    let (whole, halves, sub, above, below) = halves_over_a_tie(label, prongs, y);
+    let whole_ev = run(&whole);
+    let (split_body, split_names) =
+        product_named(&whole, &whole_ev, Tol::witness()).expect("the split root gathers");
+    let ev = run(&halves);
+    let (halves_body, halves_names) =
+        product_named(&halves, &ev, Tol::witness()).expect("the two halves gather");
+    assert_eq!(
+        halves_body.faces().count(),
+        split_body.faces().count(),
+        "the same geometry"
+    );
+    assert_eq!(
+        halves_names, split_names,
+        "the same product name table, row for row"
+    );
+    let split_table = &whole_ev
+        .value(whole.roots()[0])
+        .expect("the split evaluated")
+        .name_table;
+    let published = |part: RecipeNodeId, name: &StableName| {
+        ev.value(part)
+            .expect("the half evaluated")
+            .name_table
+            .lookup(name)
+            .cloned()
+    };
+    let (name, count) = tied_faces(&halves_names, sub)
+        .into_iter()
+        .find(|(n, _)| {
+            matches!(published(above, n), Some(Entry::Unique(_)))
+                || matches!(published(below, n), Some(Entry::Unique(_)))
+        })
+        .expect("a tie the plane separated, published Unique by one half");
+    assert!(
+        matches!(split_table.lookup(&name), Some(Entry::Tied(es)) if es.len() == count),
+        "the product's tie holds every candidate the split's does"
+    );
+    count
+}
+
+/// **One candidate in each half.** The U-cutter's two prongs, split
+/// between them at y = 2: both `Part`s publish the tied name `Unique`,
+/// and the product holds it tied over both.
+#[test]
+fn split_halves_as_roots_over_a_one_one_tie_gather_one_tie() {
+    let count =
+        halves_gather_as_the_split_does("gather-halves-one-one", &[(1.0, 1.5), (2.5, 3.0)], 2.0);
+    assert_eq!(count, 2, "one candidate from each half");
+}
+
+/// **One candidate in one half, two in the other.** The E-cutter's
+/// three prongs, split at y = 1.5 between the first and the second: the
+/// lower half publishes the name `Unique`, the upper half `Tied` over
+/// two, and the product holds it tied over all three.
+#[test]
+fn split_halves_as_roots_over_a_one_two_tie_gather_one_tie() {
+    let count = halves_gather_as_the_split_does(
+        "gather-halves-one-two",
+        &[(0.5, 1.0), (1.75, 2.25), (3.0, 3.5)],
+        1.5,
+    );
+    assert_eq!(count, 3, "one candidate from one half, two from the other");
+}
+
+/// The rows `names` holds under `name`, or a panic.
+fn row(names: &NameTable, name: &StableName) -> Entry {
+    names.lookup(name).cloned().expect("the name has a row")
+}
+
+/// **The piece's mark rides the other verbatim edges, and changes no
+/// lone half.** Over the U-cutter split at y = 2, the separated name is
+/// tied over two in the split's product. A lone `Part` root gathers it
+/// `Unique` — that half's product holds one candidate. A transformed
+/// half beside the other half gathers it tied over both, as does the
+/// upper half split AGAIN, clear of its candidate, beside the lower
+/// half: the second split passes the marked row through unchanged.
+#[test]
+fn a_separated_piece_merges_through_a_transform_and_a_second_split() {
+    let (whole, _, sub, _, _) =
+        halves_over_a_tie("gather-halves-edges", &[(1.0, 1.5), (2.5, 3.0)], 2.0);
+    let split = whole.roots()[0];
+    let (_, split_names) =
+        product_named(&whole, &run(&whole), Tol::witness()).expect("the split root gathers");
+    let ties = tied_faces(&split_names, sub);
+    assert!(
+        !ties.is_empty() && ties.iter().all(|(_, count)| *count == 2),
+        "the premise: every tie holds one candidate per half, {ties:?}"
+    );
+    let every = |names: &NameTable, what: &str, pred: &dyn Fn(Entry) -> bool| {
+        for (name, _) in &ties {
+            assert!(pred(row(names, name)), "{what}: {name:?}");
+        }
+    };
+    let gathered = |doc: &ProfileDoc| {
+        product_named(doc, &run(doc), Tol::witness())
+            .expect("gathers")
+            .1
+    };
+
+    for h in [SplitHalf::Above, SplitHalf::Below] {
+        let (lone, _) = half(whole.clone(), split, h);
+        every(
+            &gathered(&lone),
+            &format!("a lone {h:?} half gathers the separated name Unique"),
+            &|e| matches!(e, Entry::Unique(_)),
+        );
+    }
+
+    let (doc, above) = half(whole.clone(), split, SplitHalf::Above);
+    let (doc, moved) = shifted(doc, above, 0.0);
+    let (doc, below) = half(doc, split, SplitHalf::Below);
+    assert_eq!(doc.roots(), &[moved, below][..], "the premise");
+    every(
+        &gathered(&doc),
+        "a transformed half merges with the other",
+        &|e| matches!(e, Entry::Tied(es) if es.len() == 2),
+    );
+
+    let (doc, above) = half(whole.clone(), split, SplitHalf::Above);
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(3.5), len(0.0)],
+            normal: [scl(0.0), scl(1.0), scl(0.0)],
+        }),
+    );
+    let (doc, again) = insert(
+        doc,
+        Node::Split {
+            target: above,
+            tool: plane,
+        },
+    );
+    let (resplit, below) = half(doc.clone(), split, SplitHalf::Below);
+    assert_eq!(resplit.roots(), &[again, below][..], "the premise");
+    every(
+        &gathered(&resplit),
+        "a re-split half merges with the other",
+        &|e| matches!(e, Entry::Tied(es) if es.len() == 2),
+    );
+
+    // The second split's lower half holds the candidate; a `Part` of it
+    // projects an already-marked row, and keeps the mark.
+    let (doc, inner) = half(doc, again, SplitHalf::Below);
+    let (doc, below) = half(doc, split, SplitHalf::Below);
+    assert_eq!(doc.roots(), &[inner, below][..], "the premise");
+    every(
+        &gathered(&doc),
+        "a half of a re-split half merges with the other",
+        &|e| matches!(e, Entry::Tied(es) if es.len() == 2),
+    );
+}
+
+/// One half of the subtract `sub` split by the plane through `origin`
+/// with normal `normal`: a new split node and a `Part` over it.
+fn half_of_a_split(
+    doc: ProfileDoc,
+    sub: RecipeNodeId,
+    (origin, normal): ([f64; 3], [f64; 3]),
+    h: SplitHalf,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: origin.map(len),
+            normal: normal.map(scl),
+        }),
+    );
     let (doc, split) = insert(
         doc,
         Node::Split {
@@ -558,60 +776,49 @@ fn halves_over_a_tie(
             tool: plane,
         },
     );
-    assert!(
-        product(&doc, &run(&doc), Tol::witness()).is_ok(),
-        "the premise: the split as one root gathers"
-    );
-    let (doc, above) = half(doc, split, SplitHalf::Above);
-    let (doc, below) = half(doc, split, SplitHalf::Below);
-    assert_eq!(
-        doc.roots(),
-        &[above, below][..],
-        "the premise: two Part roots"
-    );
-    (doc, sub, above, below)
+    half(doc, split, h)
 }
 
-/// **One candidate in each half: a false refusal at the per-root
-/// carry.** The U-cutter's two prongs, split between them at y = 2.
-/// Both `Part`s narrow the tie to `Unique`, so the later half's strict
-/// row collides with the earlier one's.
+/// **Two roots carrying one entity still refuse.** Halves of two
+/// DIFFERENT splits of the U-cutter's subtract overlap: both carry the
+/// subtract's uncut entities in the overlap verbatim, and those rows
+/// are not separated pieces — the mark must stay off them, so they go
+/// in strict and collide. Each pair below refuses `Naming`; a
+/// projection that marked every `Unique` row would tie them instead.
 #[test]
-fn split_halves_as_roots_over_a_one_one_tie_falsely_refuse_at_the_carry() {
-    let (doc, sub, _, below) =
-        halves_over_a_tie("gather-false-carry", &[(1.0, 1.5), (2.5, 3.0)], 2.0);
-    match product(&doc, &run(&doc), Tol::witness()) {
-        Err(ProductError::Naming { node, name }) => {
-            assert_eq!(node, below, "the later half's root");
-            assert_eq!(name.node, sub, "the tie the subtract minted");
-        }
-        other => panic!(
-            "the measured false refusal changed: {:?}",
-            other.map(|b| b.faces().count())
+fn halves_of_two_splits_that_overlap_still_refuse_naming() {
+    let at_y = |y: f64| ([0.0, y, 0.0], [0.0, 1.0, 0.0]);
+    let at_z = |z: f64| ([0.0, 0.0, z], [0.0, 0.0, 1.0]);
+    let shapes = [
+        (
+            "above y=2, above y=2.2",
+            (at_y(2.0), SplitHalf::Above),
+            (at_y(2.2), SplitHalf::Above),
         ),
-    }
-}
-
-/// **One candidate in one half, two in the other: a false refusal at
-/// the tie flush.** The E-cutter's three prongs, split at y = 1.5
-/// between the first and the second. The lower half's `Part` carries
-/// the name strict, the upper half's defers it as a tie, and the flush
-/// after the last source meets the two — naming the minter, not a root.
-#[test]
-fn split_halves_as_roots_over_a_one_two_tie_falsely_refuse_at_the_flush() {
-    let (doc, sub, above, below) = halves_over_a_tie(
-        "gather-false-flush",
-        &[(0.5, 1.0), (1.75, 2.25), (3.0, 3.5)],
-        1.5,
-    );
-    match product(&doc, &run(&doc), Tol::witness()) {
-        Err(ProductError::Naming { node, name }) => {
-            assert_eq!((node, name.node), (sub, sub), "the flush names the minter");
-            assert!(node != above && node != below, "and neither root");
-        }
-        other => panic!(
-            "the measured false refusal changed: {:?}",
-            other.map(|b| b.faces().count())
+        (
+            "above y=2, below y=3.5",
+            (at_y(2.0), SplitHalf::Above),
+            (at_y(3.5), SplitHalf::Below),
         ),
+        (
+            "above y=1.25, below z=2",
+            (at_y(1.25), SplitHalf::Above),
+            (at_z(2.0), SplitHalf::Below),
+        ),
+    ];
+    // Every shape is judged before any assertion, so a regression
+    // names each shape it reaches rather than the first.
+    let mut wrong = Vec::new();
+    for (what, (p1, h1), (p2, h2)) in shapes {
+        let doc = ProfileDoc::empty_derived("gather-overlapping-halves", Tol::witness());
+        let (doc, sub) = cutter(doc, &[(1.0, 1.5), (2.5, 3.0)]);
+        let (doc, first) = half_of_a_split(doc, sub, p1, h1);
+        let (doc, second) = half_of_a_split(doc, sub, p2, h2);
+        assert_eq!(doc.roots(), &[first, second][..], "the premise: {what}");
+        match product(&doc, &run(&doc), Tol::witness()) {
+            Err(ProductError::Naming { .. }) => {}
+            other => wrong.push(format!("{what}: {:?}", other.map(|b| b.faces().count()))),
+        }
     }
+    assert!(wrong.is_empty(), "expected a Naming refusal: {wrong:#?}");
 }

@@ -366,7 +366,7 @@ fn r2_probe_offset_clamp_saturation() {
 /// revolved rectangle is a cylinder with no cone in it, and a point in
 /// the INTERIOR of its base cap.
 #[test]
-fn r2_planar_base_cap_interior_out_of_unit() {
+fn r2_planar_base_cap_interior_is_on_the_boundary() {
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let cyl = revolve(
         &validated(vec![lp]),
@@ -390,8 +390,9 @@ fn r2_planar_base_cap_interior_out_of_unit() {
     let r = point_in_solid(&cyl, Point3::new(0.3, 0.0, 0.2), band(), Tol::witness());
     assert_eq!(
         r.as_ref().ok(),
-        Some(&SolidContainment::Out),
-        "reproducing the PR's reported out-of-unit misread (truth is OnBoundary)"
+        Some(&SolidContainment::OnBoundary),
+        "the base cap's interior is the solid's boundary (the planar arm once read \
+         this half-disc cap as its zero-area vertex polygon and answered Out)"
     );
 }
 

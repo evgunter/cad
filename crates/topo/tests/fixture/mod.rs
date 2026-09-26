@@ -250,20 +250,12 @@ fn sub_arc2(c: &NurbsCurve2<f64>, frac: (f64, f64)) -> Option<NurbsCurve2<f64>> 
 }
 
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve3::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 
 fn lift2<T: Real>(c: &NurbsCurve2<f64>) -> NurbsCurve2<T> {
-    let control = c
-        .control()
-        .iter()
-        .map(|p| Point2::new(T::from_f64(p.x), T::from_f64(p.y)))
-        .collect();
+    let control = c.control().iter().map(|p| p.map(T::from_f64)).collect();
     NurbsCurve2::new(c.knots().clone(), control, c.weights().to_vec()).expect("lifted structure")
 }
 

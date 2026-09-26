@@ -1,11 +1,12 @@
 ---
 id: offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart
 kind: issue
-title: at eps 1e-12 the offset fit refuses every curved NURBS chart, and the mint's cost at the default eps is unmeasured on a body
-status: open
+title: the offset fit's certified bound rises from round 6 on, from Bézier-insertion width, so tight-eps fits refuse; and no NURBS-walled body shells, so the body-level cost has no operand
+status: dispatched
 opened: 2026-09-05
 priority: P0
 cost: H
+branch: encl/offset-fit-tight-eps
 ---
 
 **Owner: the offset fit's — PROPS / S-CERT
@@ -60,3 +61,65 @@ tier-3 re-derivation counted beside the mint (tier 3 re-certifies every
 ## Re-homed (2026-09-06)
 
 Moved from `work/issues/` to `work/props/` in the tracker-wide cut of 2026-09-06 (Ev's direction, in-chat), which read every open `work/issues/` file and every open code-quality row against every live program's `paths` and opened four programs for the ground none covered. Id, body and header are unchanged except as noted; the directory is the claim (`work/README.md`). The body names PROPS as the owner (`offset_fit.rs`, `offset_meters.rs` are its glob).
+
+## Measured on main (2026-09-25)
+
+The lane that took this row measured before touching any number; the
+PR carries the traces. What the measurement changed about the row:
+
+**§1's table, re-taken** (`bowed()`, `d = ±0.05`, identical at both
+signs; release build, single run each, on a 4-core container shared with
+two other lanes):
+
+| target | outcome | rounds | cells | achieved `hull_sup` | wall |
+|---|---|---|---|---|---|
+| 1e-6 | reaches | 0 | 1 | 4.39e-7 | 4 ms |
+| 1e-9 | reaches | 3 | 64 | 9.26e-10 | 45 ms |
+| 1e-12 | `BudgetExhausted`, 27×27 | 6 | — | 1.78e-10 | 0.50 s |
+| 1e-15 | `BudgetExhausted`, identically | 6 | — | 1.78e-10 | 0.49 s |
+
+**The identical row at 1e-12 and 1e-15 is not evidence of a floor.**
+The loop's path does not read the target until it exits, so any two
+targets below every round's bound run the same rounds and report the
+same last bound. There IS a floor, found by tracing the rounds instead:
+the certified bound falls to 6.88e-11 at round 5 and then RISES
+(1.78e-10, then 2.49e-9 with the budget raised) while the sampled
+residual keeps falling to 6.1e-12. The rise is enclosure width born in
+the Bézier decomposition's lerp-form knot insertion
+(`crates/geom-core/src/spline/compose.rs`, `insert_once_ring`), which
+accumulates at the patch's high-parameter corner. No budget crosses it.
+It is removable by the convex form of the same combination, and that
+evidence (an A/B on this fixture and on the saddle wall) is filed on
+the site's existing row,
+`work/props/f64-refinement-inside-an-enclosure-has-five-more-sites.md`,
+rather than here.
+
+**With the convex form, the budget question is real and measured:**
+1e-12 on `bowed()` needs 9 rounds and 49 samples per direction (shipped
+6 and 48), mints in 4.3 s and re-certifies in 1.2 s per validation call
+per face (2,116 cells, 2,401 control points). These and the saddle
+timings below are release builds, best of 3, on a 4-core container
+shared with two other lanes.
+
+**Two claims in §1 no longer hold as written.**
+
+- "Refuses every curved NURBS chart at 1e-12" depends on `d`. The
+  saddle wall at the sweep pin's `d = 5e-10` certifies at 1e-12 in one
+  round and at 1e-13 in two. `CURVED_FIT_REACH` in
+  `crates/sweep/tests/offd_r1_probes.rs` was re-baselined from 1e-11
+  to 1e-13 on that measurement; every CI ε row now lands on that
+  row's structural arm.
+- It is not only the tight end. The saddle wall at a realistic
+  `d = ±0.05` refuses at the DEFAULT ε 1e-9 (`BudgetExhausted`,
+  4.14e-9). With today's arithmetic the bound bottoms out at 1.15e-9
+  and then rises, so no budget reaches 1e-9 there; with the convex
+  form it certifies at round 9 on a 49×26 grid (one past the cap),
+  minting in 2.1 s and re-certifying in 0.54 s per face.
+
+**§2 has no operand yet.** `topo::shell` refuses every lofted body
+before any wall's fit runs: a cap's offset moves its corners, and
+re-anchoring the spline wall-to-wall seam that ends there is outside
+the face-replacement door's lanes. Filed on SHELL as
+`shell-refuses-every-lofted-body-at-a-wall-seam-carrier`; the
+public-API body and both of its boundaries are pinned in
+`crates/sweep/tests/encl_curved_loft_shell.rs`.

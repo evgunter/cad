@@ -52,3 +52,36 @@ carries no door-level row.
 ## Not scheduled here
 
 PROPS mignitude-floor's fence is the bound, not the guard.
+
+## A fixture exists (ENCL tight-ε lane, 2026-09-25)
+
+Found by `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`'s
+measurement (PR 3272). Both of these reach `RefinementStalled` through
+the shipped constants, no scripted seam needed:
+
+- **The twisted-loft saddle wall at `d = ±5e-10`, target 1e-14**
+  (`crates/sweep/tests/common/approx.rs`, `twisted_loft(0.3)`, any of
+  its four spline walls): `RefinementStalled { rounds: 4, grid: (16, 12),
+  achieved: 1.2915e-11 }` from `fit_offset_at`, identical at both signs.
+  The loop certifies the same wall at 1e-13 on round 2 (5.4e-14), so
+  by round 4 the bound has risen more than two orders past what round 2
+  reached; the intermediate rounds were not traced at this `d`.
+- **Through the kernel door**, the same request is
+  `crates/sweep/tests/offd_r1_probes.rs`'s
+  `the_fitted_obstruction_holds_on_a_curved_fit` run with
+  `CAD_TOLERANCE_EPS=1e-14`: `replace_face_offset` on that wall at
+  `d = 5e-10` refuses at the fit, and the row's `Fit` arm passes.
+  `CURVED_FIT_REACH` (1e-13) is what keeps that arm legitimate. No CI
+  row is that tight, so the fixture exists but nothing runs it today.
+
+The rise is the Bézier decomposition's insertion width
+(`work/props/f64-refinement-inside-an-enclosure-has-five-more-sites.md`,
+its `insert_once_ring` row). Under the convex form that row proposes,
+the same wall certifies at 1e-14 on round 3, so **this fixture
+disappears if that fix lands**. A row built on it would need
+re-grounding then, which argues for the scripted-bound seam named above
+if the stall's loop ordering is to be pinned durably.
+
+`bowed()` at `d = 0.05` also stalls, but only with the round budget
+raised past the shipped 6 (round 7, 2.49e-9), so it is not a
+shipped-door fixture.

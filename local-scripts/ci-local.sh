@@ -907,7 +907,7 @@ demos_hygiene() {
 # spelling of the lily's and the bottle's frontier pins.
 # HOSTED MIRROR: k-lint / demos tour suite (the #99 ε pin + the tour's own probes)
 demos_eps_pin() {
-  (cd demos/tour && cargo test --release)
+  nextest_check && (cd demos/tour && cargo nextest run --release --no-fail-fast)
 }
 
 # Spec D3: the large-K fragility lint (mirrors ci.yml's `k-lint` job —

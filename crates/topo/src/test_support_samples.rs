@@ -25,8 +25,9 @@
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
-//! `CertifyError::PlaneNurbs` carry are sampled whole too; the four
-//! `OffsetFitError` wrappers carry one value each.
+//! `CertifyError::PlaneNurbs` carry are sampled whole too, as is
+//! `OffsetFitError::PatchBound`'s; the other four `OffsetFitError`
+//! wrappers carry one value each.
 //!
 //! Where a raise site fills a field with prose — a `what`, a `detail`,
 //! a steer — the sample carries the prose a real run renders, and a
@@ -361,7 +362,8 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
     use geom_brep::offset_meters::MeterError;
-    vec![
+    use geom_brep::patch_bound::PatchBoundError;
+    let mut v = vec![
         OffsetFitError::Meter(MeterError::NormalFloor {
             floor: 1e-9,
             thinness: 1e-3,
@@ -373,7 +375,6 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             kappa: (2.0, 0.5),
         }),
         OffsetFitError::Meter(MeterError::Escalated { source: diag() }),
-        OffsetFitError::PatchBound(geom_brep::patch_bound::PatchBoundError::Crease),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
             lo: 1.0,
@@ -404,6 +405,13 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             tolerance: 1e-6,
             last_finite: Some(3e-6),
         },
+        OffsetFitError::BoundNotFinite {
+            rounds: 6,
+            grid: (64, 64),
+            d: 1e-8,
+            tolerance: 1e-6,
+            last_finite: None,
+        },
         OffsetFitError::RefinementStalled {
             rounds: 6,
             grid: (64, 64),
@@ -421,7 +429,23 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-    ]
+        OffsetFitError::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
+        // The payload the elevation's own `check_weights` produces.
+        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
+            geom_core::spline::SplineError::NonPositiveWeight {
+                index: 3,
+                weight: 0.0,
+            },
+        )),
+    ];
+    // Every patch-bound note is its own sentence, and the enum is
+    // fieldless, so its compiler-derived roster is the sample list.
+    v.extend(PatchBoundError::iter().map(OffsetFitError::PatchBound));
+    v
 }
 
 fn census_contacts() -> Vec<CensusContact> {
