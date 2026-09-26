@@ -17,7 +17,6 @@ mod certified {
     use geom_core::Tol;
 
     use geom_core::{Bounds, Interval, Real, Vec3};
-    // Horizontal polar axis — the §1 re-cut's own chart shape.
     use sweep::test_support::ball_poled_y;
     use topo::mass_properties;
 

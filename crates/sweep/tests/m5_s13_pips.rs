@@ -32,8 +32,6 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Band, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
-// The pips' balls are `ball_poled_y`'s: poles on a horizontal axis,
-// which is the chart the §1 re-cut must re-align.
 use sweep::test_support::ball_poled_y;
 use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -85,6 +83,8 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 const PIP_R: f64 = 0.5;
 const PIP_H: f64 = 0.3;
 
+/// The pip's ball, y-poled: its poles lie on a horizontal axis, which
+/// is the chart the §1 re-cut must re-align.
 fn pip_ball(x: f64, y: f64) -> Body<f64> {
     ball_poled_y(PIP_R, Vec3::new(x, y, 1.0 + PIP_R - PIP_H), Tol::witness())
 }

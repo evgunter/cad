@@ -6916,7 +6916,7 @@ fn edge_adjacent_faces<T: Real>(
 )> {
     let face_of = |he: HalfEdgeKey| {
         let face = body.face_of_half_edge(he)?;
-        Some((face, body.faces.get(face)?.surface))
+        Some((face, body.get_face(face)?.surface))
     };
     Some((face_of(he_plus)?, face_of(he_minus)?))
 }
@@ -7737,7 +7737,7 @@ fn shell_component<T: Real>(
                         // Glue across the edge via mate.
                         let mate = body.mate(member)?;
                         let mate_face = body.face_of_half_edge(mate)?;
-                        if body.faces.get(mate_face)?.shell == shell
+                        if body.get_face(mate_face)?.shell == shell
                             && !visited.contains_key(mate_face)
                         {
                             visited.insert(mate_face, ());
