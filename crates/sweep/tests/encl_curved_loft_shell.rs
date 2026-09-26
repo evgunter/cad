@@ -37,9 +37,10 @@ const THICKNESS: f64 = 0.05;
 /// A saddle wall's **budget-limited** reach at `|d| =` [`THICKNESS`]:
 /// the smallest sup bound the fit loop reaches under the shipped round
 /// budget and sample cap — its last round's, since the bound is still
-/// falling there — where it refuses `BudgetExhausted` on a 27×17 grid. Measured on this fixture at
-/// 4.1427e-9 at both signs of `d` (every wall agrees to 5 digits); the
-/// loop certifies at 1e-6 in 3 rounds (sup bound 4.28e-7).
+/// falling there — where it refuses `BudgetExhausted` on a 27×17 grid.
+/// Measured on this fixture at 4.1427e-9 at both signs of `d` (every
+/// wall agrees to 5 digits); the loop certifies at 1e-6 in 3 rounds
+/// (sup bound 4.28e-7).
 ///
 /// It is a reach under the loop's current budget, not the fit's
 /// arithmetic floor: with the budget raised the same wall's bound keeps

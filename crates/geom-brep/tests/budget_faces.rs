@@ -574,9 +574,17 @@ fn each_faces_message_names_its_lever() {
         assert!(b.contains("loosen the tolerance to 0.001 m"), "{b}");
         assert!(!b.contains("0.002"), "the last bound is named: {b}");
     }
-    assert!(falling.contains("while still improving"), "{falling}");
+    // Splitting the face buys each piece rounds, which is a repair
+    // only while rounds were still paying: the rose reading names the
+    // tolerance alone.
     assert!(
-        !rose.contains("improving,") && rose.contains("did not improve on the one before"),
+        falling.contains("while still improving") && falling.contains("split the face"),
+        "{falling}"
+    );
+    assert!(
+        !rose.contains("improving,")
+            && rose.contains("did not improve on the one before")
+            && !rose.contains("split"),
         "{rose}"
     );
     let c = OffsetFitError::SampleCapReached {

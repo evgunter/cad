@@ -943,8 +943,9 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         .collect();
     // The roster is borrowed, so its reach is checked on the roster
     // itself: a sample list that stopped carrying an arm would
-    // otherwise shrink these rows silently. `BoundNotFinite` and `Limb`
-    // each carry two samples (both `best_finite` cases, both limbs).
+    // otherwise shrink these rows silently. `BudgetExhausted`,
+    // `BoundNotFinite` and `Limb` each carry two samples (both
+    // `still_falling` readings, both `best_finite` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 1),
         ("Meter/CurvatureHeadroom", 1),
@@ -954,7 +955,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
         ("Structure/", 1),
         ("InvalidRequest", 1),
         ("NonFiniteSample", 1),
-        ("BudgetExhausted", 1),
+        ("BudgetExhausted", 2),
         ("SampleCapReached", 1),
         ("BoundNotFinite", 2),
         ("RefinementStalled", 1),

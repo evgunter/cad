@@ -2195,10 +2195,18 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
                 },
             ),
         ),
-        O::BudgetExhausted { .. } | O::SampleCapReached { .. } => {
+        O::BudgetExhausted {
+            still_falling: true,
+            ..
+        }
+        | O::SampleCapReached { .. } => {
             (DRIFT, "Recourse: loosen the tolerance, or split the face")
         }
-        O::RefinementStalled { .. }
+        O::BudgetExhausted {
+            still_falling: false,
+            ..
+        }
+        | O::RefinementStalled { .. }
         | O::BoundNotFinite {
             best_finite: Some(_),
             ..

@@ -352,8 +352,12 @@ impl OffsetLimb {
 /// instead: a tolerance no tighter than the smallest bound any round
 /// reached (the schedule does not read the tolerance, so the round
 /// that reached it would then have certified), a face split into
-/// pieces that need less refinement, or, when no bound was ever
-/// finite, an offset distance of larger magnitude.
+/// pieces that need less refinement where more refinement was still
+/// paying (the cap, and the budget on a round that still fell), or,
+/// when no bound was ever finite, an offset distance of larger
+/// magnitude. A face whose last round did not fall names the tolerance
+/// alone: nothing in the loop's state says a smaller piece would fall
+/// further.
 ///
 /// **D2 classification: row 1**, stated here once for the four faces
 /// (their own docs point back here rather than restating it). Every
@@ -426,7 +430,8 @@ pub enum OffsetFitError {
     /// further round is the both-directions step, which can stall in
     /// its turn. So the message names no rounds as the way through;
     /// the caller's recourse is `best`, which certifies on either
-    /// reading. Classification: the enum's, above.
+    /// reading, and on the first reading only, a face split so each
+    /// piece needs fewer rounds. Classification: the enum's, above.
     BudgetExhausted {
         /// The round budget that expired.
         budget: usize,
@@ -689,7 +694,7 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit used all {budget} refinement rounds, the last of \
                  which did not improve on the one before, and its best certified error was \
                  {best} m against a tolerance of {tolerance} m. Recourse: loosen the \
-                 tolerance to {best} m or more, or split the face into smaller pieces"
+                 tolerance to {best} m or more"
             ),
             Self::SampleCapReached {
                 cap,
