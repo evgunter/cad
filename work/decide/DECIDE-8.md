@@ -2,7 +2,7 @@
 id: DECIDE-8
 kind: unit
 title: "the apothem's sign: stated where it is decided, or read where it is not"
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P2
 cost: H
