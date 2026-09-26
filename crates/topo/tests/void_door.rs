@@ -305,7 +305,7 @@ fn two_destinations_each_take_their_own_cavity() {
         );
     }
     for &solid in &dst_solids {
-        assert_eq!(dst.get_solid(solid).unwrap().shells.len(), 2);
+        assert_eq!(dst.shells_of_solid(solid).unwrap().len(), 2);
     }
     // 27 + 27 − 1 − (1.5 × 1 × 1).
     let props = mass_properties(&dst, Tol::witness()).unwrap();

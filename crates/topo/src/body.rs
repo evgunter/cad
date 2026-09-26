@@ -892,13 +892,6 @@ impl<T: Real> Body<T> {
     ///   key the function has already resolved.
     /// - **A write.** `euler_ring`'s corruption fixtures set
     ///   `Shell::solid` through `get_shell_mut`.
-    ///
-    /// **No census is claimed here.** How many hand-written spellings
-    /// remain, where, and under which instrument they were counted is
-    /// measured in
-    /// `work/dup/solid-of-face-has-eleven-hand-written-walks-outside-it.md`
-    /// — dated there, held true by no mechanical guard, and
-    /// re-measured by a lane rather than by this sentence.
     #[must_use]
     pub fn solid_of_face(&self, face: FaceKey) -> Option<SolidKey> {
         self.get_face(face)
@@ -998,13 +991,6 @@ impl<T: Real> Body<T> {
     /// went stale — keeps its own walk: collapsing it here would
     /// replace a refusal that identifies an entity with one that does
     /// not. That is a population, not an exception.
-    ///
-    /// **No census is claimed here.** Which hand-written walks remain,
-    /// with their postures and the instrument that counted them, is
-    /// measured in
-    /// `work/dup/half-edge-to-face-walk-is-spelled-once-per-suite.md`
-    /// — dated there, held true by no mechanical guard, and
-    /// re-measured by a lane rather than by this sentence.
     #[must_use]
     pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
         self.get_loop(self.get_half_edge(he)?.parent_loop)

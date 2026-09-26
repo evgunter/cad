@@ -115,6 +115,33 @@ folding both rows into one unit, which is too large for one lane.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-26 — CONTACT-2 lands (PR 3250)
+
+The fix was the lane, not the gate. The survey's reading held, and the
+lane widened the premise sweep to `Nurbs → true` and to role
+resolution's straight-midpoint tiers. The row's claim that the
+full-length flat builds was false on this tree, and the lane corrected
+it.
+
+Adjudication: the axis lap now refuses `UnpairedLooseEnds`. That
+defect is pre-existing and planar, it is ZIP's, and it is filed and
+pinned. The spec's "no other invariant" clause was aimed at this arm,
+so the orchestrator accepted the result rather than widening onto ZIP
+ground.
+
+From the review, all adopted:
+- M1: the chord-midpoint anchor is unsound on curved edges, and this
+  is pre-existing. It is now fenced at its site with a witness row.
+- S1: the midpoint has one home.
+- S3/S4: tier names, and the stale guard prose.
+- M2: the PR body.
+
+Not adopted: S7, fixing tier 2 in this unit. That is ZIP's row.
+
+Gate: hosted green through `b9040bc`. The final head is gated by its
+own hosted run; the local gate was blocked by permissions.
+
+Signed: (CONTACT orchestrator)
 ## 2026-09-26 — CONTACT-1 lands (PR 3253)
 
 Dual on `e97c2e2` (DR-8): both reviewers APPROVE-WITH-FIXES, neither
