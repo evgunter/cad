@@ -242,12 +242,10 @@
 //!    five orders of magnitude at the very round the chase stops on.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the SIGN-level bracket
-//!    instead. What is left of the friction is a CONSUMER-side gap and
-//!    the scene meets it below: the refusal that carries no number
-//!    also drops the enclosure, so this probe cannot report the
-//!    bracket it was refused on without reaching two crates down
-//!    (`work/encl`'s
-//!    `budget-refusal-drops-the-enclosure-the-caller-needs`).
+//!    instead. The spout's own probe measures through the same door —
+//!    the certificate tier 3 hands back, continued by `measure` — so
+//!    on that refusal it reports the bracket it was refused on, and
+//!    holds the closed form to it.
 //!
 //!    More budget is not the fix, and that is measured: at
 //!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
@@ -271,41 +269,11 @@
 //!    certified enclosure. That oracle self-calibrates with ε, and the
 //!    scene PROBES rather than asserting through a door that may not
 //!    open.
-//! 6. **The lid's roll takes ONE kernel call and TWO document
-//!    requests, and the difference is the NAME emitter.**
-//!    `fillet_edges` rolls all three rims in one request. The same
-//!    three rims through `Node::Fillet` refuse `Naming(Duplicate)`,
-//!    and the duplicate says which: the flange's rim and the dome's
-//!    foot are the two ends of ONE meridian segment (the flange cone),
-//!    so both of their bands slit THAT segment's seam meridian, and
-//!    `RoleSeg::BandSlit` names a slit by *the source edge whose
-//!    severed piece became it*. Two slits, one source name.
-//!
-//!    **The shape is "two bands slitting one meridian", not "two
-//!    adjacent rims"**, and this lid is where the difference shows: a
-//!    band slits exactly one of its two supports' seams, so the rims
-//!    at vertices 1 and 2 collide while `{2, 3}` and `{3, 4}` —
-//!    adjacent pairs both — compose in one request. Adjacency is
-//!    necessary and not sufficient. `tests/teapot_document.rs` is that
-//!    table, executed, beside the equality the split owes: the two
-//!    requests build the kernel's one-request body, same census, same
-//!    three bands bit for bit, same mass — and a different face ORDER,
-//!    which is the whole of what the conversion moved.
-//!
-//!    The scene therefore asks TWICE — the flange's rim, then the
-//!    dome's foot and the knob's top against the carried names — which
-//!    is what a user would have to do. The one-request refusal is
-//!    ATTEMPTED live in [`per_rim_answers`] and pinned there, so the
-//!    day the vocabulary grows the discriminator this wants — one on
-//!    `BandSlit` saying WHICH band slit the edge, the way `BandTrim`
-//!    already carries its `RimSupport` — the scene goes red and says
-//!    to go back to one request and re-cut the tess-budget baseline
-//!    back with it.
 //!
 //! # What this scene deliberately does NOT do
 //!
 //! No kernel change, no route widened, no gate softened. Every one of
-//! the six findings above is a live probe or an executed table, and
+//! the five findings above is a live probe or an executed table, and
 //! each carries the sentence that retires it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -326,7 +294,7 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, carried, edge_name,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, edge_name,
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
@@ -409,9 +377,7 @@ const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// rims closed edges. See the module docs' finding 3.
 const R_VENT: f64 = 1.0 / 256.0;
 /// The roll, one radius for all three of the lid's rims — per
-/// REQUEST rather than per edge, which is what lets the two requests
-/// the naming gap forces (the module docs' sixth finding) be one
-/// parameter.
+/// REQUEST rather than per edge, and the lid rolls in one request.
 const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
@@ -808,8 +774,7 @@ struct Recipe {
     cup: RecipeNodeId,
     /// The lid before its rims roll.
     plain_lid: RecipeNodeId,
-    /// The lid with its three rims rolled — in TWO fillet requests at
-    /// one radius, for the reason the sixth finding gives.
+    /// The lid with its three rims rolled in ONE fillet request.
     lid: RecipeNodeId,
     /// The spout about its OWN axis — the node whose bands name the
     /// root annulus the placement is measured on.
@@ -937,10 +902,10 @@ fn build_doc(tol: Tol) -> Recipe {
 
     // ---- the lid ----
     let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    // THREE rims, THREE DIFFERENT coaxial arms. The radius
-    // is per REQUEST, not per edge, and each later rim's seam-piece
-    // identities are re-read against the partially-carved body, so the
-    // convenient spelling is the door's grain.
+    // THREE rims, THREE DIFFERENT coaxial arms, in ONE request. The
+    // radius is per REQUEST, not per edge, and each later rim's
+    // seam-piece identities are re-read against the partially-carved
+    // body, so the convenient spelling is the door's grain.
     //
     // Each rim is ONE name because the lid's profile is ANNULAR: it
     // touches the axis nowhere, so the full revolve mints one whole
@@ -948,34 +913,14 @@ fn build_doc(tol: Tol) -> Recipe {
     // the pot's axis-touching profile mints half-walls and a `Band` /
     // `BandPi` pair.
     //
-    // GAP (the module docs' sixth finding): the KERNEL door rolls all
-    // three rims in one request and the document layer cannot NAME
-    // that output. The flange's rim and the dome's foot stand at the
-    // two ends of the flange cone, so both bands slit THAT segment's
-    // seam meridian, and `RoleSeg::BandSlit` carries only the source
-    // edge it severed — two slits, one name, `Naming(Duplicate)`. The
-    // test is which meridian a band slits, not whether two rims are
-    // adjacent: `{2, 3}` and `{3, 4}` are adjacent and compose in one
-    // request (`tests/teapot_document.rs`). So the roll is TWO
-    // requests at one radius, which is what a user would have to
-    // write; the second names its rims as the first carried them
-    // through, since a survivor is `FromTarget` of the name it had.
+    // The flange's rim and the dome's foot stand at the two ends of the
+    // flange cone, so both bands slit and cross THAT segment's seam
+    // meridian; their names tell the two apart by the band that made
+    // each (`tests/teapot_document.rs`).
     let rims = LID_RIMS.map(|(v, ..)| band_rim(plain_lid, vertex_at(&doc, plain_lid, v, tol)));
-    let first = insert(
-        &mut doc,
-        Node::fillet(plain_lid, len(ROLL), vec![rims[0].clone()]),
-        tol,
-    );
     let lid = insert(
         &mut doc,
-        Node::fillet(
-            first,
-            len(ROLL),
-            vec![
-                carried(first, rims[1].clone()),
-                carried(first, rims[2].clone()),
-            ],
-        ),
+        Node::fillet(plain_lid, len(ROLL), rims.to_vec()),
         tol,
     );
 
@@ -1136,24 +1081,10 @@ fn faces_where(ev: &Evaluation<f64>, node: RecipeNodeId, seg: SegPat) -> Vec<Sta
     )
 }
 
-/// **Every band face `node`'s lid carries** — the ones its own blend
-/// minted, and the ones an earlier blend minted and this one carried
-/// through. Two patterns because a survivor is `FromTarget` of the
-/// name it had: the roll below is TWO requests, so one of its three
-/// bands is a carried name and the other two are mints.
+/// **Every band face `node`'s blend minted** — the lid rolls in one
+/// request, so each of its bands is that request's own mint.
 fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    let faces = NamePat::of_kind(EntityKind::Face);
-    select(
-        ev,
-        node,
-        &Selector::any_of([
-            faces.clone().seg(SegPat::tag(SegTag::BandFace)),
-            faces.seg(
-                SegPat::tag(SegTag::FromTarget)
-                    .of([NamePat::any().seg(SegPat::tag(SegTag::BandFace))]),
-            ),
-        ]),
-    )
+    faces_where(ev, node, SegPat::tag(SegTag::BandFace))
 }
 
 /// **A named rim's own circle, read back OFF THE EDGE THE NAME
@@ -1375,7 +1306,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .iter()
         .map(|&(v, ..)| band_rim(lid, vertex_at(&doc, lid, v, tol)))
         .collect();
-    let mut asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
+    let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
         .zip(&rims)
         .map(|(&(_, _, _, what), rim)| {
@@ -1389,33 +1320,12 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
             )
         })
         .collect();
-    // And the fourth question, which is the sixth finding ATTEMPTED
-    // rather than described: all three rims in ONE request.
-    let together = insert(&mut doc, Node::fillet(lid, len(ROLL), rims), tol);
-    asked.push(("all three in ONE request", together));
     let ev = evaluate::<f64>(
         &doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         tol,
-    );
-    // The refusal is PINNED, not merely printed: it is the shape the
-    // scene's two-request grain exists for, and the day the naming
-    // vocabulary grows the discriminator this asks for, this row goes
-    // red and says what to do about it.
-    let refusal = describe(&ev, together);
-    assert!(
-        refusal.starts_with("Naming(Duplicate")
-            && refusal.contains("BandSlit")
-            && refusal.contains(&format!("Meridian(Seam, {:?})", edge_at(&doc, lid, 1, tol))),
-        "the one-request roll of all three rims refuses because the flange's rim and the \
-         dome's foot slit ONE seam meridian and a `BandSlit` carries only the edge it \
-         severed. It answered {refusal} instead. If it COMPOSED, the vocabulary grew the \
-         discriminator: put the three rims back in one `Node::fillet`, delete this \
-         probe and the sixth finding, and re-cut the tess-budget baseline BACK — the \
-         lid's three `teapotlid` rows permute their triangle counts with the request \
-         count. `tests/teapot_document.rs` is the table behind this one refusal"
     );
     asked
         .into_iter()
@@ -1787,10 +1697,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // The radius is per REQUEST rather than per edge, as `bud`
     // establishes, and #935 re-reads each later rim's seam-piece
-    // identities against the partially-carved body — which is what
-    // makes the two requests the naming gap forces (the module docs'
-    // sixth finding) the same body the one-request kernel door
-    // builds.
+    // identities against the partially-carved body.
     let rolled = body_at(&ev, r.lid);
     assert_eq!(
         (
@@ -2138,23 +2045,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // at the very round the chase stops on — so the refusal here is a
     // missing NUMBER and not a missing certificate.
     //
-    // So the scene PROBES rather than asserting through a door that
-    // may not open, and says which it got. What the refused arm CANNOT
-    // say is the part still worth reading: the error carries no
-    // enclosure, so this probe has nothing to report the bracket from
-    // even though the certificate the tier just took holds one
-    // (`work/encl`'s
-    // `budget-refusal-drops-the-enclosure-the-caller-needs`).
+    // So the scene measures THROUGH that certificate: the gate hands
+    // it back, and `measure` continues it to the reporting target. On
+    // the budget refusal, the answer carries the sign-level bracket
+    // the gate decided on, and the probe reports it; any other refusal
+    // is a body with no volume at all, and stays fail-loud.
     //
-    // Where the door DOES open, what is asserted is the bracket: the
-    // straightened frustum lies inside the kernel's own certified
-    // enclosure. That oracle self-calibrates with ε — a looser
-    // tolerance buys a wider bracket and the claim stays exactly as
-    // strong as the certificate — which is what a fixed relative bound
-    // could not do, and what a fixed bound measured at one ε got
-    // wrong when this scene first shipped.
-    let spout_props = pncad::topo::mass_properties(&spout, tol);
-    let spout_reading = match &spout_props {
+    // What is asserted is the bracket either way: the straightened
+    // frustum lies inside the kernel's own certified enclosure — the
+    // reporting-target one where the target is met, the wider
+    // sign-level one where it is not. That oracle self-calibrates with
+    // ε — a looser tolerance buys a wider bracket and the claim stays
+    // exactly as strong as the certificate — which is what a fixed
+    // relative bound could not do, and what a fixed bound measured at
+    // one ε got wrong when this scene first shipped.
+    let spout_measured = pncad::topo::validate_geometric_certificate(&spout, tol)
+        .unwrap_or_else(|e| panic!("the spout's tier 3 refused: {e:?}"))
+        .measure();
+    let spout_reading = match spout_measured {
         Ok(p) => {
             let v_gap = (p.volume - v_spout).abs();
             let a_gap = (p.surface_area - a_spout).abs();
@@ -2189,20 +2097,40 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 p.volume, p.volume_pad, p.surface_area, p.area_pad
             )
         }
-        Err(e) => format!(
-            "mass properties REFUSED TYPED at this tolerance — {e:?} — so the closed form \
-             has nothing to be compared against here. These walls are RATIONAL, so they \
-             are QUADRATURE faces whose enclosure is chased to a REPORTING width derived \
-             from eps, and at a tight enough eps that chase is proven unreachable after \
-             round 0. What is missing is a NUMBER and not a certificate: tier 3 admitted \
-             this body at this same eps, because its +V check consumes only the SIGN of \
-             that enclosure and the enclosure excludes zero by about five orders of \
-             magnitude. The tour's own volume ribbon prints that SIGN-level bracket; THIS \
-             probe cannot, because the refusal carries no enclosure to print — \
-             work/encl's budget-refusal-drops-the-enclosure-the-caller-needs. The \
-             straightened frustum's own numbers, which do not depend on eps: \
-             V = {v_spout:.9} m^3, A = {a_spout:.9} m^2"
-        ),
+        Err(pncad::topo::TargetUnreached {
+            bracket: Some(b),
+            refusal,
+        }) => {
+            // The bracket is the SIGN-level one — at 1e-12, ±9 % on
+            // this body — although the continuation that refused held a
+            // far narrower one and dropped it (`work/encl`'s
+            // `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`).
+            let half = 0.5 * (b.volume_hi - b.volume_lo);
+            assert!(
+                b.volume_lo <= v_spout && v_spout <= b.volume_hi,
+                "the straightened frustum's V = {v_spout} lies OUTSIDE the canal's \
+                 sign-level bracket [{}, {}]",
+                b.volume_lo,
+                b.volume_hi
+            );
+            format!(
+                "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
+                 volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
+                 faces whose enclosure is chased to a REPORTING width derived from eps, and \
+                 at a tight enough eps that chase is proven unreachable after round 0. What \
+                 is missing is a number and not a certificate: tier 3 admitted this body at \
+                 this same eps on the SIGN of the enclosure, and the certificate it handed \
+                 back keeps that bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose \
+                 lower end clears zero by {:.1e} half-widths, and which holds the \
+                 straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
+                 has no bracket to sit in here: the certificate's area is the +V check's \
+                 lever, not an enclosure",
+                b.volume_lo,
+                b.volume_hi,
+                b.volume_lo / half,
+            )
+        }
+        Err(unreached) => panic!("the spout's mass properties: {unreached}"),
     };
     let spout_bend_deg = SPOUT_BEND.to_degrees();
 
@@ -2403,15 +2331,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              lives on this tour. 6/12/6 sharp — an ANNULAR profile mints one FULL wall \
              per segment where the pot's axis-touching profile mints half-walls — and \
              9/18/9 rolled, three annulus bands each carrying the same (+1, +2, +1). \
-             THREE closed latitude rims roll, in TWO requests where the kernel door \
-             takes one — the flange's rim, then the dome's foot and the knob's top — \
-             because the flange's rim and the dome's foot are the two ends of ONE \
-             meridian segment, both bands slit THAT segment's seam, and a `BandSlit` is \
-             named by the source edge it severed, so one request cannot NAME its own \
-             output. The test is the shared MERIDIAN and not adjacency: the adjacent \
-             pairs at the knob compose in one request, and `tests/teapot_document.rs` \
-             tabulates which do and pins the two spellings' bodies equal — same census, \
-             the same three bands bit for bit, the same mass, a different face order. \
+             THREE closed latitude rims roll in ONE request. The flange's rim and the \
+             dome's foot are the two ends of ONE meridian segment, so both bands slit \
+             and cross THAT segment's seam, and their names tell the two apart by the \
+             band that made each; `tests/teapot_document.rs` holds every rim pair to \
+             one request and the body to the kernel door's — same census, the same \
+             three bands bit for bit, the same mass, the same face order. \
              Their supports are three \
              DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
              foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
@@ -2453,10 +2378,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              SIGN of that enclosure, and the enclosure excludes zero by about five orders \
              of magnitude at the very round the chase stops on, so the scene certifies at \
              every eps and the volume ribbon prints the SIGN-level bracket where it has \
-             no number to print. What is left is a consumer-side gap this probe sits in: \
-             the refusal carries no enclosure, so the reading above cannot report the \
-             bracket the tier just certified -- work/encl's \
-             budget-refusal-drops-the-enclosure-the-caller-needs. More budget would not \
+             no number to print. The reading above measures through the certificate the \
+             tier hands back, so where the number is refused it reports that same \
+             bracket and holds the frustum to it. More budget would not \
              buy the number back and that is measured: at one more round the early exit \
              stops firing and the face then runs over half an hour without finishing. An \
              OCTAGONAL authoring had a number at every eps -- straight sides make \

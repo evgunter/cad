@@ -92,6 +92,8 @@ mod canonical_invariance;
 mod cert4r1_e2e;
 #[path = "cert4r2_e2e.rs"]
 mod cert4r2_e2e;
+#[path = "cusp_joints.rs"]
+mod cusp_joints;
 #[path = "declared_tangency.rs"]
 mod declared_tangency;
 #[path = "enclose_refusal_r2_probes.rs"]

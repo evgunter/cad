@@ -2,12 +2,14 @@
 id: encl-refusal-prose-outgrows-the-viewer
 kind: issue
 title: geom-brep: the offset meter and offset fit refusals are too long for the viewer (Ev's concision request)
-status: dispatched
+status: closed
 opened: 2026-09-22
 refs: [error-and-check-text-overflows-its-region]
 priority: P0
 cost: D
 branch: encl/refusal-prose
+pr: 3269
+closed: 2026-09-26
 ---
 
 

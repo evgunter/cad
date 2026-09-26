@@ -5492,14 +5492,15 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::BandFoot(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandCross(n) => {
-            feed_stable_name(h, n);
-        }
         RoleSeg::BandCut(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandSlit(n) => {
-            feed_stable_name(h, n);
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            feed_stable_name(h, edge);
+            h.write_u64(band.len() as u64);
+            for n in band {
+                feed_stable_name(h, n);
+            }
         }
         // The n-ary union's member key. BOTH halves feed: two members
         // of one union can be

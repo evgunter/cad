@@ -2,11 +2,13 @@
 id: validate-rs-exports-sixteen-doors-on-an-irregular-matrix
 kind: issue
 title: validate.rs exports sixteen at-rest doors on an irregular door-by-form matrix
-status: open
+status: closed
 opened: 2026-09-21
 priority: P4
 cost: D
 parent: ATREST-10
+closed: 2026-09-25
+pr: 3227
 ---
 
 ## Finding
