@@ -134,7 +134,7 @@ use editor_core::{
 };
 use geom_core::{Sign, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 /// The analysis box's half-width, in metres.
 ///
@@ -187,7 +187,7 @@ fn translated(input: RecipeNodeId, by: Expr) -> Node<ProfileProgram> {
         input,
         translation: [by, len(0.0), len(0.0)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 

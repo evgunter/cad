@@ -20,7 +20,7 @@ use editor_core::{
     CancelToken, Dimension, DocEdit, EvalOptions, Expr, Node, NodeErrorKind, NodeResult,
     ProfileDoc, RecipeNodeId, SlotId, evaluate, load, save,
 };
-use fixture::{insert, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 /// A Count literal — `Expr::count`, because `Expr::literal` REFUSES
@@ -147,7 +147,7 @@ fn a_length_expression_in_the_v_degree_slot_refuses() {
             &DocEdit::InsertNode {
                 node: Node::Loft {
                     profiles,
-                    v_degree: Expr::literal(2.0, Dimension::Length).unwrap(),
+                    v_degree: len(2.0),
                 },
             },
             Tol::witness(),

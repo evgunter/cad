@@ -30,12 +30,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::len;
 use editor_core::{Dimension, Expr, LoopProgram, ParamName, ProgramStep, ProgramTarget};
-
-/// A Length literal.
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a finite length literal")
-}
 
 const CORNERS: [(f64, f64); 4] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)];
 

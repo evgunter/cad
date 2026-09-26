@@ -24,7 +24,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::Recorder;
+use fixture::{Recorder, len, scl};
 
 /// The nominal hole spacing, in metres (3.1 mm) — the tour's own.
 pub(crate) const SPACING: f64 = 3.1e-3;
@@ -32,14 +32,6 @@ pub(crate) const SPACING: f64 = 3.1e-3;
 pub(crate) const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
 
 fn param(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)

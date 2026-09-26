@@ -1505,14 +1505,15 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
     let mut violations: Vec<String> = Vec::new();
 
     // Check 1: every `use` STATEMENT's root is the façade, the
-    // standard library, or the shared source reader — the one
-    // non-façade root this file names, and no kernel crate. Read as
-    // statements over the literal-blanked view: see
-    // [`use_statement_roots`] for both halves of why.
+    // standard library, the shared source reader — the one
+    // non-façade crate this file names — or `super`, which names this
+    // file's own items and so no crate at all (a kernel path behind it
+    // is still Check 2's). Read as statements over the literal-blanked
+    // view: see [`use_statement_roots`] for both halves of why.
     for (n, root) in use_statement_roots(&code) {
         if !matches!(
             root.as_str(),
-            "pncad" | "std" | "core" | "alloc" | "test_utils"
+            "pncad" | "std" | "core" | "alloc" | "test_utils" | "super"
         ) {
             violations.push(format!("line {n}: `use {root}` — not the façade"));
         }
@@ -1980,11 +1981,21 @@ fn lib_doors_vocabulary_is_nameable() {
     named::<Option<pncad::export::ExportError>>(None);
 }
 
+/// A length literal, in canonical metres, spelled through the façade.
+fn len(metres: f64) -> pncad::document::Expr {
+    use pncad::document::{Dimension, Expr};
+    Expr::literal(metres, Dimension::Length).expect("a finite length")
+}
+
+/// A dimensionless literal — a direction component — as [`len`].
+fn scl(value: f64) -> pncad::document::Expr {
+    use pncad::document::{Dimension, Expr};
+    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
 /// The world xy frame — the plane these door fixtures sketch on.
 fn doors_xy_frame() -> pncad::document::Node<pncad::document::ProfileProgram> {
-    use pncad::document::{Datum, Dimension, Expr, Node};
-    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    use pncad::document::{Datum, Node};
     Node::Datum(Datum::Frame {
         origin: [len(0.0), len(0.0), len(0.0)],
         u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -1997,17 +2008,14 @@ fn doors_square(
     plane: pncad::document::RecipeNodeId,
     s: f64,
 ) -> pncad::document::Node<pncad::document::ProfileProgram> {
-    use pncad::document::{
-        Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
-    };
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([lit(0.0), lit(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(0.0)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(s), lit(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(s)])),
+            ProgramStep::At([len(0.0), len(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(s), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
@@ -2038,8 +2046,7 @@ fn doors_box_doc() -> (
     pncad::document::RecipeNodeId,
     pncad::document::RecipeNodeId,
 ) {
-    use pncad::document::{Dimension, Expr, Node};
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty_derived("all", Tol::witness());
     let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(doc, doors_square(plane, 2.0));
@@ -2047,7 +2054,7 @@ fn doors_box_doc() -> (
         doc,
         Node::Extrude {
             profile,
-            distance: lit(1.5),
+            distance: len(1.5),
         },
     );
     (doc, profile, body)
@@ -2073,7 +2080,7 @@ fn doors_evaluate(doc: &pncad::document::ProfileDoc) -> pncad::document::Evaluat
 /// contract had no test because it had no door.
 #[test]
 fn a_recorded_paths_chain_becomes_a_profile_program_node() {
-    use pncad::document::{Dimension, Expr, LoopProgram, Node, ProfileProgram};
+    use pncad::document::{LoopProgram, Node, ProfileProgram};
 
     // The guide's rounded outline: a 40 x 30 rectangle with one r = 6
     // corner filleted away. `toward` binds the rays exactly.
@@ -2125,7 +2132,7 @@ fn a_recorded_paths_chain_becomes_a_profile_program_node() {
         doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal(8.0, Dimension::Length).expect("a finite thickness"),
+            distance: len(8.0),
         },
     );
     let evaluated = doors_evaluate(&doc);
@@ -2235,17 +2242,14 @@ fn doors_square_at(
     s: f64,
     x: f64,
 ) -> pncad::document::Node<pncad::document::ProfileProgram> {
-    use pncad::document::{
-        Dimension, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget,
-    };
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    use pncad::document::{LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget};
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At([lit(x), lit(0.0)]),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(0.0)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(x + s), lit(s)])),
-            ProgramStep::LineTo(ProgramTarget::Point([lit(x), lit(s)])),
+            ProgramStep::At([len(x), len(0.0)]),
+            ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(0.0)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(x + s), len(s)])),
+            ProgramStep::LineTo(ProgramTarget::Point([len(x), len(s)])),
             ProgramStep::LineTo(ProgramTarget::Start),
         ])],
         ids: Vec::new(),
@@ -2258,8 +2262,7 @@ fn doors_square_at(
 /// — the text re-imports as two solids whose volumes are additive.
 #[test]
 fn the_document_export_door_ships_the_multi_solid_product() {
-    use pncad::document::{Dimension, Expr, Node};
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
+    use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty_derived("asm-roots-doc-export", Tol::witness());
     let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, p0) = doors_insert(doc, doors_square_at(plane, 2.0, 0.0));
@@ -2267,7 +2270,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         doc,
         Node::Extrude {
             profile: p0,
-            distance: lit(1.5),
+            distance: len(1.5),
         },
     );
     let (doc, plane) = doors_insert(doc, doors_xy_frame());
@@ -2276,7 +2279,7 @@ fn the_document_export_door_ships_the_multi_solid_product() {
         doc,
         Node::Extrude {
             profile: p1,
-            distance: lit(1.0),
+            distance: len(1.0),
         },
     );
     assert_eq!(doc.roots(), &[b0, b1][..], "both tips are product roots");
@@ -2333,8 +2336,7 @@ fn the_export_door_refuses_typed_not_vaguely() {
         doc,
         Node::Extrude {
             profile: second_profile,
-            distance: pncad::document::Expr::literal(1.0, pncad::document::Dimension::Length)
-                .unwrap(),
+            distance: len(1.0),
         },
     );
     let (doc, cut) = doors_insert(
@@ -2404,9 +2406,8 @@ fn expr_literal_refusals_are_matchable_through_the_facade() {
 /// authoring as a passing one).
 fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::RecipeNodeId) {
     use pncad::document::{BooleanOp, DocParam, ParamName};
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).expect("a finite length");
     let hole = |cx: f64, cy: f64| LoopProgram::Circle {
-        centre: [lit(cx), lit(cy)],
+        centre: [len(cx), len(cy)],
         radius: Expr::param(ParamName::new("hole_r"), Dimension::Length),
     };
 
@@ -2424,10 +2425,10 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
     .doc;
 
     let outline = LoopProgram::Chain(vec![
-        ProgramStep::At([lit(0.0), lit(0.0)]),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(4.0), lit(0.0)])),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(4.0), lit(2.0)])),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(0.0), lit(2.0)])),
+        ProgramStep::At([len(0.0), len(0.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([len(4.0), len(0.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(4.0), len(2.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(2.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, plane) = doors_insert(doc, doors_xy_frame());
@@ -2443,17 +2444,15 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Extrude {
             profile,
-            distance: lit(0.5),
+            distance: len(0.5),
         },
     );
     // The tab sits inside the plate's slab: its own plane, so its own
     // frame.
-    let scl =
-        |v: f64| pncad::document::Expr::literal(v, pncad::document::Dimension::Scalar).unwrap();
     let (doc, tab_plane) = doors_insert(
         doc,
         Node::Datum(pncad::document::Datum::Frame {
-            origin: [lit(0.0), lit(0.0), lit(0.125)],
+            origin: [len(0.0), len(0.0), len(0.125)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
             v: [scl(0.0), scl(1.0), scl(0.0)],
         }),
@@ -2473,7 +2472,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Extrude {
             profile: tab_p,
-            distance: lit(0.25),
+            distance: len(0.25),
         },
     );
     let (doc, solid) = doors_insert(
@@ -2555,7 +2554,7 @@ fn plate_param_facade_only() -> (pncad::document::ProfileDoc, pncad::document::R
         doc,
         Node::Assertion {
             measure,
-            bound: lit(0.0),
+            bound: len(0.0),
             dir: pncad::document::AssertionDir::AtLeast,
         },
     );
@@ -2676,7 +2675,7 @@ impl Drop for WsDir {
 const WS_PART_BODY: pncad::document::RecipeNodeId = pncad::document::RecipeNodeId(2);
 
 fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
-    use pncad::document::{Expr, Node};
+    use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty(
         pncad::document::DocumentId::derive(label),
         Tol::witness(),
@@ -2687,7 +2686,7 @@ fn ws_doc(label: &str) -> (pncad::document::ProfileDoc, String) {
         doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal(1.5, pncad::document::Dimension::Length).unwrap(),
+            distance: len(1.5),
         },
     );
     let text = pncad::document::save(&doc, &[], Tol::witness()).expect("the document saves");
@@ -3239,8 +3238,7 @@ fn asm2a_row5b_stale_pin_refuses_through_the_real_store() {
             doc,
             pncad::document::Node::Extrude {
                 profile,
-                distance: pncad::document::Expr::literal(1.5, pncad::document::Dimension::Length)
-                    .unwrap(),
+                distance: len(1.5),
             },
         );
         pncad::document::save(&doc, &[], Tol::witness()).expect("saves")
@@ -3980,7 +3978,7 @@ fn asm_upd_resave_part(
     id: pncad::document::DocumentId,
     side: f64,
 ) -> pncad::document::ContentPin {
-    use pncad::document::{Expr, Node};
+    use pncad::document::Node;
     let doc = pncad::document::ProfileDoc::empty(id, Tol::witness());
     let (doc, plane) = doors_insert(doc, doors_xy_frame());
     let (doc, profile) = doors_insert(doc, doors_square(plane, side));
@@ -3988,7 +3986,7 @@ fn asm_upd_resave_part(
         doc,
         Node::Extrude {
             profile,
-            distance: Expr::literal(1.5, pncad::document::Dimension::Length).unwrap(),
+            distance: len(1.5),
         },
     );
     ws.resave(&doc, Tol::witness()).expect("the part rewrites");
@@ -5961,9 +5959,10 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 /// witnesses, and the doors that take or mint the type are reached
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
+    use super::{len, scl};
     use pncad::document::{
-        CancelToken, Datum, DatumValue, Dimension, Doc, DocEdit, EvalOptions, Expr, Node,
-        NodeResult, ProfileProgram, RecipeNodeId, ValuePayload, evaluate,
+        CancelToken, Datum, DatumValue, Doc, DocEdit, EvalOptions, Node, NodeResult,
+        ProfileProgram, RecipeNodeId, ValuePayload, evaluate,
     };
     use pncad::geom_core::linalg::frame::{mirror_across_plane, path_start_frame, point_at};
     use pncad::geom_core::{Band, Point3, Tol, UnitVec3, UnitVec3Error, Vec3};
@@ -5971,12 +5970,6 @@ mod unit_vector_witness_through_the_facade {
 
     type ProfileDoc = Doc<ProfileProgram>;
 
-    fn len(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
-    }
-    fn scl(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
-    }
     fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
         let applied = doc
             .apply(
@@ -6100,21 +6093,14 @@ mod unit_vector_witness_through_the_facade {
 /// at a certifying scalar and refuses TYPED at a dual — at the shell
 /// node alone, with every other node green.
 mod the_hollowed_box_through_the_facade {
+    use super::{len, scl};
     use pncad::document::{
-        CancelToken, Datum, Dimension, DocEdit, EvalOptions, Evaluation, Expr, LoopProgram, Node,
-        NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, apply,
-        evaluate,
+        CancelToken, Datum, DocEdit, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind,
+        NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, apply, evaluate,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::StableName;
     use pncad::select::{CapEnd, EntityKind, RoleSeg};
-
-    fn len(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
-    }
-    fn scl(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
-    }
 
     fn insert(doc: ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
         let applied = apply(

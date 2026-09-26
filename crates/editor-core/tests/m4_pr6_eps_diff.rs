@@ -27,7 +27,7 @@ use editor_core::{
     CancelToken, EvalOptions, Node, ProfileDoc, RecipeNodeId, RunStatus, evaluate, load, save,
     verdict_summary,
 };
-use fixture::{desc, insert};
+use fixture::{desc, insert, len, scl};
 use geom_core::Sign;
 use geom_core::Tol;
 
@@ -53,15 +53,8 @@ fn thin_profile_doc() -> ProfileDoc {
             // v4: the thin bulge authors as an arc_to step with its
             // AUTHORED bulge (the program stores exactly the value the
             // retired form stored on the vertex).
-            use editor_core::{
-                Dimension, Expr, LoopProgram, ProgramArcData, ProgramStep, ProgramTarget,
-            };
-            let lpt = |x: f64, y: f64| {
-                [
-                    Expr::literal(x, Dimension::Length).unwrap(),
-                    Expr::literal(y, Dimension::Length).unwrap(),
-                ]
-            };
+            use editor_core::{LoopProgram, ProgramArcData, ProgramStep, ProgramTarget};
+            let lpt = |x: f64, y: f64| [len(x), len(y)];
             let mut d = desc(plane, vec![]);
             d.loops = vec![LoopProgram::Chain(vec![
                 ProgramStep::At(lpt(0.0, 0.0)),
@@ -70,7 +63,7 @@ fn thin_profile_doc() -> ProfileDoc {
                 // The (1,1) → (0,1) segment's thin bulge.
                 ProgramStep::ArcTo(ProgramArcData::Bulge {
                     target: ProgramTarget::Point(lpt(0.0, 1.0)),
-                    b: Expr::literal(2e-6, Dimension::Scalar).unwrap(),
+                    b: scl(2e-6),
                 }),
                 ProgramStep::LineTo(ProgramTarget::Start),
             ])];

@@ -51,7 +51,7 @@ use editor_core::{
 use geom_core::k_stats::decide;
 use geom_core::{Band, Margin, Sign, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 // ------------------------------------------------------------ authoring
 
@@ -97,7 +97,7 @@ fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<Profile
         input,
         translation: [dx, dy, dz],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 

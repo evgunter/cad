@@ -35,9 +35,9 @@ test_utils::gated_to![
 use crate::fixture;
 
 use editor_core::{
-    Dimension, DocEdit, DocParam, Expr, MetaValue, Node, ParamName, ProfileDoc, load, save,
+    Dimension, DocEdit, DocParam, MetaValue, Node, ParamName, ProfileDoc, load, save,
 };
-use fixture::desc;
+use fixture::{desc, len};
 use geom_core::Tol;
 use proptest::prelude::*;
 
@@ -83,11 +83,7 @@ fn round_trip(value: f64) -> ProfileDoc {
         &doc,
         DocEdit::InsertNode {
             node: Node::Datum(editor_core::Datum::Point {
-                position: [
-                    Expr::literal(value, Dimension::Length).expect("finite literal"),
-                    Expr::literal(0.0, Dimension::Length).unwrap(),
-                    Expr::literal(-0.0, Dimension::Length).unwrap(),
-                ],
+                position: [len(value), len(0.0), len(-0.0)],
             }),
         },
     );

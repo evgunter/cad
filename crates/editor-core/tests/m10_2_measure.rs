@@ -385,7 +385,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+                bound: len(MIN_WEB),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -745,7 +745,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     );
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
-        MeasureExpr::value(Expr::literal(13.0, Dimension::Length).expect("finite")),
+        MeasureExpr::value(len(13.0)),
         MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
@@ -761,7 +761,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -823,7 +823,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
             node: Node::Extrude {
                 profile: disc,
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).expect("finite"),
+                    len(13.0),
                     Expr::param(ParamName::new("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
@@ -1140,7 +1140,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                bound: len(0.1),
                 dir: AssertionDir::AtLeast,
             },
         },

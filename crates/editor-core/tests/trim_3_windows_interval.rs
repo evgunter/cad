@@ -103,7 +103,7 @@ fn translated(input: RecipeNodeId, d: [Expr; 3]) -> Node<ProfileProgram> {
         input,
         translation: [dx, dy, dz],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 

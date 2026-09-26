@@ -20,6 +20,7 @@ test_utils::gated_to![
     "crates/quantity/src/",
 ];
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{Dimension, EvalError, Expr, ParamEnv, ParamName, ParamValue, eval, eval_count};
 
 fn env_with(name: &str, v: ParamValue<f64>) -> ParamEnv<f64> {
@@ -104,16 +105,8 @@ fn arithmetic_matches_f64_semantics() {
     // (2 m + 3 m) * 0.5 - 1 m = 1.5 m — plain f64 arithmetic, units
     // erased (GQ5: eval returns raw kernel units).
     let e = Expr::sub(
-        Expr::mul(
-            Expr::add(
-                Expr::literal(2.0, Dimension::Length).unwrap(),
-                Expr::literal(3.0, Dimension::Length).unwrap(),
-            )
-            .unwrap(),
-            Expr::literal(0.5, Dimension::Scalar).unwrap(),
-        )
-        .unwrap(),
-        Expr::literal(1.0, Dimension::Length).unwrap(),
+        Expr::mul(Expr::add(len(2.0), len(3.0)).unwrap(), scl(0.5)).unwrap(),
+        len(1.0),
     )
     .unwrap();
     assert_eq!(eval(&e, &ParamEnv::<f64>::default()).unwrap(), 1.5);
@@ -135,11 +128,11 @@ mod props {
         ) {
             let e = Expr::mul(
                 Expr::add(
-                    Expr::literal(a, Dimension::Length).unwrap(),
-                    Expr::literal(b, Dimension::Length).unwrap(),
+                    len(a),
+                    len(b),
                 )
                 .unwrap(),
-                Expr::literal(k, Dimension::Scalar).unwrap(),
+                scl(k),
             )
             .unwrap();
             let got = eval(&e, &ParamEnv::<f64>::default()).unwrap();
@@ -171,9 +164,8 @@ mod interval_lane {
         // sin(τ/8) * 2 — exercises literal embedding, trig, and
         // arithmetic through the one generic evaluator.
         let e = Expr::mul(
-            Expr::sin(Expr::literal(std::f64::consts::FRAC_PI_4, Dimension::Angle).unwrap())
-                .unwrap(),
-            Expr::literal(2.0, Dimension::Scalar).unwrap(),
+            Expr::sin(ang(std::f64::consts::FRAC_PI_4)).unwrap(),
+            scl(2.0),
         )
         .unwrap();
         let at_f64 = eval::<f64>(&e, &ParamEnv::default()).unwrap();

@@ -31,11 +31,9 @@
 //!
 //! D2 bump: the hand-declared bracket's extrude `Distance`.
 
-use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId,
-};
+use editor_core::{DocEdit, LoopProgram, Node, ProfileProgram, ProgramStep, ProgramTarget, SlotId};
 
-use crate::fixture::{frame, len, xy_frame};
+use crate::fixture::{frame, len, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -47,25 +45,19 @@ pub fn document() -> CorpusDoc {
     // G1 exact-director spelling: `toward` components are exact, so
     // the ray carries no sin_cos dirt; the trims are the algebra's own
     // closed forms).
-    let pt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
-    let scl2 = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
+    let pt = |x: f64, y: f64| [len(x), len(y)];
     let filleted = LoopProgram::Chain(vec![
         ProgramStep::At(pt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
         ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
         ProgramStep::Toward {
-            dx: scl2(-1.0),
-            dy: scl2(0.0),
+            dx: scl(-1.0),
+            dy: scl(0.0),
         },
-        ProgramStep::Fillet(Expr::literal(0.5, Dimension::Length).unwrap()),
+        ProgramStep::Fillet(len(0.5)),
         ProgramStep::Toward {
-            dx: scl2(0.0),
-            dy: scl2(1.0),
+            dx: scl(0.0),
+            dy: scl(1.0),
         },
         ProgramStep::FarEndTo(pt(1.0, 3.0)),
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
@@ -103,7 +95,7 @@ pub fn document() -> CorpusDoc {
         ProgramStep::Tangent,
         // The declared-tangent straight leg rides the inherited
         // direction: authored as its LENGTH (the (1,1.5) → (1,3) run).
-        ProgramStep::Line(Expr::literal(1.5, Dimension::Length).unwrap()),
+        ProgramStep::Line(len(1.5)),
         ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
@@ -129,7 +121,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: tangent_body,
             slot: SlotId::Distance,
-            expr: Expr::literal(0.5, Dimension::Length).expect("dyadic length literal"),
+            expr: len(0.5),
         },
         bump_root: tangent_body,
     }

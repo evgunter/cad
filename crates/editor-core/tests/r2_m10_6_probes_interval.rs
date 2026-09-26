@@ -70,7 +70,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -168,12 +168,8 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             len(0.0),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     // The two facing walls of the unit square: their distance is 1.0.
     let measure = r.insert(
@@ -196,7 +192,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         measure,
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
-        bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+        bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, assertion)
@@ -430,7 +426,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -795,12 +791,8 @@ fn guide(bound: f64) -> Guide {
             Expr::param(name("skew"), Dimension::Length),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     let pair = vec![
         SitedRef::new(rail, fixture::fname(rail, fixture::wall(&r.doc, rail, 1))),
@@ -826,12 +818,12 @@ fn guide(bound: f64) -> Guide {
     );
     let assertion = r.insert(Node::Assertion {
         measure: by_distance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     r.insert(Node::Assertion {
         measure: by_clearance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     Guide {

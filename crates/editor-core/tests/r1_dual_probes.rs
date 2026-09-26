@@ -496,12 +496,9 @@ fn r1_no_value_only_key_collision_search() {
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
     let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let plate = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
@@ -515,12 +512,9 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         distance: len(0.25),
     });
     let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,

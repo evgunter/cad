@@ -13,20 +13,12 @@
 //! caller's document would say and nothing about a private path.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{
     Dimension, Expr, LoopProgram, ParamName, ProfileProgram, ProgramArcData, ProgramStep,
     ProgramTarget,
 };
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn sca(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 fn pt(x: f64, y: f64) -> [Expr; 2] {
     [len(x), len(y)]
 }
@@ -56,7 +48,7 @@ fn every_spec() -> Vec<ProgramArcData> {
     ] {
         out.push(ProgramArcData::Bulge {
             target: target.clone(),
-            b: sca(0.3),
+            b: scl(0.3),
         });
         out.push(ProgramArcData::Via {
             q: pt(4.5, 0.5),
@@ -83,8 +75,8 @@ fn steps() -> Vec<ProgramStep> {
         ProgramStep::At(pt(0.0, 0.0)),
         ProgramStep::Angle(ang(0.25)),
         ProgramStep::Toward {
-            dx: sca(1.0),
-            dy: sca(0.5),
+            dx: scl(1.0),
+            dy: scl(0.5),
         },
         ProgramStep::Tangent,
         ProgramStep::Cusp,
@@ -174,10 +166,10 @@ fn exprs() -> Exprs {
         Expr::min(
             Expr::add(
                 Expr::sub(Expr::neg(len(3.0)), len(0.5)).unwrap(),
-                Expr::mul(len(2.0), sca(1.5)).unwrap(),
+                Expr::mul(len(2.0), scl(1.5)).unwrap(),
             )
             .unwrap(),
-            Expr::div(len(8.0), sca(4.0)).unwrap(),
+            Expr::div(len(8.0), scl(4.0)).unwrap(),
         )
         .unwrap(),
         Expr::param(ParamName::new("width"), Dimension::Length),

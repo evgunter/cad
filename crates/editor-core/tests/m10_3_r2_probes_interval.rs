@@ -48,7 +48,7 @@ use editor_core::{
 };
 use geom_core::{Interval, Tol};
 
-use fixture::Recorder;
+use fixture::{Recorder, len, scl};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -56,10 +56,6 @@ fn eps() -> f64 {
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
-}
-
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
 }
 
 fn unit_square() -> LoopProgram {
@@ -81,12 +77,9 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
         },
     });
     let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
@@ -114,7 +107,7 @@ fn depth_param() -> Expr {
 fn pinched(nominal: f64, half: f64) -> ProfileDoc {
     let distance = Expr::min(
         depth_param(),
-        Expr::sub(lit(2.0 * nominal), depth_param()).expect("length minus length"),
+        Expr::sub(len(2.0 * nominal), depth_param()).expect("length minus length"),
     )
     .expect("min of two lengths is a length");
     slab_with(
@@ -668,12 +661,9 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
             });
         }
         let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [0.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-            u: [1.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-            v: [0.0, 1.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+            origin: [0.0, 0.0, 0.0].map(len),
+            u: [1.0, 0.0, 0.0].map(scl),
+            v: [0.0, 1.0, 0.0].map(scl),
         }));
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: xy_frame_1,
@@ -681,7 +671,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
                     .expect("finite plate corners"),
                 LoopProgram::Circle {
-                    centre: [lit(1.0), lit(1.0)],
+                    centre: [len(1.0), len(1.0)],
                     radius: Expr::param(name("hole_r"), Dimension::Length),
                 },
             ],

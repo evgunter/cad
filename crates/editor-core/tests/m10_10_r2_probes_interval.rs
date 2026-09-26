@@ -29,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{OverBand, ceiling, certifies_whole, over_band_set, render_over_band};
 
@@ -260,8 +260,6 @@ pub(crate) fn d_tab_at(
     bulge_nominal: f64,
     tol: Tol,
 ) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, dim: Dimension, value: f64, d: Distribution| {
         r.push(DocEdit::SetDocParam {

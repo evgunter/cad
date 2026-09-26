@@ -40,8 +40,8 @@
 //! every document green at `Dual64`.
 
 use editor_core::{
-    Dimension, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram,
-    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
+    DocEdit, LoopProgram, Node, ProfileDoc, ProfileEdgeRef, ProfileProgram, ProgramArcData,
+    ProgramStep, ProgramTarget, RecipeNodeId, SlotId, StableName, band, band_pi,
 };
 
 use crate::fixture::{ang, axis_in_plane, frame, len};
@@ -79,12 +79,7 @@ pub const SEG_MOUTH: u32 = 3;
 
 /// The meridian as a program (module docs).
 pub fn meridian() -> LoopProgram {
-    let lpt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).unwrap(),
-            Expr::literal(y, Dimension::Length).unwrap(),
-        ]
-    };
+    let lpt = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(R_FOOT, 0.0))),

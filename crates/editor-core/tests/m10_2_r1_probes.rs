@@ -720,7 +720,7 @@ fn r1_measure_at_dual64_value_channel_is_bit_identical_tangent_zero() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -821,7 +821,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH, Dimension::Length).expect("finite"),
+            bound: len(DEPTH),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -838,7 +838,7 @@ fn r1_assertion_at_the_bound_holds_and_in_the_band_is_unevaluated() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(DEPTH - 5.0 * eps, Dimension::Length).expect("finite"),
+            bound: len(DEPTH - 5.0 * eps),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -869,7 +869,7 @@ fn r1_ops_refuse_measurement_operands_typed() {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+            bound: len(0.1),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -985,7 +985,7 @@ fn corruptible() -> ProfileDoc {
         &doc,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.777, Dimension::Length).expect("finite"),
+            bound: len(0.777),
             dir: AssertionDir::AtLeast,
         },
     );
@@ -1163,7 +1163,7 @@ fn r1_own_document_web_and_flip() {
         &d6,
         Node::Assertion {
             measure: m,
-            bound: Expr::literal(0.05, Dimension::Length).expect("finite"),
+            bound: len(0.05),
             dir: AssertionDir::AtLeast,
         },
     );

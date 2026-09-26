@@ -145,7 +145,7 @@ pub fn xform(
         input,
         translation: translation.map(len),
         rotation_axis: axis.map(scl),
-        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
+        rotation_angle: ang(angle),
     }
 }
 
@@ -169,15 +169,10 @@ pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-pub fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-pub fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-pub fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
+/// The literal of each dimension — `editor_core::test_support`'s, which
+/// the crate's own unit-test modules read too, re-exported so a suite
+/// imports them from here beside the rest of its authoring doors.
+pub use editor_core::test_support::{ang, len, scl};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///

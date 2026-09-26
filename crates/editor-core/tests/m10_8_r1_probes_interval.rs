@@ -35,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::{DecisionShape, ShapeOutcome};
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_7_plate::plate;
 use crate::m10_7_r2_probes_interval::bracket as r2_bracket;
 use crate::m10_8_arc_family_interval::replay;
@@ -254,8 +254,6 @@ fn r1_ceilings_per_variant() {
 /// `scale` multiplies every tolerance; `1.0` is the study a user would
 /// ask for.
 pub(crate) fn annulus(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {

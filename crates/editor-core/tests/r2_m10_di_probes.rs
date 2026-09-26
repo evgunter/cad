@@ -39,6 +39,7 @@
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::{len, scl};
 use corpus::{documents, eval, failures};
 use editor_core::eval::KeyHasher;
 use editor_core::{
@@ -538,12 +539,9 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let mut r = fixture::Recorder::new();
     let disc = LoopProgram::circle(0.0, 0.0, 0.75).unwrap();
     let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,

@@ -31,7 +31,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::desc;
+use fixture::{ang, desc, len, scl};
 use geom_core::Tol;
 
 const GOLDEN: &str = include_str!("golden/golden.cad");
@@ -59,12 +59,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             .expect("golden edit")
             .doc
     };
-    let lpt = |x: f64, y: f64| {
-        [
-            Expr::literal(x, Dimension::Length).expect("finite"),
-            Expr::literal(y, Dimension::Length).expect("finite"),
-        ]
-    };
+    let lpt = |x: f64, y: f64| [len(x), len(y)];
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     // v15: `depth` carries a distribution, so the frozen bytes pin the
     // populated `distribution` key rather than only its absence.
@@ -113,7 +108,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(2.0, 1.0)),
-            b: Expr::literal(0.25, Dimension::Scalar).expect("finite"),
+            b: scl(0.25),
         }),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
@@ -157,7 +152,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         // A declared-tangent straight leg RIDES the inherited
         // direction, so it authors as a LENGTH (`line(1.5)` — the
         // (1, 1.5) → (1, 3) run), not a second target.
-        ProgramStep::Line(Expr::literal(1.5, Dimension::Length).expect("finite")),
+        ProgramStep::Line(len(1.5)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 3.0))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
@@ -173,8 +168,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     );
     // v4: the constructed fillet authors as the chain fillet form
     // (exact `toward` directors — G1/VQ4).
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-    let len0 = || Expr::literal(0.0, Dimension::Length).expect("finite");
+    let len0 = || len(0.0);
     let fillet_loop = LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
@@ -183,7 +177,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             dx: scl(-1.0),
             dy: scl(0.0),
         },
-        ProgramStep::Fillet(Expr::literal(0.5, Dimension::Length).expect("finite")),
+        ProgramStep::Fillet(len(0.5)),
         ProgramStep::Toward {
             dx: scl(0.0),
             dy: scl(1.0),
@@ -238,7 +232,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: editor_core::RecipeNodeId(5),
-                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                distance: len(0.5),
             },
         },
     );
@@ -247,7 +241,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Node::chamfer(
                 editor_core::RecipeNodeId(6),
-                Expr::literal(0.1, Dimension::Length).expect("finite"),
+                len(0.1),
                 fixture::prism_edges(&doc, editor_core::RecipeNodeId(6), 4),
             ),
         },
@@ -308,9 +302,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                         ParamName::new("depth"),
                         Dimension::Length,
                     )),
-                    editor_core::MeasureExpr::value(
-                        Expr::literal(0.25, Dimension::Length).expect("finite"),
-                    ),
+                    editor_core::MeasureExpr::value(len(0.25)),
                 )
                 .expect("same-dimension subtraction"),
                 // Read at node 2, the extrude that owns the body: the
@@ -334,7 +326,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
                 // typed (`AssertionTarget`) rather than letting a
                 // golden freeze an assertion over the wrong node.
                 measure: editor_core::RecipeNodeId(8),
-                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                bound: len(0.1),
                 dir: editor_core::AssertionDir::AtLeast,
             },
         },
@@ -391,9 +383,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::Tube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
-                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                major_radius: len(2.0),
                 window: editor_core::TubeWindow::Full,
-                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                minor_radius: len(0.5),
             },
         },
     );
@@ -403,13 +395,13 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             node: Node::HollowTube {
                 spine,
                 u_ref: [scl(1.0), scl(0.0), scl(0.0)],
-                major_radius: Expr::literal(2.0, Dimension::Length).expect("finite"),
+                major_radius: len(2.0),
                 window: editor_core::TubeWindow::Arc {
-                    t0: Expr::literal(0.0, Dimension::Angle).expect("finite"),
-                    t1: Expr::literal(1.5, Dimension::Angle).expect("finite"),
+                    t0: ang(0.0),
+                    t1: ang(1.5),
                 },
-                minor_radius: Expr::literal(0.5, Dimension::Length).expect("finite"),
-                wall: Expr::literal(0.125, Dimension::Length).expect("finite"),
+                minor_radius: len(0.5),
+                wall: len(0.125),
             },
         },
     );
@@ -439,7 +431,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: box_profile,
-                distance: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                distance: len(0.5),
             },
         },
     );
@@ -449,7 +441,7 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
         &DocEdit::InsertNode {
             node: Node::shell(
                 block,
-                Expr::literal(0.0625, Dimension::Length).expect("finite"),
+                len(0.0625),
                 vec![StableName {
                     kind: EntityKind::Face,
                     node: block,

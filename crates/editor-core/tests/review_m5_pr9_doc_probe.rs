@@ -14,6 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{len, scl};
 use editor_core::{
     BooleanOp, BooleanValue, CancelToken, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc,
     ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, ValuePayload, apply, evaluate, load,
@@ -50,16 +51,11 @@ impl Rec {
 
 /// A sketch frame node, from raw component triples.
 fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    let scl = |v: f64| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap();
     Node::Datum(editor_core::Datum::Frame {
         origin: origin.map(len),
         u: u.map(scl),
         v: v.map(scl),
     })
-}
-
-fn len(v: f64) -> editor_core::Expr {
-    editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()
 }
 
 /// The boss-union document: 3x3x0.8 plate, r=0.35 three-arc boss at
@@ -200,12 +196,7 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
     let mut r = Rec::new();
     // v4: the declared-tangent joints [2, 3] author structurally —
     // `.tangent()` before the arc and before the leg out of it.
-    let lpt = |x: f64, y: f64| {
-        [
-            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
-            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
-        ]
-    };
+    let lpt = |x: f64, y: f64| [len(x), len(y)];
     let lp = LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, 0.0)),
         ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 0.0))),
@@ -215,18 +206,13 @@ fn tangent_intersection_edges_survive_save_load_at_rest() {
         ProgramStep::Tangent,
         // Declared-tangent straight leg: rides the inherited
         // direction, authored as its LENGTH (0.75 → lands at (0,1)).
-        ProgramStep::Line(
-            editor_core::Expr::literal(0.75, editor_core::Dimension::Length).unwrap(),
-        ),
+        ProgramStep::Line(len(0.75)),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,

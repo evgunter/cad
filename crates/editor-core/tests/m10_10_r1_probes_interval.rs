@@ -35,7 +35,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{bound, dials, nominal_box, render_over_band};
 
@@ -48,14 +48,6 @@ const BORE_R: f64 = 0.3e-3;
 /// kernel refuses an undeclared tangency, which is how the first cut
 /// of this fixture died).
 const BULGE: f64 = 2.0;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)

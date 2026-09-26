@@ -27,16 +27,9 @@ use editor_core::{
     Node, ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
     evaluate,
 };
-use fixture::Recorder;
+use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 /// A rectangle `[0, w] × [0, 1]` whose bottom edge is split at `w/2`,
 /// extruded by 1: the two bottom walls WOULD be cosurface for every

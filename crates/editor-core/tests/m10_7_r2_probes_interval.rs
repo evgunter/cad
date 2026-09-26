@@ -34,15 +34,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use crate::fixture::Recorder;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
+use crate::fixture::{Recorder, len, scl};
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)

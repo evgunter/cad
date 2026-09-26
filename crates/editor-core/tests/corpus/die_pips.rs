@@ -181,17 +181,12 @@ pub fn document() -> CorpusDoc {
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
 pub fn half_disc_program() -> LoopProgram {
-    let lpt = |x: f64, y: f64| {
-        [
-            editor_core::Expr::literal(x, editor_core::Dimension::Length).unwrap(),
-            editor_core::Expr::literal(y, editor_core::Dimension::Length).unwrap(),
-        ]
-    };
+    let lpt = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
         ProgramStep::At(lpt(0.0, -PIP_R)),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
             target: ProgramTarget::Point(lpt(0.0, PIP_R)),
-            b: editor_core::Expr::literal(1.0, editor_core::Dimension::Scalar).unwrap(),
+            b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])

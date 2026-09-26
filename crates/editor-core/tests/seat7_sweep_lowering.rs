@@ -400,10 +400,7 @@ fn one_shared_radius_declares_across_two_extruded_circles() {
 fn two_radii_spelled_differently_do_not_declare() {
     let doc = doc_with_r("seat7-two-radii");
     let (doc, a) = cylinder(doc, param("r"));
-    let (doc, b) = cylinder(
-        doc,
-        Expr::div(param("r"), Expr::literal(2.0, Dimension::Scalar).unwrap()).unwrap(),
-    );
+    let (doc, b) = cylinder(doc, Expr::div(param("r"), scl(2.0)).unwrap());
     let ev = eval::<f64>(&doc);
     let bad = failures(&ev);
     assert!(bad.is_empty(), "two-radii document:\n{}", bad.join("\n"));

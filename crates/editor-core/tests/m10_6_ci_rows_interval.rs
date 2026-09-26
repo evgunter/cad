@@ -63,7 +63,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// **The committed accounting goldens, ONE PER ε ROW** (row 2).
 ///
@@ -322,11 +322,7 @@ fn distributed_plate() -> ProfileDoc {
     // verdict being taken and holding, not about the band.
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(
-            SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps(),
-            Dimension::Length,
-        )
-        .expect("finite"),
+        bound: len(SPACING - 2.0 * RADIUS - 100.0 * Tol::witness().eps()),
         dir: AssertionDir::AtLeast,
     });
     r.doc
@@ -426,12 +422,8 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             len(0.0),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     let measure = r.insert(
         Node::measure(
@@ -451,7 +443,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
     );
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(0.3, Dimension::Length).expect("finite"),
+        bound: len(0.3),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure)
@@ -889,7 +881,7 @@ fn plain_distance_doc() -> ProfileDoc {
     );
     r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+        bound: len(0.5),
         dir: AssertionDir::AtLeast,
     });
     r.doc

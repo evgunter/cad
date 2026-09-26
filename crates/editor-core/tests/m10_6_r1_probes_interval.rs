@@ -65,7 +65,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -87,10 +87,6 @@ fn name(n: &str) -> ParamName {
 
 fn half() -> f64 {
     Tol::witness().eps() / 64.0
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
 }
 
 fn eval_over<T: editor_core::EvalScalar>(
@@ -147,8 +143,8 @@ fn translate(r: &mut Recorder, input: RecipeNodeId, t: [Expr; 3]) -> RecipeNodeI
     r.insert(Node::Transform {
         input,
         translation: t,
-        rotation_axis: [scalar(0.0), scalar(0.0), scalar(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     })
 }
 

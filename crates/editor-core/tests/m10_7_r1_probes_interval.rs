@@ -19,18 +19,12 @@ use editor_core::{
     ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     evaluate, select_where,
 };
-use fixture::Recorder;
+use fixture::{Recorder, len, scl};
 use geom_core::Tol;
 
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 fn param(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
 }

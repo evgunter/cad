@@ -19,6 +19,7 @@ test_utils::gated_to![
 
 use std::collections::BTreeMap;
 
+use crate::fixture::{len, scl};
 use editor_core::{
     Dimension, DimensionError, Expr, ParamEnv, ParamName, ParseError, eval, eval_count, parse_expr,
     unparse,
@@ -666,7 +667,7 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     // row rather than remembering nothing — there is no unmarked state
     // — so it writes its suffix like any other and the round trip is a
     // fixed point rather than a normalisation.
-    let bare = Expr::literal(0.025, Dimension::Length).expect("finite length");
+    let bare = len(0.025);
     assert_eq!(bare.display_unit().map(|u| u.symbol()), Some("m"));
     let text = round_trip(&bare);
     assert_eq!(text, "0.025 m");
@@ -679,7 +680,7 @@ fn unparse_writes_a_literal_in_the_unit_it_remembers() {
     // The dimensionless row is the one whose notation is the ABSENCE of
     // a suffix, so a Scalar still writes bare digits — and `2.0` rather
     // than `2`, because a bare integer is a `Count` in this grammar.
-    let scalar = Expr::literal(2.0, Dimension::Scalar).expect("finite scalar");
+    let scalar = scl(2.0);
     assert_eq!(scalar.display_unit().map(|u| u.symbol()), Some(""));
     assert_eq!(round_trip(&scalar), "2.0");
 }
@@ -690,7 +691,7 @@ fn a_negative_literal_is_the_one_shape_this_grammar_cannot_spell() {
     // operator — so a negative literal's own source text reads back as
     // the negation of its magnitude: same value, one node deeper.
     // Pinned rather than papered over (`unparse`'s docs state it).
-    let negative = Expr::literal(-0.025, Dimension::Length).expect("finite length");
+    let negative = len(-0.025);
     let text = unparse(&negative);
     assert_eq!(text, "-0.025 m");
     let back = rp(&text);

@@ -12,6 +12,7 @@
 
 use crate::fixture;
 
+use crate::fixture::len;
 use editor_core::resolve::{Diagnosis, RecipeEditRef, ResolveError};
 use editor_core::{
     CancelToken, EntityKind, EvalOptions, Node, NodeErrorKind, NodeResult, ProfileDoc,
@@ -40,10 +41,9 @@ const PROFILE: RecipeNodeId = RecipeNodeId(1);
 const BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
-    use editor_core::{Dimension, DocEdit, Expr, LoopProgram, ProfileProgram, apply};
+    use editor_core::{DocEdit, LoopProgram, ProfileProgram, apply};
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     for edit in [
         DocEdit::InsertNode {
@@ -84,9 +84,8 @@ fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDo
 /// standard N2 TIE source (`m4_pr5_declare.rs`'s fixture, verbatim
 /// geometry). Returns the document and the subtract node.
 fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
-    use editor_core::{BooleanOp, Dimension, DocEdit, Expr, apply};
+    use editor_core::{BooleanOp, DocEdit, apply};
     use fixture::on_frame;
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_refusals", Tol::witness());
     let insert = |doc: &ProfileDoc, node: Node<editor_core::ProfileProgram>| {
         let a = apply(
@@ -180,14 +179,14 @@ fn refuses(
 /// pairs.
 #[test]
 fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
-    use editor_core::{Dimension, DocEdit, EditError, Expr, apply};
+    use editor_core::{DocEdit, EditError, apply};
     let (doc, _) = planted(|doc| vec![rim(doc, BODY, 0)]);
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::fillet(
                 BODY,
-                Expr::literal(0.125, Dimension::Length).expect("a length"),
+                len(0.125),
                 vec![StableName {
                     node: RecipeNodeId(99),
                     ..rim(&doc, BODY, 0)
@@ -210,8 +209,7 @@ fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
 /// diagnosis says DELETED rather than foreign.
 #[test]
 fn a_selection_naming_a_deleted_node_is_node_gone() {
-    use editor_core::{Dimension, DocEdit, Expr, apply};
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
+    use editor_core::{DocEdit, apply};
     // A second extrude off the same profile: nothing depends on it, so
     // it can be deleted out from under the selection.
     let (doc, _) = planted(|doc| vec![rim(doc, BODY, 0)]);
@@ -332,12 +330,7 @@ fn a_tied_selection_name_refuses_ambiguous_with_its_witness() {
     let applied = editor_core::apply(
         &doc,
         &editor_core::DocEdit::InsertNode {
-            node: Node::fillet(
-                us,
-                editor_core::Expr::literal(0.125, editor_core::Dimension::Length)
-                    .expect("a length"),
-                vec![tied.clone()],
-            ),
+            node: Node::fillet(us, len(0.125), vec![tied.clone()]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,

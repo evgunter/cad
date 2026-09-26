@@ -51,7 +51,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, len, scl};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -87,12 +87,9 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
         },
     });
     let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
@@ -127,12 +124,9 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         },
     });
     let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
@@ -144,12 +138,9 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         distance: Expr::param(name("q"), Dimension::Length),
     });
     let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+        origin: [0.0, 0.0, 0.0].map(len),
+        u: [1.0, 0.0, 0.0].map(scl),
+        v: [0.0, 1.0, 0.0].map(scl),
     }));
     let p2 = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
@@ -727,12 +718,9 @@ fn evidence_only_e2e_consumer_walk() {
             },
         });
         let xy_frame_3 = r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [0.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-            u: [1.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-            v: [0.0, 1.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
+            origin: [0.0, 0.0, 0.0].map(len),
+            u: [1.0, 0.0, 0.0].map(scl),
+            v: [0.0, 1.0, 0.0].map(scl),
         }));
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: xy_frame_3,

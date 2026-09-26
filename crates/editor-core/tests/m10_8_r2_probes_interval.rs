@@ -37,17 +37,9 @@ use editor_core::{
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, len, scl};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::nominal_box;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
