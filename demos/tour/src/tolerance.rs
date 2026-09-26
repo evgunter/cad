@@ -82,8 +82,10 @@
 //! byte-identical), so the scaffold residual stands there and their
 //! answers are still ε-scale, waiting on that residual's retirement
 //! (PCURVE/D3). And the mechanism's reach is the UNIT bulge — this
-//! plate's circles: a parameter bulge is entirely outside it and a
-//! literal bulge other than 1 leaves residue
+//! plate's circles: at a parameter bulge the carrier's span and the
+//! pushforward read one `atan b` atom, but what stands is the
+//! coefficient ring and the radius's `abs`, and a literal bulge other
+//! than 1 leaves residue
 //! (`work/sym/rule-d-reaches-the-unit-bulge-only`). So the honest
 //! general statement is: **a real study on circle-authored geometry
 //! certifies up to its real flips, and a study whose arcs carry a
@@ -277,14 +279,15 @@ fn real_study(tol: Tol) {
                  up to that flip: every refusal above is the leaf budget, sitting along \
                  the surface where the web crosses the floor, and refining a refused leaf \
                  leaves assert_bound alone over the band. What moved it: M10-9's door \
-                 registers the rim ‖q − c‖ = r and the span carrier.eval(4·atan|b|) = \
+                 registers the rim ‖q − c‖ = r and the span carrier.eval(|Δθ|) = \
                  q_to; M10-10's rule D writes sin/cos of q·atan(bulge) in closed form and \
                  rules A/B per node close the ring (carrier_matches_mapped_source 72, \
                  carrier_on_surface_2 72, witness_on_surface_2 8 decisions); A1 folds the \
                  chart's phase atan2(0, r²/sqrt(r²)) to the zero form and cos π to −1 \
                  (pcurve_map_residual 36). No value was read by any of them. The reach: \
-                 the unit bulge (this plate's circles) — a parameter bulge is outside the \
-                 mechanism and a literal bulge other than 1 leaves residue \
+                 the unit bulge (this plate's circles) — at a parameter bulge the coefficient \
+                 ring and the radius's abs still stand, and a literal bulge other than 1 \
+                 leaves residue \
                  (work/sym/rule-d-reaches-the-unit-bulge-only); what still bounds R2's \
                  bracket and link is the term budget freezing their carrier frames' \
                  squared components (work/sym/symbolic-tier-census)."

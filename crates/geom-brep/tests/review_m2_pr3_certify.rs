@@ -47,12 +47,14 @@ use geom_core::{Affine3, Point2, Point3, Vec3};
 /// winding within the period.
 #[test]
 fn fixed_winding_aliased_arc_interval_refused() {
-    let bulge = (PI / 8.0).tan(); // quarter arc, CCW, unit circle
+    // The quarter arc, counterclockwise, on the unit circle.
     let desc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: FRAC_PI_2,
         },
         place: Affine3::identity(),
     };
@@ -118,12 +120,13 @@ fn fixed_winding_aliased_full_period_refused() {
 /// schedule only aliases at 8k·tau).
 #[test]
 fn survives_wrong_carriers_are_rejected() {
-    let bulge = (PI / 8.0).tan();
     let arc = MappedCurve::PlacedSegment {
         segment: SketchSegment::Arc {
             a: Point2::new(1.0, 0.0),
             b: Point2::new(0.0, 1.0),
-            bulge,
+            centre: Point2::new(0.0, 0.0),
+            radius: 1.0,
+            sweep: FRAC_PI_2,
         },
         place: Affine3::identity(),
     };

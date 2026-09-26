@@ -7,7 +7,7 @@ opened: 2026-09-25
 priority: P1
 cost: D
 parent: lower-profiles-to-carrier-and-interval-not-vertex-and-bulge
-blocked_on: [circle-lowers-to-one-segment]
+blocked_on: [geom-brep-sketch-segment-full-turn]
 ---
 
 
@@ -58,3 +58,40 @@ From #3231's review:
 - `RawLoop::new` adds a carrier→bulge copy, `(sweep/4).tan()`, which
   joins `sugar.rs::bulge_from_center`'s tail and `path/verbs.rs`. All
   three go when the kept bulge retires.
+
+**From `geom-brep-sketch-segment-full-turn` (2026-09-25; corrected in
+its fix pass).** The net count of bulge→carrier copies is **six**, not
+seven minus two.
+- **Two are gone.** `SketchSegment::eval` reads the segment's stored
+  centre and sweep. `skin::segment_curve` reads the stored centre,
+  radius and sweep. Both are still `seg::arc_carrier`'s derivation,
+  carried across the boundary.
+- **One was added.** `geom-brep/tests/shared/arc.rs::lowered_arc`
+  restates `seg::arc_carrier` plus `Δθ = 4·atan b` at `Interval`. The
+  arc-evaluation anchor rows need a carrier derived from a wide chord,
+  and `geom-brep` sits below `profile` in the layering, so it cannot
+  call the lowering.
+- **Beside that copy, not counted.** The same two suites
+  (`arc_eval_anchor.rs::short_arc` and
+  `review_arceval_r1_probes.rs::short_sub_arc`) re-spell the retired
+  restriction's sub-arc bulge `tan(atan b·Δs)` to build a short arc
+  whose centre is derived from its own chord.
+- **Routed through the lowering, not copies.**
+  `sweep::test_support::bulge_arc` forwards to `bulge_loop`. The tour's
+  sweep path authors `arc_to(Bulge)` and reads the canonical segment back.
+
+`ValidatedSegment::bulge` has no reader left in `geom-brep`, `topo` or
+`sweep`. Its readers are the lift (profile), `anchor`, the `stackup`
+digest and `viewer::flatten`.
+
+**The sweep boundary is in this unit's check (from #3254's review).**
+`geom_brep::SketchSegment::Arc` carries `a, b, centre, radius, sweep`.
+`eval` reads `a`, `centre` and `sweep`; `sweep::skin::segment_curve`
+(public through `sweep` and `pncad`) also trusts `radius`; nothing
+checks their consistency at the type's door, so an inconsistent
+`radius` converts through `segment_curve` while certification, which
+reads `eval`, passes. The validate-time endpoint-on-carrier check owed
+here must cover the segment as it crosses into `geom-brep`, not only the
+profile's stored segment. Taking `segment_curve`'s radius from
+`|a − centre|` was tried and moves the elbow's STEP golden, sidecars and
+mesh digests, so it was left for this unit.

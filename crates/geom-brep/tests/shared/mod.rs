@@ -66,6 +66,7 @@
 //! for `point`, `Interval`'s two doors for `ring` — and the
 //! spellings that are a different value stay put and say so.
 
+pub(crate) mod arc;
 pub(crate) mod fixture;
 pub(crate) mod interval;
 pub(crate) mod patch;

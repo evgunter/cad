@@ -592,7 +592,10 @@ fn fixed_planar_face_arc_boundary_bulge_reported_at_tier3() {
             segment: SketchSegment::Arc {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
-                bulge: 1.0, // half circle
+                // The half circle about (0.5, 0), counterclockwise.
+                centre: Point2::new(0.5, 0.0),
+                radius: 0.5,
+                sweep: core::f64::consts::PI,
             },
             place: Affine3::identity(),
         }),
@@ -653,7 +656,9 @@ fn fixed_aliased_interval_refused_at_public_setter() {
             segment: SketchSegment::Arc {
                 a: Point2::new(0.0, 0.0),
                 b: Point2::new(1.0, 0.0),
-                bulge: 1.0,
+                centre: Point2::new(0.5, 0.0),
+                radius: 0.5,
+                sweep: PI,
             },
             place: Affine3::identity(),
         }),

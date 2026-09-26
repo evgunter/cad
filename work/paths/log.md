@@ -244,3 +244,98 @@ Declined, with reasons:
 Also on this PR: main's `topo` stopped compiling (the `RingMeetsOuter`
 `Display` was missing three `RingContact` arms after #3185 met
 `a3d5c47e1`). The fix is ported here and announced on ATREST's log.
+
+## 2026-09-25 — #3231 merged; resequenced; unit 2 dispatched
+
+`fixture-door-takes-canonical-segments` merged as #3231. It also
+carried the fix for main's `topo` compile break (announced on ATREST's
+log).
+
+**Order now.** The review of #3231 showed that re-lowering from
+(chord, kept bulge) turns a one-segment circle's carrier into NaN. So
+the order is:
+1. `geom-brep-sketch-segment-full-turn` (unit 2, dispatched now);
+2. `store-constructed-carriers` (unit 5; moved ahead, because it makes
+   re-lowering carry the stored carrier);
+3. `one-segment-loop-through-builders` (unit 3);
+4. `circle-lowers-to-one-segment` (unit 4);
+5. `pncad-surface-for-canonical-segments` (unit 6).
+
+The rows' `blocked_on` fields are updated to match.
+
+**Unit 2's tier: dual.** It is the shared numeric representation of
+every profile-built edge, and it is expected to move bits in ulps. Its
+spec forbids any decision flip.
+
+## 2026-09-25 — unit 2 (#3254) stops on three moved decisions
+
+The implementer stopped, as the spec requires, on three results:
+- **Recut refusal becomes Ok.** At Interval / 1e-12 the recut now
+  decides. The likely cause is that `restrict` keeps the exact parent
+  carrier.
+- **r1_annulus certifies less.** Its certified fraction fell at
+  eps = 1e-6.
+- **`sym_thin_strip` loses Theorems.** Four decisions went from Theorem
+  to NumericZero, and the cause has not been attributed.
+
+Rulings, sent to the lane:
+1. **The recut flip** is accepted only on a demonstrated soundness
+   check: the restricted enclosure must contain the true sub-arc. The
+   escalation constant is re-pinned against a fixture that still
+   reaches it. If no fixture does, a row goes to the constant's owner.
+2. **The ceiling fall** is attributed by toggling each change. The
+   `abs` span against the sign-by-turn span is my call if that turns
+   out to be the trade. The pinned ceiling is never lowered.
+3. **The lost Theorems** are attributed against main alone first. They
+   are not re-baselined until attributed.
+4. **The `turned_span` conflict** with DECIDE's `props/sign-hull` is
+   announced on DECIDE's log.
+
+Review stays dual, dispatched once these settle.
+
+## 2026-09-26 — local CI while hosted CI queues
+
+Ev (in chat, then #3276's `local-scripts/hosted-ci-guard.sh`): when the
+hosted queue is deeper than a local run is long, a local whole-matrix
+run is allowed. How PATHS uses it:
+- **The command:**
+  `CAD_LOCAL_CI_OVERRIDE=i-certify-this-run-should-not-be-hosted local-scripts/ci-local.sh --full`.
+- **Only on an otherwise idle box.** It takes every build slot, so it
+  never runs beside a reviewer's or implementer's build.
+- **What it answers.** Beside a queued hosted run it is an early answer,
+  and hosted is still the gate. It is the gate itself only while hosted
+  is down. Merging on the early answer before hosted lands is the owner's
+  call. PATHS makes that call per PR, in this log. A hosted red that lands
+  after such a merge is fixed forward on main at once.
+- **Implementer and fix-pass briefs** run the scoped local battery before
+  pushing (`memories/local-battery-scope.md`). They run the override run
+  only when the box is idle and a hosted queue stands in the way.
+
+## 2026-09-26 — unit 2's dual review in; fix pass dispatched
+
+Both reviews of #3254 on 8c275c72 came back APPROVE-WITH-FIXES, with
+no MAJOR.
+- **R1** executed its checks: the recut containment was confirmed
+  independently at 60 digits, and the apex was checked for both turns.
+- **R2** was interrupted twice by forced hand-backs during builds, so
+  its review is inspection-only. The pair probably does not count as
+  fair (method divergence by interruption). The blinded coder is
+  judging that.
+
+The fix pass is given the union. Its main item is the Interval apex
+width: the carrier-built apex takes the centre's radius-scale width,
+3.6e-12 at b = 1e-4. It is to be measured base against head on R2's
+grid, and a chord-scale form that reads Δθ is to be tried. The rest:
+- correct the disclosure table from the tree;
+- re-word C6 from "not possible" to "not chosen" (a blend is
+  bit-exact; filed);
+- sweep the stale `atan|b|` premises;
+- inventory the new hand copies on unit 5;
+- document the redundant fields;
+- measure `offset_axial::reauthor`.
+
+**Ev, 2026-09-26 (in chat): "please merge on local green without waiting
+for ci."** From now on PATHS merges on a green
+`CAD_LOCAL_CI_OVERRIDE=… local-scripts/ci-local.sh --full` run at the
+PR's head, without waiting for hosted CI. A hosted red that lands later
+is fixed forward on main at once.

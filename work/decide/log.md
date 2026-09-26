@@ -579,6 +579,44 @@ so it is not DUAL.
 Spec `docs/DECIDE-6-SPEC.md`. Branch `decide/6-read-cost` from
 `props/sign-hull` at `1264640fa`.
 
+## Announced seam from PATHS (2026-09-25): the carrier's span is the stored sweep signed by the turn
+
+When `geom-brep-sketch-segment-full-turn` lands on `main`, the sweep's
+arc span (`sweep::swept::arc_span`) is the segment's stored sweep Δθ
+signed by the decided turn — `Δθ` for a counterclockwise arc, `0 − Δθ`
+for a clockwise one — and no longer `4·atan|b|`. No bulge crosses into
+`geom-brep` any more, so there is no `b` to spell the span on.
+
+- **What rule D sees.** The lowering mints Δθ as `4·atan b`, and the
+  pushforward (`geom_brep::SketchSegment::eval`) turns through the same
+  stored Δθ. Carrier and pushforward therefore read ONE `atan b` atom,
+  so the two spellings meet as theorems at a parameter bulge of either
+  sign. `sym.rs`'s `rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`
+  now asserts that, where it used to pin the parameter case numeric.
+  This is Ev's route B (#3186) in the Δθ spelling. `props/sign-hull`'s
+  `turned_span` (`4·atan(σ·b)`) conflicts with it on merge-forward; the
+  resolution is the sweep form, since `b` is no longer carried.
+- **What `register_span_identity` is about.** It is stated about that
+  signed sweep. Its proof is unchanged: the span is the arc's turned
+  angle by definition of the lowering.
+- **Measured on `main`'s tier.** R2's link: 20 decisions move into the
+  door, 10 from `numeric` and 10 from `symbolic_zero` (515 → 505,
+  registered 90 → 110), at every ε row. Nothing is refused or
+  contradicted, and no ceiling moves. The plate, annulus, bracket and pad
+  are unmoved. `m10_bulge_interval`'s nominal splits are unmoved on all
+  three documents (the D-tab's forms freeze on the ring first). Every
+  pinned rule-D row passes: `m10_10_pins_interval` and `sym.rs`'s rows.
+  The parameter-bulge span now folds where it did not. The link's ten
+  lost theorems were not rendered, so whether any of them is a rule-D
+  fold is not established here.
+- **Not the span.** `sweep`'s thread-count session row
+  `sym_thin_strip` loses four `pcurve_iso_boundary` theorems
+  (`symbolic_zero` 26 → 22; outcome Zero both ways). Attributed by toggle
+  to the pushforward reading the stored centre node instead of building
+  it inside `eval`. Filed as
+  `sharing-the-carriers-centre-node-costs-four-iso-boundary-theorems`.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
 ## 2026-09-25 — DECIDE-6 merged into `props/sign-hull` (#3229): the read is not the cost; rule G is
 
 DECIDE-6 closed at its measurement.
@@ -621,6 +659,53 @@ decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
 Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
 `props/sign-hull` at `a7dd5c520`.
 
+## Announced seam from PATHS (2026-09-25): `turned_span` on `props/sign-hull` against #3254's `arc_span`
+
+This PR and `props/sign-hull` spell the carrier's span differently, and
+the two branches conflict line by line when `props/sign-hull` merges
+forward past #3254.
+
+**Where they conflict:**
+- **`crates/sweep/src/swept.rs`.** `props/sign-hull` has
+  `turned_span(turn, bulge) = 4·atan(σ·b)`, `span_magnitude(bulge) =
+  4·atan|b|` and `turn_negates(turn)`. `placed_segment_spec` calls
+  `turned_span(turn, seg.bulge())`. #3254 has
+  `arc_span(turn, sweep) = σ·Δθ` (`Δθ` for a counterclockwise arc,
+  `0 − Δθ` for a clockwise one), called as `arc_span(turn, sweep)`.
+- **`SweptChord::bulge()`, `SweptSeg::bulge` and
+  `SketchSegment::Arc { bulge }`.** #3254 removes them all, so every
+  call site on `props/sign-hull` that reads `seg.bulge()`,
+  `s.bulge` or the description's `bulge` stops compiling.
+- **`crates/sweep/src/revolve/axis.rs`.** `axis_arc_span` reads
+  `span_magnitude(s.bulge)` on `props/sign-hull` and
+  `arc_span(turn, sweep)` on #3254.
+- **`crates/sweep/src/revolve/tube.rs`.** `circle_traversal`'s bulge
+  sign reads `turn_negates` on `props/sign-hull`. #3254 stores the sweep
+  `±4·atan 1` instead.
+- **Tests.** `turned_span`'s rows in `swept.rs`'s tests
+  (`tests::turned_span_is_span_magnitude_to_the_bit`, and the
+  `samples` helper that destructures `SketchSegment::Arc { bulge, .. }`)
+  and `tube.rs`'s tests (`turned_span(t, seg.bulge)`).
+
+**Which spelling wins: #3254's `arc_span(turn, sweep)`.** After the
+merge there is no bulge on either side of the boundary to spell `4·atan(σ·b)` on. Both
+spellings are route B (#3186):
+- `σ·Δθ` with `Δθ` the lowering's `4·atan b` is `σ·4·atan b`. It is the
+  pushforward's own sweep node, so rule D folds it through the one
+  `atan b` atom.
+- `4·atan(σ·b)` reached the same closed forms only up to `(−b)² = b²`.
+
+The value channel is the same to the bit at `f64` either way, because
+`atan` is odd. `turn_negates` can stay, as the one reader of the turn
+that `arc_span`, `turn_axis` and the tube can share. `span_magnitude`
+goes, and `axis_arc_span` reads `arc_span`. `turned_span`'s rows port to
+`arc_span`: the parameter-bulge row
+(`the_carriers_span_meets_the_pushforwards_at_a_parameter_bulge_of_either_sign`)
+must stay a theorem under the ported spelling. #3254's own
+`sym.rs` row (`rule_d_meets_the_carrier_and_the_pushforward_at_every_sample`)
+already asserts that at b = ±0.7.
+
+Signed (PATHS, `geom-brep-sketch-segment-full-turn` lane).
 ## 2026-09-26 — DECIDE-7 merged into `props/sign-hull` (#3246): rule G's cost was the repeated reduction, now memoised
 
 **Where the time was.** Rule G's own mint site is 0.35% of what it

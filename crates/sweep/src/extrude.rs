@@ -369,7 +369,7 @@ impl From<EulerOpError> for ExtrudeError {
 /// reaching any of them.
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct WallSeg<T: Real> {
-    /// The swept traversal record: endpoints, bulge, carrier class and
+    /// The swept traversal record: endpoints, carrier class and
     /// canonical indices, all in swept traversal order.
     pub(crate) chord: swept::SweptSeg<T>,
     /// The wall face's orientation sense (M5 S11): `false` iff the
@@ -428,9 +428,6 @@ impl<T: Real> SweptChord<T> for WallSeg<T> {
     }
     fn b(&self) -> Point2<T> {
         self.chord.b
-    }
-    fn bulge(&self) -> T {
-        self.chord.bulge
     }
     fn kind(&self) -> SweptKind<T> {
         self.chord.kind
@@ -1152,6 +1149,7 @@ fn side_surface<T: Decide>(
             center,
             radius,
             turn,
+            ..
         } => {
             // The carrier axis line is the arc's center extruded:
             // `place · (center, 0)` — the same computation the rim
@@ -1183,7 +1181,7 @@ fn side_surface<T: Decide>(
 /// witness }` (module docs, step 6 — the ratified rim decision). The
 /// witness is minted as the **carrier's mid-parameter point** — the S2
 /// witness contract (`WitnessMidpoint`): for arc rims the chord
-/// midpoint lies off the carrier by the bulge height, so `carrier(mid)`
+/// midpoint lies off the carrier by the sagitta, so `carrier(mid)`
 /// is the only honest mint (for line rims it coincides with the chord
 /// midpoint to rounding). The certified carrier and parameter interval
 /// are kept verbatim; the re-description goes through `topo`'s

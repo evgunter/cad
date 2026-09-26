@@ -2090,7 +2090,7 @@ fn plan_reanchors<T: Decide>(
             // what caught it.
             //
             // The refusal is mirrored onto the new home DELIBERATELY,
-            // not by omission: an arc's bulge and a trajectory's
+            // not by omission: an arc's carrier and a trajectory's
             // family are sketch data this door cannot author, and that
             // was a refusal before the collapse. Dropping the
             // declaration instead would silently flip
@@ -2102,7 +2102,7 @@ fn plan_reanchors<T: Decide>(
                     ReplaceFaceError::CarrierLaneUnsupported {
                         edge,
                         what: "a re-anchored mapped description that is not a placed line \
-                               segment (an arc's bulge and a trajectory's family are sketch \
+                               segment (an arc's carrier and a trajectory's family are sketch \
                                data this door does not author)",
                     },
                 )

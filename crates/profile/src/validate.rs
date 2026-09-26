@@ -1104,10 +1104,11 @@ pub struct ValidatedSegment<T: Real> {
     /// canonical form. **Consumers select carriers by
     /// [`ValidatedSegment::kind`], never by the bulge** — a
     /// sub-tolerance bulge classifies as `Line` while retaining its
-    /// value. The one boundary that still reads the bulge itself is the
-    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
-    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
-    /// the segment they build.
+    /// value. Nothing downstream of validation reads it: the sweep's
+    /// arc span and apex and the `geom-brep` sketch segment read the
+    /// kind's carrier and sweep. What still reads it is this crate's
+    /// lift (the carrier at a certified scalar is rebuilt from it) and
+    /// the readers `store-constructed-carriers` retires.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).

@@ -255,11 +255,13 @@ pub(crate) mod certified {
     /// escalates on (metres), measured at the FIRST escalating sample
     /// of the crossing insertion's second child — certification aborts
     /// there, so later samples of that edge never run and this is not a
-    /// claim about them. It is ε-INDEPENDENT — the same bits at every ε
-    /// — because it is the interval lane's enclosure width, a property
-    /// of the arithmetic that built the two points, not of the
-    /// tolerance they are judged against. The row therefore certifies
-    /// exactly when ε is at or above it.
+    /// claim about them. It is NOT ε-independent: it tracks ε
+    /// (1.068e-13 at ε = 1e-13, 5.24e-14 at 5e-14), because the
+    /// crossing's parameter, which the restricted sub-arc's endpoints
+    /// are evaluated at, is solved to an enclosure the band sets. At
+    /// 2e-13 and above the chain certifies. So this value is the one
+    /// measurement at ε = 1e-13, and the escalation arm below is exact
+    /// at that ε alone.
     ///
     /// The escalation arm below pins `hi` to this value BIT-EXACTLY, in
     /// both directions. A regression that widens the arc chain is loud,
@@ -268,12 +270,13 @@ pub(crate) mod certified {
     /// upper-bound-only guard would admit in silence. Either way the
     /// answer is the same: re-measure and re-state the constant, never
     /// loosen the guard around it.
-    // **Re-measured 2026-08-31.** Was `1.1414768974413613e-12`. The arc
-    // chain tightened under enclosure work that merged with gates
-    // drawing default-ε only, so no run compared this constant until a
-    // later branch drew (interval, 1e-12). Re-stated, not loosened, as
-    // the constant's own doc requires.
-    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
+    // **Measured at ε = 1e-13**, the one decade the escalation is
+    // reached at: the restricted sub-arc keeps its parent's exact
+    // carrier, so the chain's enclosure fits inside every gated ε row
+    // (1e-6, 1e-9, 1e-12) and this branch is reached by none of them
+    // (`work/tcost/the-sphere-recut-escalation-is-reached-by-no-gated-eps-row.md`).
+    // Reproduce with `CAD_TOLERANCE_EPS=1e-13`.
+    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.067_935_871_462_854_8e-13;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified
