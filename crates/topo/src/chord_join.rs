@@ -245,15 +245,14 @@ pub enum SplitJoinError {
     /// the joining invariant (heads join heads, tails join tails)
     /// failed (kernel bug, loudly).
     ///
-    /// **One reachable non-bug source is known, and the doc above still
-    /// stands for every other**: a PLANAR pierce ring — a box driven
-    /// through a cylinder CAP — arrives here, because a ring's section
-    /// loop has no above/below-paired boundary to join in the first
-    /// place. That is the ring's own absent join arm surfacing at this
-    /// guard, not the guard misfiring, and it is tracked with the
-    /// curved sibling ([`ArcWindowCase::NoChartedRun`]) in the
-    /// ring-join unit (#1291). Until that unit lands, this variant is
-    /// the honest report for it.
+    /// **A reachable source that was not a join bug**: a box driven
+    /// through a cylinder CAP arrived here while `point_in_solid`'s
+    /// planar arm read an arc-bounded cap as the polygon through its
+    /// vertices — the join's role probe then saw the cap as transparent
+    /// and the section loop came back mixed. That arm now crosses arcs
+    /// on their circles and the cap pierce joins. `work/tang/`'s
+    /// pierce-ring row records the other measured arrival (an engraving
+    /// pose) and that its cause is unmeasured against this one.
     SectionLoopMixed {
         /// The offending null face.
         face: FaceKey,
