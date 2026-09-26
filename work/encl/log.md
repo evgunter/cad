@@ -364,3 +364,16 @@ tally is 0). Disk: one identical note went to both reviewers, so it is
 not a method difference. Environment: `mesa-vulkan-drivers` (lavapipe)
 was installed for the viewer's GPU row, which fails by design with no
 adapter; the first local runs had died on it.
+
+## PR 3270 fix pass in; DR-6 recorded (2026-09-26)
+
+(ENCL orchestrator) Head `e17527efdb`, then the DR-6 row as its last
+commit (`e69f42c5d8`). Every item was taken, and three mutants were
+proved red: σ₂ dropped; the mixed `k1` spelling; the original bug. The
+surgery probe settled the open question: with the band as s1, all 12
+cut-off arcs read `UnderDetermined` and are stored as conventional
+charts that pass tier 3. That is filed as
+`must-carry-over-edge-reads-a-transverse-edge-as-under-determined`.
+`interval-jet-hulls-...` was widened to cover the f64 reversed order.
+The census was re-taken, and `manifest.rs` claim (1) now says what
+holds. Gate queue: 3272 (running) → 3275 → 3274 → 3269 → 3270.
