@@ -28,7 +28,7 @@ use geom_core::{Tol, Vec3};
 use sweep::test_support::block;
 use topo::Body;
 
-use super::shell7_common::{face_of_he, tol};
+use super::shell7_common::tol;
 use super::shell8_common::cap;
 use super::verbs_shell::{tube, vessel};
 
@@ -39,7 +39,7 @@ pub(crate) fn rows(body: &Body<f64>) -> Vec<String> {
         .map(|(he, cache)| {
             format!(
                 "he {he:?} face {:?} params {:?} pcurve {:?}",
-                face_of_he(body, he),
+                body.face_of_half_edge(he).unwrap(),
                 cache.params(),
                 cache.pcurve()
             )

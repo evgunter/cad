@@ -169,7 +169,6 @@ fn corner_forms(body: &Body<f64>) -> Vec<(String, usize)> {
             .collect();
         names.sort_unstable();
         let form = format!("{} [{}]", names.len(), names.join(" ∩ "));
-        let _ = v;
         match tally.iter_mut().find(|(f, _)| *f == form) {
             Some((_, n)) => *n += 1,
             None => tally.push((form, 1)),

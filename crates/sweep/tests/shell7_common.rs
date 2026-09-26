@@ -10,7 +10,7 @@ use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
-use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError, VertexKey};
+use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
 
 pub(crate) fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -115,16 +115,15 @@ pub(crate) fn carrier(body: &Body<f64>, e: EdgeKey) -> (Curve3<f64>, (f64, f64))
     (c.carrier().clone(), c.params())
 }
 
-pub(crate) fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
 /// A seam to the door: an edge whose two sides lie on one SURFACE,
 /// whether or not they are one face.
 pub(crate) fn same_surface(body: &Body<f64>, e: EdgeKey) -> bool {
     let d = body.get_edge(e).unwrap();
-    let k = |he| body.get_face(face_of_he(body, he)).unwrap().surface;
+    let k = |he| {
+        body.get_face(body.face_of_half_edge(he).unwrap())
+            .unwrap()
+            .surface
+    };
     k(d.he_plus) == k(d.he_minus)
 }
 

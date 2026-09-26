@@ -211,6 +211,17 @@ fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
     }
 }
 
+/// A vertex door's answer ([`Body::edges_of_vertex`],
+/// [`Body::faces_of_vertex`]) at a vertex this module reached as the
+/// end of a link or a rim crossing — so edges DO meet it, and an empty
+/// answer means it holds no emanating half-edge: a corrupt body, not a
+/// valence. Folded into the door's own refusal (`None`) so every
+/// caller refuses it as the walk that does not close, never as a
+/// geometric configuration with a recourse attached.
+pub(super) fn fan_at<K>(door: Option<Vec<K>>) -> Option<Vec<K>> {
+    door.filter(|fan| !fan.is_empty())
+}
+
 /// A face's boundary cycle (outer loop, cycle order).
 pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
     let f = body.get_face(face)?;
@@ -423,6 +434,15 @@ mod tests {
     use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, all_links, cube};
+
+    /// An empty fan is the corruption refusal; a stale key's `None`
+    /// stays one; a live fan passes through untouched.
+    #[test]
+    fn an_empty_fan_refuses_like_a_broken_orbit() {
+        assert_eq!(super::fan_at::<u8>(Some(vec![])), None);
+        assert_eq!(super::fan_at::<u8>(None), None);
+        assert_eq!(super::fan_at(Some(vec![3u8, 1])), Some(vec![3, 1]));
+    }
 
     /// One open chain per link, so the door has something to admit.
     fn open_chain(link: Link<f64>) -> Chain<f64> {
