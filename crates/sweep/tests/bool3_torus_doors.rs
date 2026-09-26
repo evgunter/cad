@@ -395,17 +395,12 @@ fn the_minor_window_trims_the_spool_band() {
 /// height, differing only in azimuth: the window admits the swept
 /// quadrant and refuses the rest.
 ///
-/// **One of the four quadrants is not asked here, and the reason is not
-/// this arm.** The quarter revolve's caps are two-arc DISCS, and a point
-/// in the interior of a revolved disc face is misread by the PLANAR arm
-/// — issue 1076, reproduced directly by
-/// [`issue_1076_a_revolved_disc_cap_interior_is_misread`] below and
-/// outside this unit's scope fence. That misread makes one cap
-/// transparent to the ray sweep, so the quadrant MIRRORED across it
-/// reads as material. The row asks the three quadrants the defect does
-/// not reach and pins the contaminated one in the ignored row, where it
-/// will go green when 1076 lands rather than silently passing here for
-/// the wrong reason.
+/// The fourth quadrant — the one MIRRORED across a cap — is asked in
+/// [`a_revolved_disc_caps_interior_is_on_the_face`] below, beside
+/// the cap reading that decides it: the quarter revolve's caps are
+/// two-arc DISCS, and the planar arm must read a hit inside one as
+/// inside the face, or the cap is transparent to the ray sweep and that
+/// quadrant reads as material.
 #[test]
 fn the_major_window_trims_the_quarter_donut() {
     let body = quarter_donut();
@@ -434,20 +429,15 @@ fn the_major_window_trims_the_quarter_donut() {
     );
 }
 
-/// **Issue 1076, reproduced — not this unit's to fix.** A point in the
-/// INTERIOR of a revolved disc face is misread by the planar arm
-/// (`point_in_loop` / `point_in_face` under `splitting/`, outside this
-/// unit's scope fence). The quarter donut's cap is a two-arc disc, and a
-/// point on its plane, inside the disc and off its seam diameter, must
-/// read `OnBoundary`; it reads `In`.
-///
-/// The consequence for THIS arm is in
-/// [`the_major_window_trims_the_quarter_donut`]: the misread makes the
-/// cap transparent to the ray sweep, so the quadrant mirrored across it
-/// reads as material. Both assertions here go green when 1076 lands.
+/// **A revolved disc face's interior is the face (issue 1076's
+/// `point_in_face` site).** The quarter donut's cap is a two-arc disc,
+/// and a point on its plane, inside the disc and off its seam diameter,
+/// reads `OnBoundary` — the planar arm crosses the cap's arcs on their
+/// circle rather than reading the zero-area polygon through its two
+/// vertices, which answered `In` here. With the cap read, the quadrant
+/// mirrored across it is not material.
 #[test]
-#[ignore = "issue 1076: the planar arm misreads a revolved disc face's interior"]
-fn issue_1076_a_revolved_disc_cap_interior_is_misread() {
+fn a_revolved_disc_caps_interior_is_on_the_face() {
     let body = quarter_donut();
     // On the cap plane x = 0, inside the disc, off its seam diameter.
     assert_eq!(

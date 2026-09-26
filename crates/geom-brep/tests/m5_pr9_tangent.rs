@@ -414,3 +414,137 @@ fn outside_the_span_bound_lane_refuses_typed() {
     let msg = format!("{err}");
     assert!(msg.contains("span-bound lane"), "{msg}");
 }
+
+/// The ruling `{(1, 0, z) : z ∈ [0, 1]}` as a tangent-intersection
+/// spec over `(k1, k2)`, certified against `map`.
+fn certify_ruling(
+    k1: SurfaceKey,
+    k2: SurfaceKey,
+    map: &slotmap::SlotMap<SurfaceKey, Surface<f64>>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let spec = ruling_spec(k1, k2);
+    let (p0, p1) = (spec.carrier.eval(0.0), spec.carrier.eval(1.0));
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+}
+
+/// The cylinder of radius `radius` about a z-parallel axis placed so
+/// the ruling `(1, 0, z)` lies on it. `inward`: the axis lies on the
+/// unit cylinder's side, so the two curve the same way and the outward
+/// normal on the ruling is `+x` turned by `tilt` about `z`; otherwise
+/// the axis lies beyond the ruling and the outward normal is `−x`
+/// turned by `tilt`.
+fn cylinder_through_the_ruling(radius: f64, tilt: f64, inward: bool) -> Surface<f64> {
+    let s = if inward { -1.0 } else { 1.0 };
+    let (sin, cos) = tilt.sin_cos();
+    Surface::Cylinder {
+        origin: Point3::new(1.0 + s * radius * cos, s * radius * sin, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// **The jet reads the ORIENTATION of the second surface's curvature.**
+/// Two unit cylinders externally tangent along the ruling curve AWAY
+/// from each other — their outward gradients are antiparallel — so
+/// against the shared normal their normal curvatures are `+1` and `−1`
+/// and `κ_rel = 2`; a jet that dropped the orientation sign would read
+/// `1 − 1 = 0` and refuse a genuine, well-separated tangency as
+/// osculating. The internally tangent pair (unit cylinder inside a
+/// radius-2 one, gradients parallel) reads `1 − ½`, the control.
+#[test]
+fn an_externally_tangent_pair_reads_the_sum_of_its_curvatures() {
+    let tau = Vec3::new(0.0, 0.0, 1.0);
+    let at = Point3::new(1.0, 0.0, 0.5);
+    for (other, expected) in [
+        (cylinder_through_the_ruling(1.0, 0.0, false), 2.0),
+        (cylinder_through_the_ruling(2.0, 0.0, true), 0.5),
+    ] {
+        let jet = geom_brep::tangent_jet(&cylinder(), &other, at, tau);
+        assert!(
+            (jet.kappa_rel.abs() - expected).abs() < 1e-12,
+            "|κ_rel| = {expected}, got {}",
+            jet.kappa_rel
+        );
+        let (k1, k2, map) = arena2(cylinder(), other);
+        certify_ruling(k1, k2, &map).expect("a genuine separated tangency certifies");
+    }
+}
+
+/// **A surface against itself reads `κ_rel = 0` exactly** — both
+/// curvatures are spelled alike, so the difference is of two equal
+/// floats, not a residue of two spellings. The same-surface split's
+/// "κ_rel at zero" reading rests on this: a nonzero ULP residue there
+/// is a sagitta that is not zero.
+#[test]
+fn a_curved_surface_against_itself_reads_kappa_rel_exactly_zero() {
+    let surfaces = [
+        surf::cylinder(0.7),
+        surf::sphere(1.3),
+        surf::torus(2.0, 0.6),
+        Surface::Cone {
+            apex: Point3::new(0.1, -0.2, 0.3),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            half_angle: 0.4,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        },
+    ];
+    let mut seed = 0x9e37_79b9_7f4a_7c15_u64;
+    let mut next = || {
+        seed ^= seed << 13;
+        seed ^= seed >> 7;
+        seed ^= seed << 17;
+        (seed >> 11) as f64 / (1u64 << 53) as f64
+    };
+    for s in &surfaces {
+        for _ in 0..500 {
+            let (u, v) = (next() * 6.0, 0.2 + next() * 1.0);
+            let p = s.eval(u, v);
+            let g = geom_brep::implicit_gradient(s, p);
+            let tau = g.cross(Vec3::new(next() - 0.5, next() - 0.5, next() - 0.5));
+            let jet = geom_brep::tangent_jet(s, s, p, tau);
+            assert_eq!(
+                jet.kappa_rel.to_bits() & !(1u64 << 63),
+                0,
+                "{s:?} at ({u}, {v}): κ_rel = {:e}",
+                jet.kappa_rel
+            );
+        }
+    }
+}
+
+/// **The parallelism check's band edge.** A radius-2 cylinder through
+/// the ruling, rotated about it by a small angle α, keeps the ruling
+/// exactly on both surfaces while its normal turns by α: a false
+/// tangency with `sin θ = sin α`. At the lever `1/|κ_rel| = 2` (the
+/// unit cylinder's `1` against the inner one's `½`) the margin is
+/// `2·sin α`. Just under the band's zero edge it certifies; inside the
+/// band it escalates; just over the escalation edge it refuses definitely
+/// at `TangentParallel`.
+#[test]
+fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let certify_at = |margin: f64| {
+        let tilt = (margin / 2.0).asin();
+        let (k1, k2, map) = arena2(cylinder(), cylinder_through_the_ruling(2.0, tilt, true));
+        certify_ruling(k1, k2, &map)
+    };
+    certify_at(0.5 * zero).expect("a defect under the band's zero edge certifies");
+    assert!(
+        matches!(
+            certify_at((zero * escalate).sqrt()),
+            Err(CertifyError::Escalated {
+                check: geom_brep::CertCheck::TangentParallel,
+                ..
+            })
+        ),
+        "a defect inside the band escalates at the parallelism check"
+    );
+    assert_eq!(
+        certify_at(2.0 * escalate).unwrap_err(),
+        CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        }
+    );
+}

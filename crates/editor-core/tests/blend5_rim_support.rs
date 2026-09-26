@@ -179,7 +179,7 @@ fn a_closed_rim_carve_names_its_whole_output() {
         "one trimline per support"
     );
     assert_eq!(
-        fixture::count(t, |s| matches!(s, RoleSeg::BandSlit(_))),
+        fixture::count(t, |s| matches!(s, RoleSeg::BandSlit { .. })),
         1,
         "the band's slit keeps it ring-free"
     );

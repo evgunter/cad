@@ -94,17 +94,20 @@ fn r1_a_box_through_an_annular_cap() {
     let a = tube(1.0, 0.4, 0.0, 2.0);
     let b = boxx(0.55, 0.85, -0.15, 0.15, 1.0, 3.0);
     let tol = Tol::witness();
-    let err = match topo::union(&a, &b, tol) {
-        Err(e) => e,
-        Ok(o) => panic!("R1[annular-cap-through-wall] unexpected body {o:?}"),
+    let out = match topo::union(&a, &b, tol) {
+        Ok(topo::BooleanResult::Body(out)) => out.body,
+        other => panic!("R1[annular-cap-through-wall] expected one solid, got {other:?}"),
     };
-    println!("R1[annular-cap-through-wall] REFUSED {err:?}");
-    // Both loops are disc-class, so the crossings ARE found; what has
-    // no arm is the join of a pierce ring in an arc-bounded face. The
-    // silence is what this row exists to forbid.
+    // Both loops are disc-class, so the crossings ARE found, and the
+    // join resolves the pierce regions through `point_in_solid`. The
+    // box stands in the annulus' material from z = 1 to 2, so the
+    // union adds only its part above the tube.
+    assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out, tol).unwrap().volume;
+    let truth = core::f64::consts::PI * (1.0 - 0.16) * 2.0 + 0.3 * 0.3 * 1.0;
     assert!(
-        matches!(err, BooleanError::Join(_)),
-        "the crossing layer must pass it to the join: {err:?}"
+        (v - truth).abs() < 1e-9,
+        "R1[annular-cap-through-wall] volume {v}, truth {truth}"
     );
 }
 

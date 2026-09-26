@@ -1,18 +1,15 @@
-//! R2 REVIEW PROBES for MATE-3 (PR 1423), sweep side. Reviewer branch
-//! only.
+//! The declared-cusp chain on the sweep side, and the exactness of the
+//! cusp door's reversal.
 //!
-//! Two things the PR asserts but does not commit a row for:
+//! 1. **Reachability**: a `.cusp()` profile validates, `extrude` builds
+//!    the cusp solid, `validate_geometric` refuses it typed
+//!    `UndeclaredCusp`, and the declaration the verb carries out
+//!    (`Extruded::declared_contacts`) legalizes exactly that joint.
 //!
-//! 1. **Reachability honesty** (§3): `.cusp()` profile → `validate`
-//!    accepts → `extrude` BUILDS the cusp solid → `validate_geometric`
-//!    refuses typed `UndeclaredCusp`. The PR ran this as an
-//!    uncommitted probe ("`crates/sweep` source is fenced out of this
-//!    unit" — but `crates/sweep/tests` was NOT: the unit already moves
-//!    a row in `tests/m9_3_zip.rs`). Executed here.
-//!
-//! 2. **The exactness of the reversal** (§2): "`Dir::reversed`, never
-//!    `ang + π`". This probe measures the residual the distinction
-//!    controls, so the claim is observable.
+//! 2. **The exactness of the reversal**: the cusp door negates the
+//!    incoming ray rather than re-deriving it as `ang + π`. This probe
+//!    measures the residual the distinction controls, so the claim is
+//!    observable.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -43,10 +40,12 @@ fn lune() -> profile::ClosedLoop<f64> {
         .unwrap()
 }
 
-/// **The reachability chain, executed.** Nothing on it may proceed
-/// silently, and nothing may emit a declaration the author never made.
+/// **The reachability chain, executed.** Nothing on it proceeds
+/// silently: the body refuses at rest undeclared, and the declaration
+/// the author made on the profile joint comes out of the verb beside
+/// the body — never as body state — and legalizes exactly that joint.
 #[test]
-fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
+fn r2_cusp_profile_extrudes_refuses_undeclared_and_carries_its_declaration() {
     let tol = Tol::witness();
     let loops = vec![profile::ProfileLoop::from(lune())];
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
@@ -55,7 +54,7 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
         .expect("the .cusp() profile validates: the joint is DECLARED");
     let ext =
         extrude(&validated, Extrusion::Distance(1.0), tol).expect("extrude BUILDS the cusp solid");
-    let body = ext.body;
+    let body = &ext.body;
     println!(
         "R2 chain: v/e/f = {}/{}/{}",
         body.vertices().count(),
@@ -64,8 +63,8 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
     );
     // Structural tiers pass; the at-rest geometric gate is what catches
     // it, and it must be TYPED, naming the cusp end.
-    assert_eq!(topo::validate_closed(&body), Ok(()));
-    let errs = topo::validate_geometric(&body, tol)
+    assert_eq!(topo::validate_closed(body), Ok(()));
+    let errs = topo::validate_geometric(body, tol)
         .expect_err("the extruded cusp solid must refuse at rest");
     println!("R2 chain: at-rest verdict {errs:?}");
     assert!(
@@ -78,9 +77,10 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
         )),
         "the refusal must be the typed UndeclaredCusp: {errs:?}"
     );
-    // And the declaration the author DID make (on the profile joint) is
-    // NOT smuggled into the body: the wall pair carries no contact
-    // record, so declaring it takes an explicit act by the caller.
+    // The declaration the author DID make (on the profile joint)
+    // arrives as a record BESIDE the body, never as body state: the
+    // undeclared call above refused, and the carried record is the one
+    // cusp edge's wall pair, which is what makes the body legal.
     let cusp_edges: Vec<_> = errs
         .iter()
         .filter_map(|e| match e {
@@ -94,12 +94,23 @@ fn r2_cusp_profile_extrudes_to_a_solid_that_refuses_typed_at_rest() {
         let l = body.get_half_edge(he).unwrap().parent_loop;
         body.get_loop(l).unwrap().face
     };
-    let decl = [topo::DeclaredContact {
-        a: face_of(e.he_plus),
-        b: face_of(e.he_minus),
-        class: topo::ContactClass::Tangent,
-    }];
-    let after = topo::validate_geometric_declared(&body, &decl, tol);
+    let mut pair = [face_of(e.he_plus), face_of(e.he_minus)];
+    pair.sort();
+    let carried: Vec<_> = ext
+        .declared_contacts
+        .iter()
+        .map(|d| {
+            let mut p = [d.a, d.b];
+            p.sort();
+            (p, d.class)
+        })
+        .collect();
+    assert_eq!(
+        carried,
+        [(pair, topo::ContactClass::Tangent)],
+        "the verb carries the cusp edge's wall pair, and nothing else"
+    );
+    let after = topo::validate_geometric_declared(body, &ext.declared_contacts, tol);
     println!("R2 chain: declared verdict {after:?}");
     assert_eq!(after, Ok(()), "declared, the extruded cusp solid is legal");
 }

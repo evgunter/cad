@@ -1183,16 +1183,37 @@ pub enum RoleSeg {
     /// `blend5_r1_probes`.)
     BandFoot(NameRef),
     /// The vertex where the band's MATE-side trimline crossed a source
-    /// edge running off the rim (on a ladder rim, a cap meridian).
-    BandCross(NameRef),
+    /// edge running off the rim (on a ladder rim, a cap meridian). Both
+    /// arguments are needed, for the reason [`RoleSeg::BandSlit`]
+    /// states: two rims at the two ends of one meridian segment each
+    /// cross that segment's seam, once per band.
+    BandCross {
+        /// The source edge the trimline crossed.
+        edge: NameRef,
+        /// The band whose trimline crossed it: its closed chain's
+        /// source edges as a sorted set, the set that band's
+        /// [`RoleSeg::BandFace`] carries.
+        band: Vec<StableName>,
+    },
     /// The surviving piece of a source edge the band's trimline cut —
     /// on a ladder rim a cap meridian, on a ruled band a cap rim edge.
     BandCut(NameRef),
     /// A band's SLIT: the double-traversed torus meridian that keeps
     /// the annular band RING-FREE (`sweep::blend::surgery`'s donut
-    /// representation). Argument: the source edge whose severed piece
-    /// became it.
-    BandSlit(NameRef),
+    /// representation). Both arguments are needed: two rims at the two
+    /// ends of one meridian segment each slit that segment's seam, so
+    /// one source edge yields a slit per band, discriminated by which
+    /// band slit it — the [`RoleSeg::BandTrim`] shape, with the band in
+    /// the support's place.
+    BandSlit {
+        /// The source edge whose severed piece became it.
+        edge: NameRef,
+        /// The band that slit it: its closed chain's source edges as a
+        /// sorted set, the set that band's [`RoleSeg::BandFace`]
+        /// carries. A band has exactly one slit, so this alone is
+        /// unique per slit.
+        band: Vec<StableName>,
+    },
 
     // ---- Shell (the hollowing verb's vocabulary) ----
     //
@@ -1369,9 +1390,9 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -1663,9 +1684,15 @@ impl RoleSeg {
                 support,
             },
             R::BandFoot(n) => R::BandFoot(rewrite_ref(n, w)?),
-            R::BandCross(n) => R::BandCross(rewrite_ref(n, w)?),
+            R::BandCross { edge, band } => R::BandCross {
+                edge: rewrite_ref(edge, w)?,
+                band: rewrite_set(band, w)?,
+            },
             R::BandCut(n) => R::BandCut(rewrite_ref(n, w)?),
-            R::BandSlit(n) => R::BandSlit(rewrite_ref(n, w)?),
+            R::BandSlit { edge, band } => R::BandSlit {
+                edge: rewrite_ref(edge, w)?,
+                band: rewrite_set(band, w)?,
+            },
             R::Inner(n) => R::Inner(rewrite_ref(n, w)?),
             R::Rim(n) => R::Rim(rewrite_ref(n, w)?),
             R::HoleRim { of, hole } => R::HoleRim {
@@ -1813,9 +1840,9 @@ macro_rules! never_in_a_boolean_table {
             | $crate::names::RoleSeg::BandFace(_)
             | $crate::names::RoleSeg::BandTrim { .. }
             | $crate::names::RoleSeg::BandFoot(_)
-            | $crate::names::RoleSeg::BandCross(_)
+            | $crate::names::RoleSeg::BandCross { .. }
             | $crate::names::RoleSeg::BandCut(_)
-            | $crate::names::RoleSeg::BandSlit(_)
+            | $crate::names::RoleSeg::BandSlit { .. }
             | $crate::names::RoleSeg::Inner(_)
             | $crate::names::RoleSeg::Rim(_)
             | $crate::names::RoleSeg::HoleRim { .. }

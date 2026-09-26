@@ -398,6 +398,10 @@ const LEDGER: &[Entry] = &[
         disposition: Shared, // `Body`'s surgery-depth field declaration, code view
     },
     Entry {
+        path: "crates/topo/src/validate.rs",
+        disposition: Shared, // the at-rest door roster, prose view and code view
+    },
+    Entry {
         path: "crates/topo/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
