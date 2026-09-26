@@ -19,7 +19,8 @@ use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside, beside_raw, cap, charts_of, faces_of, solid_of, tol, volume};
+use crate::common::charts::{charts_of, moves_inward};
+use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
@@ -27,21 +28,6 @@ fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
         .map(|(k, v)| {
             let p = body.get_point(v.point).unwrap();
             (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
-        })
-        .collect()
-}
-
-/// Inward moves for every chart of `solid` at wall `t` (the verb's own
-/// `inward` rule: sense true → −t).
-fn inward_moves(body: &Body<f64>, solid: SolidKey, t: f64) -> Vec<topo::ChartMove<f64>> {
-    charts_of(body, solid)
-        .into_iter()
-        .map(|faces| {
-            let sense = body.get_face(faces[0]).unwrap().sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
         })
         .collect()
 }
@@ -97,8 +83,13 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
 
     // The vessel's charts only, through the axial door.
     let mut work = pair.clone();
-    topo::offset_charts_together(&mut work, &inward_moves(&pair, vs, t), band(), tol())
-        .expect("the vessel's charts move through the axial door while the box stands by");
+    topo::offset_charts_together(
+        &mut work,
+        &moves_inward(&pair, charts_of(&pair, vs), t),
+        band(),
+        tol(),
+    )
+    .expect("the vessel's charts move through the axial door while the box stands by");
     let (same, moved) = bitwise_solid(&pair, &work, bx);
     println!("[r2] axial door scoped to vessel: box vertices same={same} moved={moved}");
     assert_eq!(moved, 0, "the box moved");
@@ -110,7 +101,12 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     // The box's charts only, through the planar door — the vessel's
     // curved faces are OUT of scope and must not trip `TogetherNonPlanar`.
     let mut work = pair.clone();
-    let r = topo::offset_planes_together(&mut work, &inward_moves(&pair, bx, t), band(), tol());
+    let r = topo::offset_planes_together(
+        &mut work,
+        &moves_inward(&pair, charts_of(&pair, bx), t),
+        band(),
+        tol(),
+    );
     println!("[r2] planar door scoped to box beside a vessel: {r:?}");
     r.expect("the box's charts move through the planar door while the vessel stands by");
     let (same, moved) = bitwise_solid(&pair, &work, vs);
@@ -129,8 +125,8 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     let three = beside(&two, &block(2.0, 3.0, 4.0, Tol::witness()), 20.0);
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 3);
-    let mut moves = inward_moves(&three, solids[0], t);
-    moves.extend(inward_moves(&three, solids[2], t));
+    let mut moves = moves_inward(&three, charts_of(&three, solids[0]), t);
+    moves.extend(moves_inward(&three, charts_of(&three, solids[2]), t));
     let mut work = three.clone();
     topo::offset_planes_together(&mut work, &moves, band(), tol()).expect("two of three move");
     let mid = bitwise_solid(&three, &work, solids[1]);
@@ -142,8 +138,8 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     assert_eq!(c, (0, 8));
 
     // Two of three named, one of them in part: refuses naming the face.
-    let mut partial = inward_moves(&three, solids[0], t);
-    partial.extend(inward_moves(&three, solids[2], t));
+    let mut partial = moves_inward(&three, charts_of(&three, solids[0]), t);
+    partial.extend(moves_inward(&three, charts_of(&three, solids[2]), t));
     partial.pop();
     let mut work = three.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol()).unwrap_err();

@@ -2202,3 +2202,71 @@ slate is all P4 but one P1 and one P3). Recommendation, put to Ev in
 chat: cut the population rows (the ones that are "route the rest of a
 class onto a door that already exists") into their own program, which
 lands under budget, and let S-DUP keep the rows that still need a door.
+
+## 2026-09-26 — S-REROUTE is cut, and the sixth batch goes out as one PR
+
+Ev approved splits of this kind without asking first ("yes you can do such splits without
+asking"). #3298 moved seven route-the-rest rows by `git mv` into the new
+`work/reroute/` program (11.5/30, ready), and `dup` now reads 29/30.
+The cut is on the kind seam, stated in `work/reroute/plan.md`.
+
+The sixth batch is three lanes on disjoint crates. It lands as one
+combined PR gated on a local run with `[skip ci]` (Ev, 2026-09-26):
+
+| lane | rows | fence |
+|---|---|---|
+| a | edges at a vertex (P1 D); a solid's charts as a move set (P4 D) | sweep |
+| b | corpus pick walks; viewer/src literal doors; cross-crate pick rays (P4 D ×3) | viewer, bvh + editor-core pick helpers |
+| c | the stale-vs-foreign key clause (P4 D); the Step-program map door (P4 D) | topo/src Body doors, profile, editor-core Step walks |
+
+These rows are held back, and why:
+- The two P4 H/D cross-crate populations (`Expr::literal` in 63 files,
+  per-component point lifts) touch every fence, so they go after this batch.
+- Two rows need Ev: the policy-memory citation and the fixture routing rule.
+- The error-arm row needs a designer pass before its `[ev]` PR.
+- The PR 17 attribution row touches the attribution sentence the orchestrator is
+  told to leave alone.
+
+### The full local matrix, measured end to end (#3284's merge ref)
+
+This is the first complete local run: 39 rows, about 7.5 hours on 4 cores
+with lane builds beside it.
+- **Test matrix:** all three eps rows ran 8192/8192, and the viewer app row
+  978/978.
+- **Other passes:** doc-tests, rustdoc, wasm, k-lint, tess-budget and python.
+- **Two FAILs, neither the tree's:**
+  - *corrupt input (release profile).* The local half had rotted away from
+    hosted. It lacked `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, so the
+    release-only row never compiled, and it lacked the `review_d18` filter.
+    The parity reader passed both. The batch-6 PR fixes the row and adds the
+    variable to the reader's `SEMANTIC_ENV`, which a plant confirms. The
+    filter half is filed to `mirror`.
+  - *sheet drift.* A render re-baseline landed on main after the ref was
+    cut, and the local output is byte-identical to main's. A gating run
+    must be taken on a fresh merge with main.
+- **step import** is a loud SKIP-as-PASS, because this box has no FreeCAD.
+  Hosted is the gate of record for STEP.
+
+## 2026-09-26 — the sixth batch lands (#3302)
+
+Three lanes landed as one PR, gated by one local run: 9 rows closed and
+6 filed (3 on dup's slate). `dup` went from 29/30 to 17.5/30. Two parts
+of the batch are worth keeping:
+
+- **The reviews earned their cost again.** Every lane's first cut left
+  twins in files it had open. That is the recurring shape, now on its
+  eighth consecutive unit. Two findings were more than twins:
+  - Lane a's refusals had drifted on corrupt bodies: a vertex with a
+    fan but no `emanating` was told to try a run-out policy. It was
+    restored through one helper, `fan_at`.
+  - Lane b's `#[path]` mount of a `src/` file into `tests/common` was a
+    third test-support mechanism beside the tree's feature-gated one.
+    The fix pass moved to the existing mechanism, so no design fork was
+    needed. That move then tripped `witness-not-ambient`, because a
+    feature-gated module is library code to that gate. The local gate
+    caught it and no lane had run it; `declared` now receives `tol`.
+- **The gate:** local `ci-local.sh` on `f0ba128cf` with main at
+  `2035ff0b9`. It ran 39 rows: 37 PASS, 2 SKIP. The three eps rows
+  were 9748/9748 each, and the viewer app row 985/985. The mirror fix
+  turned the release-profile row green. Two runs died when the
+  container recycled while the session was idle; method item 29.

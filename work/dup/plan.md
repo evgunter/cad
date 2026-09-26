@@ -391,6 +391,17 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     environment the hosted half provisions before reading them as the
     change's. (2026-09-26, `#3285`'s local run; after the install the
     row went 978/978 on `#3284`.)
+29. **A gate that outlives the session's attention must be a task the
+    harness tracks.** The remote container is recycled when the session
+    sits idle. A `setsid`-detached `ci-local.sh` has survived hours
+    while lanes kept the session busy, but it died twice in #3302's
+    gate once only the hourly check-in woke the session: once in the
+    1e-12 row, and once three minutes in. The same run, launched as a
+    harness-tracked background command, held the container for its
+    full 3 h 50 min and reported on exit. Launch a long local gate that
+    way. A run that dies still leaves its log of finished rows; restart
+    on the head it was meant to gate, not on a patched-up tail. Merge
+    main first if main has moved. (2026-09-26, #3302.)
 
 ## Review posture
 

@@ -15,6 +15,7 @@
 
 use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
+use crate::common::charts::{charts, moves_by};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -1724,26 +1725,9 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
 #[test]
 fn the_simultaneous_door_names_its_scope() {
     let tol = Tol::witness();
-    let charts = |body: &Body<f64>| -> Vec<Vec<FaceKey>> {
-        let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for (k, f) in body.faces() {
-            match out.iter_mut().find(|(s, _)| *s == f.surface) {
-                Some((_, v)) => v.push(k),
-                None => out.push((f.surface, vec![k])),
-            }
-        }
-        out.into_iter().map(|(_, v)| v).collect()
-    };
-    let move_all = |body: &Body<f64>, d: f64| -> Vec<topo::ChartMove<f64>> {
-        charts(body)
-            .into_iter()
-            .map(|faces| topo::ChartMove { faces, distance: d })
-            .collect()
-    };
-
     // A curved face has no plane equation to bring to its corners.
     let mut vessel_body = vessel(1.0, 2.0);
-    let moves = move_all(&vessel_body, -0.1);
+    let moves = moves_by(charts(&vessel_body), -0.1);
     let e = topo::offset_planes_together(&mut vessel_body, &moves, band(), tol)
         .expect_err("a cylinder has no plane equation");
     assert!(
@@ -1754,7 +1738,7 @@ fn the_simultaneous_door_names_its_scope() {
     // A face the door was not told about is a plane missing from every
     // corner it touches.
     let mut boxy_body = block(2.0, 3.0, 4.0, Tol::witness());
-    let mut partial = move_all(&boxy_body, -0.1);
+    let mut partial = moves_by(charts(&boxy_body), -0.1);
     partial.pop();
     let e = topo::offset_planes_together(&mut boxy_body, &partial, band(), tol)
         .expect_err("a partial moving set has corners this door cannot solve");
@@ -1775,7 +1759,7 @@ fn the_simultaneous_door_names_its_scope() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    let moves = move_all(&straight, -0.05);
+    let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
     let topo::ReplaceFaceError::TogetherCorner { planes, what, .. } = &e else {
