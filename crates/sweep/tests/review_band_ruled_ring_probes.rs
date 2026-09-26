@@ -3,7 +3,7 @@
 
 use geom_core::{Point2, Sign, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, fillet_edges};
+use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::rod_creases;
 use sweep::{Extrusion, extrude};
 use topo::{Body, mass_properties, validate_geometric};
@@ -132,8 +132,29 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
     validate_geometric(&body, tol()).expect("the bored keyhole block is tier-3 valid");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the two disc/slot junctions");
-    match fillet_edges(&body, &creases, 0.1, tol()).map_err(|e| e.error) {
-        Err(BlendError::RingClearance { face, margin }) => {
+    match fillet_edges(&body, &creases, 0.1, tol()).map_err(|e| {
+        let text = e.error.to_string();
+        (e.error, text)
+    }) {
+        Err((
+            BlendError::RingClearance {
+                face,
+                chain,
+                margin,
+            },
+            text,
+        )) => {
+            assert_eq!(
+                chain,
+                Convexity::Convex,
+                "a cap meter refuses only beside a convex crease"
+            );
+            assert!(
+                text.contains(
+                    "lies in the part of a face the blend cuts away with the material it removes"
+                ),
+                "the sentence says the edge is cut away with the sliver: {text}"
+            );
             assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
             let f = body
                 .get_face(face)
@@ -144,7 +165,7 @@ fn a_bore_in_a_keyhole_creases_removed_sliver_refuses_ring_clearance() {
                 "the face named is a cap: keyhole and bore"
             );
         }
-        Err(other) => panic!("expected RingClearance at the cap, got {other:?}"),
+        Err((other, _)) => panic!("expected RingClearance at the cap, got {other:?}"),
         Ok(_) => {
             panic!("the carve returned a body keeping the bore on a cap that no longer covers it")
         }

@@ -88,17 +88,15 @@ use geom::Curve3;
 use geom::Surface;
 use geom_brep::EdgeCurveSpec;
 use geom_core::{Bounds, Decide, Point3, Real, Tol, Vec3};
-use topo::{
-    Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, LoopKey, MefSite, VertexKey,
-};
+use topo::{Body, EdgeKey, EntityId, FaceKey, FaceSurface, HalfEdgeKey, MefSite, VertexKey};
 
 use crate::blend::BlendError;
 use crate::blend::admit::AdmittedOpen;
 use crate::blend::battery::{Convexity, cap_incidence};
 use crate::blend::naming::BlendNaming;
 use crate::blend::surgery::{
-    ContactCarrier, Described, Piece, SourceFaces, SplitFragments, chord_site, face_of_half,
-    halves_of, loop_of_half, not_intact, op, piece_along, piece_distance, point_of,
+    CircleFrame, ContactCarrier, Described, Piece, SourceFaces, SplitFragments, chord_site,
+    face_of_half, halves_of, not_intact, op, piece_along, piece_distance, point_of,
     retire_fragment, seam_split_param, split_fragment, stored_piece, unbuilt_chain,
     unbuilt_geometry,
 };
@@ -147,8 +145,8 @@ struct CapEnd<T: Real> {
 ///   extremes over the three pieces, each in closed form over its own
 ///   window ([`piece_distance`], [`piece_along`]).
 ///
-/// `toward` is the unit direction from `center` to `V`. Nothing reads
-/// it to decide anything — every unit direction gives a sound `floor` —
+/// `toward` is the unit direction from `center` to `V`. Its choice is
+/// free for soundness — every unit direction gives a sound `floor` —
 /// and this one lays the half-plane's edge across the corner, so the
 /// part of the annulus on the far side of `center` from `V`, which is
 /// kept material, lies outside `Ω`.
@@ -161,14 +159,19 @@ struct CapEnd<T: Real> {
 ///
 /// An edge that misses `Ω` misses `S`; the converse does not hold, and
 /// that is the meter's conservative direction.
+///
+/// Two of its terms are pinned by no assembly row, only by the piece
+/// meters' unit row: the arc's term of `floor`, which binds only when a
+/// rim piece spans more than π, and the whole-circle arm of an arc
+/// extreme on a cap edge (work item
+/// `cap-sliver-floor-arc-term-and-whole-circle-arm-are-unpinned`).
 pub(in crate::blend) struct CapSliver<T: Real> {
     /// The cap face the sliver is cut from.
     pub(in crate::blend) cap: FaceKey,
-    /// The cycle the cut runs in: the cap's cycle through the old
-    /// vertex, its outer cycle or a ring.
-    pub(in crate::blend) cut: LoopKey,
-    /// The two rim edges of `cut` the cut shortens, which the meter
-    /// skips: they bound the sliver rather than lie across it.
+    /// The two rim edges the cut shortens, which the meter skips: they
+    /// bound the sliver rather than lie across it. Each joins the cap
+    /// to one support (the cap incidence the plan read), so neither
+    /// appears in any cap cycle but the one the cut runs in.
     pub(in crate::blend) rims: [EdgeKey; 2],
     /// The section circle's centre.
     center: Point3<T>,
@@ -417,35 +420,15 @@ impl<'a, T: Decide + Bounds> RuledPlan<'a, T> {
         // there (the type's docs), to `face_b`'s: its span read in
         // `(0, τ]` past the start.
         let from = foot_a - center;
-        let arc = Curve3::Circle {
+        let arc = CircleFrame {
             center,
             axis: from.cross(leaves_a).normalize(),
             radius,
             u_ref: from.normalize(),
         };
-        let Some((low_arc, _)) = arc
-            .param_near(foot_b, T::pi())
-            .and_then(|span| piece_along(&arc, (T::zero(), span), center, toward))
-        else {
-            unreachable!("ruled plan: a circle's parameter and extent are total, built just above")
-        };
-        // The cut cycle: the cap's loop through the rim's cap-side
-        // half — a cycle of the cap, carrying the old vertex.
-        let (rh1, rh2) = halves_of(body, rim_a)
-            .ok_or_else(|| not_intact(EntityId::Edge(rim_a), "a transverse cap's rim"))?;
-        let cut = [rh1, rh2]
-            .into_iter()
-            .find(|&h| face_of_half(body, h) == Some(cap))
-            .and_then(|h| loop_of_half(body, h))
-            .ok_or_else(|| {
-                not_intact(
-                    EntityId::Edge(rim_a),
-                    "a transverse cap's rim has no half in the cap",
-                )
-            })?;
+        let (low_arc, _) = arc.along((T::zero(), arc.past(T::zero(), foot_b)), center, toward);
         Ok(CapSliver {
             cap,
-            cut,
             rims: [rim_a, rim_b],
             center,
             radius,

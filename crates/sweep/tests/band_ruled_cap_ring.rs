@@ -23,7 +23,7 @@
 
 use geom_core::{Point2, Sign, Tol};
 use profile::{ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::blend::{BlendError, fillet_edges};
+use sweep::blend::{BlendError, Convexity, fillet_edges};
 use sweep::test_support::{
     ROD_FILLET, ROD_FLAT, ROD_L, ROD_R, extruded, rod_chord_at, rod_creases, rod_section_cut,
 };
@@ -71,8 +71,29 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
     validate_geometric(body, tol()).unwrap_or_else(|e| panic!("{what}: source tier 3, {e:?}"));
     let creases = rod_creases(body);
     assert_eq!(creases.len(), 2, "{what}: the D's two creases");
-    match fillet_edges(body, &creases, ROD_FILLET, tol()).map_err(|e| e.error) {
-        Err(BlendError::RingClearance { face, margin }) => {
+    match fillet_edges(body, &creases, ROD_FILLET, tol()).map_err(|e| {
+        let text = e.error.to_string();
+        (e.error, text)
+    }) {
+        Err((
+            BlendError::RingClearance {
+                face,
+                chain,
+                margin,
+            },
+            text,
+        )) => {
+            assert_eq!(
+                chain,
+                Convexity::Convex,
+                "a cap meter refuses only beside a convex crease"
+            );
+            assert!(
+                text.contains(
+                    "lies in the part of a face the blend cuts away with the material it removes"
+                ),
+                "the sentence says the edge is cut away with the sliver: {text}"
+            );
             assert_eq!(
                 margin.sign,
                 Sign::Negative,
@@ -86,7 +107,7 @@ fn assert_cap_ring_refusal(body: &Body<f64>, what: &str) {
                 "{what}: the face named is a cap carrying the bore"
             );
         }
-        Err(other) => panic!("{what}: expected RingClearance at the cap, got {other:?}"),
+        Err((other, _)) => panic!("{what}: expected RingClearance at the cap, got {other:?}"),
         Ok(out) => panic!(
             "{what}: the carve returned a body keeping the bore's cycle on a cap that no \
              longer covers it ({} faces)",
@@ -242,8 +263,29 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
     validate_geometric(&body, tol()).expect("source tier 3");
     let creases = rod_creases(&body);
     assert_eq!(creases.len(), 2, "the D's two creases");
-    match fillet_edges(&body, &creases, ROD_FILLET, tol()).map_err(|e| e.error) {
-        Err(BlendError::RingClearance { face, margin }) => {
+    match fillet_edges(&body, &creases, ROD_FILLET, tol()).map_err(|e| {
+        let text = e.error.to_string();
+        (e.error, text)
+    }) {
+        Err((
+            BlendError::RingClearance {
+                face,
+                chain,
+                margin,
+            },
+            text,
+        )) => {
+            assert_eq!(
+                chain,
+                Convexity::Convex,
+                "a cap meter refuses only beside a convex crease"
+            );
+            assert!(
+                text.contains(
+                    "lies in the part of a face the blend cuts away with the material it removes"
+                ),
+                "the sentence says the edge is cut away with the sliver: {text}"
+            );
             assert_eq!(margin.sign, Sign::Negative, "definite, got {margin}");
             let f = body
                 .get_face(face)
@@ -257,7 +299,7 @@ fn a_channel_in_the_cut_cycle_reaching_into_the_sliver_refuses_ring_clearance() 
                 "the face named is a cap, the channel in its outer cycle"
             );
         }
-        Err(other) => panic!("expected RingClearance at the cap, got {other:?}"),
+        Err((other, _)) => panic!("expected RingClearance at the cap, got {other:?}"),
         Ok(out) => panic!(
             "the cut-off arc was mef'd across the channel's edges ({} faces)",
             out.body.faces().count()

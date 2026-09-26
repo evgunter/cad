@@ -35,3 +35,8 @@ the screen's `CHAIN_SAMPLES` stations, at a radius where the true gap is
 negative and the sampled one positive. If the carve returns a body,
 add the closed-form walk the ladder already has (restricted to the
 boundary edges the trim does NOT replace).
+
+**Sibling, same screen.** The LADDER walk skips an outer-boundary edge
+whose carrier is neither a line nor a circle (or is uncertified), and
+leaves that pair to the same sampled screen alone — so a NURBS boundary
+edge of a ladder host carries the same one-sided gap.

@@ -1200,6 +1200,7 @@ fn blend() -> Vec<(String, NodeErrorKind)> {
             "RingClearance",
             E::RingClearance {
                 face,
+                chain: sweep::blend::Convexity::Convex,
                 margin: decided("fillet3_ring_clearance", -1e-3, Sign::Negative),
             },
         ),

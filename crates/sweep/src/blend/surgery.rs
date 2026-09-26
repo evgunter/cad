@@ -1978,6 +1978,7 @@ fn rim_trim_circles<T: Real>(
 /// [`BlendError::RingClearance`] / [`BlendError::Escalated`].
 pub(crate) fn ring_clearance<T: Decide + Bounds>(
     face: FaceKey,
+    chain: Convexity,
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
@@ -1988,6 +1989,7 @@ pub(crate) fn ring_clearance<T: Decide + Bounds>(
         Sign::Positive => Ok(()),
         sign => Err(BlendError::RingClearance {
             face,
+            chain,
             margin: super::battery::classified(RING_CLEARANCE, margin, band, sign),
         }),
     }
@@ -2082,57 +2084,23 @@ pub(super) fn stored_piece<T: Decide>(
 ///
 /// On a LINE the distance is convex, so `far` is the larger end and
 /// `near` the distance to `c`'s foot clamped into the segment. On a
-/// CIRCLE the distance is a function of the angle from the circle's
-/// point nearest `c` alone, growing monotonically to that point's
-/// antipode, so over an arc each extreme is at an end unless the arc
-/// holds the point that realises it, where it is the whole circle's.
-/// Which applies is [`arc_misses`]'s read, which only ever chooses the
-/// tighter of two sound values.
+/// CIRCLE it is [`CircleFrame::distance`].
 pub(super) fn piece_distance<T: Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     c: Point3<T>,
 ) -> Option<(T, T)> {
-    let (pa, pb) = (point_at(carrier, ta)?, point_at(carrier, tb)?);
-    let (da, db) = ((pa - c).norm(), (pb - c).norm());
     match *carrier {
-        Curve3::Line { .. } => {
+        Curve3::Line { origin, dir } => {
+            let (pa, pb) = (origin + dir * ta, origin + dir * tb);
             let d = pb - pa;
             let s = ((c - pa).dot(d) / d.dot(d)).max(T::zero()).min(T::one());
-            Some(((pa + d * s - c).norm(), da.max(db)))
+            Some((
+                (pa + d * s - c).norm(),
+                (pa - c).norm().max((pb - c).norm()),
+            ))
         }
-        Curve3::Circle {
-            center: o,
-            axis,
-            radius,
-            ..
-        } => {
-            let w = c - o;
-            let h = w.dot(axis);
-            let plane = w - axis * h;
-            let rho = plane.norm();
-            let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
-            let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();
-            // With `c` on the axis every point of the circle is both
-            // nearest and farthest, and the whole circle's values are
-            // the answer.
-            if rho.lo() <= 0.0 {
-                return Some((whole_near, whole_far));
-            }
-            let toward = plane * (radius / rho);
-            let near = if arc_misses(carrier, (ta, tb), o + toward) {
-                da.min(db)
-            } else {
-                whole_near
-            };
-            let far = if arc_misses(carrier, (ta, tb), o - toward) {
-                da.max(db)
-            } else {
-                whole_far
-            };
-            Some((near, far))
-        }
-        _ => None,
+        _ => CircleFrame::of(carrier).map(|k| k.distance((ta, tb), c)),
     }
 }
 
@@ -2140,95 +2108,179 @@ pub(super) fn piece_distance<T: Bounds>(
 /// direction `u`**: `(low, high)` with `low ≤ (p − c)·u ≤ high` for
 /// every point `p` of `carrier` over the window `(ta, tb)`, in closed
 /// form; `None` for a carrier with no closed form here. A linear
-/// function is extreme at a segment's ends; on a circle it is a
-/// function of the angle from the point farthest along `u` alone, so
-/// over an arc each extreme is at an end unless the arc holds that
-/// point (for `high`) or its antipode (for `low`) — [`arc_misses`]'s
-/// read, as in [`piece_distance`].
+/// function is extreme at a segment's ends; on a CIRCLE it is
+/// [`CircleFrame::along`].
 pub(super) fn piece_along<T: Bounds>(
     carrier: &Curve3<T>,
     (ta, tb): (T, T),
     c: Point3<T>,
     u: Vec3<T>,
 ) -> Option<(T, T)> {
-    let (la, lb) = (
-        (point_at(carrier, ta)? - c).dot(u),
-        (point_at(carrier, tb)? - c).dot(u),
-    );
     match *carrier {
-        Curve3::Line { .. } => Some((la.min(lb), la.max(lb))),
-        Curve3::Circle {
-            center: o,
-            axis,
-            radius,
-            ..
-        } => {
-            let mid = (o - c).dot(u);
-            let plane = u - axis * u.dot(axis);
-            let nu = plane.norm();
-            let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
-            // With `u` along the axis the function is constant on the
-            // circle.
-            if nu.lo() <= 0.0 {
-                return Some((whole_low, whole_high));
-            }
-            let toward = plane * (radius / nu);
-            let low = if arc_misses(carrier, (ta, tb), o - toward) {
-                la.min(lb)
-            } else {
-                whole_low
-            };
-            let high = if arc_misses(carrier, (ta, tb), o + toward) {
-                la.max(lb)
-            } else {
-                whole_high
-            };
-            Some((low, high))
+        Curve3::Line { origin, dir } => {
+            let (la, lb) = (
+                (origin + dir * ta - c).dot(u),
+                (origin + dir * tb - c).dot(u),
+            );
+            Some((la.min(lb), la.max(lb)))
         }
-        _ => None,
+        _ => CircleFrame::of(carrier).map(|k| k.along((ta, tb), c, u)),
     }
 }
 
-/// **A line or circle carrier's point at `t`**, through the carrier's
-/// own point expression (`origin + dir·t`; [`Curve3::circle_at`], the
-/// door `eval`'s circle arm calls). `None` for any other carrier.
-fn point_at<T: Real>(carrier: &Curve3<T>, t: T) -> Option<Point3<T>> {
-    match *carrier {
-        Curve3::Line { origin, dir } => Some(origin + dir * t),
-        Curve3::Circle {
-            center,
-            axis,
-            radius,
-            u_ref,
-        } => Some(Curve3::circle_at(center, axis, radius, u_ref, t)),
-        _ => None,
+/// **A circle carrier's frame**, destructured once, so that every
+/// closed form over an arc of it is total: the piece meters above
+/// reach it through [`Self::of`], and a caller that builds a circle of
+/// its own (a ruled cut-off's arc) holds one outright.
+#[derive(Clone, Copy)]
+pub(super) struct CircleFrame<T: Real> {
+    pub(super) center: Point3<T>,
+    pub(super) axis: Vec3<T>,
+    pub(super) radius: T,
+    pub(super) u_ref: Vec3<T>,
+}
+
+impl<T: Real> CircleFrame<T> {
+    /// The frame of a `Circle` carrier; `None` for any other.
+    fn of(carrier: &Curve3<T>) -> Option<Self> {
+        match *carrier {
+            Curve3::Circle {
+                center,
+                axis,
+                radius,
+                u_ref,
+            } => Some(Self {
+                center,
+                axis,
+                radius,
+                u_ref,
+            }),
+            _ => None,
+        }
+    }
+
+    /// The point at `t`, through [`Curve3::circle_at`] — the circle
+    /// arm of `Curve3::eval`.
+    fn at(self, t: T) -> Point3<T> {
+        Curve3::circle_at(self.center, self.axis, self.radius, self.u_ref, t)
+    }
+
+    /// **The angle of the circle point `q` past parameter `t`**, read
+    /// in `(0, τ]` — the branch `Curve3::param_near` takes anchored
+    /// half a turn past `t`, where a full turn is `q` at `t` itself.
+    pub(super) fn past(self, t: T, q: Point3<T>) -> T {
+        let (w, radial) = (q - self.center, self.at(t + T::pi()) - self.center);
+        T::pi() + w.dot(self.axis.cross(radial)).atan2(w.dot(radial))
     }
 }
 
-/// **Whether the circle arc over `(ta, tb)` certainly misses the circle
-/// point `q`**: `q`'s angle past `ta`, read in `(0, τ]` (the branch
-/// `Curve3::param_near` takes anchored half a turn past `ta`), is
-/// certainly beyond the arc's span and certainly short of a full turn
-/// (a full turn is `q` at the arc's start).
-///
-/// A BOUNDS-lane read of the stored window, and not a decision: its one
-/// use is to choose, for an extreme over the arc, between the arc's
-/// ends and the whole circle's value, and the whole circle's value
-/// bounds the arc's whichever way the truth lies. So `false` — the
-/// answer wherever the bracket is not certain, and for a window of a
-/// full turn or more, which holds every point — only ever loosens a
-/// bound; and where the bracket is uncertain because `q` sits at an end
-/// of the arc, the end's value is the extreme anyway.
-fn arc_misses<T: Bounds>(carrier: &Curve3<T>, (ta, tb): (T, T), q: Point3<T>) -> bool {
-    let Curve3::Circle { center, axis, .. } = *carrier else {
-        return false;
-    };
-    let Some(anchor) = point_at(carrier, ta + T::pi()) else {
-        return false;
-    };
-    let (w, radial) = (q - center, anchor - center);
-    let past = T::pi() + w.dot(axis.cross(radial)).atan2(w.dot(radial));
-    (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+impl<T: Bounds> CircleFrame<T> {
+    /// **Whether the arc over `(ta, tb)` certainly misses the circle
+    /// point `q`**: `q`'s angle past `ta` ([`Self::past`]) is certainly
+    /// beyond the arc's span and certainly short of a full turn.
+    ///
+    /// **A bracket read whose branch reaches a decision, sound by
+    /// value-channel delegation** (DL5(b), `geom_core::real`'s
+    /// delegation rule, in substance). Its one use is to SELECT, for an
+    /// extreme over the arc, between the arc's two ends and the whole
+    /// circle's value, and that extreme is the margin
+    /// [`ring_clearance`] decides — so the read is not inert, and what
+    /// makes it sound is the shape of the selection:
+    ///
+    /// - **Both candidates are sound bounds.** The whole circle's
+    ///   extreme bounds the arc's whichever way the truth lies, and the
+    ///   ends' is the arc's own extreme whenever `q` is off the arc. So
+    ///   `false` — the answer wherever the bracket is not certain, and
+    ///   for a window of a full turn or more, which holds every point —
+    ///   only ever loosens the bound, never falsifies it.
+    /// - **The two coincide at the switch, to first order.** The branch
+    ///   flips only as `q` crosses an end of the arc, and there the
+    ///   end IS the point realising the whole circle's extreme, where
+    ///   the extreme is stationary along the circle: the two values
+    ///   agree, and so do their derivatives in every parameter that
+    ///   moves them. A scalar that carries tangents (a `Dual`) reads
+    ///   its branch off its value channel alone, and either branch then
+    ///   hands on the same value and the same first-order tangent,
+    ///   which is what the locally-constant condition of DL5(b) buys
+    ///   and what this selection gives without it.
+    fn misses(self, (ta, tb): (T, T), q: Point3<T>) -> bool {
+        let past = self.past(ta, q);
+        (past - (tb - ta)).lo() > 0.0 && (T::tau() - past).lo() > 0.0
+    }
+
+    /// **How near and how far the arc over `(ta, tb)` comes to `c`**.
+    /// The distance is a function of the angle from the circle's point
+    /// nearest `c` alone, growing monotonically to that point's
+    /// antipode, so each extreme is at an end unless the arc holds the
+    /// point that realises it, where it is the whole circle's —
+    /// [`Self::misses`]' selection.
+    ///
+    /// With `c` on the axis every point of the circle is both nearest
+    /// and farthest, and the whole circle's values are the answer. That
+    /// bracket read guards the division by `ρ` below, and what it
+    /// selects is the whole circle's pair, which bounds the arc's
+    /// wherever `c` is — the side [`Self::misses`] falls back to. A
+    /// point scalar takes it only at `ρ` exactly zero, where the ends'
+    /// values equal the whole circle's.
+    fn distance(self, (ta, tb): (T, T), c: Point3<T>) -> (T, T) {
+        let (da, db) = ((self.at(ta) - c).norm(), (self.at(tb) - c).norm());
+        let (o, radius) = (self.center, self.radius);
+        let w = c - o;
+        let h = w.dot(self.axis);
+        let plane = w - self.axis * h;
+        let rho = plane.norm();
+        let whole_near = (h.powi(2) + (rho - radius).powi(2)).sqrt();
+        let whole_far = (h.powi(2) + (rho + radius).powi(2)).sqrt();
+        if rho.lo() <= 0.0 {
+            return (whole_near, whole_far);
+        }
+        let toward = plane * (radius / rho);
+        let near = if self.misses((ta, tb), o + toward) {
+            da.min(db)
+        } else {
+            whole_near
+        };
+        let far = if self.misses((ta, tb), o - toward) {
+            da.max(db)
+        } else {
+            whole_far
+        };
+        (near, far)
+    }
+
+    /// **How low and how high the arc over `(ta, tb)` reaches along
+    /// the unit direction `u` from `c`**. The linear function is one of
+    /// the angle from the point farthest along `u` alone, so each
+    /// extreme is at an end unless the arc holds that point (for
+    /// `high`) or its antipode (for `low`) — [`Self::misses`]'
+    /// selection. With `u` along the axis the function is constant on
+    /// the circle, and the whole circle's pair is the answer: the same
+    /// guard as [`Self::distance`]'s on-axis read, selecting the pair
+    /// that bounds the arc's wherever `u` points, and taken by a point
+    /// scalar only where the two pairs are equal.
+    pub(super) fn along(self, (ta, tb): (T, T), c: Point3<T>, u: Vec3<T>) -> (T, T) {
+        let (la, lb) = ((self.at(ta) - c).dot(u), (self.at(tb) - c).dot(u));
+        let (o, radius) = (self.center, self.radius);
+        let mid = (o - c).dot(u);
+        let plane = u - self.axis * u.dot(self.axis);
+        let nu = plane.norm();
+        let (whole_low, whole_high) = (mid - radius * nu, mid + radius * nu);
+        if nu.lo() <= 0.0 {
+            return (whole_low, whole_high);
+        }
+        let toward = plane * (radius / nu);
+        let low = if self.misses((ta, tb), o - toward) {
+            la.min(lb)
+        } else {
+            whole_low
+        };
+        let high = if self.misses((ta, tb), o + toward) {
+            la.max(lb)
+        } else {
+            whole_high
+        };
+        (low, high)
+    }
 }
 
 /// The test-support door to [`ring_clearance`]: the same function, made
@@ -2244,10 +2296,11 @@ fn arc_misses<T: Bounds>(carrier: &Curve3<T>, (ta, tb): (T, T), q: Point3<T>) ->
 #[cfg(any(test, feature = "test-support"))]
 pub fn ring_clearance_for_tests<T: Decide + Bounds>(
     face: FaceKey,
+    chain: Convexity,
     margin: T,
     band: Band,
 ) -> Result<(), BlendError> {
-    ring_clearance(face, margin, band)
+    ring_clearance(face, chain, margin, band)
 }
 
 /// The pre-mutation honesty pass (module docs): every ring of every
@@ -2327,7 +2380,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 // shared construction, never by cancellation.
                 let _ = dir;
                 let margin = (c - origin).dot(m) - a;
-                ring_clearance(face, margin, band)?;
+                ring_clearance(face, o.convexity(), margin, band)?;
             }
         }
     }
@@ -2366,7 +2419,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 } else {
                     m.external
                 };
-                ring_clearance(host, margin, band)?;
+                ring_clearance(host, rim.chain.first().convexity, margin, band)?;
             }
         }
         let l0 = rim.chain.first();
@@ -2412,7 +2465,10 @@ fn ring_clearance_pass<T: Decide + Bounds>(
         // kind, or one whose geometry is not certified, is skipped: this
         // walk is the closed-form one, and nothing exact can be said
         // about a NURBS boundary from stored data, so those pairs are
-        // left to predicate 2's sampled sweep, which meters them all.
+        // left to predicate 2's sampled sweep alone — which reads each
+        // at its sample stations only, and so can pass a gap that
+        // closes between them: the same one-sided gap the annulus
+        // paragraph above names, on this walk's skipped edges.
         let outer = face_cycle(body, rim.host0()).ok_or_else(|| {
             not_intact(
                 EntityId::Face(rim.host0()),
@@ -2430,7 +2486,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
             let Some((near, _)) = piece_distance(carrier, window, ci) else {
                 continue;
             };
-            ring_clearance(rim.host0(), near - si, band)?;
+            ring_clearance(rim.host0(), rim.chain.first().convexity, near - si, band)?;
         }
     }
     // (c) Ruled cut-offs: the cut-off `mef` runs one arc across a cap
@@ -2466,7 +2522,7 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                 let walk = loop_walk(body, lp)
                     .ok_or_else(|| not_intact(EntityId::Loop(lp), "a ruled cut-off cap's cycle"))?;
                 for (_, _, edge) in walk {
-                    if lp == s.cut && s.rims.contains(&edge) {
+                    if s.rims.contains(&edge) {
                         continue;
                     }
                     let Some((carrier, window)) = stored_piece(body, edge)? else {
@@ -2479,11 +2535,11 @@ fn ring_clearance_pass<T: Decide + Bounds>(
                     let margin = s.clearance(carrier, window).ok_or_else(|| {
                         unbuilt_geometry(
                             EntityId::Edge(edge),
-                            "a cycle edge of a cap beside a ruled cut-off is neither a line nor \
-                             a circle, the only carriers the sliver meter covers",
+                            "a cap edge beside a ruled cut-off is neither a line nor a circle, \
+                             which the sliver meter needs",
                         )
                     })?;
-                    ring_clearance(s.cap, margin, band)?;
+                    ring_clearance(s.cap, plan.link().convexity(), margin, band)?;
                 }
             }
         }
