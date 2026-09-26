@@ -206,3 +206,22 @@ name is owed on every type. Takeable without Ev: checked again on that
 branch, the convention was written by an agent in a fix pass
 (`b61d25ddc`) and `docs/DESIGN.md` still has zero occurrences of
 `scalar_lift` or `map_scalar`.
+
+## Evidence added (2026-09-24, GATHER's E-row batch, PR 3141)
+
+The two `profile` rungs were re-measured at level B with `--features
+interval --keep-going` and are unchanged: both report `never used`, and
+every `E0624` is in a test (`profile/tests/` ×12, and one in
+`sweep/tests/wire_loft_end_profile_lift.rs`).
+`work/gather/frame-linear-generic-door-has-no-consumers.md` now waits on
+this row for their disposition.
+
+**The instrument has a feature gap that bears on this row's negative
+verdicts.** At default features, `editor-core`'s `AssertionVerdict::map`
+read as having zero consumers at level A. It is live behind the
+`interval` feature (the leaf replay in `eval/mod.rs`), and PR 3141's
+deletion of it was reverted when the interval lane went red. This row's
+`never used` verdicts (`Curve3`, `Surface`, `NurbsCurve*` and `Vec2::map`)
+were taken without `--features interval`. They should be re-taken with it
+before any of them is acted on. Add `--keep-going` as well, because
+without it cargo stops at the first failing crate.

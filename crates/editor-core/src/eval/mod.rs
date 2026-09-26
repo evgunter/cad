@@ -34,8 +34,10 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
-pub(crate) use anchor::{naming_of, readable_naming, replay_naming};
+pub(crate) use anchor::derive_naming;
+pub use anchor::{
+    CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
+};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -1037,6 +1039,13 @@ pub enum NodeErrorKind {
         /// The canonical loop index that failed to match.
         loop_: u32,
     },
+    /// The naming anchor, the replay record and the program's minted
+    /// step ids do not describe one program, so the profile's pieces
+    /// have no names — an internal invariant break, surfaced typed.
+    ProfilePieces {
+        /// Where the three disagree.
+        fault: PiecesFault,
+    },
     /// The extrude op refused.
     Extrude(ExtrudeError),
     /// The revolve op refused.
@@ -1891,7 +1900,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Expr { slot, source } => {
                 write!(
                     f,
-                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                    "the expression at slot {} failed to evaluate: {source}",
+                    slot.label()
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
@@ -1919,6 +1929,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "profile loop {loop_} did not match back to a loop of the program, which is \
                  a kernel bug"
             ),
+            Self::ProfilePieces { fault } => {
+                write!(f, "the profile's pieces have no names: {fault}")
+            }
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
                 instance,
@@ -2031,8 +2044,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "the node's wiring expected its {slot:?} input, which is absent (a kernel \
-                     bug)"
+                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
+                    slot.label()
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -3354,7 +3367,7 @@ where
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
-            match wire::prepare_profile(placement, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, &program.ids, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
             }
@@ -4213,6 +4226,18 @@ where
                     }
                 }
                 None => h.write_tag(tag::presence::ABSENT),
+            }
+            // The steps' minted ids: what every name a sweep over this
+            // profile publishes spells (N1), so two programs that
+            // replay alike but carry different ids — one step
+            // re-authored in place of another — are two keys, and a
+            // memo hit cannot serve one's names for the other's.
+            h.write_u64(program.ids.len() as u64);
+            for ids in &program.ids {
+                h.write_u64(ids.len() as u64);
+                for id in ids {
+                    h.write_u64(id.0);
+                }
             }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
@@ -5186,6 +5211,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RimEdge => 4,
         S::LateralEdge => 5,
         S::CapVertex => 6,
+        S::LoftWall => 45,
+        S::LoftSeam => 46,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -5246,13 +5273,48 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         crate::names::RimSupport::Host => 1u8,
         crate::names::RimSupport::Mate => 2,
     };
-    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
-        h.write_u64(u64::from(e.loop_index));
-        h.write_u64(u64::from(e.segment));
+    // A locator: its form's word, then the step's minted id or the
+    // section's circle, then the role (its word, and a piece's index).
+    let role = |h: &mut KeyHasher, r: crate::names::PieceRole| {
+        use crate::names::PieceRole;
+        match r {
+            PieceRole::Leg => h.write_tag(1),
+            PieceRole::RunIn => h.write_tag(2),
+            PieceRole::Arc => h.write_tag(3),
+            PieceRole::RunOut => h.write_tag(4),
+            PieceRole::Piece(k) => {
+                h.write_tag(5);
+                h.write_u64(u64::from(k));
+            }
+        }
     };
-    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| {
-        h.write_u64(u64::from(v.loop_index));
-        h.write_u64(u64::from(v.vertex));
+    let circle = |c: crate::names::SectionCircle| match c {
+        crate::names::SectionCircle::Outer => 1u8,
+        crate::names::SectionCircle::Bore => 2,
+    };
+    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| match e {
+        crate::names::ProfileEdgeRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileEdgeRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
+    };
+    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| match v {
+        crate::names::ProfileVertexRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileVertexRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
     };
     let qual = |h: &mut KeyHasher, q: &Qualifier| {
         h.write_tag(match q {
@@ -5301,6 +5363,18 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::CapVertex(c, v) => {
             h.write_tag(cap(*c));
             pv(h, *v);
+        }
+        RoleSeg::LoftWall(es) => {
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSeam(vs) => {
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
         }
         RoleSeg::Band(e) => {
             pe(h, *e);

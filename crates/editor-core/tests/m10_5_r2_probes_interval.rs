@@ -115,6 +115,7 @@ fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -247,8 +248,12 @@ fn blocks_apart(gap: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     (r.doc, a, b)
 }
 
-fn wall_name(node: RecipeNodeId, seg: u32) -> editor_core::StableName {
-    fixture::fname(node, fixture::wall(seg))
+fn wall_name(
+    doc: &editor_core::ProfileDoc,
+    node: RecipeNodeId,
+    seg: u32,
+) -> editor_core::StableName {
+    fixture::fname(node, fixture::wall(doc, node, seg))
 }
 
 fn cap_name(node: RecipeNodeId) -> editor_core::StableName {
@@ -383,7 +388,10 @@ fn the_leaf_fold_answers_the_same_question_over_a_real_drive() {
 #[test]
 fn the_combs_violation_witness_re_verifies_from_its_own_points() {
     let (doc, minted, _placed) = comb();
-    let sel = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
+    let sel = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
     let report = clearance_with(
         &doc,
         &box_of("place"),
@@ -705,7 +713,7 @@ fn holds_over_the_window_is_holds_over_the_face() {
     let (doc, ell, block_node) = ell_with_a_block_in_the_notch();
     // The L's notch wall at x = 0.4 (outer-loop segment 2 runs
     // (1.0, 0.4) → (0.4, 0.4); segment 3 runs (0.4, 0.4) → (0.4, 1.0)).
-    let wall = named(ell, vec![wall_name(ell, 3)]);
+    let wall = named(ell, vec![wall_name(&doc, ell, 3)]);
     let block = Selection::body_of(block_node);
     let report = clearance_with(
         &doc,
@@ -788,7 +796,7 @@ fn the_strict_question_is_total_over_budgets_too() {
 #[test]
 fn a_selection_with_no_pair_answers_holds_at_an_empty_receipt() {
     let (doc, minted, _placed) = comb();
-    let one = named(minted, vec![wall_name(minted, 0)]);
+    let one = named(minted, vec![wall_name(&doc, minted, 0)]);
     let report = clearance_with(
         &doc,
         &box_of("place"),
@@ -1112,8 +1120,14 @@ fn a_fold_over_zero_certified_leaves_refuses_by_name() {
 #[test]
 fn the_answer_does_not_depend_on_the_order_names_are_written_in() {
     let (doc, minted, _placed) = comb();
-    let forward = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
-    let reverse = named(minted, vec![wall_name(minted, 9), wall_name(minted, 7)]);
+    let forward = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
+    let reverse = named(
+        minted,
+        vec![wall_name(&doc, minted, 9), wall_name(&doc, minted, 7)],
+    );
     let leaf = box_of("place");
     let a = clearance_with(
         &doc,
@@ -1249,7 +1263,10 @@ fn a_violation_outranks_a_refusal_and_the_receipt_shows_both() {
 #[test]
 fn the_cost_curve_is_flat_where_the_bound_is_broken() {
     let (doc, minted, _placed) = comb();
-    let sel = named(minted, vec![wall_name(minted, 7), wall_name(minted, 9)]);
+    let sel = named(
+        minted,
+        vec![wall_name(&doc, minted, 7), wall_name(&doc, minted, 9)],
+    );
     let leaf = box_of("place");
     let mut costs = Vec::new();
     for c in [2.0, 1.5, 1.0, 0.8, 0.6] {

@@ -944,3 +944,17 @@ numbers "so that consumer will know". `Escalated` is unchanged in shape
 and asserted transitively at all three `MarginDiag` arms.
 
 Signed (FIX orchestrator).
+
+## 2026-09-25 — note from S-DUP: #3151 edited `offset_together.rs`
+
+S-DUP's PR #3151 (merged) touched shell's ground in
+`crates/topo/src/offset_together.rs`: `Scope`'s doc now states the
+setters' cost as the code has it under `begin_surgery()` and cites
+`topo::separation::SolidOwners` as the other owner index (they agree on
+every tier-1 body; `separation::owner_index` reds if they stop), and
+`scope_walks` absorbed the two rows of the deleted
+`crates/topo/src/shell10_r2_probes.rs`. No behaviour of the offset door
+changed. The row that asked for this is
+`work/dup/two-spellings-of-the-face-to-solid-owner-index.md` (closed).
+
+Signed (S-DUP orchestrator).

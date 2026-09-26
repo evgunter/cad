@@ -1829,7 +1829,7 @@ transition_table! {
                     // A closed carrier resolves no fillet: no gate, no
                     // ladder, nothing discrete to record but the one
                     // step's reach, which is the whole loop.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::Circle {
                         centre: center,
@@ -1874,7 +1874,7 @@ transition_table! {
             /// same posture as `.angle(θ)` directors).
             ///
             /// `radius` must classify definitely positive (the [`circle`] gate,
-            /// same funnel row); `n` must be ≥ 2 ([`PathError::CircleSplitCount`]
+            /// same funnel row); `n` must lie in `2..=u32::MAX` ([`PathError::CircleSplitCount`]
             /// — a one-vertex full turn has no bulge representation). `n` is
             /// structural (a count, never a value); `phase` is continuous.
             fn circle_split [<T: Decide>(
@@ -1889,7 +1889,7 @@ transition_table! {
                     // Structural subdivisions of one carrier: still no
                     // fillet resolution anywhere in the form, and the
                     // one step reaches every subdivision.
-                    structure: ReplayStructure::carrier(loop_.vertices.len()),
+                    structure: ReplayStructure::carrier(loop_.vertices.len())?,
                     loop_,
                     program: vec![Step::CircleSplit {
                         centre: center,
@@ -2569,8 +2569,8 @@ pub fn replay_recording<T: ArcCarrierScalar>(
 /// [`PathError::Structure`] for a decision that could not be
 /// reproduced. A record describing a different number of resolutions
 /// than the program reaches is refused the same way, and so is one
-/// whose per-step segment spans — or whose per-radius emissions —
-/// this pass did not reproduce.
+/// whose per-step segment spans — or whose per-radius emissions, or whose
+/// per-segment pieces — this pass did not reproduce.
 pub fn replay_guided<T: ArcCarrierScalar>(
     steps: &[Step<T>],
     structure: &ReplayStructure,
@@ -2637,6 +2637,30 @@ pub fn replay_guided<T: ArcCarrierScalar>(
                 Decision::RadiusEmission { at },
                 DecisionValue::Emission(*recorded),
                 DecisionValue::Emission(*found),
+            )));
+        }
+    }
+    // The pieces, for the same reason: which step and role each
+    // segment is follows from which arm ran, and a pass that drew a
+    // run as its own segment where the record merged it into a leg
+    // names every later segment differently.
+    if structure.pieces.len() != closed.structure.pieces.len() {
+        return Err(refuse(StructureRefusal::shape(
+            structure.pieces.len(),
+            closed.structure.pieces.len(),
+        )));
+    }
+    for (segment, (recorded, found)) in structure
+        .pieces
+        .iter()
+        .zip(&closed.structure.pieces)
+        .enumerate()
+    {
+        if recorded != found {
+            return Err(refuse(StructureRefusal::flipped(
+                Decision::Piece { segment },
+                DecisionValue::Piece(*recorded),
+                DecisionValue::Piece(*found),
             )));
         }
     }

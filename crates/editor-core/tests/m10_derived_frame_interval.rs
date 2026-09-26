@@ -78,7 +78,7 @@ fn budget() -> geom_core::SymBudget {
 
 /// Node failures of an evaluation over the WHOLE declared box in one
 /// leaf, on the plain `Interval` lane.
-fn interval_failures(doc: &ProfileDoc, lift: ProfileLift) -> Vec<String> {
+fn interval_failures(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
     let analyzed = analyzed_box(doc, &AnalysisPolicy::default());
     let opts = EvalOptions {
         param_box: Some(Arc::new(ParamBox::of(&analyzed))),
@@ -91,7 +91,7 @@ fn interval_failures(doc: &ProfileDoc, lift: ProfileLift) -> Vec<String> {
 
 /// The same, on the `Sym<Interval>` lane the E6 driver certifies on,
 /// under the shipped rule set.
-fn sym_failures(doc: &ProfileDoc, lift: ProfileLift) -> Vec<String> {
+fn sym_failures(doc: &editor_core::ProfileDoc, lift: ProfileLift) -> Vec<String> {
     sym_failures_under(doc, lift, SymRules::shipped()).0
 }
 

@@ -103,6 +103,7 @@ fn slab(depth: f64) -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -119,6 +120,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
@@ -149,6 +151,7 @@ fn two_param_slab() -> ProfileDoc {
             [param("side"), param("side")],
             [lit(0.0), param("side")],
         ])],
+        ids: Vec::new(),
     }));
     r.insert(Node::Extrude {
         profile: p,
@@ -164,6 +167,7 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![unit_square()],
+        ids: Vec::new(),
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
@@ -200,7 +204,7 @@ fn failing(ev: &Evaluation<f64>) -> BTreeSet<RecipeNodeId> {
 
 /// The PROBE's question at one value of one parameter: does this
 /// document fail anywhere the document at the nominal did not?
-fn no_new_failure(doc: &ProfileDoc, p: &str, value: f64) -> bool {
+fn no_new_failure(doc: &editor_core::ProfileDoc, p: &str, value: f64) -> bool {
     let baseline = failing(&f64_run(doc));
     let moved = editor_core::apply(
         doc,
@@ -249,7 +253,12 @@ fn standings_and_names(
     (standings, names)
 }
 
-fn range_of(doc: &ProfileDoc, p: &str, seed: RangeSeed, config: &DriveConfig) -> CertifiedRange {
+fn range_of(
+    doc: &editor_core::ProfileDoc,
+    p: &str,
+    seed: RangeSeed,
+    config: &DriveConfig,
+) -> CertifiedRange {
     certified_range(doc, &RangeField::Param(name(p)), seed, config, tol())
         .expect("the fixture has an axis and a witness that builds")
 }

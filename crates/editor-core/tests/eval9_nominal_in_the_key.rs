@@ -125,7 +125,7 @@ mod over_a_param_box {
     /// test. `SetDocParamValue` is a value-only edit, so applying the
     /// value the document already carries is a real edit that moves no
     /// nominal.
-    fn set_p(doc: &ProfileDoc, value: f64) -> ProfileDoc {
+    fn set_p(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
         doc.apply(
             &DocEdit::SetDocParamValue {
                 name: p(),

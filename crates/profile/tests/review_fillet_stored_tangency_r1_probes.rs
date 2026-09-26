@@ -497,7 +497,7 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
         replay_guided, replay_recording,
     };
     fn pt(p: Point2<f64>) -> Point2<Interval> {
-        Point2::new(Interval::from_f64(p.x), Interval::from_f64(p.y))
+        p.map(Interval::from_f64)
     }
     fn tgt(t: Target<f64>) -> Target<Interval> {
         match t {

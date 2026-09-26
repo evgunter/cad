@@ -381,6 +381,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                 LoopProgram::polygon([(0.0, -h), (LINK_LENGTH, -h), (LINK_LENGTH, h), (0.0, h)])
                     .expect("finite bar corners"),
             ],
+            ids: Vec::new(),
         }),
         tol,
     );
@@ -401,6 +402,7 @@ pub fn chain(links: usize, joint_sigma: f64, bound: f64, tol: Tol) -> Chain {
                     centre: [len(x), len(0.0)],
                     radius: len(PIN_RADIUS),
                 }],
+                ids: Vec::new(),
             }),
             tol,
         );

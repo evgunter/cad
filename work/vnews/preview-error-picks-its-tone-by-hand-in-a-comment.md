@@ -10,11 +10,10 @@ cost: E
 
 
 
-**Filed here because the file has no owner.** `crates/viewer/src/pane/
-profile.rs` is claimed by CHROME (dormant) and VIEW (not dispatching)
-and by none of VIEW's four successors — the gap
-`work/view/viewer-src-files-no-successor-claims` names. Route it when
-that gap closes.
+**Owner: VNEWS.** Filed first under `work/issues/`, when
+`crates/viewer/src/pane/profile.rs` had no dispatching owner (the gap
+`work/view/viewer-src-files-no-successor-claims` names); it is
+VNEWS-claimed today, and the row moved here on 2026-09-25 (below).
 
 Found by the sweep of `work/vnews/tone-is-a-value-in-frame-and-a-
 comment-in-two-panes`, as the **re-derivation of that row's third
@@ -49,3 +48,22 @@ derives from the other. A fix reads `frame::Tone` from `PreviewError`
 — which is `crate::sketch`'s, in the viewer — rather than from the
 pane, and then this comment states the argument for the split instead
 of standing in for the code.
+
+## Re-derived (2026-09-25), and routed
+
+Re-derived by the sweep of `resolution-and-standing-pick-their-tone-by-
+hand`, which settled the neighbouring cases. **The shape has moved and
+the defect has not.** `pane::profile::preview_verdict` now draws every
+arm through `widgets::message_toned`, but hands it a `frame::Tone`
+literal chosen per arm — `Advisory` for an open chain and for
+`PreviewError::Transition { verb: None, .. }`, `Actionable` for
+`drawn.invalid` and every other `PreviewError` — so the rule is still
+the pane's, spelled as a `Tone` rather than as a colour. The fix is the
+one that row took for `Standing`: the value the viewer already owns
+(`crate::sketch::PreviewError`, and the open-chain state on
+`ProfilePreview`) states the tone, and the pane reads it.
+
+**Moved here from `work/issues/`**: `crates/viewer/src/pane/profile.rs`
+is VNEWS-claimed today (`work.py territory`), and the rule is this
+program's charter. `crates/viewer/src/sketch.rs`, where the tone would
+live, is AUTHOR's, CHROME's and VGEOM's — a crossing to announce.

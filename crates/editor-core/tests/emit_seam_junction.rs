@@ -20,8 +20,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, me
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef,
-    RecipeNodeId, RoleSeg, SitedRef, StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -93,11 +93,11 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
 /// x = 1.0 wall resting on `a`'s x = 1 wall. `b` covers that contact,
 /// and it is a contact of the pair all the same (DM4).
 fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
-    let mut pairs = flush_pairs((f.a, f.a), (f.b, f.b));
+    let mut pairs = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b));
     pairs.extend(f.h.map(|h| {
         (
-            SitedRef::new(f.a, fname(f.a, wall(1))),
-            SitedRef::new(h, fname(h, wall(3))),
+            SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
+            SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
         )
     }));
     pairs
@@ -106,23 +106,23 @@ fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
 /// The name every fused order gives the point where `g`'s `x = 0.3`
 /// wall crosses `a`'s `cap` / `y = 1` rim: that rim and that wall, in
 /// name order.
-fn crossing(union: RecipeNodeId, a: RecipeNodeId, g: RecipeNodeId, cap: CapEnd) -> StableName {
+fn crossing(
+    doc: &ProfileDoc,
+    union: RecipeNodeId,
+    a: RecipeNodeId,
+    g: RecipeNodeId,
+    cap: CapEnd,
+) -> StableName {
     let rim = member_entity(
         union,
         a,
         ename(
             a,
-            RoleSeg::RimEdge(
-                cap,
-                ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 2,
-                },
-            ),
+            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
         ),
         EntityKind::Edge,
     );
-    let g_x0 = member_face(union, g, fname(g, wall(3)));
+    let g_x0 = member_face(union, g, fname(g, wall(doc, g, 3)));
     let (lo, hi) = if rim < g_x0 { (rim, g_x0) } else { (g_x0, rim) };
     StableName {
         kind: EntityKind::Vertex,
@@ -170,7 +170,7 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");
     assert_eq!(junctions(table(&ev, union)), BTreeSet::new());
-    let p = point_of(&ev, union, &crossing(union, a, g, CapEnd::End));
+    let p = point_of(&ev, union, &crossing(&docx, union, a, g, CapEnd::End));
     assert!(
         (p[0] - 0.3).abs() < 1e-12 && (p[1] - 1.0).abs() < 1e-12 && (p[2] - 1.0).abs() < 1e-12,
         "the crossing sits where g's wall meets the rim, not at {p:?}"
@@ -234,7 +234,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         BTreeSet::new(),
                         "{label} {order:?}"
                     );
-                    let p = point_of(&ev, union, &crossing(union, a, g, cap));
+                    let p = point_of(&ev, union, &crossing(&docx, union, a, g, cap));
                     assert!(
                         (p[0] - 0.3).abs() < 1e-12
                             && (p[1] - 1.0).abs() < 1e-12

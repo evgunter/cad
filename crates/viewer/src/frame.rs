@@ -1108,11 +1108,8 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// between notices is the one no sentence can carry ([`Message::new`]).
 ///
 /// **Every arm DM7 makes the door report is worded**: a stranded
-/// payload name, a stranded appearance key, a declaration left with no
-/// consumer, and a name rewritten in place. A rebound is a repair the
-/// door made rather than a loss it left, and it is worded all the
-/// same: a name that moved without a word is exactly what the report
-/// exists to end.
+/// payload name, a stranded appearance key, and a declaration left
+/// with no consumer.
 ///
 /// **A cluster act is not**: it re-keys the mate graph's placement
 /// registry — a gauge instance and a frame, bookkeeping the chrome
@@ -1120,14 +1117,15 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// what the picture draws. It still rides [`OpOutcome::maintenance`],
 /// where a reader of the API sees it.
 ///
-/// The match names every arm, so a sixth is a compile error here
+/// The match names every arm, so a fifth is a compile error here
 /// rather than a row that reaches the outcome and is never worded.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     match row {
         Maintenance::Strand { .. }
         | Maintenance::StrandedAppearance { .. }
-        | Maintenance::OrphanedDeclare { .. }
-        | Maintenance::Rebound { .. } => Some(Message::new(Subject::Document, row.to_string())),
+        | Maintenance::OrphanedDeclare { .. } => {
+            Some(Message::new(Subject::Document, row.to_string()))
+        }
         Maintenance::Cluster(_) => None,
     }
 }
