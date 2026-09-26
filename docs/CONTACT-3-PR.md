@@ -220,6 +220,6 @@ every `FaceGeo` arm above.
   --no-fail-fast` at `CAD_TOLERANCE_EPS` unset, 1e-6 and 1e-12: 3179
   passed, 0 failed at each row.
 - `cargo clippy -p topo -p sweep --all-targets -- -D warnings`: clean.
-- `scripts/doc-gate.sh --skip-viewer-toolkit`: see the report.
+- `scripts/doc-gate.sh --skip-viewer-toolkit`: OK (8 cargo roots).
 - The editor-core concision suites were not built locally (disk). The
   combined PR's CI is their verification.
