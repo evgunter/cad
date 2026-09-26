@@ -55,6 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "band_declared_cusp_contacts.rs"]
+mod band_declared_cusp_contacts;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -184,6 +186,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
