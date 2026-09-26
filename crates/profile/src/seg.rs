@@ -399,6 +399,71 @@ fn circles_scale<T: Real>(g1: &ArcGeom<T>, g2: &ArcGeom<T>) -> T {
         .max(reach(g2.center))
 }
 
+/// **`path_junction_side`** — whether a junction whose departure is
+/// parallel to its arrival departs along it or REVERSES it (a cusp):
+/// the alignment `cos φ` of the two unit headings, levered by the
+/// arriving leg's arm. The one home of that question: the path door
+/// asks it of a zero-turn junction it is about to refuse or declare,
+/// and validation asks it of every declared tangent joint to record
+/// which are cusps ([`crate::ValidatedLoop::cusp_joints`]).
+///
+/// `true` iff the alignment is definitely negative. A `Zero` reads as
+/// NOT reversed — the arm itself is degenerate (both components
+/// sub-ε), which the path door refuses as the tangent class and which
+/// a validated loop cannot reach (its legs are definitely non-degenerate
+/// and its declared joints verified tangent, so the margin is ± the
+/// arm).
+pub(crate) fn junction_reverses<T: Decide>(
+    arriving: Vec2<T>,
+    departing: Vec2<T>,
+    arm: T,
+    band: Band,
+) -> Result<bool, Indeterminate> {
+    Ok(matches!(
+        decide(
+            "path_junction_side",
+            Margin::levered(arriving.dot(departing), arm),
+            band
+        )?,
+        Sign::Negative
+    ))
+}
+
+/// **An arc leg's lever arm**: the smaller of its carrier's radius and
+/// its chord. The radius is what an angular margin displaces over; the
+/// chord bounds it for an arc shorter than its own radius, where the
+/// radius would overstate how far the leg actually reaches.
+pub(crate) fn arc_lever<T: Real>(radius: T, chord: T) -> T {
+    radius.min(chord)
+}
+
+impl<T: Real> Seg<T> {
+    /// The leg's lever arm at a junction: a line's length, an arc's
+    /// [`arc_lever`].
+    pub(crate) fn arm(&self) -> T {
+        match &self.kind {
+            SegKind::Line => self.len,
+            SegKind::Arc(g) => arc_lever(g.radius, self.len),
+        }
+    }
+
+    /// The unit heading of the traversal at `p`, one of the segment's
+    /// endpoints: a line's chord direction; an arc's counterclockwise
+    /// carrier tangent at `p`, reversed on a clockwise turn.
+    pub(crate) fn heading_at(&self, p: Point2<T>) -> Vec2<T> {
+        match &self.kind {
+            SegKind::Line => self.unit,
+            SegKind::Arc(g) => {
+                let ccw = perp(p - g.center) * (T::one() / g.radius);
+                match g.turn {
+                    Sign::Negative => -ccw,
+                    Sign::Positive | Sign::Zero => ccw,
+                }
+            }
+        }
+    }
+}
+
 /// Classifies the joint between two adjacent segments — `prev` arrives
 /// at the shared vertex, `next` leaves it (the classification is
 /// symmetric; the roles only name the arguments). This is the single
