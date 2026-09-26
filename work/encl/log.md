@@ -195,3 +195,17 @@ file, so it rides `offset-fit-stall-face-has-no-fixture`.
 **Mine**: NOTE-3, pricing the new rows (at the state sync after merge).
 **Class, filed by the fix pass**: the NURBS-wall predicate re-spelled in
 about five `crates/sweep/tests` files.
+
+## Gating locally (2026-09-26)
+
+(ENCL orchestrator) Hosted CI's queue stands at hours, and the user
+authorised local runs. `local-scripts/ci-local.sh` runs under
+`CAD_LOCAL_CI_OVERRIDE` from one persistent gate worktree
+(`/home/user/encl-gate`, target `/home/user/encl-gate-target`), on
+each PR head merged with current main, ONE HEAD AT A TIME. The full
+matrix takes every build slot on this 4-core box, so lanes do not run
+it themselves; they report a final head, and the orchestrator gates it.
+Per the guard's own text, beside a queued hosted run this is an early
+answer, and merging on it before the hosted run lands is the owner's
+call. The user made that call for this sitting. First head: PR 3272's
+fix pass, `08c31a49`.
