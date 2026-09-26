@@ -23,23 +23,13 @@ use editor_core::{
     CancelToken, Datum, DatumValue, EvalOptions, EvalScalar, Node, ValuePayload, evaluate,
 };
 use geom_core::{Real, Sign, Tol};
-use profile::{
-    Profile, ProfileLoop, RawLoop, SegmentKind, SketchPlane, ValidatedProfile,
-    test_support::bulge_loop,
-};
+use profile::{Profile, ProfileLoop, SegmentKind, SketchPlane, ValidatedProfile};
 
 /// The `f64` loop embedded at `T` through `from_f64`, vertex by
 /// vertex, the declared joints carried — the raw profile the lane's
 /// own validation would run on.
 fn embed<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    bulge_loop(
-        lp.vertices()
-            .iter()
-            .zip(lp.bulges())
-            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
-            .collect(),
-    )
-    .with_tangent_joints(lp.tangent_joints().to_vec())
+    lp.map_scalar(T::from_f64)
 }
 
 /// Every scalar a validated profile stores, in one fixed order: the
