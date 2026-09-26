@@ -72,8 +72,8 @@ use geom_core::{
 };
 use profile::{ProfileLoop, SketchPlane, ValidatedProfile};
 use topo::{
-    Body, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated, MevSite,
-    PcurveMintError, ShellKey, SolidKey,
+    Body, DeclaredContact, EdgeKey, EulerOpError, FaceKey, FaceSurface, MefSite, MevCreated,
+    MevSite, PcurveMintError, ShellKey, SolidKey,
 };
 
 use crate::skin::{LoftGeometry, Section, SkinError, loft_geometry, sweep_places};
@@ -118,6 +118,30 @@ pub struct Lofted<T: Real> {
     /// residual pad accompanies it. [`crate::loft_parameters`] answers the
     /// same question BEFORE the body is built.
     pub section_params: Vec<f64>,
+    /// **The contacts the sections declared**: one `Tangent` pair per
+    /// declared cusp joint — the walls of the two canonical segments
+    /// meeting there, arriving wall first — loops in canonical order,
+    /// joints ascending. A joint counts when ANY section declares a
+    /// cusp there (sections pair by canonical index, so the wall pair
+    /// is one pair along the loft). Empty when no section declares a
+    /// cusp.
+    ///
+    /// **What the record asserts is weaker than the class name alone
+    /// suggests.** It says the author declared this wall pair tangent
+    /// AT some section — not that the seam is a tangent contact along
+    /// its whole length. Where sections disagree (a cusp in one, a
+    /// smooth joint or a corner in another) the seam's wedge varies
+    /// along it, and the pair is still carried; a reader that takes
+    /// the `Tangent` class as a statement about every station of the
+    /// seam must re-check it there.
+    ///
+    /// The authors' declaration carried through the verb, not a
+    /// discovery. Tier 3's material arm exempts an edge with a NURBS
+    /// face by kind, so today a lofted cusp seam validates with or
+    /// without this record, and nothing reads the class along a NURBS
+    /// edge; it is carried so the declaration reaches whatever reads
+    /// the body's contacts, the same as the extrude's.
+    pub declared_contacts: Vec<DeclaredContact>,
 }
 
 /// Typed refusal of the loft/sweep body assembly (closed enum, D4 ¶3).
@@ -435,6 +459,11 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
     // each section is traversed once for the whole assembly. ----
     stacking_fold::<T>(places, geometry, band, &bq[0], &tq[0])?;
 
+    // ---- The declared cusps: per loop, the canonical joints some
+    // section declares as a cusp (the extrude's step 7, one verb
+    // over). ----
+    let cusps = declared_cusps(geometry)?;
+
     // ---- Lifted walls, kept once: face surfaces AND seam carriers
     // read the same lifted structure (D9 — one lift, shared bits). ----
     let walls_t: Vec<Vec<Arc<NurbsSurface<T>>>> = geometry
@@ -675,6 +704,15 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         "loft postcondition: result is not tier-2 valid (kernel bug)",
     );
 
+    // Loft never reverses a traversal, so `side_faces` is already in
+    // canonical segment order.
+    let declared_contacts = cusps
+        .iter()
+        .zip(&side_faces)
+        .flat_map(|(joints, walls)| {
+            crate::swept::cusp_contacts(joints, walls.len(), |s| Some(walls[s]))
+        })
+        .collect();
     Ok(Lofted {
         body: built,
         solid: seed.solid,
@@ -684,7 +722,33 @@ fn assemble<T: Decide + geom_brep::PcurveFittedLane>(
         side_faces,
         seam_edges,
         section_params: geometry.section_params.clone(),
+        declared_contacts,
     })
+}
+
+/// Per canonical loop, ascending, the joints at which SOME section
+/// declares a cusp ([`profile::ValidatedLoop::cusp_joints`]).
+///
+/// A union and not a per-section list, because the wall pair is one
+/// pair along the whole loft: sections are paired by canonical index,
+/// so joint `v` of every section lies on the seam between walls
+/// `v − 1` and `v`. What the carried record then means is stated on
+/// [`Lofted::declared_contacts`].
+fn declared_cusps(geometry: &LoftGeometry) -> Result<Vec<Vec<usize>>, LoftError> {
+    let mut cusps: Vec<Vec<usize>> = vec![Vec::new(); geometry.walls.len()];
+    for profile in &geometry.canonical {
+        for (li, lp) in profile.loops().iter().enumerate() {
+            cusps
+                .get_mut(li)
+                .ok_or(LoftError::SectionStructure)?
+                .extend_from_slice(lp.cusp_joints());
+        }
+    }
+    for joints in &mut cusps {
+        joints.sort_unstable();
+        joints.dedup();
+    }
+    Ok(cusps)
 }
 
 /// **The loft body** (M6-PLAN unit 3, spec §1): skins

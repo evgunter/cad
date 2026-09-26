@@ -1,16 +1,14 @@
-//! MATE-3 R1 review probes — reachability honesty (claim 7) and the
-//! declared-cusp chain, re-executed rather than trusted.
-//!
-//! PR #1423 §3 claims: a `.cusp()` profile validates, `extrude` BUILDS
-//! the cusp solid (v/e/f = 6/9/5), and `validate_geometric` refuses it
-//! typed `UndeclaredCusp { wedge: Cusp }` — nothing silent, nothing
-//! auto-declared. This file executes that chain.
+//! The declared-cusp chain, executed: a `.cusp()` profile validates,
+//! `extrude` builds the cusp solid (v/e/f = 6/9/5), `validate_geometric`
+//! refuses it typed `UndeclaredCusp { wedge: Cusp }` — nothing silent —
+//! and the verb carries the profile's own declaration out
+//! (`Extruded::declared_contacts`), with which the body validates.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol};
 use profile::{Open, Start};
 use sweep::{Extrusion, extrude};
-use topo::{ContactClass, DeclaredContact, ValidationError};
+use topo::{ContactClass, ValidationError};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -35,7 +33,7 @@ fn lune() -> profile::ClosedLoop<f64> {
 }
 
 #[test]
-fn r1_cusp_profile_extrudes_and_the_at_rest_gate_refuses_typed() {
+fn r1_cusp_profile_extrudes_refuses_undeclared_and_carries_its_declaration() {
     let tol = Tol::witness();
     let closed = lune();
     let profile = profile::Profile::new(profile::SketchPlane::xy(), vec![closed.loop_])
@@ -43,7 +41,7 @@ fn r1_cusp_profile_extrudes_and_the_at_rest_gate_refuses_typed() {
         .expect("the declared cusp profile must validate (the data gate accepts)");
     let built = extrude(&profile, Extrusion::Distance(1.0), tol)
         .expect("extrude must BUILD the cusp solid");
-    let body = built.body;
+    let body = &built.body;
     assert_eq!(
         (
             body.vertices().count(),
@@ -53,30 +51,38 @@ fn r1_cusp_profile_extrudes_and_the_at_rest_gate_refuses_typed() {
         (6, 9, 5),
         "the PR's claimed v/e/f for the extruded lune"
     );
-    // The at-rest gate refuses typed — nothing proceeded silently and
-    // nothing emitted a declaration the author never made.
-    let errs = topo::validate_geometric(&body, tol)
-        .expect_err("the undeclared result must refuse at rest");
+    // The at-rest gate refuses typed when no declaration is passed —
+    // nothing proceeded silently, and the body itself carries no
+    // contact state that would bless it.
+    let errs =
+        topo::validate_geometric(body, tol).expect_err("the undeclared result must refuse at rest");
     assert_eq!(errs.len(), 1, "{errs:?}");
     let (cusp_edge, wedge) = match &errs[0] {
         ValidationError::UndeclaredCusp { edge, wedge } => (*edge, *wedge),
         other => panic!("expected UndeclaredCusp, got {other:?}"),
     };
     assert_eq!(wedge, geom_brep::MaterialWedge::Cusp);
-    // Supplying the declaration BY HAND (the caller's job until the
-    // sweep-side emission handoff lands) legalizes exactly that edge.
+    // The profile's declaration comes out of the verb as exactly that
+    // edge's face pair, and it legalizes the body.
     let e = body.get_edge(cusp_edge).unwrap();
     let face_of = |he| {
         let l = body.get_half_edge(he).unwrap().parent_loop;
         body.get_loop(l).unwrap().face
     };
-    let declared = [DeclaredContact {
-        a: face_of(e.he_plus),
-        b: face_of(e.he_minus),
-        class: ContactClass::Tangent,
-    }];
+    let [carried] = built.declared_contacts.as_slice() else {
+        panic!(
+            "one declared cusp carries one contact: {:?}",
+            built.declared_contacts
+        );
+    };
+    let pair = [face_of(e.he_plus), face_of(e.he_minus)];
+    assert!(
+        carried.class == ContactClass::Tangent
+            && (pair == [carried.a, carried.b] || pair == [carried.b, carried.a]),
+        "the carried contact is the cusp edge's own face pair: {carried:?} vs {pair:?}"
+    );
     assert_eq!(
-        topo::validate_geometric_declared(&body, &declared, tol),
+        topo::validate_geometric_declared(body, &built.declared_contacts, tol),
         Ok(())
     );
 }
