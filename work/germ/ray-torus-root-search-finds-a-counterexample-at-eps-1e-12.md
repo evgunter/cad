@@ -147,6 +147,12 @@ cancellation, and certifies across the resolvent's `Q = 0` surface at
 `r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval` and
 `r1_the_q_zero_surface_certifies_on_both_sides`.
 
+**The second counterexample is covered too.** Its seed
+(`0x78705bd8ba1c45ed`, `eps = default`) replays on the fix with 6
+certified, 0 uncertain and 0 disagreements, where it had 2. The
+generic-pose row draws the torus's axis at random too, so `d.z = 0.81`
+said nothing about the ray's angle to the axis.
+
 **Residue, filed:**
 - `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead.md`
 - `work/contact/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`
