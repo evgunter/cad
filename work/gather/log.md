@@ -378,3 +378,21 @@ use line-tables-only debug info and incremental off. GATHER's response:
   the three merge in that order, each with `[skip ci]`. The tree tested
   is the tree that lands, provided main has not moved in between; if it
   has, the orchestrator re-checks the merge for conflicts before merging.
+
+**3264's battery: the test rows are green; the tail is re-run.** All
+three test rows passed at default, 1e-6 and 1e-12 (8204 tests each),
+along with clippy ×4, rustdoc, wasm32, doc-tests and the interval rows.
+Two rows failed:
+- `test (viewer app)`: one test,
+  `gpu::tests::every_pass_builds_on_a_real_device`, panicked with "NO WGPU
+  ADAPTER". It fails in any tree on this container, and the row names
+  its own fix. `mesa-vulkan-drivers` (lavapipe) is now installed, and
+  the row is re-run for real rather than excused.
+- The last rows (tour suite, k-lint and tess sweeps, watertight, the
+  release corrupt-input row, the python suite) died with ENOSPC. The
+  worktree `target/` had reached 23 GB, even after the examples and
+  incremental were deleted mid-run. Its `target/` was deleted, and those
+  rows alone are re-run from a copy of `ci-local.sh` whose earlier
+  `run_row` calls are commented out (`local-scripts/ci-local-tail.sh`
+  in the worktree, uncommitted). The commands are identical; the release
+  profile also takes line-tables-only.
