@@ -98,3 +98,28 @@ still found something: the pose exists in the space the row samples,
 and the next run that draws near it reds again on somebody else's
 branch. Re-running is how a real counterexample becomes a rumour about
 a flaky test.
+
+## A second counterexample, at `eps = default` (2026-09-25)
+
+Seen on run `36135015587`, job `test (eps = default, 2/2)`, on
+`atrest/10-door-matrix` (ATREST-10, PR #3227), whose diff does not
+touch `boolean/solid_contain` — reported, not owned. The eps-default
+row is the new fact: the criterion's band at `1e-12` is not the whole
+story. Copied from the log:
+
+```
+[fuzz] boolean::solid_contain::r1_generic_poses: seed=0x78705bd8ba1c45ed effort=1
+    (replay: CAD_FUZZ_SEED=0x78705bd8ba1c45ed CAD_FUZZ_EFFORT=1)
+R1 root-count probe (generic poses): 20 rays, 6 certified, 14 miss,
+    0 uncertain/escalated, 2 disagreements
+ROOT [generic] R=1 r=0.9
+  o = (-2.516701118654463, 0.961336734328329, -0.9177481448649414)
+  d = (0.4202011253716097, -0.41489849169686766, 0.8070255608244989)
+  code 1.6878065275717353 vs oracle 1.687803292260119  (gap 1.0580228628250516)
+  code 2.7458229839997763 vs oracle 2.7458261550851706 (gap 1.0580228628250516)
+```
+
+Same torus (`R = 1`, `r = 0.9`), again both disagreements on one ray,
+again agreeing to about six digits (`3.2e-6`), but this ray is NOT
+near-perpendicular to the axis (`d.z = 0.81`), so the first pose's
+reading — two inner roots approaching each other — does not cover it.
