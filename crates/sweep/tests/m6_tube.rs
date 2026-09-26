@@ -281,14 +281,11 @@ fn tube_window_and_refusal_doors() {
 /// **§9.3 interval row:** the tube door at the interval scalar —
 /// build, tier 3, and the Pappus volume bracketed enclosure-style.
 mod certified {
-    use geom_core::Real;
     use geom_core::interval::Interval;
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     #[test]
     fn the_tube_donut_certifies_and_encloses_pappus_at_interval() {

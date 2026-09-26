@@ -32,18 +32,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Bounds, Interval, Point2, Real, Tol, Vec2};
+use crate::common::interval::{iv, p2};
+use geom_core::{Bounds, Interval, Real, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 
 fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Interval> {
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])

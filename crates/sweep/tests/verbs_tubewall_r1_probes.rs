@@ -333,14 +333,12 @@ fn the_cavity_is_a_two_wall_torus_at_the_inner_bits() {
 /// bounded relative to the quantity), which is the direction the unit
 /// suite's own containment rows cannot pin.
 mod certified {
+    use geom_core::Bounds;
     use geom_core::interval::Interval;
-    use geom_core::{Bounds, Real};
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     /// MEASURED (this review, interval + ε = 1e-12): BOTH km-scale
     /// cases (R = 1300) refuse typed in shared machinery — the

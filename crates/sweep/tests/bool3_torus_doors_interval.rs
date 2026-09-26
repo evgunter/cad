@@ -39,19 +39,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{iv, p3};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2, Point3, Real};
+use geom_core::{Band, Interval, Point2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
 
 /// The donut at the certified scalar: a circle of radius 0.25 about
 /// `(1, 0)` revolved fully about the y axis — `R = 1`, `r = 0.25`, both

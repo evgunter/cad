@@ -16,13 +16,11 @@ mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
-    use geom_core::{Bounds, Interval, Real, Vec3};
+    use geom_core::{Bounds, Interval, Vec3};
     use sweep::test_support::ball_poled_y;
     use topo::mass_properties;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
         assert!(

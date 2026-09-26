@@ -21,19 +21,12 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Bounds, Interval, Point2, Real, Tol, Vec3};
+use crate::common::interval::{iv, p2};
+use geom_core::{Affine3, Bounds, Interval, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 
 /// The `f64` suite's pipe at the certified scalar: radius 1 about `z`,
 /// `z ∈ [−2, 2]`, built through the same public doors so the two

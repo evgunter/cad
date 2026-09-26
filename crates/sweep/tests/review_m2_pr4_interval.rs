@@ -10,18 +10,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::p2;
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Point3, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::sketch_from_axes;
 use sweep::{Extrusion, extrude};
 use topo::readback::euler_counts;
 use topo::{validate, validate_closed, validate_geometric};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn square(x0: f64, y0: f64, s: f64) -> ProfileLoop<Interval> {
     ProfileLoop::polygon([

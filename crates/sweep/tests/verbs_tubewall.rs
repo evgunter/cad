@@ -438,14 +438,11 @@ fn hollow_wall_and_shared_refusal_doors() {
 /// **The interval row**: the hollow tube at the certified scalar —
 /// build, tier 3, and both closed forms inside the enclosure.
 mod certified {
-    use geom_core::Real;
     use geom_core::interval::Interval;
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     fn encloses(value: Interval, pad: f64, exact: f64, what: &str) {
         let lo = geom_core::Bounds::lo(value) - pad;

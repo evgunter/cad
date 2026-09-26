@@ -7,16 +7,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::p2;
 use geom_core::Tol;
-use geom_core::{Interval, Point2, Real, Vec2};
+use geom_core::{Interval, Real, Vec2};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{validate, validate_closed, validate_geometric};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::<Interval>::xy(), loops)

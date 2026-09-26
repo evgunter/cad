@@ -713,14 +713,11 @@ fn r2_wall_verdicts_preempt_the_window_verdicts() {
 // ---------------------------------------------------------------
 
 mod certified {
-    use geom_core::Real;
     use geom_core::interval::Interval;
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        <Interval as Real>::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     fn hollow_iv(
         major: f64,

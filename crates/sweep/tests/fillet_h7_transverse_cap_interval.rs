@@ -21,10 +21,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::iv;
 use geom::Curve3;
 use geom_brep::EdgeDescription;
 use geom_core::k_stats::Bracket;
-use geom_core::{Band, Bounds, Interval, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Interval, Sign, Tol, Vec3};
 use sweep::blend::BlendError;
 use sweep::blend::battery::cap_transverse;
 use sweep::blend::build::fillet_edges;
@@ -33,10 +34,6 @@ use sweep::test_support::{
     rod_section_cut,
 };
 use topo::{Body, EdgeKey, VertexKey, mass_properties, validate_geometric};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 /// An enclosure must contain its truth AND be a claim.
 fn assert_brackets(got: Interval, truth: f64, what: &str) {

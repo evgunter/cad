@@ -423,10 +423,11 @@ fn caches_replay_bit_identically() {
 fn caches_certify_on_the_interval_lane() {
     use geom_core::{Interval, Real};
 
-    let ip2 = |x: f64, y: f64| Point2::new(Interval::from_f64(x), Interval::from_f64(y));
+    use crate::common::interval;
+
     let lp = bulge_loop(vec![
-        (ip2(-0.5, 0.0), Interval::from_f64(1.0)),
-        (ip2(0.5, 0.0), Interval::from_f64(1.0)),
+        (interval::p2(-0.5, 0.0), Interval::from_f64(1.0)),
+        (interval::p2(0.5, 0.0), Interval::from_f64(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

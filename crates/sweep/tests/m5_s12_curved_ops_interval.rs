@@ -24,20 +24,14 @@ pub(crate) mod certified {
 
     use crate::common::operands::m5_boss;
     use geom::Surface;
-    use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
+    use geom_core::{Bounds, Interval, OrthoFrame, Vec3};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
     use sweep::{Extrusion, extrude};
     use topo::{Body, mass_properties};
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn p2(x: f64, y: f64) -> Point2<Interval> {
-        Point2::new(iv(x), iv(y))
-    }
+    use crate::common::interval::{iv, p2};
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)

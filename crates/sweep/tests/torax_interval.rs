@@ -45,21 +45,14 @@
 
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Bounds, Interval, MarginDiag, Point2, Real, Tol, Vec2};
+use geom_core::{Bounds, Interval, MarginDiag, Real, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
 use topo::{Body, ShellError, ValidationError};
 
 use crate::common::charts::hollow_moves;
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
+use crate::common::interval::{iv, p2};
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;

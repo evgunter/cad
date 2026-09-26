@@ -15,24 +15,13 @@ use crate::common::operands::pellet;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
+use crate::common::interval::{iv, p2, p3};
 use geom_core::Tol;
-use geom_core::{Band, Bounds, Interval, Point2, Point3, Real, Vec2};
+use geom_core::{Band, Bounds, Interval, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 use topo::{Body, mass_properties};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
 
 fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
     Profile::new(SketchPlane::xy(), loops)

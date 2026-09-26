@@ -35,19 +35,14 @@
 use std::f64::consts::{PI, TAU};
 
 use crate::common::approx::band;
+use crate::common::interval::{iv, p2};
 use geom::Surface;
-use geom_core::{Bounds, Interval, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Bounds, Interval, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{
     Body, ChartBound, ChartEdge, ChartLoop, FaceKey, LoopBoundary, MetredRect, chart_boundary,
 };
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
 fn mid(x: Interval) -> f64 {
     0.5 * (x.lo() + x.hi())
 }

@@ -41,14 +41,11 @@
 
 use core::f64::consts::PI;
 
-use geom_core::{Affine3, Interval, Point2, Point3, Real, Tol, Vec3};
+use crate::common::interval::iv;
+use geom_core::{Affine3, Interval, Point2, Point3, Tol, Vec3};
 use profile::{Profile, SketchPlane};
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
 
 // NOT `common::germ_pair`: the `Interval`-typed twin of that fixture,
 // lifted at every literal — see that module's list.
