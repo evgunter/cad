@@ -1725,9 +1725,8 @@ mod tests {
     /// FEATURE, which is what every other panel calls a node.
     #[test]
     fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
-        let painted = |state: &MateToolState| {
-            painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT))
-        };
+        let painted =
+            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
         assert_eq!(painted(&MateToolState::Idle), "no picks yet");
         assert_eq!(
             painted(&MateToolState::One(face_on(3))),
@@ -1749,12 +1748,14 @@ mod tests {
     fn the_boolean_panel_says_which_operand_each_pick_is() {
         let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
         let mut tool = BooleanTool::new();
-        let painted = |tool: &BooleanTool| {
-            painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT))
-        };
+        let painted =
+            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
         assert_eq!(painted(&tool), "no picks yet");
         tool.pick(&doc, RecipeNodeId(3));
-        assert_eq!(painted(&tool), "first operand: feature 3; second operand: —");
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: —"
+        );
         tool.pick(&doc, RecipeNodeId(5));
         assert_eq!(
             painted(&tool),

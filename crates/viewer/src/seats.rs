@@ -3,7 +3,7 @@
 //! the one place a sentence about a held pick is composed: the
 //! still-empty refusal ([`SeatError`]), the drop notice
 //! ([`SeatEvent`]) and the panel line ([`seat_line`]), which every
-//! tool panel shows, the mate tool's included ([`picks_line`]).
+//! tool panel shows, the mate tool's included (`picks_line`).
 //!
 //! # Why one value and not one per tool
 //!
@@ -31,7 +31,7 @@
 //! divergence is stated in both module docs and neither is the other's
 //! accident. **What it does share is the panel line**: a held pick is
 //! still a role and what fills it, so the mate panel composes its line
-//! through [`picks_line`] — the same empty-state sentence, item shape
+//! through `picks_line` — the same empty-state sentence, item shape
 //! and mark — and a picked node is called what [`seat_line`] calls it.
 //!
 //! # Kinds ROUTE a pick; they still do not judge one

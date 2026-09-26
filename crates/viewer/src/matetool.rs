@@ -380,7 +380,7 @@ pub enum MateToolState {
 
 impl MateToolState {
     /// **The line the mate panel shows for its held picks** — the
-    /// seated tools' line ([`crate::seats::picks_line`]), with the
+    /// seated tools' line (`seats::picks_line`), with the
     /// mate's two sides as its roles and each pick said as the face of
     /// the feature whose body it was taken on.
     ///

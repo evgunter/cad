@@ -1740,10 +1740,7 @@ fn the_seat_line_names_the_roles() {
     );
     let mut transform = TransformTool::new();
     transform.pick(&doc, RecipeNodeId(7));
-    assert_eq!(
-        seat_line(transform.seats()),
-        "transformed body: feature 7"
-    );
+    assert_eq!(seat_line(transform.seats()), "transformed body: feature 7");
 }
 
 /// **A dropped pick is called what the panel called it** — `feature
