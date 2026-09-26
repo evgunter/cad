@@ -57,9 +57,10 @@ until the axis it names is drawn, and an accepted gap of that shape is
 usually a liveness bug in disguise rather than a scoping decision.
 Hosted CI drew ONE eps per run from 2026-08-22 to 2026-09-04, which made
 "run it locally at every eps it claims to cover" the only way to close
-that axis; it now gates all three eps rows on both compile modes, so the
-hosted run is the evidence and what to check is that the job list carries
-twelve `test (…)` jobs rather than a narrowed two. When an implementer names a gap, ask whether the untested axis
+that axis; it now gates every eps row, so the hosted run is the evidence
+and what to check is that the run was not narrowed — the `change filter`
+job's log says so (`docs/prompts/implementer-discipline.md` §2), not a
+count of job names. When an implementer names a gap, ask whether the untested axis
 is the row's subject or merely adjacent: adjacent is a follow-up, the
 subject is a blocker.
 
