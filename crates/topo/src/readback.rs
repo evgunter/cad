@@ -159,8 +159,8 @@ impl From<DanglingRef> for crate::euler::EulerOpError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReadbackError {
     /// A key does not resolve in this body — a stale key, or a key
-    /// from another body's lineage (foreign keys are not caught; see
-    /// the [`Body`] docs).
+    /// from another body's lineage that happens not to land on a live
+    /// slot (see [stale vs. foreign keys](crate::body#key-validity-stale-vs-foreign)).
     Dangling {
         /// Which lookup came back empty.
         what: DanglingRef,

@@ -52,6 +52,20 @@
 //! body lineages is the documented hazard here, and the accessors cannot
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
+//!
+//! **A door that answers THROUGH its key carries a foreign key onward**
+//! instead of stopping it. The foreign key lands on a live slot and passes
+//! the resolution; what the door then reads from that slot is native to
+//! this body and resolves cleanly, so the answer is well-formed and about
+//! the wrong entity. Two shapes of door do this:
+//!
+//! - **One composing two lookups** does not stop at the first hop: the
+//!   foreign key resolves to whatever entity the slot holds, and the door
+//!   answers about the owner THAT entity names.
+//! - **One answering a solid's member list** hands back another solid's
+//!   entities as though they were the caller's — a set the caller goes on
+//!   to treat as its own, where a single-entity lookup hands back one
+//!   wrong entity.
 
 use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
@@ -108,7 +122,7 @@ pub(crate) enum Walk {
 /// # Lineage-scoped keys (one coin, two faces)
 ///
 /// A key's identity is meaningful only within the lineage of the body that
-/// minted it (see the [module docs](self) on stale-vs-foreign keys): a key
+/// minted it (see [stale vs. foreign keys](self#key-validity-stale-vs-foreign)): a key
 /// crossing into an *unrelated* body is the documented hazard, silently
 /// resolvable to an arbitrary entity. The very same property is
 /// load-bearing in the other direction. Two bodies built from an identical
@@ -849,29 +863,28 @@ impl<T: Real> Body<T> {
     }
 
     // ------------------------------------------------------------------
-    // Lookup. Total: a stale key yields `None`, never a panic. A foreign
-    // key is NOT caught — it may resolve to an arbitrary entity (see the
-    // module docs on stale-vs-foreign keys).
+    // Lookup. Total: a stale key yields `None`, never a panic. What a
+    // foreign key does is the module docs' `Key validity` section, which
+    // every door below points to rather than restating.
     // ------------------------------------------------------------------
 
-    /// The solid at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The solid at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_solid(&self, key: SolidKey) -> Option<&Solid> {
         self.solids.get(key)
     }
 
-    /// The shell at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The shell at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_shell(&self, key: ShellKey) -> Option<&Shell> {
         self.shells.get(key)
     }
 
     /// The solid owning `face` — through its shell's back-pointer — or
-    /// `None` where the face or its shell does not resolve. A foreign
-    /// key is not caught (see the [module docs](self)), and this door
-    /// composes TWO lookups, so a foreign face key does not stop at
-    /// the first hop: it resolves to whatever face the arena's slot
-    /// holds and answers about the shell THAT face names.
+    /// `None` where the face or its shell does not resolve. It composes
+    /// two lookups, which is the shape of door
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign)
+    /// says carries a foreign key onward.
     ///
     /// **`None` is the only refusal this door can make**, and it is a
     /// `&self` read, so three shapes of caller keep a hand-written
@@ -901,11 +914,10 @@ impl<T: Real> Body<T> {
 
     /// The faces of `solid`, in slot-index order (deterministic per D9
     /// — the order [`Body::faces`] yields), or `None` where the solid
-    /// key does not resolve. A foreign key is not caught (see the
-    /// [module docs](self)), and here that costs more than at a
-    /// single-entity lookup: a foreign `SolidKey` landing on a live
-    /// slot passes the resolution and this door hands back **another
-    /// solid's face list** as though it were the caller's.
+    /// key does not resolve. It answers a solid's member list, which
+    /// is the shape of door
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign)
+    /// says carries a foreign key onward.
     ///
     /// [`Body::solid_of_face`]'s inverse, and
     /// [`crate::query::all_faces`] restricted to one solid. It selects
@@ -940,12 +952,10 @@ impl<T: Real> Body<T> {
     }
 
     /// The shells of `solid`, **in the order the solid lists them**,
-    /// or `None` where the solid key does not resolve. A foreign key
-    /// is not caught, and the consequence
-    /// [`Body::faces_of_solid`] spells out for a `SolidKey` — a
-    /// foreign key landing on a live slot passes the resolution and
-    /// the caller is handed another solid's entities — holds here
-    /// identically, for the shells.
+    /// or `None` where the solid key does not resolve. It answers a
+    /// solid's member list, which is the shape of door
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign)
+    /// says carries a foreign key onward.
     ///
     /// This is a read of the STORED ownership list — [`Solid::shells`]
     /// itself — so it borrows rather than building: no caller pays an
@@ -980,25 +990,24 @@ impl<T: Real> Body<T> {
 
     /// The face owning `he`'s loop — through the half-edge's
     /// [`HalfEdge::parent_loop`] back-pointer and that loop's
-    /// [`Loop::face`] — or `None` where either key is stale. A foreign
-    /// key is not caught (see the [module docs](self)), and this door
-    /// composes TWO lookups, so a foreign half-edge key does not stop
-    /// at the first hop: it resolves to whatever half-edge the arena's
-    /// slot holds and answers about the loop THAT half-edge names.
+    /// [`Loop::face`] — or `None` where either key is stale. It
+    /// composes two lookups, which is the shape of door
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign)
+    /// says carries a foreign key onward.
     ///
-    /// **`None` is the only refusal this door can make**, so a caller
-    /// whose own refusal distinguishes the hops — naming which key
-    /// went stale — keeps its own walk: collapsing it here would
-    /// replace a refusal that identifies an entity with one that does
-    /// not. That is a population, not an exception.
+    /// **`None` is the only refusal this door can make.** What that
+    /// costs a caller, and which callers therefore keep a hand-written
+    /// walk, is the question [`Body::solid_of_face`] answers; the
+    /// argument transfers hop for hop, the half-edge's loop standing
+    /// where the face's shell stands there.
     #[must_use]
     pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
         self.get_loop(self.get_half_edge(he)?.parent_loop)
             .map(|l| l.face)
     }
 
-    /// The face at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The face at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_face(&self, key: FaceKey) -> Option<&Face> {
         self.faces.get(key)
     }
@@ -1062,22 +1071,22 @@ impl<T: Real> Body<T> {
         removed.then_some(out)
     }
 
-    /// The loop at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The loop at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly
     /// for uniformity and partly because `loop` is a Rust keyword.)
     pub fn get_loop(&self, key: LoopKey) -> Option<&Loop> {
         self.loops.get(key)
     }
 
-    /// The half-edge at `key`, or `None` if the key is stale (a foreign
-    /// key is not caught — see the [module docs](self)).
+    /// The half-edge at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_half_edge(&self, key: HalfEdgeKey) -> Option<&HalfEdge> {
         self.half_edges.get(key)
     }
 
-    /// The edge at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The edge at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_edge(&self, key: EdgeKey) -> Option<&Edge> {
         self.edges.get(key)
     }
@@ -1101,22 +1110,22 @@ impl<T: Real> Body<T> {
         self.face_provenance.get(key)
     }
 
-    /// The vertex at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The vertex at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_vertex(&self, key: VertexKey) -> Option<&Vertex> {
         self.vertices.get(key)
     }
 
-    /// The point at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The point at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_point(&self, key: PointKey) -> Option<&Point3<T>> {
         self.points.get(key)
     }
 
     /// The curve-arena entry at `key` — a certified carrier or M3
-    /// null-edge scaffolding ([`CurveGeom`], the arena's element type
-    /// since M3 PR 1) — or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// null-edge scaffolding ([`CurveGeom`], the arena's element type)
+    /// — or `None` if the key is stale (see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign)).
     ///
     /// There is deliberately **no** accessor that silently narrows to a
     /// certified [`EdgeCurve`]: consumers that need a real carrier
@@ -1126,14 +1135,14 @@ impl<T: Real> Body<T> {
         self.curves.get(key)
     }
 
-    /// The surface geometry at `key`, or `None` if the key is stale (a
-    /// foreign key is not caught — see the [module docs](self)).
+    /// The surface geometry at `key`, or `None` if the key is stale — see
+    /// [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     pub fn get_surface(&self, key: SurfaceKey) -> Option<&Surface<T>> {
         self.surfaces.get(key)
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
-    /// stale (a foreign key is not caught — see the [module docs](self)).
+    /// stale — see [stale vs. foreign keys](self#key-validity-stale-vs-foreign).
     /// Always `Some` for a live entity: the builder API
     /// records provenance at every insertion, so an entity without
     /// provenance is unrepresentable.
