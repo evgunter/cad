@@ -13,9 +13,11 @@
 //! projected into the match and its [`SpecForms`]).
 //!
 //! 1. `transition_table!` — the one declaration. One row per
-//!    (state, verb, kernel fn, next state), expanded into all four
-//!    artifacts: the typed method, the driver arm, the [`Step`]
-//!    variant, and the [`Verb`] tag — the last carrying the word the
+//!    (state, verb, kernel fn, next state), expanded into all nine
+//!    projections the macro's own docs list: per row, the typed
+//!    method, the driver arm, the row-set entry and the arc-spec forms;
+//!    per verb, the [`Step`] variant, the [`Verb`] tag, its `ALL`
+//!    membership, its [`Step::verb`] read-back arm, and the word the
 //!    verb is called by, so its `Display` is the row's too.
 //! 2. [`Step`] — the step vocabulary: one variant per authoring verb,
 //!    storing **authored data only**. `ArcVia`/`ArcCenter` keep the
@@ -42,9 +44,11 @@
 //!
 //! **Unwritable, by the table:** a transition present in one surface
 //! and absent (or different) in the other. A row IS the transition;
-//! delete it and the typed method, the driver arm, the `Step` variant
-//! and the `Verb` tag all vanish together, so every consumer of any of
-//! the four breaks at COMPILE. There is no second place to write a
+//! delete it and its typed method, driver arm, row-set entry and
+//! arc-spec forms vanish together — and with the verb's declaration,
+//! its `Step` variant, `Verb` tag, `ALL` membership, read-back arm and
+//! `Display` word — so every consumer of any of the nine breaks at
+//! COMPILE. There is no second place to write a
 //! transition, so an inconsistent pair cannot be spelled.
 //!
 //! **Unwritable, by the types:** calling a binder on the CARRIED VALUE
@@ -113,36 +117,58 @@ use geom_core::Tol;
 ///
 /// Given a tag enum spelled `pub enum Tag { $($name),* }`, a payload
 /// enum `P<T: Real>` with the same variant names, and a read-back
-/// `fn read(&P)`, this expands exactly three things: the payload-free
-/// tag enum, that tag's `ALL` (every variant, in declaration order),
-/// and the payload → tag read-back method. The tag is spelled as an
-/// `enum` item at each call site so that a reader searching for its
-/// declaration — and `pncad-py`'s prose census, which resolves
-/// `profile::Verb` by one — finds it under its own name. It
-/// is called from inside `target_forms!`, `arc_modes!` and
-/// `transition_table!`, each of which declares its payload enum from
-/// the same list and hands the names here, so the three tag halves are
-/// ONE expansion rather than three parallel ones. What it does not
-/// take is the payload side: the three payload enums differ in variant
-/// SHAPE (a tuple variant and two unit ones; struct variants with
-/// per-mode fields; the verb table's row grammar), and each declaring
-/// macro keeps its own grammar for that.
+/// `fn read(&P)`, this expands exactly three projections: the
+/// payload-free tag enum, that tag's `ALL` (every variant, in
+/// declaration order), and the payload → tag read-back method. The tag
+/// is spelled as an `enum` item at each call site so that a reader
+/// searching for its declaration — and `pncad-py`'s prose census, which
+/// resolves `profile::Verb` by one — finds it under its own name.
 ///
-/// **What calls it.** A macro that projects a payload enum onto a
-/// payload-free tag expands these three — tag enum, `ALL`, read-back
-/// — and calls this rather than spelling another copy. A macro that
-/// expands only an `ALL` (a closed vocabulary with no payload to read
-/// a tag back from) is not that shape and does not belong here.
+/// Its callers are `target_forms!`, `arc_modes!` and
+/// `transition_table!`. Each declares its payload enum from the same
+/// variant list and hands the names here, so their tag halves are ONE
+/// expansion rather than parallel copies. The payload side stays with
+/// each caller: the payload enums differ in variant SHAPE (a tuple
+/// variant and two unit ones; struct variants with per-mode fields;
+/// the verb table's row grammar), and each keeps its own grammar.
+///
+/// **The trigger, by shape.** A vocabulary has this shape when it has
+/// all three projections — a payload-free tag, an `ALL` over it, and a
+/// read-back from a payload enum — however they are spelled. A macro in
+/// this crate that declares a vocabulary of that shape, with a payload
+/// generic as `P<T: Real>` and a tag deriving exactly `Clone, Copy,
+/// Debug, PartialEq, Eq`, calls this rather
+/// than spelling another copy. The macro is crate-private
+/// (`macro_rules!`, not exported), and the tree has vocabularies of the
+/// same shape it does not reach, each for a reason of its own:
+///
+/// - `editor-core`'s `SegTag` (`seg_tags!` for the tag and `ALL`,
+///   `SegTag::of` for the read-back, over `RoleSeg`): another crate,
+///   whose own macro is private too; `RoleSeg` is not generic, against
+///   the `impl<T: Real>` here; and `SegTag` derives `Hash` and `Ord`.
+/// - `viewer`'s `ToolKind` (`vocabulary!` for the tag and `ALL`,
+///   `OpenTool::kind` for the read-back): another crate; `OpenTool` is
+///   not generic; and `ToolKind` derives `Hash`.
+///
+/// An `ALL`-only vocabulary (a closed enum with no payload to read a
+/// tag back from) is not this shape. Nor is this macro an invitation
+/// to migrate hand-written kind mirror pairs — `PathErrorKind` beside
+/// `PathError`, `verbs`'s `VerbKind` beside `Verb` — onto a single
+/// declaration. For the error/kind pairs that was declined (Ev,
+/// 2026-09-12), and what survives the decline is carried by
+/// `work/census/a-new-kind-pair-arrives-unguarded-by-default.md`.
+/// This macro serves the macros that already declare a vocabulary
+/// from one list.
 ///
 /// **Each tag variant's rustdoc names its payload variant** rather
 /// than repeating that variant's prose: the payload's docs describe
 /// what the payload carries, which is false of a tag that carries
 /// nothing.
 ///
-/// **The read-back is `#[must_use]`, all three alike.** The three are
-/// one door expanded three times, so they carry one attribute set; the
-/// returned tag is the method's only effect. This is the rule for
-/// these three doors, not a crate-wide convention.
+/// **The read-back is `#[must_use]` at every caller alike.** It is one
+/// door expanded once per caller, so it carries one attribute set; the
+/// returned tag is the method's only effect. This is the rule for this
+/// door, not a crate-wide convention.
 macro_rules! tag_projections {
     (
         $(#[doc = $tdoc:literal])*

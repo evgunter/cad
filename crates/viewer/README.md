@@ -1755,8 +1755,9 @@ variant cannot reach the enum without reaching the list — the same
 construction `crates/profile/src/path/program.rs` uses for the arc-mode
 and verb vocabularies (one declaration, every projection expanded from
 it), and no new dependency in a crate whose default-feature graph is
-deliberately the kernel's. Order is the declaration's, because these lists are read
-in order and several say so in their own docs; where a form wants an
+deliberately the kernel's. Order is the declaration's, because these
+lists are read in order and several say so in their own docs; where a
+form wants an
 order the type did not grow in, the **enum** is written in the form's
 order and says why.
 

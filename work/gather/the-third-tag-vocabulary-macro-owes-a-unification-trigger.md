@@ -94,5 +94,22 @@ arm), not only the `ALL` idiom — so the trigger had already fired.
 The three tag halves are now one inner macro, `tag_projections!`,
 which each declaring macro calls with its variant names; the payload
 halves stay per-macro because their variant shapes differ. The
-macro's own rustdoc states which macros belong on it. The expansion
-table is in the PR body.
+macro's own rustdoc states the trigger by SHAPE (all three
+projections, however they are spelled). It also names the two live
+vocabularies of that shape it does not reach, with the reasons that
+hold:
+
+- `editor-core`'s `SegTag` (`seg_tags!` + `SegTag::of`): another crate,
+  and its own macro is private; `RoleSeg` is not generic, against the
+  macro's `impl<T: Real>`; and `SegTag` derives `Hash`/`PartialOrd`/`Ord`.
+- `viewer`'s `ToolKind` (`vocabulary!` + `OpenTool::kind`): another
+  crate; `OpenTool` is not generic; and `ToolKind` derives `Hash`.
+
+The rustdoc also marks the macro's boundary against Ev's 2026-09-12
+decline of a single declaration for kind mirror pairs
+(`work/census/a-new-kind-pair-arrives-unguarded-by-default.md`). The
+expansion table and the sweep are in the PR body.
+
+The sweep turned up a false "never soundness" claim in the prose
+census. It is filed on LIB's slate as
+`prose-census-judges-an-unrelated-type-when-the-meant-one-is-unindexed`.
