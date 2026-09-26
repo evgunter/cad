@@ -517,3 +517,15 @@ and commit and push after each step. The must-carry lane uses the probe
 as its instrument and reverts it before its first real commit.
 Review tiers are unchanged. The stale gate worktree and targets are
 cleaned.
+
+## PR 3292 (equal-split home) reported (2026-09-26)
+
+(ENCL orchestrator) Head `6688d415f5`. The concept now lives in
+`geom_core::spline::algebra::equal_split_points`. All three retired
+spellings point at it: `patch_bound::split_points` (now a re-export),
+`geom-core`'s test copies, and `geom`'s `rational_speed_lower_bound`.
+That last site was a real further copy, whose doc called the rule "the
+speed meter's rule, verbatim", not an overreach. Bit-identity: a
+throwaway comparison over 146,268 cases matched to the bit. `props::quad`'s
+`knot_aligned_cuts` was judged a different concept (a range grid with the
+knots as mandatory cuts). Style review dispatched on the frozen head.

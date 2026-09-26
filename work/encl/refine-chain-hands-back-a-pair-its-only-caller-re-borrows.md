@@ -2,12 +2,13 @@
 id: refine-chain-hands-back-a-pair-its-only-caller-re-borrows
 kind: issue
 title: refine_chain hands back a (KnotVector, plans) pair its only caller immediately re-borrows
-status: dispatched
+status: review
 opened: 2026-09-22
 priority: P4
 cost: E
 rides_with: a-third-spelling-of-cut-every-span-into-splits-pieces
 branch: encl/equal-split-points-home
+pr: 3292
 ---
 
 
