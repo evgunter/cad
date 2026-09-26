@@ -465,9 +465,13 @@ fn resting_cylinder() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
 /// band down: planes crossing at a sliver angle are in-band in both
 /// orders, never the conventional answer.
 ///
-/// And the gate moves nothing where the jet IS the question: a genuine
-/// tangency reads jet-determinate in both orders, and the same tangency
-/// over an arm too short to subtend ε reads under-determined in both.
+/// Over an extent above the band's escalation threshold the gate moves
+/// nothing where the jet IS the question: a genuine tangency reads
+/// jet-determinate in both orders, and the same tangency over an arm
+/// too short to subtend ε reads under-determined in both. At or below
+/// that threshold the first-order arm itself collapses, which is
+/// `a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders`'s
+/// row.
 #[test]
 fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
     // The right-angle crossing: the plane z = 0 and the cylinder about
@@ -558,6 +562,40 @@ fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
         ),
         "the same tangency over a sub-ε sagitta is under-determined in both orders"
     );
+}
+
+/// **A tangency whose extent is no longer than the band's escalation
+/// threshold escalates at the first-order arm, in both orders.** The
+/// folded lever arm of a plane and a resting cylinder is the extent
+/// once the extent is shorter than the radius, and `classify_dihedral`
+/// classifies that arm before any angle: an in-band arm escalates
+/// in-band, a definitely-zero arm escalates `Invalid` (the question was
+/// never validly posed there). Either way the rule answers
+/// `InBand` under `"dihedral_arm"`, never the conventional
+/// `UnderDetermined` a sagitta over such an arm would read.
+#[test]
+fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
+    let (plane, cylinder, ruling) = resting_cylinder();
+    for (extent, in_band) in [(in_band_margin(), true), (definite_zero_margin(), false)] {
+        let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
+        for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
+            let MustCarryVerdict::InBand(source) = verdict else {
+                panic!("{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}");
+            };
+            assert_eq!(
+                source.predicate,
+                Some("dihedral_arm"),
+                "{order}, extent {extent:e}: the escalation is the first-order arm's"
+            );
+            assert_eq!(
+                matches!(source.margin, MarginDiag::Value(_)),
+                in_band,
+                "{order}, extent {extent:e}: an in-band arm carries its margin, a \
+                 definitely-zero arm is Invalid; got {:?}",
+                source.margin
+            );
+        }
+    }
 }
 
 /// **The lane gate over what the two verbs actually mint.** The lane
