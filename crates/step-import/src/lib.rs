@@ -852,8 +852,8 @@ pub fn import_step(
             //
             // Asked for two subjects, and when the first is asked at
             // all is `topo::per_part_gate_owed`'s to say, with its
-            // reason (a whole-body sum hides an inverted part; one
-            // solid is one subject, not two). Here the per-solid
+            // reason (one solid is one subject, not two); why it is
+            // asked is `docs/DESIGN.md` import step 4. Here the per-solid
             // subject is each INSTANCE's own body, which is exactly the
             // body the materialization loop above already holds, and
             // the refusal names which `MANIFOLD_SOLID_BREP` it came

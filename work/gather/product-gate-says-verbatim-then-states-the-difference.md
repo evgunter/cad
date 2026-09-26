@@ -1,12 +1,13 @@
 ---
 id: product-gate-says-verbatim-then-states-the-difference
-kind: issue
+kind: unit
 title: the per-part at-rest gate's trigger is one decided policy with a home in neither of the two crates that implement it (product.rs called its copy verbatim)
-status: open
+status: review
 pr: 2499
 opened: 2026-09-12
 priority: P1
 cost: D
+branch: gather/per-part-gate-one-home
 ---
 
 
@@ -206,3 +207,30 @@ is the row's own prediction happening in the wild. The sweep is
 grep-shaped over the rule's vocabulary and **seven is a floor**: it
 cannot find a site phrased differently, and does not cross `work/`,
 `docs/` or the suites.
+
+## The home (gather/per-part-gate-one-home)
+
+The policy is `topo::per_part_gate_owed(aggregate_solids)`, beside
+`topo::validate_geometric` in `crates/topo/src/validate.rs`. Its doc
+carries the WHEN (one solid is one subject, skipped as an identity),
+the counting rule (the aggregate's SOLIDS), and its dependents by name.
+The WHY each part is asked at all stays `docs/DESIGN.md` import step 4,
+and the doc says the reason is under question in
+`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`:
+check 7 now decides each solid's sign on its own faces, so the
+cancellation that step 4 names cannot happen in the aggregate gate.
+The restatement this row's census found in `step-import`'s shared-gate
+comment asserted that cancellation as current fact. It now cites the
+function and DESIGN instead.
+
+`product_recorded`'s pass 2 and `import_step`'s loop call the function.
+The loop passes `instances.len()` and states, at the call, the enforced
+instance↔solid equivalence this row derived. The module doc, the
+`SolidInvalid` doc, the `graft_disjoint_all` doc, `gate3`'s doc and
+`vertex_rest_contact`'s premise cite the function by name.
+
+Guards: `per_part_gate_policy.rs` in `editor-core/tests` and
+`step-import/tests` (the per-part gate call sits inside the one
+`if topo::per_part_gate_owed(` block, code view), and
+`declaration_tests::the_per_part_policy_still_skips_a_lone_solid`
+(the premise `vertex_rest_contact` argues from).

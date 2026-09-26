@@ -3112,15 +3112,17 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// policy; every caller that gathers parts into one body and gates it
 /// asks here rather than spelling the threshold itself.
 ///
-/// A gathered aggregate is gated at rest as ONE body, and that subject
-/// is not enough on its own: several of the gate's invariants are
-/// WHOLE-BODY sums — check 7's +V is the boundary flux summed over
-/// every shell ([`validate_geometric`]) — so a part stated inside-out
-/// cancels against a right-side-out neighbour and the aggregate reads
-/// Zero, which is exempt. "Every part passes the gate" therefore means
-/// each part's OWN body is asked first, and the refusal names the part.
-/// The aggregate is asked after, because it owns the cross-part
-/// structure (shared arena integrity, the census) no part can see.
+/// A gathered aggregate is gated at rest twice, for two subjects: each
+/// part's OWN body first, so a refusal names the part it is about and
+/// arrives before the part is grafted, and then the aggregate, which
+/// owns the cross-part structure (shared arena integrity, the contact
+/// census) no part can see. Why the parts are asked at all is
+/// `docs/DESIGN.md`'s import step 4 (D7) — whole-body sums letting an
+/// inside-out part cancel against its neighbour — and whether that
+/// reason survives check 7 deciding each solid's sign on its own faces
+/// ([`validate_geometric`]) is an open question
+/// (`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
+/// This function decides only WHEN the parts are asked.
 ///
 /// **With one solid the part and the aggregate are the same body**, so
 /// the per-part call would re-run the aggregate call on identical
