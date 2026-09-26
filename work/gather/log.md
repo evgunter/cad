@@ -396,3 +396,13 @@ Two rows failed:
   `run_row` calls are commented out (`local-scripts/ci-local-tail.sh`
   in the worktree, uncommitted). The commands are identical; the release
   profile also takes line-tables-only.
+
+**Correction: the tail re-run became a full battery.** `ci-local.sh`
+re-executes itself by path when it takes the build slots, so the
+trimmed copy handed off to the full script. Left running, because it is
+now the better evidence. With lavapipe installed, `test (viewer app)`
+passes 975/975, `every_pass_builds_on_a_real_device` included. With
+line-tables-only debug info the worktree `target/` stands at 7.6 GB
+after the clippy and viewer rows, against the first run's 24 GB. That
+is the disk fix Ev pointed at. 3264 merges on this battery. The trimmed
+copy is deleted.
