@@ -2933,8 +2933,9 @@ impl Undecided {
                  their bounding boxes no longer overlap"
             }
             Self::FaceKindUnsupported => {
-                "one has a face (a spline, part of a sphere, cone or torus, or a flat \
-                 face edged by one) the check cannot yet test a point against. Recourse: move the parts until \
+                "one has a face (a spline, part of a sphere, cone or torus, a flat \
+                 face edged by one, or an unevenly cut cylinder wall) the check cannot \
+                 yet test a point against. Recourse: move the parts until \
                  their bounding boxes no longer overlap"
             }
             Self::CorruptInstance => {
@@ -2956,7 +2957,8 @@ impl Undecided {
             | E::PartialSphereFace { .. }
             | E::PartialConeFace { .. }
             | E::PartialTorusFace { .. }
-            | E::EdgeCarrierUnsupported { .. } => Self::FaceKindUnsupported,
+            | E::EdgeCarrierUnsupported { .. }
+            | E::WallOutlineUnsupported { .. } => Self::FaceKindUnsupported,
             E::CorruptFace { .. } | E::NoSuchSolid { .. } | E::SurfaceSharedOutsideSolid { .. } => {
                 Self::CorruptInstance
             }

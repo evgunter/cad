@@ -542,20 +542,9 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
         return point_in_loop(body, r#loop, normal, q, band).map(Some);
     }
     // The loop's reach, from its first vertex and from `q`.
-    let (anchor, mut ball, mut extent) = (verts[0], T::zero(), T::zero());
-    for v in &verts {
-        ball = ball.max((*v - anchor).norm());
-        extent = extent.max((*v - q).norm());
-    }
-    for edge in &edges {
-        let (center, reach) = match *edge {
-            LoopEdge::Chord => continue,
-            LoopEdge::Conic(k) => (k.center, k.a.max(k.b)),
-            LoopEdge::Unrowed { center, reach } => (center, reach),
-        };
-        ball = ball.max((center - anchor).norm() + reach);
-        extent = extent.max((center - q).norm() + reach);
-    }
+    let anchor = verts[0];
+    let ball = reach_from(&verts, &edges, anchor);
+    let extent = reach_from(&verts, &edges, q);
     if edges.iter().any(|e| matches!(e, LoopEdge::Unrowed { .. })) {
         let gap = (q - anchor).norm() - ball;
         return Ok(
@@ -629,6 +618,48 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
         },
     )
     .map(Some)
+}
+
+/// The radius of a ball about `from` that holds the whole loop: every
+/// vertex, and every edge's carrier locus through the bound its
+/// [`LoopEdge`] carries (a conic within its larger semi-axis of its
+/// centre, an unrowed carrier within its own reach).
+fn reach_from<T: Decide>(verts: &[Point3<T>], edges: &[LoopEdge<T>], from: Point3<T>) -> T {
+    let mut ball = T::zero();
+    for v in verts {
+        ball = ball.max((*v - from).norm());
+    }
+    for edge in edges {
+        let (center, reach) = match *edge {
+            LoopEdge::Chord => continue,
+            LoopEdge::Conic(k) => (k.center, k.a.max(k.b)),
+            LoopEdge::Unrowed { center, reach } => (center, reach),
+        };
+        ball = ball.max((center - from).norm() + reach);
+    }
+    ball
+}
+
+/// **A ball holding the whole loop**, `(center, radius)`: the loop's
+/// first vertex and the reach [`point_in_carrier_loop`] confines its
+/// refusal with. Nothing here needs the loop to be planar — each edge
+/// is bounded on its own carrier — so a curved face's outer loop is
+/// served the same way.
+///
+/// # Errors
+///
+/// [`PointInLoopError`] — an unwalkable loop, or a conic span that
+/// escalates.
+pub(crate) fn loop_reach<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    band: Band,
+) -> Result<(Point3<T>, T), PointInLoopError> {
+    let (verts, edges) = carrier_loop(body, r#loop, band)?;
+    let anchor = *verts
+        .first()
+        .ok_or(PointInLoopError::CorruptLoop { r#loop })?;
+    Ok((anchor, reach_from(&verts, &edges, anchor)))
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —

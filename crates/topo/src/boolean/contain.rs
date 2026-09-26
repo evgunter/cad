@@ -645,12 +645,16 @@ pub(super) fn point_on_arc<T: Decide>(
 ///   does not model, and answering `In` inside one would be wrong);
 /// - every boundary edge is a RIM (a circle coaxial with the wall, at
 ///   the wall's own radius — a height iso-line) or a MERIDIAN (a line
-///   parallel to the axis — an azimuth iso-line).
+///   parallel to the axis — an azimuth iso-line);
+/// - the rims sit on exactly two levels.
 ///
-/// That class is what makes the chart trim EXACT: both chart
-/// coordinates are monotone along every boundary edge, so the face is
-/// exactly the rectangle `[az] × [h]` its boundary pins
-/// ([`super::solid_contain::cylinder_chart_trim`]). A wall closed by a
+/// That is the iso half of the ray lane's class
+/// ([`super::solid_contain::wall_planes`], asked here rather than
+/// restated), and it is what makes the chart trim EXACT: every ruling
+/// through the window crosses the boundary once on each level, so the
+/// face is exactly the rectangle `[az] × [h]` its boundary pins
+/// ([`super::solid_contain::cylinder_chart_trim`]). A third level is a
+/// stepped outline the rectangle over-covers. A wall closed by a
 /// tilted section takes its height extreme inside an edge, the
 /// rectangle then misstates the face in BOTH directions, and this door
 /// answers `None` rather than a verdict it cannot stand behind.
@@ -712,8 +716,12 @@ pub fn curved_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    if !iso_bounded_wall(body, face, origin, axis, radius, band)? {
-        return Ok(None);
+    // The ray lane's class predicate, asked of the same face: this door
+    // serves its rectangle half only.
+    match super::solid_contain::wall_planes(body, face, origin, axis, radius, band) {
+        Ok(Some(w)) if w.iso => {}
+        Ok(_) => return Ok(None),
+        Err(e) => return Err(solid_err(e)),
     }
     let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
         Ok(t) => t,
@@ -741,8 +749,9 @@ pub fn curved_face_containment<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => return Ok(None),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
+    let outline = super::solid_contain::WallOutline::Rectangle { h };
     match super::solid_contain::point_on_wall_in_face(
-        face, origin, axis, radius, u_ref, az, h, q, band,
+        face, origin, axis, radius, u_ref, az, &outline, q, band,
     ) {
         Ok(Some(true)) => Ok(Some(FaceContainment::In)),
         Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
@@ -824,86 +833,6 @@ fn solid_err(e: super::solid_contain::PointInSolidError) -> ContainError {
         }
         _ => ContainError::Corrupt,
     }
-}
-
-/// Is every boundary edge of `face` a chart ISO-LINE of the wall — a
-/// rim (coaxial circle at the wall's radius) or a meridian (line
-/// parallel to the axis)? A definite non-iso edge answers `false`; an
-/// in-band one escalates (the two-tolerance pair).
-///
-/// **Dimension.** Every margin here is a LENGTH in metres, and the two
-/// kinds of quantity reach that convention differently, so they get
-/// different constructors rather than one:
-///
-/// - a **direction disagreement** is `|â × b̂|` of two UNIT vectors —
-///   dimensionless, the sine of the angle between them. Its physical
-///   size is the displacement it causes at the chart's own scale, so it
-///   is `Margin::levered` by the radius: that is precisely the
-///   dimensionless-times-lever-arm contract.
-/// - a **length disagreement** — a radius difference, an off-axis
-///   offset — is ALREADY metres, so it takes `Margin::of`. Levering it
-///   would multiply metres by metres and make the tolerance scale with
-///   the radius: a rim would be judged coaxial on a loose scale below
-///   `r = 1` and a tight one above it, which is the very drift the
-///   dimension convention exists to prevent.
-fn iso_bounded_wall<T: Decide>(
-    body: &Body<T>,
-    face: FaceKey,
-    origin: Point3<T>,
-    axis: Vec3<T>,
-    radius: T,
-    band: Band,
-) -> Result<bool, ContainError> {
-    let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
-    let crate::entity::LoopBoundary::Cycle { first } = body
-        .get_loop(face_data.outer)
-        .ok_or(ContainError::Corrupt)?
-        .boundary
-    else {
-        return Ok(false);
-    };
-    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, ContainError> {
-        match decide(name, m, band) {
-            Ok(Sign::Zero) => Ok(true),
-            Ok(Sign::Positive | Sign::Negative) => Ok(false),
-            Err(diag) => Err(ContainError::Escalated(diag)),
-        }
-    };
-    // A unit-vector cross product is a SINE (dimensionless); a radius
-    // or offset difference is already metres. See the header.
-    let sine = |m: T| Margin::levered(m, radius);
-    for he in body.loop_cycle(first).ok_or(ContainError::Corrupt)? {
-        let edge = body.get_half_edge(he).ok_or(ContainError::Corrupt)?.edge;
-        let carrier = body
-            .get_edge(edge)
-            .and_then(|e| body.get_curve_geom(e.curve))
-            .and_then(crate::null::CurveGeom::certified)
-            .map(|c| c.carrier().clone());
-        match carrier {
-            Some(geom::Curve3::Line { dir, .. }) => {
-                if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
-                    return Ok(false);
-                }
-            }
-            Some(geom::Curve3::Circle {
-                center,
-                axis: c_axis,
-                radius: c_radius,
-                ..
-            }) => {
-                let e = center - origin;
-                let off_axis = (e - axis * e.dot(axis)).norm();
-                if !zero("bool_wall_iso_rim", sine(c_axis.cross(axis).norm()))?
-                    || !zero("bool_wall_iso_rim", Margin::of(c_radius - radius))?
-                    || !zero("bool_wall_iso_rim", Margin::of(off_axis))?
-                {
-                    return Ok(false);
-                }
-            }
-            _ => return Ok(false),
-        }
-    }
-    Ok(true)
 }
 
 /// Is `q` ON the circle `(center, axis, radius)`? `Some((radial,

@@ -121,7 +121,7 @@ use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
 use crate::splitting::containment::{
-    LoopContainment, PointInLoopError, SCHEDULE, point_in_carrier_loop,
+    LoopContainment, PointInLoopError, SCHEDULE, loop_reach, point_in_carrier_loop,
 };
 use crate::validate::decide;
 
@@ -281,6 +281,22 @@ pub enum PointInSolidError {
         /// The planar face whose outline the walk cannot cross.
         face: FaceKey,
     },
+    /// A ray's hit on a `Cylinder` wall face could land inside it, and
+    /// the wall's outline is outside the two classes whose chart region
+    /// the walk reads exactly ([`wall_outline`]): every boundary edge a
+    /// meridian or a planar section of the wall, on exactly two planes,
+    /// with no ring.
+    ///
+    /// Confined the way [`Self::EdgeCarrierUnsupported`] is: a face
+    /// lies in the convex hull of its outer loop (every point of it is
+    /// on a ruling segment whose ends are boundary points), so a hit
+    /// definitely outside a ball holding that loop, or definitely
+    /// outside the face's azimuth window, is a miss and is answered.
+    /// Only a hit the face could actually contain refuses.
+    WallOutlineUnsupported {
+        /// The cylinder wall face whose outline the walk cannot read.
+        face: FaceKey,
+    },
     /// [`point_in_solid_of`] was asked about a solid the body does not
     /// hold — an arena claim, like [`Self::CorruptFace`].
     NoSuchSolid {
@@ -350,6 +366,10 @@ impl PointInSolidError {
             Self::EdgeCarrierUnsupported { .. } => {
                 "a probe ray from the material witness met a flat face bounded by a \
                  spline or torus-section edge, whose outline cannot be crossed exactly"
+            }
+            Self::WallOutlineUnsupported { .. } => {
+                "a probe ray from the material witness met a cylinder wall whose outline \
+                 is not two planar sections, so the hit cannot be placed on it exactly"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
             Self::SurfaceSharedOutsideSolid { .. } => {
@@ -445,6 +465,13 @@ impl core::fmt::Display for PointInSolidError {
                  decides, and that outline cannot be crossed exactly. The solid itself is fine. Recourse: test a \
                  point farther from that face"
             ),
+            Self::WallOutlineUnsupported { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: a test ray met a cylinder wall \
+                 whose outline is not two flat cuts across it, near enough that the \
+                 outline decides. The solid itself is fine. Recourse: test a point \
+                 farther from that wall"
+            ),
             Self::NoSuchSolid { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: the body holds no such solid"
@@ -516,7 +543,9 @@ enum FaceGeo<T: geom_core::Real> {
         radius: T,
         u_ref: Vec3<T>,
         az: (T, T),
-        h: (T, T),
+        /// The region the azimuth window is intersected with, per the
+        /// face's outline class ([`wall_outline`]).
+        outline: WallOutline<T>,
         /// The face's orientation sense: `false` means the material is
         /// INSIDE the wall, so the radial gradient at a hit points
         /// into material and the crossing sign flips.
@@ -706,13 +735,14 @@ fn face_geo<T: Decide>(
             u_ref,
         }) => {
             let (az, h) = cylinder_chart_trim(body, face, origin, axis, band)?;
+            let outline = wall_outline(body, face, origin, axis, radius, u_ref, az, h, band)?;
             Ok(FaceGeo::Cylinder {
                 origin,
                 axis,
                 radius,
                 u_ref,
                 az,
-                h,
+                outline,
                 sense: f.sense,
             })
         }
@@ -813,14 +843,15 @@ fn face_geo<T: Decide>(
 /// MAJOR-1 root cause — the whole Interval boolean lane died on a NaN
 /// height range).
 ///
-/// **The premise, stated once for both readers**: the range is the
-/// face's own only for the ISO-BOUNDED wall class — rims are height
-/// iso-lines and meridians azimuth iso-lines, so the extremes of both
-/// chart coordinates lie on the boundary VERTICES. A wall bounded by a
+/// **The premise, stated once for both readers**: the rectangle is the
+/// face's own region only for [`WallOutline::Rectangle`] — rims are
+/// height iso-lines and meridians azimuth iso-lines, so the extremes of
+/// both chart coordinates lie on the boundary VERTICES, and two rim
+/// levels make the region the whole rectangle. A wall bounded by a
 /// tilted section takes its height extreme in an edge's interior, and
-/// this rectangle then under-covers it. The face-level containment door
-/// ([`super::contain::curved_face_containment`]) checks the class
-/// before it reads this; the ray lane premises it from construction.
+/// the rectangle then over-covers it on one side of the section and
+/// under-covers it on the other. Both readers ask [`wall_outline`]
+/// before they read the height range as a region.
 ///
 /// # Errors
 ///
@@ -873,6 +904,317 @@ pub(super) fn cylinder_chart_trim<T: Decide>(
     }
     let h = h_range.ok_or(PointInSolidError::CorruptFace { face })?;
     Ok((az, h))
+}
+
+/// One bounding plane of a cylinder wall face, with the side of it the
+/// face lies on: a rim's plane or a tilted section's.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WallSection<T: geom_core::Real> {
+    /// A point of the plane.
+    point: Point3<T>,
+    /// The plane's unit normal.
+    normal: Vec3<T>,
+    /// `n̂·â`, decided nonzero when the plane was classified: the plane
+    /// meets every ruling exactly once.
+    normal_dot_axis: T,
+    /// `+1` when the face lies ABOVE this plane along each ruling
+    /// (towards `+axis`), `−1` when below.
+    side: T,
+}
+
+impl<T: Decide> WallSection<T> {
+    /// The on-wall point `p`'s height above this plane along its own
+    /// ruling, signed so that positive is the face's side: metres, and
+    /// the same quantity a rim's `height − h₀` is.
+    fn margin(&self, p: Point3<T>) -> Margin<T> {
+        Margin::of(self.side * self.normal.dot(p - self.point) / self.normal_dot_axis)
+    }
+}
+
+/// **Which region a cylinder wall face's chart trim reads, per class.**
+/// Resolved once per face by [`wall_outline`]; read per hit by
+/// [`point_on_wall_in_face`].
+#[derive(Clone, Copy, Debug)]
+pub(super) enum WallOutline<T: geom_core::Real> {
+    /// Every boundary edge a rim or a meridian, the rims on two levels:
+    /// the region is exactly the `[azimuth] × [height]` rectangle, with
+    /// the height range [`cylinder_chart_trim`] folds.
+    Rectangle {
+        /// The height range along the axis, metres from the origin.
+        h: (T, T),
+    },
+    /// Every boundary edge a meridian or a planar section of the wall
+    /// (a rim is the perpendicular case), on exactly two planes, at
+    /// least one of them tilted: the region is the azimuth window
+    /// intersected with the face's side of each plane.
+    Sections([WallSection<T>; 2]),
+    /// Neither: the walk refuses a hit the face could contain
+    /// ([`PointInSolidError::WallOutlineUnsupported`]) and answers every
+    /// other one as a miss. `anchor` and `reach` are a ball holding the
+    /// outer loop, and so the whole face.
+    Unsupported {
+        /// The ball's centre (the outer loop's first vertex).
+        anchor: Point3<T>,
+        /// The ball's radius.
+        reach: T,
+    },
+}
+
+/// The planes a cylinder wall face's outer loop lies on, when the face
+/// is in the class the ray lane reads exactly — the ONE class predicate
+/// both doors ask ([`super::contain::curved_face_containment`] serves
+/// the iso half of it, the ray lane both halves). `None` is a face
+/// outside the class; a definite miss answers `None`, an in-band one
+/// escalates (the two-tolerance pair).
+///
+/// The class: **no ring, and every boundary edge is either a MERIDIAN
+/// (a line parallel to the axis) or a PLANAR SECTION of the wall** — a
+/// rim (a coaxial circle at the wall's radius) or an ellipse centred on
+/// the axis with minor semi-axis the radius, whose plane is not
+/// parallel to the axis — **with the sections on exactly two planes.**
+/// `iso` is whether both planes are rim planes.
+///
+/// **Dimension.** Every margin is a LENGTH in metres, and the two kinds
+/// of quantity reach that convention differently, so they get different
+/// constructors rather than one:
+///
+/// - a **direction disagreement** is `|â × b̂|` (or `â·b̂`) of two UNIT
+///   vectors — dimensionless, a sine or cosine. Its physical size is
+///   the displacement it causes at the chart's own scale, so it is
+///   `Margin::levered` by the radius: precisely the
+///   dimensionless-times-lever-arm contract.
+/// - a **length disagreement** — a radius difference, an off-axis
+///   offset, a plane offset — is ALREADY metres, so it takes
+///   `Margin::of`. Levering it would multiply metres by metres and make
+///   the tolerance scale with the radius, the very drift the dimension
+///   convention exists to prevent.
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
+/// [`PointInSolidError::Escalated`] for an in-band class margin.
+pub(super) fn wall_planes<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    band: Band,
+) -> Result<Option<WallPlanes<T>>, PointInSolidError> {
+    let corrupt = || PointInSolidError::CorruptFace { face };
+    let f = body.get_face(face).ok_or_else(corrupt)?;
+    if !f.rings.is_empty() {
+        return Ok(None);
+    }
+    let LoopBoundary::Cycle { first } = body.get_loop(f.outer).ok_or_else(corrupt)?.boundary else {
+        return Ok(None);
+    };
+    let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
+        match decide(name, m, band).map_err(|diag| PointInSolidError::Escalated { face, diag })? {
+            Sign::Zero => Ok(true),
+            Sign::Positive | Sign::Negative => Ok(false),
+        }
+    };
+    let sine = |m: T| Margin::levered(m, radius);
+    let off_axis = |c: Point3<T>| {
+        let e = c - origin;
+        (e - axis * e.dot(axis)).norm()
+    };
+    let mut planes: Vec<(Point3<T>, Vec3<T>, T)> = Vec::new();
+    let mut iso = true;
+    for he in body.loop_cycle(first).ok_or_else(corrupt)? {
+        let edge = body.get_half_edge(he).ok_or_else(corrupt)?.edge;
+        let carrier = body
+            .get_edge(edge)
+            .and_then(|e| body.get_curve_geom(e.curve))
+            .and_then(crate::null::CurveGeom::certified)
+            .map(|c| c.carrier().clone());
+        let (point, normal) = match carrier {
+            Some(geom::Curve3::Line { dir, .. }) => {
+                if !zero("bool_wall_iso_meridian", sine(dir.cross(axis).norm()))? {
+                    return Ok(None);
+                }
+                continue;
+            }
+            Some(geom::Curve3::Circle {
+                center,
+                axis: c_axis,
+                radius: c_radius,
+                ..
+            }) => {
+                if !zero("bool_wall_iso_rim", sine(c_axis.cross(axis).norm()))?
+                    || !zero("bool_wall_iso_rim", Margin::of(c_radius - radius))?
+                    || !zero("bool_wall_iso_rim", Margin::of(off_axis(center)))?
+                {
+                    return Ok(None);
+                }
+                (center, c_axis)
+            }
+            Some(geom::Curve3::Ellipse {
+                center,
+                axis: n,
+                major,
+                minor,
+                ..
+            }) => {
+                // The plane through an axis point with normal `n̂` meets
+                // the wall in the ellipse centred there, with minor
+                // semi-axis the radius and major `r / |n̂·â|`. A plane
+                // parallel to the axis meets it in meridians instead,
+                // so `n̂·â` is nonzero on every ellipse edge the class
+                // admits — decided, not assumed.
+                let cos = n.dot(axis);
+                if zero("bool_wall_section_tilt", sine(cos))?
+                    || !zero("bool_wall_section_seat", Margin::of(off_axis(center)))?
+                    || !zero("bool_wall_section_seat", Margin::of(minor - radius))?
+                    || !zero(
+                        "bool_wall_section_seat",
+                        Margin::of(major * cos.abs() - radius),
+                    )?
+                {
+                    return Ok(None);
+                }
+                iso = false;
+                (center, n)
+            }
+            _ => return Ok(None),
+        };
+        let mut known = false;
+        for &(q, m, _) in &planes {
+            if zero("bool_wall_section_plane", sine(m.cross(normal).norm()))?
+                && zero("bool_wall_section_plane", Margin::of(m.dot(point - q)))?
+            {
+                known = true;
+                break;
+            }
+        }
+        if !known {
+            if planes.len() == 2 {
+                return Ok(None);
+            }
+            planes.push((point, normal, normal.dot(axis)));
+        }
+    }
+    let [a, b] = planes[..] else {
+        return Ok(None);
+    };
+    Ok(Some(WallPlanes {
+        planes: [a, b],
+        iso,
+    }))
+}
+
+/// The two planes of a wall in [`wall_planes`]' class — each as a
+/// point, its unit normal and `n̂·â` — and whether both are rim planes.
+#[derive(Clone, Copy, Debug)]
+pub(super) struct WallPlanes<T: geom_core::Real> {
+    planes: [(Point3<T>, Vec3<T>, T); 2],
+    /// Both planes perpendicular to the axis: the rectangle class.
+    pub(super) iso: bool,
+}
+
+/// **A cylinder wall face's outline, resolved.** The class is
+/// [`wall_planes`]'; this adds what each class reads per hit.
+///
+/// # Why two sections decide membership exactly
+///
+/// Take a face in the class whose azimuth window `W` is narrower than a
+/// period. Each non-meridian boundary edge lies on plane `A` or plane
+/// `B`, and neither plane is parallel to the axis, so each meets EVERY
+/// ruling exactly once: in the chart it is a graph `h = f_A(θ)`, and
+/// over the whole circle, not only over its edges' spans. Now fix a
+/// ruling at an azimuth `θ` strictly inside `W` that is no vertex's.
+///
+/// - The loop's azimuth image is connected and is `W`, so the ruling
+///   meets the boundary. It meets a meridian edge nowhere (a meridian
+///   sits at a vertex's azimuth) and each plane's edges at most once
+///   (at `f_A(θ)` or `f_B(θ)`; two edges on one plane cannot overlap
+///   in a simple loop). Every crossing is transversal — a graph over
+///   `θ` is never tangent to a ruling — so the count is even, hence
+///   exactly two: once on `A`'s edges and once on `B`'s.
+/// - The ruling's intersection with the face is therefore the segment
+///   between `f_A(θ)` and `f_B(θ)`, which is exactly where the ruling
+///   lies on `B`'s side of `A` and on `A`'s side of `B`. The two graphs
+///   never cross inside `W` (a crossing would be a boundary
+///   self-intersection away from a vertex), so the sides are the same
+///   on every ruling, and one reading at the window's middle fixes them.
+///
+/// Rulings at vertex azimuths are the closure of their neighbours, so
+/// membership is: **the azimuth is in `W`, and the point is on the
+/// face's side of both planes** — decided as the hit's height above each
+/// plane along its own ruling, in metres. A window a period wide or
+/// wider breaks the first step; [`chart_azimuth_margin`]'s period guard
+/// escalates it before a side is read.
+///
+/// Everything outside the class is [`WallOutline::Unsupported`], with a
+/// ball that holds the face ([`crate::splitting::containment::loop_reach`]).
+///
+/// # Errors
+///
+/// [`PointInSolidError::CorruptFace`] for an unwalkable face;
+/// [`PointInSolidError::Escalated`] for an in-band class margin, or for
+/// two section planes whose curves meet at the window's middle — a face
+/// with no interior there.
+#[allow(clippy::too_many_arguments)] // one chart datum, each argument named
+pub(super) fn wall_outline<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    az: (T, T),
+    h: (T, T),
+    band: Band,
+) -> Result<WallOutline<T>, PointInSolidError> {
+    let Some(w) = wall_planes(body, face, origin, axis, radius, band)? else {
+        let outer = body
+            .get_face(face)
+            .ok_or(PointInSolidError::CorruptFace { face })?
+            .outer;
+        let (anchor, reach) = loop_reach(body, outer, band)?;
+        return Ok(WallOutline::Unsupported { anchor, reach });
+    };
+    if w.iso {
+        return Ok(WallOutline::Rectangle { h });
+    }
+    // The ruling at the window's middle, and each plane's height on it.
+    let mid = (az.0 + az.1) * T::from_f64(0.5);
+    let (s_m, c_m) = mid.sin_cos();
+    let foot = origin + (u_ref * c_m + axis.cross(u_ref) * s_m) * radius;
+    let level = |(point, normal, cos): (Point3<T>, Vec3<T>, T)| normal.dot(point - foot) / cos;
+    let [a, b] = w.planes;
+    let side = match decide(
+        "bool_wall_section_order",
+        Margin::of(level(b) - level(a)),
+        band,
+    )
+    .map_err(|diag| PointInSolidError::Escalated { face, diag })?
+    {
+        Sign::Positive => T::one(),
+        Sign::Negative => T::zero() - T::one(),
+        Sign::Zero => {
+            return Err(PointInSolidError::Escalated {
+                face,
+                diag: Indeterminate {
+                    margin: geom_core::MarginDiag::Invalid,
+                    band,
+                    predicate: Some("bool_wall_section_order"),
+                },
+            });
+        }
+    };
+    let section =
+        |(point, normal, normal_dot_axis): (Point3<T>, Vec3<T>, T), side: T| WallSection {
+            point,
+            normal,
+            normal_dot_axis,
+            side,
+        };
+    Ok(WallOutline::Sections([
+        section(a, side),
+        section(b, T::zero() - side),
+    ]))
 }
 
 /// **A cone wall face's chart trim, and which of the two cone classes
@@ -1558,20 +1900,20 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// the guard that the window is narrower than a period, the
 /// `r̂·m̂ ≥ cos(w/2)` comparison, the lever metering, and ledger row
 /// F8's deferred narrow-window fix — is one construction, so a change
-/// to any of it is a change to every site below. FOUR of them SHARE one
-/// body and cannot drift; three RESTATE it and must be edited by hand.
+/// to any of it is a change to every site below. FIVE of them SHARE one
+/// body and cannot drift; four RESTATE it and must be edited by hand.
 ///
-/// **Nothing enforces this list.** It is a by-hand inventory, and it has
-/// now been wrong twice for the same reason: a unit adds a shared caller
-/// and updates the list of sites without updating the COUNT above it
-/// (the cone half added one, this one added two). The count is the part
-/// a reader checks the list against, so it is the part that has to be
-/// right; if a third unit finds it stale, the fix is a mechanical
-/// check — a test asserting the number of `chart_azimuth_margin` call
-/// sites — not a third correction.
+/// **The shared count is held by a test**
+/// (`wall_section_rows::the_shared_window_sites_are_the_five_listed`),
+/// which counts the `chart_azimuth_margin` calls in this file. A new
+/// shared caller turns it red until this list and its count are
+/// updated together. The restated sites have no such check; they
+/// are found by reading.
 ///
 /// Shared, through [`chart_azimuth_margin`]:
 /// - this arm (a cylinder wall's azimuth trim, ray lane);
+/// - [`wall_hit_outside_reach`] (the same window, asked of a wall the
+///   arm cannot read, to answer a miss outside it);
 /// - [`point_on_cone_in_face`] (a cone wall's, same lane);
 /// - [`point_on_torus_in_face`], TWICE — the major azimuth on the axis
 ///   frame, and the minor angle on the meridian frame `(r̂, â)`, which
@@ -1586,7 +1928,10 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///   boundary walk);
 /// - [`super::contain::curved_face_containment`] (the same period
 ///   guard asked as a chart-form question, which is why its answer is
-///   `None` where this one escalates).
+///   `None` where this one escalates);
+/// - [`wall_hit_outside_reach`]'s period guard, asked before the shared
+///   call for the same reason: a window a period wide excludes nothing,
+///   so that caller's answer is "could hold", not an escalation.
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -1595,7 +1940,7 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     radius: T,
     u_ref: Vec3<T>,
     az: (T, T),
-    h: (T, T),
+    outline: &WallOutline<T>,
     p: Point3<T>,
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
@@ -1603,9 +1948,25 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
     let w = p - origin;
     let height = w.dot(axis);
     let radial = w - axis * height;
+    let bounds = match *outline {
+        WallOutline::Rectangle { h } => [Margin::of(height - h.0), Margin::of(h.1 - height)],
+        WallOutline::Sections([a, b]) => [a.margin(p), b.margin(p)],
+        WallOutline::Unsupported { anchor, reach } => {
+            return wall_hit_outside_reach(
+                face, origin, axis, radius, u_ref, az, anchor, reach, p, band,
+            )
+            .and_then(|miss| {
+                if miss {
+                    Ok(Some(false))
+                } else {
+                    Err(PointInSolidError::WallOutlineUnsupported { face })
+                }
+            });
+        }
+    };
     let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
     let mut verdict = Some(true);
-    for margin in [azimuth, Margin::of(height - h.0), Margin::of(h.1 - height)] {
+    for margin in [azimuth, bounds[0], bounds[1]] {
         match decide("bool_wall_trim", margin, band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Negative => return Ok(Some(false)),
@@ -1613,6 +1974,57 @@ pub(super) fn point_on_wall_in_face<T: Decide>(
         }
     }
     Ok(verdict)
+}
+
+/// Is the on-wall point `p` DEFINITELY off a face the walk cannot read
+/// ([`WallOutline::Unsupported`])? `true` is a certain miss; `false`
+/// says the face could hold `p`, and the caller refuses.
+///
+/// Two regions hold the face, and a point definitely outside either is
+/// outside it: the ball about `anchor` of radius `reach`, which holds
+/// the outer loop and therefore the face (every point of a face lies on
+/// a ruling segment whose ends are boundary points, so the face is in
+/// its outer loop's convex hull); and the azimuth window, which is the
+/// boundary's exact azimuth hull — asked only when it is definitely
+/// narrower than a period, since a wider one excludes nothing.
+#[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
+fn wall_hit_outside_reach<T: Decide>(
+    face: FaceKey,
+    origin: Point3<T>,
+    axis: Vec3<T>,
+    radius: T,
+    u_ref: Vec3<T>,
+    az: (T, T),
+    anchor: Point3<T>,
+    reach: T,
+    p: Point3<T>,
+    band: Band,
+) -> Result<bool, PointInSolidError> {
+    let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    if decide(
+        "bool_wall_outline_reach",
+        Margin::of((p - anchor).norm() - reach),
+        band,
+    )
+    .map_err(escalate)?
+        == Sign::Positive
+    {
+        return Ok(true);
+    }
+    if decide(
+        "bool_wall_trim_period",
+        Margin::levered(T::tau() - (az.1 - az.0), radius),
+        band,
+    )
+    .map_err(escalate)?
+        != Sign::Positive
+    {
+        return Ok(false);
+    }
+    let w = p - origin;
+    let radial = w - axis * w.dot(axis);
+    let azimuth = chart_azimuth_margin(face, axis, u_ref, az, radial, radius, band)?;
+    Ok(decide("bool_wall_trim", azimuth, band).map_err(escalate)? == Sign::Negative)
 }
 
 /// The azimuth-window membership margin for an ON-CHART point whose
@@ -1886,7 +2298,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
     };
     // A definite class miss is `None` (the honest remainder); an
     // in-band one escalates — the two-tolerance pair, as
-    // `iso_bounded_wall` runs it for the cylinder.
+    // `wall_planes` runs it for the cylinder.
     let zero = |name: &'static str, m: Margin<T>| -> Result<bool, PointInSolidError> {
         match decide(name, m, band).map_err(escalate)? {
             Sign::Zero => Ok(true),
@@ -1935,7 +2347,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
         let w = c_c - center;
         // A unit-vector cross/dot is a SINE or COSINE (dimensionless)
         // and is levered by the radius; a length difference is already
-        // metres. The same dimension convention `iso_bounded_wall`
+        // metres. The same dimension convention `wall_planes`
         // states for the cylinder.
         if zero(
             "bool_sphere_iso_meridian",
@@ -2518,7 +2930,7 @@ fn point_in_faces<T: Decide>(
                 radius,
                 u_ref,
                 az,
-                h,
+                outline,
                 sense: _, // residual-vs-Zero and chart trim: orientation-free
             } => {
                 let w = q - origin;
@@ -2529,8 +2941,9 @@ fn point_in_faces<T: Decide>(
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
-                    match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, q, band)?
-                    {
+                    match point_on_wall_in_face(
+                        face, origin, axis, radius, u_ref, az, &outline, q, band,
+                    )? {
                         Some(true) | None => return Ok(SolidContainment::OnBoundary),
                         Some(false) => {}
                     }
@@ -3374,7 +3787,7 @@ fn cast_ray<T: Decide>(
                 radius,
                 u_ref,
                 az,
-                h,
+                outline,
                 sense,
             } => {
                 let roots = line_wall_roots(q, d, origin, axis, radius, band).map_err(escalate)?;
@@ -3387,8 +3800,9 @@ fn cast_ray<T: Decide>(
                 };
                 for t in ts {
                     let p = q + d * t;
-                    match point_on_wall_in_face(face, origin, axis, radius, u_ref, az, h, p, band)?
-                    {
+                    match point_on_wall_in_face(
+                        face, origin, axis, radius, u_ref, az, &outline, p, band,
+                    )? {
                         Some(false) => continue,
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
@@ -3854,6 +4268,10 @@ mod r1_generic_poses;
 #[cfg(test)]
 #[path = "torus_predicate_rows.rs"]
 mod torus_predicate_rows;
+
+#[cfg(test)]
+#[path = "wall_section_rows.rs"]
+mod wall_section_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]

@@ -757,14 +757,14 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     }
 }
 
-/// **The cut cylinder read against its closed form** — red, and not on
-/// the planar arm: the WALL faces are bounded by the tilted section, and
-/// the cylinder arm's chart trim reads a wall as the rectangle its
-/// boundary VERTICES span (`cylinder_chart_trim`'s iso-bounded
-/// premise), which reaches past the section, so a probe just across the
-/// cut plane from the half reads `In`.
+/// **The cut cylinder read against its closed form.** Its WALL faces
+/// are bounded by the tilted section, so their region is not the
+/// rectangle their boundary VERTICES span: that rectangle reaches past
+/// the section where it stands high, and a ray from just across the cut
+/// plane would count a hit there as a crossing and read `In`. The wall
+/// arm reads each wall as the azimuth window cut by its two planes
+/// (`wall_outline`), which is the face exactly.
 #[test]
-#[ignore = "work/contact/cylinder-wall-trim-overcovers-a-tilted-section"]
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut wrong = Vec::new();
@@ -801,4 +801,111 @@ fn the_cut_cylinder_reads_its_truth() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+}
+
+/// **A point ON the wall but below the section is not on the upper
+/// half's boundary.** At azimuth 2.8 the section stands at ≈ 1.541, so
+/// the wall point at height 1.2 lies on the lower half's wall; the
+/// vertex rectangle (heights 0.941 to 2.5) held it and the boundary
+/// pre-pass read it `OnBoundary`. A point above the section at the same
+/// azimuth is on the upper half's wall and still reads so.
+#[test]
+fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let half = cut_cylinder(true);
+    let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
+    for (pose, map) in poses() {
+        let posed = transform_rigid(&half, &map, tol()).unwrap();
+        let below = point_in_solid(&posed, map.transform_point(at(1.2)), band, tol());
+        assert!(
+            !matches!(
+                below,
+                Ok(SolidContainment::In | SolidContainment::OnBoundary)
+            ),
+            "{pose}: {below:?}"
+        );
+        let above = point_in_solid(&posed, map.transform_point(at(2.0)), band, tol());
+        assert!(
+            matches!(above, Ok(SolidContainment::OnBoundary)),
+            "{pose}: {above:?}"
+        );
+    }
+}
+
+/// **Iso-bounded walls still read through their rectangle.** A plain
+/// cylinder's walls are bounded by rims and seam meridians, and a
+/// quarter sector's wall by rims and the two meridians its radial cuts
+/// leave: both are the class whose rectangle IS the face, so every
+/// probe answers its truth or refuses for a reason that is not the
+/// wall's outline.
+#[test]
+fn iso_bounded_walls_answer_through_their_rectangle() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let quarter = (core::f64::consts::PI / 8.0).tan();
+    let cases = [
+        Case {
+            name: "plain cylinder",
+            body: prism_of(
+                vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)],
+                core::f64::consts::PI,
+            ),
+            truth: |p| p.x * p.x + p.y * p.y < 1.0 && p.z > 0.0 && p.z < 1.0,
+            lo: [-1.0, -1.0, 0.0],
+            hi: [1.0, 1.0, 1.0],
+        },
+        Case {
+            name: "quarter sector",
+            body: prism_of(
+                vec![pv(0.0, 0.0, 0.0), pv(1.0, 0.0, quarter), pv(0.0, 1.0, 0.0)],
+                core::f64::consts::FRAC_PI_4,
+            ),
+            truth: |p| {
+                p.x * p.x + p.y * p.y < 1.0 && p.x > 0.0 && p.y > 0.0 && p.z > 0.0 && p.z < 1.0
+            },
+            lo: [-1.0, -1.0, 0.0],
+            hi: [1.0, 1.0, 1.0],
+        },
+    ];
+    for Case {
+        name,
+        body,
+        truth,
+        lo,
+        hi,
+    } in cases
+    {
+        let mut answered = 0;
+        for (pose, map) in poses() {
+            let posed = transform_rigid(&body, &map, tol()).unwrap();
+            for i in 0..5 {
+                for j in 0..5 {
+                    for k in 0..5 {
+                        let f =
+                            |n: usize, a: usize| lo[a] + (hi[a] - lo[a]) * (n as f64 + 0.5) / 5.0;
+                        let p = Point3::new(f(i, 0), f(j, 1), f(k, 2));
+                        let r2 = p.x * p.x + p.y * p.y;
+                        if (r2 - 1.0).abs() < 0.05 || p.x.abs() < 0.05 || p.y.abs() < 0.05 {
+                            continue;
+                        }
+                        let want = if truth(p) {
+                            SolidContainment::In
+                        } else {
+                            SolidContainment::Out
+                        };
+                        match point_in_solid(&posed, map.transform_point(p), band, tol()) {
+                            Ok(got) => {
+                                assert_eq!(got, want, "{name} | {pose} | {p:?}");
+                                answered += 1;
+                            }
+                            Err(e) => assert!(
+                                !matches!(e, PointInSolidError::WallOutlineUnsupported { .. }),
+                                "{name} | {pose} | {p:?}: {e:?}"
+                            ),
+                        }
+                    }
+                }
+            }
+        }
+        assert!(answered > 0, "{name}: no probe answered");
+    }
 }

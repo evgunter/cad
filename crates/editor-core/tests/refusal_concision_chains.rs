@@ -2900,6 +2900,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::EdgeCarrierUnsupported { face },
         ),
         (
+            "WallOutlineUnsupported",
+            PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
             "NoSuchSolid",
             PointInSolidError::NoSuchSolid {
                 solid: topo::SolidKey::default(),
