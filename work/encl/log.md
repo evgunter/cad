@@ -634,3 +634,25 @@ those settings and no lane building beside it. If green, the batch
 head carries `[skip ci]`. The merge commit into main does NOT, because
 `work-status.yml` renders `STATUS.md` from push-to-main runs. If the
 local run cannot complete, one hosted run covers the batch.
+
+## PR 3294 fix pass in (2026-09-26)
+
+(ENCL orchestrator) Head `062a8a091b`. All nine items taken:
+- **The recourse claim is stated once**, on the new public
+  `BestBound`'s `# The recourse claim`, with its fixed-band condition
+  and its structural guard; every restatement now points there.
+- **Budget-lever agreement**: the budget is the lever only on
+  `LastRound::Improved`.
+- **The type changes**: `LastRound { Improved, DidNotImprove }`
+  replaces the bool, and `BestBound` replaces four flat copies.
+- **`budget_faces` pins best-vs-last** on the four cap cells where they
+  differ.
+- **`expiry`** is order-free.
+- **`BoundNotFinite { best: None }`** through schedule exhaustion was
+  shown unconstructible, and the variant's doc says why.
+
+Filed: `work/atrest/validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`.
+The lane's plain `cargo doc -D warnings` reports private-item links, but
+the repo's doc gate runs with `-A rustdoc::private_intra_doc_links`, so
+the batch's local gate decides it. Ready for the batch with 3292; 3295
+is in review.
