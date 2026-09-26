@@ -486,3 +486,16 @@ Dispatched as wave 4:
   `refine-chain-hands-back-a-pair-its-only-caller-re-borrows` riding
   (the same helpers).
 - `must-carry-over-edge-reads-a-transverse-edge-as-under-determined`.
+
+## Wave 4 dispatched (2026-09-26)
+
+(ENCL orchestrator)
+- `encl/equal-split-points-home`: `a-third-spelling-...` with the
+  `refine-chain` rider. **Single review, style**: a concept moved down a
+  crate, with bit-identical output required, and a stop if anything
+  moves.
+- `encl/must-carry-first-order-gate`: `must-carry-over-edge-...`.
+  **Single review, full**: it changes which description a real edge is
+  stored under, and one surface order currently stores the wrong one.
+  The lane stops at a report if the fix belongs to the caller's routing
+  or needs a ruling on what `UnderDetermined` means.

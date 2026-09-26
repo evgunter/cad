@@ -2,10 +2,11 @@
 id: must-carry-over-edge-reads-a-transverse-edge-as-under-determined
 kind: issue
 title: must_carry_over_edge has no first-order gate: a transverse edge routed to the tangent branch is stored as a conventional chart in one surface order
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: D
+branch: encl/must-carry-first-order-gate
 ---
 
 ## Finding
