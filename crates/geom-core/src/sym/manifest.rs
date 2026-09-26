@@ -55,9 +55,9 @@
 //! stands at all, which the gating half
 //! (`sym12_no_copysign_atom_reaches_a_decision_on_the_cheap_documents`)
 //! asserts. So the reach either arm has MEASURED is still the
-//! orthonormal basis's atoms alone. (2) The sites the tree holds at this commit, outside
-//! this module and the scalar impls that merely forward the function:
-//! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
+//! orthonormal basis's atoms alone. (2) The sites the tree holds at
+//! this commit, outside this module and the scalar impls that merely
+//! forward the function: `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
 //! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
 //! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
