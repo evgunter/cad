@@ -2830,22 +2830,14 @@ fn junction_check<T: Decide>(
         Ok(Sign::Zero) => {
             let margin = turn * inc.arm;
             // Which refusal class — tangent (dep ≈ incoming) or cusp
-            // (dep ≈ reverse)? A decision, so it goes through the
-            // funnel: the alignment cos φ levered by the same arm. A
-            // Zero here means the arm itself is degenerate (both
-            // components sub-ε) — refused as the tangent class, the
-            // recourse that names moving the geometry.
-            let side = decide(
-                "path_junction_side",
-                Margin::levered(u_in.dot(u_dep), inc.arm),
-                band,
-            );
-            match side {
-                Ok(Sign::Negative) => Err(PathError::JunctionCusp {
+            // (dep ≈ reverse)? `path_junction_side`, in its one home
+            // (validation asks it of every declared joint too).
+            match seg::junction_reverses(u_in, u_dep, inc.arm, band) {
+                Ok(true) => Err(PathError::JunctionCusp {
                     margin,
                     arm: inc.arm,
                 }),
-                Ok(_) => {
+                Ok(false) => {
                     if seam {
                         Err(PathError::SeamTangent { margin })
                     } else {
@@ -2965,16 +2957,11 @@ fn carriers_are_identical<T: Decide>(
     }
 }
 
-/// **An arc leg's lever arm**, in one place: the smaller of its
-/// carrier's radius and its chord.
-///
-/// The radius is what an angular margin displaces over; the chord bounds
-/// it for an arc shorter than its own radius, where the radius would
-/// overstate how far the leg actually reaches. Named because several
-/// sites spell it and three of them are junction LEVERS, where the
-/// choice is a contract rather than an expression.
+/// **An arc leg's lever arm** from its carrier: [`seg::arc_lever`],
+/// the one home of that choice. Three of its callers are junction
+/// LEVERS, where the choice is a contract rather than an expression.
 fn arc_arm<T: Real>(carrier: &ArcData<T>, chord: T) -> T {
-    carrier.radius.min(chord)
+    seg::arc_lever(carrier.radius, chord)
 }
 
 /// The straight leg's EMISSION, shared by the two `line(len)` rows —
