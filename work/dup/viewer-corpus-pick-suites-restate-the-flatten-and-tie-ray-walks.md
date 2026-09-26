@@ -54,7 +54,7 @@ file it with, and the subject — one construction spelled more than once
 ## Closed
 
 Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
-`032999ff2`. PR: batch 6.
+`032999ff2`. PR #3302.
 
 - **Census re-taken at the merge base.** The row's name instrument
   (every tracked file, no path argument) returned the row's members:

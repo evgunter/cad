@@ -96,7 +96,7 @@ charter. Any claimant may take it by `git mv`.
 ## Closed
 
 Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
-`032999ff2`. PR: batch 6.
+`032999ff2`. PR #3302.
 
 - **The denominator re-taken** with the row's instrument (`git grep
   -n -E '(\b|::)Ray \{' -- '*.rs'`, no path argument, minus

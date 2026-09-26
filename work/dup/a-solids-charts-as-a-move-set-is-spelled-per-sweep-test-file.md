@@ -71,7 +71,7 @@ reach `sweep`'s test tree — unless the home is a `topo` door.
 **Fix pass (2026-09-26, PR #3284).** The private `charts_of` copies in `shell8_r1_probes` and
 `shell8_r2_probes` are gone; both import `shell8_common::charts_of`.
 
-## Closed (2026-09-26, PR: batch 6)
+## Closed (2026-09-26, PR #3302)
 
 **One home: `crates/sweep/tests/common/charts.rs`**, by
 `tests/common/mod.rs`'s narrowest-home rule — every consumer is a

@@ -70,7 +70,7 @@ program's class and were measured by this program's unit. `paths` may
 claim it by `git mv`.
 
 
-## Closed (2026-09-26, PR: batch 6)
+## Closed (2026-09-26, PR #3302)
 
 **Re-measured at the merge base `032999ff2`**, over every tracked file
 with no path argument, with four instruments:

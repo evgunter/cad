@@ -71,7 +71,7 @@ puts at P1. It is cost `D`, not `E`: whether the face and surface
 variants are one door with a projection or separate doors is a design
 decision the taker makes before any fold.
 
-## Closed (2026-09-26, PR: batch 6)
+## Closed (2026-09-26, PR #3302)
 
 **The home is two `&self` doors on `topo::Body`, beside
 `vertex_orbit`**: `Body::edges_of_vertex` and `Body::faces_of_vertex`,

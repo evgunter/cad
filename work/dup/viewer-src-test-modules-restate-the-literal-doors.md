@@ -94,7 +94,7 @@ fourteen times — is S-DUP's charter.
 ## Closed
 
 Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
-`032999ff2`. PR: batch 6.
+`032999ff2`. PR #3302.
 
 - **Census re-taken at the merge base**, with the row's instrument
   and without its `.expect` shape (`git grep -n 'Expr::literal' --

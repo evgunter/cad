@@ -86,7 +86,7 @@ slate is the same class in another module. `crates/topo/src/body.rs`
 carries no `territory` owner.
 
 
-## Closed (2026-09-26, PR: batch 6)
+## Closed (2026-09-26, PR #3302)
 
 **Re-measured at the merge base `032999ff2`**, `git grep -n -i foreign
 -- crates/topo/src/body.rs`, then `git grep -n -i -E 'foreign
