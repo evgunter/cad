@@ -281,3 +281,17 @@ shared build slot and poll the hosted run, and merges wait on hosted
 green. PR 3259 (tag vocabulary) is in its STYLE review. Its lane's
 finding: `transition_table!` builds all three projections, so the
 trigger had fired, and the three macros now share `tag_projections!`.
+
+## 2026-09-26 — Ev: merge on local green; cancel unneeded hosted runs
+
+Ev, in chat: *"please merge on local green, and cancel any hosted ci
+runs you have going that you expect not to need."* The merge basis for
+GATHER is now a green local `ci-local.sh` battery. **Cancelling is not
+available from here.** The session's GitHub integration returns 403
+"Resource not accessible by integration" on
+`actions/runs/<id>/cancel`, so the runs to cancel went to Ev by id:
+36200233549 (3143, fix pass pending), 36200382654 and 36206746590 (3259,
+superseded or under review), and 36206758793 (3264, once a local
+battery covers it). The lanes' classifier denial of the override
+stands. The orchestrator tries the battery from its own session and
+records here whether that is allowed.
