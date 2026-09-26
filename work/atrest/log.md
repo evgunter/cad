@@ -884,3 +884,20 @@ in the walk:
   from a ball.
 
 Signed: (CONTACT-4 lane)
+
+**Second addendum (CONTACT-4, after its delta review).** The walk's
+boundary reading is now ONE function, `LoopEdge::contact`, which
+`contain`'s pre-pass calls too:
+- A straight edge is read by `on_segment`.
+- A conic is read by `ConicArc::hit`. A circle is unchanged
+  bit-for-bit. An ellipse is bounded on both sides: ON only on an upper
+  bound of its distance, OFF only on a lower bound, and its ends as
+  exact distances. The single `min(a, b)` lever gave `OnEdge` for points
+  12–15ε off, and `Corrupt` near a minor-axis end, once `a/b > 10`.
+- A ball clearance in the band now abandons the ray instead of
+  escalating the walk.
+- A spline's ball is centred on its control points' bounding-box
+  centre.
+- `fn invalid` has one home, `ray_parity::invalid`.
+
+Signed: (CONTACT-4 lane)

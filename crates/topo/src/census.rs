@@ -1192,16 +1192,6 @@ pub(crate) const CARRIER_COMPARISON_WITNESS: &str = "across the whole of both fa
 /// `Display`.
 pub(crate) const CURVE_RECORD_WITNESS: &str = "along the declared edge";
 
-/// An impossible sign from a nonnegative margin — surfaced as the
-/// invalid-margin escalation (poison posture; never silent).
-fn invalid(band: Band, predicate: &'static str) -> geom_core::Indeterminate {
-    geom_core::Indeterminate {
-        margin: geom_core::MarginDiag::Invalid,
-        band,
-        predicate: Some(predicate),
-    }
-}
-
 /// A nonnegative gap margin as a trilean coincidence verdict:
 /// `Some(true)` coincident, `Some(false)` apart, `None` escalated
 /// (already pushed).
@@ -1216,7 +1206,7 @@ fn gap_is_zero<T: Decide>(
         Ok(Sign::Positive) => Some(false),
         Ok(Sign::Negative) => {
             errors.push(ValidationError::CensusEscalated {
-                cause: invalid(band, name),
+                cause: crate::ray_parity::invalid(band, name),
             });
             None
         }
@@ -2003,7 +1993,7 @@ fn ee_cross_backed<T: Decide>(
         match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
             Ok(geom_brep::DihedralClass::Smooth) => {}
             Ok(geom_brep::DihedralClass::Transverse) => {
-                undecided.push(invalid(band, "material_wedge_side"));
+                undecided.push(crate::ray_parity::invalid(band, "material_wedge_side"));
                 continue;
             }
             Err(cause) => {
@@ -5415,19 +5405,13 @@ mod tests {
         body
     }
 
-    /// A planar cap in the plane `x = 1/2` bounded by one SPIRIC arc —
-    /// the section of the torus `R = 2, r = 1` about the `z` axis, over
-    /// its minor angle `[−π/2, π/2]` — and the chord closing it, with a
-    /// cube grafted in beside it whose `x = 1/2` face lies in the cap's
-    /// plane, outside the cap and inside the ball the spiric arc is held
-    /// in (its midpoint `(1/2, √8.75, 0)`, reach `(π/2)·r(R − r)/√((R −
-    /// r)² − 1/4) ≈ 1.81`).
-    fn spiric_cap_and_near_cube() -> Body<f64> {
+    /// A planar cap in the plane `x = offset`, bounded by one SPIRIC arc
+    /// — the section of the torus `(R, r)` about the `z` axis, over its
+    /// minor angle `v ∈ [v0, v1]` — and the chord closing it.
+    fn spiric_cap(big_r: f64, r: f64, offset: f64, (v0, v1): (f64, f64)) -> Body<f64> {
         use geom::Curve3;
         use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
-        use std::f64::consts::FRAC_PI_2;
         let tol = Tol::witness();
-        let (big_r, r, offset) = (2.0f64, 1.0f64, 0.5f64);
         let spiric = Curve3::Spiric {
             center: Point3::origin(),
             axis: Vec3::unit_z(),
@@ -5436,7 +5420,7 @@ mod tests {
             minor_radius: r,
             offset,
         };
-        let (p0, p1) = (spiric.eval(-FRAC_PI_2), spiric.eval(FRAC_PI_2));
+        let (p0, p1) = (spiric.eval(v0), spiric.eval(v1));
         let mut body = Body::<f64>::new();
         let seed = body.mvfs(p0).expect("a seed");
         let plane = body.add_surface(Surface::Plane {
@@ -5461,11 +5445,11 @@ mod tests {
                     description: EdgeDescriptionSpec::Intersection {
                         s1: torus,
                         s2: plane,
-                        witness: spiric.eval(0.0),
+                        witness: spiric.eval(0.5 * (v0 + v1)),
                     },
                     carrier: spiric,
-                    param_start: -FRAC_PI_2,
-                    param_end: FRAC_PI_2,
+                    param_start: v0,
+                    param_end: v1,
                 },
                 tol,
             )
@@ -5480,7 +5464,19 @@ mod tests {
             tol,
         )
         .expect("the chord closes the cap");
-        let cube = cube_at(Vec3::new(offset, 3.9, -0.5), tol);
+        body
+    }
+
+    /// [`spiric_cap`] of the torus `R = 2, r = 1` in `x = 1/2`, over
+    /// `[−π/2, π/2]`, with a cube grafted in beside it whose `x = 1/2`
+    /// face lies in the cap's plane, outside the cap and inside the ball
+    /// the spiric arc is held in (its midpoint `(1/2, √8.75, 0)`, reach
+    /// `(π/2)·r(R − r)/√((R − r)² − 1/4) ≈ 1.81`).
+    fn spiric_cap_and_near_cube() -> Body<f64> {
+        use std::f64::consts::FRAC_PI_2;
+        let tol = Tol::witness();
+        let mut body = spiric_cap(2.0, 1.0, 0.5, (-FRAC_PI_2, FRAC_PI_2));
+        let cube = cube_at(Vec3::new(0.5, 3.9, -0.5), tol);
         crate::instance::graft_disjoint(&mut body, &cube, tol).expect("a disjoint graft");
         body
     }
@@ -5917,6 +5913,53 @@ mod tests {
                 } if *face == cap
             )),
             "no far vertex is a contact with the cap: {ideal_errors:?}"
+        );
+    }
+
+    /// **The spiric ball's reach is the bound, nearly tight.** On the
+    /// torus `R = 10, r = 1` cut at `offset = 5`, the oval's speed near
+    /// `v = π/2` is within 4% of the bound `r(R − r)/√((R − r)² − offset²)`,
+    /// so a short arc there (`w = 0.2`) ends within about 4% of the ball's
+    /// reach from its midpoint. A point just past the arc's end, along
+    /// its tangent, lies inside that ball: every ray from it could meet
+    /// the arc, and the face refuses. A ball any smaller — the speed
+    /// taken as `r` (the offset factor dropped, 17% smaller), or the
+    /// reach cut by a tenth — would leave the point outside it and let
+    /// a ray that clips the uncrossable arc answer.
+    #[test]
+    fn a_spiric_ball_that_is_nearly_tight_still_holds_the_arc() {
+        use std::f64::consts::FRAC_PI_2;
+        let (v0, v1) = (FRAC_PI_2 - 0.1, FRAC_PI_2 + 0.1);
+        let body = spiric_cap(10.0, 1.0, 5.0, (v0, v1));
+        let spiric = geom::Curve3::Spiric {
+            center: Point3::origin(),
+            axis: Vec3::unit_z(),
+            u_ref: Vec3::unit_x(),
+            major_radius: 10.0,
+            minor_radius: 1.0,
+            offset: 5.0,
+        };
+        let end = spiric.eval(v1);
+        let tangent = (spiric.eval(v1 + 1e-6) - spiric.eval(v1 - 1e-6)).normalize();
+        let mid = spiric.eval(0.5 * (v0 + v1));
+        let reach = 9.0 / (81.0f64 - 25.0).sqrt() * 0.1;
+        let q = end + tangent * 0.003;
+        // The fixture's own premise: `q` sits inside the ball and outside
+        // both smaller ones.
+        let from_mid = (q - mid).norm();
+        assert!(
+            from_mid < reach && from_mid > 0.9 * reach && from_mid > 0.1,
+            "{from_mid} against the reach {reach}"
+        );
+        let cap = body
+            .faces()
+            .find(|(_, f)| matches!(body.get_surface(f.surface), Some(Surface::Plane { .. })))
+            .map(|(k, _)| k)
+            .expect("the cap");
+        let got = crate::boolean::contfp(&body, cap, Vec3::unit_x(), q, band());
+        assert!(
+            matches!(got, Err(ContainError::ArcLoopUnsupported { .. })),
+            "just past the arc's end, inside its ball, the cap refuses: {got:?}"
         );
     }
 

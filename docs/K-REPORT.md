@@ -860,32 +860,44 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
-**Roster addition (CONTACT-4): an arc's trim decided as distances.**
-`topo/src/splitting/containment.rs`'s `ConicArc::hit` decides where a
-point sits against a circle or ellipse edge — its distance from the
-conic, then (`arc_trim`) its distance to either end and a chordal-defect
-sum, neither compressed near an end. Each caller passes its own names in
-a `ConicRows` value, so the populations stay apart; `contain`'s straight
-edges read `ray_parity::on_segment` through a `ParityRows` value of
-their own:
+**Roster addition (CONTACT-4): an edge's boundary decided as distances.**
+`topo/src/splitting/containment.rs`'s `LoopEdge::contact` is the one
+boundary reading of a planar loop's edge. A straight edge is read as
+its distance to the closed segment (`ray_parity::on_segment`). A conic
+is read as its distance from the conic, then its distance to either end
+and a chordal-defect sum, neither compressed near an end. A circle is
+exact through one lever. An ellipse is bounded on both sides:
+- `on` is decided on the upper bound for ON and the lower bound for
+  OFF, so one call can mint the row twice;
+- `end` is the exact distance to the end point.
+
+Each caller passes its own names in a `BoundaryRows` value, so the
+populations stay apart:
 
 | name | carrier |
 |---|---|
-| `point_in_arc_loop_conic_end` | `ConicRows` field (`WALK_CONIC_ROWS`, the carrier walk) |
-| `point_in_arc_loop_conic_trim` | `ConicRows` field (`WALK_CONIC_ROWS`) |
-| `bool_contact_arc_end` | `ConicRows` field (`contain`'s `CONIC_ROWS`, the boundary pre-pass) |
-| `bool_contact_arc_trim` | `ConicRows` field (`CONIC_ROWS`) |
+| `point_in_arc_loop_conic_end` | `ConicRows` field (`WALK_ROWS`, the carrier walk) |
+| `point_in_arc_loop_conic_trim` | `ConicRows` field (`WALK_ROWS`) |
+| `bool_contact_arc_end` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
+| `bool_contact_arc_trim` | `ConicRows` field (`ROWS`) |
 | `bool_contact_edge_length` | `ParityRows` field (`contain`'s `EDGE_ROWS`) |
 
-`EDGE_ROWS` also names `bool_contact_edge` (its `boundary` field), and
-its `side` and `advance` fields are never read by `on_segment`, so never
-minted. `bool_contact_edge_span` is retired with the span gates it
-named. `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span`,
-`bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
-fields. `point_in_arc_loop_conic_window` decides only where a ray
-crosses an arc. `point_in_arc_loop_reach` is a ray's clearance from an
-uncrossable edge's ball. Dimensions: `docs/predicate-dimension-audit.md`'s
-rows of the same names.
+Notes on the neighbouring names:
+- `EDGE_ROWS` also names `bool_contact_edge` (its `boundary` field). Its
+  `side` and `advance` fields are never read by `on_segment`, so they
+  are never minted.
+- `bool_contact_edge_span` is retired with the span gates it named.
+- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span`,
+  `bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
+  fields.
+- `point_in_arc_loop_conic_window` decides only where a ray crosses an
+  arc.
+- `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
+  edge's ball. A clearance in the band abandons the ray rather than
+  escalating.
+
+Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
+names.
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of

@@ -162,6 +162,19 @@ impl<T: Decide> RaySpace<T> for Point2<T> {
     }
 }
 
+/// **An impossible sign from a nonnegative margin** — a distance that
+/// classified negative — surfaced as the invalid-margin escalation
+/// (poison posture; never silent). The one home for every containment
+/// door's broken-invariant arm: a caller that reaches it has two rows of
+/// one quantity disagreeing, which no answer can stand on.
+pub(crate) fn invalid(band: Band, predicate: &'static str) -> Indeterminate {
+    Indeterminate {
+        margin: geom_core::MarginDiag::Invalid,
+        band,
+        predicate: Some(predicate),
+    }
+}
+
 /// The four K rows one consumer meters its walk through. Distinct
 /// names per consumer are the point: see the module docs.
 ///

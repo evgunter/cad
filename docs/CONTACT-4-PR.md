@@ -5,7 +5,8 @@ folds it into that PR and deletes it at merge.
 
 Carries `work/contact/contfp-walks-the-vertex-polygon-of-an-arc-bearing-loop`
 (P0) and `work/contact/point-on-arc-endpoint-zone-compresses-by-sin-half-width`
-(P1). It includes the review's fix pass (F1–F6).
+(P1). It includes the review's fix pass (F1–F6) and the delta review's
+(M1, M2, m1, m2 and the style items).
 
 ## What changed, and why
 
@@ -29,10 +30,14 @@ polygon, and a point there read `In`.
    own carrier:
    - a `Line` (or null scaffolding) is the distance to its closed
      segment (`ray_parity::on_segment`);
-   - a **circle or ellipse** is read by
-     `splitting::containment::ConicArc::hit`: the distance from the
-     conic, then the arc's trim as distances (`arc_trim`);
+   - a **circle or ellipse** is read on its own conic: the distance
+     from the conic, then the arc's trim as distances;
    - a spiric or spline edge gets no verdict.
+
+   All three arms are one function,
+   `splitting::containment::LoopEdge::contact`. It is the one boundary
+   reading of a planar loop's edge, shared with the carrier walk's own
+   pass.
 2. **One walk that trusts that pass**
    (`splitting::containment::carrier_loop_side`). It reads each loop on
    its carriers and answers `In` or `Out`. It runs no boundary pass of
@@ -59,8 +64,8 @@ Now the conic arm is in the one pass, so such a point reads
 `bool_contfp_boundary` is gone from the tree. The walk's own pre-pass
 survives only for `point_in_carrier_loop`'s other caller,
 `solid_contain::point_in_face`, which wants `OnBoundary` as a verdict.
-The two share `ConicArc::hit`, so a conic reads the same arithmetic in
-both.
+That pass is the same `LoopEdge::contact` over the loop's edges, not a
+second spelling.
 
 **Line rows.** A line is now read as the distance to its closed segment
 (`on_segment`, rows `bool_contact_edge_length` and `bool_contact_edge`)
@@ -73,7 +78,7 @@ answered `In`/`Out`.
 
 **Other doors checked against F1:**
 - `curved_boundary_containment` is the same `boundary_pre_pass`, so it
-  gains the conic arm as well. `ConicArc::hit` folds the out-of-plane
+  gains the conic arm as well. The conic reading folds the out-of-plane
   miss `(q − c)·n̂` into the distance, so a point on a cylinder wall far
   from a rim's plane is off that rim, exactly as `point_on_circle`'s
   hypotenuse was.
@@ -88,8 +93,8 @@ answered `In`/`Out`.
 - the minted `bool_contfp_boundary`.
 
 `point_on_circle` stays for `reduce.rs`'s point split. Its row,
-`bool_contact_arc`, is the same distance `ConicArc::hit` meters under
-the same name.
+`bool_contact_arc`, is the same distance a circle edge's reading meters
+under the same name.
 
 What happened to each `LoopShape` arm inside `contfp`:
 
@@ -108,6 +113,118 @@ for that consumer (F3). `loop_shape`'s doc said the points it serves
 come through a boundary pre-pass, and check 9 runs none. It now says
 the off-boundary premise is the caller's, supplied by check 9's contact
 arms. `validate.rs` is not touched.
+
+### A steep ellipse: bounded on both sides (M1, M2)
+
+Before the second fix pass, an ellipse was read in unit coordinates
+through ONE lever, the smaller semi-axis `b`. That is conservative
+where a `Zero` only abandons a ray. In the boundary pass a `Zero` is a
+VERDICT, and the lever was wrong in both directions:
+
+- **M1, `Corrupt` on a legal body.** The end row was the unit chord
+  levered by `b`. At an end on the minor axis the edge's speed is `a`,
+  so the End zone reached `(a/b)·ε` along the edge, while the vertex
+  pass calls a point definite from `10ε`. Past `a/b = 10`, a point
+  between `10ε` and `(a/b)·ε` from the vertex read `End`, which the
+  pre-pass turned into `Corrupt`.
+  - The review measured this on a disc prism cut at tilt 1.5 rad
+    (`a/b = 14.1`) and 1.52 rad (`19.7`).
+  - A brick corner on that edge 15ε from the vertex gave the census's
+    `CensusUnsupported{Face, Containment(Corrupt)}`, which tells the
+    user to repair their topology.
+- **M2, `OnEdge` for a point definitely off.** `(ρ − 1)·b` understates
+  the distance by `b/a` near the major vertex.
+  - At tilt 1.5, a point ±12ε off read `OnEdge`; at tilt 1.52, ±15ε
+    did.
+  - The band sweep found 24 such `OnEdge` answers at 10.5–13ε off the
+    middle of an edge.
+  - The reduction splits an edge at an `OnEdge` point.
+
+`LoopEdge::contact` now reads an ellipse with its metric bounded on
+BOTH sides, each verdict on the bound that makes it sound:
+
+- **On the conic only where an UPPER bound is within the zero band.**
+  The upper bound is `|Q − P|` for `P` = one Newton step of
+  `F = X²/a² + Y²/b² − 1` from `Q`, snapped radially onto the
+  ellipse: any point of the ellipse bounds the distance from above.
+- **Off only where a LOWER bound clears the escalation band.** The
+  lower bound is `2|F|/(g + √(g² + 4|F|/b²))`, `g = |∇F(Q)|`: along the
+  segment to the foot, `|∇F|` grows at most at the Hessian's norm
+  `2/b²`, so `|F| ≤ g·d + d²/b²`.
+- **Between the two, it escalates** on the bound that landed in the
+  band. The bounds part by more than the band's own ratio only where
+  the ellipse's tightest radius of curvature `b²/a` is within a few ε.
+  That is the one residue with no single margin, and there it escalates
+  `Invalid`, as the site says.
+- **An end is the EXACT distance from `q` to the end point.** The side
+  of the ends is the Newton foot's chordal defect levered by the
+  LARGER semi-axis. A unit angle costs at most `a` metres of arc, so
+  the margin bounds the arc length to the nearer end from above.
+- **A circle is untouched,** bit-identical: its unit coordinates are an
+  isometry scaled by the radius, and one lever is exact.
+
+**`End` against the vertex pass.** An end is now read as the exact
+distance from `q`. If it is within the band while the vertex pass
+placed `q` definitely clear of the edge's vertices, the stored vertices
+sit off the carrier's end by more than 8ε. The pre-pass decides that
+distance (`bool_contact_arc_end`) and escalates on it if it is in the
+band. `Corrupt` is left only where the edge's end is definitely off
+BOTH its vertices: a body whose vertex is not where its own edge ends.
+
+**Measured,** at ε = 1e-9 and K = 10, with the review's probes:
+
+| probe | at `94a2feb` (review) | now |
+|---|---|---|
+| `contfp` 11–18ε inside each end, tilt 1.5 and 1.52 | `Corrupt` (M1) | `OnEdge` at every probe, every tilt (0.3 to 1.52) |
+| census: brick corner 15ε from the end, tilt 1.52 | `CensusUnsupported{Face, Containment(Corrupt)}` | no containment refusal: the contact is read (the remaining findings are the curved-face `CensusUndecidable` pairs the body carries anyway) |
+| ±12ε and ±15ε radial at the major vertex, tilt 1.5 and 1.52 | `OnEdge` (M2) | `Out` outside and `In` inside, at ±12, 15, 20, 40 and 100ε, every tilt |
+| band sweep (vertex rings and both normals of every edge, 10.5ε to 1e5ε; slot, lens, inward square, half-disc, pac-man, pie, cut at 0.3 and 1.52) | 24 wrong `OnEdge` at 10.5–13ε, and `Corrupt` | **0 wrong, 0 `Corrupt`, 0 escalations** (edges 23,492 `In` / 23,442 `Out`; rings 3,388 `In` / 5,687 `Out` / 353 `OnEdge`, where a ring crosses an edge) |
+| the region probe (every face, grid and on-carrier points) | 0 wrong | 0 wrong; spiric caps unchanged (1899 right, 0 wrong, 318 refused of 2217 in-face) |
+
+### A ball clearance in the band skips the ray (m1)
+
+The ray test against an uncrossable edge's ball used to propagate an
+escalation of `point_in_arc_loop_reach`, which escalated the whole
+walk. Points 0.3–1 m outside vessel face 2v1 read `Escalated`. A
+clearance in the band is a ray that COULD meet the ball, so it is now
+abandoned like any graze. The review's probe reads all 32 of its points
+`Out` (it read escalations before). The row is
+`an_in_band_ball_clearance_skips_the_ray`.
+
+### The spiric ball's reach is pinned (m2)
+
+`a_spiric_ball_that_is_nearly_tight_still_holds_the_arc` builds a
+spiric cap of the torus `R = 10, r = 1` cut at `offset = 5`, with a
+short arc (`w = 0.2`) about `v = π/2`. There the oval's speed is within
+4% of the bound. A point 3 mm past the arc's end along its tangent lies
+inside the ball (0.1184 m from its centre against a reach of 0.1203 m),
+and the cap refuses.
+
+Both mutations go red on that row:
+- the speed taken as `r` (the offset factor dropped);
+- the reach × 0.9.
+
+Each shrinks the ball past the point and lets a ray that clips the
+uncrossable arc answer.
+
+### Style items
+
+- **One home for the invalid-margin helper.** `fn invalid` had three
+  identical copies (`containment.rs`, `contain.rs`, `census.rs`). It now
+  lives at `ray_parity::invalid`.
+- **One boundary reading.** The walk's `Boundary::Verdict` pass and
+  `contain`'s edge pass are both `LoopEdge::contact` over a
+  `CarrierLoop`. The pre-pass hands its `CarrierLoop`s to the walk
+  rather than reading the loops twice.
+- **The type says what the walk answers.** `carrier_loop_side` returns
+  `Option<bool>` (inside), so `contfp` has no `OnBoundary` arm to rule
+  out.
+- **`Boundary::Decided` asserts instead of folding.** Its `On`/`End`
+  arm is an `unreachable!` stating the precondition: the caller's pass
+  reads the same arithmetic and placed `q` off the edge.
+- **The spline ball** is centred on its control points' bounding-box
+  centre, with reach to the farthest control point. It still holds the
+  control hull, and so the curve.
 
 ### The end-of-arc zone (`arc_trim`)
 
@@ -234,12 +351,18 @@ their match arms changed. What changes is which inputs reach which arm.
 | `chart_region.rs` witness search (`inside`) | not a witness | not a witness | not a witness | not a witness | only `In` counts |
 
 **New inputs to `Corrupt`:**
-- a conic edge whose carrier end lies within the band of `q` while the
-  vertex pass placed `q` definitely clear of that edge's vertices. The
-  stored vertex is then off its own edge's end by more than the band.
+- a conic edge whose end, measured EXACTLY, lies within the band of
+  `q` while the vertex pass placed `q` definitely clear of the edge's
+  vertices, AND whose end is definitely off both of its vertices. Where
+  that last distance is in the band, the answer is an `Escalated` on
+  it instead.
 - a conic span wound past a period.
 
 A certified body reaches neither.
+
+**New input to `Escalated(Invalid)` on `bool_contact_arc`:** an ellipse
+bending tighter than the band resolves (`b²/a` within a few ε), where
+the two bounds on one distance straddle the whole band.
 
 **`Escalated(bool_contfp_boundary)` is gone.** A point the pre-pass
 misjudges within the band now makes every crossing ray graze. That ends
@@ -336,8 +459,8 @@ arc.** `grep -rn 'point_in_loop('` over `crates/`:
 
 | hit | disposition |
 |---|---|
-| the old `contain::point_on_arc` | **deleted**; the pre-pass reads `ConicArc::hit` |
-| `containment` pre-pass (`in_window`) | **fixed** (`ConicArc::hit`) |
+| the old `contain::point_on_arc` | **deleted**; the pre-pass reads `LoopEdge::contact` |
+| `containment` pre-pass (`in_window`) | **fixed** (`LoopEdge::contact`) |
 | `containment::conic_crossings` (`in_window`) | kept: a `Zero` there is a graze that abandons a ray, never a verdict |
 | `solid_contain::point_on_wall_in_face` / `point_on_cone_in_face` / `point_on_torus_in_face` (`chart_azimuth_margin`), `point_on_sphere_in_face` | not this unit: a boundary graze on a ray lane (the doc's ledger row F8 owns the narrow-window fix) |
 | `curved_face_containment` period guard | a chart-form question, not an end zone |
@@ -358,7 +481,7 @@ test:
 margin existed.** `grep -rn 'invalid(band'` over `boolean/contain.rs`
 and `splitting/containment.rs`:
 - `bool_contfp_boundary`: deleted.
-- `bool_contact_vertex`, `ConicArc::hit`'s `on` row and `arc_trim`'s
+- `bool_contact_vertex`, the conic reading's `on` row and `arc_trim`'s
   `end` row: these remain, and each is the impossible NEGATIVE arm of a
   distance. It is a broken invariant, not a quantity.
 
@@ -398,26 +521,21 @@ and `splitting/containment.rs`:
 
 ## Local verification
 
-At the fix-pass head, with `CARGO_INCREMENTAL=0` and a clean target:
+At the head of the second fix pass, with `CARGO_INCREMENTAL=0` and a
+rebuilt target:
 
-- **`cargo nextest run -p topo -p sweep --no-fail-fast`** (3148 tests):
-  - **1e-12:** fully green.
-  - **unset and 1e-6:** these failed one row,
-    `pis_arc_capped_poses::a_spiric_bounded_face_refuses_only_within_its_reach`.
-    It asserted the old whole-loop refusal at the loop's own vertex,
-    which is now correctly on the boundary. It was re-signed to the
-    confined refusal, and the three suites touched after the run were
-    re-run at unset and 1e-6: 13/13 each.
-- **The review probe** (≈150k grid points and the on-carrier points,
-  over every face listed above): 0 wrong answers at the head.
+- **`cargo nextest run -p topo -p sweep --no-fail-fast`** (3155 tests)
+  at eps unset, 1e-6 and 1e-12: all green.
+- **The review's probes** (`zz_c4d.rs`, `zz_c4_probe.rs`): 0 wrong,
+  0 `Corrupt`; numbers above.
+- **Mutations of the spiric ball** (speed = `r`; reach × 0.9): each
+  reds `a_spiric_ball_that_is_nearly_tight_still_holds_the_arc`.
 - **`cargo clippy -p topo -p sweep --all-targets -- -D warnings`:**
   clean.
 - **Rustdoc,** `RUSTDOCFLAGS='-D warnings -A rustdoc::private_intra_doc_links'
   cargo doc -p topo --no-deps --document-private-items --all-features`
-  (doc-gate's flags): clean. The bare `RUSTDOCFLAGS='-D warnings' cargo
-  doc -p topo --no-deps` fails on this tree's existing private
-  intra-doc links (`attach.rs`, `body.rs`, `rest.rs`, …), which
-  doc-gate allows by design.
-- **Every `scripts/gates/*.sh`:** its `--selftest` and its real pass
-  are green.
+  (doc-gate's flags): clean.
+- **Every `scripts/gates/*.sh`:** `--selftest` and the real pass are
+  green. `interval-square-allowlist` caught a `two * two` spelling,
+  which is now the literal `4.0`, and exact.
 - **`python3 scripts/work.py lint`:** ok.
