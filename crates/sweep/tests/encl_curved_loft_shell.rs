@@ -135,13 +135,13 @@ fn a_saddle_walls_offset_at_shell_thickness_reaches_its_measured_bound() {
                     eps < lo,
                     "d = {d}: the fit refused at ε = {eps:e}, where it certifies today: {error}"
                 );
-                // The reach is the smallest bound any round reached: the
-                // schedule does not read ε, so the loop certifies exactly
-                // when ε is at least that.
+                // The reach is the smallest bound any round reached
+                // (`geom_brep::BestBound`, whose recourse claim holds at a
+                // fixed band, as this row's is).
                 let best = match error {
                     OffsetFitError::BudgetExhausted { best, .. }
                     | OffsetFitError::SampleCapReached { best, .. }
-                    | OffsetFitError::RefinementStalled { best, .. } => best,
+                    | OffsetFitError::RefinementStalled { best, .. } => best.bound,
                     other => panic!("d = {d}: expected a refinement refusal, got {other}"),
                 };
                 assert!(

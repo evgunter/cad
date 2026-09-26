@@ -239,14 +239,14 @@ pub const OFFSET_FIT_DEGREE: usize = 3;
 /// fit. A CONSTANT (D9).
 pub const OFFSET_FIT_SEED_PER_SPAN: usize = 3;
 
-/// The refinement-round budget of the fit loop, and the lever of
-/// [`OffsetFitError::BudgetExhausted`]: that face is raised only when
-/// this many rounds ran and the stall guard had not refused — the
-/// last round's bound was still falling, or had fallen short once
-/// without the both-directions step having been tried. Raising this
-/// constant buys the next step in either case: another round of the
-/// same refinement, or the both-directions step, which can stall in
-/// its turn. A last round that gained nothing on the strongest step
+/// The refinement-round budget of the fit loop.
+/// [`OffsetFitError::BudgetExhausted`] is raised when this many rounds
+/// ran and the stall guard had not refused, and this constant is that
+/// face's lever on [`LastRound::Improved`] only, where another round
+/// of the same refinement was still paying. On
+/// [`LastRound::DidNotImprove`] the round it would buy is the
+/// both-directions step, which can stall in its turn, so no lever is
+/// known there. A last round that gained nothing on the strongest step
 /// is [`OffsetFitError::RefinementStalled`] instead. Expiry with a
 /// non-finite last bound is [`OffsetFitError::BoundNotFinite`], whose
 /// lever this is not. All are the Book's own "both can fail to
@@ -304,6 +304,53 @@ impl OffsetLimb {
     }
 }
 
+/// **The smallest bound the refinement loop reached**, and the grid it
+/// was first reached on: what every refinement refusal sizes its
+/// recourse to ([`OffsetFitError::BudgetExhausted`],
+/// [`OffsetFitError::SampleCapReached`],
+/// [`OffsetFitError::RefinementStalled`], and
+/// [`OffsetFitError::BoundNotFinite`] when a round reached one).
+///
+/// # The recourse claim
+///
+/// **At the fit's band, a request at `bound` certifies on the round
+/// that reached it, on `grid`, and a looser request certifies no
+/// later.** The loop's schedule never reads the tolerance: `measure`,
+/// `stall_verdict` and `refine_schedule` take none, and that signature
+/// is the guard. Only the certify test reads it, so the run follows the
+/// same rounds until that test passes.
+///
+/// The condition is the band, and it is not idle. The door meters read
+/// it before any round, and their winning rung sets the regularity
+/// floor `measure` divides by and the chart speeds the marking
+/// compares. A production caller builds its band from ε
+/// (`Band::linear(tol)`), so a caller that loosens ε to `bound` moves
+/// the band too, the rung can change, and `bound` is then the size to
+/// ask for rather than a guarantee.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct BestBound {
+    /// The smallest finite certified sup bound any round reached, in
+    /// metres; no larger than the refusal's `achieved`, where it has
+    /// one, and above its tolerance.
+    pub bound: f64,
+    /// The sample grid `bound` was first reached on, per direction.
+    pub grid: (usize, usize),
+}
+
+/// Whether the last round of a loop that ran out of rounds lowered the
+/// bound: the reading [`OffsetFitError::BudgetExhausted`] carries,
+/// because its two values name two different recourses.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum LastRound {
+    /// The last round lowered its predecessor's bound, or had no finite
+    /// predecessor to lower. Refinement was still paying.
+    Improved,
+    /// The last round did not lower its predecessor's finite bound: it
+    /// rose, or stayed level. The both-directions step the next round
+    /// would have taken was never tried.
+    DidNotImprove,
+}
+
 /// A typed refusal of the offset fit door (fail-loud; the kernel never
 /// panics and never returns an uncertified surface).
 ///
@@ -319,10 +366,11 @@ impl OffsetLimb {
 /// lever that would have changed it:
 ///
 /// 1. **The round budget ran out past a verdict that did not refuse**
-///    — [`Self::BudgetExhausted`]; the lever is [`OFFSET_FIT_BUDGET`].
-///    The last round either lowered the bound or was the first not
-///    to, with the both-directions step still untried; the payload
-///    says which. The stall verdict is taken before the budget test on
+///    — [`Self::BudgetExhausted`]. The last round either lowered the
+///    bound or was the first not to, with the both-directions step
+///    still untried; the payload's [`LastRound`] says which, and
+///    [`OFFSET_FIT_BUDGET`] is the lever on [`LastRound::Improved`]
+///    only. The stall verdict is taken before the budget test on
 ///    every round, the last included, so this face never speaks for a
 ///    round the guard would have refused.
 /// 2. **The per-direction sample cap stopped the next round** —
@@ -350,10 +398,10 @@ impl OffsetLimb {
 /// The levers above are the kernel's. Neither constant is a caller's
 /// to change, so each face's message names the caller's repair
 /// instead: a tolerance no tighter than the smallest bound any round
-/// reached (the schedule does not read the tolerance, so the round
-/// that reached it would then have certified), a face split into
-/// pieces that need less refinement where more refinement was still
-/// paying (the cap, and the budget on a round that still fell), or,
+/// reached ([`BestBound`], whose doc states when a request there
+/// certifies), a face split into pieces that need less refinement
+/// where more refinement was still paying (the cap, and the budget on
+/// [`LastRound::Improved`]), or,
 /// when no bound was ever finite, an offset distance of larger
 /// magnitude. A face whose last round did not fall names the tolerance
 /// alone: nothing in the loop's state says a smaller piece would fall
@@ -418,20 +466,18 @@ pub enum OffsetFitError {
     },
     /// The refinement loop spent all [`OFFSET_FIT_BUDGET`] rounds and
     /// the stall guard did not refuse on the last one. That verdict
-    /// has two readings, and `still_falling` says which: the last
-    /// round lowered the bound, or it did not and the both-directions
-    /// step the next round would have taken was never tried. A last
-    /// round whose bound is not finite is [`Self::BoundNotFinite`]; a
-    /// last round whose strongest step gained nothing is
-    /// [`Self::RefinementStalled`].
+    /// has two readings, and `last_round` says which ([`LastRound`]).
+    /// A last round whose bound is not finite is
+    /// [`Self::BoundNotFinite`]; a last round whose strongest step
+    /// gained nothing is [`Self::RefinementStalled`].
     ///
-    /// The kernel lever is the round budget, and only on the first
-    /// reading is it one that was still paying: on the second, a
-    /// further round is the both-directions step, which can stall in
-    /// its turn. So the message names no rounds as the way through;
-    /// the caller's recourse is `best`, which certifies on either
-    /// reading, and on the first reading only, a face split so each
-    /// piece needs fewer rounds. Classification: the enum's, above.
+    /// The kernel lever is the round budget on [`LastRound::Improved`]
+    /// only: on [`LastRound::DidNotImprove`] a further round is the
+    /// both-directions step, which can stall in its turn, so no lever
+    /// is known. The message names no rounds as the way through either
+    /// way. The caller's recourse is `best` on both readings, and on
+    /// [`LastRound::Improved`] also a face split so each piece needs
+    /// fewer rounds. Classification: the enum's, above.
     BudgetExhausted {
         /// The round budget that expired.
         budget: usize,
@@ -441,15 +487,10 @@ pub enum OffsetFitError {
         achieved: f64,
         /// The tolerance it had to reach.
         tolerance: f64,
-        /// Whether the last round lowered the bound its predecessor
-        /// reached (or had a non-finite predecessor to lower).
-        still_falling: bool,
-        /// The smallest certified sup bound any round reached, in
-        /// metres; finite, and no larger than `achieved`. A request at
-        /// this tolerance certifies on the round that reached it.
-        best: f64,
-        /// The sample grid `best` was reached on, per direction.
-        best_grid: (usize, usize),
+        /// Whether the last round lowered its predecessor's bound.
+        last_round: LastRound,
+        /// The smallest bound any round reached ([`BestBound`]).
+        best: BestBound,
     },
     /// The per-direction [`OFFSET_FIT_SAMPLE_CAP`] stopped the loop:
     /// the next round's schedule would have carried more samples than
@@ -471,22 +512,18 @@ pub enum OffsetFitError {
         achieved: f64,
         /// The tolerance it had to reach.
         tolerance: f64,
-        /// The smallest certified sup bound any round reached, in
-        /// metres; finite, and no larger than `achieved`. A request at
-        /// this tolerance certifies on the round that reached it.
-        best: f64,
-        /// The sample grid `best` was reached on, per direction.
-        best_grid: (usize, usize),
+        /// The smallest bound any round reached ([`BestBound`]).
+        best: BestBound,
     },
     /// The loop stopped with the bound on its last grid not finite —
     /// on the round budget or on the sample cap, or on a stall with no
     /// finite round behind it: the certifying limb answered `+∞`
     /// there, so there is no achieved bound on that grid, and the type
-    /// carries `best_finite` in place of an `inf` where the caller
-    /// needs a number. Two cases, told apart by that field, because
-    /// they send the caller to different places:
+    /// carries `best` in place of an `inf` where the caller needs a
+    /// number. Two cases, told apart by that field, because they send
+    /// the caller to different places:
     ///
-    /// - **`best_finite: None` — no round ever produced a finite
+    /// - **`best: None` — no round ever produced a finite
     ///   bound.** A cell's sign witness or its lower bound on `‖E‖`
     ///   could not be proved at the sampled cells on any grid, and a
     ///   finer schedule did not change that; the module docs'
@@ -499,12 +536,22 @@ pub enum OffsetFitError {
     ///   the sign witness. The caller's move is there, not at the
     ///   budget. Every instance the shipped corpus reaches stops on
     ///   the cap; a round-budget stop with no finite bound is
-    ///   reachable by the same test and has no row.
-    /// - **`best_finite: Some(b)` — a coarser grid reached the finite
-    ///   bound `b` and a finer one lost it.** The bound was there and
-    ///   the schedule moved off it, so the schedule is the lever and
-    ///   `b` is the number the caller can size against: the smallest
-    ///   any round reached, which a request at `b` certifies on.
+    ///   reachable by the same test and has no row. The third route,
+    ///   a stall with no finite round behind it, has no row either,
+    ///   and none was constructed: the stall guard stays silent until
+    ///   a round is finite, so the route is the schedule's exhaustion
+    ///   on a never-finite run, a both-directions marking that grows
+    ///   no direction. That needs every marked sample interval
+    ///   narrowed to adjacent floats, where `bisect` drops the
+    ///   midpoint, and [`OFFSET_FIT_BUDGET`]'s halvings reach that
+    ///   only from seed intervals a few dozen ulps wide, so every
+    ///   failing cell inside a knot span that narrow; or a composite
+    ///   with no cells, to which a clamped knot pair never decomposes.
+    /// - **`best: Some(b)` — a coarser grid reached the finite
+    ///   bound `b.bound` and a finer one lost it.** The bound was
+    ///   there and the schedule moved off it, so the schedule is the
+    ///   lever and `b.bound` is the number the caller can size
+    ///   against ([`BestBound`]).
     ///   Structurally reachable — the stall guard answers a first
     ///   finite-then-infinite round with the both-directions step
     ///   rather than a verdict, so a budget or cap stop can land on
@@ -521,9 +568,9 @@ pub enum OffsetFitError {
         d: f64,
         /// The tolerance it had to reach.
         tolerance: f64,
-        /// The smallest finite sup bound any round reached, in metres;
-        /// `None` when no round reached one.
-        best_finite: Option<f64>,
+        /// The smallest bound any round reached ([`BestBound`]);
+        /// `None` when no round's bound was finite.
+        best: Option<BestBound>,
     },
     /// The refinement loop stopped IMPROVING: a round that bisected
     /// every failing cell in both directions did not lower the bound
@@ -533,9 +580,10 @@ pub enum OffsetFitError {
     ///
     /// A different finding from [`Self::BudgetExhausted`], whose last
     /// round never took this step and failed it. This says the
-    /// strongest step the loop has gained nothing, so more rounds are
-    /// not the lever: the tolerance is below what this fit's structure
-    /// reached on this patch, and `best` is what it did reach.
+    /// strongest step the loop has gained nothing, or could not be
+    /// taken, so more rounds are not the lever: the tolerance is below
+    /// what this fit's structure reached on this patch, and `best` is
+    /// what it did reach.
     ///
     /// Classification: the enum's (row 1, stated once above) — and
     /// this face is where row 0 was answered first and answered no:
@@ -568,12 +616,8 @@ pub enum OffsetFitError {
         achieved: f64,
         /// The tolerance it had to reach.
         tolerance: f64,
-        /// The smallest certified sup bound any round reached, in
-        /// metres; finite, and no larger than `achieved`. A request at
-        /// this tolerance certifies on the round that reached it.
-        best: f64,
-        /// The sample grid `best` was reached on, per direction.
-        best_grid: (usize, usize),
+        /// The smallest bound any round reached ([`BestBound`]).
+        best: BestBound,
     },
     /// A certification was asked for over a window that is not the
     /// base's own chart rectangle. This module's derivation covers that
@@ -673,8 +717,8 @@ impl core::fmt::Display for OffsetFitError {
             Self::BudgetExhausted {
                 budget,
                 tolerance,
-                still_falling: true,
-                best,
+                last_round: LastRound::Improved,
+                best: BestBound { bound: best, .. },
                 ..
             } => write!(
                 f,
@@ -686,8 +730,8 @@ impl core::fmt::Display for OffsetFitError {
             Self::BudgetExhausted {
                 budget,
                 tolerance,
-                still_falling: false,
-                best,
+                last_round: LastRound::DidNotImprove,
+                best: BestBound { bound: best, .. },
                 ..
             } => write!(
                 f,
@@ -699,7 +743,7 @@ impl core::fmt::Display for OffsetFitError {
             Self::SampleCapReached {
                 cap,
                 tolerance,
-                best,
+                best: BestBound { bound: best, .. },
                 ..
             } => write!(
                 f,
@@ -711,7 +755,7 @@ impl core::fmt::Display for OffsetFitError {
             Self::BoundNotFinite {
                 d,
                 tolerance,
-                best_finite: None,
+                best: None,
                 ..
             } => write!(
                 f,
@@ -721,7 +765,7 @@ impl core::fmt::Display for OffsetFitError {
             ),
             Self::BoundNotFinite {
                 tolerance,
-                best_finite: Some(b),
+                best: Some(BestBound { bound: b, .. }),
                 ..
             } => write!(
                 f,
@@ -730,13 +774,15 @@ impl core::fmt::Display for OffsetFitError {
                  {tolerance} m. Recourse: loosen the tolerance to {b} m or more"
             ),
             Self::RefinementStalled {
-                tolerance, best, ..
+                tolerance,
+                best: BestBound { bound: best, .. },
+                ..
             } => write!(
                 f,
                 "the offset surface's fit stopped improving: refining it in both directions \
-                 did not lower its certified error, whose best was {best} m against a \
-                 tolerance of {tolerance} m. Recourse: loosen the tolerance to {best} m or \
-                 more"
+                 either did not lower its certified error or added no samples, and its best \
+                 certified error was {best} m against a tolerance of {tolerance} m. Recourse: \
+                 loosen the tolerance to {best} m or more"
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
@@ -931,11 +977,10 @@ pub fn fit_offset_at(
     let mut prev_sup = f64::INFINITY;
     let mut marked_both = false;
     // The smallest finite bound any round reached, and the grid it was
-    // reached on — the number every refusal sizes its recourse to.
-    // Strictly smaller replaces, so it is the FIRST round to reach the
-    // minimum: the schedule does not read the tolerance, so a request
-    // at that tolerance certifies on exactly that round.
-    let mut best: Option<Best> = None;
+    // reached on. Strictly smaller replaces, so it is the FIRST round
+    // to reach the minimum, which is the round `BestBound`'s recourse
+    // claim names.
+    let mut best: Option<BestBound> = None;
     // `round` counts the refinement rounds that produced the current
     // grid — the number a certificate and every refusal below carry.
     // The loop has no fall-through: every exit is a certificate or a
@@ -948,7 +993,7 @@ pub fn fit_offset_at(
         let achieved = report.hull_sup;
         let grid = (us.len(), vs.len());
         if achieved.is_finite() && best.is_none_or(|b| achieved < b.bound) {
-            best = Some(Best {
+            best = Some(BestBound {
                 bound: achieved,
                 grid,
             });
@@ -1004,7 +1049,11 @@ pub fn fit_offset_at(
             // any marking, so no unmarked round reaches it.
             return Err(expiry(
                 Stop::RoundBudget {
-                    still_falling: verdict == Refine::Directional,
+                    last_round: if verdict == Refine::Directional {
+                        LastRound::Improved
+                    } else {
+                        LastRound::DidNotImprove
+                    },
                 },
                 round,
                 grid,
@@ -1375,22 +1424,12 @@ pub fn recertify_approx_at(
 // signature on the shell chain. A private constructor that takes the
 // tolerance it reports is not a door, so it lives here.
 
-/// The smallest finite bound the refinement loop reached, and the grid
-/// it was first reached on.
-#[derive(Clone, Copy)]
-struct Best {
-    bound: f64,
-    grid: (usize, usize),
-}
-
 /// Which stopping condition ended the refinement loop without a
 /// certificate.
 #[derive(Clone, Copy)]
 enum Stop {
-    /// [`OFFSET_FIT_BUDGET`] rounds ran; `still_falling` is whether the
-    /// last round's verdict was [`Refine::Directional`] rather than
-    /// [`Refine::BothDirections`].
-    RoundBudget { still_falling: bool },
+    /// [`OFFSET_FIT_BUDGET`] rounds ran, the last with this reading.
+    RoundBudget { last_round: LastRound },
     /// The next round's schedule would exceed [`OFFSET_FIT_SAMPLE_CAP`].
     SampleCap,
     /// The stall guard refused, or the strongest step could not grow
@@ -1402,21 +1441,22 @@ enum Stop {
 /// rounds, with `achieved` measured on `grid` and `best` the smallest
 /// finite bound any round reached.
 ///
-/// Every face that carries a finite number carries `best`, because it
-/// is the number a caller sizes a tolerance against: the schedule does
-/// not read the tolerance, so a request at `best` certifies on the
-/// round that reached it. [`OffsetFitError::BoundNotFinite`] speaks
-/// for a budget or cap stop whose last bound is not finite, and for a
-/// stall with no finite round behind it, whose "loosen the tolerance"
-/// would have no number to name. A stall with a finite round behind it
-/// keeps the stall's face even when its own bound is `+∞`: the guard's
+/// Every face that carries a finite number carries `best`
+/// ([`BestBound`]). [`OffsetFitError::BoundNotFinite`] speaks for a
+/// budget or cap stop whose last bound is not finite, and for a stall
+/// with no finite round behind it, whose "loosen the tolerance" would
+/// have no number to name. A stall with a finite round behind it keeps
+/// the stall's face even when its own bound is `+∞`: the guard's
 /// evidence is about the round, and `best` is still a bound reached.
+///
+/// The routing is one match over `(stop, best, achieved is finite)`
+/// whose arms are pairwise disjoint, so their order decides nothing.
 fn expiry(
     stop: Stop,
     rounds: usize,
     grid: (usize, usize),
     achieved: f64,
-    best: Option<Best>,
+    best: Option<BestBound>,
     d: f64,
     tolerance: f64,
 ) -> OffsetFitError {
@@ -1424,47 +1464,37 @@ fn expiry(
     // exact.
     #[allow(clippy::cast_possible_truncation)]
     let rounds = rounds as u32;
-    let not_finite = OffsetFitError::BoundNotFinite {
+    let not_finite = || OffsetFitError::BoundNotFinite {
         rounds,
         grid,
         d,
         tolerance,
-        best_finite: best.map(|b| b.bound),
+        best,
     };
-    let Some(Best {
-        bound: best,
-        grid: best_grid,
-    }) = best
-    else {
-        return not_finite;
-    };
-    match stop {
-        Stop::Stall => OffsetFitError::RefinementStalled {
+    match (stop, best, achieved.is_finite()) {
+        (_, None, _) | (Stop::RoundBudget { .. } | Stop::SampleCap, Some(_), false) => not_finite(),
+        (Stop::Stall, Some(best), _) => OffsetFitError::RefinementStalled {
             rounds,
             grid,
             achieved,
             tolerance,
             best,
-            best_grid,
         },
-        _ if !achieved.is_finite() => not_finite,
-        Stop::RoundBudget { still_falling } => OffsetFitError::BudgetExhausted {
+        (Stop::RoundBudget { last_round }, Some(best), true) => OffsetFitError::BudgetExhausted {
             budget: OFFSET_FIT_BUDGET,
             grid,
             achieved,
             tolerance,
-            still_falling,
+            last_round,
             best,
-            best_grid,
         },
-        Stop::SampleCap => OffsetFitError::SampleCapReached {
+        (Stop::SampleCap, Some(best), true) => OffsetFitError::SampleCapReached {
             cap: OFFSET_FIT_SAMPLE_CAP,
             rounds,
             grid,
             achieved,
             tolerance,
             best,
-            best_grid,
         },
     }
 }
@@ -1677,7 +1707,12 @@ fn measure(
     // schedule interpolates a different fit. So the door's bound is not
     // monotone in the cell bound: a strictly tighter cell bound can end
     // on a higher door bound. Monotonicity holds per cell on a fixed
-    // grid, and not at the door.
+    // grid, and not at the door. No marking rule can restore it there:
+    // the schedule chooses the parameters the fit interpolates at, so
+    // a different schedule is a different fitted surface, whose bound
+    // is not comparable with this one's in either direction. The door
+    // bound would be monotone only with the fit held fixed, and moving
+    // the fit is what refinement is for.
     let cut = hull_sup * 0.5;
     #[allow(clippy::neg_cmp_op_on_partial_ord)]
     let failing: Vec<CellBox> = bounds
@@ -1741,8 +1776,9 @@ enum Refine {
 /// `offset_fit`'s suite reaches the face on a bilinear saddle wall
 /// (`the_second_non_improving_round_is_the_stalls_face`): at
 /// `d = ±5e-10` and target `1e-14` it stalls on round 4, and at
-/// `d = 1e-6` on round 6, the budget's last, where taking the verdict
-/// before the budget test is what gives the round the stall's face.
+/// `d = 1e-6` on the budget's last round ([`OFFSET_FIT_BUDGET`]),
+/// where taking the verdict before the budget test is what gives the
+/// round the stall's face.
 ///
 /// The `5e-10` stall rides on that width. PROPS has a convex form of
 /// the decomposition's insertion in view that narrows it, under which
@@ -2903,7 +2939,7 @@ mod tests {
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod recourse_tests {
-    use super::{OffsetFitError, OffsetLimb};
+    use super::{BestBound, LastRound, OffsetFitError, OffsetLimb};
     use crate::offset_meters::MeterError;
     use crate::patch_bound::PatchBoundError;
     use geom::curves::fit::FitError;
@@ -2986,18 +3022,22 @@ mod recourse_tests {
                 grid: (5, 5),
                 achieved: 2e-9,
                 tolerance: 1e-9,
-                still_falling: true,
-                best: 1.5e-9,
-                best_grid: (4, 5),
+                last_round: LastRound::Improved,
+                best: BestBound {
+                    bound: 1.5e-9,
+                    grid: (4, 5),
+                },
             },
             OffsetFitError::BudgetExhausted {
                 budget: 8,
                 grid: (5, 5),
                 achieved: 2e-9,
                 tolerance: 1e-9,
-                still_falling: false,
-                best: 1.5e-9,
-                best_grid: (4, 5),
+                last_round: LastRound::DidNotImprove,
+                best: BestBound {
+                    bound: 1.5e-9,
+                    grid: (4, 5),
+                },
             },
             OffsetFitError::SampleCapReached {
                 cap: 64,
@@ -3005,30 +3045,37 @@ mod recourse_tests {
                 grid: (64, 5),
                 achieved: 2e-9,
                 tolerance: 1e-9,
-                best: 1.5e-9,
-                best_grid: (32, 5),
+                best: BestBound {
+                    bound: 1.5e-9,
+                    grid: (32, 5),
+                },
             },
             OffsetFitError::BoundNotFinite {
                 rounds: 3,
                 grid: (5, 5),
                 d: 1e-3,
                 tolerance: 1e-9,
-                best_finite: None,
+                best: None,
             },
             OffsetFitError::BoundNotFinite {
                 rounds: 3,
                 grid: (5, 5),
                 d: 1e-3,
                 tolerance: 1e-9,
-                best_finite: Some(2e-9),
+                best: Some(BestBound {
+                    bound: 2e-9,
+                    grid: (4, 5),
+                }),
             },
             OffsetFitError::RefinementStalled {
                 rounds: 3,
                 grid: (5, 5),
                 achieved: 2e-9,
                 tolerance: 1e-9,
-                best: 1.5e-9,
-                best_grid: (4, 5),
+                best: BestBound {
+                    bound: 1.5e-9,
+                    grid: (4, 5),
+                },
             },
             OffsetFitError::WindowUnsupported {
                 window: geom::ApproxWindow {
@@ -3050,8 +3097,8 @@ mod recourse_tests {
             OffsetFitError::Elevation(elevations[1].clone()),
         ];
         // Thirteen variants; `BudgetExhausted` is rendered at both of
-        // its `still_falling` readings, which are two different
-        // sentences, `BoundNotFinite` at both of its `best_finite`
+        // its `LastRound` readings, which are two different
+        // sentences, `BoundNotFinite` at both of its `best`
         // cases, which are two different messages sending the caller
         // to two different repairs, `Limb` at both limbs,
         // which the message names in two different words, and

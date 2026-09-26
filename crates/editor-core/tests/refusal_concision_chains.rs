@@ -945,7 +945,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     // itself: a sample list that stopped carrying an arm would
     // otherwise shrink these rows silently. `BudgetExhausted`,
     // `BoundNotFinite` and `Limb` each carry two samples (both
-    // `still_falling` readings, both `best_finite` cases, both limbs).
+    // `LastRound` readings, both `best` cases, both limbs).
     for (arm, samples) in [
         ("Meter/NormalFloor", 1),
         ("Meter/CurvatureHeadroom", 1),
