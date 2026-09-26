@@ -501,6 +501,9 @@ pub struct LoopCanonical {
     /// The canonical chain's declared tangent joints, sorted and
     /// deduplicated.
     pub tangent_joints: Vec<usize>,
+    /// Which of those joints reverse the heading — the cusps, sorted
+    /// ([`crate::ValidatedLoop::cusp_joints`]).
+    pub cusp_joints: Vec<usize>,
 }
 
 /// The structure one validation selected, for a whole profile.
@@ -612,6 +615,12 @@ pub enum Decision {
     },
     /// A loop's declared tangent-joint set after canonicalization.
     TangentJoints {
+        /// The loop's input index.
+        loop_: usize,
+    },
+    /// Which of a loop's declared joints are cusps, after
+    /// canonicalization.
+    CuspJoints {
         /// The loop's input index.
         loop_: usize,
     },
@@ -778,6 +787,9 @@ impl core::fmt::Display for Decision {
             }
             Self::Piece { segment } => write!(f, "which piece segment {segment} is"),
             Self::TangentJoints { loop_ } => write!(f, "loop {loop_}'s declared tangent joints"),
+            Self::CuspJoints { loop_ } => {
+                write!(f, "which of loop {loop_}'s declared joints are cusps")
+            }
             Self::GuideNotInstalled => {
                 write!(f, "the guide's installation into the chain's core")
             }

@@ -3,8 +3,9 @@
 //! segment, the sketch-level quantities derived from it (apex, span,
 //! turn-signed axis), the arc material-side rule, the edge spec a
 //! placed segment mints, the cap-plane point list, the cosurface
-//! decision, and the two crate-wide accessors (the classification
-//! funnel, a face's surface key).
+//! decision, the wall pairing a profile's declared cusp joints carry
+//! out as contacts ([`cusp_contacts`]), and the two crate-wide
+//! accessors (the classification funnel, a face's surface key).
 //!
 //! This module is a sibling of the sweep verbs, not a member of one:
 //! its consumers are `extrude`, `revolve` and `loft`, and a core
@@ -50,7 +51,7 @@ use geom_core::sym::SymRegistration;
 use geom_core::{
     Affine3, Band, Decide, Indeterminate, Margin, Point2, Point3, Real, Sign, Tol, Vec2, Vec3,
 };
-use topo::{Body, EulerOpError, FaceKey, SurfaceKey};
+use topo::{Body, ContactClass, DeclaredContact, EulerOpError, FaceKey, SurfaceKey};
 
 /// The classification funnel of this shared lowering, and of `extrude`
 /// and `revolve` above it (the `geom-brep` pattern).
@@ -777,6 +778,31 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
         body.describe_at_rest(edge, chart, tol)?;
     }
     Ok(())
+}
+
+/// The `Tangent` contact a declared cusp joint
+/// ([`profile::ValidatedLoop::cusp_joints`]) implies, per joint, in
+/// the order given: the walls of the two CANONICAL segments meeting at
+/// the joint — `(v − 1 mod n, v)`, arriving wall first — which are the
+/// two faces of the edge the joint sweeps. `wall(s)` is the face canonical
+/// segment `s` swept, or `None` where it swept none (a revolve's
+/// on-axis segment): such a joint has no wall pair, so no edge whose
+/// wedge could close, and carries nothing.
+pub(crate) fn cusp_contacts(
+    cusps: &[usize],
+    n_segments: usize,
+    wall: impl Fn(usize) -> Option<FaceKey>,
+) -> Vec<DeclaredContact> {
+    cusps
+        .iter()
+        .filter_map(|&v| {
+            Some(DeclaredContact {
+                a: wall((v + n_segments - 1) % n_segments)?,
+                b: wall(v)?,
+                class: ContactClass::Tangent,
+            })
+        })
+        .collect()
 }
 
 #[cfg(test)]
