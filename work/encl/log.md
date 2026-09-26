@@ -175,3 +175,23 @@ The three offset-fit loop rows (`offset-fit-stall-face-has-no-fixture`,
 `offset-fit-door-bound-is-not-monotone-in-the-cell-bound`) wait for PR
 3269, which rewords the same refusal arms. Hosted CI, not local disk,
 is the bottleneck (about 22 runs queued), so lanes overlap their CI waits.
+
+## PR 3272 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) Single full review on `d1e0dbc85`: APPROVE-WITH-FIXES,
+no MAJOR. Every measurement was re-taken to the digit, the cause held,
+and the convex form was shown sound by inclusion isotonicity (α and β
+each an enclosing ring quotient; `β = 1 − α` need not hold in f64).
+**Taken into the fix pass**: the three MINORs (the PR body overclaims that
+the convex fix alone reds the saddle row, since it reds only with a
+raised budget; the shell row pins a variant raised from five sites; the
+stall evidence was filed in a new row instead of the existing one);
+NOTE-1 and NOTE-2 (the reach constant rounded up, and no lower edge); the
+style items Q1, Q3/Q5, Q4 and Q6; and a retitle of the P0 row, whose
+title is now known false.
+**Scheduled, not taken**: Q2, `stall_verdict`'s false reachability
+doc. It is production prose in `offset_fit.rs` while PR 3269 edits that
+file, so it rides `offset-fit-stall-face-has-no-fixture`.
+**Mine**: NOTE-3, pricing the new rows (at the state sync after merge).
+**Class, filed by the fix pass**: the NURBS-wall predicate re-spelled in
+about five `crates/sweep/tests` files.
