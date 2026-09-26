@@ -295,3 +295,9 @@ superseded or under review), and 36206758793 (3264, once a local
 battery covers it). The lanes' classifier denial of the override
 stands. The orchestrator tries the battery from its own session and
 records here whether that is allowed.
+
+**The orchestrator's own session may run the battery.** The first one,
+on PR 3264's head `b9cf830e0`, launched under the override from this
+session on 2026-09-26. From here on, final local batteries run from the
+orchestrator's session, one at a time, in the lane's retained worktree.
+Lanes iterate with targeted runs.
