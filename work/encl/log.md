@@ -529,3 +529,26 @@ speed meter's rule, verbatim", not an overreach. Bit-identity: a
 throwaway comparison over 146,268 cases matched to the bit. `props::quad`'s
 `knot_aligned_cuts` was judged a different concept (a range grid with the
 knots as mandatory cuts). Style review dispatched on the frozen head.
+
+## PR 3292 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) Style review on `6688d415f5`: APPROVE, no correctness
+finding. It caught the brief's trap: a copy the move explained away
+(`offset_fit::seed_direction` repeats the whole per-span grid) and a doc
+still restating the rule (`rational_split_points`). Taken into a fix pass:
+- the new row's claim narrowed to what it checks (the empty-span skip is
+  only a shortcut), plus an independent assertion;
+- the unreachable `let … else` branch removed;
+- the `split_points` re-export dropped in favour of the home's name;
+- the restating doc replaced by a link;
+- a dangling doc reference fixed;
+- the PR body corrected (`mesh::chords` is not a consumer).
+
+Filed, not fixed:
+- the `seed_direction` copy (P1/E), because the loop lane is editing
+  `offset_fit.rs` now;
+- the hand-composed schedule-then-plan chain (P4/D), with the mirrored
+  `16` constants.
+
+Declined: a `KnotVector` method (taste, and the home is fine). The
+`knot_aligned_cuts` internal duplicate predates the unit and was left.
