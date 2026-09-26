@@ -401,6 +401,14 @@ fn rules_named(name: &str) -> SymRules {
         // DECIDE-4's differential: the shipped set with rule G's exact
         // quotient shut, which is SYM-9's tier bit for bit.
         "no_q" => SymRules::without_root_quotient(),
+        // The narrowed read: the shipped set with rule C's fold asked
+        // LAST, behind every rung and every retry attempt
+        // (`SymRules::signed_root_last`). `all` is route A, rule C in
+        // the early walk.
+        "last_read" => SymRules {
+            signed_root_last: true,
+            ..SymRules::shipped()
+        },
         // The kept-atom ladder's FIRST attempt on the shipped set as a
         // rule set of its own (`SymRetry::kept_atom`'s rule-G mask, which
         // a session intersects with its own rules: rule G and its
@@ -442,7 +450,7 @@ fn rules_named(name: &str) -> SymRules {
         },
         other => panic!(
             "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
-             | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
+             | no_reads | no_q | last_read | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }
@@ -763,7 +771,9 @@ fn m10_10_the_plates_real_study_driven_whole() {
 /// scale it certifies with the algebra OFF, timed with the algebra on
 /// and off (`SymRules::shipped` against `SymRules::without_the_algebra`),
 /// plus the plate at its REAL study (scale 1), which is the
-/// affordability line's own number. `CAD_M10_10_DOCS` names a subset.
+/// affordability line's own number, and the two parameter-bulge D-tabs
+/// at `1e2·ε`, under their shipped ceilings. `CAD_M10_10_DOCS` names a
+/// subset.
 #[test]
 #[ignore = "evidence-only: prints the leaf cost with the algebra on and off"]
 fn m10_10_leaf_cost_with_and_without_the_algebra() {
@@ -772,7 +782,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    let scales: [(&str, f64); 7] = [
+    let scales: [(&str, f64); 9] = [
         ("two_hole_plate", 1.0e2 * eps),
         ("two_hole_plate", 1.0),
         ("r2_filleted_bracket", 1.0e1 * eps),
@@ -780,8 +790,12 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
         ("r2_rounded_pad", 1.0e2 * eps),
         ("r2_link", 1.0e1 * eps),
         ("r1_segment_boss", 1.0e2 * eps),
+        // The two parameter-bulge D-tabs, where the apothem's sign
+        // stands, each under its whole-certifying ceiling.
+        ("r2_d_tab_parameter", 1.0e2 * eps),
+        ("r2_d_tab_parameter_dyadic", 1.0e2 * eps),
     ];
-    let docs = documents(tol);
+    let docs: Vec<NamedStudy> = documents(tol).into_iter().chain(controls(tol)).collect();
     for (name, scale) in scales {
         if only
             .as_deref()

@@ -601,3 +601,24 @@ with an absent-id check.
 | implementer | 336k | 229 min |
 | implementer, fix pass | 427k | 181 min |
 | reviewer | 270k | 73 min |
+
+## 2026-09-26 — DECIDE-8 spec'd: the apothem's sign; the review tier is set by Phase 1
+
+Both P1 rows are still gated (ROUND's Fillet centre; E6). Of the three P2
+rows, `the-apothems-sign-is-a-value-read` is the one where a measured
+document loses decisions: six on the parameter bulge documents.
+- `the-exact-quotient-re-keys-a-root-the-split-met` moves no measured
+  document, and its remedy is a multivariate factorisation.
+- `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`'s residue
+  after DECIDE-5 is the coefficient ring's width and the term budget.
+
+**Review tier: set by Phase 1.**
+- If the sign is decided upstream and the sweep states it as route B
+  states the turn: a single FULL review, as DECIDE-5 had.
+- If only a new read on the box reaches the six: the unit stops. Two
+  designers weigh the fork (`docs/prompts/designer.md`), and it goes
+  to Ev as an `[ev]` PR, since whether the tier answers on the box
+  there is Ev's call (#3186 rejected rule C's dial as it stands).
+
+Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
+`props/sign-hull` at `3dc3becc0` (DECIDE-7's merge).

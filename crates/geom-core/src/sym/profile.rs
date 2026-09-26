@@ -86,6 +86,9 @@ pub enum Walk {
     RetryEarly,
     /// A RETRY attempt's door walk, in that attempt's own memo.
     RetryDoor,
+    /// The last rung's walk: the early walk with rule C's fold on
+    /// (`sym::SymRules::signed_root_last`), in its own memo.
+    SignRead,
 }
 
 impl Walk {
@@ -100,6 +103,9 @@ impl Walk {
     /// The bucket this walk is CHARGED to — itself on the first
     /// attempt, its retry twin inside one ([`set_attempt`]).
     fn charged(self) -> Self {
+        if READING.get() && self == Self::Early {
+            return Self::SignRead;
+        }
         if ATTEMPT.get() == 0 {
             return self;
         }
@@ -633,6 +639,12 @@ thread_local! {
     /// and the first attempt's rows are what they were.
     static ATTEMPT: Cell<u8> = const { Cell::new(0) };
 
+    /// **Whether the last rung's walk is running**
+    /// (`sym::SymRules::signed_root_last`). Read by [`Walk::charged`],
+    /// so its forms land in their own bucket and the early walk's rows
+    /// are what they were.
+    static READING: Cell<bool> = const { Cell::new(false) };
+
     /// **What this session has already seen, by digest**, one set per
     /// [`Seen`] kind, emptied together as a session starts
     /// ([`seen_before`]).
@@ -722,6 +734,13 @@ pub(super) fn set_origin(origin: Origin) -> Origin {
 #[inline]
 pub(super) fn set_attempt(attempt: u8) -> u8 {
     ATTEMPT.replace(attempt)
+}
+
+/// Sets whether the next walks are the last rung's, answering the flag
+/// it replaces so the caller restores it.
+#[inline]
+pub(super) fn set_reading(reading: bool) -> bool {
+    READING.replace(reading)
 }
 
 /// **Opens a DECISION's record**, answering the mark the freezes it
