@@ -51,7 +51,9 @@ use geom_core::{Band, Real, Tol};
 use crate::OffsetFitError;
 
 /// **The offset-fit door**: the three offset-fit operations the
-/// certification passes reach, in one value.
+/// certification passes reach, in one value — over two bodies, because
+/// [`OffsetFitLane::recertify`] and [`OffsetFitLane::remap`] are one
+/// certifier reached from a surface and from an unpacked triple.
 ///
 /// Its one constructor is [`OffsetFitLane::fit`], at `f64`, so holding
 /// a value of this type IS the statement that the fit is derivable at
@@ -60,13 +62,12 @@ use crate::OffsetFitError;
 #[derive(Clone, Copy)]
 #[allow(clippy::type_complexity)]
 pub struct OffsetFitLane<T: Real> {
-    /// [`OffsetFitLane::recertify`]'s body.
-    recertify:
-        fn(&geom::ApproxSurface<T>, Tol, Band) -> Result<geom::OffsetCertificate, OffsetFitError>,
     /// [`OffsetFitLane::mint`]'s body.
     mint: fn(std::sync::Arc<NurbsSurface<T>>, T, Tol, Band) -> Result<Surface<T>, OffsetFitError>,
-    /// [`OffsetFitLane::remap`]'s body.
-    remap: fn(
+    /// The certifier over a `(description, fit, window)` triple:
+    /// [`OffsetFitLane::remap`]'s body, and [`OffsetFitLane::recertify`]'s
+    /// on a surface's own triple.
+    certify: fn(
         &geom::SurfaceDescription<T>,
         &NurbsSurface<T>,
         geom::ApproxWindow,
@@ -81,9 +82,8 @@ impl OffsetFitLane<f64> {
     #[must_use]
     pub const fn fit() -> Self {
         Self {
-            recertify: crate::offset_fit::recertify_approx,
             mint: crate::offset_fit::approx_offset_surface,
-            remap: remap_offset_certificate,
+            certify: crate::offset_fit::certify_offset_over,
         }
     }
 }
@@ -111,7 +111,13 @@ impl<T: Real> OffsetFitLane<T> {
         tol: Tol,
         band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.recertify)(approx, tol, band)
+        (self.certify)(
+            approx.description(),
+            approx.fit(),
+            approx.window(),
+            tol,
+            band,
+        )
     }
 
     /// Mints the certified approximating surface for a NURBS operand's
@@ -167,25 +173,8 @@ impl<T: Real> OffsetFitLane<T> {
         tol: Tol,
         band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.remap)(description, fit, window, tol, band)
+        (self.certify)(description, fit, window, tol, band)
     }
-}
-
-/// The remap door's `f64` body.
-///
-/// The window rule and the derivation behind it live in one place
-/// ([`crate::certify_offset_over`]), so this door, the storage mint and
-/// the validator's re-derivation cannot disagree about the same
-/// surface.
-fn remap_offset_certificate(
-    description: &geom::SurfaceDescription<f64>,
-    fit: &NurbsSurface<f64>,
-    window: geom::ApproxWindow,
-    tol: Tol,
-    band: Band,
-) -> Result<geom::OffsetCertificate, OffsetFitError> {
-    let geom::SurfaceDescription::Offset { base, d } = description;
-    crate::offset_fit::certify_offset_over(base, fit, *d, window, tol, band)
 }
 
 /// **The door's WIRING, field by field** — the row that says which
@@ -195,13 +184,13 @@ fn remap_offset_certificate(
 /// A row that compares outputs cannot see a door re-pointed at a
 /// routine that agrees on the fixture in front of it — the neighbouring
 /// `_at` instrument at the fixture's own tolerance agrees exactly on
-/// the recertify limb, and a same-signature closure can agree by
+/// the certify limb, and a same-signature closure can agree by
 /// construction. The helper compares the stored function pointers
 /// instead, so a re-point is a failure no matter what it computes.
 ///
 /// Function-pointer identity is what `std::ptr::fn_addr_eq` compares
 /// and is not a language guarantee (identical function bodies may be
-/// merged), which costs nothing here: the three bodies differ, and a
+/// merged), which costs nothing here: the two bodies differ, and a
 /// false PASS from a merge would need the re-pointed routine to be
 /// instruction-identical to the one it replaced.
 ///
@@ -211,18 +200,12 @@ fn remap_offset_certificate(
 /// in the tree against its roster of helpers, this one included.
 #[cfg(test)]
 mod wiring_rows {
-    use super::{OffsetFitLane, remap_offset_certificate};
+    use super::OffsetFitLane;
 
     /// `Ok(())` when every limb holds its routine; otherwise the name
     /// of the first field that does not.
     fn holds_the_offset_fit() -> Result<(), &'static str> {
         let lane = OffsetFitLane::fit();
-        if !std::ptr::fn_addr_eq(
-            lane.recertify,
-            crate::offset_fit::recertify_approx as fn(_, _, _) -> _,
-        ) {
-            return Err("recertify is not `offset_fit::recertify_approx`");
-        }
         if !std::ptr::fn_addr_eq(
             lane.mint,
             crate::offset_fit::approx_offset_surface as fn(_, _, _, _) -> _,
@@ -230,10 +213,10 @@ mod wiring_rows {
             return Err("mint is not `offset_fit::approx_offset_surface`");
         }
         if !std::ptr::fn_addr_eq(
-            lane.remap,
-            remap_offset_certificate as fn(_, _, _, _, _) -> _,
+            lane.certify,
+            crate::offset_fit::certify_offset_over as fn(_, _, _, _, _) -> _,
         ) {
-            return Err("remap is not this module's window-rule body");
+            return Err("certify is not `offset_fit::certify_offset_over`");
         }
         Ok(())
     }
@@ -243,7 +226,7 @@ mod wiring_rows {
         assert_eq!(
             holds_the_offset_fit(),
             Ok(()),
-            "`OffsetFitLane::<f64>::fit()` holds something other than its three routines"
+            "`OffsetFitLane::<f64>::fit()` holds something other than its two routines"
         );
     }
 }

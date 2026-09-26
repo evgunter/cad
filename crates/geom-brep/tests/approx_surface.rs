@@ -322,21 +322,21 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     );
 }
 
-/// **The classification tolerance is the CALLER's, not the mint's.**
-/// A surface minted at a loose tolerance re-derives GREEN against that
+/// **A loose mint re-derives green at its own target and red at a
+/// tighter one** — the classification tolerance is the caller's, not
+/// the mint's. A surface minted at a loose tolerance re-derives GREEN against that
 /// loose bound and RED against a tighter one — the edge machinery's
 /// exact posture, and the reason tier 3 classifies at the run's ε
 /// whatever target the fit was made at. D4 blesses the consequence:
 /// ε-tightening may escalate, and a mint that no longer meets the
 /// ratified `≤ ε_precision` claim refuses honestly.
 #[test]
-fn the_re_derivation_classifies_against_the_callers_tolerance() {
+fn a_loose_mint_is_green_at_its_target_and_red_at_a_tighter_one() {
     let base = Arc::new(bowed());
     // Minted loose: the fit stops as soon as it is inside 1e-3.
     let s = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-3, band()).unwrap();
     let a = approx_of(&s);
-    let loose = recertify_approx_at(a, 1e-3, band()).expect("green at the bound it was minted at");
-    assert!(loose.hull_sup <= 1e-3);
+    recertify_approx_at(a, 1e-3, band()).expect("green at the bound it was minted at");
     // The same surface, unchanged, at a tighter run epsilon.
     let e = recertify_approx_at(a, 1e-12, band())
         .expect_err("a loose mint must refuse at a tighter epsilon");
@@ -390,50 +390,70 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// carries unit normals to unit normals, so `M(S + d·n)` is
 /// `M(S) + d·n_M`. The consequence the description layer rests on: the
 /// mapped fit certifies against the mapped base, at the same `d` and
-/// the same tolerance — a certified statement, not a sampled one.
+/// the same target — a certified statement, not a sampled one.
+///
+/// **What survives the map is the sampled limb, not the bound.**
+/// `on_locus_max` is a distance between two points, computed the same
+/// way in either frame, and is asserted invariant to 1e-12. `hull_sup`
+/// is a certified BOUND assembled from control-hull enclosures in the
+/// AMBIENT frame: a rotation re-splits the same geometry across the
+/// axes and the bound moves. The row asserts that movement is REAL on
+/// at least one map — above a thousandth of the target, so it is not
+/// rounding — so that a change making the bound frame-independent fails
+/// here rather than leaving stale caveats behind (`topo::transform`'s
+/// `map_approx` cites this). The target is 1e-6, not a tighter one, for
+/// the same reason: a slack equal to the target would hold for any two
+/// certified limbs whatever.
 #[test]
 fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
-    // A rotation about ẑ by 0.7 rad composed with a translation:
-    // det = +1, the kernel's rigid contract.
-    let mut map = Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_z(), 0.7);
-    map.translation = map.translation + Vec3::new(0.3, -0.2, 1.1);
+    // The fixed fit target of this row — not the run's ε.
+    const TARGET: f64 = 1e-6;
+    // Rigid maps (det = +1, the kernel's rigid contract): a pure
+    // translation, a rotation about ẑ, and a rotation about an oblique
+    // axis, the latter two composed with the translation.
+    let shift = Vec3::new(0.3, -0.2, 1.1);
+    let about = |axis: Vec3<f64>, angle: f64| {
+        let mut m = Affine3::rotation_about_axis(Point3::origin(), axis.normalize(), angle);
+        m.translation = m.translation + shift;
+        m
+    };
+    let maps: [(&str, Affine3<f64>); 3] = [
+        ("translation only", Affine3::translation(shift)),
+        ("z by 0.7", about(Vec3::unit_z(), 0.7)),
+        ("oblique axis by 1.1", about(Vec3::new(0.3, -0.4, 0.8), 1.1)),
+    ];
+    let mut worst_hull = 0.0_f64;
     for d in [0.05_f64, -0.05] {
         let base = Arc::new(bowed());
-        let s = approx_offset_surface_at(Arc::clone(&base), d, 1e-6, band()).unwrap();
-        let fit = approx_of(&s).fit();
-
-        let mapped_base = base.map_points(|p| map.transform_point(p));
-        let mapped_fit = fit.map_points(|p| map.transform_point(p));
-        // The map of the fit is a certified fit of the offset of the
-        // map of the base — same d, same tolerance.
-        let cert =
-            certify_offset_at(&mapped_base, &mapped_fit, d, 1e-6, band()).unwrap_or_else(|e| {
-                panic!("d = {d}: the composition law must hold under certification: {e}")
-            });
-        // What a rigid map preserves is the SAMPLED residual: a
-        // distance between two points, computed the same way in either
-        // frame.
+        let s = approx_offset_surface_at(Arc::clone(&base), d, TARGET, band()).unwrap();
         let here = approx_of(&s).certificate();
-        assert!(
-            (cert.on_locus_max - here.on_locus_max).abs() <= 1e-12,
-            "d = {d}: the sampled residual is a distance and must survive the map: {} vs {}",
-            cert.on_locus_max,
-            here.on_locus_max
-        );
-        // `hull_sup` is NOT that. It is a certified BOUND assembled
-        // from control-hull enclosures in the AMBIENT frame, so a
-        // rotation re-splits the same geometry across the axes and the
-        // bound moves — measured at 7.4e-9 on this base under an
-        // oblique rotation, which is 7400x the slack this row used to
-        // assert. What survives the map is the CLAIM: the mapped pair
-        // certifies at the same tolerance.
-        assert!(
-            cert.hull_sup <= 1e-6 && here.hull_sup <= 1e-6,
-            "d = {d}: both runs certify at the tolerance: {} and {}",
-            cert.hull_sup,
-            here.hull_sup
-        );
+        let fit = approx_of(&s).fit();
+        for (name, map) in &maps {
+            let mapped_base = base.map_points(|p| map.transform_point(p));
+            let mapped_fit = fit.map_points(|p| map.transform_point(p));
+            // The map of the fit is a certified fit of the offset of
+            // the map of the base — same d, same target.
+            let cert = certify_offset_at(&mapped_base, &mapped_fit, d, TARGET, band())
+                .unwrap_or_else(|e| {
+                    panic!(
+                        "d = {d}, {name}: the composition law must hold under certification: {e}"
+                    )
+                });
+            assert!(
+                (cert.on_locus_max - here.on_locus_max).abs() <= 1e-12,
+                "d = {d}, {name}: the sampled residual is a distance and must survive the map: \
+                 {} vs {}",
+                cert.on_locus_max,
+                here.on_locus_max
+            );
+            worst_hull = worst_hull.max((cert.hull_sup - here.hull_sup).abs());
+        }
     }
+    assert!(
+        worst_hull > 1e-3 * TARGET,
+        "the hull bound moved by only {worst_hull:e} across every map — if it has become \
+         frame-independent, this row and the caveats that cite it are the things to retire"
+    );
 }
 
 // ---------------------------------------------------------------------

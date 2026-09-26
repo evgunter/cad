@@ -2266,10 +2266,22 @@ mod offset_fit_door_rows {
         let (a, b) = (through_door.certificate(), free.certificate());
         crate::fixtures::assert_certificates_agree("the mint door", a, b);
         assert_eq!(a.rounds, b.rounds, "the refinement history moved");
+        // The fit's whole net, as bits: control points, weights and
+        // both knot vectors.
+        let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
+            n.control()
+                .iter()
+                .flat_map(|p| [p.x, p.y, p.z])
+                .chain(n.weights().iter().copied())
+                .chain(n.knots_u().knots().iter().copied())
+                .chain(n.knots_v().knots().iter().copied())
+                .map(f64::to_bits)
+                .collect()
+        };
         assert_eq!(
-            format!("{:?}", through_door.fit()),
-            format!("{:?}", free.fit()),
-            "the door and the free function fit against the same target, so their nets agree"
+            bits(through_door.fit()),
+            bits(free.fit()),
+            "the door's fit and the free function's differ in some bit of their nets"
         );
     }
 }

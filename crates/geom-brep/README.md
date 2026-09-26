@@ -358,9 +358,10 @@ not built); `SurfaceSpec { description, fit, window }` is the
 uncertified input; `ApproxSurface::certify(spec, certifier)` is the sole
 door and its fields are private, so an uncertified approximating surface
 is unrepresentable. The certifier is injected because the derivation
-lives one crate up (`offset_fit.rs`) and is `f64`-only; it carries the
-run's `Tol` itself, so the surface stores no tolerance and every
-re-derivation classifies at the ε of the run that performs it (D4 ¶1). The base is an
+lives one crate up (`offset_fit.rs`) and is `f64`-only. The certifier
+carries its own target, and every production certifier's is the run's
+`Tol`, so the surface stores no tolerance and every re-derivation
+classifies at the ε of the run that performs it (D4 ¶1). The base is an
 owned `Arc`, not an arena key (layering, and `Surface` values travel
 without an arena), and it is NURBS by type: analytic bases mint exactly
 under O1 and never reach this door. Storage is the seventh variant

@@ -201,11 +201,13 @@
 //! than move it. The suites in `crates/geom-brep/tests/` and
 //! `crates/sweep/tests/` are the whole population.
 //!
-//! **No production caller reaches an `_at` routine.** An approximating
-//! surface stores no tolerance, so every production classification —
-//! the mint, the validator's re-derivation and the transform door's
-//! remap — is at the run's ε, through the `Tol` form;
-//! `crates/topo/tests/shell_tolerance_chain.rs` holds that as a census.
+//! **No production file other than this one reaches an `_at`
+//! routine.** Here, each `Tol` door delegates to its `_at` twin at
+//! `precision_target(tol)`; everywhere else, an approximating surface
+//! stores no tolerance, so every production classification — the mint,
+//! the validator's re-derivation and the transform door's remap — goes
+//! through a `Tol` door. `crates/topo/tests/shell_tolerance_chain.rs`
+//! holds that as a census, exempting this file by name.
 //!
 //! # Discipline
 //!
@@ -773,7 +775,8 @@ pub use geom::OffsetCertificate;
 // read. The `_at` routines are exempt from the first rule and only
 // from it: taking a chosen target is what they are for, they are
 // `#[doc(hidden)]`, and a separate census holds that no production file
-// reaches one. Do not move a production door out of this region.
+// outside this one reaches one. Do not move a production door out of
+// this region.
 /// **The fit target, and the ONE place the run's ε is read on the
 /// chain that reaches this module** (D4 ¶1's witness rule; D4 ¶2's
 /// ε_precision; the residual O3 ratifies).
@@ -1056,12 +1059,14 @@ pub fn certify_offset_at(
     })
 }
 
-/// **The window rule and the certification behind it, one home.**
-/// Every door that certifies an offset fit against a described base
-/// goes through here: the storage mint ([`approx_offset_surface`]),
-/// the validator's re-derivation ([`recertify_approx`]) and the
-/// transform door's remap ([`crate::OffsetFitLane::remap`]) — all
-/// three reached through [`crate::OffsetFitLane`].
+/// **The certifier of an approximating surface's `(description, fit,
+/// window)` triple, and the window rule behind it, one home.** Every
+/// door that certifies an offset fit against a described base goes
+/// through here: the storage mint ([`approx_offset_surface`], whose
+/// certifier closure calls it with the run's witness), the validator's
+/// re-derivation ([`recertify_approx`], the same call on a surface's
+/// own triple) and the transform door's remap
+/// ([`crate::OffsetFitLane::remap`], the same call on a mapped triple).
 ///
 /// The rule: [`certify_offset`] derives over the base's WHOLE chart
 /// rectangle, so a `window` is honoured exactly when it IS that
@@ -1075,14 +1080,13 @@ pub fn certify_offset_at(
 /// [`OffsetFitError::WindowUnsupported`] for a window this derivation
 /// does not cover, then whatever [`certify_offset`] refuses.
 pub fn certify_offset_over(
-    base: &NurbsSurface<f64>,
+    description: &geom::SurfaceDescription<f64>,
     fit: &NurbsSurface<f64>,
-    d: f64,
     window: geom::ApproxWindow,
     tol: Tol,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    certify_offset_over_at(base, fit, d, window, precision_target(tol), band)
+    certify_offset_over_at(description, fit, window, precision_target(tol), band)
 }
 
 /// [`certify_offset_over`] against a CHOSEN target rather than the run's
@@ -1093,17 +1097,17 @@ pub fn certify_offset_over(
 /// As [`certify_offset_over`].
 #[doc(hidden)]
 pub fn certify_offset_over_at(
-    base: &NurbsSurface<f64>,
+    description: &geom::SurfaceDescription<f64>,
     fit: &NurbsSurface<f64>,
-    d: f64,
     window: geom::ApproxWindow,
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    if window != geom::ApproxWindow::of(base) {
+    let geom::SurfaceDescription::Offset { base, d } = description;
+    if window != geom::ApproxWindow::of(&**base) {
         return Err(OffsetFitError::WindowUnsupported { window });
     }
-    certify_offset_at(base, fit, d, tolerance, band)
+    certify_offset_at(base, fit, *d, tolerance, band)
 }
 
 // ---------------------------------------------------------------------
@@ -1145,7 +1149,8 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 /// `rounds`, which is provenance of the FIT rather than a limb and
 /// which no re-measurement can recompute: the loop's honest count
 /// travels with the certificate rather than being flattened to `0`.
-/// The window is checked rather than attested — see the closure.
+/// The certifier closes over the run's witness and checks the window
+/// rather than attesting it ([`certify_offset_over`]).
 ///
 /// # Errors
 ///
@@ -1159,11 +1164,15 @@ pub fn approx_offset_surface(
     tol: Tol,
     band: Band,
 ) -> Result<Surface<f64>, OffsetFitError> {
-    approx_offset_surface_at(base, d, precision_target(tol), band)
+    let fitted = fit_offset(&base, d, tol, band)?;
+    mint(base, d, fitted, |description, fit, window| {
+        certify_offset_over(description, fit, window, tol, band)
+    })
 }
 
 /// [`approx_offset_surface`] against a CHOSEN target rather than the
-/// run's ε — the engine as an instrument (module docs).
+/// run's ε — the engine as an instrument (module docs). Its certifier
+/// closes over that target; the surface stores no tolerance either way.
 ///
 /// # Errors
 ///
@@ -1175,23 +1184,33 @@ pub fn approx_offset_surface_at(
     tolerance: f64,
     band: Band,
 ) -> Result<Surface<f64>, OffsetFitError> {
-    let (fit, loop_cert) = fit_offset_at(&base, d, tolerance, band)?;
+    let fitted = fit_offset_at(&base, d, tolerance, band)?;
+    mint(base, d, fitted, |description, fit, window| {
+        certify_offset_over_at(description, fit, window, tolerance, band)
+    })
+}
+
+/// The storage step both mint forms share: the spec from the base, `d`
+/// and the loop's fit, certified by `certifier` on the STORED triple,
+/// with the loop's `rounds` carried
+/// ([`geom::OffsetCertificate::carrying_rounds`]).
+fn mint(
+    base: std::sync::Arc<NurbsSurface<f64>>,
+    d: f64,
+    (fit, loop_cert): (NurbsSurface<f64>, OffsetCertificate),
+    certifier: impl FnOnce(
+        &geom::SurfaceDescription<f64>,
+        &NurbsSurface<f64>,
+        geom::ApproxWindow,
+    ) -> Result<OffsetCertificate, OffsetFitError>,
+) -> Result<Surface<f64>, OffsetFitError> {
     let spec = geom::SurfaceSpec {
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
         fit,
     };
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window| {
-        let geom::SurfaceDescription::Offset { base, d } = description;
-        certify_offset_over_at(base, fit, *d, window, tolerance, band).map(|cert| {
-            OffsetCertificate {
-                // Every measured field is the re-derivation's; `rounds` is
-                // the loop's, for the reason `OffsetCertificate::rounds`
-                // states.
-                rounds: loop_cert.rounds,
-                ..cert
-            }
-        })
+        certifier(description, fit, window).map(|cert| cert.carrying_rounds(loop_cert.rounds))
     })?;
     Ok(Surface::Approx(std::sync::Arc::new(approx)))
 }
@@ -1223,7 +1242,13 @@ pub fn recertify_approx(
     tol: Tol,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    recertify_approx_at(approx, precision_target(tol), band)
+    certify_offset_over(
+        approx.description(),
+        approx.fit(),
+        approx.window(),
+        tol,
+        band,
+    )
 }
 
 /// [`recertify_approx`] against a CHOSEN target rather than the run's ε
@@ -1238,8 +1263,13 @@ pub fn recertify_approx_at(
     tolerance: f64,
     band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    let geom::SurfaceDescription::Offset { base, d } = approx.description();
-    certify_offset_over_at(base, approx.fit(), *d, approx.window(), tolerance, band)
+    certify_offset_over_at(
+        approx.description(),
+        approx.fit(),
+        approx.window(),
+        tolerance,
+        band,
+    )
 }
 
 // SHELL-TOLERANCE-CHAIN END.

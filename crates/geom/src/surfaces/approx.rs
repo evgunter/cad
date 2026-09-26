@@ -128,7 +128,8 @@ pub struct OffsetCertificate {
     /// loop behind it — therefore reports `0`.
     ///
     /// **This is the one home of the carry argument**, and the two
-    /// doors that carry it cite this field rather than restate it.
+    /// doors that carry it cite this field rather than restate it; both
+    /// carry it through [`OffsetCertificate::carrying_rounds`].
     /// Whoever holds the honest count passes it across a re-derivation:
     /// the storage door (`geom_brep::approx_offset_surface`) has the
     /// mint loop's, and `topo::transform_rigid` has the operand
@@ -137,6 +138,16 @@ pub struct OffsetCertificate {
     /// so carrying it cannot make a bad surface look good; resetting it
     /// to `0` would only lose provenance.
     pub rounds: u32,
+}
+
+impl OffsetCertificate {
+    /// This re-derived certificate with `rounds` carried from the fit it
+    /// is about — every measured field stays the re-derivation's
+    /// ([`OffsetCertificate::rounds`] states why the count travels).
+    #[must_use]
+    pub fn carrying_rounds(self, rounds: u32) -> Self {
+        Self { rounds, ..self }
+    }
 }
 
 /// What an approximating surface **is**, independent of any fit — the
@@ -186,8 +197,8 @@ impl<T: Real> SurfaceDescription<T> {
 ///
 /// There is no tolerance here: the claim is O3's `≤ ε_precision`, and
 /// ε is the run's (D4 ¶1: one value per run, no per-entity tolerance).
-/// The certifier handed to [`ApproxSurface::certify`] carries the
-/// run's witness itself.
+/// The certifier handed to [`ApproxSurface::certify`] carries its own
+/// target, and every production certifier's is the run's witness.
 #[derive(Clone, Debug)]
 pub struct SurfaceSpec<T: Real> {
     /// The intensional description (authoritative).
@@ -229,10 +240,11 @@ impl<T: Real> ApproxSurface<T> {
     /// **The only door.** Runs `certifier` against the spec's
     /// description and fit, and stores the certificate it returned.
     ///
-    /// The certifier carries its own classification tolerance — the
-    /// run's `Tol` witness, captured where the closure is written — so
-    /// the surface stores no ε of its own and a re-derivation
-    /// classifies at the ε of the run that performs it.
+    /// The certifier carries its own classification target, captured
+    /// where the closure is written; every production certifier's is
+    /// the run's ε, captured as the `Tol` witness. The surface stores no
+    /// ε of its own, so a re-derivation classifies at the ε of the run
+    /// that performs it.
     ///
     /// The certifier's refusal propagates verbatim — this door neither
     /// interprets it nor works around it, so a capability the

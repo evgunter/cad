@@ -723,10 +723,11 @@ pub enum ValidationError {
     /// posture): the two-limb bound is re-derived per validation call
     /// from the description and the fit, and classified against the
     /// **run's** ε_precision (O3's ratified claim is what tier 3
-    /// verifies; the surface stores no tolerance). A fit that has drifted from
-    /// what it claims to approximate — coarsened, edited, grafted onto
-    /// another base — reports here, naming the limb that caught it, and
-    /// so does one minted looser than the ε this run demands.
+    /// verifies; the surface stores no tolerance). A fit that has
+    /// drifted from what it claims to approximate — coarsened, edited,
+    /// grafted onto another base — reports here, naming the limb that
+    /// caught it, and so does one minted looser than the ε this run
+    /// demands.
     ApproxCertification {
         /// The face whose approximating surface failed.
         face: FaceKey,

@@ -416,13 +416,18 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// axes and the bound genuinely moves — measured at 7.4e-9 on a bowed
 /// base fitted at 1e-6, and `curvature_reach` moves further. That is
 /// why the mapped surface may not carry the operand's numbers: they
-/// are the wrong numbers, not merely unverified ones. What the map
-/// preserves is the CLAIM — the mapped pair certifies at ε — and
-/// re-deriving is what establishes it. A pair whose bound the rotation
-/// pushes past ε refuses here, which is the fail-loud direction.
+/// are the wrong numbers, not merely unverified ones.
 ///
-/// `rounds` is the exception, and it is not a limb: it is carried, for
-/// the reason [`geom::OffsetCertificate::rounds`] states once.
+/// **So a body that validates can be refused here.** The map does not
+/// preserve the claim "certifies at ε": it re-tests it. A face whose
+/// operand bound sits within the rotation's drift of ε re-derives
+/// above ε, and this door refuses it `ApproxRecertify` even though tier
+/// 3 accepts the unmoved body. That is the present behaviour, open as
+/// `work/encl/a-rotation-can-refuse-an-approx-face-that-certifies-near-eps.md`.
+///
+/// `rounds` is the exception, and it is not a limb: it is carried
+/// ([`geom::OffsetCertificate::carrying_rounds`]), for the reason
+/// [`geom::OffsetCertificate::rounds`] states once.
 ///
 /// The band reaches only the fit door's degeneracy meters (the
 /// regularity floor and the collapse reach); the two limbs are
@@ -458,10 +463,7 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
         }),
         Some(lane) => match lane.remap(description, fit, window, tol, band) {
             Err(source) => Err(TransformError::ApproxRecertify { source }),
-            Ok(certificate) => Ok(geom::OffsetCertificate {
-                rounds,
-                ..certificate
-            }),
+            Ok(certificate) => Ok(certificate.carrying_rounds(rounds)),
         },
     })
 }
@@ -971,9 +973,9 @@ mod offset_fit_door_rows {
         let mapped = map_approx(&map, &approx, tol, band, Some(OffsetFitLane::fit()))
             .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
-        let geom::SurfaceDescription::Offset { base, d } = &spec.description;
-        let reference = geom_brep::certify_offset_over(base, &spec.fit, *d, spec.window, tol, band)
-            .expect("`geom-brep`'s certifier measures the mapped pair");
+        let reference =
+            geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol, band)
+                .expect("`geom-brep`'s certifier measures the mapped pair");
         let got = mapped.certificate();
         crate::fixtures::assert_certificates_agree("the mapped pair", got, &reference);
         assert_eq!(
