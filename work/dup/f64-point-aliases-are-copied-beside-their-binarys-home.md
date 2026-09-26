@@ -50,19 +50,33 @@ counts include the homes themselves):
 
 ## Why filed rather than folded
 
-Size and a routing question. The fold is mechanical per site, but it
-is ~120 suites in `sweep` and `profile` alone, and `sweep`'s needs its
-three homes reconciled first — a decision about `common` against
-`revolve_common` that its routing rule reserves. Method item 6 also
-applies site by site: `p2(1.0, 2.0)` against `Point2::new(1.0, 2.0)`
-is a readability call, and a suite that prefers the constructor may
-inline rather than import.
+Size alone. The fold is mechanical per site, the way
+`common::interval` was, but it is 185 matching signatures (179 of them
+pass-through) in 169 files across nine crates — well past one PR
+beside the class it was measured from. Method item 6 still applies
+site by site when it is taken: `p2(1.0, 2.0)` against
+`Point2::new(1.0, 2.0)` is a readability call, and a suite that
+prefers the constructor may inline rather than import.
+
+## Why this row is on this slate
+
+Its member files sit on twelve programs' ground (`work.py territory
+--files -` over the files carrying a matching signature, 2026-09-26):
+`tint` and `tcost` on 154 of the 169, `paths` on 36, `tess` on 11, then
+`shell`, `vdoc`, `exch`, `chrome`, `reach`, `curved`, `chart` and
+`atrest` on one to three each. No one of those owns the class, and one
+thing spelled many times across all of them is this program's charter
+(method item 14); any of them may claim a crate's share by `git mv`
+of a split row.
 
 ## Blind spots
 
 The instrument reads the body on the line after the signature, so a
-body split across lines by rustfmt, or behind a doc comment between
-signature and body, is counted as "computes something" or missed. It
-sees only `f64`-typed parameters named in the signature; a generic
-`T` alias used only at `f64` is outside it. Closures are counted only
-when their parameters are annotated `f64`.
+body that rustfmt splits across lines is counted as "computes
+something" rather than as a pass-through. It sees only parameters
+typed `f64` in the signature; a generic `T` helper used only at `f64`
+is outside it. Closures are counted only when their parameters are
+annotated `f64`. A binding of the constructor itself —
+`let p2 = Point2::<f64>::new;` (`sweep/tests/bitdump.rs`,
+`must_carry_rule.rs`), `let pt = Point3::new;` — is not a definition
+and is not counted; those name the constructor and hold no body.
