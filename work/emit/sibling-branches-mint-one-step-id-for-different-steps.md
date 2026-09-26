@@ -5,7 +5,6 @@ title: Two edits applied to one base mint the same step id for different steps
 status: open
 opened: 2026-09-25
 priority: P2
-needs_ev: true
 ---
 
 
@@ -118,3 +117,22 @@ rather than of one value, it is deterministic, and it removes the need
 for a check rather than adding one. Its cost is id width and the node
 ids' blast radius. Taking it for step ids alone, now, and node ids as a
 second row, would bound that cost.
+
+## Ruled (2026-09-25)
+
+Ev chose (b) on #3262 ("(b) sounds good!"). The step id carries its own
+lineage: it is minted from a digest chain that each minting edit
+extends with its canonical bytes. The same edit sequence mints the same
+ids (D9), and siblings never share one. A carried name from the other
+branch resolves `Vanished` wherever it is read. The mint log refuses a
+duplicate, and the doors refuse an id the log does not hold. The rule
+is in N1's "The id." bullet.
+
+This row is now the build for step ids. Node ids stay on their counter
+for now; moving them too is a later row, because the blast radius is
+large.
+
+Ev asked whether this was a defect in `UpdateReference` instead. It is
+not: a counter id cannot tell "step kept and edited" from "two steps
+sharing an id", so any check at the reference update needs the lineage
+the id should carry.
