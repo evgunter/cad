@@ -52,6 +52,7 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
     let mut rng = Lcg(0x6765_726d_746f_7275);
     let (mut roots, mut contradicted, mut ferrari) = (0usize, 0usize, 0usize);
     let mut definite = 0usize;
+    let mut displaced = 0usize;
     // The two measured poses (PR 3265 review): the long edges of a
     // near-perpendicular framed bar through the donut (`R = 2`,
     // `r = 0.5`), and a rod lying in its tube. Each certified a root
@@ -118,17 +119,15 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
         let prism = crate::fixtures::raw_prism(3, Tol::witness());
         let face = prism.face_side[0];
         let mut body = prism.body;
-        body.set_face_surface(
-            face,
-            crate::euler::FaceSurface::New(geom::Surface::Torus {
-                center,
-                axis,
-                major_radius: big_r,
-                minor_radius: r,
-                u_ref: Vec3::new(1.0, 0.0, 0.0),
-            }),
-        )
-        .unwrap();
+        let surface = geom::Surface::Torus {
+            center,
+            axis,
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        body.set_face_surface(face, crate::euler::FaceSurface::New(surface.clone()))
+            .unwrap();
         let drawn = (0..400).map(|k| {
             let o = Point3::new(
                 rng.range(-(big_r + r), big_r + r),
@@ -195,6 +194,20 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
                          trim verdict"
                     ),
                 }
+                // The same landing point pushed definitely off the tube
+                // (twice the escalation width along the tube normal): the
+                // shape a contradicted root has. It must be placed
+                // `OffCarrier`, never as a trim verdict.
+                let n = geom_brep::implicit_gradient(&surface, p).normalize();
+                let q = p + n * (2.0 * band().escalate());
+                match curved_face_placement(&body, face, q, band()) {
+                    Ok(CurvedPlacement::OffCarrier) => displaced += 1,
+                    other => panic!(
+                        "R = {big_r}, r = {r}: a point definitely off the tube was placed \
+                         {other:?} at {q:?} — a contradicted root would be read as a trim \
+                         verdict"
+                    ),
+                }
             }
         }
     }
@@ -210,14 +223,13 @@ fn every_certified_root_lands_on_the_tube_or_the_consumer_refuses() {
         ferrari > 100,
         "the Ferrari arm must be exercised: {ferrari}"
     );
-    // The measured poses certify roots a quartic error puts definitely
-    // off the tube wherever the band is narrower than that error
-    // (measured: none at ε = 1e-6, dozens at 1e-9 and 1e-12). There the
-    // row must SEE the case, or it pins nothing about it.
-    if Tol::witness().get().eps <= 1e-9 {
-        assert!(
-            definite > 0,
-            "the measured poses must reach a definite contradiction"
-        );
-    }
+    // Since the root search's accuracy fix (#3255) no certified root in
+    // this lattice lands off the tube at any band the run matrix draws;
+    // the measured poses that did (44 at 1e-9, 460 at 1e-12 before it)
+    // now land on it. The consumer's contract is what this row still
+    // holds, and the displaced probes below keep it executed.
+    assert_eq!(
+        displaced, roots,
+        "every root's displaced landing point must have been placed"
+    );
 }
