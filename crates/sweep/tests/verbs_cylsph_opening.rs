@@ -260,21 +260,20 @@ fn a_contained_ball_refuses_at_the_curved_extent_scan() {
     }
 }
 
-/// **A torus operand stops at the pair gate, and the refusal ends on
-/// what the person can do.** The deferred fitted-chord join window
-/// (a `run_azimuth_window` / `chart_pcurve` analog for a
-/// cylinder×sphere fitted chord) is still unbuilt; that fact lives in
-/// `BooleanError::CurvedPairUnsupported`'s rustdoc, not in the
-/// sentence a user reads, so nothing about it is asserted here.
+/// **A torus operand passes the pair gate and refuses typed at the
+/// crossing layer.** The torus is on the union's KIND roster, so the
+/// cylinder×torus union is no longer the gate's to refuse. The
+/// cylinder's rim circle genuinely crosses the tube (the ring passes
+/// through the cylinder's end caps at `(0, 0, ±2)`), a circle×torus
+/// crossing with no root lane, and the circle rung takes its typed
+/// frontier there — never a body.
 ///
-/// **This row pins `CurvedPairUnsupported`, NOT
-/// `CurvedBooleanUnsupported`** — a torus operand is stopped at the
-/// pair/kind gate and never reaches the germ-pair join dispatch. The
-/// other variant's text is pinned by
-/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below,
-/// which had to construct a different error to get at it.
+/// The pair gate's own sentence is pinned on a cone, the kind it still
+/// refuses (`review_m3_pr4::curved_face_gate_witness`); the germ-pair
+/// join dispatch's text by
+/// [`the_join_dispatchs_refusal_says_what_it_actually_wires`] below.
 #[test]
-fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
+fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
     let torus = {
         // A torus operand reaches the pair/kind refusal, which is the
         // door that carries the fitted-chord sentence.
@@ -294,21 +293,13 @@ fn a_torus_operand_is_refused_at_the_pair_gate_with_its_recourse() {
             .body
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
-        .expect_err("a torus operand has no wired arm");
+        .expect_err("the rim circle crosses the tube, with no root lane");
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPairUnsupported {
-                kind: geom_brep::SurfaceKind::Torus,
-                ..
-            }
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
         ),
-        "expected the pair gate's refusal, got {err:?}"
-    );
-    let msg = format!("{err}");
-    assert!(
-        msg.contains("move them so the torus face stays clear of the other solid"),
-        "the pair refusal must end on its recourse: {msg}"
+        "expected the crossing layer's typed refusal, got {err:?}"
     );
 }
 
