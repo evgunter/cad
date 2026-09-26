@@ -355,7 +355,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   holes in its one shell.
 - **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
   makes a one-band wire sweep unrepresentable, so axis-touching full
-  revolves sweep two π-bands and poles have valence 2.
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
   complete loci; an edge's bounds derive from its vertices via the
@@ -411,10 +415,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
-  is never silent), and boolean *outputs* run it as a documented final
-  stage of the op's contract — the seam zip manufactures coplanar
-  pairs by construction; the recipe records one boolean node, not
-  hidden healing. Merge glues on the structural and declared rungs
+  is never silent), and two ops run it as a documented final stage of
+  their contract, because each manufactures coplanar pairs by
+  construction: boolean *outputs* (the seam zip), and *sweeps* over a
+  profile side the author subdivided with a declared straight
+  continuation (the two walls are one carrier by that declaration, so
+  they share a surface key and merge on the structural rung). In
+  either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
   only; numeric coincidence never merges. Load-bearing dependency:
   `merge_coplanar_faces` **never elides vertices**, and tier 3′'s
   strict record-drop rule (a contact record whose vertex pair fused

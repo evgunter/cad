@@ -37,7 +37,12 @@ fn param(n: &str) -> Expr {
 
 /// Every `Failed` node of a leaf replay, with its kind — the first is
 /// what refuses.
-fn failures(doc: &ProfileDoc, box_: ParamBox, dials: SymbolicDials, tol: Tol) -> Vec<String> {
+fn failures(
+    doc: &editor_core::ProfileDoc,
+    box_: ParamBox,
+    dials: SymbolicDials,
+    tol: Tol,
+) -> Vec<String> {
     let opts = EvalOptions {
         param_box: Some(Arc::new(box_)),
         profile_lift: ProfileLift::Guided,
@@ -430,6 +435,7 @@ fn bracket_with(
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![plate_loop],
+        ids: Vec::new(),
     }));
     let _plate = r.insert(Node::Extrude {
         profile: plate_profile,
@@ -442,6 +448,7 @@ fn bracket_with(
                 centre: [cx, len(0.0)],
                 radius: div(w(), 16.0),
             }],
+            ids: Vec::new(),
         }));
         r.insert(Node::Extrude {
             profile,

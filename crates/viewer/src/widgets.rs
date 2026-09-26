@@ -3507,6 +3507,7 @@ mod value_field_tests {
                         LoopProgram::polygon([(0.0, 0.0), (0.04, 0.0), (0.04, 0.04), (0.0, 0.04)])
                             .expect("finite corners"),
                     ],
+                    ids: Vec::new(),
                 }),
                 tol,
             );

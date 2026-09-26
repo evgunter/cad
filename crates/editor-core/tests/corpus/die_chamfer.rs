@@ -47,12 +47,13 @@ pub fn document() -> CorpusDoc {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
     });
-    let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(cube, 4)));
+    let blank = r.insert(Node::chamfer(cube, len(D), prism_edges(&r.doc, cube, 4)));
 
     CorpusDoc {
         name: "die_chamfer",

@@ -4,8 +4,8 @@ kind: issue
 title: offset_fit: tightening a cell bound can raise the door's hull_sup, because the refinement marking reads the sup
 status: open
 opened: 2026-09-12
-priority: P1
-cost: H
+priority: P4
+cost: E
 ---
 
 

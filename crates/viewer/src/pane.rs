@@ -171,6 +171,15 @@ pub(crate) mod headless {
         /// they differ on purpose — a row measuring where a sentence
         /// is READ must not count an indent as text, and a click must.
         pub(crate) rows: Vec<egui::Rect>,
+        /// **The colour its glyphs were painted in**, when one colour
+        /// painted all of them — the SALIENCE a reader sees, which
+        /// is what a row asserting a tone compares against a fixed
+        /// colour. `None` for a galley painted in more than one.
+        ///
+        /// Read as the painter reads it: the shape's override first,
+        /// then each section's own colour, with egui's placeholder
+        /// standing for the shape's fallback.
+        pub(crate) ink: Option<egui::Color32>,
     }
 
     /// [`Landed`] for every `Shape::Text` in a tree of shapes.
@@ -179,6 +188,19 @@ pub(crate) mod headless {
     /// what it answers, so a shape kind that starts nesting text is
     /// taught to one `match` rather than to three.
     pub(crate) fn landed_in(shapes: &[egui::epaint::ClippedShape]) -> Vec<Landed> {
+        fn ink(text: &egui::epaint::TextShape) -> Option<egui::Color32> {
+            let mut colours = text.galley.job.sections.iter().map(|section| {
+                text.override_text_color.unwrap_or(
+                    if section.format.color == egui::Color32::PLACEHOLDER {
+                        text.fallback_color
+                    } else {
+                        section.format.color
+                    },
+                )
+            });
+            let first = colours.next()?;
+            colours.all(|colour| colour == first).then_some(first)
+        }
         fn walk(shape: &egui::Shape, out: &mut Vec<Landed>) {
             match shape {
                 egui::Shape::Text(text) => out.push(Landed {
@@ -193,6 +215,7 @@ pub(crate) mod headless {
                                 .translate(text.pos.to_vec2())
                         })
                         .collect(),
+                    ink: ink(text),
                 }),
                 egui::Shape::Vec(inner) => {
                     for shape in inner {
@@ -237,6 +260,56 @@ pub(crate) mod headless {
                 draw(ui);
             }
         })
+    }
+
+    /// **The two voices a [`crate::frame::Tone`] is drawn in**, as the
+    /// fixed colours a row holds [`Landed::ink`] against — never read
+    /// back through `app::toned`, which is the mapping under test.
+    #[derive(Clone, Copy, Debug)]
+    pub(crate) struct Voices {
+        /// egui's own weak text on the frame that was drawn: the
+        /// `Advisory` voice.
+        pub(crate) weak: egui::Color32,
+        /// [`crate::theme::Theme::DEFAULT`]'s unresolved colour: the
+        /// `Actionable` voice, for a draw handed that theme.
+        pub(crate) unresolved: egui::Color32,
+    }
+
+    /// [`landed`], and the [`Voices`] of the frame it drew.
+    ///
+    /// Panics when the two voices are one colour, since then no row
+    /// could tell them apart.
+    pub(crate) fn landed_voiced(draw: impl FnOnce(&mut egui::Ui)) -> (Vec<Landed>, Voices) {
+        let weak = core::cell::Cell::new(egui::Color32::PLACEHOLDER);
+        let painted = landed(|ui| {
+            weak.set(ui.visuals().weak_text_color());
+            draw(ui);
+        });
+        let voices = Voices {
+            weak: weak.get(),
+            unresolved: crate::app::chrome(crate::theme::Theme::DEFAULT.unresolved),
+        };
+        assert_ne!(
+            voices.weak, voices.unresolved,
+            "the two voices a tone is drawn in"
+        );
+        (painted, voices)
+    }
+
+    /// The entry in `painted` whose text starts with `opening` — for a
+    /// sentence whose tail is another layer's payload.
+    ///
+    /// Panics when nothing painted opens with it.
+    pub(crate) fn find_opening<'a>(painted: &'a [Landed], opening: &str) -> &'a Landed {
+        painted
+            .iter()
+            .find(|landed| landed.text.starts_with(opening))
+            .unwrap_or_else(|| {
+                panic!(
+                    "nothing painted opens with `{opening}`: {:?}",
+                    painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+                )
+            })
     }
 
     /// [`landed`] over the LAST of `passes` frames of `draw` on one

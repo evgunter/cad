@@ -7,6 +7,7 @@ opened: 2026-09-16
 refs: [750]
 priority: P3
 cost: E
+rides_with: CONTACT-1
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time
