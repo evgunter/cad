@@ -1094,9 +1094,11 @@ fn tilted_cut_cases() -> Vec<CutCase> {
 /// meridians and planar sections in the combinations the split and
 /// subtract doors mint: a cut through the axis, one running out through
 /// a cap, a steep one through both caps, a slab, a convex roof and a
-/// lens. Every answer is the truth, no probe refuses on a
-/// wall's outline, and the only refusal allowed is the at-infinity side
-/// the props lane owns.
+/// lens. Every answer is the truth, and no probe refuses on a wall's
+/// outline. The refusals allowed are the at-infinity side the props lane
+/// owns, and an escalation: at a coarse ε a probe's ray can land within
+/// the band of a boundary edge, and that is a typed refusal, not an
+/// answer.
 #[test]
 fn every_tilted_cut_wall_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -1133,7 +1135,7 @@ fn every_tilted_cut_wall_reads_its_truth() {
                                 let kind = format!("{e:?}");
                                 let kind = kind.split([' ', '{', '(']).next().unwrap_or("");
                                 *refused.entry(kind.to_string()).or_default() += 1;
-                                if kind != "VolumeUncertified" {
+                                if !matches!(kind, "VolumeUncertified" | "Escalated") {
                                     problems.push(format!("{} | {pose} | {p:?}: {e:?}", case.name));
                                 }
                             }

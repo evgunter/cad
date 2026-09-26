@@ -375,3 +375,28 @@ fn a_wall_no_ray_reaches_never_escalates_the_query() {
         SolidContainment::In
     );
 }
+
+/// **A junction the hit cannot be put on one side of escalates.** From
+/// a resolved outline this cannot happen: near a vertex without a
+/// meridian both incident planes pass within the band of the hit, and a
+/// meridian run's span catches a hit between its ends. So the branch is
+/// a guard, and this row holds it: the step with its meridian span
+/// dropped, asked between the two floors on the step's azimuth.
+#[test]
+fn a_hit_between_a_junctions_pieces_escalates() {
+    let WallOutline::Chart {
+        pieces,
+        mut junctions,
+    } = stepped()
+    else {
+        unreachable!("the stepped outline is a chart");
+    };
+    junctions[0].span = None;
+    let outline = WallOutline::Chart { pieces, junctions };
+    match ask(&outline, UPPER_HALF, on_wall(HALF_PI, 0.5)) {
+        Err(PointInSolidError::Escalated { diag, .. }) => {
+            assert_eq!(diag.predicate, Some("bool_wall_junction"));
+        }
+        other => panic!("{other:?}"),
+    }
+}
