@@ -2,10 +2,11 @@
 id: a-beam-across-two-supports-edges-refuses-on-coplanar-edge-crosses
 kind: issue
 title: A beam resting across two supports' top edges refuses: the coplanar EdgeEdgeCross findings it makes have no touch site, and the census backstop reads them as crossings
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P0
 cost: D
+parent: CONTACT-5
 ---
 
 
