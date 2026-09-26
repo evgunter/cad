@@ -8,6 +8,7 @@ priority: P2
 cost: H
 refs: [rule-d-reaches-the-unit-bulge-only, 3186]
 parent: DECIDE-4
+needs_ev: true
 ---
 
 **Filed from DECIDE-4's fork, on Ev's ruling on `[ev]` #3186 (2026-09-25):**
@@ -57,3 +58,49 @@ A structural alternative, owed a look before the read is built: whether
 the sweep's arc construction already decides which side of the chord
 the centre lies on. If it does, that decided sign could be stated the
 way route B states the turn.
+
+## What DECIDE-8 found (2026-09-26)
+
+**Nothing upstream decides the sign.** The profile decides `sign(b)`, which
+is `σ` (`path_arc_bulge`, `segment_straightness`). It decides nothing that
+separates a minor arc from a major one. `path_junction_turn` equals
+`sign(1 − b²)` on the D-tab only because the incoming line is
+perpendicular to the chord, which is a property of that joint.
+
+**The six are not the sweep's, and they are not a fact about the arc.**
+They are asked in `Profile::validate`'s pair pass, before any sweep runs,
+on ADJACENT pairs:
+- `judge_pair` knows the pair's shared vertex and does not pass it to
+  `seg::pair_contacts`;
+- so `line_arc` recomputes it as one of the two roots
+  `tc ∓ sqrt(r² − h²)`, and then asks the tier whether a root is that
+  vertex.
+
+Which root it is, is the apothem's sign. The decisions stand on the
+profile re-deriving a point it already holds.
+
+**A certified-sign read measured** (draft #3282,
+`SymRules::signed_root_last`, shipped off): rule C's fold asked as the
+ladder's last rung.
+- It takes the six, and 28 more on the bracket.
+- It re-labels no theorem and no door answer on nine documents.
+- It misses the `0.4` parameter D-tab's pair, which is frozen on
+  `fl(0.4)`'s ring.
+- It costs +39% on the bracket's leaf and +7–12% on four others.
+
+The per-document tables are on #3282's branch, `decide/8-apothem-sign`.
+
+## Where the six are answered
+
+In the profile's pair pass, not the tier. `pair_contacts` takes the
+pair's shared vertices:
+- the shared vertex is a contact by construction and is never asked;
+- the other intersection is spelled from it with no square root;
+- nothing decides `sign(1 − b²)`, because nothing needs it.
+
+The implementation row is PATHS':
+`work/paths/an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root.md`.
+
+The certified-sign read does not ship for these six. Whether it has a
+case of its own waits on the bracket's 28 having the same structural
+look: `the-brackets-fillet-decisions-owe-a-structural-look`.
