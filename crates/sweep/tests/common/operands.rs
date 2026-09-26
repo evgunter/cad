@@ -65,12 +65,13 @@ pub fn pellet<T: Decide>() -> Body<T> {
 /// 120, 240). Six vertices, at 0, 120 and 240 degrees on each rim.
 ///
 /// **The two placements are two knobs, not one**, because the suites
-/// that cut with it pose it two ways and a pose is part of the body a
-/// row reads: `cx` translates the PROFILE on the `xy` plane, while
-/// `z0` lifts the SKETCH PLANE. A caller turns the knob its rows are
-/// about and leaves the other at zero, and `first` changes only which
-/// vertex the loop starts from — the same point set, its rims' edges
-/// minted in a different order.
+/// that cut with it pose it two ways: `cx` translates the PROFILE on
+/// the `xy` plane, while `z0` lifts the SKETCH PLANE. The two are not
+/// interchangeable bit for bit — a plane slid in `x` builds a different
+/// body from a profile slid in `x` — so each suite gets the body it
+/// posed by turning its own knob and leaving the other at zero.
+/// `first` changes only which vertex the loop starts from: the same
+/// point set, its rims' edges minted in a different order.
 pub fn three_arc_cylinder(cx: f64, z0: f64, height: f64, first: f64) -> Body<f64> {
     let b120 = (core::f64::consts::PI / 6.0).tan();
     let at = |deg: f64| {
