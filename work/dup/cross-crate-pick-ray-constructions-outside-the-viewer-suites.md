@@ -101,56 +101,52 @@ Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
 - **The denominator re-taken** with the row's instrument (`git grep
   -n -E '(\b|::)Ray \{' -- '*.rs'`, no path argument, minus
   `crates/viewer/tests/`, `ContinuationTargetOffRay`, the type's own
-  headers and the eight `-> Ray {` signature lines): **41 sites in 15
+  headers and the NINE signature lines — eight `-> Ray {` and
+  `edit_pair_apply_names`'s `-> editor_core::Ray {`): **41 sites in 15
   files**, the row's number, with `pick.rs` at 10 and `ray_r2.rs` at
   10. Classified, every one:
-  - **the array adapter**, 5 byte-identical `fn ray` — `bvh` 2,
-    `editor-core` 3 — plus 8 longhand literal rays in `bvh`'s
-    `ray_r2`: folded to one home per crate (`bvh/tests/common`,
-    `editor-core/tests/fixture/pick.rs`), and `pick3_early_out`'s one
-    longhand skew ray routed through it.
-  - **the downward ray**, 4: `edit_pair_apply_names`'s `down()` and
-    three in `pick3_early_out` — routed through `down_from`, which
-    moved from `viewer`'s `tests/common` into `fixture::pick` so both
-    crates read it (`viewer` re-exports it, as it does the mate heads).
-  - **the aimed ray** `target - dir * reach`, the row's unnamed third
-    class: `review_pick_r2_probes`' wide aim and
-    `review_pick3_r2_probes`' interior aim and its snapped `aimed`
-    (now `aimed_snapped`, delegating) → `fixture::pick::aimed`;
-    `pick.rs`'s unit module's three longhand `x - dir` rays routed
-    through its own `ray_through`.
-  - **`near_tangent`**, 2 test copies, both self-declared copies of
-    `pick.rs`'s → `fixture::pick::near_tangent`.
-  - **not folded** (11): `ray_r2`'s integer-grid `ray_of` (its
-    exactness argument needs `i64`; its box twin is renamed `box_of`
-    to match) and its random ray; `pick.rs`'s two table closures, its
-    level ray and its interior ray; `review_pick3_r2_probes`'
-    dir-scaled ray; the random-origin rays of `review_pick_r2_probes`
-    and `review_pick3_r1_probes` — bespoke, 9. And two members out of
-    reach: `pick.rs`'s `near_tangent` and its one downward ray, in a
-    unit module that cannot import a `tests/` home — filed below.
-  - **production, not members** (3): `pncad-py`'s `pick.rs`,
-    `viewer`'s `camera.rs` and `pickindex.rs`.
+  - **the array adapter**, 15: five byte-identical `fn ray` bodies
+    (`bvh` 2, `editor-core` 3), `ray_r2`'s eight longhand literal rays
+    and its integer `ray_of` body, and `pick3_early_out`'s longhand skew
+    ray → `bvh::test_support::ray` (`ray_of` now delegates to it).
+  - **the downward ray**, 5: `edit_pair_apply_names`'s `down()`, three
+    in `pick3_early_out`, one in `pick.rs`'s unit module →
+    `editor_core::test_support::down_from`, which `viewer`'s
+    `tests/common` re-exports.
+  - **the aimed ray** `target - dir * reach`, 7: `pick.rs`'s own
+    `ray_through` body and its three longhand `x - dir` rays,
+    `review_pick_r2_probes`' wide aim, `review_pick3_r2_probes`'
+    interior aim and its snapped `aimed` (now `aimed_snapped`,
+    delegating) → `editor_core::test_support::aimed`.
+  - **`near_tangent`**, 3: the `pick.rs` unit module's and the two
+    integration copies that declared themselves copies of it →
+    `editor_core::test_support::near_tangent`.
+  - **bespoke, not folded**, 8: `ray_r2`'s random ray; `pick.rs`'s two
+    table closures, its level ray and its interior ray;
+    `review_pick3_r2_probes`' dir-scaled ray; the random-origin rays of
+    `review_pick_r2_probes` and `review_pick3_r1_probes`.
+  - **production, not members**, 3: `pncad-py`'s `pick.rs`, `viewer`'s
+    `camera.rs` and `pickindex.rs`.
+- **The homes are the tree's test-support mechanism**: `bvh` gains a
+  `test-support` feature and `bvh::test_support` (`boxed`, `ray`);
+  `editor-core`'s existing `test-support` feature now gates
+  `editor_core::test_support` (`AXES`, `down_from`, `aimed`,
+  `near_tangent`, `listed`, `det_and_conditioning`) and forwards
+  `bvh/test-support`. Each crate turns its own on through its self
+  dev-dependency; `viewer` turns both on through dev-dependencies.
+  `resolve::pick`'s unit tests, `editor-core`'s pick suites and
+  `viewer`'s corpus pick suites read one definition of each.
 - **Beside the class, in the files it had open**: `bvh`'s `boxed`,
-  byte-identical in five suites and written longhand four more times
-  in `ray_r2` → `bvh/tests/common::boxed`; `review_gui1_r1`'s
-  `answered` → `fixture::pick::listed` (shared with `viewer`'s corpus
-  suites).
-- **Gates**: the `gated_to!` markers of the six gated suites that now
-  import a helper tree name it (`gated-suite-paths.sh` passes).
-- **Filed, with the reason**:
-  `the-array-ray-and-box-adapters-are-one-per-crate-across-bvh-and-editor-core`
-  (the last step needs a new cross-crate test dependency — a design
-  question) and `editor-core-src-pick-tests-restate-the-fixture-pick-doors`
-  (`pick.rs`'s unit module's `near_tangent`, `ray_through` and
-  `conditioning`, which the `viewer` src-home shape would fold).
-- **Plants** (copy/restore harness, tree checked clean against HEAD
-  after each; editor-core runs scoped to the pick suites and
-  `resolve::pick`, 61 rows): the `fixture::pick` ray swapping `y`/`z`
-  reds 10 rows across `gui1_pick`, `gui1_pick_r2`, `review_gui1_r1`
-  and `pick3_early_out`; `down_from` pointing up reds 57 `viewer` rows
-  and 5 `editor-core` rows; `aimed` overshooting reds 5 and 1, and its
-  `panic!` control 10 and 2; `near_tangent` at `k + 64` reds 3, its
-  control 4; `pick.rs`'s `ray_through` at twice the reach reds the
-  two unit rows holding the three routed rays; `bvh`'s `boxed` with
-  its x bounds swapped reds 16 of 57, `ray` with x negated 12.
+  byte-identical in five suites and written longhand six more times in
+  `ray_r2` (four literals, a centre ± extent and a two-case closure; its
+  integer `box_of` delegates) → `bvh::test_support::boxed`;
+  `review_gui1_r1`'s `answered` → `listed`; `pick.rs`'s unit
+  `conditioning` → `det_and_conditioning(..).1`; `viewer`'s
+  `common::up_at` and `level` → `bvh::test_support::ray`.
+- **Gates**: the `gated_to!` markers of the suites that now read a
+  test-support module name its file (`gated-suite-paths.sh` passes);
+  `test-features-dev-only.sh` passes.
+- **Residue rows**: both filed by this unit's first pass are closed in
+  the same PR — the mechanism already existed, so neither was a design
+  question.
+PLANTS3_PLACEHOLDER

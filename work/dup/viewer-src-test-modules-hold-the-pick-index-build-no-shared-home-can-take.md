@@ -1,7 +1,7 @@
 ---
 id: viewer-src-test-modules-hold-the-pick-index-build-no-shared-home-can-take
 kind: issue
-title: marks.rs and pane/viewport.rs test modules restate plate_delta and index_of, which the mounted src home cannot hold
+title: pane/viewport.rs's test module restates index_of, which names DocSession and so cannot live in the vocabulary test_support
 status: open
 opened: 2026-09-26
 priority: P4
@@ -9,37 +9,32 @@ cost: D
 ---
 
 
-
 ## Finding
 
-- **Where**: two `#[cfg(test)]` modules in `crates/viewer/src/`:
-  - `marks.rs`'s `delta()` — `tests/common`'s `plate_delta`
-    (`DisplayTolerance::new(2.0e-4)`), restated with a citation of it.
-  - `pane/viewport.rs`'s `plate_index(session, delta)` —
-    `tests/common`'s `index_of`, body for body.
-  `marks.rs`'s own `plate()` indexes through `evaluate` rather than a
-  session, deliberately (its doc: the module is a vocabulary), so it
-  is not a copy of `index_of`.
-- **Why it is a row and not a fold**: the shared src home batch 6
-  opened, `crates/viewer/src/test_support.rs`, is ONE text compiled
-  into two crates — the lib's unit tests and, by `#[path]`, the `all`
-  test binary — so it may name nothing but external crates; `crate::`
-  or `viewer::` would mean a different crate in each. `index_of`
-  names `viewer::session::DocSession`, and `plate_delta` names
-  `viewer::scene::DisplayTolerance`. It is also a VOCABULARY module
-  (`crates/viewer/README.md`, Module boundaries), and `DocSession` is
-  a driver type no vocabulary may name. A home for these two needs
-  either a second, lib-only test module (declared a driver, which the
-  README's driver table would have to list — a design page) or a
-  different sharing mechanism for `tests/common`.
-- **Importance**: low. One copy each, no oracle.
+- **Where**: `crates/viewer/src/pane/viewport.rs`'s `#[cfg(test)]`
+  `plate_index(session, delta)` — `tests/common`'s `index_of`, body for
+  body.
+- **What batch 6 folded, and why this is what is left**: the row as
+  filed also named `marks.rs`'s `delta()`, a restatement of
+  `plate_delta`. On review the home moved from a `#[path]` mount to the
+  tree's `test-support` feature, so it can name `viewer` types, and
+  `plate_delta` (with `corpus_delta` and `ring_delta`) moved into
+  `viewer::test_support`; `marks.rs` reads it. `index_of` cannot follow
+  it: it names `viewer::session::DocSession`, a DRIVER type, and
+  `test_support` is a VOCABULARY module (`crates/viewer/README.md`,
+  Module boundaries; `viewer-module-kinds.sh` enforces it). A home for
+  it needs either a driver-kind test module — a row in the README's
+  driver table, which is a design page — or `index_of` restated over
+  the landed pair rather than the session. `marks.rs`'s own `plate()`
+  indexes through `evaluate`, deliberately, and is not a copy.
+- **Importance**: low. One copy, no oracle.
 - **Instrument**: every `PickIndex::build`, `landed_generation` and
-  `DisplayTolerance::new` in `crates/viewer/src/`, each classified
-  test or production by its line against its file's first
-  `#[cfg(test)]` and the test-side ones read.
+  `DisplayTolerance::new` in `crates/viewer/src/`, classified test or
+  production by its file's first `#[cfg(test)]` and the test-side ones
+  read.
 - **Raised by**: the S-DUP lane closing
-  `viewer-src-test-modules-restate-the-literal-doors`, which named
-  both as "the same shape of gap", 2026-09-26.
+  `viewer-src-test-modules-restate-the-literal-doors`, 2026-09-26;
+  narrowed by its review fix pass the same day.
 
 ## Why this sits on S-DUP's slate
 
