@@ -127,8 +127,11 @@ fn lily_spine() -> NurbsCurve3<f64> {
     NurbsCurve3::<f64>::interpolate(&pts, 3).unwrap()
 }
 
-/// The tour's sweep-cell path: one arc converted through the sketch
-/// door, which is how a user gets a path from a sketch segment.
+/// The tour's sweep-cell path: the arc from (0, 0) to (3, 3) with
+/// bulge 0.4, converted through the sketch door. `bulge_arc` lowers it
+/// through the same `arc_to(Bulge)` lowering the tour's lattice-authored
+/// loop does (`demos/tour/src/skinned.rs`), so it is the tour's
+/// segment bit for bit.
 fn tour_arc_path() -> NurbsCurve3<f64> {
     segment_curve(
         0,

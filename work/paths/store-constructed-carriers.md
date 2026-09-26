@@ -59,10 +59,27 @@ From #3231's review:
   joins `sugar.rs::bulge_from_center`'s tail and `path/verbs.rs`. All
   three go when the kept bulge retires.
 
-**From `geom-brep-sketch-segment-full-turn` (2026-09-25).** Two of the
-seven hand copies are gone. `SketchSegment::eval` reads the segment's
-stored centre and sweep. `skin::segment_curve` reads the stored centre,
-radius and sweep. Both are still `seg::arc_carrier`'s derivation,
-carried across the boundary. `ValidatedSegment::bulge` has no reader
-left in `geom-brep`, `topo` or `sweep`. Its readers are the lift
-(profile), `anchor`, the `stackup` digest and `viewer::flatten`.
+**From `geom-brep-sketch-segment-full-turn` (2026-09-25; corrected in
+its fix pass).** The net count of bulge→carrier copies is **six**, not
+seven minus two.
+- **Two are gone.** `SketchSegment::eval` reads the segment's stored
+  centre and sweep. `skin::segment_curve` reads the stored centre,
+  radius and sweep. Both are still `seg::arc_carrier`'s derivation,
+  carried across the boundary.
+- **One was added.** `geom-brep/tests/shared/arc.rs::lowered_arc`
+  restates `seg::arc_carrier` plus `Δθ = 4·atan b` at `Interval`. The
+  arc-evaluation anchor rows need a carrier derived from a wide chord,
+  and `geom-brep` sits below `profile` in the layering, so it cannot
+  call the lowering.
+- **Beside that copy, not counted.** The same two suites
+  (`arc_eval_anchor.rs::short_arc` and
+  `review_arceval_r1_probes.rs::short_sub_arc`) re-spell the retired
+  restriction's sub-arc bulge `tan(atan b·Δs)` to build a short arc
+  whose centre is derived from its own chord.
+- **Routed through the lowering, not copies.**
+  `sweep::test_support::bulge_arc` forwards to `bulge_loop`. The tour's
+  sweep path authors `arc_to(Bulge)` and reads the canonical segment back.
+
+`ValidatedSegment::bulge` has no reader left in `geom-brep`, `topo` or
+`sweep`. Its readers are the lift (profile), `anchor`, the `stackup`
+digest and `viewer::flatten`.

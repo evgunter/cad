@@ -59,8 +59,9 @@
 
 use pncad::authoring::polygon;
 use pncad::geom_core::linalg::frame::path_start_frame;
-use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec2, Vec3};
-use pncad::prelude::{Open, Start, Via};
+use pncad::geom_core::{Affine3, Mat3, Point2, Point3, Vec3};
+use pncad::prelude::{Bulge, Open, Start, Via};
+use pncad::profile::{ProfileLoop, Segment};
 use pncad::sweep::skin::{Section, loft_geometry, sweep_geometry};
 use pncad::sweep::{SketchSegment, segment_curve};
 use pncad::topo::readback::euler_counts;
@@ -166,22 +167,32 @@ pub fn narration(tol: Tol) {
     );
 
     // ---- The sweep: the same profile carried along an arc path. ----
-    // The arc from a to b turning counterclockwise through θ: its
-    // carrier sits on the chord's perpendicular bisector, (L/2)·cot(θ/2)
-    // along the left normal, at radius (L/2)/sin(θ/2).
+    // The path is the arc from (0, 0) to (3, 3) with bulge 0.4, authored
+    // through the lattice like any other arc and read back as the
+    // canonical segment the lowering stores (its carrier and sweep).
     let (a, b) = (Point2::new(0.0, 0.0), Point2::new(3.0, 3.0));
-    let theta = 4.0 * 0.4f64.atan();
-    let half_chord = a.distance(b) / 2.0;
-    let unit = (b - a) / (2.0 * half_chord);
-    let left = Vec2::new(-unit.y, unit.x);
+    let lp: ProfileLoop<f64> = Open
+        .at(a)
+        .arc_to(Bulge { p: b, b: 0.4 }, tol)
+        .and_then(|t| t.line_to(Start, tol))
+        .expect("the arc-and-chord loop authors")
+        .into();
+    let Segment::Arc {
+        centre,
+        radius,
+        sweep,
+    } = lp.segments()[0]
+    else {
+        unreachable!("a bulge of 0.4 lowers to an arc");
+    };
     let path = segment_curve(
         0,
         SketchSegment::Arc {
             a,
             b,
-            centre: a.lerp(b, 0.5) + left * (half_chord / (theta / 2.0).tan()),
-            radius: half_chord / (theta / 2.0).sin(),
-            sweep: theta,
+            centre,
+            radius,
+            sweep,
         },
         Affine3::identity(),
     )
