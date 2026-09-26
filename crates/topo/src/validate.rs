@@ -2170,32 +2170,53 @@ fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
 fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static str) {
     use geom_brep::OffsetFitError as O;
     use geom_brep::offset_meters::MeterError as M;
+    // Each recourse is the one the fit's own message names for the same
+    // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
+    const DRIFT: &str =
+        "the fitted surface does not stay within the tolerance of the one it stands for";
     match e {
-        O::Meter(M::NormalFloor { .. } | M::CurvatureHeadroom { .. }) => (
-            "the offset folds or degenerates on this face",
-            "Recourse: use a smaller offset distance",
+        O::Meter(M::NormalFloor { .. }) => (
+            "the face's surface normal degenerates, so it has no offset",
+            "Recourse: split the face clear of any pole, cusp or pinch",
+        ),
+        O::Meter(M::CurvatureHeadroom { .. }) => (
+            "the offset folds over itself on this face",
+            "Recourse: use an offset distance of smaller magnitude, or offset to the other side",
         ),
         O::Meter(M::Escalated { source }) => (
-            "whether the offset folds here is too close to call at this tolerance",
+            "whether this face can be offset is too close to call at this tolerance",
             own_close(
                 &source.margin,
-                "Recourse: use a smaller offset distance, or lower the tolerance",
+                if source.predicate == Some("offset_curvature_headroom") {
+                    "Recourse: use an offset distance of smaller magnitude, or lower the tolerance"
+                } else {
+                    "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
+                     tolerance"
+                },
             ),
         ),
-        O::BudgetExhausted { .. }
-        | O::SampleCapReached { .. }
-        | O::BoundNotFinite { .. }
-        | O::RefinementStalled { .. }
-        | O::Limb { .. } => (
-            "the fitted surface does not stay within the tolerance of the one it stands for",
-            "Recourse: loosen the tolerance, or rebuild the offset",
+        O::BudgetExhausted { .. } | O::SampleCapReached { .. } => {
+            (DRIFT, "Recourse: loosen the tolerance, or split the face")
+        }
+        O::RefinementStalled { .. }
+        | O::BoundNotFinite {
+            last_finite: Some(_),
+            ..
+        } => (DRIFT, "Recourse: loosen the tolerance"),
+        O::BoundNotFinite {
+            last_finite: None, ..
+        } => (
+            "the fitted surface's error cannot be bounded at this offset distance",
+            "Recourse: use an offset distance of larger magnitude",
         ),
+        O::Limb { .. } => (DRIFT, "Recourse: re-fit the offset at this tolerance"),
         O::PatchBound(_)
         | O::Fit(_)
         | O::Structure(_)
         | O::InvalidRequest { .. }
         | O::NonFiniteSample { .. }
-        | O::WindowUnsupported { .. } => ("its stored fit is not well-formed", DEFECT),
+        | O::WindowUnsupported { .. }
+        | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
     }
 }
 
