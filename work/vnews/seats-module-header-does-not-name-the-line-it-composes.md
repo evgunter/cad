@@ -58,7 +58,10 @@ The header's sentence is re-stated from the module's public surface
 rather than repaired by addition: the state and its two behaviours
 (pick rule, survival step — `Seats`), and the three sentences about a
 held pick the module composes — the still-empty refusal (`SeatError`),
-the drop notice (`SeatEvent`) and the panel line (`seat_line`), which
-every tool panel shows, the mate tool's included (`picks_line`). The
+the drop notice (`SeatEvent`) and the panel line (`seat_line`) — and
+says where the neighbours' sentences are: the mate panel's line is
+composed by the same function (`picks_line`), the mate tool's notice
+and refusals in `matetool`, and the blend panel's held-picks line in
+its panel. The
 mate-exception paragraph now says what the mate tool DOES share (the
 line) beside what it does not (the state, the rule).

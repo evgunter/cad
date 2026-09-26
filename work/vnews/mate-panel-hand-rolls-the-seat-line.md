@@ -101,14 +101,22 @@ and each held pick as `face of feature N`. The module-doc argument
 that keeps the mate tool off `Seats` is about the STATE and the
 survival rule, and it still stands; `seats`' header now says the line
 is the one thing the two share. The panel body is one call,
-`pane::create::mate_picks_row`, which draws the line in the advisory
-voice every seated panel's line takes (the old panel drew the idle and
-one-pick arms `weak` and only the two-pick arm advisory).
+`pane::create::mate_picks_row`, which draws the line as every seated
+panel's line is drawn, `widgets::message_toned` at `Tone::Advisory`.
+That changes no colour — `app::toned` draws `Advisory` as `weak()`,
+which is what the old arms spelled by hand — only the layout: the line
+now wraps in its region (`widgets::message`) where the old `ui.weak`
+did not.
 
 **The noun is `feature`, through `tree::node_number`**, in the mate
 panel's line and in both drop notices (`SeatEvent::PickLost`,
 `MateToolEvent::PickLost`), so the one-pick and two-pick arms no longer
 disagree and `seats.rs` no longer calls one `RecipeNodeId` two things.
+The two `matetool.rs` refusals that name a picked node
+(`MateToolError::NotAnInstancePick`, `SamePick`) moved with them: the
+mate commit pushes them to the status line while the panel still says
+`face of feature N` about the same pick. The panel item and the mate
+drop notice read one formatter, `matetool::face_of`.
 Checked rather than assumed: every chrome surface that names a node
 by number routes `node_number` (combo entries, the properties heading,
 the delete label, the tree's `see feature N` pointer), whose own doc
@@ -118,4 +126,10 @@ number. `node N` survives in typed refusal prose, which is
 and not this row's — evidence added there.
 
 Pinned by `pane::create::tests::the_mate_panel_says_its_picks_in_the_seated_panels_line`
-against fixed text, driven through `crate::pane::headless`.
+against fixed text, driven through `crate::pane::headless`, and by
+`app::properties_pane_tests::the_mate_panel_shows_its_held_picks`,
+which paints the whole app with the mate tool open and a face pick
+that survives the landed survival step. The notice and the refusals
+are pinned in `tests/mate_tool_flow.rs`
+(`a_vanished_pick_degrades_the_tool_one_step_typed`,
+`a_mate_refusal_names_the_picked_node_as_the_panel_does`).

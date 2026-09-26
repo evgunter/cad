@@ -1743,17 +1743,41 @@ fn the_seat_line_names_the_roles() {
     assert_eq!(seat_line(transform.seats()), "transformed body: feature 7");
 }
 
-/// **A dropped pick is called what the panel called it** — `feature
-/// N`, the word [`tree::node_number`] spells, and not a second noun
-/// for the same held node.
+/// **A dropped pick is called what the panel called it**: the drop
+/// notice names the seat and the pick in the words the seat line said
+/// them in on the frame before — read off [`seat_line`]'s own output,
+/// so a panel and a notice that came to call one held node two things
+/// (`feature 4` beside `node 4`) go red here — and the words are
+/// `feature N`, the ones [`tree::node_number`] spells.
 #[test]
 fn a_lost_picks_notice_names_the_node_as_the_seat_line_does() {
-    let lost = SeatEvent::PickLost {
-        seat: Seat::OperandB,
-        node: RecipeNodeId(4),
-    };
+    let doc = Doc::empty_derived("seat-drop", Tol::witness());
+    let mut boolean = BooleanTool::new();
+    boolean.pick(&doc, RecipeNodeId(3));
+    boolean.pick(&doc, RecipeNodeId(4));
+    let line = seat_line(boolean.seats());
+    let events = boolean.reconcile(&doc);
+    assert_eq!(events.len(), 2, "neither node is in the empty document");
+    for event in &events {
+        let SeatEvent::PickLost { seat, .. } = event;
+        let role = seat.name();
+        let held = line
+            .split("; ")
+            .find_map(|item| item.strip_prefix(&format!("{role}: ")))
+            .unwrap_or_else(|| panic!("the line names the {role} seat: {line:?}"));
+        assert!(
+            event
+                .to_string()
+                .starts_with(&format!("the {role} pick ({held}) ")),
+            "the notice {event} calls the pick what the line {line:?} called it"
+        );
+    }
     assert_eq!(
-        lost.to_string(),
+        SeatEvent::PickLost {
+            seat: Seat::OperandB,
+            node: RecipeNodeId(4),
+        }
+        .to_string(),
         "the second operand pick (feature 4) is no longer in the document; the tool dropped it"
     );
 }

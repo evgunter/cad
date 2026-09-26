@@ -1051,9 +1051,11 @@ by a counted preamble — the test the third consumer failed on, applied
 forwards. One site in `crates/viewer/src` writes those two characters
 between items of its own and is NOT a consumer by it, because it
 reaches no `frame::Message` and nothing counts or introduces its items:
-`seats::picks_line`, the one composition of a tool panel's held-picks
-line, which every seated panel reaches through `seats::seat_line` and
-the mate panel through `MateToolState::line`. Its doc comment carries
+`seats::picks_line`, which composes the seated panels' and the mate
+panel's held-picks line — every seated panel reaches it through
+`seats::seat_line` and the mate panel through `MateToolState::line`;
+the blend panel's held-picks line is drawn in its own panel and lists
+nothing. Its doc comment carries
 the argument, and why the mark earns no constant of its own either.
 **The list is disposed, not swept**, and deliberately. Neither
 available pattern is the property:

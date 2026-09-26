@@ -319,14 +319,14 @@ impl core::fmt::Display for MateToolError {
             ),
             Self::NotAnInstancePick { side, node } => write!(
                 f,
-                "pick {} is on node {}, which is not a part instance or a copy of one",
+                "pick {} is on {}, which is not a part instance or a copy of one",
                 side.name(),
-                node.0
+                crate::tree::node_number(*node)
             ),
             Self::SamePick { head } => write!(
                 f,
-                "both picks name the same member (head: node {}); a mate relates a pair",
-                head.0
+                "both picks name the same member (head: {}); a mate relates a pair",
+                crate::tree::node_number(*head)
             ),
             Self::Frame { side, error } => write!(
                 f,
@@ -381,8 +381,8 @@ pub enum MateToolState {
 impl MateToolState {
     /// **The line the mate panel shows for its held picks** — the
     /// seated tools' line (`seats::picks_line`), with the
-    /// mate's two sides as its roles and each pick said as the face of
-    /// the feature whose body it was taken on.
+    /// mate's two sides as its roles and each pick said as `face_of`
+    /// says it, the drop notice's phrase.
     ///
     /// The tool's state is not [`crate::seats::Seats`] (module docs:
     /// neither the state nor the survival rule is shared), but the
@@ -394,13 +394,24 @@ impl MateToolState {
             Self::One(a) => (Some(a), None),
             Self::Two { a, b } => (Some(a), Some(b)),
         };
-        crate::seats::picks_line([(MateSide::A, a), (MateSide::B, b)].map(|(side, pick)| {
-            (
-                format!("pick {}", side.name()),
-                pick.map(|pick| format!("face of {}", crate::tree::node_number(pick.node))),
-            )
-        }))
+        crate::seats::picks_line(
+            [(MateSide::A, a), (MateSide::B, b)]
+                .map(|(side, pick)| (format!("pick {}", side.name()), pick.map(face_of))),
+        )
     }
+}
+
+/// **What this tool calls a held pick**: `face of feature 3` — the
+/// face of the feature whose body the pick was taken on, the node
+/// spelled [`crate::tree::node_number`]'s way.
+///
+/// The panel item ([`MateToolState::line`]) and the drop notice
+/// ([`MateToolEvent`]) both say it, about the same pick on the same
+/// frame, so they read it here rather than each spelling it: two
+/// copies of one phrase is how a panel and its notice come to call
+/// one pick two things.
+fn face_of(pick: &FaceSelection) -> String {
+    format!("face of {}", crate::tree::node_number(pick.node))
 }
 
 /// A typed tool event the chrome renders — every state change that
@@ -427,9 +438,9 @@ impl core::fmt::Display for MateToolEvent {
         match self {
             Self::PickLost { side, pick, .. } => write!(
                 f,
-                "pick {} (a face of {}) no longer resolves; the tool dropped it",
+                "pick {} (a {}) no longer resolves; the tool dropped it",
                 side.name(),
-                crate::tree::node_number(pick.node)
+                face_of(pick)
             ),
         }
     }

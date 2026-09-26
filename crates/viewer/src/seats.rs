@@ -1,9 +1,11 @@
 //! **Role-typed pick seats**: the state every modal tool that consumes
 //! node picks is built out of — its pick rule and survival step — and
-//! the one place a sentence about a held pick is composed: the
-//! still-empty refusal ([`SeatError`]), the drop notice
-//! ([`SeatEvent`]) and the panel line ([`seat_line`]), which every
-//! tool panel shows, the mate tool's included (`picks_line`).
+//! the sentences a seated tool says about a held pick: the still-empty
+//! refusal ([`SeatError`]), the drop notice ([`SeatEvent`]) and the
+//! panel line ([`seat_line`]). The mate tool's panel line is composed
+//! by the same function (`picks_line`); its drop notice and refusals
+//! are its own (`crate::matetool`), and the blend tool's held-picks
+//! line is drawn in its panel (`crate::pane`), not here.
 //!
 //! # Why one value and not one per tool
 //!
@@ -237,9 +239,16 @@ impl core::fmt::Display for SeatEvent {
 /// picks but not what they were for could not compose that sentence.
 ///
 /// A one-seat tool is this value with its second role unused — see
-/// [`Seats::one`], which names the same seat twice so that the pick
-/// rule ("fill the first empty, else replace the last") degenerates to
-/// "replace", with no arm anywhere that has to know the arity.
+/// [`Seats::one`], which names the same seat twice. The arity is read
+/// off the roles in one place (`arity`), and what reads it is
+/// [`Seats::pick`] (a one-seat tool REPLACES its pick rather than
+/// filling a second slot) and every walk over the seats — the panel
+/// line, [`Seats::is_empty`], [`Seats::reconcile`] — which goes one
+/// entry per SEAT rather than per slot.
+///
+/// So the second slot of a one-seat value is never set (only `pick`
+/// writes a slot, and on that value it writes the first), and nothing
+/// reads it either: an invariant held twice rather than relied on.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Seats {
     roles: [Seat; 2],
@@ -269,7 +278,7 @@ impl Seats {
 
     /// Whether any seat holds a pick.
     pub fn is_empty(&self) -> bool {
-        self.held.iter().all(Option::is_none)
+        self.each().all(|(_, held)| held.is_none())
     }
 
     /// **How many seats this value has**: one when its role names
@@ -344,11 +353,11 @@ impl Seats {
     /// typed drops.
     pub fn reconcile(&mut self, doc: &Doc<ProfileProgram>) -> Vec<SeatEvent> {
         let mut events = Vec::new();
-        for (i, held) in self.held.iter_mut().enumerate() {
-            if let Some(node) = *held
+        for i in 0..self.arity() {
+            if let Some(node) = self.held[i]
                 && doc.node(node).is_none()
             {
-                *held = None;
+                self.held[i] = None;
                 events.push(SeatEvent::PickLost {
                     seat: self.roles[i],
                     node,
@@ -378,6 +387,11 @@ impl Seats {
 /// Takes the value that owns the roles rather than a list of them: a
 /// panel that re-listed its tool's roles could name them in another
 /// order, or name ones the tool no longer has, and still compile.
+///
+/// Each item is said in the words a seat's drop notice uses
+/// ([`SeatEvent`]): the role by [`Seat::name`] and the pick by
+/// [`crate::tree::node_number`], so the panel and the notice about
+/// the same pick call it one thing.
 pub fn seat_line(seats: &Seats) -> String {
     picks_line(
         seats
@@ -386,16 +400,14 @@ pub fn seat_line(seats: &Seats) -> String {
     )
 }
 
-/// **The one composition of a panel's held-picks line**: `no picks
-/// yet` while nothing is held, else one `role: pick` item per seat,
-/// `—` for an open one, joined on `"; "`. [`seat_line`] reaches it for
-/// the seated tools and [`crate::matetool::MateToolState::line`] for
-/// the mate tool, whose picks are faces and whose state is not
-/// [`Seats`] (module docs) but whose line has this shape.
-///
-/// Composed here rather than in the widgets because it is the same
-/// vocabulary a lost-pick notice is composed from, and two copies is
-/// how the two drift.
+/// **The composition of the seated tools' and the mate tool's
+/// held-picks line**: `no picks yet` while nothing is held, else one
+/// `role: pick` item per seat, `—` for an open one, joined on `"; "`.
+/// [`seat_line`] reaches it for the seated tools and
+/// [`crate::matetool::MateToolState::line`] for the mate tool, whose
+/// picks are faces and whose state is not [`Seats`] (module docs) but
+/// whose line has this shape. Each caller spells its own items; the
+/// shape, the empty sentence and the mark are this function's.
 ///
 /// **The mark is a literal, and this function is its only spelling.**
 /// It is deliberately not [`crate::frame::LIST_SEPARATOR`], which it
@@ -408,8 +420,7 @@ pub fn seat_line(seats: &Seats) -> String {
 /// edits (`crates/viewer/README.md`, "The third consumer was the
 /// second level misread"). Nor does the mark earn a constant of its
 /// own: nothing splits a panel line back into its items, so there is
-/// no hold for a name to carry, and every line of this shape is
-/// joined here.
+/// no hold for a name to carry.
 pub(crate) fn picks_line<R: core::fmt::Display>(
     picks: impl IntoIterator<Item = (R, Option<String>)>,
 ) -> String {

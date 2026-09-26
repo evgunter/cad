@@ -3211,6 +3211,99 @@ mod properties_pane_tests {
         texts
     }
 
+    /// Every text the app painted once the startup document has
+    /// LANDED, with `tool` open and `picks` fed to it as the frame
+    /// feeds a click's selection (`Tools::feed`, then the batch).
+    ///
+    /// Landed first, because the survival step (`sync_scene`'s
+    /// `Tools::reconcile`) only asks a face pick whether it resolves
+    /// once there is a landed pair to ask — a panel read before that
+    /// would show picks the next frame might drop.
+    fn painted_with_tool(
+        tool: crate::tools::ToolKind,
+        picks: impl FnOnce(RecipeNodeId) -> Vec<Selection>,
+    ) -> (RecipeNodeId, Vec<String>) {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut paint = |app: &mut ViewerApp| -> Vec<String> {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 1000.0),
+                )),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                eframe::App::ui(app, ui, &mut frame);
+            });
+            output.textures_delta.clear();
+            crate::pane::headless::landed_in(&output.shapes)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect()
+        };
+        // The startup document's last node is its body (`plate_with_hole`).
+        let body = *app.session.doc().order().last().expect("a startup body");
+        app.tools.open(tool);
+        let ops: Vec<SessionOp> = picks(body).into_iter().map(SessionOp::Select).collect();
+        let declined = app.tools.feed(app.session.doc(), &ops);
+        assert!(declined.is_empty(), "{declined:?}");
+        app.perform_batch(ops);
+        for _ in 0..3000 {
+            paint(&mut app);
+            if app.session.landed_pair().is_some() {
+                break;
+            }
+            std::thread::sleep(std::time::Duration::from_millis(10));
+        }
+        assert!(
+            app.session.landed_pair().is_some(),
+            "the startup document lands"
+        );
+        paint(&mut app);
+        (body, paint(&mut app))
+    }
+
+    /// **A seated tool's panel, painted by the app**: the held pick's
+    /// line, in the tool's role order, reaching the Properties pane
+    /// through the whole frame — survival step included.
+    #[test]
+    fn a_seated_tool_panel_shows_its_held_picks() {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
+            vec![Selection::Node(body)]
+        });
+        let line = format!(
+            "first operand: {}; second operand: —",
+            crate::tree::node_number(body)
+        );
+        assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
+    /// **The mate panel, painted by the app**: a face pick on the
+    /// startup body survives the landed survival step and is said the
+    /// way the seated panels say a pick.
+    #[test]
+    fn the_mate_panel_shows_its_held_picks() {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
+            vec![Selection::Face(crate::session::FaceSelection {
+                name: pncad::prelude::StableName {
+                    kind: pncad::prelude::EntityKind::Face,
+                    node: body,
+                    path: vec![pncad::prelude::RoleSeg::Cap(pncad::prelude::CapEnd::End)],
+                },
+                node: body,
+                body: 0,
+            })]
+        });
+        let line = format!(
+            "pick a: face of {}; pick b: —",
+            crate::tree::node_number(body)
+        );
+        assert!(painted.contains(&line), "{line:?} in {painted:?}");
+    }
+
     /// **A deleted node is called deleted, and nothing claims it
     /// carries no parameters** — it carries nothing because it is not
     /// there, which the `live()` gate on that line keeps unsaid.
