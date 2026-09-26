@@ -620,3 +620,63 @@ decision-changing answer to Ev, since rule G is Ev's ruling on #2970.
 
 Spec `docs/DECIDE-7-SPEC.md`. Branch `decide/7-rule-g-cost` from
 `props/sign-hull` at `a7dd5c520`.
+
+## 2026-09-26 — DECIDE-7 merged into `props/sign-hull` (#3246): rule G's cost was the repeated reduction, now memoised
+
+**Where the time was.** Rule G's own mint site is 0.35% of what it
+costs. The rest is the per-node rule A/B reduction over the larger
+forms rule G leaves: 45 s of the pad's 57 s re-reduces inputs the
+session had already reduced, mostly the door walk redoing the early
+walk.
+
+**What ships.** `reduce_per_node` memoises that reduction per session,
+keyed on the form, the rules and the ring bound. It is exact by
+construction: an entry keeps the atom ids its reduction missed. No form
+moved.
+- The pad's release leaf goes 74.18 → 28.30 s.
+- The link's goes 8.56 → 4.78 s.
+- `m10_10_pins` in dev goes 339 → 174 s.
+
+`rule-g-is-the-link-and-pads-leaf-cost` closes. What rule G still costs
+on the pad is 17.8 s, and 10.6 s of it is filed on SYM's slate (P3,
+`the-substituted-numerator-is-built-before-the-quotients-pre-bound-refuses-it`).
+The magnitude-door reading is filed at P3
+(`rule-gs-magnitude-door-never-asks-rule-c`).
+
+**Review.** Single FULL review on `5ad40726b`: APPROVE-WITH-FIXES,
+0 MAJOR / 2 MINOR / 6 NOTE. The two MINORs:
+- no row guarded the whole-form compare;
+- the memo had no cap, and peak memory rose 11–29%.
+
+The fix pass A–K is at `0c20aef42`. It brought peak memory back within
+1–5% of the base, and replaced the memo's reliance on mint-before-reference
+with an absent-id check.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 336k | 229 min |
+| implementer, fix pass | 427k | 181 min |
+| reviewer | 270k | 73 min |
+
+## 2026-09-26 — DECIDE-8 spec'd: the apothem's sign; the review tier is set by Phase 1
+
+Both P1 rows are still gated (ROUND's Fillet centre; E6). Of the three P2
+rows, `the-apothems-sign-is-a-value-read` is the one where a measured
+document loses decisions: six on the parameter bulge documents.
+- `the-exact-quotient-re-keys-a-root-the-split-met` moves no measured
+  document, and its remedy is a multivariate factorisation.
+- `rule-g-trades-sixteen-of-the-links-carrier-on-surface-2`'s residue
+  after DECIDE-5 is the coefficient ring's width and the term budget.
+
+**Review tier: set by Phase 1.**
+- If the sign is decided upstream and the sweep states it as route B
+  states the turn: a single FULL review, as DECIDE-5 had.
+- If only a new read on the box reaches the six: the unit stops. Two
+  designers weigh the fork (`docs/prompts/designer.md`), and it goes
+  to Ev as an `[ev]` PR, since whether the tier answers on the box
+  there is Ev's call (#3186 rejected rule C's dial as it stands).
+
+Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
+`props/sign-hull` at DECIDE-7's merge.
