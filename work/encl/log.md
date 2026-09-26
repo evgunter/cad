@@ -469,3 +469,20 @@ P3/D.
 
 **Wave 1 and 2 are done**: 3272, 3275, 3269, 3270 and 3274 are all
 merged. In flight: wave 3 (`encl/offset-fit-loop-faces`).
+
+## Wave 4 planned (2026-09-26)
+
+(ENCL orchestrator) Parked on PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites`
+(the convex insertion form):
+- `patch-bound-offset-fit-recentring-origins`. The tight-ε lane measured
+  that the width is multiplied inside the decomposition, before any
+  per-cell centre acts, so recentring is not the lever while the lerp
+  form stands. Measure after.
+- `one-pass-refinement-...`. Its widening tail is the same arithmetic,
+  one level up, so it is measured after too.
+
+Dispatched as wave 4:
+- `a-third-spelling-of-cut-every-span-into-splits-pieces`, with
+  `refine-chain-hands-back-a-pair-its-only-caller-re-borrows` riding
+  (the same helpers).
+- `must-carry-over-edge-reads-a-transverse-edge-as-under-determined`.
