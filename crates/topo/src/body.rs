@@ -1243,8 +1243,8 @@ impl<T: Real> Body<T> {
 
     /// The edges meeting `vertex`, each ONCE — or `None` where the
     /// vertex key is stale or its orbit does not walk
-    /// ([`Body::vertex_orbit`]'s `None`). A foreign key is not caught
-    /// (see the [module docs](self)).
+    /// ([`Body::vertex_orbit`]'s `None`). A foreign key on a live slot
+    /// [answers another vertex's edges](self#key-validity-stale-vs-foreign).
     ///
     /// **The order is the orbit's, and it is part of the answer**: the
     /// walk starts at the vertex's stored [`Vertex::emanating`] and goes
