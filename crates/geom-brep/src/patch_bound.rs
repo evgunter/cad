@@ -122,23 +122,45 @@ pub const RATIONAL_CERT_SPLITS: usize = 16;
 /// carries the prose its consumers print, so a lifted consumer's
 /// message is this module's message.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+// The variant roster `topo`'s sample list iterates (this crate's
+// `test-support` feature, test builds only): fieldless, so the enum is
+// its own discriminant.
+#[cfg_attr(feature = "test-support", derive(strum::EnumIter))]
 pub enum PatchBoundError {
-    /// A degree-0 direction — a degenerate patch description.
+    /// A degree-0 direction — a degenerate patch description: a
+    /// degree-0 locus is a step function rather than a surface
+    /// direction, and the form is a designed absence.
     DegreeZero,
-    /// A degree-1 direction carrying interior knots: a C⁰ crease.
+    /// A degree-1 direction carrying interior knots: a C⁰ crease. The
+    /// interpolation Taylor bound needs C¹.
     Degree1Crease,
     /// A direction whose interior multiplicity equals its degree: a
-    /// C⁰ crease.
+    /// C⁰ crease. The interpolation Taylor bound needs C¹.
     Crease,
     /// A rational description with a non-positive or non-finite
-    /// weight — the convex-combination licence never held.
+    /// weight — the convex-combination licence every hull fact rests
+    /// on never held. Supplying strictly positive weights lets the face
+    /// certify through the rational arm; the door that mints a NURBS
+    /// surface refuses these already, so a face reaching this bound
+    /// carrying one is also a finding.
     NonPositiveWeight,
-    /// The same, discovered after the fixed rational refinement.
+    /// The same, discovered after the fixed rational refinement: the
+    /// refined weight ENCLOSURE reaches zero. Positivity survives knot
+    /// insertion in ℝ, and the refinement's two barycentric ratios are
+    /// both non-negative, so no weight RATIO can reach this; what does
+    /// is a weight so small that its product with a ratio UNDERFLOWS to
+    /// zero, which needs a subnormal near the bottom of the `f64` range.
     RefinedWeightLostPositivity,
-    /// The fixed rational refinement failed to materialise.
+    /// The fixed rational refinement failed to materialise. Outside
+    /// the certified inventory: the fixed schedule inserts knots into a
+    /// direction that already passed the C¹ gate, and insertion into a
+    /// valid clamped vector is total, so the description that reached
+    /// this is reported rather than repaired.
     RefinementFailed,
     /// A direction whose once-differenced knot vector failed to
-    /// materialise.
+    /// materialise. Outside the certified inventory: a direction that
+    /// passed the C¹ gate has a valid once-differenced vector, so the
+    /// description that reached this is reported rather than repaired.
     DerivedKnots,
 }
 
@@ -148,49 +170,32 @@ impl PatchBoundError {
     pub fn note(self) -> &'static str {
         match self {
             Self::DegreeZero => {
-                "degree-0 NURBS direction (a degenerate face description) — a degree-0 \
-                 locus is a step function rather than a surface direction, and the form \
-                 is a designed absence: describe the direction at degree 1 or above"
+                "NURBS face of degree 0 in one direction, which is a step rather than a \
+                 surface: describe that direction at degree 1 or above"
             }
             Self::Degree1Crease => {
-                "degree-1 NURBS direction with interior knots (a C⁰ crease) — \
-                 the interpolation Taylor bound needs C¹; split the face at \
+                "NURBS face of degree 1 with a sharp crease inside it: split the face at \
                  the crease"
             }
             Self::Crease => {
-                "NURBS direction with a C⁰ crease (interior multiplicity = \
-                 degree) — the interpolation Taylor bound needs C¹; split \
-                 the face at the crease"
+                "NURBS face with a sharp crease inside it: split the face at the crease"
             }
             Self::NonPositiveWeight => {
-                "rational NURBS face with a non-positive or non-finite weight — an \
-                 illegal rational description: the convex-combination licence every \
-                 hull fact rests on requires strictly positive weights, so supply them \
-                 and the face certifies through the rational arm. The door that mints a \
-                 NURBS surface refuses these already, so a face that reaches this bound \
-                 carrying one is worth reporting too"
+                "rational NURBS face with a non-positive or non-finite weight, which \
+                 describes no valid surface: supply strictly positive, finite weights"
             }
             Self::RefinedWeightLostPositivity => {
-                "rational NURBS face whose refined weight ENCLOSURE reaches zero — outside \
-                 the certified inventory: positivity survives knot insertion in ℝ, and the \
-                 refinement's two barycentric ratios are both non-negative, so no weight \
-                 RATIO can reach this; what does is a weight so small that its product with \
-                 a ratio UNDERFLOWS to zero, which needs a subnormal near the bottom of the \
-                 f64 range. Describe the face at a weight scale f64 can hold — scaling \
-                 every weight by one constant describes the same surface — or report the \
-                 description"
+                "rational NURBS face whose weights are too small to refine without one \
+                 rounding to zero: describe the face with every weight scaled up by one \
+                 constant, which is the same surface"
             }
             Self::RefinementFailed => {
-                "NURBS face whose refinement fails to materialise — outside the certified \
-                 inventory: the fixed schedule inserts knots into a direction that already \
-                 passed the C¹ gate, and insertion into a valid clamped vector is total, \
-                 so report the description that reached this rather than repairing one"
+                "NURBS face that could not be subdivided for bounding, which a valid face \
+                 always allows: report the face's description"
             }
             Self::DerivedKnots => {
-                "NURBS direction whose derivative knot vector fails to materialise — \
-                 outside the certified inventory: a direction that passed the C¹ gate has \
-                 a valid once-differenced vector, so report the description that reached \
-                 this rather than repairing one"
+                "NURBS face whose derivative could not be formed, which a valid face always \
+                 allows: report the face's description"
             }
         }
     }

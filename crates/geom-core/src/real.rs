@@ -1327,12 +1327,15 @@ pub mod bounds_allowlist {
     //! verbs**, the certified at-rest validator and the one verb that
     //! validates what it built. Tier 3's battery is nine checks, eight of
     //! which any deciding scalar answers and one of which — the +V global
-    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE. The
-    //! battery is therefore two functions, `validate_geometric_structural`
-    //! at `T: Decide + Bounds + AtRestPolicy` and a private certified half at
+    //! orientation invariant — READS A CERTIFIED VOLUME ENCLOSURE when it
+    //! is made through the certified quadrature. The entry is therefore
+    //! two private functions, a structural phase at
+    //! `T: Decide + Bounds + AtRestPolicy` and a certified half at
     //! `Decide + `[`CertifiedBounds`](super::CertifiedBounds), and the public entry is their
     //! composition, so its bound is the union and IS the compound one this
-    //! file ratifies. `shell`/`shell_open` take the same bound because their
+    //! file ratifies. Its twin `validate_geometric_structural`, at the
+    //! structural phase's bound, holds no certified lane and makes the
+    //! orientation check through the closed form. `shell`/`shell_open` take the same bound because their
     //! last act is that entry.
     //!
     //! **What it owes "brackets never decide", stated at the substance and
@@ -1374,8 +1377,8 @@ pub mod bounds_allowlist {
     //! none of this gate's, invisible to every instrument. What changed is
     //! the mechanism, not the strictness: the refusal is retired and the
     //! call a dual cannot honour is unwritable instead. A dual keeps the
-    //! structural half, which is where every certificate its bit-identity
-    //! rows compare is produced.
+    //! `_structural` twin, which holds no certified lane and is where every
+    //! certificate its bit-identity rows compare is produced.
     //!
     //! **What a future row owes instead of citing this one.** Two negative
     //! results carried its first draft and neither reaches the question: that
@@ -1438,6 +1441,8 @@ pub mod bounds_allowlist {
 ///   brackets they store never leave the door.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
+/// - [`crate::Sym`] — delegates to its numeric channel, so it refuses
+///   exactly where the scalar it wraps does.
 ///
 /// Every one of them therefore honours one postcondition, which is what
 /// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never

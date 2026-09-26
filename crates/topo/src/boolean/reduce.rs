@@ -1059,11 +1059,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// root lane in this tree), a SPHERE face, and a trim the chart door
 /// declines to express.
 ///
-/// **What a successful pierce reaches next is a typed door, not a
-/// body**: a ring minted in a face has no join arm on any carrier
-/// (#1291), so a wall pierce lands on
-/// `SplitJoinError::SectionArcWindow{NoChartedRun}` exactly as the
-/// planar cap pierce lands on `SectionLoopMixed`.
+/// **What a successful wall pierce reaches next is a typed door, not
+/// a body**: a ring minted in a cylinder face has no join arm (#1291),
+/// so it lands on `SplitJoinError::SectionArcWindow{NoChartedRun}`. A
+/// planar cap pierce joins.
 ///
 /// **This lane WIDENS what an undeclared pair reaches, and the widening
 /// is named here rather than left to be discovered.** Before it,
