@@ -3237,16 +3237,16 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 9. **Ring versus outer loop** — disjointness and nesting
 ///    ([`ValidationError::RingMeetsOuter`] and its siblings).
 /// 10. **Shell winding, PER SOLID** (solids with more than one shell,
-///    behind a clean check 7): the solid's shells bound winding number
-///    0 or 1 everywhere — an `Outer` shell adds `+1` inside itself, a
-///    `Void` `-1` inside its cavity — decided at one vertex of each
-///    shell from the other shells' point-in-solid answers
-///    ([`ValidationError::ShellWinding`]). Several disjoint `Outer`
-///    shells, an island inside a cavity, and an ordinary cavity all
-///    pass; a `Void` outside every `Outer`, an `Outer` inside another
-///    with no `Void` between, and a `Void` inside a `Void` refuse.
-///    Silent where the walk or a shell's sign cannot answer (the list
-///    below).
+///     behind a clean check 7): the solid's shells bound winding number
+///     0 or 1 everywhere — an `Outer` shell adds `+1` inside itself, a
+///     `Void` `-1` inside its cavity — decided at one vertex of each
+///     shell from the other shells' point-in-solid answers
+///     ([`ValidationError::ShellWinding`]). Several disjoint `Outer`
+///     shells, an island inside a cavity, and an ordinary cavity all
+///     pass; a `Void` outside every `Outer`, an `Outer` inside another
+///     with no `Void` between, and a `Void` inside a `Void` refuse.
+///     Silent where the walk or a shell's sign cannot answer (the list
+///     below).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
