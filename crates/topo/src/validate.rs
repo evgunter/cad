@@ -2195,17 +2195,20 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
                 },
             ),
         ),
-        O::BudgetExhausted { .. } | O::SampleCapReached { .. } => {
+        O::BudgetExhausted {
+            last_round: geom_brep::LastRound::Improved,
+            ..
+        }
+        | O::SampleCapReached { .. } => {
             (DRIFT, "Recourse: loosen the tolerance, or split the face")
         }
-        O::RefinementStalled { .. }
-        | O::BoundNotFinite {
-            last_finite: Some(_),
+        O::BudgetExhausted {
+            last_round: geom_brep::LastRound::DidNotImprove,
             ..
-        } => (DRIFT, "Recourse: loosen the tolerance"),
-        O::BoundNotFinite {
-            last_finite: None, ..
-        } => (
+        }
+        | O::RefinementStalled { .. }
+        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, "Recourse: loosen the tolerance"),
+        O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
         ),
