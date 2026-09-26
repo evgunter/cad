@@ -421,7 +421,7 @@ pub fn gallery_ring_at(tol: Tol) -> String {
 
 use pncad::document::{BooleanValue, NodeResult};
 use pncad::prelude::ValuePayload;
-use viewer::session::{DocSession, SessionOp};
+use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 /// Add the world xy frame through the session, answering its id — the
 /// pick every `SessionOp::AddProfile` below hands over.
@@ -755,11 +755,7 @@ pub fn up_at(x: f64, y: f64) -> Ray {
 ///
 /// If the pick refuses or the ray meets no face: a row aims its ray at
 /// a face it means to pick.
-pub fn face_at(
-    session: &DocSession,
-    index: &PickIndex,
-    ray: &Ray,
-) -> viewer::session::FaceSelection {
+pub fn face_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> FaceSelection {
     let (_, eval) = session.landed_pair().expect("landed");
     index
         .face_at_for(eval, ray, &session.display_view())

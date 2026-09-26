@@ -27,7 +27,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
-use viewer::session::{DocSession, SessionOp};
+use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 use super::{edit_into, insert_into, len};
 
@@ -306,20 +306,14 @@ pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
 
 /// [`super::face_at`] through a fresh [`index_of`] — one pick, when a
 /// row has no index of its own to reuse.
-pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> viewer::session::FaceSelection {
+pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> FaceSelection {
     super::face_at(session, &index_of(session), ray)
 }
 
 /// **The two picks the seat mate starts from**: post_b's top cap from
 /// above, then the shelf's underside from below, each at its face's
 /// middle and each checked to land on the instance it aims at.
-pub fn seat_picks(
-    session: &DocSession,
-    bench: &Bench,
-) -> (
-    viewer::session::FaceSelection,
-    viewer::session::FaceSelection,
-) {
+pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSelection) {
     let post_top = pick_face(
         session,
         &down_at(
