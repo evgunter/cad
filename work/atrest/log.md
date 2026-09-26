@@ -829,3 +829,31 @@ tube escalates on 88% of probes), CONTACT having no orchestrator
 either; an `[ev]`-shaped row on EXCH (import's per-instance gate reads
 every assembly face twice now that check 7 is per solid, and retiring
 it changes DESIGN import step 4's text).
+
+## 2026-09-26 — from CONTACT-4: `contfp` is off `LoopShape`; check 9 is its only consumer
+
+Posted by the CONTACT-4 lane (branch `contact/4-contfp-carriers`) for
+ATREST. `boolean::contain::contfp` now reads its outer loop and rings
+through `splitting::containment::point_in_carrier_loop` and does not
+ask `loop_shape`. `LoopShape`, `loop_shape`, `LoopCircle` and
+`disc_side` stay in `boolean/contain.rs`, unchanged in behaviour. Their
+only consumer is check 9's nesting arm, which ATREST-12 moves onto the
+walk. When it does, they have no caller left and ATREST retires them.
+`validate.rs` is not touched.
+
+**Two edits on ATREST's side of the seam, both in the walk you built:**
+- The walk's boundary pre-pass no longer reads an arc through the
+  cosine window. It reads a new shared `splitting::containment::arc_trim`
+  (distance to either end, then a chordal-defect sum), because the
+  window's endpoint zone is compressed by `sin(w/2)`.
+  `ConicArc::in_window` still serves the ray's crossing count, where a
+  `Zero` only abandons a ray. `contain::point_on_arc` reads the same
+  `arc_trim`. That retires `point-on-arc-endpoint-zone-compresses-by-sin-half-width`
+  for both doors.
+- `ContainError::ArcLoopUnsupported` keeps its name but now means "an
+  edge the walk cannot cross (spiric/spline), within its reach".
+  `validate.rs`'s `classify_contain` still renders the old sentence.
+  Filed on your slate as
+  `check-9-and-classify-contain-describe-contfps-retired-polygon-walk`.
+
+Signed: (CONTACT-4 lane)

@@ -463,8 +463,8 @@ the table.
 
   An outer loop that is ONE circle — `loop_shape`'s `Disc` class, the
   annular rim of every shelled vessel of revolution — is decided too,
-  by `boolean::contain::disc_side`, the exact radial decide `contfp`
-  uses on that class.
+  by `boolean::contain::disc_side`, an exact radial decide on that
+  class.
 
   **What the nesting half does NOT match, in the same shape**: any face
   on a non-planar surface, and any planar face whose outer loop bears
@@ -477,8 +477,9 @@ the table.
   loop the classifier could not read, because this arm REFUSES a body
   on an `Out` and answering from a polygon that is not the region would
   refuse valid ones — measured, on a bored D-rod's transverse cap.
-  `contfp` takes the opposite posture on `ArcParity` because one
-  point's classification is not a refusal. Filed:
+  `contfp` answers both classes, reading each edge on its own carrier
+  (`splitting::containment::point_in_carrier_loop`); this arm has not
+  taken that walk up. Filed:
   `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`.
   And inside the gate: the nesting arm places a whole ring from one
   vertex on the premise that the two loops do not cross, which the

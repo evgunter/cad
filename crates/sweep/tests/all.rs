@@ -188,6 +188,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contfp_reads_arcs_on_their_carriers.rs"]
+mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]

@@ -735,23 +735,17 @@ pub enum BooleanError {
         /// The edge.
         edge: EdgeKey,
     },
-    /// **Point-in-face on an arc-bearing loop the polygon walk cannot
-    /// express.** The ray-parity walk's contract is a planar POLYGON
-    /// through a loop's vertices (line carriers — the F5 regime); an
-    /// arc-bearing loop with fewer than three vertices gives it a
-    /// segment of ZERO AREA, so every interior point of the region
-    /// reads `Out` and the operands read as disjoint. Measured wrong at
-    /// exactly that shape — a half-disc cap, a half-cylinder cap, a
-    /// lens cap (two arcs of two different circles) — so the walk is
-    /// not called there. A loop of arcs of ONE circle is the disc class
-    /// and answers exactly; arc loops with three or more vertices keep
-    /// the polygon walk, measured correct at the shapes reviewed (a
-    /// slot, a rounded rectangle) and unproven in general. Both
-    /// remainders are issue #1076's.
+    /// **Point-in-face on a loop no walk expresses at the point.** The
+    /// in-plane walk reads each edge on its own carrier — a line as its
+    /// chord, a circle or ellipse arc on its conic — and has no crossing
+    /// row for a spiric or spline edge. A point definitely clear of the
+    /// loop's reach is answered `Out`; one within it, where a crossing of
+    /// that edge could change the answer, is refused here rather than
+    /// guessed.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop with no walk.
+        /// The loop no walk expresses at the point.
         r#loop: crate::entity::LoopKey,
     },
     /// An operand already carries null scaffolding (mid-surgery body).
@@ -1528,9 +1522,9 @@ impl core::fmt::Display for BooleanError {
             Self::ArcLoopContainmentUnsupported { .. } => write!(
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
-                 mixes arcs with fewer than three corners (a half-disc or a lens, say), \
-                 so it refuses rather than guess. Recourse: split an arc so the outline \
-                 has at least three corners, or make it a whole circle"
+                 has a spiric or spline edge near the point it asked about, so it \
+                 refuses rather than guess. Recourse: model the outline with lines, \
+                 circles or ellipses"
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,

@@ -186,18 +186,17 @@ fn r1_square_hole_plate_unioned_with_a_boss() {
 // ---------------------------------------------------------------
 
 /// **Half-disc** — one semicircular arc plus one straight chord, TWO
-/// vertices, so `point_in_loop`'s polygon through them is the chord: a
-/// segment of zero area, exactly the cap's defect.
+/// vertices, so the polygon through them is the chord: a segment of
+/// zero area, and not the cap's region.
 ///
 /// **Both bulge senses are run against the SAME box, and that is the
 /// whole design of the row**: exactly one of the two half-discs
 /// contains the box, and neither the author nor the reader has to know
-/// which. Before the loop-shape gate BOTH answered "disjoint" — the
-/// wrong answer, demonstrated without disambiguating the sense. After
-/// it the two senses must DIFFER: the containing one has no walk for
-/// its cap and refuses typed, the other is honestly disjoint and its
-/// volume is the disjoint answer. A regression puts them back in
-/// agreement, which is what this asserts.
+/// which. Answered from the vertex polygon, BOTH read "disjoint" — the
+/// wrong answer, demonstrated without disambiguating the sense. Read on
+/// its carriers, each sense answers its own truth: the containing one
+/// buries the box's lower half, the other is honestly disjoint. Both
+/// answering the same number is the silent wrong body.
 #[test]
 fn r1_a_box_through_a_half_disc_cap() {
     let tol = Tol::witness();
@@ -205,40 +204,26 @@ fn r1_a_box_through_a_half_disc_cap() {
     let hd = PI * 0.5 * 2.0;
     let disjoint_answer = hd + 0.3 * 0.3 * 2.0;
     let buried_truth = hd + 0.3 * 0.3 * 1.0;
-    let mut refused = 0;
-    let mut bodies = 0;
+    let mut volumes = Vec::new();
     for bulge in [1.0, -1.0] {
         // bulge = tan(theta/4); a semicircle is theta = pi -> |1|.
         let half = bulge_loop(vec![pv(-1.0, 0.0, bulge), pv(1.0, 0.0, 0.0)]);
         let a = body_of(vec![half], 0.0, 2.0);
-        match topo::union(&a, &b, tol) {
-            Err(e) => {
-                assert!(
-                    matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-                    "bulge={bulge}: the half-disc cap has no walk; got {e:?}"
-                );
-                refused += 1;
-            }
-            Ok(topo::BooleanResult::Body(out)) => {
-                let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-                println!("R1[half-disc-cap bulge={bulge}] BODY volume={v}");
-                assert!(
-                    (v - disjoint_answer).abs() < 1e-9,
-                    "bulge={bulge}: the non-containing sense is honestly disjoint \
-                     ({disjoint_answer}); got {v}"
-                );
-                bodies += 1;
-            }
-            Ok(other) => panic!("bulge={bulge}: unexpected {other:?}"),
-        }
+        let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol)
+            .unwrap_or_else(|e| panic!("bulge={bulge}: the half-disc cap is walked; got {e:?}"))
+        else {
+            panic!("bulge={bulge}: a union of two solids is a body");
+        };
+        let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+        println!("R1[half-disc-cap bulge={bulge}] BODY volume={v}");
+        volumes.push(v);
     }
-    assert_eq!(
-        (refused, bodies),
-        (1, 1),
-        "exactly one sense contains the box: it must refuse, and the other \
-         must answer disjoint. Both answering {disjoint_answer} is the silent \
-         wrong body (buried truth {buried_truth}); both refusing would mean the \
-         gate fires where no region is at stake"
+    volumes.sort_by(f64::total_cmp);
+    assert!(
+        (volumes[0] - buried_truth).abs() < 1e-9 && (volumes[1] - disjoint_answer).abs() < 1e-9,
+        "exactly one sense contains the box: it buries the box's lower half \
+         ({buried_truth}), and the other is honestly disjoint ({disjoint_answer}); \
+         got {volumes:?}"
     );
 }
 

@@ -393,6 +393,7 @@ which is what actually moves the number.
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
 | boolean/contain.rs:83–115 | bool_contact_vertex/edge_span/edge | point/span/perpendicular distances | m | OK |
+| boolean/contain.rs (`point_on_arc`, through `splitting::containment::arc_trim`) | bool_contact_arc_end / bool_contact_arc_trim | the unit-circle chord from the point's direction to either end, and the chordal-defect sum `(|e − m| − |p − m|) + (|p + m| − |e + m|)`, each levered by the radius: lengths, never smaller than the arc length to the nearer end | m | OK (CONTACT-4) |
 | boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless); verified CODE-READ + suites-green only — the rare germ-fan lane fires in none of the unit's live twin/probe configs (review MINOR-2, stated) |
 | boolean/insert.rs:262 | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm | m | OK |
 | boolean/join.rs:567/803 | bool_join_chord | germ-site chord LENGTH (the degeneracy gate: Zero ⇒ coincident sites, no polygon edge) | m | OK |
@@ -447,6 +448,7 @@ which is what actually moves the number.
 | ray_parity.rs (via `containment.rs`'s `ARC_LOOP_ROWS`) | point_in_arc_loop_segment/boundary/side/advance | the point_in_loop rows over an arc-bearing loop's STRAIGHT edges (`on_segment` per chord edge, `ray_crossings` masked to chord edges): distances; m²/m advance | m | OK (ATREST-9) |
 | splitting/containment.rs (`point_in_carrier_loop`) | point_in_arc_loop_arm / point_in_arc_loop_reach | the frame gate, as point_in_loop_arm with the conics' reach in the extent; `|q − anchor| − ball` (a length) | m | OK (ATREST-9) |
 | splitting/containment.rs (`ConicArc`, `conic_crossings`) | point_in_arc_loop_conic_span / _on / _window / _disc / _advance | unit-circle quantities levered by the conic's SMALLER semi-axis: (τ − width), (ρ − 1), (cos Δ − cos h), (1 − h²)/2 — exact lengths for a circle (the last is (r² − h²)/2r, the perpendicular-offset form), a lower bound for an ellipse (escalates more, never less); the root's advance t is metres along a unit ray | m | OK (ATREST-9) |
+| splitting/containment.rs (`arc_trim`, the boundary pre-pass) | point_in_arc_loop_conic_end / point_in_arc_loop_conic_trim | the same two unit-circle distances as `bool_contact_arc_end/_trim`, levered by the conic's smaller semi-axis: exact for a circle, a lower bound for an ellipse | m | OK (CONTACT-4) |
 | splitting/neighborhood.rs:228–309 | split_conic_departure / split_bisector_side | tangent×extent projections; bisector·n̂ × arm | m | OK |
 | splitting/order.rs:73 | split_join_frame_arm | sin(member, plane normal) × points' spread (the member's in-plane fraction) | m | FIXED (was dimensionless schedule norm) |
 | splitting/order.rs:111 | split_join_order_u/v | coordinate difference (m) vs the EXACT bit-level band (deliberate total-order device, documented) | m | OK (note N6) |

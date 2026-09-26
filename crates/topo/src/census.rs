@@ -463,8 +463,10 @@ impl CensusTrace {
 /// marginal angle — `pm_census_ee_parallel` is an angle quantity with
 /// no positional content at all; and a vertex coplanar with a face
 /// whose region walk refuses or escalates though the vertex is
-/// nowhere near the face (`contfp`'s `ArcLoopUnsupported` and
-/// `RayExhausted` refusals, its ray-walk escalations). The exact sweep
+/// nowhere near the face (`contfp`'s `RayExhausted` refusal, its
+/// ray-walk escalations, and its `ArcLoopUnsupported` refusal anywhere
+/// inside the reach of a spiric or spline edge, which can be far wider
+/// than the face). The exact sweep
 /// escalates or refuses those — it asked a carrier question and could
 /// not answer it — and the box separation answers the entity question
 /// the census is asking with a DEFINITE verdict: the entities are
@@ -1374,8 +1376,8 @@ fn contain<T: Decide>(
             errors.push(ValidationError::CensusEscalated { cause });
             None
         }
-        // An arc-bearing loop the polygon walk cannot express, an
-        // exhausted ray schedule, unwalkable topology: three refusals
+        // A loop with an edge no walk crosses, an exhausted ray
+        // schedule, unwalkable topology: three refusals
         // that metred no margin, CARRIED rather than replaced. An
         // escalation is what a predicate says when it measured and
         // could not decide, so minting one for a door that measured
@@ -5357,10 +5359,9 @@ mod tests {
     }
 
     /// A planar half-disc cap — one arc edge of the unit circle and its
-    /// chord, a two-vertex arc-bearing loop no region walk expresses
-    /// (`contfp` refuses it `ArcLoopUnsupported`) — with a cube grafted
-    /// in beside it whose bottom vertices lie in the cap's plane, far
-    /// away.
+    /// chord, a two-vertex arc-bearing loop whose vertex polygon has no
+    /// area — with a cube grafted in beside it whose bottom vertices lie
+    /// in the cap's plane, far away.
     fn half_disc_cap_and_far_cube() -> Body<f64> {
         use geom::Curve3;
         use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
@@ -5755,18 +5756,16 @@ mod tests {
     }
 
     #[test]
-    fn a_region_walk_refusal_on_a_separated_vertex_is_the_filters_to_answer() {
+    fn a_separated_vertex_in_a_half_disc_caps_plane_is_decided_by_both_sweeps() {
         // A far cube's bottom vertices lie in a half-disc cap's plane.
-        // The exact sweep reaches the cap's region walk for each and is
-        // refused — a two-vertex arc loop has no walk — so it pushes
-        // `CensusUnsupported` about a face the vertex is nowhere near.
-        // The class's REFUSAL member: the box answer decides the
-        // vertex apart, and the refusal is not raised.
+        // The exact sweep reaches the cap's region walk for each, and the
+        // walk reads the cap's two-vertex loop on its carriers: each
+        // vertex is decided outside the cap, and nothing is refused
+        // about a face it is nowhere near, under either strategy.
         // (The sheet's seed face has a placeholder surface, so the
         // backstop refuses the sheet×cube instance pair `Undecidable`
         // under BOTH strategies — a poisoned extent is never pruned;
-        // that shared refusal is not the class and is not this row's
-        // subject.)
+        // that shared refusal is not this row's subject.)
         let body = half_disc_cap_and_far_cube();
         let records = ContactRecords::default();
         let (real_errors, real) = census_traces(
@@ -5785,52 +5784,31 @@ mod tests {
             Some(RegionLane::certified()),
             CensusStrategy::Idealized,
         );
-        let is_refusal = |e: &ValidationError| {
-            matches!(
-                e,
-                ValidationError::CensusUnsupported {
-                    cause: CensusUnsupportedCause::Containment(
-                        ContainError::ArcLoopUnsupported { .. }
-                    ),
-                    ..
-                }
-            )
-        };
-        let real_rendered = rendered(&real_errors);
-        for e in &real_errors {
+        for e in real_errors.iter().chain(&ideal_errors) {
             assert!(
-                !is_refusal(e),
-                "a refusal about a separated vertex was raised: {e:?}"
+                !matches!(
+                    e,
+                    ValidationError::CensusUnsupported {
+                        cause: CensusUnsupportedCause::Containment(_),
+                        ..
+                    }
+                ),
+                "the cap's region walk refused a separated vertex: {e:?}"
             );
         }
+        let ideal_rendered = rendered(&ideal_errors);
         assert!(
-            real_rendered
+            rendered(&real_errors)
                 .iter()
-                .all(|e| rendered(&ideal_errors).contains(e)),
-            "the realized errors are the exact errors less the refusals"
-        );
-        let dropped: Vec<&ValidationError> = ideal_errors
-            .iter()
-            .filter(|e| !real_rendered.contains(&format!("{e:?}")))
-            .collect();
-        assert!(
-            !dropped.is_empty(),
-            "the exact sweep refuses the far coplanar vertices"
-        );
-        assert!(
-            dropped.iter().all(|e| is_refusal(e)),
-            "only region-walk refusals are dropped: {dropped:?}"
+                .all(|e| ideal_rendered.contains(e)),
+            "the realized errors are among the exact errors"
         );
         for ((name, r), (_, i)) in real.sweeps().iter().zip(ideal.sweeps().iter()) {
             assert!(r.is_restriction_of(i), "{name}: order");
         }
         assert!(
-            ideal
-                .vf
-                .accepted
-                .iter()
-                .all(|p| !real.vf.examined.contains(p)),
-            "every vertex-on-face pair the exact sweep refused is a pruned one"
+            !ideal.vf.examined.is_empty(),
+            "the exact sweep asks the cap about the far coplanar vertices"
         );
     }
 }

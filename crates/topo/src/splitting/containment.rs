@@ -324,7 +324,8 @@ fn walk_schedule<T: Decide>(
 /// stay separable. Its own rows, written at their `decide` calls:
 /// `point_in_arc_loop_arm` (the schedule gate), `point_in_arc_loop_reach`
 /// (the loop's bounding ball, for an edge with no crossing row), and the
-/// conic arm's `point_in_arc_loop_conic_{span,on,window,disc,advance}`.
+/// conic arm's `point_in_arc_loop_conic_{span,on,window,disc,advance}`
+/// and its pre-pass trim's `point_in_arc_loop_conic_{end,trim}`.
 const ARC_LOOP_ROWS: ParityRows = ParityRows {
     segment: "point_in_arc_loop_segment",
     boundary: "point_in_arc_loop_boundary",
@@ -353,6 +354,8 @@ struct ConicArc<T: geom_core::Real> {
     /// The window's mid direction `(cos, sin)` and `cos(width / 2)`;
     /// `None` when the arc spans a whole period.
     window: Option<((T, T), T)>,
+    /// The carrier parameters of the arc's two ends.
+    span: (T, T),
 }
 
 impl<T: Decide> ConicArc<T> {
@@ -364,7 +367,11 @@ impl<T: Decide> ConicArc<T> {
     /// Is the unit-circle direction `(x, y)` inside the arc's window?
     /// The cosine-window construction (`solid_contain::point_on_wall_in_face`
     /// carries its argument): Positive inside, Negative outside, Zero an
-    /// endpoint's neighbourhood.
+    /// endpoint's neighbourhood. Only a ray's crossing reads it, where a
+    /// `Zero` abandons the ray: the construction's endpoint zone is
+    /// compressed by `sin(w/2)`, which costs a short arc rays and never
+    /// a count. The boundary pre-pass, where a `Zero` would be a
+    /// verdict, reads [`arc_trim`] instead.
     fn in_window(&self, (x, y): (T, T), band: Band) -> Result<Sign, Indeterminate> {
         let Some(((mc, ms), cos_half)) = self.window else {
             return Ok(Sign::Positive);
@@ -375,6 +382,110 @@ impl<T: Decide> ConicArc<T> {
             band,
         )
     }
+}
+
+/// The two rows a caller of [`arc_trim`] decides under — its own, so
+/// each caller's population stays separable in the telemetry.
+#[derive(Clone, Copy)]
+pub(crate) struct ArcTrimRows {
+    /// The distance from the point to either end of the arc.
+    pub(crate) end: &'static str,
+    /// The chordal-defect sum that says which side of the ends it is.
+    pub(crate) trim: &'static str,
+}
+
+/// [`point_in_carrier_loop`]'s rows for its boundary pre-pass on a conic.
+const CONIC_TRIM_ROWS: ArcTrimRows = ArcTrimRows {
+    end: "point_in_arc_loop_conic_end",
+    trim: "point_in_arc_loop_conic_trim",
+};
+
+/// Where a point on an arc's carrier sits against the arc's trim.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum ArcTrim {
+    /// Within the band of one of the arc's two ends.
+    End,
+    /// On the arc, definitely clear of both ends.
+    On,
+    /// Off the arc, definitely clear of both ends.
+    Off,
+}
+
+/// **Whether a point on a conic's carrier lies on the arc `[t0, t1]`**,
+/// decided as DISTANCES in the conic's unit coordinates, where the
+/// carrier is the unit circle and `dir` is the point's direction on it.
+/// `lever` is metres per unit (the radius of a circle; an ellipse's
+/// smaller semi-axis, a lower bound on the metres a unit step buys, so
+/// every margin escalates more for it, never less).
+///
+/// 1. **At an end**: `dir` within the band of either end, measured as a
+///    chord, is [`ArcTrim::End`]. That is the ONLY way an endpoint
+///    neighbourhood counts. The cosine window `r̂·m̂ ≥ cos(w/2)`
+///    compresses arc length near an end by `sin(w/2)` (and by `sin` of
+///    the complement on a near-full arc), so its `Zero` would reach
+///    `ε / sin(w/2)` along the carrier — a hundred times `ε` at
+///    `w = 0.02` — and its escalation ten times that.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|e − m| − |p − m|) + (|p + m| − |e + m|)`, where `e` is
+///    an end, `m` the arc's mid direction and `−m` its complement's.
+///    Chord length is monotone in angular distance up to a half turn,
+///    so each term is positive exactly on the arc, and the sum is
+///    `2(g(α) − g(w/2))` for `g(x) = cos(x/2) − sin(x/2)` and `α` the
+///    angle from `m` — a function whose slope is at least `1/2` over
+///    the whole half turn, so the margin is never smaller than the arc
+///    length from `p` to the nearer end: never compressed, on a short
+///    arc, a near-full one, or anywhere between. Its `Zero` therefore
+///    lies within the band of an end, which step 1 has answered; it
+///    reads as on.
+///
+/// The arc must span less than a period; a whole period has no ends and
+/// is the caller's to answer.
+pub(crate) fn arc_trim<T: Decide>(
+    dir: (T, T),
+    (t0, t1): (T, T),
+    lever: T,
+    rows: ArcTrimRows,
+    band: Band,
+) -> Result<ArcTrim, Indeterminate> {
+    let (x, y) = dir;
+    let chord = |(cx, cy): (T, T)| ((x - cx).powi(2) + (y - cy).powi(2)).sqrt();
+    let unit = |t: T| {
+        let (s, c) = t.sin_cos();
+        (c, s)
+    };
+    let (e0, e1) = (unit(t0), unit(t1));
+    let ends = [
+        decide(rows.end, Margin::levered(chord(e0), lever), band),
+        decide(rows.end, Margin::levered(chord(e1), lever), band),
+    ];
+    if ends.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        return Ok(ArcTrim::End);
+    }
+    for end in ends {
+        match end? {
+            Sign::Positive => {}
+            // A distance is never negative: two rows of one quantity
+            // disagree, which no answer can stand on.
+            Sign::Zero | Sign::Negative => {
+                return Err(Indeterminate {
+                    margin: geom_core::MarginDiag::Invalid,
+                    band,
+                    predicate: Some(rows.end),
+                });
+            }
+        }
+    }
+    let (mc, ms) = unit((t0 + t1) * T::from_f64(0.5));
+    let apart = |(ax, ay): (T, T), (bx, by): (T, T)| ((ax - bx).powi(2) + (ay - by).powi(2)).sqrt();
+    let m = (mc, ms);
+    let anti = (T::zero() - mc, T::zero() - ms);
+    let defect = (apart(e0, m) - chord(m)) + (chord(anti) - apart(e0, anti));
+    Ok(
+        match decide(rows.trim, Margin::levered(defect, lever), band)? {
+            Sign::Positive | Sign::Zero => ArcTrim::On,
+            Sign::Negative => ArcTrim::Off,
+        },
+    )
 }
 
 /// One boundary edge of a planar loop, on its own carrier.
@@ -449,6 +560,7 @@ fn carrier_loop<T: Decide>(
                 b,
                 lever,
                 window,
+                span: (t0, t1),
             }))
         };
         edges.push(match curve.carrier() {
@@ -512,8 +624,8 @@ fn carrier_loop<T: Decide>(
 ///   form `1 − h²` (`h` the unit-coordinate line's distance from the
 ///   centre), which does not cancel far from a small conic. The
 ///   boundary pre-pass asks a straight edge [`ray_parity::on_segment`]
-///   and an arc its own carrier and window — never an arc's chord,
-///   which is not boundary. A point on an arc's conic but off the arc
+///   and an arc its own carrier and trim ([`arc_trim`]) — never an
+///   arc's chord, which is not boundary. A point on an arc's conic but off the arc
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
 ///   advance — abandons the ray.
@@ -591,9 +703,19 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
                     continue;
                 }
                 on_carrier[i] = true;
-                // On the arc, or in an endpoint's neighbourhood — a
-                // vertex of this loop.
-                if k.in_window((x / rho, y / rho), band).map_err(escalate)? != Sign::Negative {
+                // On the arc, or at one of its ends — a vertex of this
+                // loop. Decided as distances ([`arc_trim`]), never by
+                // the crossing row's cosine window, whose endpoint zone
+                // is compressed by `sin(w/2)`.
+                let on_arc = match k.window {
+                    None => true,
+                    Some(_) => {
+                        arc_trim((x / rho, y / rho), k.span, k.lever, CONIC_TRIM_ROWS, band)
+                            .map_err(escalate)?
+                            != ArcTrim::Off
+                    }
+                };
+                if on_arc {
                     return Ok(Some(LoopContainment::OnBoundary));
                 }
             }

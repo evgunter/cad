@@ -7,17 +7,18 @@
 //! ε — where declared/structural coincidences land, e.g. a crossing
 //! point computed from shared geometry); the sliver band escalates
 //! typed (F6); definite margins walk on. Interior/exterior then comes
-//! from whichever walk EXPRESSES each loop ([`loop_shape`], over the
-//! outer loop and every ring): a loop of arcs of one circle by its
-//! radius, a polygon by the PR 3 ray-parity trilean
-//! ([`point_in_loop`]), and an arc-bearing loop whose polygon would
-//! have zero area by a typed refusal rather than an answer.
+//! from one walk over the outer loop and every ring, which reads each
+//! edge on its own CARRIER ([`point_in_carrier_loop`]): a line is its
+//! chord, a circle or ellipse arc is crossed on its conic, and an edge
+//! on a carrier with no crossing row refuses typed wherever it could
+//! matter.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, VertexKey};
-use crate::splitting::{LoopContainment, PointInLoopError, point_in_loop};
+use crate::splitting::containment::{ArcTrim, ArcTrimRows, arc_trim, point_in_carrier_loop};
+use crate::splitting::{LoopContainment, PointInLoopError};
 use crate::validate::decide;
 
 /// The typed `contfp` verdict.
@@ -55,12 +56,11 @@ pub enum ContainError {
     RayExhausted,
     /// The face's topology could not be walked.
     Corrupt,
-    /// An **arc-bearing loop the polygon walk cannot express**: fewer
-    /// than three vertices, so [`point_in_loop`]'s polygon through them
-    /// is a segment of zero area and every interior point of the region
-    /// would read `Out`. Measured wrong at that shape — a half-disc cap,
-    /// a half-cylinder cap, a lens cap — and refused rather than
-    /// answered (issue #1076).
+    /// A **loop no available walk expresses at this point**: it has an
+    /// edge on a carrier the in-plane walk has no crossing row for (a
+    /// spiric, a spline), and the point lies within reach of that edge,
+    /// where a crossing could change the answer. A point definitely
+    /// clear of the loop's reach is answered `Out` and never lands here.
     ArcLoopUnsupported {
         /// The loop whose region no available walk expresses.
         r#loop: crate::entity::LoopKey,
@@ -108,11 +108,11 @@ impl core::fmt::Display for ContainError {
             ),
             Self::ArcLoopUnsupported { r#loop } => write!(
                 f,
-                "contfp: loop {loop:?} bears arcs and has fewer than three vertices, so \
-                 the polygon through them has zero area and no available walk expresses \
-                 its region — refused rather than answered from a polygon that is not \
-                 the region; split an arc so the loop carries three vertices, or model \
-                 the region as a disc of one circle"
+                "contfp: loop {loop:?} has an edge on a spiric or spline carrier, which \
+                 the in-plane walk cannot cross, and the point lies within that edge's \
+                 reach, so no available walk expresses the region there — refused \
+                 rather than answered; model the boundary with lines, circles or \
+                 ellipses"
             ),
         }
     }
@@ -141,22 +141,16 @@ pub fn contfp<T: Decide>(
         .chain(face_data.rings.iter().copied())
         .collect();
 
-    if let Some(on) = boundary_pre_pass(body, &loops, q, UnrowedCarriers::Chord, band)? {
+    if let Some(on) = boundary_pre_pass(body, &loops, q, band)? {
         return Ok(on);
     }
 
-    // Interior/exterior: inside the outer loop AND outside every ring.
-    // WHICH walk reads a loop is the loop's own shape ([`loop_shape`]),
-    // and one shape has no walk at all — it refuses rather than
-    // answering from a polygon that is not the region.
+    // Interior/exterior: inside the outer loop AND outside every ring,
+    // each read on its edges' own carriers. The walk's `None` is an
+    // edge it cannot cross within reach of `q`: a refusal, typed.
     let inside = |lk| -> Result<LoopContainment, ContainError> {
-        match loop_shape(body, lk, band)? {
-            LoopShape::Disc(disc) => disc_side(disc, q, band),
-            LoopShape::Polygon | LoopShape::ArcParity => {
-                Ok(point_in_loop(body, lk, normal, q, band)?)
-            }
-            LoopShape::NoWalk => Err(ContainError::ArcLoopUnsupported { r#loop: lk }),
-        }
+        point_in_carrier_loop(body, lk, normal, q, band)?
+            .ok_or(ContainError::ArcLoopUnsupported { r#loop: lk })
     };
     match inside(face_data.outer)? {
         LoopContainment::Out => return Ok(FaceContainment::Out),
@@ -183,13 +177,9 @@ pub fn contfp<T: Decide>(
     Ok(FaceContainment::In)
 }
 
-/// Which walk can express a loop's region — the question [`contfp`]'s
-/// interior/exterior step must answer before it asks any other.
-///
-/// Visible to the crate because it is the classification tier 3's
-/// check 9 gates its nesting arm on as well: the same question, about
-/// the same loops, and a second spelling of it was a second answer to
-/// maintain.
+/// Which exact instrument expresses a loop's region — the
+/// classification tier 3's check 9 gates its nesting arm on. [`contfp`]
+/// does not ask it: the carrier walk reads every class below.
 pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
@@ -198,29 +188,20 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// region, exactly.
     Polygon,
     /// Arc-bearing over at least three vertices: the polygon through
-    /// them is a proper region and the parity walk has been measured
-    /// correct on it at the shapes reviewed (a slot, a rounded
-    /// rectangle) — but it is NOT this loop's region, and saying so is
-    /// this variant's whole job. An arc bowing OUTWARD leaves region
-    /// between the polygon and the boundary, and a point there reads
-    /// `Out` when it is in: measured on a bored D-rod's transverse
-    /// cap, whose major arc dips past the chord its vertices span and
-    /// whose bore sits in the lune between them.
-    ///
-    /// [`contfp`] walks it anyway — one point's verdict, the posture
-    /// it has always taken, with #1076 owning the general case. A
-    /// consumer that would REFUSE a body on an `Out` must not: tier
-    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] and
+    /// them is a proper region, but it is NOT this loop's region, and
+    /// saying so is this variant's whole job. An arc bowing OUTWARD
+    /// leaves region between the polygon and the boundary, and a point
+    /// there reads `Out` from the polygon when it is in: measured on a
+    /// bored D-rod's transverse cap, whose major arc dips past the chord
+    /// its vertices span and whose bore sits in the lune between them.
+    /// Check 9 gates its nesting arm on [`Self::Polygon`] and
     /// [`Self::Disc`] alone for exactly that reason.
     ArcParity,
-    /// **No walk expresses this region.** Arc-bearing over fewer than
-    /// three vertices: the polygon through them is a segment of ZERO
-    /// AREA, so the parity walk answers `Out` for every interior
-    /// point — a half-disc cap, a half-cylinder cap, a lens cap (two
-    /// arcs of two DIFFERENT circles, no line edge at all). Each was
-    /// measured as a silent wrong body before this gate. Refused, in
-    /// the conservative direction, until the general arc-aware parity
-    /// walk exists (#1076).
+    /// Arc-bearing over fewer than three vertices: the polygon through
+    /// them is a segment of ZERO AREA, so a polygon walk would answer
+    /// `Out` for every interior point — a half-disc cap, a
+    /// half-cylinder cap, a lens cap (two arcs of two DIFFERENT
+    /// circles, no line edge at all).
     NoWalk,
 }
 
@@ -241,16 +222,13 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
     pub(crate) radius: T,
 }
 
-/// **Which walk expresses this loop's region** — one carrier pass over
-/// the cycle, classifying the loop rather than the point.
+/// **Which exact instrument expresses this loop's region** — one
+/// carrier pass over the cycle, classifying the loop rather than the
+/// point.
 ///
-/// [`point_in_loop`]'s contract is the planar POLYGON through a loop's
-/// vertices — *"which must be a planar polygon (line carriers — the F5
-/// regime)"*, in its own words. Handing it a loop with an arc in it is
-/// therefore a call OUTSIDE its stated domain, and what comes back is
-/// an answer about a different region. That is not a remainder to fall
-/// back to; it is a contract violation, and this function exists to
-/// stop making it silently. Three outcomes:
+/// [`crate::splitting::point_in_loop`]'s contract is the planar POLYGON
+/// through a loop's vertices, so a loop with an arc in it is outside
+/// its domain. Four outcomes:
 ///
 /// - **[`LoopShape::Disc`]** — every edge is an arc of one circle. The
 ///   region is that circle's disc exactly; [`disc_side`] decides it.
@@ -259,15 +237,10 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 /// - **[`LoopShape::Polygon`]** — no arc at all: the polygon IS the
 ///   region.
 /// - **[`LoopShape::ArcParity`]** — arcs over ≥ 3 vertices, where the
-///   polygon is a proper region and the walk is measured correct at
-///   the shapes reviewed (a slot, a rounded rectangle). Unproven in
-///   general: an arc bowing outward puts region between the polygon
-///   and the boundary (#1076 owns the general case). Separated from
-///   [`LoopShape::Polygon`] because that gap is a different answer for
-///   a consumer that refuses on `Out` than for one that classifies a
-///   point.
+///   polygon is a proper region but not the loop's: an arc bowing
+///   outward puts region between the polygon and the boundary.
 /// - **[`LoopShape::NoWalk`]** — arc-bearing over < 3 vertices, where
-///   the polygon has zero area and the answer is demonstrably wrong.
+///   the polygon has zero area.
 ///
 /// The circle is read from the first edge; every later edge must agree
 /// with it on one metre-valued row folding centre offset, radius
@@ -368,16 +341,15 @@ pub(crate) fn loop_shape<T: Decide>(
     })
 }
 
-/// Which side of a [`loop_shape`] circle `q` lies on. `q` is on the
-/// face's plane by [`contfp`]'s contract, so the in-plane radial
-/// distance is the whole question.
+/// Which side of a [`loop_shape`] circle `q` lies on. `q` lies in the
+/// circle's plane, so the in-plane radial distance is the whole
+/// question.
 ///
 /// Exact on the class: one radial margin through one decide
 /// (`bool_face_disc_radius`) — `OnBoundary` on its `Zero`, an
-/// escalation on an in-band margin, never a guess. It assumes only
-/// that `q` lies in the circle's plane; that `q` is off the circle by
-/// more than the band — what [`contfp`]'s boundary pre-pass supplies —
-/// is the caller's to supply if it wants a definite answer.
+/// escalation on an in-band margin, never a guess. That `q` is off the
+/// circle by more than the band is the caller's to supply if it wants
+/// a definite answer.
 pub(crate) fn disc_side<T: Decide>(
     disc: LoopCircle<T>,
     q: Point3<T>,
@@ -403,12 +375,6 @@ pub(crate) fn disc_side<T: Decide>(
 /// about the BOUNDARY only, and the interior/exterior question belongs
 /// to [`curved_face_containment`].
 ///
-/// Carriers with no exact row get [`UnrowedCarriers::Undecided`]: a
-/// `Line` boundary IS its chord and a `Circle` boundary gets its own
-/// exact arc rows in either mode, so what this door chooses is only
-/// what happens to the rest — and it chooses no verdict over a
-/// chord's.
-///
 /// # Errors
 ///
 /// [`ContainError`] — sliver escalations or unwalkable topology.
@@ -422,31 +388,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
     let loops: Vec<_> = core::iter::once(face_data.outer)
         .chain(face_data.rings.iter().copied())
         .collect();
-    boundary_pre_pass(body, &loops, q, UnrowedCarriers::Undecided, band)
-}
-
-/// **What the shared pre-pass does with a carrier that has no exact
-/// row** — the one axis the two callers still disagree about, and the
-/// whole meaning of this type.
-///
-/// The carriers that DO have a row are settled and identical in both
-/// modes: a `Line` boundary IS its chord, and a `Circle` boundary
-/// takes [`point_on_arc`]. Only `Ellipse` and `Nurbs` are left, and
-/// for them the chord is a different curve — on a planar face an
-/// elliptical rim's chord runs through the face INTERIOR, so a chord
-/// verdict there is not conservative, it is wrong, exactly as it was
-/// for circles. Both modes are therefore on borrowed time; issue #1076
-/// owns the ellipse arc row that would retire the choice.
-#[derive(Clone, Copy, PartialEq, Eq)]
-enum UnrowedCarriers {
-    /// Decide them by their CHORD ([`contfp`]'s posture for the
-    /// carriers it has always run — conservative-by-band was the
-    /// claim, and for a conic it is not true; see the type's doc).
-    Chord,
-    /// Give them no verdict at all. The curved chart's walk: a rim is
-    /// a boundary a curved face genuinely has, and answering about its
-    /// chord would be answering about a different curve.
-    Undecided,
+    boundary_pre_pass(body, &loops, q, band)
 }
 
 /// **The shared boundary pre-pass**: vertex coincidence over ALL
@@ -454,17 +396,19 @@ enum UnrowedCarriers {
 /// coincidence, across loops exactly as within one (the invariant
 /// [`contfp`] always stated; running it per loop let an outer-edge
 /// hit shadow a ring vertex, fixed here with its red-then-green row
-/// below) — then edge interiors over all loops. Which rows an edge may
-/// be decided by is [`UnrowedCarriers`]'s, and it is the ONLY thing the
-/// planar and curved walks disagree about. Six rows, one home:
-/// `bool_contact_vertex`, `bool_contact_edge_span` (×2),
-/// `bool_contact_edge`, and — for the arc disposition —
-/// `bool_contact_arc{,_span}`.
+/// below) — then edge interiors over all loops, each edge on the row
+/// its carrier has: a `Line` is its chord, and a `Circle` is asked its
+/// own carrier and trim ([`point_on_arc`]). Every other carrier gets no
+/// verdict here, because its chord is a different curve — on a planar
+/// face an elliptical rim's chord runs through the face INTERIOR — and
+/// a point on one reaches the caller's region walk, which reads the
+/// edge on its own carrier. Rows, one home: `bool_contact_vertex`,
+/// `bool_contact_edge_span` (×2), `bool_contact_edge`, and — for the
+/// arc disposition — `bool_contact_arc{,_span,_end,_trim}`.
 fn boundary_pre_pass<T: Decide>(
     body: &Body<T>,
     loops: &[crate::entity::LoopKey],
     q: Point3<T>,
-    chords: UnrowedCarriers,
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
     for &lk in loops {
@@ -489,9 +433,8 @@ fn boundary_pre_pass<T: Decide>(
         for (i, (_, he, a)) in cycle.iter().enumerate() {
             let edge_key = body.get_half_edge(*he).ok_or(ContainError::Corrupt)?.edge;
             // Which rows may decide this edge, by carrier. A chord row
-            // on a conic answers about the CHORD, not the edge, so a
-            // carrier with an exact row takes it and the rest are
-            // routed by mode.
+            // on a conic answers about the CHORD, not the edge, so only
+            // a line takes it.
             let carrier = body
                 .get_edge(edge_key)
                 .and_then(|e| body.get_curve_geom(e.curve))
@@ -499,15 +442,11 @@ fn boundary_pre_pass<T: Decide>(
                 .map(|c| (c.carrier().clone(), c.params()));
             match carrier {
                 // A `Line` boundary IS its chord: the rows below are
-                // exact for it in both modes.
+                // exact for it.
                 Some((geom::Curve3::Line { .. }, _)) => {}
-                // A `Circle` boundary takes its own exact arc rows in
-                // both modes. On a PLANAR face this is not a
-                // refinement but a correction: an arc's chord runs
-                // through the face interior, so the chord rows report
-                // `OnEdge` for points that are strictly INSIDE — a
-                // rim arc's chord is the cap's diameter, and every
-                // event on it read as a boundary event.
+                // A `Circle` boundary takes its own exact arc rows: an
+                // arc's chord runs through a planar face's interior,
+                // and a rim arc's chord is a cap's diameter.
                 Some((
                     geom::Curve3::Circle {
                         center,
@@ -522,11 +461,11 @@ fn boundary_pre_pass<T: Decide>(
                     }
                     continue;
                 }
-                // No exact row: the curved walk gives no verdict
-                // rather than a chord's; the planar walk keeps the
-                // conservative chord row it has always run.
-                _ if chords == UnrowedCarriers::Undecided => continue,
-                _ => {}
+                // Null scaffolding is read as its chord, as the region
+                // walk reads it.
+                None => {}
+                // No exact row: no verdict rather than a chord's.
+                Some(_) => continue,
             }
             let b = cycle[(i + 1) % cycle.len()].2;
             let e = b - *a;
@@ -562,20 +501,19 @@ fn boundary_pre_pass<T: Decide>(
 
 /// Is `q` on the INTERIOR of the arc `(center, axis, radius, u_ref)`
 /// over `[t0, t1]`? `Some(true)` on it, `Some(false)` definitely off
-/// it, `None` when the angular gate lands on an endpoint (the vertex
-/// pass owns those) or the arc spans a whole period (no angular
-/// window to test).
+/// it, `None` when `q` lies within the band of an end (the vertex pass
+/// owns those) or the arc spans a whole period (a closed edge, with no
+/// interior this pass names).
 ///
-/// Two independent margins, both lengths: the point's exact distance
-/// FROM THE CIRCLE (`bool_contact_arc` — radial and axial residuals
-/// folded, so one row covers both ways off the carrier), and the
-/// angular span (`bool_contact_arc_span`).
-///
-/// The angular span is THE cosine-window construction, whose argument
-/// — period guard, `r̂·m̂ ≥ cos(w/2)`, `· radius` metering, and ledger
-/// row F8 — is stated once at
-/// [`super::solid_contain::point_on_wall_in_face`] and shared by all
-/// three of its sites.
+/// Every margin is a length. The point's exact distance FROM THE
+/// CIRCLE (`bool_contact_arc` — radial and axial residuals folded, so
+/// one row covers both ways off the carrier), after the period guard
+/// (`bool_contact_arc_span`); then the trim, as
+/// distances in [`arc_trim`] (`bool_contact_arc_end`, the distance to
+/// either end, and `bool_contact_arc_trim`, which side of the ends).
+/// Neither of the trim rows is compressed near an end, so an end's
+/// neighbourhood is the band's own width along the carrier on a short
+/// arc and a near-full one alike.
 #[allow(clippy::too_many_arguments)] // one arc datum, each argument named
 pub(super) fn point_on_arc<T: Decide>(
     q: Point3<T>,
@@ -587,13 +525,13 @@ pub(super) fn point_on_arc<T: Decide>(
     t1: T,
     band: Band,
 ) -> Result<Option<bool>, ContainError> {
-    let half = T::from_f64(0.5);
-    let width = t1 - t0;
-    // The cosine equivalence needs a window under a period; a full
-    // circle has no angular gate at all and gets no verdict here.
+    const ROWS: ArcTrimRows = ArcTrimRows {
+        end: "bool_contact_arc_end",
+        trim: "bool_contact_arc_trim",
+    };
     match decide(
         "bool_contact_arc_span",
-        Margin::levered(T::tau() - width, radius),
+        Margin::levered(T::tau() - (t1 - t0), radius),
         band,
     ) {
         Ok(Sign::Positive) => {}
@@ -605,23 +543,14 @@ pub(super) fn point_on_arc<T: Decide>(
     else {
         return Ok(Some(false));
     };
-    // On the carrier: the angular window decides which arc of it.
-    let mid = (t0 + t1) * half;
-    let (s_m, c_m) = mid.sin_cos();
+    // On the carrier: the trim decides which arc of it, in the circle's
+    // own frame, where it is the unit circle.
     let v_ref = axis.cross(u_ref);
-    let m_hat = u_ref * c_m + v_ref * s_m;
-    let (_, c_h) = (width * half).sin_cos();
-    let r_hat = radial / r_norm;
-    match decide(
-        "bool_contact_arc_span",
-        Margin::levered(r_hat.dot(m_hat) - c_h, radius),
-        band,
-    ) {
-        Ok(Sign::Positive) => Ok(Some(true)),
-        Ok(Sign::Negative) => Ok(Some(false)),
-        // An endpoint neighbourhood: the vertex pass owns it.
-        Ok(Sign::Zero) => Ok(None),
-        Err(diag) => Err(ContainError::Escalated(diag)),
+    let dir = (radial.dot(u_ref) / r_norm, radial.dot(v_ref) / r_norm);
+    match arc_trim(dir, (t0, t1), radius, ROWS, band).map_err(ContainError::Escalated)? {
+        ArcTrim::On => Ok(Some(true)),
+        ArcTrim::Off => Ok(Some(false)),
+        ArcTrim::End => Ok(None),
     }
 }
 
@@ -1040,6 +969,49 @@ mod tests {
             FaceContainment::OnVertex(ring_vertex),
             "the ring vertex must win over the outer edge's interior"
         );
+    }
+
+    /// An arc's end neighbourhood is the band's own width along the
+    /// carrier, however short or long the arc: on a `w = 0.02` arc of
+    /// radius 10, and on its complement, a point `s` along the carrier
+    /// from an end is on or off the arc for every `s` past the band —
+    /// including the `ε < s < 10ε / sin(w/2)` stretch a cosine window
+    /// compresses into its zero or escalation zone — and only within
+    /// the band is it the vertex pass's.
+    #[test]
+    fn an_arcs_end_zone_is_the_bands_own_width() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        let (r, c) = (10.0, geom_core::Point3::new(0.0, 0.0, 0.0));
+        let (axis, u) = (Vec3::new(0.0, 0.0, 1.0), Vec3::new(1.0, 0.0, 0.0));
+        let at = |theta: f64| geom_core::Point3::new(r * theta.cos(), r * theta.sin(), 0.0);
+        for (t0, t1) in [(0.0, 0.02), (0.0, core::f64::consts::TAU - 0.02)] {
+            let ask = |q| point_on_arc(q, c, axis, r, u, t0, t1, band).expect("decided");
+            for s in [20.0 * eps, 50.0 * eps, 500.0 * eps, 5000.0 * eps] {
+                let d = s / r;
+                assert_eq!(
+                    ask(at(t1 - d)),
+                    Some(true),
+                    "w = {t1}: {s} m inside the end"
+                );
+                assert_eq!(ask(at(t1 + d)), Some(false), "w = {t1}: {s} m past the end");
+                assert_eq!(
+                    ask(at(t0 + d)),
+                    Some(true),
+                    "w = {t1}: {s} m inside the start"
+                );
+                assert_eq!(
+                    ask(at(t0 - d)),
+                    Some(false),
+                    "w = {t1}: {s} m before the start"
+                );
+            }
+            assert_eq!(
+                ask(at(t1 + 0.5 * eps / r)),
+                None,
+                "w = {t1}: within the band of the end"
+            );
+        }
     }
 
     /// The disc class is a CLASS, and this is its gate: a loop of

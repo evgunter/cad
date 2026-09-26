@@ -860,6 +860,24 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
 
+**Roster addition (CONTACT-4): an arc's trim decided as distances.**
+Four names from `topo/src/splitting/containment.rs`'s `arc_trim`, which
+decides whether a point on an arc's carrier lies on the arc by its
+distance to either end and a chordal-defect sum, neither compressed near
+an end. Each caller passes its own pair in an `ArcTrimRows` value, so the
+populations stay apart:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_conic_end` | `ArcTrimRows` field (`CONIC_TRIM_ROWS`, the carrier walk's boundary pre-pass) |
+| `point_in_arc_loop_conic_trim` | `ArcTrimRows` field (`CONIC_TRIM_ROWS`) |
+| `bool_contact_arc_end` | `ArcTrimRows` field (`contain::point_on_arc`) |
+| `bool_contact_arc_trim` | `ArcTrimRows` field (`contain::point_on_arc`) |
+
+`point_in_arc_loop_conic_window` now decides only where a ray crosses an
+arc, and `bool_contact_arc_span` only `point_on_arc`'s period guard.
+Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same names.
+
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
 the crate scan — the same carrier shape `chart_bound_gap` has):

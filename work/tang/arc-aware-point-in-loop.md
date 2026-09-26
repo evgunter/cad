@@ -139,3 +139,18 @@ box sitting on its top cap. The query point is the axis point, which is the
 cap arcs' common centre and is collinear with the loop's straight edges.
 (Its diag also reads `margin: Invalid`.) The same door stops the
 longitudinal spelling of the revolved dumbbell.
+
+## 2026-09-26 — the `contfp` site moves onto the carrier walk (CONTACT-4)
+
+`boolean::contain::contfp` now reads its outer loop and every ring
+through `point_in_carrier_loop`, and no longer consults `loop_shape`.
+The `ArcParity` false `Out` is pinned on the bored D-rod's filleted
+transverse cap: the lune point `(−0.3, 0)` reads `Out` on the base and
+`In` at the head (`crates/sweep/tests/contfp_reads_arcs_on_their_carriers.rs`).
+The `NoWalk` refusal (half-disc, lens) is answered. The walk's `None`
+(a spiric or spline edge within reach of the point) is still a typed
+refusal, `ContainError::ArcLoopUnsupported`.
+
+Still on the polygon walk with an arc-bearing loop: `chord_join::rehome_rings`
+(REACH's row, above), and check 9's nesting arm, which is gated to
+`Polygon`/`Disc` and which ATREST-12 moves onto the same walk.

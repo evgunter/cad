@@ -1582,8 +1582,10 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 ///   algebra written out inline, because its window is optional and is
 ///   guarded by a POLE test that skips it entirely; the control flow
 ///   differs even though the margin does not;
-/// - [`super::contain::point_on_arc`] (a rim ARC's own angular span,
-///   boundary walk);
+/// - `splitting::containment`'s `ConicArc::in_window` (a conic arc's
+///   window, read where a ray crosses it — a `Zero` there abandons the
+///   ray; the walk's boundary pre-pass decides an arc's trim as
+///   distances instead, as `contain::point_on_arc` does);
 /// - [`super::contain::curved_face_containment`] (the same period
 ///   guard asked as a chart-form question, which is why its answer is
 ///   `None` where this one escalates).

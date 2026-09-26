@@ -17,7 +17,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::Body;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -87,17 +87,11 @@ fn r2_a_box_through_the_washer_solid_part_is_never_silent() {
 /// DIFFERENT circles, no line edge at all, so it is outside the disc
 /// class AND outside any "mixes arcs and lines" description, and its
 /// polygon through two vertices has zero area like every other member
-/// of the class.
-///
-/// **RED-BY-DESIGN, FLIPPED.** Written against the shipped PR it
-/// measured a silent wrong body; the loop-shape gate refuses it typed
-/// now. The volume comparison is kept underneath the refusal so the
-/// row still names the wrong answer it is standing in front of.
+/// of the class. Read from that polygon it was a silent wrong body (the
+/// overlap double-counted); read on its carriers the union is exact.
 #[test]
 fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     let tol = Tol::witness();
-    // Lens: from (-1,0) to (1,0) via a deep arc (bulge 0.6), back via
-    // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
     // SYMMETRIC lens: equal bulges on both legs bow outward on
     // opposite sides (mirror-image circles, distinct carriers).
     let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
@@ -107,44 +101,33 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
         .unwrap()
         .body;
     let va = topo::mass_properties(&a, tol).unwrap().volume;
-    // A small box through the cap near (0, 0.3) — inside the lens for
-    // these bulges (upper arc reaches y=0.6... sagitta = bulge*half-chord).
-    println!(
-        "lens operand volume {}",
-        topo::mass_properties(&a, tol).unwrap().volume
-    );
+    // A small box through the cap around the origin, inside the lens,
+    // standing a unit above its top.
     let b = brick((-0.1, 0.1), (-0.1, 0.1), (1.0, 3.0), tol);
     let silent_wrong = va + 0.2 * 0.2 * 2.0;
-    match topo::union(&a, &b, tol) {
-        Err(e) => assert!(
-            matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-            "the lens cap has no walk and must say so; got {e:?}"
-        ),
-        Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-            panic!(
-                "ALL-ARC LENS SILENT WRONG BODY: {v} (operand {va}, \
-                 silent-wrong {silent_wrong} — the overlap double-counted)"
-            );
-        }
-        Ok(other) => panic!("unexpected: {other:?}"),
-    }
+    let truth = va + 0.2 * 0.2 * 1.0;
+    let topo::BooleanResult::Body(out) =
+        topo::union(&a, &b, tol).unwrap_or_else(|e| panic!("the lens cap is walked; got {e:?}"))
+    else {
+        panic!("a union of two solids is a body");
+    };
+    let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+    assert!(
+        (v - truth).abs() < 1e-9,
+        "lens + box: {v} against the truth {truth} (silent-wrong {silent_wrong} — the \
+         overlap double-counted)"
+    );
 }
 
 /// A box driven up through a HALF-cylinder's cap, in the semicircular
 /// region: the cap's loop is an arc plus a chord over two vertices, so
 /// the polygon through them is a zero-area segment.
 ///
-/// **RED-BY-DESIGN, FLIPPED — and re-signed.** As authored this row
-/// ran ONE bulge sense and read `3.266592653589793` as the silent
-/// wrong body against a truth of `3.204092653589793`. Measured in the
-/// fix pass, that half-disc bows AWAY from its box: nothing overlaps,
-/// and `3.266592653589793` is the correct disjoint answer. The row
-/// therefore takes the R1 row's two-sense design, which needs no such
-/// judgement — exactly one of the two senses contains the box, the
-/// containing one has no walk for its cap and refuses typed, and the
-/// other is honestly disjoint. Both answering the same number is the
-/// silent wrong body.
+/// The row runs the R1 row's two-sense design, which needs no judgement
+/// about which sense bows toward the box: exactly one of the two
+/// senses contains it and buries its lower half, and the other is
+/// honestly disjoint. Both answering the same number is the silent
+/// wrong body.
 #[test]
 fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let tol = Tol::witness();
@@ -154,8 +137,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let half = PI / 2.0 * 2.0; // half-disc area * height = pi
     let disjoint_answer = half + 0.25 * 0.25 * 2.0;
     let buried_truth = disjoint_answer - 0.25 * 0.25 * 1.0;
-    let mut refused = 0;
-    let mut bodies = 0;
+    let mut volumes = Vec::new();
     for bulge in [1.0, -1.0] {
         let lp = bulge_loop(vec![(p2(1.0, 0.0), 0.0), (p2(-1.0, 0.0), bulge)]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
@@ -163,33 +145,20 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
         let a = extrude(&profile, Extrusion::Distance(2.0), tol)
             .unwrap()
             .body;
-        match topo::union(&a, &b, tol) {
-            Err(e) => {
-                assert!(
-                    matches!(e, BooleanError::ArcLoopContainmentUnsupported { .. }),
-                    "bulge={bulge}: the half-disc cap has no walk; got {e:?}"
-                );
-                refused += 1;
-            }
-            Ok(topo::BooleanResult::Body(out)) => {
-                let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-                println!("half-disc cap bulge={bulge}: BODY volume {v}");
-                assert!(
-                    (v - disjoint_answer).abs() < 1e-9,
-                    "bulge={bulge}: the non-containing sense is honestly disjoint \
-                     ({disjoint_answer}); got {v}"
-                );
-                bodies += 1;
-            }
-            Ok(other) => panic!("bulge={bulge}: unexpected {other:?}"),
-        }
+        let topo::BooleanResult::Body(out) = topo::union(&a, &b, tol)
+            .unwrap_or_else(|e| panic!("bulge={bulge}: the half-disc cap is walked; got {e:?}"))
+        else {
+            panic!("bulge={bulge}: a union of two solids is a body");
+        };
+        let v = topo::mass_properties(&out.body, tol).unwrap().volume;
+        println!("half-disc cap bulge={bulge}: BODY volume {v}");
+        volumes.push(v);
     }
-    assert_eq!(
-        (refused, bodies),
-        (1, 1),
-        "one sense contains the box and must refuse; the other must answer \
-         disjoint ({disjoint_answer}). Both answering it is the silent wrong \
-         body against a buried truth of {buried_truth}"
+    volumes.sort_by(f64::total_cmp);
+    assert!(
+        (volumes[0] - buried_truth).abs() < 1e-9 && (volumes[1] - disjoint_answer).abs() < 1e-9,
+        "one sense contains the box and buries its lower half ({buried_truth}); the \
+         other is honestly disjoint ({disjoint_answer}); got {volumes:?}"
     );
 }
 

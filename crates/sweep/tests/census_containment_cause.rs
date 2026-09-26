@@ -11,19 +11,21 @@
 //! field a reader uses to judge how close the call was. Nothing was
 //! posed and nothing was poisoned.
 //!
-//! **RED-FIRST.** Before the repair, `no_fabricated_containment_margin`
-//! fails with the minted diagnostic in hand and
-//! `the_arc_loop_refusal_reaches_the_user_as_itself` fails for want of
-//! any `CensusUnsupported` at all.
-//!
-//! **Only the arc-loop arm has a fixture.** `RayExhausted` and
-//! `Corrupt` are routed by the same match and pinned by the
-//! `CensusUnsupportedCause` rows in `editor-core`'s attribution suite,
-//! but neither has an executed body here: an exhausted parity schedule
-//! needs a configuration every one of sixteen directions grazes, and
-//! unwalkable topology cannot arrive through the public door at all —
-//! `validate_pseudomanifold` runs referential integrity before the
-//! census. That is disclosed, not claimed as coverage.
+//! **No refusal arm has an executed fixture here.** A lens cap — two
+//! arcs of two circles over two vertices — is walked on its carriers,
+//! so a box standing on it is a contact the census DECIDES, which the
+//! row below pins. The arm
+//! that is left refuses a loop with a spiric or spline edge, asked
+//! about a point within that edge's reach, and no body that reaches the
+//! census through the public door has one: the sectioned torus vessel's
+//! cavity, whose moved section cap is bounded by a spiric rim, stops at
+//! its volume first. `RayExhausted` needs a configuration every one of
+//! sixteen directions grazes, and unwalkable topology cannot arrive
+//! through the public door at all — `validate_pseudomanifold` runs
+//! referential integrity before the census. All three are routed by one
+//! match and pinned by the `CensusUnsupportedCause` rows in
+//! `editor-core`'s attribution suite; that is disclosed, not claimed as
+//! executed coverage (`work/contact/census-containment-refusal-carriage-has-no-executed-fixture.md`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -37,9 +39,8 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 }
 
 /// A LENS extruded z0..z0+h: a profile loop of TWO vertices joined by
-/// two arcs of different circles. Its caps are planar and their outer
-/// loop is `LoopShape::NoWalk` — every walk the kernel has either
-/// needs three vertices for a polygon with area, or needs one circle.
+/// two arcs of different circles. Its caps are planar, and the polygon
+/// through their two vertices has no area.
 fn lens(z0: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
@@ -52,7 +53,7 @@ fn lens(z0: f64, h: f64) -> Body<f64> {
 /// as ONE two-solid body. The box's four bottom vertices sit in the
 /// cap's plane and well inside its outline, so the census's v-on-f
 /// sweep passes the plane residual and then asks the cap whether it
-/// contains the point — the question the cap's loop has no walk for.
+/// contains the point.
 fn lens_under_a_box() -> Body<f64> {
     let tol = Tol::witness();
     let mut body = lens(0.0, 1.0);
@@ -63,85 +64,48 @@ fn lens_under_a_box() -> Body<f64> {
 
 fn census_findings(body: &Body<f64>) -> Vec<ValidationError> {
     match topo::validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness()) {
-        Ok(()) => panic!(
-            "the box stands on a cap whose region no walk expresses — the census must \
-             refuse, not certify"
-        ),
+        Ok(()) => panic!("a solid stands on a cap — the census must not certify the body"),
         Err(errors) => errors,
     }
 }
 
-/// INVARIANT: no census finding carries an `Indeterminate` the census
-/// invented. An escalation is what a predicate says when it MEASURED
-/// and could not decide; a door that measured nothing has no margin to
-/// report and must not be given one.
-///
-/// The falsifier is the literal tag the old site minted, matched on
-/// the payload rather than on message prose: a rename of the tag must
-/// not make this row pass.
+/// INVARIANT: a lens cap is read as a region. Its two arcs are walked
+/// on their own circles, so the box's bottom vertices — in the cap's
+/// plane and inside its outline — are decided inside the cap, and the
+/// census reports the contact rather than refusing the question.
 #[test]
-fn no_fabricated_containment_margin() {
+fn the_lens_cap_is_read_as_a_region() {
     let findings = census_findings(&lens_under_a_box());
-    let fabricated: Vec<_> = findings
-        .iter()
-        .filter(|e| {
-            matches!(
-                e,
-                ValidationError::CensusEscalated { cause }
-                    if cause.predicate == Some("pm_census_containment")
-            )
-        })
-        .collect();
-    assert!(
-        fabricated.is_empty(),
-        "the census minted a margin nothing metred: {fabricated:?} (all findings: {findings:?})"
-    );
-}
-
-/// INVARIANT: the point-in-face door's refusal reaches the user AS
-/// ITSELF — the arm, the loop it names, and the repair that moves it.
-///
-/// The subject is the FACE and not a pair: what refused is this face's
-/// region, and the second entity differs at each of the helper's call
-/// sites.
-#[test]
-fn the_arc_loop_refusal_reaches_the_user_as_itself() {
-    let findings = census_findings(&lens_under_a_box());
-    let carried: Vec<_> = findings
+    let refused: Vec<_> = findings
         .iter()
         .filter(|e| {
             matches!(
                 e,
                 ValidationError::CensusUnsupported {
-                    subject: topo::CensusSubject::Entity(topo::EntityId::Face(_)),
-                    cause: topo::CensusUnsupportedCause::Containment(
-                        topo::ContainError::ArcLoopUnsupported { .. }
-                    ),
+                    cause: topo::CensusUnsupportedCause::Containment(_),
+                    ..
                 }
             )
         })
         .collect();
     assert!(
-        !carried.is_empty(),
-        "the cap's loop has no walk and the census must say so in the door's own words: \
-         {findings:?}"
+        refused.is_empty(),
+        "the cap's loop is walked on its carriers; nothing is refused: {refused:?}"
     );
-    // The rendered sentence names the mechanism and a repair, so a
-    // reader is not sent to the tolerance levers for a modelling fact.
-    let shown = carried[0].to_string();
-    for want in [
-        "arcs over fewer than three corners",
-        "cannot read as a region",
-        "Recourse: split an arc so the boundary has three corners",
-    ] {
-        assert!(
-            shown.contains(want),
-            "the message must name {want:?} — the mechanism and its repair: {shown}"
-        );
-    }
-    assert!(
-        !shown.contains("lower the tolerance"),
-        "an unexpressible loop is not an ill-conditioned one; the tolerance levers are \
-         the wrong repair here: {shown}"
+    let inside = findings
+        .iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::UndeclaredContact {
+                    contact: topo::CensusContact::VertexOnFace { .. },
+                    ..
+                }
+            )
+        })
+        .count();
+    assert_eq!(
+        inside, 4,
+        "each of the box's four bottom vertices lies inside the cap: {findings:?}"
     );
 }
