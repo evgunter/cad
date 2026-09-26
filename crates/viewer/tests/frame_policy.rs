@@ -912,16 +912,15 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let offender = common::session_insert(
+    let offender = common::commit_mate(
         &mut session,
-        SessionOp::AddMate {
-            a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
-            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        },
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
-    session.pump();
     let refusal = common::index_at(&session, common::asm::delta())
         .expect_err("a root the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
@@ -2982,12 +2981,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
 
     // Then they mate it, and that placement is discarded under them.
-    let mate = SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
-    };
+    let mate = asm::seat_op(&bench, bench.post_b, ContactClass::Rest, asm::middle_seat());
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [superseded] = &outcome.withdrawn.superseded[..] else {

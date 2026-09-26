@@ -246,6 +246,46 @@ pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Align
     }
 }
 
+/// [`seat_alignment`] under the shelf's middle with no rider — the
+/// seat most mate rows author.
+pub fn middle_seat() -> pncad::document::Alignment {
+    seat_alignment(SHELF_LENGTH / 2.0, None)
+}
+
+/// **The seat mate as the op the session takes**: `post`'s top cap
+/// onto the bench shelf's underside, as `class`, at `alignment`.
+///
+/// One home for the op because the two faces it names are one fact
+/// about this fixture; what a row varies is the post, the class and
+/// the alignment. A row hands it to [`super::commit_mate`] or
+/// [`super::session_insert`], or performs it itself when its subject
+/// is the outcome.
+pub fn seat_op(
+    bench: &Bench,
+    post: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    seat_op_under(bench, post, bench.shelf_i, class, alignment)
+}
+
+/// [`seat_op`] under a shelf instance other than the bench's — one a
+/// row authored itself.
+pub fn seat_op_under(
+    bench: &Bench,
+    post: RecipeNodeId,
+    shelf: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    SessionOp::AddMate {
+        a: super::head(in_part(post, &bench.post_top)),
+        b: super::head(in_part(shelf, &bench.shelf_bottom)),
+        class,
+        alignment,
+    }
+}
+
 /// A `BTreeMap` from a small list — the shape a few rows want for
 /// expected-per-instance assertions.
 pub fn map_of<K: Ord, V>(entries: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {
@@ -262,4 +302,42 @@ pub fn delta() -> viewer::scene::DisplayTolerance {
 /// fixture's δ.
 pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
     super::index_of(session, delta())
+}
+
+/// [`super::face_at`] through a fresh [`index_of`] — one pick, when a
+/// row has no index of its own to reuse.
+pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> viewer::session::FaceSelection {
+    super::face_at(session, &index_of(session), ray)
+}
+
+/// **The two picks the seat mate starts from**: post_b's top cap from
+/// above, then the shelf's underside from below, each at its face's
+/// middle and each checked to land on the instance it aims at.
+pub fn seat_picks(
+    session: &DocSession,
+    bench: &Bench,
+) -> (
+    viewer::session::FaceSelection,
+    viewer::session::FaceSelection,
+) {
+    let post_top = pick_face(
+        session,
+        &down_at(
+            POST_B_AT[0] + POST_SECTION / 2.0,
+            POST_B_AT[1] + POST_SECTION / 2.0,
+        ),
+    );
+    assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
+    let shelf_bottom = pick_face(
+        session,
+        &up_at(
+            SHELF_AT[0] + SHELF_LENGTH / 2.0,
+            SHELF_AT[1] + SHELF_DEPTH / 2.0,
+        ),
+    );
+    assert_eq!(
+        shelf_bottom.node, bench.shelf_i,
+        "the second pick is the shelf's"
+    );
+    (post_top, shelf_bottom)
 }

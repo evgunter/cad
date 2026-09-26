@@ -16,7 +16,7 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{Alignment, Frame, RecipeNodeId, product};
+use pncad::document::{Frame, RecipeNodeId, product};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::display::{self, AdmissionFault, DisplayFault};
@@ -36,33 +36,6 @@ fn mate_nodes(session: &DocSession) -> Vec<RecipeNodeId> {
         .copied()
         .filter(|&id| matches!(doc.node(id), Some(pncad::document::Node::Mate { .. })))
         .collect()
-}
-
-/// The mate these rows author directly: a post's top seated under the
-/// shelf's middle, no rider — `asm::seat_alignment`'s one home, at the
-/// place along the shelf this suite wants.
-fn seat_alignment() -> Alignment {
-    asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None)
-}
-
-/// Author the seat mate between `a_instance` and the shelf through
-/// the session's insert door, answering the mate's node.
-fn add_seat_mate(
-    session: &mut DocSession,
-    bench: &asm::Bench,
-    a_instance: RecipeNodeId,
-) -> RecipeNodeId {
-    let mate = common::session_insert(
-        session,
-        SessionOp::AddMate {
-            a: common::head(asm::in_part(a_instance, &bench.post_top)),
-            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: seat_alignment(),
-        },
-    );
-    session.pump();
-    mate
 }
 
 // --- the resolver (deliverable 1) ---------------------------------
@@ -415,12 +388,12 @@ fn the_at_rest_badge_lands_with_the_evaluation() {
         Some(&viewer::session::AtRestBadge::Certified { minted: 0 }),
         "disjoint instances certify outright (A5's disjoint half)"
     );
-    session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: seat_alignment(),
-    });
+    session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Tangent,
+        asm::middle_seat(),
+    ));
     session.pump();
     match session.at_rest() {
         Some(viewer::session::AtRestBadge::Refused { message }) => assert!(
@@ -479,16 +452,15 @@ fn instance_check_tells_an_absent_node_from_a_wrong_kind() {
     let mut session = asm::open_bench(&bench, tol);
     // One node of another kind, authored through the ordinary door so
     // the wrong-kind arm is driven by a node a user can really select.
-    let mate = common::session_insert(
+    let mate = common::commit_mate(
         &mut session,
-        SessionOp::AddMate {
-            a: common::head(asm::in_part(bench.post_a, &bench.post_top)),
-            b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Tangent,
-            alignment: seat_alignment(),
-        },
+        asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Tangent,
+            asm::middle_seat(),
+        ),
     );
-    session.pump();
     let doc = session.doc();
 
     assert_eq!(
@@ -563,7 +535,10 @@ fn free_move_accepts_only_completely_unconstrained_instances() {
     let bench = asm::bench("fmeligible", tol);
     let mut session = asm::open_bench(&bench, tol);
     // Constrain post_a by mating it to the shelf.
-    let mate = add_seat_mate(&mut session, &bench, bench.post_a);
+    let mate = common::commit_mate(
+        &mut session,
+        asm::seat_op(&bench, bench.post_a, ContactClass::Rest, asm::middle_seat()),
+    );
     // Both mate participants refuse, naming the mate.
     for constrained in [bench.post_a, bench.shelf_i] {
         let outcome = session.perform(SessionOp::BeginFreeMove {
@@ -798,12 +773,12 @@ fn a_landing_mate_discards_the_probe_value() {
 
     // The mate lands on post_b: ONE committed edit, and the probe is
     // superseded IN THE SAME OUTCOME.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {

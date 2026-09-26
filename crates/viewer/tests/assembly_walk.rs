@@ -40,11 +40,11 @@
 use crate::common;
 
 use common::asm;
-use pncad::document::{AxisSense, ClassAdmission, Frame, MatePrimitive};
+use pncad::document::{ClassAdmission, Frame};
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::select::ContactClass;
 use viewer::display::AdmissionFault;
-use viewer::matetool::{MateChoice, MateTool, MateToolState, admitted_classes};
+use viewer::matetool::{MateTool, MateToolState, admitted_classes};
 use viewer::scene::SceneMesh;
 use viewer::session::SessionOp;
 use viewer::tree::RowStatus;
@@ -193,18 +193,7 @@ fn the_exit_demo_walk() {
     // discarded, not zeroed.
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal = tool
-        .proposal(
-            doc,
-            eval,
-            &session.eval_options(),
-            tol,
-            MateChoice {
-                class: ContactClass::Rest,
-                primitive: MatePrimitive::FrameCoincidence,
-                sense: AxisSense::Opposed,
-                clocking: None,
-            },
-        )
+        .proposal(doc, eval, &session.eval_options(), tol, asm::seat())
         .expect("the seat proposes");
     let outcome = session.perform(proposal.op());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);

@@ -31,7 +31,7 @@ use pncad::document::{Doc, Node, ProductError, ProfileProgram, gathers_on_this_t
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use viewer::evalseam::EvalDone;
-use viewer::session::{AtRestBadge, DocSession, Landing, SessionOp};
+use viewer::session::{AtRestBadge, DocSession, Landing};
 
 /// Re-land the result a session already holds, and answer how many
 /// times the gather ran while it did.
@@ -168,12 +168,12 @@ fn a_refused_a5_gate_eats_the_body_and_says_so_by_its_absence() {
     let tol = Tol::witness();
     let bench = common::asm::bench("landed-body-refused-gate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    session.perform(SessionOp::AddMate {
-        a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Tangent,
-        alignment: common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
-    });
+    session.perform(common::asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Tangent,
+        common::asm::middle_seat(),
+    ));
     session.pump();
     assert!(
         matches!(session.at_rest(), Some(AtRestBadge::Refused { .. })),

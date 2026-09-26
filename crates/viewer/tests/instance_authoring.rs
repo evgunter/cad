@@ -20,10 +20,7 @@ use crate::common;
 use std::path::{Path, PathBuf};
 
 use common::asm;
-use pncad::document::{
-    Alignment, AxisSense, Doc, DocumentId, MateFrame, MatePrimitive, Node, NodeResult,
-    RecipeNodeId, SlotId,
-};
+use pncad::document::{Doc, DocumentId, Node, NodeResult, RecipeNodeId, SlotId};
 use pncad::geom_core::Tol;
 use pncad::select::ContactClass;
 use pncad::workspace::Workspace;
@@ -31,30 +28,6 @@ use viewer::display::AdmissionFault;
 use viewer::parts::{PartChooser, PartEntry};
 use viewer::session::{DocSession, Refusal, SessionOp};
 use viewer::tree::{self, RowStatus};
-
-/// The seat mate the acceptance authors: the post's top cap under the
-/// shelf's underside, frames in each part's own coordinates.
-fn seat_alignment() -> Alignment {
-    Alignment {
-        a: MateFrame {
-            origin: [
-                asm::POST_SECTION / 2.0,
-                asm::POST_SECTION / 2.0,
-                asm::POST_HEIGHT,
-            ],
-            axis: [0.0, 0.0, 1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        b: MateFrame {
-            origin: [asm::SHELF_LENGTH / 2.0, asm::SHELF_DEPTH / 2.0, 0.0],
-            axis: [0.0, 0.0, -1.0],
-            reference: [1.0, 0.0, 0.0],
-        },
-        primitive: MatePrimitive::FrameCoincidence,
-        sense: AxisSense::Opposed,
-        clocking: None,
-    }
-}
 
 /// A session over a NEW empty document, saved into the bench's
 /// directory — which is what gives it a resolver, and therefore a
@@ -143,12 +116,13 @@ fn an_assembly_authored_into_a_directory_of_parts_round_trips() {
     assert!(session.display().free_move_of(shelf_i).is_some());
 
     // The shipped mate tool's op takes them from here.
-    let outcome = session.perform(SessionOp::AddMate {
-        a: common::head(asm::in_part(post_i, &bench.post_top)),
-        b: common::head(asm::in_part(shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: seat_alignment(),
-    });
+    let outcome = session.perform(asm::seat_op_under(
+        &bench,
+        post_i,
+        shelf_i,
+        ContactClass::Rest,
+        asm::middle_seat(),
+    ));
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     assert_eq!(outcome.committed.len(), 1);
     let [superseded] = &outcome.withdrawn.superseded[..] else {

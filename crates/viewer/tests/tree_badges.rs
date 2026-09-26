@@ -224,26 +224,23 @@ fn a_refused_mate_solve_names_the_mate_and_reads_every_other_row_downstream() {
     // to slide and spin, so the solve refuses UNDER naming that mate
     // — a verdict about the pair, which the edit door admits (a mate
     // the table refuses on its own datum is refused at the insert).
-    let add_mate = |session: &mut DocSession, post, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(post, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
-    let sound = add_mate(
+    let sound = common::session_insert(
         &mut session,
-        bench.post_a,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat(),
+        ),
     );
-    let offender = add_mate(
+    let offender = common::session_insert(
         &mut session,
-        bench.post_b,
-        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
     // ONE evaluation over both mates. Pumping between them would give
     // the same rows: a mate's key carries the solve's answer, so the
@@ -329,29 +326,26 @@ fn a_contradiction_points_downstream_rows_at_a_row_that_is_actually_failing() {
     let bench = common::asm::bench("badge-contradiction", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    let add_mate = |session: &mut DocSession, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(bench.post_a, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
     // The first mate lands and EVALUATES — the memo now holds an `Ok`
     // for it — and only then does the second one contradict it.
-    let held = add_mate(
+    let held = common::commit_mate(
         &mut session,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat(),
+        ),
     );
-    session.pump();
-    let added = add_mate(
+    let added = common::commit_mate(
         &mut session,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0 + 0.01, None),
+        ),
     );
-    session.pump();
 
     let rows = session.tree_rows();
     let status_of = |id| common::status_of(&rows, id);
@@ -444,26 +438,23 @@ fn a_boolean_over_a_refused_clusters_instances_points_at_the_mate() {
         "the boolean builds before the cluster refuses"
     );
 
-    let add_mate = |session: &mut DocSession, post, alignment| {
-        common::session_insert(
-            session,
-            SessionOp::AddMate {
-                a: common::head(common::asm::in_part(post, &bench.post_top)),
-                b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-                class: ContactClass::Rest,
-                alignment,
-            },
-        )
-    };
-    add_mate(
+    common::session_insert(
         &mut session,
-        bench.post_a,
-        common::asm::seat_alignment(common::asm::SHELF_LENGTH / 2.0, None),
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat(),
+        ),
     );
-    let offender = add_mate(
+    let offender = common::session_insert(
         &mut session,
-        bench.post_b,
-        common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
     session.pump();
 
