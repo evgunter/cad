@@ -107,3 +107,19 @@ evidence on CONTACT's `axis-coincident-lap-trips-the-planar-join-invariant`.
 
 GERM's note above (one final-stage merge call at the end of the sweep)
 goes into the continuation-merge unit's brief verbatim.
+
+## 2026-09-26 — `sweep-emits-no-contact-record-for-declared-cusps` closed (PR #3257)
+
+`Extruded`, `Revolved` and `Lofted` carry `declared_contacts`, one
+`Tangent` pair per declared cusp joint. Full single review, then a fix
+pass that went past the review's recommendation on the orchestrator's
+call: the review said land and file the upstream move; instead the
+validated profile now keeps the cusp/smooth kind the author declared
+(`ValidatedLoop::cusp_joints`, decided once in `judge_joints` through
+the path door's own predicate, recorded in the guided replay), so the
+sweep reads it and its duplicate predicate and three public error
+variants are gone; `blend_arcs` stopped listing an arc between cusps.
+Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
+MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
+`product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
+has its measured red-first row.
