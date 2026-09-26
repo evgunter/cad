@@ -551,7 +551,7 @@ drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
 `Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
 `part-census-dir-iff-refusal-is-held-in-prose`.
 
-## 2026-09-25 — P0 `rank-one-discards-the-frames-other-news`: the first dual on this slate (DR-7)
+## 2026-09-25 — P0 `rank-one-discards-the-frames-other-news`: the first dual on this slate (DR-9)
 
 **Tier: dual**, under `memories/orchestration-model.md`'s tiers, which this program adopted at #3261. Reason: the unit puts a classification (`frame::Retold`) on every status-line `Message`, with no default, so every producer in the crate must answer it — a design decision that is broad and hard to reverse. **Chosen after spec, not at it**: the unit was dispatched expecting a single style review, and that review showed its first rule tested the wrong property (whether the *state* comes back, when the question is whether the *news* does). The fix pass then made the rule broad enough to earn a dual. Recorded as such in the row.
 

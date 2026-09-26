@@ -27,7 +27,7 @@ use pncad::geom_core::Tol;
 use pncad::prelude::StableName;
 use pncad::select::{CapEnd, EntityKind, NamePat, SegPat, SegTag, Selector};
 use pncad::workspace::Workspace;
-use viewer::session::{DocSession, SessionOp};
+use viewer::session::{DocSession, FaceSelection, SessionOp};
 
 use super::{edit_into, insert_into, len};
 
@@ -189,10 +189,10 @@ pub fn in_part(instance: RecipeNodeId, local: &StableName) -> StableName {
 // shared rays, re-exported rather than restated.
 pub use super::{down_at, up_at};
 
-/// The seat choice the mate rows commit: Rest at frame coincidence,
+/// The mate tool's choice for the seat: Rest at frame coincidence,
 /// axes opposed, no clocking rider — on a frame coincidence the coset
 /// table decides any nonzero rider contradictory.
-pub fn seat() -> viewer::matetool::MateChoice {
+pub fn seat_choice() -> viewer::matetool::MateChoice {
     viewer::matetool::MateChoice {
         class: pncad::select::ContactClass::Rest,
         primitive: pncad::document::MatePrimitive::FrameCoincidence,
@@ -246,6 +246,53 @@ pub fn seat_alignment(b_x: f64, clocking: Option<f64>) -> pncad::document::Align
     }
 }
 
+/// [`seat_alignment`] under the shelf's middle, with no rider.
+pub fn middle_seat_alignment() -> pncad::document::Alignment {
+    seat_alignment(SHELF_LENGTH / 2.0, None)
+}
+
+/// **A seat that contradicts the middle one**: [`seat_alignment`] one
+/// centimetre further along the shelf. Authored on the same pair as a
+/// [`middle_seat_alignment`] mate, the two frame coincidences cannot
+/// both hold, and the solve names the pair `Contradictory`.
+pub fn contradicting_seat_alignment() -> pncad::document::Alignment {
+    seat_alignment(SHELF_LENGTH / 2.0 + 0.01, None)
+}
+
+/// **The seat mate as the op the session takes**: `post`'s top cap
+/// onto the bench shelf's underside, as `class`, at `alignment`.
+///
+/// One home for the op because the two faces it names are one fact
+/// about this fixture; what a row varies is the post, the class and
+/// the alignment. A row hands it to [`super::commit_mate`] or
+/// [`super::session_insert`], or performs it itself when its subject
+/// is the outcome.
+pub fn seat_op(
+    bench: &Bench,
+    post: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    seat_op_under(bench, post, bench.shelf_i, class, alignment)
+}
+
+/// [`seat_op`] under a shelf instance other than the bench's — one a
+/// row authored itself.
+pub fn seat_op_under(
+    bench: &Bench,
+    post: RecipeNodeId,
+    shelf: RecipeNodeId,
+    class: pncad::select::ContactClass,
+    alignment: pncad::document::Alignment,
+) -> SessionOp {
+    SessionOp::AddMate {
+        a: super::head(in_part(post, &bench.post_top)),
+        b: super::head(in_part(shelf, &bench.shelf_bottom)),
+        class,
+        alignment,
+    }
+}
+
 /// A `BTreeMap` from a small list — the shape a few rows want for
 /// expected-per-instance assertions.
 pub fn map_of<K: Ord, V>(entries: impl IntoIterator<Item = (K, V)>) -> BTreeMap<K, V> {
@@ -262,4 +309,50 @@ pub fn delta() -> viewer::scene::DisplayTolerance {
 /// fixture's δ.
 pub fn index_of(session: &DocSession) -> viewer::pickindex::PickIndex {
     super::index_of(session, delta())
+}
+
+/// [`super::displayed_face_at`] through a fresh [`index_of`] — one
+/// pick, when a row has no index of its own to reuse.
+pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> FaceSelection {
+    super::displayed_face_at(session, &index_of(session), ray)
+}
+
+/// The ray straight up through the middle of the shelf's footprint:
+/// from below, the first face it meets is the shelf's underside unless
+/// a row has put something between.
+pub fn under_shelf() -> pncad::select::Ray {
+    up_at(
+        SHELF_AT[0] + SHELF_LENGTH / 2.0,
+        SHELF_AT[1] + SHELF_DEPTH / 2.0,
+    )
+}
+
+/// The ray straight down through the middle of post_b's AUTHORED
+/// footprint: its top cap while post_b stands where the bench put it,
+/// and a miss once a probe or a mate has moved it.
+pub fn over_post_b() -> pncad::select::Ray {
+    down_at(
+        POST_B_AT[0] + POST_SECTION / 2.0,
+        POST_B_AT[1] + POST_SECTION / 2.0,
+    )
+}
+
+/// The face [`under_shelf`] picks — the shelf's underside, or whatever
+/// instance a row has placed there.
+pub fn shelf_underside(session: &DocSession) -> FaceSelection {
+    pick_face(session, &under_shelf())
+}
+
+/// **The two picks the seat mate starts from**: post_b's top cap from
+/// above, then the shelf's underside from below, each at its face's
+/// middle and each checked to land on the instance it aims at.
+pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSelection) {
+    let post_top = pick_face(session, &over_post_b());
+    assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
+    let shelf_bottom = shelf_underside(session);
+    assert_eq!(
+        shelf_bottom.node, bench.shelf_i,
+        "the second pick is the shelf's"
+    );
+    (post_top, shelf_bottom)
 }

@@ -232,8 +232,8 @@ fn the_declared_l_bracket_certifies() {
 
 /// Undeclared, the L-bracket refuses on its eight touch findings — the
 /// four resting corners and the four resting edges on the wall — and
-/// on NOTHING about placement: each touch is a one-sided rest by the
-/// local side analysis, so the clear stands beside them.
+/// on NOTHING about placement: each touch is a rest by the local cone
+/// analysis, so the clear stands beside them.
 #[test]
 fn the_undeclared_l_bracket_carries_no_placement_finding() {
     let (body, _) = lbracket(false, 0.0);
@@ -504,7 +504,7 @@ fn split_straddle() -> (Body<f64>, ContactRecords) {
 /// the wall's plane to `x < 1` (the bracket's material) and to `x > 1`
 /// (the concavity); the vertical edges in the wall have their two
 /// adjacent faces on both sides. Undeclared, the sweeps report the
-/// touches and the side analysis refuses the clear typed; declared,
+/// touches and the cone analysis refuses the clear typed; declared,
 /// the same analysis runs over the records and refuses the same way —
 /// a record certifies a coincidence, never a side. No interference is
 /// claimed (no vertex is inside) and nothing clears.
@@ -522,7 +522,7 @@ fn a_mixed_side_touch_blocks_the_clear_declared_or_not() {
         assert_eq!(placements.len(), 1, "{name}: {errors:?}");
         let what = undecidable_what(placements[0]).expect("the typed refusal");
         assert!(
-            what.contains("passes through a face of the other where they touch"),
+            what.contains("one passes into the other where they touch"),
             "{name}: {what}"
         );
         assert!(

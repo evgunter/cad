@@ -570,7 +570,7 @@ fn every_writer_this_unit_assigned_carries_the_subject_its_door_states() {
         .view_projection(0.0)
         .expect_err("a zero aspect has no projection");
     let disagreement = idpass::Disagreement {
-        from_gpu: None,
+        from_gpu: idpass::IdAnswer::Nothing,
         from_ray: Vec::new(),
     };
     assert_eq!(
@@ -938,16 +938,15 @@ fn a_refusal_reached_through_a_mate_names_the_mate_the_tree_blames() {
     let tol = Tol::witness();
     let bench = common::asm::bench("vnews-derived-mate", tol);
     let mut session = common::asm::open_bench(&bench, tol);
-    let offender = common::session_insert(
+    let offender = common::commit_mate(
         &mut session,
-        SessionOp::AddMate {
-            a: common::head(common::asm::in_part(bench.post_b, &bench.post_top)),
-            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        },
+        common::asm::seat_op(
+            &bench,
+            bench.post_b,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     );
-    session.pump();
     let refusal = common::index_at(&session, common::asm::delta())
         .expect_err("a root the solve refused refuses the index");
     let pickindex::PickIndexError::Node {
@@ -1832,7 +1831,7 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         Ok(std::slice::from_ref(&hit.name)),
     )
     .expect("nothing vs a face is a disagreement");
-    assert_eq!(report.from_gpu, None);
+    assert_eq!(report.from_gpu, idpass::IdAnswer::Nothing);
     assert_eq!(report.from_ray, vec![hit.name.clone()]);
     assert!(report.to_string().contains("disagree"));
 
@@ -1870,6 +1869,36 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     assert!(
         report.to_string().contains("tied between"),
         "the sentence says the ray path was tied: {report}"
+    );
+}
+
+/// **An id the index draws but cannot name is said as that id, in the
+/// naming layer's own words.** No document plants the naming layer's
+/// bug arm, so the state is built directly: the id side of a
+/// disagreement, holding the refusal the index would have stored.
+/// The sentence is fixed here, and the refusal rides through its own
+/// `Display` once, unaltered.
+#[test]
+fn an_unnamed_patch_is_said_as_its_id_and_its_own_refusal() {
+    let error = HitTestError::Unnamed {
+        node: RecipeNodeId(2),
+        entity: editor_core::names::EntityRef {
+            body: 0,
+            key: editor_core::names::EntityKey::Body,
+        },
+    };
+    let report = idpass::Disagreement {
+        from_gpu: idpass::IdAnswer::Unnamed {
+            id: 9,
+            error: error.clone(),
+        },
+        from_ray: Vec::new(),
+    };
+    assert_eq!(
+        report.to_string(),
+        format!(
+            "picking paths disagree at the cursor: id buffer id 9, a drawn patch: {error}, ray nothing"
+        )
     );
 }
 
@@ -3013,12 +3042,12 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     );
 
     // Then they mate it, and that placement is discarded under them.
-    let mate = SessionOp::AddMate {
-        a: common::head(asm::in_part(bench.post_b, &bench.post_top)),
-        b: common::head(asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-        class: ContactClass::Rest,
-        alignment: asm::seat_alignment(asm::SHELF_LENGTH / 2.0, None),
-    };
+    let mate = asm::seat_op(
+        &bench,
+        bench.post_b,
+        ContactClass::Rest,
+        asm::middle_seat_alignment(),
+    );
     let outcome = session.perform(mate.clone());
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let [superseded] = &outcome.withdrawn.superseded[..] else {
