@@ -546,6 +546,26 @@ fn descent_leaf(name: &StableName) -> &StableName {
     }
 }
 
+/// A profile piece in words: its role (the role's own `Display`) and
+/// the step that drew it, by the id it was minted with — spelled as an
+/// id (`#7`), never as a position, since a name holds no position — or,
+/// on a kernel-built section, which circle.
+fn piece_words(e: &crate::names::ProfileEdgeRef) -> String {
+    use crate::names::{ProfileEdgeRef, SectionCircle};
+    match e {
+        ProfileEdgeRef::Piece { step, role } => {
+            format!("the {role} of the profile step minted #{}", step.0)
+        }
+        ProfileEdgeRef::Section { circle, role } => format!(
+            "the {role} of the {} circle",
+            match circle {
+                SectionCircle::Outer => "outer",
+                SectionCircle::Bore => "bore",
+            }
+        ),
+    }
+}
+
 /// A role segment in words. Exhaustive, so a new segment is given words
 /// here or the compile breaks.
 fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Result {
@@ -560,11 +580,14 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         MeridianEnd::Seam => "seam",
         MeridianEnd::Pi => "half-turn",
     };
-    let seg_of = |e: &crate::names::ProfileEdgeRef| {
-        format!("profile segment {} of loop {}", e.segment, e.loop_index)
-    };
+    let seg_of = |e: &crate::names::ProfileEdgeRef| piece_words(e);
     let vert_of = |v: &crate::names::ProfileVertexRef| {
-        format!("profile vertex {} of loop {}", v.vertex, v.loop_index)
+        use crate::names::{ProfileEdgeRef, ProfileVertexRef};
+        let piece = match *v {
+            ProfileVertexRef::Piece { step, role } => ProfileEdgeRef::Piece { step, role },
+            ProfileVertexRef::Section { circle, role } => ProfileEdgeRef::Section { circle, role },
+        };
+        format!("the start of {}", piece_words(&piece))
     };
     match seg {
         RoleSeg::OutputBody => write!(f, "the output body"),
@@ -573,6 +596,24 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         RoleSeg::RimEdge(c, e) => write!(f, "the {} rim edge over {}", cap(c), seg_of(e)),
         RoleSeg::LateralEdge(v) => write!(f, "the lateral edge over {}", vert_of(v)),
         RoleSeg::CapVertex(c, v) => write!(f, "the {} cap vertex over {}", cap(c), vert_of(v)),
+        RoleSeg::LoftWall(pieces) => write!(
+            f,
+            "the loft wall over {}",
+            pieces
+                .iter()
+                .map(seg_of)
+                .collect::<Vec<_>>()
+                .join(", then ")
+        ),
+        RoleSeg::LoftSeam(vertices) => write!(
+            f,
+            "the loft seam over {}",
+            vertices
+                .iter()
+                .map(vert_of)
+                .collect::<Vec<_>>()
+                .join(", then ")
+        ),
         RoleSeg::Band(e) => write!(f, "the band face over {}", seg_of(e)),
         RoleSeg::BandRim(v) => write!(f, "the band rim over {}", vert_of(v)),
         RoleSeg::BandRimPi(v) => write!(f, "the second band rim over {}", vert_of(v)),
@@ -607,9 +648,9 @@ fn role_words(f: &mut core::fmt::Formatter<'_>, seg: &RoleSeg) -> core::fmt::Res
         RoleSeg::BandFace(_) => write!(f, "a band face"),
         RoleSeg::BandTrim { .. } => write!(f, "a band trim edge"),
         RoleSeg::BandFoot(_) => write!(f, "a band foot"),
-        RoleSeg::BandCross(_) => write!(f, "a band crossing"),
+        RoleSeg::BandCross { .. } => write!(f, "a band crossing"),
         RoleSeg::BandCut(_) => write!(f, "a band cut"),
-        RoleSeg::BandSlit(_) => write!(f, "a band slit"),
+        RoleSeg::BandSlit { .. } => write!(f, "a band slit"),
         RoleSeg::Inner(_) => write!(f, "an inner entity"),
         RoleSeg::Rim(_) => write!(f, "a rim"),
         RoleSeg::HoleRim { hole, .. } => write!(f, "the rim of hole {hole}"),
@@ -2383,7 +2424,8 @@ fn merge_offers<T: Decide>(eval: &Evaluation<T>, name: &StableName) -> Vec<Stabl
 /// policy menu).
 ///
 /// Two exclusions (review Finding 2): a name that merely MENTIONS
-/// `name` as a `SideOf` discriminator PARTNER is not a derivation of
+/// `name` as a discriminator PARTNER (a `SideOf` partner, a slit's or
+/// crossing's band) is not a derivation of
 /// it — partners are the references fragments are classified
 /// against, so painting a cutter wall must not suggest the other
 /// body's fragments ([`walk_names`] with [`Partners::Skip`]); and
@@ -2567,12 +2609,14 @@ fn upstream_nodes(
     nodes
 }
 
-/// Whether a name walk visits `SideOf` discriminator PARTNERS.
-/// Partners are discrimination references — an edit at a partner's
-/// node can re-qualify the name (N7 localization, cascade), but the
-/// name is not DERIVED from the partner (suggestions must not offer
-/// the other body's fragments for a painted cutter wall — review
-/// Finding 2).
+/// Whether a name walk visits discriminator PARTNERS: a `SideOf`
+/// qualifier's partners, and the `band` of a [`RoleSeg::BandCross`] or
+/// [`RoleSeg::BandSlit`]. Partners are discrimination references — an
+/// edit at a partner's node can re-qualify the name (N7 localization,
+/// cascade), but the name is not DERIVED from the partner (suggestions
+/// must not offer the other body's fragments for a painted cutter
+/// wall — review Finding 2 — nor a band's slit for one of its rim
+/// edges).
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Partners {
     /// Visit partner names (localization, cascade).
@@ -2614,9 +2658,7 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             | RoleSeg::CornerFace(n)
             | RoleSeg::BandTrim { edge: n, .. }
             | RoleSeg::BandFoot(n)
-            | RoleSeg::BandCross(n)
             | RoleSeg::BandCut(n)
-            | RoleSeg::BandSlit(n)
             // The shell vocabulary: each argument is the SOURCE entity
             // the twin or rim was born for — derivation, not
             // discrimination (a hole rim's index discriminates, and is
@@ -2653,6 +2695,18 @@ fn walk_names<'a>(name: &'a StableName, partners: Partners, f: &mut impl FnMut(&
             RoleSeg::BandFace(names) => {
                 for n in names {
                     visit(n, partners, f);
+                }
+            }
+            // The source edge is derivation; the band is a
+            // DISCRIMINATOR — it says which of the bands on that edge
+            // made the entity, and the entity does not replace any of
+            // the band's rim edges — so it is a partner position.
+            RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+                visit(edge, partners, f);
+                if partners == Partners::Include {
+                    for n in band {
+                        visit(n, partners, f);
+                    }
                 }
             }
             RoleSeg::Seam { a, b } => {
@@ -2801,9 +2855,9 @@ mod tests {
         StableName {
             kind: EntityKind::Face,
             node: RecipeNodeId(node),
-            path: vec![RoleSeg::Lateral(ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: crate::node::StepId(u64::from(seg)),
+                role: crate::names::PieceRole::Leg,
             })],
         }
     }

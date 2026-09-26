@@ -2,8 +2,9 @@
 //! to the chrome** (`crates/editor-core/REFERENCES.md` DM7).
 //!
 //! The edit door reports a stranded payload name, a stranded
-//! appearance key, a declaration left with no consumer and a name
-//! rewritten in place on `Applied::maintenance`. The log keeps only
+//! appearance key and a declaration left with no consumer on
+//! `Applied::maintenance`; a value edit reports nothing, because a
+//! profile's names are its minted steps and no value moves one. The log keeps only
 //! the cluster acts, because replay re-derives the rest, so the
 //! session's outcome is the one road the other rows have to a user.
 //! Each row here drives a real session through one of the viewer's
@@ -23,23 +24,39 @@ use crate::common;
 use editor_core::{Attr, Rgba8};
 use pncad::document::{
     Datum, Dimension, Doc, DocEdit, DocParam, LoopProgram, Maintenance, Node, ParamName,
-    ProfileProgram, ProgramStep, ProgramTarget, RETIRED_FLOOR, RecipeNodeId, SitedRef, SlotId,
-    StepArg, cascade_delete_order,
+    ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StepArg,
+    cascade_delete_order,
 };
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
+use pncad::select::{PieceRole, StepId};
 use viewer::frame::{self, StatusUpdate};
 use viewer::session::{DocSession, OpOutcome, SessionOp};
 
-/// The face name `node` mints for its lateral wall `(loop, segment)`.
-fn wall(node: RecipeNodeId, loop_index: u32, segment: u32) -> StableName {
+/// The face name the extrude `node` mints for its lateral wall at
+/// canonical `(loop, segment)`, spelled by the piece that position is
+/// under `doc`'s current values.
+fn wall(
+    doc: &Doc<ProfileProgram>,
+    node: RecipeNodeId,
+    loop_index: usize,
+    segment: usize,
+) -> StableName {
+    let Some(Node::Extrude { profile, .. }) = doc.node(node) else {
+        panic!("node {} is an extrude", node.0);
+    };
+    let Some(Node::Profile(program)) = doc.node(*profile) else {
+        panic!("an extrude's operand is a profile");
+    };
+    let piece = program
+        .pieces(&doc.param_env::<f64>(), Tol::witness())
+        .expect("the profile replays")
+        .edge(loop_index, segment)
+        .expect("the position is the profile's");
     StableName {
         kind: EntityKind::Face,
         node,
-        path: vec![RoleSeg::Lateral(ProfileEdgeRef {
-            loop_index,
-            segment,
-        })],
+        path: vec![RoleSeg::Lateral(piece)],
     }
 }
 
@@ -51,8 +68,15 @@ fn extruded(
 ) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
     let tol = Tol::witness();
     let (doc, plane) = common::inserted(doc, common::xy_frame(), tol);
-    let (doc, profile) =
-        common::inserted(&doc, Node::Profile(ProfileProgram { plane, loops }), tol);
+    let (doc, profile) = common::inserted(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+        tol,
+    );
     let (doc, extrude) = common::inserted(
         &doc,
         Node::Extrude {
@@ -66,9 +90,7 @@ fn extruded(
 
 /// A unit square at `(x0, 0)`, extruded; `(doc, extrude)`.
 fn block(doc: &Doc<ProfileProgram>, x0: f64) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let square = LoopProgram::polygon([(x0, 0.0), (x0 + 1.0, 0.0), (x0 + 1.0, 1.0), (x0, 1.0)])
-        .expect("finite corners");
-    let (doc, _, extrude) = extruded(doc, vec![square]);
+    let (doc, _, extrude) = extruded(doc, vec![common::rectangle_loop([x0, 0.0], 1.0, 1.0)]);
     (doc, extrude)
 }
 
@@ -124,7 +146,7 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-delete-strand", Tol::witness());
     let (doc, kept) = block(&doc, 0.0);
     let (doc, victim) = block(&doc, 4.0);
-    let named = wall(victim, 0, 0);
+    let named = wall(&doc, victim, 0, 0);
     let (doc, carrier) = frame_on(&doc, kept, named.clone());
 
     let mut session = DocSession::inline(doc, Tol::witness());
@@ -150,7 +172,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
     let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-delete-paint", tol);
     let (doc, kept) = block(&doc, 0.0);
     let (doc, victim) = block(&doc, 4.0);
-    let painted = wall(victim, 0, 2);
+    let painted = wall(&doc, victim, 0, 2);
     let paint = |doc: &Doc<ProfileProgram>, name: &StableName| {
         common::edited(
             doc,
@@ -163,7 +185,7 @@ fn a_delete_that_strands_an_appearance_key_reaches_the_line() {
         .0
     };
     let doc = paint(&doc, &painted);
-    let doc = paint(&doc, &wall(kept, 0, 0));
+    let doc = paint(&doc, &wall(&doc, kept, 0, 0));
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::DeleteNode { node: victim };
@@ -185,8 +207,8 @@ fn declared_union(doc: &Doc<ProfileProgram>) -> (Doc<ProfileProgram>, RecipeNode
     let (doc, declare) = common::inserted(
         &doc,
         Node::declare_rest(vec![(
-            SitedRef::new(a, wall(a, 0, 0)),
-            SitedRef::new(b, wall(b, 0, 0)),
+            SitedRef::new(a, wall(&doc, a, 0, 0)),
+            SitedRef::new(b, wall(&doc, b, 0, 0)),
         )]),
         tol,
     );
@@ -268,8 +290,8 @@ fn framed_triangle(label: &str) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNod
     ]);
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, Tol::witness());
     let (doc, profile, extrude) = extruded(&doc, vec![triangle]);
-    let (doc, _) = frame_on(&doc, extrude, wall(extrude, 0, 0));
-    let (doc, _) = frame_on(&doc, extrude, wall(extrude, 0, 1));
+    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 0, 0));
+    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 0, 1));
     (doc, profile, extrude)
 }
 
@@ -282,24 +304,31 @@ fn apex_y() -> SlotId {
     }
 }
 
-/// **The one move a flip below the base makes**: the base wall's name
-/// follows it from canonical wall 0 to canonical wall 2, and the
-/// middle wall keeps its number.
-fn flipped(extrude: RecipeNodeId) -> Vec<Maintenance> {
-    vec![Maintenance::Rebound {
-        from: wall(extrude, 0, 0),
-        to: wall(extrude, 0, 2),
-    }]
+/// **The line an edit that moved no name composes**: nothing, so the
+/// batch's own verdict — clear — stands.
+fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    assert_eq!(outcome.maintenance, Vec::new());
+    assert_eq!(
+        frame::frame_status(
+            &frame::outcome_notices(outcome).collect::<Vec<_>>(),
+            &[op],
+            None
+        ),
+        StatusUpdate::Clear,
+        "an accepted edit with nothing to report clears the line"
+    );
 }
 
-/// **A value edit that flips a loop's sense reports the name it
-/// rebound.** The apex moved below the base winds the same three steps
-/// clockwise, so the canonical numbering reverses and the base's name
-/// is rewritten to follow it (`reanchor_report`). Written through the
-/// panel's slot door.
+/// **A value edit that flips a loop's sense moves no name, and the
+/// line says nothing.** The apex moved below the base winds the same
+/// three steps clockwise; each wall is still named by the step that
+/// draws it, so both frames' names still denote their walls and there
+/// is nothing to report. Written through the panel's slot door.
 #[test]
-fn a_slot_edit_that_renumbers_reaches_the_line() {
+fn a_slot_edit_that_flips_the_sense_reports_nothing() {
     let (doc, profile, extrude) = framed_triangle("maint-slot-flip");
+    let base = wall(&doc, extrude, 0, 0);
     let mut session = DocSession::inline(doc, Tol::witness());
     let op = SessionOp::SetSlot {
         node: profile,
@@ -307,17 +336,20 @@ fn a_slot_edit_that_renumbers_reaches_the_line() {
         value: viewer::props::SlotValue::Continuous(-1.0),
     };
     let outcome = session.perform(op.clone());
-    assert_eq!(outcome.maintenance, flipped(extrude));
-    assert_line_words(&line_after(&outcome, op), &flipped(extrude));
+    assert_quiet(&outcome, op);
+    assert_eq!(
+        wall(session.committed_doc(), extrude, 0, 2),
+        base,
+        "the base is canonical wall 2 now, under the name it had"
+    );
 }
 
-/// **The same flip, dragged.** A preview enters no history, so it
-/// reports nothing; the release commits the one edit and reports the
-/// rebound — the GUI user dragging a parameter past a numbering change
-/// is the case the report exists for.
+/// **The same flip, dragged**: the preview and the release both report
+/// nothing — the GUI user dragging a parameter past a sense change
+/// moves no name.
 #[test]
-fn a_dragged_flip_reports_at_the_release_and_not_before() {
-    let (doc, profile, extrude) = framed_triangle("maint-drag-flip");
+fn a_dragged_flip_reports_nothing_at_the_release_or_before() {
+    let (doc, profile, _) = framed_triangle("maint-drag-flip");
     let mut session = DocSession::inline(doc, Tol::witness());
     let slot = apex_y();
     let begun = session.perform(SessionOp::BeginGesture {
@@ -332,27 +364,23 @@ fn a_dragged_flip_reports_at_the_release_and_not_before() {
     });
     assert!(previewed.refusal.is_none(), "{:?}", previewed.refusal);
     assert_eq!(previewed.previewed.len(), 1, "the premise: a preview ran");
-    assert_eq!(
-        previewed.maintenance,
-        Vec::new(),
-        "a preview has happened to nothing yet"
-    );
+    assert_eq!(previewed.maintenance, Vec::new());
     let op = SessionOp::CommitGesture {
         node: profile,
         slot,
     };
     let landed = session.perform(op.clone());
     assert_eq!(landed.committed.len(), 1, "the drag landed one edit");
-    assert_eq!(landed.maintenance, flipped(extrude));
-    assert_line_words(&line_after(&landed, op), &flipped(extrude));
+    assert_quiet(&landed, op);
 }
 
-/// **The path editor's door reports it too.** `EditProfile` lands its
-/// program as one-slot writes through an order search, a different
-/// road to the history from the single-edit door; the rows ride it.
+/// **The path editor's door moves no name either.** `EditProfile`
+/// lands its program as one-slot writes through an order search, a
+/// different road to the history from the single-edit door, and every
+/// write keeps every step.
 #[test]
-fn a_profile_edit_that_renumbers_reaches_the_line() {
-    let (doc, profile, extrude) = framed_triangle("maint-profile-flip");
+fn a_profile_edit_that_flips_the_sense_reports_nothing() {
+    let (doc, profile, _) = framed_triangle("maint-profile-flip");
     let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
         panic!("the fixture's profile")
     };
@@ -371,17 +399,17 @@ fn a_profile_edit_that_renumbers_reaches_the_line() {
     };
     let outcome = session.perform(op.clone());
     assert_eq!(outcome.committed.len(), 1, "one write moved");
-    assert_eq!(outcome.maintenance, flipped(extrude));
-    assert_line_words(&line_after(&outcome, op), &flipped(extrude));
+    assert_quiet(&outcome, op);
 }
 
-/// **A parameter edit that leaves a numbering unreadable reports the
-/// strand.** A driven circular hole at radius zero encloses nothing,
-/// so the profile's numbering cannot be read and the name framed on
-/// the hole's wall is retired, reported — written through the
-/// parameter panel's door.
+/// **A parameter edit through a state that draws nothing reports
+/// nothing.** A driven circular hole at radius zero encloses nothing,
+/// so the profile does not validate and nothing is named — the frame
+/// on the hole's wall resolves to nothing until the radius comes back,
+/// and then to that wall again. No name was moved, so none is reported
+/// — written through the parameter panel's door.
 #[test]
-fn a_parameter_edit_that_strands_reaches_the_line() {
+fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
     let tol = Tol::witness();
     let hole_r = ParamName::new("hole_r");
     let doc = common::declared(
@@ -389,14 +417,13 @@ fn a_parameter_edit_that_strands_reaches_the_line() {
         &hole_r,
         DocParam::continuous(Dimension::Length, 0.3),
     );
-    let square = LoopProgram::polygon([(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)])
-        .expect("finite corners");
+    let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
         centre: [common::len(1.0), common::len(1.0)],
         radius: pncad::document::Expr::param(hole_r.clone(), Dimension::Length),
     };
     let (doc, _, extrude) = extruded(&doc, vec![square, hole]);
-    let (doc, on_hole) = frame_on(&doc, extrude, wall(extrude, 1, 0));
+    let (doc, _) = frame_on(&doc, extrude, wall(&doc, extrude, 1, 0));
 
     let mut session = DocSession::inline(doc, tol);
     let op = SessionOp::SetParam {
@@ -404,12 +431,7 @@ fn a_parameter_edit_that_strands_reaches_the_line() {
         value: viewer::props::SlotValue::Continuous(0.0),
     };
     let outcome = session.perform(op.clone());
-    let expected = vec![Maintenance::Strand {
-        node: on_hole,
-        name: wall(extrude, RETIRED_FLOOR + 1, 0),
-    }];
-    assert_eq!(outcome.maintenance, expected);
-    assert_line_words(&line_after(&outcome, op), &expected);
+    assert_quiet(&outcome, op);
 }
 
 /// **An edit that moves nothing says nothing**: the ordinary value
@@ -450,7 +472,14 @@ fn a_cluster_act_is_carried_but_not_worded() {
     assert_eq!(frame::maintenance_notice(&act), None);
     let strand = Maintenance::Strand {
         node: RecipeNodeId(3),
-        name: wall(gauge, 0, 0),
+        name: StableName {
+            kind: EntityKind::Face,
+            node: gauge,
+            path: vec![RoleSeg::Lateral(ProfileEdgeRef::Piece {
+                step: StepId(1),
+                role: PieceRole::Leg,
+            })],
+        },
     };
     assert_eq!(
         frame::maintenance_notice(&strand).map(|notice| notice.text().to_owned()),

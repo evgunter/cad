@@ -19,8 +19,7 @@ use geom_core::Tol;
 #[test]
 fn the_selection_reaches_the_wire_canonical() {
     use editor_core::{
-        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, ProfileEdgeRef, RoleSeg, StableName,
-        apply, save,
+        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, RoleSeg, StableName, apply, save,
     };
 
     let square =
@@ -36,6 +35,7 @@ fn the_selection_reaches_the_wire_canonical() {
             node: Node::Profile(editor_core::ProfileProgram {
                 plane: editor_core::RecipeNodeId(0),
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         DocEdit::InsertNode {
@@ -54,10 +54,7 @@ fn the_selection_reaches_the_wire_canonical() {
         node: editor_core::RecipeNodeId(2),
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
-            },
+            crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg as usize),
         )],
     };
     doc = apply(
@@ -78,8 +75,14 @@ fn the_selection_reaches_the_wire_canonical() {
     let text = save(&doc, &[], Tol::witness()).expect("the fixture saves");
     assert!(text.contains("\"selection\""), "the field reaches the wire");
     let sel = text.find("\"selection\"").expect("the selection block");
-    let zero = text[sel..].find("\"segment\": 0").expect("segment 0");
-    let two = text[sel..].find("\"segment\": 2").expect("segment 2");
+    let step_of =
+        |seg: usize| match crate::fixture::piece(&doc, editor_core::RecipeNodeId(2), 0, seg) {
+            editor_core::ProfileEdgeRef::Piece { step, .. } => step.0,
+            other => panic!("a square's side is a step's piece, got {other:?}"),
+        };
+    let spelled = |seg: usize| format!("\"step\": {}", step_of(seg));
+    let zero = text[sel..].find(&spelled(0)).expect("segment 0");
+    let two = text[sel..].find(&spelled(2)).expect("segment 2");
     assert!(zero < two, "stored in canonical order, not authoring order");
 
     // A non-canonical selection on the wire is a CORRUPT file: refused
@@ -88,7 +91,13 @@ fn the_selection_reaches_the_wire_canonical() {
     // is one predicate on `Node::input_fault`, so the load door names it
     // in the arm it names every other structural fault in;
     // `edit_blend_canonical` is where the two doors are pinned together.
-    let corrupt = text.replacen("\"segment\": 0", "\"segment\": 9", 1);
+    // Segment 0's piece rewritten to segment 3's, which sorts after
+    // segment 2's.
+    let corrupt = format!(
+        "{}{}",
+        &text[..sel],
+        text[sel..].replacen(&spelled(0), &spelled(3), 1)
+    );
     match load(&corrupt, Tol::witness()) {
         Err(PersistError::Snapshot(editor_core::SnapshotError::InputList {
             fault: editor_core::InputFault::SelectionNotCanonical { at: 0 },

@@ -224,15 +224,27 @@ So the chain goes, not the link:
   Every two members that touch are a contact. This holds whatever the
   other members are and whatever the member order, so the union's
   contacts are the contacts of its member pairs.
-  - Before the fold, each pair of members whose closed bounding boxes
-    meet is judged by the pair verb, as the two-member union `m ∪ n`,
-    with the declared pairs whose sites are `m` and `n`. Pairs whose
-    boxes are disjoint cannot touch, so they are not judged.
+  - Before the fold, each pair of members is judged by the pair verb,
+    as the two-member union `m ∪ n`, with the declared pairs whose
+    sites are `m` and `n`. A pair carrying a declaration is judged
+    whatever its boxes: the declaration is a claim to verify, so its
+    names resolve at their sites and a contradicted one refuses
+    `ContactContradicted` in every member order. Only an undeclared
+    pair whose closed bounding boxes are disjoint is skipped, because
+    it cannot touch. The judgement costs up to n(n−1)/2 two-member
+    unions, bounded by pruning the undeclared pairs that cannot touch;
+    if it becomes a measured performance problem, it is raised to Ev
+    to be revisited, not optimized around the rule.
   - A pair that touches with the contact undeclared refuses
     `UndeclaredContact` exactly as the two-member union's operands do.
     It refuses in every member order.
   - A declared pair that the geometry contradicts refuses as the pair
     boolean does.
+  - Any other refusal the pair verb raises on a judged pair is the
+    union's refusal too, and so is order-free: a pair whose contact
+    the pair verb cannot decide inside the tolerance grey band refuses
+    `Escalated` in every member order, even where a third member
+    covers it.
   - A declared pair that survives the judgement is certified.
 
   A certified pair authorizes its contact wherever the fold meets it.
@@ -297,11 +309,12 @@ So the chain goes, not the link:
   names. No refusal names a row the fold minted, such as a `Fragment`
   (a `Seam` mints edges and vertices, never a face). A fold step never
   meets an undeclared contact, because every contact the fold meets
-  was certified pairwise. So a step that refuses on a fold-minted row
-  is holding a certified pair the routing could not hand it (the look-
-  through's bound above). It refuses typed, `UndeclarableContact`,
-  rather than degrading into an emission bug that blames the crate for
-  a document the user wrote. The refusal menu of
+  was judged pairwise: a certified pair is fed to its step, satisfied
+  because its face was consumed whole, or refused as the vanished name
+  it is at that step. A fold step that refuses a contact anyway is an
+  emission bug, because the fold mints no contact verdict, and a
+  contact refusal from it would tell the user to declare a pair the
+  judgement already passed. The refusal menu of
   `docs/SELECT-DESIGN.md` §3d keeps its two arms for every
   `UndeclaredContact`.
 
@@ -314,8 +327,10 @@ that row names; the flat
 The contact rule (every pairwise contact is judged before the fold and
 must be declared, a covered contact included; a declared contact is
 satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`
-PR #3200 (2026-09-25), and is built by the unit
-`union-contact-is-judged-pairwise-before-the-fold`.*
+PR #3200 (2026-09-25), and built by the unit
+`union-contact-is-judged-pairwise-before-the-fold` (PR 3213), where Ev
+also ruled that a declared pair is judged whatever its boxes and that
+a fold step's contact refusal is a bug assertion.*
 
 ## DM5 — A node's inputs are pairwise distinct
 
@@ -349,7 +364,7 @@ the die's chain unnecessary.*
 ## DM7 — A stranded name is reported at the edit that removes its referent, never refused
 
 The edit that removes a name's referent — `DeleteNode`, and
-`SetProgram` for the steps it drops or changes — stays legal when a
+`SetProgram` for the steps it drops — stays legal when a
 payload name (`Node::payload_names`) names what is being removed: a
 name is not a DAG edge, and the carve-out in §0 stands. What the door
 owes is a report: every `(node, name)` pair whose referent the edit
@@ -358,19 +373,16 @@ computed at the door by the same payload walk the insert door checks
 with. The strand is loud where it happens rather than at the next
 evaluation; the N5 ladder's rungs — `NodeGone` for a deleted minting
 node, `Vanished` for a name that denotes nothing — and `Rebind` remain
-the diagnosis and the repair. A reshaping has one more thing to say, which a delete
-never has: a name on a step it KEPT is rewritten in place to the
-coordinates the segment sits at now and reported `Rebound { from, to
-}`, so a moved name is visible in the accepted edit and never silently
-re-denotes (`crates/profile/README.md` V2). The same holds for an edit
-that moves the numbering a name is spelled in rather than its referent:
-a value edit (`SetParam`, `SetExpression`, `SetStructuralParam`,
-`SetDocParam`, `SetDocParamValue`) that changes which loop of a profile
-is outer or which way a loop runs is a reshaping with every step kept.
-The names spelled in that profile's numbering are rewritten and reported
-`Rebound` through the same map, and where either side's numbering cannot
-be read they are reported stranded, as a reshaping reports a program
-whose spans cannot be read (`reanchor_report` in `edit.rs`).
+the diagnosis and the repair. A reshaping's strands are the names on
+the steps it drops: a profile piece's name spells its step's minted id
+(`names/README.md`, "N1, the profile pieces"), so a name on a step the
+reshaping keeps still denotes that step's piece wherever the new
+program draws it and is neither rewritten nor reported, while a dropped
+step's id is never minted again and every name on it keeps its
+spelling, resolves `Vanished` and is reported stranded. For the same
+reason a value edit reports nothing: it can move which loop is outer,
+which way a loop runs or how many segments a step draws, and none of
+those moves a name.
 
 The report covers every reference the document holds under N5
 semantics, not only the node payloads: an appearance attachment is
@@ -401,15 +413,16 @@ row names. The appearance-key widening was ruled by Ev on EDIT's third
 `[ev]` PR of 2026-09-16
 (`stranded-appearance-keys-are-not-reported-by-dm7`), which builds
 it. The subject's widening from the delete to the edit that removes a
-name's referent, with the reshaping's rebound arm, was ruled by Ev on
-EDIT's seventh `[ev]` PR, #2904 (2026-09-20,
-`a-committed-profile-program-has-no-whole-program-edit`), which builds
-it.*
+name's referent was ruled by Ev on EDIT's seventh `[ev]` PR, #2904
+(2026-09-20, `a-committed-profile-program-has-no-whole-program-edit`),
+which builds it. That a kept step's names and a value edit's names
+stay as they are, with nothing to report, follows from profile pieces
+being named by minted step ids (Ev, #3193, 2026-09-25).*
 
 ## DM8 — The authored-step to canonical-segment map is composed in `editor-core`
 
 The map from an authored profile step (`SlotId::Profile { loop_, step,
-arg }`) to the profile edges it became (`ProfileEdgeRef {
+arg }`) to the canonical segments it became (`CanonicalSegment {
 loop_index, segment }`) is a function in `program.rs` reading the
 records the evaluation already produces: the replay's per-step segment
 span and its per-radius emission (fields of `crates/profile`'s
@@ -417,24 +430,25 @@ span and its per-radius emission (fields of `crates/profile`'s
 span for a step, the emission for a radius, since the step a radius is
 authored on is not always the step its arc is credited to — in the
 program's own step order, and the profile's naming anchor carries it
-into the numbering every published name carries: the CANONICAL one.
-The canonical form keeps what the author wrote wherever validity
-allows — each loop's authored start and the authored hole order, with
-only the traversal sense normalized (outer counterclockwise, holes
-clockwise) — so the published segment is the program's own for a loop
-authored in its canonical sense and its reflection `s ↦ n − 1 − s` for
-one authored against it, and every verb that consumes a profile
-publishes that one numbering. A loft is no exception: it pairs
-canonical segment `k` of every section into one wall, so the wall's one
-ref is every section's own canonical segment `k`, and the door answers
-any section through that section's own anchor. The anchor is checked
-against canonicalization's `reversed` and `start` on `LoopCanonical`,
-its own record of the same permutation, before it is read. A
-disagreement between those two records is the evaluation contradicting
-itself and asserts. The door refuses typed where a record is absent or
-of the wrong shape rather than guessing. It is derived from the
-structure record the geometry came from, so it cannot disagree with
-the geometry, and it is not persisted.
+into the CANONICAL numbering every verb iterates. The canonical form
+keeps what the author wrote wherever validity allows — each loop's
+authored start and the authored hole order, with only the traversal
+sense normalized (outer counterclockwise, holes clockwise) — so the
+canonical segment is the program's own for a loop authored in its
+canonical sense and its reflection `s ↦ n − 1 − s` for one authored
+against it. A canonical segment is a position, not a name: a published
+name spells the piece a position is (`names/README.md`, "N1, the
+profile pieces"), and the same anchor pairs each position with its
+piece. A loft pairs canonical segment `k` of every section into one
+wall and names the wall by the pieces that pairing joined, one per
+section, each read through that section's own anchor. The anchor is
+checked against canonicalization's `reversed` and `start` on
+`LoopCanonical`, its own record of the same permutation, before it is
+read. A disagreement between those two records is the evaluation
+contradicting itself and asserts. The door refuses typed where a record
+is absent or of the wrong shape rather than guessing. It is derived
+from the structure record the geometry came from, so it cannot disagree
+with the geometry, and it is not persisted.
 
 - **Why not the viewer.** A second derivation from both endpoints can
   disagree with the first.
@@ -456,7 +470,9 @@ after the unit that built the door measured the original clause's
 composition wrong. The canonical numbering — authored start and hole
 order, orientation normalized, one numbering for every verb — was ruled
 by Ev on PR 3102's thread (2026-09-23)
-(`loft-section-correspondence-is-authored`).*
+(`loft-section-correspondence-is-authored`). That the loft wall's name
+spells the paired pieces, one per section, rather than every section's
+canonical segment `k`, was ruled by Ev on #3193 (2026-09-25).*
 
 ## What this doc does not touch
 

@@ -1458,6 +1458,14 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     })
 }
 
+/// **A band's identity in the birth record**: its closed chain's source
+/// edges, in chain order. Every row that names the band — its face,
+/// its seam splits, its slit — carries this one value, and its
+/// consumer reads it as a SET.
+fn band_identity<T: Real>(rim: &RimPlan<'_, T>) -> Vec<EdgeKey> {
+    rim.chain.links().map(|l| l.edge).collect()
+}
+
 /// Whether two rims of one plan rest on any common support face.
 fn rims_share_support<T: Real>(a: &RimPlan<'_, T>, b: &RimPlan<'_, T>) -> bool {
     a.hosts
@@ -2719,6 +2727,7 @@ fn rim_phase<T: Decide + Bounds>(
     // sphere trim circle crosses, minting the band's inner vertices
     // on EXISTING geometry rather than strutting into the cap. ----
     let chain_edges: Vec<EdgeKey> = rim.chain.links().map(|l| l.edge).collect();
+    let band_named = band_identity(rim);
     // Per plane-walk position: (rim vertex, upper remnant edge, the
     // SOURCE meridian it came from).
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
@@ -2759,7 +2768,8 @@ fn rim_phase<T: Decide + Bounds>(
         // document layer rather than resolving to another entity's
         // name.
         let frag = split_fragment(body, m, v, t_split, rec, "meridian split", tol)?;
-        rec.meridian_splits.push((frag.vertex, m));
+        rec.meridian_splits
+            .push((frag.vertex, m, band_named.clone()));
         remnants.push((v, frag.near, frag.source));
     }
 
@@ -2956,7 +2966,7 @@ fn rim_phase<T: Decide + Bounds>(
             let radial = (fp - ca) / sa;
             // The slit SURVIVES as the band's own double-traversed
             // meridian: a birth row, not a death.
-            rec.slits.push((mr, msrc));
+            rec.slits.push((mr, msrc, band_named.clone()));
             described.push((
                 mr,
                 ContactCarrier::SeamArc {
@@ -3027,9 +3037,7 @@ fn rim_phase<T: Decide + Bounds>(
              the closure case that sets the band's seamed chart"
         )
     };
-    let mut chain_named: Vec<EdgeKey> = chain_edges.clone();
-    chain_named.sort_unstable();
-    rec.bands.push((band_face, chain_named));
+    rec.bands.push((band_face, band_named));
     Ok((band_face, band_surface, described))
 }
 
@@ -3178,7 +3186,17 @@ pub(super) fn flank<T: Decide>(
     back: usize,
     fwd: usize,
 ) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
-    let walk = loop_walk(body, lp)?;
+    flank_in(&loop_walk(body, lp)?, at, back, fwd)
+}
+
+/// [`flank`]'s arithmetic on a walk already read: `None` exactly where
+/// the walk does not carry the keyed half-edge.
+fn flank_in(
+    walk: &[(HalfEdgeKey, VertexKey, EdgeKey)],
+    at: impl Fn(&(HalfEdgeKey, VertexKey, EdgeKey)) -> bool,
+    back: usize,
+    fwd: usize,
+) -> Option<((HalfEdgeKey, VertexKey), (HalfEdgeKey, VertexKey))> {
     let k = walk.len();
     let pos = walk.iter().position(at)?;
     let (h1, v1, _) = walk[(pos + k - back) % k];
@@ -3186,11 +3204,16 @@ pub(super) fn flank<T: Decide>(
     Some(((h1, v1), (h2, v2)))
 }
 
-/// [`flank`] on a face's OUTER cycle, refusing typed where the cycle
-/// does not walk or does not carry the keyed half-edge — the ruled
-/// band's and the corner arc's spelling, whose chords always hang in an
-/// outer cycle (the cut-off `mef` leaves a cap's rings on the cap; a
-/// support with a ring is refused at the plan).
+/// [`flank`] on the one cycle of `face` — its outer cycle or one of
+/// its rings — that carries the keyed half-edge: the spelling of every
+/// chord a carve hangs across a face. `mef` keeps that cycle's
+/// outer/ring designation on the old face and leaves the face's other
+/// cycles there.
+///
+/// Refuses typed where a cycle does not walk, or where not exactly one
+/// cycle of the face carries the keyed half-edge — the key names one
+/// position in one cycle, so none or several is a body that does not
+/// hold together where the carve reads it.
 pub(super) fn chord_site<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
@@ -3198,17 +3221,28 @@ pub(super) fn chord_site<T: Decide>(
     back: usize,
     fwd: usize,
 ) -> Result<(HalfEdgeKey, HalfEdgeKey, VertexKey, VertexKey), BlendError> {
-    let outer = body
+    let fd = body
         .get_face(face)
-        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?
-        .outer;
-    let ((he1, v1), (he2, v2)) = flank(body, outer, at, back, fwd).ok_or_else(|| {
-        not_intact(
+        .ok_or_else(|| not_intact(EntityId::Face(face), "a face whose cycle a chord spans"))?;
+    let mut carrying = Vec::with_capacity(1);
+    for &lp in core::iter::once(&fd.outer).chain(fd.rings.iter()) {
+        let walk = loop_walk(body, lp).ok_or_else(|| {
+            not_intact(
+                EntityId::Loop(lp),
+                "a cycle of a face a chord spans does not walk",
+            )
+        })?;
+        if let Some(site) = flank_in(&walk, &at, back, fwd) {
+            carrying.push(site);
+        }
+    }
+    let [((he1, v1), (he2, v2))] = carrying[..] else {
+        return Err(not_intact(
             EntityId::Face(face),
-            "a face's outer cycle does not walk, or does not carry the half-edge the carve \
+            "not exactly one cycle of the face a chord spans carries the half-edge the carve \
              keys on",
-        )
-    })?;
+        ));
+    };
     Ok((he1, he2, v1, v2))
 }
 
@@ -3748,11 +3782,14 @@ fn rim_phase_annulus<T: Decide + Bounds>(
     // mate foot is a split of that support's seam; the closure
     // crossing's mate piece SURVIVES as the band's own meridian, so it
     // is a birth row and not a death.
+    //
+    let band_named = band_identity(rim);
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.rim_feet.push((host_feet[ix].foot(), c.vertex));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
-        rec.meridian_splits.push((mate_feet[ix].0, c.mate_seam));
+        rec.meridian_splits
+            .push((mate_feet[ix].0, c.mate_seam, band_named.clone()));
     }
     for (ix, c) in ann.crossings.iter().enumerate() {
         rec.meridian_remnants.push((mate_feet[ix].2, c.mate_seam));
@@ -3773,8 +3810,11 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         rec.rim_trims
             .push((mate_trims[i].edge, l.edge, RimSide::Mate));
     }
-    rec.slits
-        .push((mate_feet[ann.closure].1, closure.mate_seam));
+    rec.slits.push((
+        mate_feet[ann.closure].1,
+        closure.mate_seam,
+        band_named.clone(),
+    ));
     for l in rim.chain.links() {
         rec.dead.edges.push(l.edge);
     }
@@ -3805,8 +3845,7 @@ fn rim_phase_annulus<T: Decide + Bounds>(
         }
         rec.dead.vertices.push(c.vertex);
     }
-    rec.bands
-        .push((band_face, rim.chain.links().map(|l| l.edge).collect()));
+    rec.bands.push((band_face, band_named));
     Ok((band_face, band_surface, described))
 }
 

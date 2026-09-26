@@ -153,10 +153,14 @@ fn angle_interval_in_span(phi_lo: f64, phi_hi: f64, lo: f64, hi: f64) -> bool {
 ///
 /// `None` means "no bound": the rectangle possibly contains the
 /// origin, so the amplitude's sign is unknown and the caller must
-/// include BOTH extrema.
+/// include BOTH extrema. A poisoned side or corner answers `None` too,
+/// so a `Some` never carries a NaN end — the postcondition
+/// [`geom_core::CertifiedEnclosure`] states for a certified bracket,
+/// held here by the `is_nan` guards because [`Brk`] has no
+/// certified door to route through.
 fn extremal_angle_interval(u: Brk, v: Brk) -> Option<(f64, f64)> {
     if u.lo.is_nan() || u.hi.is_nan() || v.lo.is_nan() || v.hi.is_nan() {
-        return None; // poison: no exclusion possible
+        return None;
     }
     let u_straddles = u.lo <= 0.0 && u.hi >= 0.0;
     let v_straddles = v.lo <= 0.0 && v.hi >= 0.0;

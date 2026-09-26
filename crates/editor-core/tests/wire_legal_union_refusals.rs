@@ -48,11 +48,11 @@ fn a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug() {
     let (doc, c) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, s) = block(doc, (0.2, 0.4), (0.0, 1.0), 0.5, 1.0);
     let pairs = {
-        let mut v = flush_pairs((a, a), (c, c));
-        for seg in [wall(0), wall(2)] {
+        let mut v = flush_pairs(&doc, (a, a), (c, c));
+        for seg in [0, 2] {
             v.push((
-                SitedRef::new(a, fname(a, seg.clone())),
-                SitedRef::new(s, fname(s, seg)),
+                SitedRef::new(a, fname(a, wall(&doc, a, seg))),
+                SitedRef::new(s, fname(s, wall(&doc, s, seg))),
             ));
         }
         v
@@ -120,7 +120,7 @@ fn a_rim_in_several_pieces_is_named_not_refused() {
     let (doc, a) = block(doc, (0.0, 1.0), (0.0, 1.0), 0.0, 1.0);
     let (doc, b) = block(doc, (0.5, 1.5), (0.0, 1.0), 0.0, 1.0);
     let (doc, g) = block(doc, (0.7, 0.8), (-1.0, 2.0), 0.5, 3.0);
-    let pairs = flush_pairs((a, a), (b, b));
+    let pairs = flush_pairs(&doc, (a, a), (b, b));
 
     let (docx, union, _) = declared_union(doc, &[a, b, g], pairs);
     let ev = run(&docx);

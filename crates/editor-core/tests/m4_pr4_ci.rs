@@ -35,8 +35,10 @@ fn digest(rows: &[(&'static str, editor_core::Resolution)]) -> u64 {
 /// resolution member).
 // What the pin holds: flip-vanish → GroupResized { was: 2, now: 1 }
 // naming B's cap vertex as the one cutter gone; cascade → Cascade;
-// structural-param → StructuralParam; node-gone; ambiguous.
-const DIAGNOSIS_DIGEST: u64 = 0x732a_85e6_51d3_cedd;
+// structural-param → StructuralParam; node-gone; ambiguous. Re-pinned
+// when profile pieces became named by minted step ids: the diagnosed
+// names spell `{ step, role }`, and every row keeps its shape.
+const DIAGNOSIS_DIGEST: u64 = 0xd8f6_5129_6654_53d0;
 
 #[test]
 fn diagnosis_corpus_is_golden() {

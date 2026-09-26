@@ -39,7 +39,7 @@ const PLANE: RecipeNodeId = RecipeNodeId(0);
 const PROFILE: RecipeNodeId = RecipeNodeId(1);
 const BODY: RecipeNodeId = RecipeNodeId(2);
 
-fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
+fn planted(selection: impl FnOnce(&ProfileDoc) -> Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     use editor_core::{Dimension, DocEdit, Expr, LoopProgram, ProfileProgram, apply};
     let square =
         LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).expect("finite");
@@ -53,6 +53,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
             node: Node::Profile(ProfileProgram {
                 plane: PLANE,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         DocEdit::InsertNode {
@@ -69,7 +70,7 @@ fn planted(selection: Vec<StableName>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         &doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(BODY, len(0.125), selection),
+            node: Node::fillet(BODY, len(0.125), selection(&doc)),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -149,22 +150,23 @@ fn symmetric_u() -> (ProfileDoc, RecipeNodeId) {
     (doc, us)
 }
 
-fn rim(node: RecipeNodeId, seg: u32) -> StableName {
+fn rim(doc: &editor_core::ProfileDoc, node: RecipeNodeId, seg: u32) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
             editor_core::CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: seg,
-            },
+            crate::fixture::piece(doc, node, 0, seg as usize),
         )],
     }
 }
 
 /// Runs the plant and hands its typed refusal to `check`.
-fn refuses(doc: &ProfileDoc, fillet: RecipeNodeId, check: impl FnOnce(&NodeErrorKind)) {
+fn refuses(
+    doc: &editor_core::ProfileDoc,
+    fillet: RecipeNodeId,
+    check: impl FnOnce(&NodeErrorKind),
+) {
     let ev = eval(doc);
     match ev.nodes.get(&fillet) {
         Some(NodeResult::Failed(e)) => check(&e.kind),
@@ -179,14 +181,17 @@ fn refuses(doc: &ProfileDoc, fillet: RecipeNodeId, check: impl FnOnce(&NodeError
 #[test]
 fn a_selection_naming_a_never_existed_node_refuses_at_edit_time() {
     use editor_core::{Dimension, DocEdit, EditError, Expr, apply};
-    let (doc, _) = planted(vec![rim(BODY, 0)]);
+    let (doc, _) = planted(|doc| vec![rim(doc, BODY, 0)]);
     match apply(
         &doc,
         &DocEdit::InsertNode {
             node: Node::fillet(
                 BODY,
                 Expr::literal(0.125, Dimension::Length).expect("a length"),
-                vec![rim(RecipeNodeId(99), 0)],
+                vec![StableName {
+                    node: RecipeNodeId(99),
+                    ..rim(&doc, BODY, 0)
+                }],
             ),
         },
         Tol::witness(),
@@ -209,7 +214,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length");
     // A second extrude off the same profile: nothing depends on it, so
     // it can be deleted out from under the selection.
-    let (doc, _) = planted(vec![rim(BODY, 0)]);
+    let (doc, _) = planted(|doc| vec![rim(doc, BODY, 0)]);
     let spare = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -226,7 +231,7 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
     let with_fillet = apply(
         &spare.doc,
         &DocEdit::InsertNode {
-            node: Node::fillet(BODY, len(0.125), vec![rim(spare_id, 0)]),
+            node: Node::fillet(BODY, len(0.125), vec![rim(&spare.doc, spare_id, 0)]),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -261,9 +266,18 @@ fn a_selection_naming_a_deleted_node_is_node_gone() {
 /// the disagreement site rather than claiming an edit happened.
 #[test]
 fn a_selection_naming_an_absent_entity_is_vanished() {
-    // Segment 7 of a four-segment square: a well-formed name for an
-    // edge the extrude never minted.
-    let (doc, fillet) = planted(vec![rim(BODY, 7)]);
+    // A piece the square never draws: a well-formed name for an edge
+    // the extrude never minted.
+    let (doc, fillet) = planted(|_| {
+        vec![StableName {
+            kind: EntityKind::Edge,
+            node: BODY,
+            path: vec![RoleSeg::RimEdge(
+                editor_core::CapEnd::End,
+                crate::fixture::no_piece(),
+            )],
+        }]
+    });
     refuses(&doc, fillet, |kind| match kind {
         NodeErrorKind::BlendSelectionResolve { error, .. } => match error.as_ref() {
             ResolveError::Vanished {
@@ -361,7 +375,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
         node: BODY,
         path: vec![RoleSeg::Cap(editor_core::CapEnd::End)],
     };
-    let (doc, fillet) = planted(vec![face.clone()]);
+    let (doc, fillet) = planted(|_| vec![face.clone()]);
     refuses(&doc, fillet, |kind| match kind {
         NodeErrorKind::BlendSelectionKind { name, found, .. } => {
             assert_eq!(**name, face);
@@ -375,7 +389,7 @@ fn a_selection_naming_a_face_refuses_on_kind() {
 /// unfinished recipe. No op in this kernel silently returns its input.
 #[test]
 fn an_empty_selection_refuses() {
-    let (doc, fillet) = planted(Vec::new());
+    let (doc, fillet) = planted(|_| Vec::new());
     refuses(&doc, fillet, |kind| {
         assert!(
             matches!(kind, NodeErrorKind::BlendSelectionEmpty { .. }),

@@ -1797,20 +1797,36 @@ fn resolve_roles_geometric<T: Decide>(
                             // the oriented one regardless (S10).
                             let (_, normal) = super::solid_contain::face_plane(body, region_face)
                                 .map_err(BooleanError::Containment)?;
-                            if super::solid_contain::point_in_face(
+                            match super::solid_contain::point_in_face(
                                 body,
                                 region_face,
                                 normal,
                                 p,
                                 band,
-                            )
-                            .map_err(BooleanError::Containment)?
-                                != Some(true)
-                            {
+                            ) {
+                                Ok(Some(true)) => {}
                                 // Not certified interior (outside, in a
-                                // ring, or grazing a loop): candidate
+                                // ring, or grazing a loop) — or not
+                                // certifiable at all (an in-band margin,
+                                // an exhausted schedule, an outline the
+                                // walk cannot cross): the candidate is
                                 // discarded, never probed.
-                                continue;
+                                Ok(_)
+                                | Err(
+                                    super::solid_contain::PointInSolidError::Escalated { .. }
+                                    | super::solid_contain::PointInSolidError::Loop(
+                                        crate::splitting::PointInLoopError::Escalated { .. }
+                                        | crate::splitting::PointInLoopError::RayExhausted {
+                                            ..
+                                        },
+                                    )
+                                    | super::solid_contain::PointInSolidError::EdgeCarrierUnsupported {
+                                        ..
+                                    },
+                                ) => continue,
+                                // A body the walk cannot read is corrupt,
+                                // not inconclusive.
+                                Err(e) => return Err(BooleanError::Containment(e)),
                             }
                         }
                         match super::solid_contain::point_in_solid(other_pristine, p, band, tol)

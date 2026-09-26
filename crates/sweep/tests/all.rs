@@ -55,6 +55,10 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
+#[path = "band_declared_cusp_contacts.rs"]
+mod band_declared_cusp_contacts;
+#[path = "band_subdivided_side_walls.rs"]
+mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
 mod bool1_fix_pass;
 #[path = "bool1_r1_probes.rs"]
@@ -97,6 +101,8 @@ mod offd_r1_probes;
 mod p1b_r1_probes;
 #[path = "pcurve_p1b_r2_probes.rs"]
 mod pcurve_p1b_r2_probes;
+#[path = "pis_arc_capped_poses.rs"]
+mod pis_arc_capped_poses;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -146,6 +152,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "band_ruled_d_hole.rs"]
+mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
 mod bitdump;
 #[path = "blend1_r1_probes.rs"]
@@ -180,6 +188,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
@@ -290,6 +300,8 @@ mod review_arceval_r1_probes;
 mod review_arms2_r1_probes;
 #[path = "review_arms3_r1_probes.rs"]
 mod review_arms3_r1_probes;
+#[path = "review_band_ruled_ring_probes.rs"]
+mod review_band_ruled_ring_probes;
 #[path = "review_blend1_r2_probes.rs"]
 mod review_blend1_r2_probes;
 #[path = "review_blend3_r1_probes.rs"]

@@ -129,7 +129,7 @@ fn adding_a_cavity_meridian_still_refuses_tangential_at_zero_margin() {
         .expect("the cavity contributes FromB edges");
 
     let selection = selection_of(&doc.doc, fillet);
-    for meridian in die_composed::excluded_meridians(ball, target) {
+    for meridian in die_composed::excluded_meridians(&doc.doc, ball, target) {
         // Grown the ONLY way a selection grows: an explicit `Rebind`
         // swapping one selected box edge for the meridian.
         let d = apply(
@@ -235,9 +235,9 @@ fn the_surgery_names_every_entity_of_the_composed_die() {
         RoleSeg::BandFace(_) => "band",
         RoleSeg::BandTrim { .. } => "band trim",
         RoleSeg::BandFoot(_) => "band foot",
-        RoleSeg::BandCross(_) => "band cross",
+        RoleSeg::BandCross { .. } => "band cross",
         RoleSeg::BandCut(_) => "band cut",
-        RoleSeg::BandSlit(_) => "slit",
+        RoleSeg::BandSlit { .. } => "slit",
         other => panic!("a non-fillet role leaked into the fillet's table: {other:?}"),
     };
     let seen: BTreeSet<&str> = v.name_table.iter().map(|(n, _)| role(n)).collect();

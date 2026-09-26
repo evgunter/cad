@@ -2,10 +2,13 @@
 id: profile-pieces-are-named-by-minted-step-ids
 kind: unit
 title: Build N1's profile-piece rule: every program step carries a minted StepId and a profile locator is { step, role }
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: H
+closed: 2026-09-25
+pr: 3223
+blocked_on: []
 ---
 
 

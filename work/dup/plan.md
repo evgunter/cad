@@ -340,6 +340,41 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     never as a bare "there is none".
     (2026-09-20, `dup/viewer-shared-doors`; the wording is the lane's.)
 
+25. **"Done" means present at HEAD, not reported by the editor.** A
+    lane's edit script checked every anchor before writing and, on one
+    stale anchor, wrote nothing and exited cleanly; it had lost two
+    corrections that way in an earlier pass, and the lane had reported
+    both as done. Only the orchestrator's re-check against HEAD, item
+    by item, found the gap. This is item 21's failure seen from the
+    reporting side: a tool that refuses to act looks the same as one
+    that acted. **Confirm each claimed change by reading HEAD (`git
+    show`, a grep for the new text) before you report it**, and a
+    brief that asks for a list of fixes gets back a line per fix with
+    the sha that carries it.
+    (2026-09-24, `dup/shells-of-solid-door`; the lane found it itself
+    on re-check.)
+
+26. **Read EVERY `test result:` line, not the last one.** The standing
+    brief line said "read the LAST `test result:` line", which fixed a
+    panicking shard's early line. It is wrong under `--no-fail-fast`: the
+    last line printed is the integration binary's, green, while the lib
+    binary above it failed. A reviewer following the brief literally would
+    have read a red plant as green. Read each binary's line and the panic
+    lines under them; the row-sum-to-baseline check (the second sitting's
+    log) still applies per binary.
+    (2026-09-25, caught by `#3151`'s reviewer in the orchestrator's brief.)
+
+27. **A CI roster is the tree's, not the orchestrator's.** The
+    orchestrator verified runs against "39 jobs, 12 `test`, 5 `k-lint`"
+    and nearly reported a correct lane as narrowed: RING-4 had deleted the
+    kernel `interval` feature the day before, so six `test` jobs was the
+    whole matrix. Establish green the way implementer-discipline §2 says
+    — the `change filter` job's own `EPS`/`KLINT_ROW` lines and the
+    run's conclusion — and take the roster from `scripts/ci-filter.py`
+    when a count is wanted. A memorised count is item 22's shape: a
+    measurement that was right once and is now an instrument.
+    (2026-09-25, `dup/owner-index-divergence`.)
+
 ## Review posture
 
 Test-side, S-TINT's posture: one style review per unit, and a full

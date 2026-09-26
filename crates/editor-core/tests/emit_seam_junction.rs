@@ -20,8 +20,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, me
 use crate::fixture::{ename, fname, member_entity, table, vertex_of, wall};
 
 use editor_core::{
-    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NameTable, NamingError, NodeErrorKind, ProfileDoc, RecipeNodeId, RoleSeg,
+    SitedRef, StableName,
 };
 use geom_core::Tol;
 
@@ -89,26 +89,40 @@ fn fixture(g_z: (f64, f64), with_h: bool) -> Fixture {
     Fixture { doc, a, b, g, h }
 }
 
+/// The fixture's declarations: `a` and `b` flush, and, with `h`, `h`'s
+/// x = 1.0 wall resting on `a`'s x = 1 wall. `b` covers that contact,
+/// and it is a contact of the pair all the same (DM4).
+fn declared(f: &Fixture) -> Vec<(SitedRef, SitedRef)> {
+    let mut pairs = flush_pairs(&f.doc, (f.a, f.a), (f.b, f.b));
+    pairs.extend(f.h.map(|h| {
+        (
+            SitedRef::new(f.a, fname(f.a, wall(&f.doc, f.a, 1))),
+            SitedRef::new(h, fname(h, wall(&f.doc, h, 3))),
+        )
+    }));
+    pairs
+}
+
 /// The name every fused order gives the point where `g`'s `x = 0.3`
 /// wall crosses `a`'s `cap` / `y = 1` rim: that rim and that wall, in
 /// name order.
-fn crossing(union: RecipeNodeId, a: RecipeNodeId, g: RecipeNodeId, cap: CapEnd) -> StableName {
+fn crossing(
+    doc: &ProfileDoc,
+    union: RecipeNodeId,
+    a: RecipeNodeId,
+    g: RecipeNodeId,
+    cap: CapEnd,
+) -> StableName {
     let rim = member_entity(
         union,
         a,
         ename(
             a,
-            RoleSeg::RimEdge(
-                cap,
-                ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 2,
-                },
-            ),
+            RoleSeg::RimEdge(cap, crate::fixture::piece(doc, a, 0, 2)),
         ),
         EntityKind::Edge,
     );
-    let g_x0 = member_face(union, g, fname(g, wall(3)));
+    let g_x0 = member_face(union, g, fname(g, wall(doc, g, 3)));
     let (lo, hi) = if rim < g_x0 { (rim, g_x0) } else { (g_x0, rim) };
     StableName {
         kind: EntityKind::Vertex,
@@ -144,9 +158,11 @@ fn point_of(ev: &editor_core::Evaluation<f64>, union: RecipeNodeId, name: &Stabl
 /// the finished body holds: `a`'s rim, crossed by `g`'s wall.
 #[test]
 fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
-    let Fixture { doc, a, b, g, h } = fixture((0.5, 3.0), true);
+    let f = fixture((0.5, 3.0), true);
+    let pairs = declared(&f);
+    let Fixture { doc, a, b, g, h } = f;
     let h = h.unwrap();
-    let (docx, union, _) = declared_union(doc, &[b, g, a, h], flush_pairs((a, a), (b, b)));
+    let (docx, union, _) = declared_union(doc, &[b, g, a, h], pairs);
     let ev = run(&docx);
     assert!(failure(&ev, union).is_none(), "{:?}", failure(&ev, union));
     let v = volume(body_of(&ev, union));
@@ -154,12 +170,17 @@ fn a_slab_crossing_a_merged_rim_is_named_by_the_rim_and_the_slab() {
     // a, and h adds the same less its share inside b.
     assert!((v - (1.5 + 2.0 * (0.9 - 0.05))).abs() < 1e-9, "volume {v}");
     assert_eq!(junctions(table(&ev, union)), BTreeSet::new());
-    let p = point_of(&ev, union, &crossing(union, a, g, CapEnd::End));
+    let p = point_of(&ev, union, &crossing(&docx, union, a, g, CapEnd::End));
     assert!(
         (p[0] - 0.3).abs() < 1e-12 && (p[1] - 1.0).abs() < 1e-12 && (p[2] - 1.0).abs() < 1e-12,
         "the crossing sits where g's wall meets the rim, not at {p:?}"
     );
 }
+
+/// The member orders, spelled by member, in which the four-member
+/// document reaches the seam-vertex residue `Emission` once `(a, h)` is
+/// declared: measured, and pinned exactly.
+const SEAM_VERTEX_RESIDUE: [&str; 2] = ["ahbg", "habg"];
 
 /// **Every order of every such document names the crossing the same.**
 ///
@@ -186,11 +207,25 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
             0.0,
         ),
     ] {
-        let Fixture { doc, a, b, g, h } = fixture(g_z, with_h);
+        let f = fixture(g_z, with_h);
+        let pairs = declared(&f);
+        let Fixture { doc, a, b, g, h } = f;
         let members: Vec<_> = [a, b, g].into_iter().chain(h).collect();
         let (mut ab_first, mut g_between) = (0, 0);
+        let mut residue = BTreeSet::new();
+        let spell = |order: &[RecipeNodeId]| -> String {
+            order
+                .iter()
+                .map(|m| match *m {
+                    m if m == a => 'a',
+                    m if m == b => 'b',
+                    m if m == g => 'g',
+                    _ => 'h',
+                })
+                .collect()
+        };
         for order in permutations(&members) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+            let (docx, union, _) = declared_union(doc.clone(), &order, pairs.clone());
             let ev = run(&docx);
             match failure(&ev, union) {
                 None => {
@@ -199,7 +234,7 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         BTreeSet::new(),
                         "{label} {order:?}"
                     );
-                    let p = point_of(&ev, union, &crossing(union, a, g, cap));
+                    let p = point_of(&ev, union, &crossing(&docx, union, a, g, cap));
                     assert!(
                         (p[0] - 0.3).abs() < 1e-12
                             && (p[1] - 1.0).abs() < 1e-12
@@ -212,12 +247,29 @@ fn a_crossing_of_a_merged_rim_is_named_the_same_in_every_order_that_fuses() {
                         g_between += 1;
                     }
                 }
+                // Declaring `(a, h)` reaches the seam-vertex residue
+                // in exactly the measured orders
+                // (`a-legal-declared-union-reaches-the-seam-vertex-parentage-residue-emission`).
+                Some(NodeErrorKind::Naming(NamingError::Emission {
+                    what: "seam vertex parentage underdetermined from incident edges",
+                })) => {
+                    residue.insert(spell(&order));
+                }
                 Some(e @ NodeErrorKind::Naming(NamingError::Emission { .. })) => {
                     panic!("{label} {order:?}: {e}")
                 }
                 Some(_) => {}
             }
         }
+        let measured: BTreeSet<String> = if with_h {
+            SEAM_VERTEX_RESIDUE.iter().map(|o| o.to_string()).collect()
+        } else {
+            BTreeSet::new()
+        };
+        assert_eq!(
+            residue, measured,
+            "{label}: the seam-vertex residue's orders"
+        );
         assert!(
             ab_first >= 1 && g_between >= 2,
             "{label}: {ab_first} orders fold a and b first, {g_between} do not"
