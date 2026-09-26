@@ -16,9 +16,10 @@ find**, and your deliverable is a recommendation with its argument.
 The orchestrator's statement of the problem is **a hypothesis, not a
 finding**. Check it against the tree before you build on it.
 
-- **Is the problem one level up, or somewhere else?** A problem often exists
-  only because the layer above asks the wrong question, or because a
-  responsibility sits in the wrong place.
+- **Is the problem one level up, one level down, or somewhere else?** A
+  problem often exists only because the layer above asks the wrong question,
+  because the layer below produces the wrong thing and everything after it
+  compensates, or because a responsibility sits in the wrong place.
 - **Is this a question at all?** If one answer is plainly right, or the
   choice is only sequencing, say so.
 - **Report a correction to the premise first**, before any design.
@@ -45,12 +46,14 @@ there, so the class cannot recur, over one that makes this instance stop
 showing. Two descriptions of one thing that disagree usually point at a deeper
 design issue; say so rather than reconciling them locally.
 
-## 4. Weigh only the final state
+## 4. Weigh only the final state of the code
 
 **Disregard the cost of the change**: re-baselining, changed behaviour,
 refactoring callers, a larger diff. Compare the answers as if each were
-already landed. Ergonomics and clean layering do count — they are properties
-of the final state. If a cost is so large it changes what is feasible, say
+already landed. "Final state" means the code after the work is done, not
+only what it outputs: two answers that return the same body, value or
+geometry are not thereby equivalent. Ergonomics and clean layering do count — they are
+properties of the final state. If a cost is so large it changes what is feasible, say
 that separately; do not fold it into the ranking.
 
 Questions that tend to decide between final states here:
