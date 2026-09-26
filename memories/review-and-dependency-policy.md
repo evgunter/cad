@@ -55,14 +55,9 @@ row's own subject.** Merging a row whose declared purpose is X, on
 evidence that never exercised X, buys nothing — the row is decorative
 until the axis it names is drawn, and an accepted gap of that shape is
 usually a liveness bug in disguise rather than a scoping decision.
-Hosted CI drew ONE eps per run from 2026-08-22 to 2026-09-04, which made
-"run it locally at every eps it claims to cover" the only way to close
-that axis; it now gates every eps row, so the hosted run is the evidence
-and what to check is that the run was not narrowed — the `change filter`
-job's log says so (`docs/prompts/implementer-discipline.md` §2), not a
-count of job names. When an implementer names a gap, ask whether the untested axis
-is the row's subject or merely adjacent: adjacent is a follow-up, the
-subject is a blocker.
+When an implementer names a gap, ask whether the untested axis is the
+row's subject or merely adjacent: adjacent is a follow-up, the subject is
+a blocker.
 
 **Reviewer tests are ordinary tests (Ev, 2026-09-04).** A reviewer may
 write tests while reviewing; the useful ones go into the permanent
