@@ -1119,6 +1119,18 @@ fn twin(second: bool, incoming: StepArg, arrival: StepArg) -> StepArg {
     if second { arrival } else { incoming }
 }
 
+/// The role of an arc spec's carrier radius — `CarrierRadius`, or its
+/// arrival twin. Named apart because two readers need the pairing: the
+/// role table's `Radius`, `Sweep` and `ArcLen` rows, and
+/// [`radius_arg_of`], which maps `profile`'s radius vocabulary onto it.
+fn carrier_radius_role(second: bool) -> StepArg {
+    twin(second, StepArg::CarrierRadius, StepArg::CarrierRadius2)
+}
+
+/// The role of a fillet's own radius, on every fillet-bearing step —
+/// read by the role table and by [`radius_arg_of`].
+const FILLET_RADIUS_ROLE: StepArg = StepArg::Radius;
+
 /// The role-table rows a target contributes: a point target's two
 /// coordinates, none for `Start`.
 ///
@@ -1127,15 +1139,16 @@ fn twin(second: bool, incoming: StepArg, arrival: StepArg) -> StepArg {
 /// an expression no slot addresses, and resolution fails loudly on it
 /// ([`role_of`]).
 macro_rules! target_roles {
-    ($target:expr, $second:expr, $out:expr) => {
+    ($target:expr, $second:expr, $out:expr) => {{
+        let second: bool = $second;
         match $target {
             ProgramTarget::Point([x, y]) => {
-                $out.push((twin($second, StepArg::TargetX, StepArg::Target2X), x));
-                $out.push((twin($second, StepArg::TargetY, StepArg::Target2Y), y));
+                $out.push((twin(second, StepArg::TargetX, StepArg::Target2X), x));
+                $out.push((twin(second, StepArg::TargetY, StepArg::Target2Y), y));
             }
             ProgramTarget::Start | ProgramTarget::StartArriving => {}
         }
-    };
+    }};
 }
 
 /// The role-table rows of one arc spec; `second` selects the arrival
@@ -1146,9 +1159,7 @@ macro_rules! spec_roles {
         use StepArg as A;
         let second: bool = $second;
         match $spec {
-            S::Radius { r, .. } => {
-                $out.push((twin(second, A::CarrierRadius, A::CarrierRadius2), r));
-            }
+            S::Radius { r, .. } => $out.push((carrier_radius_role(second), r)),
             S::Bulge { target, b } => {
                 target_roles!(target, second, $out);
                 $out.push((twin(second, A::Bulge, A::Bulge2), b));
@@ -1166,12 +1177,55 @@ macro_rules! spec_roles {
                 target_roles!(target, second, $out);
             }
             S::Sweep { r, angle, .. } => {
-                $out.push((twin(second, A::CarrierRadius, A::CarrierRadius2), r));
+                $out.push((carrier_radius_role(second), r));
                 $out.push((twin(second, A::SweepVal, A::SweepVal2), angle));
             }
             S::ArcLen { r, len, .. } => {
-                $out.push((twin(second, A::CarrierRadius, A::CarrierRadius2), r));
+                $out.push((carrier_radius_role(second), r));
                 $out.push((twin(second, A::ArcLenVal, A::ArcLenVal2), len));
+            }
+        }
+    }};
+}
+
+/// The role-table rows of one chain step, in the step's own field
+/// order.
+macro_rules! step_roles {
+    ($step:expr, $out:expr) => {{
+        use ProgramStep as P;
+        use StepArg as A;
+        match $step {
+            P::At([x, y]) | P::FarEndTo([x, y]) => {
+                $out.push((A::PointX, x));
+                $out.push((A::PointY, y));
+            }
+            P::Angle(e) => $out.push((A::AngleVal, e)),
+            P::Toward { dx, dy } => {
+                $out.push((A::DirX, dx));
+                $out.push((A::DirY, dy));
+            }
+            P::Tangent | P::Cusp | P::CloseTo => {}
+            P::Turn(e) => $out.push((A::TurnVal, e)),
+            P::Line(e) => $out.push((A::Length, e)),
+            P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t) => target_roles!(t, false, $out),
+            P::ArcTo(spec) => spec_roles!(spec, false, $out),
+            P::Fillet(radius) => $out.push((FILLET_RADIUS_ROLE, radius)),
+            P::FilletArc { radius, spec } => {
+                $out.push((FILLET_RADIUS_ROLE, radius));
+                spec_roles!(spec, true, $out);
+            }
+            P::ArcFillet { spec, radius } => {
+                spec_roles!(spec, false, $out);
+                $out.push((FILLET_RADIUS_ROLE, radius));
+            }
+            P::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => {
+                spec_roles!(spec, false, $out);
+                $out.push((FILLET_RADIUS_ROLE, radius));
+                spec_roles!(spec2, true, $out);
             }
         }
     }};
@@ -1186,9 +1240,9 @@ macro_rules! spec_roles {
 ///   reads the roles in order;
 /// - the addressing ([`LoopProgram::expr`] / [`LoopProgram::expr_mut`])
 ///   finds the row whose role is asked for;
-/// - the resolution ([`res_step`], [`res_spec`], [`res_target`],
-///   [`LoopProgram::resolve`]) tags a refusal with the role this table
-///   pairs with the very expression that refused ([`role_of`]).
+/// - the resolution ([`res_chain_step`], and [`LoopProgram::resolve`]'s
+///   carrier arms) tags a refusal with the role this table pairs with
+///   the very expression that refused ([`role_of`]).
 ///
 /// So a refusal reports at a slot the census enumerates, and that slot
 /// addresses the expression that refused, by construction. A macro
@@ -1202,74 +1256,52 @@ macro_rules! spec_roles {
 /// has no rows.
 macro_rules! loop_roles {
     ($loop:expr, $step:expr, $get:ident, $out:expr) => {{
-        use ProgramStep as P;
         use StepArg as A;
         let step: u32 = $step;
-        match $loop {
-            LoopProgram::Chain(steps) => match steps.$get(step as usize) {
-                None => {}
-                Some(P::At([x, y]) | P::FarEndTo([x, y])) => {
-                    $out.push((A::PointX, x));
-                    $out.push((A::PointY, y));
+        let carrier = match $loop {
+            LoopProgram::Chain(steps) => {
+                if let Some(s) = steps.$get(step as usize) {
+                    step_roles!(s, $out);
                 }
-                Some(P::Angle(e)) => $out.push((A::AngleVal, e)),
-                Some(P::Toward { dx, dy }) => {
-                    $out.push((A::DirX, dx));
-                    $out.push((A::DirY, dy));
-                }
-                Some(P::Tangent | P::Cusp | P::CloseTo) => {}
-                Some(P::Turn(e)) => $out.push((A::TurnVal, e)),
-                Some(P::Line(e)) => $out.push((A::Length, e)),
-                Some(P::LineTo(t) | P::ContinueTo(t) | P::TangentArcTo(t)) => {
-                    target_roles!(t, false, $out)
-                }
-                Some(P::ArcTo(spec)) => spec_roles!(spec, false, $out),
-                Some(P::Fillet(radius)) => $out.push((A::Radius, radius)),
-                Some(P::FilletArc { radius, spec }) => {
-                    $out.push((A::Radius, radius));
-                    spec_roles!(spec, true, $out);
-                }
-                Some(P::ArcFillet { spec, radius }) => {
-                    spec_roles!(spec, false, $out);
-                    $out.push((A::Radius, radius));
-                }
-                Some(P::ArcFilletArc {
-                    spec,
-                    radius,
-                    spec2,
-                }) => {
-                    spec_roles!(spec, false, $out);
-                    $out.push((A::Radius, radius));
-                    spec_roles!(spec2, true, $out);
-                }
-            },
-            LoopProgram::Circle {
-                centre: [x, y],
-                radius,
-            } if step == 0 => {
-                $out.push((A::CenterX, x));
-                $out.push((A::CenterY, y));
-                $out.push((A::Radius, radius));
+                None
             }
+            LoopProgram::Circle { centre, radius } => Some((centre, radius, None)),
             LoopProgram::CircleSplit {
-                centre: [x, y],
+                centre,
                 radius,
                 phase,
                 ..
-            } if step == 0 => {
-                $out.push((A::CenterX, x));
-                $out.push((A::CenterY, y));
-                $out.push((A::Radius, radius));
+            } => Some((centre, radius, Some(phase))),
+        };
+        if let (0, Some(([x, y], radius, phase))) = (step, carrier) {
+            $out.push((A::CenterX, x));
+            $out.push((A::CenterY, y));
+            $out.push((A::Radius, radius));
+            if let Some(phase) = phase {
                 $out.push((A::Phase, phase));
             }
-            LoopProgram::Circle { .. } | LoopProgram::CircleSplit { .. } => {}
         }
     }};
 }
 
-/// **The role the table pairs with `e`**, found by identity: `e` must
-/// be one of the expressions `roles` was built from, and its role is
-/// the one [`loop_roles`] wrote beside it.
+/// One chain step's role-table rows, shared.
+fn step_rows(step: &ProgramStep) -> Vec<(StepArg, &Expr)> {
+    let mut out = Vec::new();
+    step_roles!(step, out);
+    out
+}
+
+/// **The role the table pairs with `e`**, found by identity among
+/// `roles` — rows built from the same reference the resolver is
+/// reading `e` out of ([`res_chain_step`] and [`LoopProgram::resolve`]'s
+/// carrier arms, through [`leaf`], each build both from one binding).
+///
+/// Resolution needs the role of a NAMED field — it constructs the
+/// kernel step field by field — and the row list pairs roles with
+/// expressions, not with field names. The expression's own address is
+/// the one link between the two that neither side has to restate;
+/// reading rows by position instead would make the construction's
+/// field order a second spelling of the table's.
 ///
 /// # Panics
 ///
@@ -1289,15 +1321,14 @@ fn role_of(roles: &[(StepArg, &Expr)], e: &Expr) -> StepArg {
 ///
 /// `profile` records WHICH of a step's radius arguments drew an arc in
 /// its own vocabulary — it has no name for a document slot — and this
-/// is the one place the two are paired. The pairing mirrors
-/// [`spec_roles`]': the incoming spec's radius is the step's
-/// `CarrierRadius`, the arrival spec's twin is `CarrierRadius2`, and a
-/// fillet's own is `Radius`.
+/// maps it onto the role table's own radius roles
+/// ([`carrier_radius_role`], [`FILLET_RADIUS_ROLE`]), so the pairing is
+/// not restated here.
 fn radius_arg_of(role: profile::RadiusRole) -> StepArg {
     match role {
-        profile::RadiusRole::Fillet => StepArg::Radius,
-        profile::RadiusRole::Carrier => StepArg::CarrierRadius,
-        profile::RadiusRole::Carrier2 => StepArg::CarrierRadius2,
+        profile::RadiusRole::Fillet => FILLET_RADIUS_ROLE,
+        profile::RadiusRole::Carrier => carrier_radius_role(false),
+        profile::RadiusRole::Carrier2 => carrier_radius_role(true),
     }
 }
 
@@ -1451,8 +1482,7 @@ impl LoopProgram {
 
 /// **The resolver's leaf**: evaluates one expression of authored step
 /// `step` at the resolution scalar, tagging a refusal with the slot
-/// the role table ([`loop_roles`], passed in as `roles`) pairs with
-/// that expression.
+/// the role table pairs with that expression in `roles`.
 ///
 /// Every resolver below reaches the evaluator through this and names
 /// no role of its own, so the role a refusal reports is the role the
@@ -1460,16 +1490,33 @@ impl LoopProgram {
 /// looked up before the evaluation rather than on refusal, so an
 /// expression the table omits fails loudly on every resolution of its
 /// step shape, not only on one that refuses there.
+///
+/// Called only by [`res_chain_step`] and [`LoopProgram::resolve`]'s
+/// carrier arms, which build `roles` from the same binding they then
+/// resolve — the invariant [`role_of`]'s identity lookup rests on.
 fn leaf<'r, T: Decide>(
-    roles: &'r [(StepArg, &'r Expr)],
+    roles: Vec<(StepArg, &'r Expr)>,
     env: &'r ParamEnv<T>,
     loop_: u32,
     step: u32,
 ) -> impl Fn(&Expr) -> Result<T, (SlotId, EvalError)> + 'r {
     move |e| {
-        let arg = role_of(roles, e);
+        let arg = role_of(&roles, e);
         eval::<T>(e, env).map_err(|source| (SlotId::Profile { loop_, step, arg }, source))
     }
+}
+
+/// Resolves chain step `s`, authored step `step` of loop `loop_`,
+/// through a leaf built from `s`'s OWN rows — the one entry to
+/// [`res_step`], so the rows and the expressions they are looked up
+/// against are one borrow.
+fn res_chain_step<T: Decide>(
+    s: &ProgramStep,
+    env: &ParamEnv<T>,
+    loop_: u32,
+    step: u32,
+) -> Result<Step<T>, (SlotId, EvalError)> {
+    res_step(s, &leaf(step_rows(s), env, loop_, step))
 }
 
 /// Resolves a point's two coordinates through `res`.
@@ -1626,15 +1673,12 @@ impl LoopProgram {
             LoopProgram::Chain(steps) => steps
                 .iter()
                 .enumerate()
-                .map(|(i, s)| {
-                    let step = program_index(i);
-                    let roles = self.roles(step);
-                    res_step(s, &leaf(&roles, env, loop_, step))
-                })
+                .map(|(i, s)| res_chain_step(s, env, loop_, program_index(i)))
                 .collect(),
+            // A carrier form: its rows and its fields are both read
+            // from `self`.
             LoopProgram::Circle { centre, radius } => {
-                let roles = self.roles(0);
-                let res = leaf(&roles, env, loop_, 0);
+                let res = leaf(self.roles(0), env, loop_, 0);
                 Ok(vec![Step::Circle {
                     centre: res_point(centre, &res)?,
                     radius: res(radius)?,
@@ -1646,8 +1690,7 @@ impl LoopProgram {
                 n,
                 phase,
             } => {
-                let roles = self.roles(0);
-                let res = leaf(&roles, env, loop_, 0);
+                let res = leaf(self.roles(0), env, loop_, 0);
                 Ok(vec![Step::CircleSplit {
                     centre: res_point(centre, &res)?,
                     radius: res(radius)?,

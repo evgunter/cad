@@ -1097,10 +1097,11 @@ fn positions_whose_slot_count_disagrees(program: &ProfileProgram) -> Vec<String>
 /// `Literal` tags in its serialization ARE its expressions.
 ///
 /// Blind spot, stated: this walks the corpus, so it says nothing about
-/// step shapes the corpus omits. The one it deliberately omits is a
-/// fused step whose two specs are the same `Sweep`/`ArcLen`/`Bulge`
-/// mode — unreachable from every recording surface, representable by
-/// hand, and aliasing today (issue #829).
+/// step shapes the corpus omits. The corpus carries every mode in each
+/// spec position and a fused step whose two specs share each mode, the
+/// `Sweep`/`ArcLen`/`Bulge` pairs no recording surface can reach
+/// included; what it does not carry is a fused step over every
+/// DIFFERENT pair of modes.
 #[test]
 fn every_enumerated_slot_addresses_a_distinct_expression() {
     let program = corpus();
