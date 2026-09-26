@@ -329,49 +329,14 @@ fn guided_replay_consumes_the_recorded_pick_rather_than_ranking() {
 /// the ladder is reached, and consumption is observable here.
 #[test]
 fn the_hairline_lens_at_interval_consumes_the_recorded_pick() {
-    use geom_core::Interval;
-    /// Lifts one `f64` step to another scalar (the suite-local embedding;
-    /// `generic_replay.rs` carries the exhaustive one and the census
-    /// argument for it).
-    fn embed<T: geom_core::Real>(step: &profile::Step<f64>) -> profile::Step<T> {
-        use geom_core::Point2;
-        use profile::{ArcData, Step, Target};
-        let pt = |p: Point2<f64>| p.map(T::from_f64);
-        let tgt = |t: Target<f64>| match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        };
-        let spec = |s: ArcData<f64>| match s {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            _ => panic!("this suite's fixtures author Center-mode arcs only"),
-        };
-        match *step {
-            Step::ArcFilletArc {
-                spec: s,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(s),
-                radius: T::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            ref other => panic!("this suite's fixtures are one fused step, got {other:?}"),
-        }
-    }
-
-    use geom_core::Bounds;
+    use geom_core::{Bounds, Interval, Real};
 
     let program = vesica_lens(f64::EPSILON);
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
     let lifted: Vec<profile::Step<Interval>> = program
         .iter()
-        .map(embed)
-        .collect::<Vec<profile::Step<Interval>>>();
+        .map(|s| s.map_scalar(Interval::from_f64))
+        .collect();
     let d = &structure.fillets[0];
     assert_eq!(
         d.survivors, 2,
