@@ -2,10 +2,13 @@
 id: sweep-emits-no-contact-record-for-declared-cusps
 kind: issue
 title: extrude returns a body whose declared cusps have no contact record, so tier 3 must be re-declared by the caller
-status: open
+status: closed
 opened: 2026-09-08
 priority: P0
 cost: D
+closed: 2026-09-26
+pr: 3257
+branch: band/extrude-carries-declared-cusps
 ---
 
 
