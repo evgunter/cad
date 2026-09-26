@@ -228,3 +228,20 @@ heavy cargo work also goes through the slot. Each lane deletes its
 worktree `target/` after its battery, and one with under 12 GB free asks
 before starting. The standing note handed to lanes is
 `local-ci-note.md` in the orchestrator's scratchpad.
+
+## 2026-09-26 — split halves merges; the per-part gate's policy is dispatched
+
+PR 3256 merged. Two halves of one split, taken as `Part` roots, now
+gather into the split's one tie. Tier: single FULL review. The fix pass
+pins over-marking: three overlapping-split shapes still refuse, and each
+goes red under the mark-everything mutant. Residue: `the-gather-tie-merge-cannot-tell-a-candidate-carried-twice`
+(P3, ours), and REACH's `split-through-the-u-cutter-pockets-inverts-section-loop-roles`
+(P0).
+
+With `product.rs` free again,
+`product-gate-says-verbatim-then-states-the-difference` is dispatched
+(`gather/per-part-gate-one-home`). The row's own analysis sets the
+design: the F8/D7 trigger is stated once in `topo`'s at-rest door, and
+both callers and the consumer premise (`vertex_rest_contact`) cite it.
+Tier: single STYLE review. `three-walks-over-the-name-carrying-edges`
+also touches `product.rs`, so it follows this one.
