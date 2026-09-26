@@ -131,43 +131,11 @@ enum Read {
     /// One emission's counts, by base.
     Minted(BTreeMap<StableName, Vec<Count>>),
     /// A union's counts: each fold step's, by FOLD-SPACE base, the
-    /// descent already followed to the published body; and the groups
-    /// the union re-derives over the finished body (its faces, by
-    /// parent, and its seam edges, by the parents they lie between), by
-    /// published base.
+    /// descent already followed to the published body.
     Folded {
         node: RecipeNodeId,
         steps: Vec<BTreeMap<StableName, Vec<Count>>>,
-        published: BTreeMap<StableName, Vec<Count>>,
     },
-}
-
-/// Each group's count in `record`: its distinct members, or `None` for
-/// a group tied parents share.
-fn counts(record: &GroupRecord) -> BTreeMap<StableName, Vec<Count>> {
-    record
-        .0
-        .iter()
-        .map(|(b, gs)| {
-            let counts = gs
-                .iter()
-                .map(|g| (!g.tie_summed).then(|| g.members.iter().collect::<BTreeSet<_>>().len()))
-                .collect();
-            (b.clone(), counts)
-        })
-        .collect()
-}
-
-/// Whether a union names every group under `base` over its finished
-/// body rather than by fold step: a face, or a seam edge
-/// (`emit_union`'s `name_by_parents`).
-fn rederived(base: &StableName) -> bool {
-    use super::role::{EntityKind, RoleSeg};
-    match base.kind {
-        EntityKind::Face => true,
-        EntityKind::Edge => matches!(base.path.first(), Some(RoleSeg::Seam { .. })),
-        _ => false,
-    }
 }
 
 impl Default for FragmentGroups {
@@ -186,7 +154,21 @@ impl FragmentGroups {
     /// One emission's record, read in place: each group counts its own
     /// distinct members.
     pub(crate) fn minted(record: &GroupRecord) -> Self {
-        Self(Read::Minted(counts(record)))
+        Self(Read::Minted(
+            record
+                .0
+                .iter()
+                .map(|(b, gs)| {
+                    let counts = gs
+                        .iter()
+                        .map(|g| {
+                            (!g.tie_summed).then(|| g.members.iter().collect::<BTreeSet<_>>().len())
+                        })
+                        .collect();
+                    (b.clone(), counts)
+                })
+                .collect(),
+        ))
     }
 
     /// A record of one group per `(base, size)`, each of one parent, as
@@ -227,15 +209,7 @@ impl FragmentGroups {
     /// [`FragmentGroups::sizes`] makes the collapse when it is asked: a
     /// name the collapse refuses is the ladder's to decline over, never
     /// the evaluation's to fail on.
-    ///
-    /// A union names its faces and seam edges over the finished body,
-    /// not by fold step, and `published` is the record of those groups;
-    /// it answers for a face or seam base ([`FragmentGroups::sizes`]).
-    pub(crate) fn folded(
-        node: RecipeNodeId,
-        steps: &[Arc<GroupRecord>],
-        published: &GroupRecord,
-    ) -> Self {
+    pub(crate) fn folded(node: RecipeNodeId, steps: &[Arc<GroupRecord>]) -> Self {
         let mut counted: Vec<BTreeMap<StableName, Vec<Count>>> = vec![BTreeMap::new(); steps.len()];
         // Each entity of the step after the current one → the published
         // entities it descends to.
@@ -271,7 +245,6 @@ impl FragmentGroups {
         Self(Read::Folded {
             node,
             steps: counted,
-            published: counts(published),
         })
     }
 
@@ -292,24 +265,11 @@ impl FragmentGroups {
     /// leaves an entity whole spells a group of one, and a later step
     /// that divides it spells the group of its pieces under the same
     /// collapsed base. Both count the same published entities, so the
-    /// latest step that spells the base answers. A face or seam base is
-    /// answered by the groups re-derived over the finished body, except
-    /// where tied parents share it: those are counted by fold step.
+    /// latest step that spells the base answers.
     pub(crate) fn sizes(&self, base: &StableName) -> Option<Vec<usize>> {
         let counts = match &self.0 {
             Read::Minted(m) => m.get(base).cloned().unwrap_or_default(),
-            // A re-derived group keys its parent by NAME, so tied parents
-            // share one and it counts none of them; the fold's groups
-            // follow entities and tell them apart, so they answer there.
-            Read::Folded { published, .. }
-                if rederived(base)
-                    && published
-                        .get(base)
-                        .is_none_or(|cs| cs.iter().all(Option::is_some)) =>
-            {
-                published.get(base).cloned().unwrap_or_default()
-            }
-            Read::Folded { node, steps, .. } => {
+            Read::Folded { node, steps } => {
                 let mut found = None;
                 for step in steps.iter().rev() {
                     let mut hit: Option<&Vec<Count>> = None;
