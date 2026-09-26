@@ -442,7 +442,7 @@ mod certified {
 
     use super::*;
 
-    use crate::common::interval::iv;
+    use crate::common::interval::{iv, p3, v3};
 
     fn encloses(value: Interval, pad: f64, exact: f64, what: &str) {
         let lo = geom_core::Bounds::lo(value) - pad;
@@ -454,9 +454,9 @@ mod certified {
     fn the_hollow_torus_certifies_and_encloses_its_closed_forms() {
         let t = tube_along_arc_hollow::<Interval>(
             tube_frame(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                p3(0.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                v3(1.0, 0.0, 0.0),
                 Tol::witness(),
             ),
             iv(R),
@@ -491,9 +491,9 @@ mod certified {
     fn the_hollow_elbow_certifies_at_interval() {
         let t = tube_along_arc_hollow::<Interval>(
             tube_frame(
-                Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                Vec3::new(iv(0.0), iv(1.0), iv(0.0)),
-                Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                p3(0.0, 0.0, 0.0),
+                v3(0.0, 1.0, 0.0),
+                v3(1.0, 0.0, 0.0),
                 Tol::witness(),
             ),
             iv(R),

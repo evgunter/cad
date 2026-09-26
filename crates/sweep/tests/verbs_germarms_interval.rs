@@ -21,8 +21,8 @@
 
 use core::f64::consts::PI;
 
-use crate::common::interval::{iv, p2};
-use geom_core::{Affine3, Bounds, Interval, Tol, Vec3};
+use crate::common::interval::{iv, p2, v3};
+use geom_core::{Affine3, Bounds, Interval, Tol};
 use profile::{Profile, SketchPlane};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
@@ -36,7 +36,7 @@ use topo::{Body, BooleanError};
 fn pipe() -> Body<Interval> {
     let tol = Tol::witness();
     let lp = profile::circle(p2(0.0, 0.0), iv(1.0), tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(iv(0.0), iv(0.0), iv(-2.0))));
+    let plane = SketchPlane::new(Affine3::translation(v3(0.0, 0.0, -2.0)));
     let vp = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&vp, Extrusion::Distance(iv(4.0)), tol)
         .unwrap()

@@ -10,9 +10,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::interval::p2;
+use crate::common::interval::{p2, p3};
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point3, Real, Vec3};
+use geom_core::{Bounds, Interval, Real, Vec3};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::test_support::sketch_from_axes;
@@ -154,16 +154,7 @@ fn fixed_interval_rotated_placement_builds_tier_valid() {
     let two_thirds = Interval::from_f64(2.0) / Interval::from_f64(3.0);
     let u = Vec3::new(two_thirds, two_thirds, third);
     let v = Vec3::new(third, Interval::from_f64(0.0) - two_thirds, two_thirds);
-    let plane = sketch_from_axes(
-        Point3::new(
-            Interval::from_f64(0.25),
-            Interval::from_f64(-0.5),
-            Interval::from_f64(1.0),
-        ),
-        u,
-        v,
-        Tol::witness(),
-    );
+    let plane = sketch_from_axes(p3(0.25, -0.5, 1.0), u, v, Tol::witness());
     let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
     let vp = Profile::new(plane, vec![lp])
         .validate(Tol::witness())

@@ -441,16 +441,8 @@ fn caches_certify_on_the_interval_lane() {
     .body;
     let phi = 0.3f64;
     let plane = SplitPlane {
-        origin: Point3::new(
-            Interval::from_f64(0.0),
-            Interval::from_f64(0.0),
-            Interval::from_f64(0.5),
-        ),
-        normal: Vec3::new(
-            Interval::from_f64(phi.sin()),
-            Interval::from_f64(0.0),
-            Interval::from_f64(phi.cos()),
-        ),
+        origin: interval::p3(0.0, 0.0, 0.5),
+        normal: interval::v3(phi.sin(), 0.0, phi.cos()),
     };
     let result = split(&body, &plane, Tol::witness()).unwrap();
     let mut seen = 0usize;

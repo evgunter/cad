@@ -227,19 +227,29 @@ pub enum CameraError {
     },
     /// A framing input that cannot produce a camera: a bounding box
     /// that carried a NaN bound (`Aabb`'s poison state) or was empty,
-    /// **or** a viewport aspect that was not a positive finite ratio.
+    /// **or** a viewport aspect at or below zero, or a viewport with a
+    /// side of zero pixels or fewer.
     ///
-    /// One arm for two inputs, deliberately, and the name is the older
-    /// of the two: both are "the framing request names no view" — a
-    /// box with nothing to frame, or a viewport with no area to frame
-    /// it in — and the caller's next question, *which of my arguments
-    /// was wrong*, has its answer in the caller's hand without a
-    /// second arm. The doors that take only a viewport
-    /// ([`Camera::projection_matrix`], [`Camera::ray_through`],
-    /// [`crate::datums::datum_view`]) have one candidate, so the door
-    /// that refused names it; [`Camera::framing`] and
-    /// [`Camera::fitted`] take both, and there the aspect the caller
-    /// passed settles it — this arm under a positive aspect is the box.
+    /// One arm for both inputs, deliberately, and the name is the older
+    /// of the two: both are "the framing request names no view". What
+    /// a caller can read off the door that returned it:
+    ///
+    /// - [`Camera::projection_matrix`] takes only an aspect, so here
+    ///   the arm is an aspect at or below zero — which is how a pane of
+    ///   infinite height reaches it (its width over `inf` is `0.0`).
+    /// - [`Camera::ray_through`] and [`crate::datums::datum_view`] take
+    ///   only a viewport, and refuse a non-finite side as
+    ///   [`CameraError::NotFinite`] first, so here the arm is a side of
+    ///   zero pixels or fewer.
+    /// - [`Camera::fitted`], and [`apply`] of a [`CameraOp::Frame`]
+    ///   (which returns it wrapped as [`CameraOpError::Unframeable`]),
+    ///   take both and check the aspect first: a non-finite aspect is
+    ///   [`CameraError::NotFinite`], one at or below zero is this arm
+    ///   with the box unchecked, and under a positive aspect this arm
+    ///   is the box.
+    /// - [`Camera::framing`] checks the box first, so here the arm is
+    ///   the box unless the aspect is at or below zero, and then it is
+    ///   the box or the aspect.
     UnusableBounds,
     /// The view-projection this camera and viewport give does not
     /// narrow to the `f32` a GPU matrix holds
@@ -305,7 +315,7 @@ impl core::fmt::Display for CameraError {
             ),
             Self::UnusableBounds => f.write_str(
                 "the framing request names no view — the bounds are empty or carry a \
-                 NaN bound, or the viewport aspect is not a positive finite ratio",
+                 NaN bound, or the viewport aspect is not a positive number",
             ),
             Self::Unfittable {
                 required,
@@ -427,7 +437,8 @@ impl core::fmt::Display for CameraOp {
             // it is not the actionable half. The two errors that
             // provoke this sentence say what was wrong with the box
             // themselves — `CameraError::UnusableBounds` names an empty
-            // or NaN-bounded box, `CameraError::Unfittable` names the
+            // or NaN-bounded box (or an aspect at or below zero, the
+            // other input it refuses), `CameraError::Unfittable` names the
             // stand-off the fit needed — while `aspect` is rendered
             // because the viewport shape is the half a reader can act
             // on. A third `Frame` field would arrive under this

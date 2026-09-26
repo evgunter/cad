@@ -15,9 +15,9 @@ use crate::common::operands::pellet;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
-use crate::common::interval::{iv, p2, p3};
+use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Bounds, Interval, Vec2};
+use geom_core::{Band, Bounds, Interval};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -92,7 +92,7 @@ fn interval_washer_props_and_bore_door() {
     let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
     let axis = RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(iv(0.0), iv(1.0)),
+        dir: v2(0.0, 1.0),
     };
     let t = revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness()).unwrap();
     let vol = mass_properties(&t.body, Tol::witness()).unwrap().volume;

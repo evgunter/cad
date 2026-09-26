@@ -14,9 +14,9 @@
 //!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
-//! - [`interval`] — the `Interval` literals (`iv`, `p2`, `p3`, `v3`)
-//!   an interval-lane suite authors with (section authoring, same
-//!   routing);
+//! - [`interval`] — the `Interval` literals (`iv`, `p2`, `v2`, `p3`,
+//!   `v3`) an interval-lane suite authors with (section authoring,
+//!   same routing);
 //! - [`orient`] — what a suite CHECKS of a body it built, by reading
 //!   POSITIONS off the shipped charts;
 //! - [`cap_rims`] — what a suite checks of a body's CAP RIMS: the
@@ -131,8 +131,8 @@ pub mod cone_nappe;
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
 
-/// The `Interval` literals — a scalar, a sketch point, a space point
-/// and a vector from exact `f64` coordinates. What an interval-lane
+/// The `Interval` literals — a scalar, and points and vectors from
+/// exact `f64` coordinates. What an interval-lane
 /// suite authors its profile and placements with, so it routes here.
 pub mod interval;
 

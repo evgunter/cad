@@ -21,11 +21,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::interval::iv;
+use crate::common::interval::{iv, v3};
 use geom::Curve3;
 use geom_brep::EdgeDescription;
 use geom_core::k_stats::Bracket;
-use geom_core::{Band, Bounds, Interval, Sign, Tol, Vec3};
+use geom_core::{Band, Bounds, Interval, Sign, Tol};
 use sweep::blend::BlendError;
 use sweep::blend::battery::cap_transverse;
 use sweep::blend::build::fillet_edges;
@@ -185,30 +185,23 @@ fn the_rod_carves_at_the_certified_scalar_and_brackets_the_prism_closed_form() {
 fn cap_transverse_trio_at_the_certified_scalar() {
     let band = Band::linear(Tol::witness()).expect("a band");
     let v = VertexKey::default();
-    let tau = Vec3::new(iv(0.0), iv(0.0), iv(1.0));
+    let tau = v3(0.0, 0.0, 1.0);
     let lever = iv(1.0);
     // Transverse: the cap normal IS the ruling.
-    cap_transverse(v, Vec3::new(iv(0.0), iv(0.0), iv(-1.0)), tau, lever, band)
-        .expect("a perpendicular cap is Zero");
+    cap_transverse(v, v3(0.0, 0.0, -1.0), tau, lever, band).expect("a perpendicular cap is Zero");
     // Oblique: a definite departure refuses as the run-out it is. The
     // normal is the f64 twin's, derived from the tilt.
     let phi = 0.3f64;
-    let oblique = cap_transverse(
-        v,
-        Vec3::new(iv(phi.sin()), iv(0.0), iv(phi.cos())),
-        tau,
-        lever,
-        band,
-    )
-    .expect_err("an oblique cap refuses");
+    let oblique = cap_transverse(v, v3(phi.sin(), 0.0, phi.cos()), tau, lever, band)
+        .expect_err("an oblique cap refuses");
     assert!(
         matches!(oblique, BlendError::UnsupportedRunOut { .. }),
         "the oblique cap is a run-out, got {oblique:?}"
     );
     // In band: a departure between the band's zero and its escalate.
     let t = 0.5 * (band.zero() + band.escalate());
-    let escalated = cap_transverse(v, Vec3::new(iv(t), iv(0.0), iv(1.0)), tau, lever, band)
-        .expect_err("an in-band cap escalates");
+    let escalated =
+        cap_transverse(v, v3(t, 0.0, 1.0), tau, lever, band).expect_err("an in-band cap escalates");
     match escalated {
         BlendError::Escalated { source, .. } => {
             assert_eq!(source.predicate, Some("fillet3_cap_transverse"));

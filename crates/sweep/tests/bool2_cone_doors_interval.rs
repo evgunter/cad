@@ -23,9 +23,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::interval::{iv, p3};
+use crate::common::interval::{p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2};
+use geom_core::{Band, Interval};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -35,17 +35,13 @@ use topo::boolean::{SolidContainment, point_in_solid};
 /// triangle (0,0), (1,0), (0,1) about the y-axis — base disc of radius
 /// 1 at y = 0, apex at (0, 1, 0), half-angle π/4.
 fn cone() -> topo::Body<Interval> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(iv(0.0), iv(0.0)),
-        Point2::new(iv(1.0), iv(0.0)),
-        Point2::new(iv(0.0), iv(1.0)),
-    ]);
+    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: Point2::new(iv(0.0), iv(0.0)),
-        dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()

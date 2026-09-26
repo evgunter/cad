@@ -680,7 +680,7 @@ mod interval_lane {
     use super::*;
     use geom_core::{Bounds, Interval, Real};
 
-    use crate::shared::point::{p3 as ipt, v3 as ivec};
+    use crate::shared::point::{p3, v3};
 
     /// Regression for the fixed bug: plane-adjacent dihedrals must NOT
     /// poison through the curvature-arm min fold (from_f64(MAX) is a
@@ -689,19 +689,19 @@ mod interval_lane {
     #[test]
     fn survives_interval_plane_dihedral_is_definite() {
         let floor: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(0.0, 0.0, 1.0),
-            u_ref: ivec(1.0, 0.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(0.0, 0.0, 1.0),
+            u_ref: v3(1.0, 0.0, 0.0),
         };
         let wall: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(1.0, 0.0, 0.0),
-            u_ref: ivec(0.0, 1.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(1.0, 0.0, 0.0),
+            u_ref: v3(0.0, 1.0, 0.0),
         };
         let c = classify_dihedral(
             &floor,
             &wall,
-            ipt(0.0, 0.0, 0.0),
+            p3(0.0, 0.0, 0.0),
             Interval::from_f64(1.0),
             band(),
         )
@@ -709,14 +709,14 @@ mod interval_lane {
         assert_eq!(c, DihedralClass::Transverse);
         // Coplanar pair: definite Smooth (no poison, no escalation).
         let coplanar: Surface<Interval> = Surface::Plane {
-            origin: ipt(0.0, 0.0, 0.0),
-            normal: ivec(0.0, 0.0, 1.0),
-            u_ref: ivec(0.0, 1.0, 0.0),
+            origin: p3(0.0, 0.0, 0.0),
+            normal: v3(0.0, 0.0, 1.0),
+            u_ref: v3(0.0, 1.0, 0.0),
         };
         let c = classify_dihedral(
             &floor,
             &coplanar,
-            ipt(0.0, 0.0, 0.0),
+            p3(0.0, 0.0, 0.0),
             Interval::from_f64(1.0),
             band(),
         )
@@ -728,8 +728,8 @@ mod interval_lane {
     /// the interval lane (no NaI leaks anywhere in the schedule).
     #[test]
     fn survives_interval_line_certification() {
-        let p0: Point3<Interval> = ipt(0.0, 0.0, 0.0);
-        let p1 = ipt(1.0, 0.0, 0.0);
+        let p0: Point3<Interval> = p3(0.0, 0.0, 0.0);
+        let p1 = p3(1.0, 0.0, 0.0);
         let spec = EdgeCurveSpec::line_between(p0, p1);
         let c = EdgeCurve::certify(spec, p0, p1, |_| None, band()).unwrap();
         let r = c.certificate().max_residual;
@@ -748,21 +748,21 @@ mod interval_lane {
     /// `WindingExceeded`, not an escalation.
     #[test]
     fn fixed_interval_winding_alias_refused_by_detection() {
-        let center = ipt(1.0, 2.0, 3.0);
-        let p = ipt(2.0, 2.0, 3.0);
+        let center = p3(1.0, 2.0, 3.0);
+        let p = p3(2.0, 2.0, 3.0);
         let spec = EdgeCurveSpec {
             description: EdgeDescriptionSpec::Scaffold(MappedCurve::RevolvedPoint {
                 point: Point2::new(Interval::from_f64(2.0), Interval::from_f64(2.0)),
-                place: Affine3::translation(ivec(0.0, 0.0, 3.0)),
+                place: Affine3::translation(v3(0.0, 0.0, 3.0)),
                 axis_origin: center,
-                axis_dir: ivec(0.0, 0.0, 1.0),
+                axis_dir: v3(0.0, 0.0, 1.0),
                 angle: Interval::from_f64(core::f64::consts::TAU),
             }),
             carrier: Curve3::Circle {
                 center,
-                axis: ivec(0.0, 0.0, 1.0),
+                axis: v3(0.0, 0.0, 1.0),
                 radius: Interval::from_f64(1.0),
-                u_ref: ivec(1.0, 0.0, 0.0),
+                u_ref: v3(1.0, 0.0, 0.0),
             },
             param_start: Interval::from_f64(0.0),
             param_end: Interval::from_f64(9.0 * core::f64::consts::TAU),

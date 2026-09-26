@@ -39,9 +39,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::interval::{iv, p3};
+use crate::common::interval::{iv, p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2};
+use geom_core::{Band, Interval};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
@@ -51,16 +51,13 @@ use topo::boolean::{SolidContainment, point_in_solid};
 /// dyadic, so the torus's own data are exact intervals and every margin
 /// below is the arm's arithmetic rather than the fixture's.
 fn donut() -> topo::Body<Interval> {
-    let lp = bulge_loop(vec![
-        (Point2::new(iv(1.0), iv(-0.25)), iv(1.0)),
-        (Point2::new(iv(1.0), iv(0.25)), iv(1.0)),
-    ]);
+    let lp = bulge_loop(vec![(p2(1.0, -0.25), iv(1.0)), (p2(1.0, 0.25), iv(1.0))]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: Point2::new(iv(0.0), iv(0.0)),
-        dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()

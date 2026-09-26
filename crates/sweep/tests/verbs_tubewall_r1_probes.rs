@@ -338,7 +338,7 @@ mod certified {
 
     use super::*;
 
-    use crate::common::interval::iv;
+    use crate::common::interval::{iv, p3, v3};
 
     /// MEASURED (this review, interval + ε = 1e-12): BOTH km-scale
     /// cases (R = 1300) refuse typed in shared machinery — the
@@ -363,9 +363,9 @@ mod certified {
             };
             let built = tube_along_arc_hollow::<Interval>(
                 tube_frame(
-                    Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                    Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                    Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                    p3(0.0, 0.0, 0.0),
+                    v3(0.0, 0.0, 1.0),
+                    v3(1.0, 0.0, 0.0),
                     Tol::witness(),
                 ),
                 iv(major),
@@ -383,9 +383,9 @@ mod certified {
                 Err(TubeError::Revolve(_)) if major >= 1000.0 && eps <= 1e-12 => {
                     let solid = tube_along_arc::<Interval>(
                         tube_frame(
-                            Point3::new(iv(0.0), iv(0.0), iv(0.0)),
-                            Vec3::new(iv(0.0), iv(0.0), iv(1.0)),
-                            Vec3::new(iv(1.0), iv(0.0), iv(0.0)),
+                            p3(0.0, 0.0, 0.0),
+                            v3(0.0, 0.0, 1.0),
+                            v3(1.0, 0.0, 0.0),
                             Tol::witness(),
                         ),
                         iv(major),

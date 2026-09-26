@@ -32,8 +32,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::interval::{iv, p2};
-use geom_core::{Bounds, Interval, Real, Tol, Vec2};
+use crate::common::interval::{iv, p2, v2};
+use geom_core::{Bounds, Interval, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::Body;
@@ -46,7 +46,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         turn,
         Tol::witness(),

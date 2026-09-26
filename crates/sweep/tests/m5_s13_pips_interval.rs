@@ -16,11 +16,11 @@ mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
-    use geom_core::{Bounds, Interval, Vec3};
+    use geom_core::{Bounds, Interval};
     use sweep::test_support::ball_poled_y;
     use topo::mass_properties;
 
-    use crate::common::interval::iv;
+    use crate::common::interval::{iv, v3};
 
     fn encloses(vol: Interval, analytic: f64, what: &str) {
         assert!(
@@ -105,11 +105,7 @@ mod certified {
     #[test]
     fn interval_finding_union_is_bracketed() {
         let a = slab();
-        let b = ball_poled_y(
-            iv(1.0),
-            Vec3::new(iv(2.0), iv(2.0), iv(0.5)),
-            Tol::witness(),
-        );
+        let b = ball_poled_y(iv(1.0), v3(2.0, 2.0, 0.5), Tol::witness());
         let joined = topo::union(&a, &b, Tol::witness());
         // **The crossover is an enclosure width, and enclosure widths
         // move.** This row used to select its arm by comparing ε to a
@@ -181,11 +177,7 @@ mod certified {
     fn interval_pip_pair_is_bracketed_and_additive() {
         let a = slab();
         let (r, h) = (0.5, 0.3);
-        let b = ball_poled_y(
-            iv(r),
-            Vec3::new(iv(2.0), iv(2.0), iv(1.0 + r - h)),
-            Tol::witness(),
-        );
+        let b = ball_poled_y(iv(r), v3(2.0, 2.0, 1.0 + r - h), Tol::witness());
 
         let cut = topo::subtract(&a, &b, Tol::witness()).expect("the pip decides at Interval");
         let cut = &cut.body().expect("a body").body;

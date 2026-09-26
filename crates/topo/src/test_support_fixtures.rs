@@ -232,8 +232,9 @@ pub struct PrismOps {
 }
 
 /// The `map` [`prism_ops`] takes for a prism in its own frame: the
-/// coordinates themselves, lifted exactly into the caller's scalar.
-fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
+/// coordinates themselves, lifted exactly into the caller's scalar
+/// through `map`, the linear types' componentwise door.
+pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
     Point3::new(x, y, z).map(T::from_f64)
 }
 
@@ -257,8 +258,8 @@ fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
 /// The three axes the callers differ on are all parameters here, and
 /// that is the whole of the difference between them:
 ///
-/// - **`map`** is where the tilted operands live. `Point3::new` at
-///   `T::from_f64` gives the untransformed prism; anything else — a
+/// - **`map`** is where the tilted operands live. [`identity_map`]
+///   gives the untransformed prism; anything else — a
 ///   scale, an affine, a shear — is the same body pushed through it.
 ///   The 2x box and the unit cube are one call apart.
 /// - **`faces`** is [`FaceGeometry`]: real Newell planes, or face
