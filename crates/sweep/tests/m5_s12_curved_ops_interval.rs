@@ -23,11 +23,11 @@ pub(crate) mod certified {
     use geom_core::Tol;
 
     use geom::Surface;
-    use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec2, Vec3};
+    use geom_core::{Affine3, Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
-    use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+    use sweep::{Extrusion, extrude};
     use topo::{Body, mass_properties};
 
     fn iv(x: f64) -> Interval {
@@ -55,32 +55,13 @@ pub(crate) mod certified {
         sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
     }
 
-    /// A ball of radius `r` about the origin: a half-disc lamina —
-    /// semicircle out of `(0, -r)`, straight diameter back — revolved
-    /// a full turn about `+y`.
-    ///
-    /// **`pub(crate)` for the same reason [`plate`] is**: this is the
-    /// other operand of the sphere-recut fixture, and
-    /// `review_arceval_r1_probes` builds bodies from it too. It takes
-    /// `r` because that suite's E1 row varies it; this file only ever
-    /// wants 1.
-    pub(crate) fn ball(r: f64) -> Body<Interval> {
-        let lp = bulge_loop::<Interval>(vec![(p2(0.0, -r), iv(1.0)), (p2(0.0, r), iv(0.0))]);
-        let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
-        };
-        revolve(&validated(vec![lp]), axis, Revolution::Full, Tol::witness())
-            .unwrap()
-            .body
-    }
-
-    /// The sphere-recut fixture's cutter: the unit [`ball`] at
+    /// The sphere-recut fixture's cutter: the unit
+    /// [`ball_poled_y`](sweep::test_support::ball_poled_y) at
     /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
     /// `review_arceval_r1_probes`'s E2 row builds it from here too.
     pub(crate) fn recut_ball() -> Body<Interval> {
         topo::transform_rigid(
-            &ball(1.0),
+            &sweep::test_support::ball_poled_y(iv(1.0), Tol::witness()),
             &Affine3::translation(Vec3::new(iv(1.5), iv(1.5), iv(0.5))),
             Tol::witness(),
         )

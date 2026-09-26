@@ -483,6 +483,21 @@ pub fn domed_cavity(tol: Tol) -> Body<f64> {
     )
 }
 
+/// A radius-`r` ball about the origin with its polar axis along `+y`:
+/// the half-disc lamina — the semicircle out of `(0, -r)` and the
+/// straight diameter back — revolved a full turn about the sketch
+/// y-axis, which is where the revolve puts a ball's poles.
+pub fn ball_poled_y<T: Decide + PcurveFittedLane>(r: T, tol: Tol) -> Body<T> {
+    revolved_about_y_at(
+        vec![
+            (Point2::new(T::zero(), -r), T::one()),
+            (Point2::new(T::zero(), r), T::zero()),
+        ],
+        crate::Revolution::Full,
+        tol,
+    )
+}
+
 /// A radius-`r` ball centred at `c` with its polar axis along `+z`: the
 /// revolve puts a ball's poles on the sketch axis, and a plane×sphere
 /// section against a chart whose polar axis is tilted to the plane is a
@@ -501,16 +516,8 @@ pub fn ball_poled_z_at<T: Decide + PcurveFittedLane + topo::AtRestPolicy>(
     c: Vec3<T>,
     tol: Tol,
 ) -> Body<T> {
-    let ball = revolved_about_y_at(
-        vec![
-            (Point2::new(T::zero(), -r), T::one()),
-            (Point2::new(T::zero(), r), T::zero()),
-        ],
-        crate::Revolution::Full,
-        tol,
-    );
     let poled = topo::transform_rigid(
-        &ball,
+        &ball_poled_y(r, tol),
         &Affine3::rotation_about_axis(
             Point3::new(T::zero(), T::zero(), T::zero()),
             Vec3::new(T::one(), T::zero(), T::zero()),

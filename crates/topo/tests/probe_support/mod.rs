@@ -1,9 +1,11 @@
-//! **Shared vocabulary for the MATE-5 cylinder review probes.**
+//! **Shared vocabulary for the MATE-5 cylinder suites.**
 //!
-//! What lives here is the stand-down: the one judgement the adversarial
-//! suites make in common about a fixture the current ε cannot build.
-//! The builders themselves are `topo::test_support`'s; this module adds
-//! nothing to them but a way to decline.
+//! What lives here is the one spelling those suites build a sheet
+//! with — a frame, a source and two chart windows, in a body of its
+//! own — and the stand-down: the one judgement the adversarial suites
+//! make in common about a fixture the current ε cannot build. The
+//! builder itself is `topo::test_support`'s; this module adds nothing
+//! to it but that spelling and a way to decline.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,28 +15,31 @@ use topo::{Body, FaceKey};
 
 /// These suites' spelling of the shared door: the frame, the source
 /// and the two chart windows, flat, so a row that turns on how A's
-/// window and B's differ can be read as two adjacent lines.
+/// window and B's differ can be read as two adjacent lines. The sheet
+/// is grown into a body of its own, which is returned with it: every
+/// pair these suites declare is two independently authored bodies.
 ///
 /// One spelling, not one per suite: [`try_wall_sheet`] wraps THIS, so
 /// a change to the tolerance or the source convention reaches the
 /// fallible spelling too.
 pub(crate) fn wall_sheet(
-    body: &mut Body<f64>,
     frame: CylFrame,
     src_id: u64,
     u0: f64,
     u1: f64,
     v0: f64,
     v1: f64,
-) -> FaceKey {
-    cyl_wall_sheet(
-        body,
+) -> (Body<f64>, FaceKey) {
+    let mut body = Body::<f64>::new();
+    let face = cyl_wall_sheet(
+        &mut body,
         frame,
         Some(src_id),
         (u0, u1),
         (v0, v1),
         Tol::witness(),
-    )
+    );
+    (body, face)
 }
 
 /// The cylinder-wall sheet builder, fallible at the MINT: a tilted
@@ -56,16 +61,12 @@ pub(crate) fn wall_sheet(
 /// being made here — *this suite's row is not evidence at this ε* — is
 /// a suite's to make, not a builder's.
 pub(crate) fn try_wall_sheet(
-    body: &mut Body<f64>,
     frame: CylFrame,
     src_id: u64,
     u0: f64,
     u1: f64,
     v0: f64,
     v1: f64,
-) -> Option<FaceKey> {
-    std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        wall_sheet(body, frame, src_id, u0, u1, v0, v1)
-    }))
-    .ok()
+) -> Option<(Body<f64>, FaceKey)> {
+    std::panic::catch_unwind(|| wall_sheet(frame, src_id, u0, u1, v0, v1)).ok()
 }

@@ -63,13 +63,6 @@ fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
     body.get_shell(shell).unwrap().solid
 }
 
-fn solid_of_vertex(body: &Body<f64>, vertex: topo::VertexKey) -> SolidKey {
-    let he = body.get_vertex(vertex).unwrap().emanating.unwrap();
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    let face = body.get_loop(lp).unwrap().face;
-    solid_of(body, face)
-}
-
 fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
     body.faces()
         .filter(|(k, _)| solid_of(body, *k) == solid)
@@ -140,10 +133,11 @@ fn bitwise_solid(before: &Body<f64>, after: &Body<f64>, solid: SolidKey) -> (usi
     let a = points(before);
     let b = points(after);
     assert_eq!(a.len(), b.len(), "no vertex minted or killed");
+    let owners = topo::SolidOwners::of(before);
     let (mut same, mut moved) = (0, 0);
     for ((k, pa), (k2, pb)) in a.iter().zip(b.iter()) {
         assert_eq!(k, k2, "arena order kept");
-        if solid_of_vertex(before, *k) != solid {
+        if owners.vertex(*k).expect("every vertex has an owning solid") != solid {
             continue;
         }
         if pa == pb {
@@ -482,9 +476,10 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         topo::shell_open(&pair, t, &ceiling, tol()).expect("opened on the vessel's void ceiling");
     // By OPERAND key: the box's entities survive under their keys in
     // both results, while the rim surgery kills vertices elsewhere.
+    let owners = topo::SolidOwners::of(&pair);
     let (mut same, mut moved) = (0, 0);
     for (k, _) in pair.vertices() {
-        if solid_of_vertex(&pair, k) != box_solid {
+        if owners.vertex(k).expect("every vertex has an owning solid") != box_solid {
             continue;
         }
         let p = |b: &Body<f64>| {

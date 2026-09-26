@@ -57,12 +57,6 @@ pub(crate) fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
     body.get_shell(shell).unwrap().solid
 }
 
-/// The solid a vertex belongs to, through its emanating half-edge.
-pub(crate) fn solid_of_vertex(body: &Body<f64>, vertex: VertexKey) -> SolidKey {
-    let he = body.get_vertex(vertex).unwrap().emanating.unwrap();
-    solid_of(body, face_of_he(body, he))
-}
-
 /// Every face of `solid`, in arena order.
 pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
     body.faces()
@@ -134,11 +128,9 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             c.description()
         ));
     }
+    let owners = topo::SolidOwners::of(body);
     for (k, vx) in body.vertices() {
-        let Some(em) = body.get_vertex(k).unwrap().emanating else {
-            continue;
-        };
-        if !mine.contains(&face_of_he(body, em)) {
+        if owners.vertex(k).expect("every vertex has an owning solid") != solid {
             continue;
         }
         out.push(format!(
@@ -222,8 +214,8 @@ pub(crate) fn top_chart(body: &Body<f64>, solid: SolidKey, z: f64) -> Vec<FaceKe
 /// The `(outer, void)` shells of a two-shell solid, decided through the
 /// shell classifier restricted to that solid's own shells.
 pub(crate) fn outer_and_void_of(body: &Body<f64>, solid: SolidKey) -> (ShellKey, ShellKey) {
-    let shells = body.get_solid(solid).unwrap().shells.clone();
-    let roles = topo::classify_shells_of(body, &shells, tol()).expect("the solid classifies");
+    let shells = body.shells_of_solid(solid).unwrap();
+    let roles = topo::classify_shells_of(body, shells, tol()).expect("the solid classifies");
     let pick = |r: topo::ShellRole| {
         roles
             .iter()

@@ -18,6 +18,7 @@ use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
+use crate::shell8_common::deep_dump;
 use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn tol() -> Tol {
@@ -59,61 +60,6 @@ fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
         }
     }
     out.into_iter().map(|(_, v)| v).collect()
-}
-
-fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
-/// A DEEP per-solid dump: every face's surface, every edge's carrier,
-/// parameters and description, every vertex's point — the reading the
-/// PR's own bitwise row does not take (it compares vertex POINTS only).
-fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
-    let mut out: Vec<String> = Vec::new();
-    let mine = faces_of(body, solid);
-    for &f in &mine {
-        let d = body.get_face(f).unwrap();
-        out.push(format!(
-            "face sense={} rings={} surface={:?}",
-            d.sense,
-            d.rings.len(),
-            body.get_surface(d.surface)
-        ));
-    }
-    for (k, e) in body.edges() {
-        let fa = face_of_he(body, e.he_plus);
-        if !mine.contains(&fa) {
-            continue;
-        }
-        let c = body
-            .get_curve_geom(e.curve)
-            .and_then(topo::CurveGeom::certified)
-            .unwrap();
-        out.push(format!(
-            "edge {k:?} carrier={:?} params={:?} description={:?}",
-            c.carrier(),
-            c.params(),
-            c.description()
-        ));
-    }
-    for (k, vx) in body.vertices() {
-        let Some(em) = body.get_vertex(k).unwrap().emanating else {
-            continue;
-        };
-        if !mine.contains(&face_of_he(body, em)) {
-            continue;
-        }
-        let p = body.get_point(vx.point).unwrap();
-        out.push(format!(
-            "vertex bits=({:x},{:x},{:x})",
-            p.x.to_bits(),
-            p.y.to_bits(),
-            p.z.to_bits()
-        ));
-    }
-    out.sort();
-    out
 }
 
 // ---------------------------------------------------------------------
