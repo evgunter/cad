@@ -128,3 +128,37 @@ had called "build maximal" and "merge at the end" the same final body and
 preferred the merge. Ev's reading is the cleaner one, and it removes the F7
 edit altogether. Still open for Ev: the `Band(s)` naming, and parking the
 π revolve.
+
+## 2026-09-26 — the torus-doors dual: both reviews NOT-MERGEABLE-AS-IS
+
+Dual on PR 3265, frozen head `ab143da4e`, protocol `fbeedfaf5`; R1 and R2
+had identical briefs. The union, adjudicated:
+
+- **Bilateral MAJOR.** Line×torus silently skips a certified root that
+  containment reads as definitely off the tube, so the union comes back an
+  `Assembly`. Main refused at the gate.
+- **Unilateral MAJOR (R2).** A torus that crosses only a face's interior
+  (the plane section is a closed oval touching no edge) falls to `ops.rs`'s
+  vertex-probe fallback, which is certified for the sphere and the cylinder
+  only.
+- **Bilateral MINOR.** The torus lever change loosens the pierce-normal
+  certificate (lever 0 at R ≤ r) and moves seven unpinned consumers.
+- **Other MINORs.** A stale gate-safety sentence (R1 is right against R2's
+  reading); an `Uncertain → Miss` mutant survives; one row was weakened;
+  every line row is axis-perpendicular, so none runs the Ferrari path.
+
+The fix pass is dispatched to the same lane. After it, one reviewer
+re-checks, on the same terms for both. The dual log row rides the PR last.
+
+**Classes, recorded at adjudication:**
+1. **Admitting a kind to the roster voids premises written elsewhere.**
+   Fallbacks and prose that assumed "the roster refuses X" (`ops.rs`'s
+   no-crossings fallback, `cylinder_extent_gate`'s torus bullet) go silently
+   false. A roster admission owes a sweep of every reader of the roster's
+   refusal, not only the kind dispatches.
+2. **One `Out` for two causes.** A containment answer of "off the carrier"
+   and "outside the trim" in one variant lets a contradicted certificate
+   read as a clean miss.
+3. **One function for two quantities.** `curvature_lever_arm` serves both a
+   curvature bound and a gradient-to-metres scale. Tightening one loosens
+   the other.
