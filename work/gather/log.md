@@ -245,3 +245,18 @@ design: the F8/D7 trigger is stated once in `topo`'s at-rest door, and
 both callers and the consumer premise (`vertex_rest_contact`) cite it.
 Tier: single STYLE review. `three-walks-over-the-name-carrying-edges`
 also touches `product.rs`, so it follows this one.
+
+**Correction, same day.** `ci-local.sh` and `gate.sh` are guarded by
+`local-scripts/hosted-ci-guard.sh`. It refuses unless
+`CAD_LOCAL_CI_OVERRIDE` certifies that hosted CI is *unavailable*.
+Hosted CI is queued, not unavailable, so no GATHER lane sets that
+sentence. Lanes run the targeted local battery the guard leaves open
+instead: `test-fast.sh` or nextest per crate in the closure, clippy, the
+demos' clippy, `doc-gate.sh` and `work.py lint`, through the shared build
+slot. The orchestrator merges on that plus review and names the basis
+at each merge. The one battery launched under the first note was
+refused by the guard before it started. Its lane's worktree had also
+been removed under it, which is a second instance of the worktree slip
+logged above. Orchestrator rule: remove a lane's worktree only after the
+lane has reported AND its PR has merged, and never while it may still
+be acting on a message.
