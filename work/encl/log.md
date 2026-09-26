@@ -262,3 +262,28 @@ read off a lane that had barely built, and the first completion watcher
 have fired. The watcher now waits on the script's PID. Standing rule
 for the rest of this sitting: a lane deletes its target when it
 reports, and the orchestrator checks `df` before each gate run.
+
+## 3270 in dual review; 3269 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) **PR 3270** (tangent-parallel): final head
+`5412915be6`. Cause: `tangent_jet` divided the Hessian form by
+`∇F₂·n̂₁`, which is 0 at 90°, so `κ_rel` = −inf and the D4 ¶1 lever
+`1/|κ_rel|` = 0 passed any angle. Fixed by normalising by `|∇F₂|`, with
+the sign carried by `copysign`. No margin's definition moved, so nothing
+goes to Ev. **Dual review** dispatched: R1 and R2, both Opus, identical
+briefs on the frozen head, isolated. This is a row for
+`docs/DUAL-REVIEW-LOG.md`, recorded under protocol `c3129311bd`, and it
+rides 3270's PR as its last commit after both reports.
+
+**PR 3269** (refusal prose): style review APPROVE-WITH-FIXES, 2 MINOR,
+2 NOTE, 17 style items. Taken: `Elevation` rendering one repair within
+budget, with a reachable sample and a corrected unreachability argument;
+the stale "lever"/"rounds" prose, swept; `meter_patch`'s invented
+`NormalFloor{0,0,0}` replaced by a structure that cannot invent one;
+the checks window's `classify_offset_fit` recourses made true and
+consistent; the unchanged arms and the `PatchBoundError` notes held to
+the standard's content rules; message-quality items; the reach check's
+two unfailable entries; a compiler-derived roster where cheap; and
+Shell-route rows for the loop arms. Filed, not fixed: the
+kernel-defect / repair-vocabulary class (no shared home), and
+`refusal::problems` missing a LOST repair (on CHROME's slate).
