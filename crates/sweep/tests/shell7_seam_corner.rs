@@ -26,6 +26,7 @@ use sweep::Revolution;
 use topo::{Body, ReplaceFaceError, ShellError};
 
 use super::shell7_common::*;
+use crate::common::charts::hollow_moves;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;

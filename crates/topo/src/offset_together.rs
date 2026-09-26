@@ -670,31 +670,15 @@ fn corner_arms<T: Real>(
     Ok(out)
 }
 
-/// Every face incident to a vertex, in orbit order.
+/// Every face incident to a vertex, in orbit order
+/// ([`Body::faces_of_vertex`]), with the door's `None` turned into this
+/// module's entity-agnostic [`ReplaceFaceError::Corrupt`].
 pub(crate) fn faces_at_vertex<T: Real>(
     body: &Body<T>,
     vertex: VertexKey,
 ) -> Result<Vec<FaceKey>, ReplaceFaceError<T>> {
-    let Some(emanating) = body
-        .get_vertex(vertex)
-        .ok_or(ReplaceFaceError::Corrupt)?
-        .emanating
-    else {
-        return Ok(Vec::new());
-    };
-    let orbit = body
-        .vertex_orbit(emanating)
-        .ok_or(ReplaceFaceError::Corrupt)?;
-    let mut out = Vec::new();
-    for he in orbit {
-        let face = body
-            .face_of_half_edge(he)
-            .ok_or(ReplaceFaceError::Corrupt)?;
-        if !out.contains(&face) {
-            out.push(face);
-        }
-    }
-    Ok(out)
+    body.faces_of_vertex(vertex)
+        .ok_or(ReplaceFaceError::Corrupt)
 }
 
 /// **The solids a simultaneous door works over.**

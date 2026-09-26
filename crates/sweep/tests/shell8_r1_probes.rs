@@ -18,7 +18,8 @@ use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside, charts_of, deep_dump, faces_of, solid_of, tol, volume};
+use crate::common::charts::{charts_of, moves_by};
+use crate::shell8_common::{beside, deep_dump, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
@@ -45,13 +46,7 @@ fn r1_axial_door_leaves_the_other_solid_deep_identical() {
     let (ves, bx) = (solids[0], solids[1]);
 
     let before = deep_dump(&pair, bx);
-    let moves: Vec<topo::ChartMove<f64>> = charts_of(&pair, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let moves = moves_by(charts_of(&pair, ves), -0.05);
     let mut work = pair.clone();
     topo::offset_charts_together(&mut work, &moves, band(), tol())
         .expect("the vessel's charts move together while the box stands aside");
@@ -117,15 +112,10 @@ fn r1_a_scope_of_two_of_three_solids() {
     );
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 3);
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for &s in &solids[..2] {
-        for faces in charts_of(&three, s) {
-            moves.push(topo::ChartMove {
-                faces,
-                distance: -0.1,
-            });
-        }
-    }
+    let moves: Vec<topo::ChartMove<f64>> = solids[..2]
+        .iter()
+        .flat_map(|&s| moves_by(charts_of(&three, s), -0.1))
+        .collect();
     let before: Vec<Vec<String>> = solids.iter().map(|&s| deep_dump(&three, s)).collect();
     let mut work = three.clone();
     topo::offset_planes_together(&mut work, &moves, band(), tol())

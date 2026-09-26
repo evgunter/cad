@@ -126,25 +126,6 @@ pub fn stations(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
         .collect()
 }
 
-/// One `ChartMove` per surface key: the axial door names every face of
-/// the body, and a chart is moved once however many bands wear it.
-pub fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
-}
-
 /// Re-attach every face of `group` to one cone whose apex sits at
 /// `apex_y` on the axis, keeping the axis, half-angle and `u_ref` the
 /// group already wears. The bodies this makes are geometric nonsense —

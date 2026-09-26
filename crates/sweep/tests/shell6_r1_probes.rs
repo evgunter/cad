@@ -73,23 +73,6 @@ fn cone_faces(body: &Body<f64>) -> Vec<FaceKey> {
         .collect()
 }
 
-fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
-}
-
 fn cone_of(body: &Body<f64>, face: FaceKey) -> Surface<f64> {
     body.get_surface(body.get_face(face).unwrap().surface)
         .unwrap()

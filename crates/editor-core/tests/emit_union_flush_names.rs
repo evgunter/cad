@@ -38,21 +38,6 @@ fn member_faces(name: &StableName, out: &mut BTreeSet<(RecipeNodeId, StableName)
     }
 }
 
-/// The faces around vertex `v` of `body`.
-fn faces_at(body: &topo::Body<f64>, v: topo::VertexKey) -> BTreeSet<topo::FaceKey> {
-    body.half_edges()
-        .filter(|(_, he)| he.start == v)
-        .flat_map(|(h, he)| {
-            let mate = body.mate(h).unwrap();
-            [
-                he.parent_loop,
-                body.get_half_edge(mate).unwrap().parent_loop,
-            ]
-        })
-        .map(|l| body.get_loop(l).unwrap().face)
-        .collect()
-}
-
 /// The two faces edge `e` of `body` lies between.
 fn faces_of(body: &topo::Body<f64>, e: topo::EdgeKey) -> [topo::FaceKey; 2] {
     let edge = body.get_edge(e).unwrap();
@@ -95,7 +80,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
             "{at}: {name:?} is not at its member vertex"
         );
         let mut cited = BTreeSet::new();
-        for f in faces_at(body, v) {
+        for f in body.faces_of_vertex(v).unwrap() {
             if let Some(fname) = t.name_of(&editor_core::EntityRef {
                 body: 0,
                 key: EntityKey::Face(f),
@@ -103,7 +88,7 @@ fn member_vertices_hold(ev: &Evaluation<f64>, union: RecipeNodeId, at: &str) -> 
                 member_faces(fname, &mut cited);
             }
         }
-        let borders = faces_at(mbody, w).into_iter().any(|g| {
+        let borders = mbody.faces_of_vertex(w).unwrap().into_iter().any(|g| {
             mtable
                 .name_of(&editor_core::EntityRef {
                     body: 0,

@@ -70,16 +70,12 @@ fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
 
 /// The one edge at `v` that is not a rim arc: the meridian into the cap.
 fn meridian_at(body: &Body<f64>, v: VertexKey, arcs: &[EdgeKey]) -> EdgeKey {
-    let he = body.get_vertex(v).unwrap().emanating.unwrap();
-    let mut ms: Vec<EdgeKey> = body
-        .vertex_orbit(he)
+    let ms: Vec<EdgeKey> = body
+        .edges_of_vertex(v)
         .unwrap()
         .into_iter()
-        .map(|h| body.get_half_edge(h).unwrap().edge)
         .filter(|e| !arcs.contains(e))
         .collect();
-    ms.sort_unstable();
-    ms.dedup();
     let [m] = ms[..] else {
         panic!("a ladder rim vertex drops exactly one meridian into the cap, got {ms:?}")
     };

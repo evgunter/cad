@@ -62,9 +62,7 @@
 use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{
-    Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
-};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
@@ -220,19 +218,6 @@ pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
         return None;
     };
     body.loop_cycle(first)
-}
-
-/// The distinct faces around a vertex, in orbit order.
-pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut faces = Vec::new();
-    for h in body.vertex_orbit(he)? {
-        let f = body.get_loop(body.get_half_edge(h)?.parent_loop)?.face;
-        if !faces.contains(&f) {
-            faces.push(f);
-        }
-    }
-    Some(faces)
 }
 
 /// The octant's chart pick at one trivalent corner. The criterion:

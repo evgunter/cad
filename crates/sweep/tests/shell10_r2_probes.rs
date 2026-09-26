@@ -29,9 +29,8 @@ use sweep::test_support::block;
 use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{
-    beside, cap, charts_of, deep_dump, face_of_he, faces_of, solid_of, tol, volume,
-};
+use crate::common::charts::{charts_of, moves_by};
+use crate::shell8_common::{beside, cap, deep_dump, face_of_he, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{tube, v, vessel};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
@@ -53,7 +52,8 @@ fn dead_rows(body: &Body<f64>) -> usize {
         .count()
 }
 
-/// The whole chart `face` wears.
+/// The whole chart `face` wears. NOT `common::charts::charts`: one
+/// chart, filtered by one surface key, rather than the partition.
 fn chart_of(body: &Body<f64>, face: FaceKey) -> Vec<FaceKey> {
     let key = body.get_face(face).unwrap().surface;
     body.faces()
@@ -285,13 +285,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
         topo::mint_pcurves_of(&mut before, &in_scope, tol()).expect("the vessel's rows mint");
     let box_deep = deep_dump(&before, bx);
     let box_rows = rows_of(&before, bx);
-    let moves: Vec<topo::ChartMove<f64>> = charts_of(&before, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let moves = moves_by(charts_of(&before, ves), -0.05);
     let mut after = before.clone();
     topo::offset_charts_together(&mut after, &moves, band(), tol())
         .expect("the door reads its scope, and its scope charts");
@@ -307,13 +301,7 @@ fn r2_e2e_axial_door_names_one_solid_while_the_other_is_unmintable() {
     let mut alone = vessel(1.0, 2.0);
     assert_eq!(alone.solids().next().unwrap().0, ves);
     topo::mint_pcurves(&mut alone, tol()).expect("the vessel alone mints");
-    let alone_moves: Vec<topo::ChartMove<f64>> = charts_of(&alone, ves)
-        .into_iter()
-        .map(|faces| topo::ChartMove {
-            faces,
-            distance: -0.05,
-        })
-        .collect();
+    let alone_moves = moves_by(charts_of(&alone, ves), -0.05);
     assert_eq!(
         moves.iter().map(|m| m.faces.clone()).collect::<Vec<_>>(),
         alone_moves

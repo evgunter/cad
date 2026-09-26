@@ -27,26 +27,20 @@ fn chamfered_cube() -> Body<f64> {
 /// plane's origin and stored normal.
 type Chart = (Vec<FaceKey>, Point3<f64>, Vec3<f64>);
 
-/// A [`Chart`] still carrying the surface key it was grouped by.
-type KeyedChart = (topo::SurfaceKey, Vec<FaceKey>, Point3<f64>, Vec3<f64>);
-
-/// Charts: faces grouped by surface key, with the plane's origin and
-/// stored normal.
+/// Charts ([`crate::common::charts::charts`]), each with the plane's
+/// origin and stored normal.
 fn charts(body: &Body<f64>) -> Vec<Chart> {
-    let mut out: Vec<KeyedChart> = Vec::new();
-    for (k, f) in body.faces() {
-        match out.iter_mut().find(|(s, _, _, _)| *s == f.surface) {
-            Some((_, v, _, _)) => v.push(k),
-            None => {
-                let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface)
-                else {
-                    panic!("every face here is a plane");
-                };
-                out.push((f.surface, vec![k], *origin, *normal));
-            }
-        }
-    }
-    out.into_iter().map(|(_, v, o, n)| (v, o, n)).collect()
+    crate::common::charts::charts(body)
+        .into_iter()
+        .map(|faces| {
+            let surface = body.get_face(faces[0]).unwrap().surface;
+            let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(surface)
+            else {
+                panic!("every face here is a plane");
+            };
+            (faces, *origin, *normal)
+        })
+        .collect()
 }
 
 fn centroid(body: &Body<f64>) -> Point3<f64> {
@@ -80,12 +74,9 @@ fn sorted_points(body: &Body<f64>) -> Vec<(f64, f64, f64)> {
 /// planes.
 fn worst_incidence(body: &Body<f64>) -> f64 {
     let mut worst: f64 = 0.0;
-    for (_, v) in body.vertices() {
-        let Some(em) = v.emanating else { continue };
+    for (vk, v) in body.vertices() {
         let p = *body.get_point(v.point).unwrap();
-        for he in body.vertex_orbit(em).expect("orbit") {
-            let lk = body.get_half_edge(he).unwrap().parent_loop;
-            let fk = body.get_loop(lk).unwrap().face;
+        for fk in body.faces_of_vertex(vk).expect("orbit") {
             let f = body.get_face(fk).unwrap();
             if let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) {
                 worst = worst.max(normal.dot(p - *origin).abs());

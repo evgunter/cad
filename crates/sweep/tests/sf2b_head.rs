@@ -11,6 +11,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use crate::common::approx::band;
+use crate::common::charts::hollow_moves;
 use geom_brep::SurfaceKind;
 use geom_brep::intersect::route;
 use geom_core::{Point2, Tol, Vec2};
@@ -154,15 +155,9 @@ fn wedge() -> Body<f64> {
 /// solve there.
 fn corner_forms(body: &Body<f64>) -> Vec<(String, usize)> {
     let mut tally: Vec<(String, usize)> = Vec::new();
-    for (v, vertex) in body.vertices() {
-        let Some(emanating) = vertex.emanating else {
-            continue;
-        };
-        let orbit = body.vertex_orbit(emanating).expect("orbit");
+    for (v, _) in body.vertices() {
         let mut keys: Vec<topo::SurfaceKey> = Vec::new();
-        for he in orbit {
-            let lp = body.get_half_edge(he).expect("he").parent_loop;
-            let face = body.get_loop(lp).expect("loop").face;
+        for face in body.faces_of_vertex(v).expect("orbit") {
             let key = body.get_face(face).expect("face").surface;
             if !keys.contains(&key) {
                 keys.push(key);
@@ -263,20 +258,7 @@ fn edge_pairs(body: &Body<f64>) -> Vec<(String, usize)> {
 /// corners and the volume, which is what a wrong corner shows up in.
 fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
     let tol = Tol::witness();
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>, bool)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _, _)| *s == f.surface) {
-            Some((_, v, _)) => v.push(k),
-            None => charts.push((f.surface, vec![k], f.sense)),
-        }
-    }
-    let moves: Vec<topo::ChartMove<f64>> = charts
-        .into_iter()
-        .map(|(_, faces, sense)| topo::ChartMove {
-            faces,
-            distance: if sense { -t } else { t },
-        })
-        .collect();
+    let moves = hollow_moves(body, t);
     // What the PER-CHART door does to each chart on its own, with the
     // same signed distance: the control that says whether a wrong
     // direction is this door's or the offset mint's.

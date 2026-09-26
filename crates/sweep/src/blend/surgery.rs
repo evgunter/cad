@@ -586,7 +586,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
-        let Some(mut incident) = vertex_edges_of(source, v) else {
+        let Some(mut incident) = source.edges_of_vertex(v) else {
             return Err(not_intact(
                 EntityId::Vertex(v),
                 "a chain end's vertex orbit does not walk",
@@ -826,19 +826,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
-
-/// A vertex's incident edges, sorted (the corner front-door check).
-fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut edges: Vec<EdgeKey> = body
-        .vertex_orbit(he)?
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -1352,10 +1339,10 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut crossings = Vec::with_capacity(chain.link_count());
     for (i, link) in chain.links().enumerate() {
         let vertex = ends[i].1;
-        let mut incident = vertex_edges_of(body, vertex)
+        let mut incident = body
+            .edges_of_vertex(vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
         // One seam per side that HAS one: both under `Seams`, the mate
@@ -1630,10 +1617,10 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     // recourse, which is honest wherever they could fire.
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
-        let mut incident = vertex_edges_of(body, c.vertex)
+        let mut incident = body
+            .edges_of_vertex(c.vertex)
             .ok_or_else(|| not_intact(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let extras: Vec<EdgeKey> = incident
             .into_iter()
             .filter(|e| !chain_edges.contains(e))
@@ -1747,7 +1734,8 @@ fn resolve_annulus<T: Decide + Bounds>(
     // the band's slit is minted from the MATE seam's rim-side piece
     // and the HOST seam's rim-side piece dies with this vertex, so a
     // third incident edge would be left behind by both.
-    let mut incident = vertex_edges_of(body, vertex)
+    let mut incident = body
+        .edges_of_vertex(vertex)
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
     let mut expected = vec![link0.edge, host_seam, mate_seam];
@@ -2732,7 +2720,8 @@ fn rim_phase<T: Decide + Bounds>(
     // SOURCE meridian it came from).
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
-        let incident = vertex_edges_of(body, v)
+        let incident = body
+            .edges_of_vertex(v)
             .ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
         let meridians: Vec<EdgeKey> = incident
             .into_iter()
