@@ -2,7 +2,7 @@
 id: tier-3-does-not-check-shell-roles-per-solid
 kind: issue
 title: tier 3 does not check that a solid's shells bound a winding number of 0 or 1 everywhere, so a void outside every outer shell (or two overlapping outer shells) certifies when the solid's total volume is positive
-status: dispatched
+status: review
 opened: 2026-09-08
 priority: P0
 cost: H
