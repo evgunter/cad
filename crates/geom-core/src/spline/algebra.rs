@@ -569,9 +569,8 @@ pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
         if !kv.span_is_nonempty(span) {
             continue;
         }
-        let (Some(&lo), Some(&hi)) = (kv.knots().get(span), kv.knots().get(span + 1)) else {
-            continue;
-        };
+        // `span_is_nonempty` has just checked `span + 1` is in range.
+        let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
         for k in 1..splits {
             #[allow(clippy::cast_precision_loss)]
             let f = k as f64 / splits as f64;
@@ -967,21 +966,30 @@ mod tests {
         (kv, w, x)
     }
 
-    /// The equal-split schedule skips the empty span, restarts its grid
-    /// at every knot, and drops every point of a one-ulp span, where
-    /// each `lo + (hi − lo)·k/n` rounds onto an end.
+    /// The equal-split schedule's sliver guard: on the one-ulp span
+    /// `[1, tiny]` every `lo + (hi − lo)·k/n` rounds onto an end, and
+    /// none of those collapses reaches the output. The rest of the row
+    /// pins count and order — `n − 1` points per span wider than a
+    /// sliver, ascending, the grid restarting at every knot — against
+    /// values written out by hand rather than re-derived from the
+    /// implementation's expression.
     #[test]
-    fn equal_split_points_cuts_nonempty_spans_and_skips_slivers() {
+    fn equal_split_points_skips_slivers_and_keeps_count_and_order() {
         let tiny = f64::from_bits(1.0f64.to_bits() + 1);
         let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, tiny, 2.0, 2.0, 2.0], 2)
             .unwrap();
         let got = equal_split_points(&kv, 4);
-        let tail: Vec<f64> = (1..4)
-            .map(|k| tiny + (2.0 - tiny) * (f64::from(k) / 4.0))
-            .collect();
-        let mut want = vec![0.125, 0.25, 0.375, 0.625, 0.75, 0.875];
-        want.extend(tail);
-        assert_eq!(got, want);
+        // Three spans wider than a sliver — [0, 0.5], [0.5, 1], [tiny, 2] —
+        // at three points each.
+        assert_eq!(got.len(), 9, "{got:?}");
+        assert_eq!(got[..6], [0.125, 0.25, 0.375, 0.625, 0.75, 0.875]);
+        for (g, want) in got[6..].iter().zip([1.25, 1.5, 1.75]) {
+            assert!((g - want).abs() <= f64::EPSILON, "{g} vs {want}");
+        }
+        assert!(got.windows(2).all(|w| w[0] < w[1]), "{got:?}");
+        // A collapsed sliver point would land on `1.0` or `tiny`: no knot
+        // value is ever a split point.
+        assert!(got.iter().all(|u| !kv.knots().contains(u)), "{got:?}");
         assert!(equal_split_points(&kv, 1).is_empty());
         assert!(equal_split_points(&kv, 0).is_empty());
     }

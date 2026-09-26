@@ -97,6 +97,7 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
+use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
@@ -343,8 +344,9 @@ fn refine_chain(
     kv: &KnotVector,
     splits: usize,
 ) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
-    let plans = geom_core::spline::algebra::refine_plan_homogeneous(kv, &split_points(kv, splits))
-        .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let plans =
+        geom_core::spline::algebra::refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
+            .map_err(|_| PatchBoundError::RefinementFailed)?;
     let refined = plans
         .last()
         .map_or_else(|| kv.clone(), |p| p.knots().clone());
@@ -390,21 +392,11 @@ pub fn derived_knots(kv: &KnotVector) -> Result<KnotVector, PatchBoundError> {
 }
 
 /// The interior split points of the fixed rational refinement
-/// schedule for one knot vector ([`RATIONAL_CERT_SPLITS`] equal
-/// pieces per nonempty span), skipping any split point floating point
-/// collapses onto a span end — refinement is a tightening, never a
-/// correctness condition.
+/// schedule for one knot vector: [`equal_split_points`] at
+/// [`RATIONAL_CERT_SPLITS`] pieces per nonempty span.
 pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
-    split_points(kv, RATIONAL_CERT_SPLITS)
+    equal_split_points(kv, RATIONAL_CERT_SPLITS)
 }
-
-/// The interior split points that cut every nonempty span of a knot
-/// vector into `splits` equal pieces — the schedule [`refine_chain`]
-/// and the rational lanes refine by, under the name this crate's
-/// consumers read. The rule, sliver skip included, is
-/// [`geom_core::spline::algebra::equal_split_points`]', beside the
-/// refinement it feeds, where `geom-core` and `geom` reach it too.
-pub use geom_core::spline::algebra::equal_split_points as split_points;
 
 /// A coefficient net as certification enclosures — the shared tensor assembly,
 /// homed in [`geom_core::spline::net`] (issue 1006). The alias is kept

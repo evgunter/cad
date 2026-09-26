@@ -2768,11 +2768,11 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// list also carries the range ends and the coarse block edges it owes
 /// the hull blocks' containment.
 ///
-/// (The `inner`-knot-slice expression this note used to hand along
-/// with it is folded: it is
-/// [`geom_core::spline::KnotVector::derivative_knot_slice`] and its
-/// raw-slice twin, and every site in `geom-brep` and `mesh` calls
-/// them.)
+/// `knots` is the raw slice the caller cuts on. A caller cutting on a
+/// derivative's knots takes the once-differenced slice from
+/// [`geom_core::spline::KnotVector::derivative_knot_slice`] or its
+/// raw-slice twin [`geom_core::spline::derivative_knot_slice`], the one
+/// spelling every site in `geom-brep` and `mesh` uses.
 fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64> {
     // MANDATORY cuts: the rectangle's own ends and every interior
     // knot. These carry the whole smoothness invariant — a knot that
