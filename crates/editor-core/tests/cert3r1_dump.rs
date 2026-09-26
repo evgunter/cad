@@ -93,7 +93,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         ),
     ];
     let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
+        let pt = |p: Point2<f64>| p.map(T::from_f64);
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
             Target::StartArriving => Target::StartArriving,
