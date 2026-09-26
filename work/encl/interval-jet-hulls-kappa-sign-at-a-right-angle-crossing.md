@@ -48,5 +48,10 @@ whenever `sin θ` is definitely non-small at the folded lever arm (a
 new reading, so the K-REPORT runbook applies), or let the tangent arm
 report both readings when the second-order one refuses. The C7
 schedule's order (second-order first, as the lever's validity gate)
-is the constraint either has to respect. The fix should tighten the
+is the constraint either has to respect.
+`topo::boolean::contact_verify` already answers the same question
+order-robustly and is the shape to follow: it decides first-order
+(`contact_tangent_opposed`) and normal parallelism before it acts on
+the second-order margin, falling back to the extent lever where
+`κ_rel` is not definite. The fix should tighten the
 reversed-order row's assertion to `ResidualExceeded { TangentParallel }`.
