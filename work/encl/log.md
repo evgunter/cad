@@ -147,3 +147,19 @@ forwarded to the tight-ε lane.
 row, the production behaviour is bit-identical by construction, and the
 change can be read and believed. Wave-1 PRs are open: 3269 (refusal
 prose), 3270 (tangent-parallel), 3272 (tight ε).
+
+## Tight-ε lane reported (2026-09-26), PR 3272
+
+(ENCL orchestrator) The plan's reading of the table was wrong in the
+way it could be checked. Identical sups at 1e-12 and 1e-15 are not
+floor evidence: the loop reads the target only on exit, so any two
+targets below every round's bound run the same rounds. There is a
+floor, though, and it is worse than a plateau: `hull_sup` rises from
+round 6, carried by coefficient width born in `insert_once_ring`'s lerp
+form (PROPS' site). The convex form certifies `bowed` at 1e-12 and the
+saddle wall at the default ε. The budget (6 rounds / cap 48) is short
+only once that fix lands. No NURBS-walled lofted body shells at all
+(SHELL's seam re-anchor lane, filed there). Review: single full,
+dispatched on frozen head `d1e0dbc85`. When 3272 merges, the P0 row
+parks on PROPS' row. Filed from its measurements:
+`a-rotation-can-refuse-an-approx-face-that-certifies-near-eps` (P3).
