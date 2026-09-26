@@ -572,3 +572,19 @@ Declined: a `KnotVector` method (taste, and the home is fine). The
 - **The door-bound note** now sits at `measure`.
 
 Style review dispatched on the frozen head.
+
+## PR 3292 fix pass in (2026-09-26)
+
+(ENCL orchestrator) Head `c569ae153d`. Every item was taken, and both
+directions were mutation-checked: removing the sliver guard reds the
+row, and removing the empty-span shortcut rightly does not. The
+`split_points` re-export is removed rather than kept as the row
+suggested, so `patch_bound`'s callers and `cert10_r1_probes` use the
+home's name. Filed:
+- `offset-fit-seed-grid-is-a-fourth-equal-split-spelling` (P1/E);
+- `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times`
+  (P4/D).
+
+The lane amended its own merge commit's message before the first push
+of it; only unpublished history was touched. The PR merges on hosted
+green.
