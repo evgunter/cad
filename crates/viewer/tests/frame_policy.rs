@@ -3298,7 +3298,7 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         (
             "the picking paths disagreeing",
             idpass::Disagreement {
-                from_gpu: None,
+                from_gpu: idpass::IdAnswer::Nothing,
                 from_ray: Vec::new(),
             }
             .notice(),
