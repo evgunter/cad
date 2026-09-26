@@ -39,9 +39,8 @@ this row is that tier 3 does not catch it.
 ## What the taker owes
 
 A ring-vs-ring nesting arm in check 9 (two disjoint rings of one face:
-neither inside the other), on the instruments check 9's nesting arm
-already has, with this fixture as its row — or the gap stated in check
-9's banner beside the ones
-`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`
-carries. (The keyhole ring is arc-bearing, so its class may be that
-item's `ArcParity`/`NoWalk` too.)
+neither inside the other), on the instrument check 9's nesting arm
+already has — `splitting::containment::point_in_carrier_loop`, which
+reads an arc-bearing loop such as the keyhole ring on its own carriers
+(ATREST-12) — with this fixture as its row, or the gap stated in check
+9's banner beside its nesting residue.

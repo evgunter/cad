@@ -45,6 +45,16 @@ the boundary case:
    `boolean::contfp` now dispatch on the loop's shape, `rehome_rings`
    still does not
    (`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
+   **2026-09-25 (ATREST-12): one instrument again, and no shape
+   dispatch** — `splitting::containment::point_in_carrier_loop` (the
+   walk that reads each edge on its own carrier, ATREST-9) on every
+   planar outer loop; `NestingRegion` and the `loop_shape` projection
+   are deleted, `disc_side` is no longer a check-9 instrument, and the
+   arm is silent only where that walk returns no answer (a spiric or
+   spline outer edge, the query inside the ball holding the loop).
+   `ring_nesting` now shares its walk with `solid_contain::point_in_face`;
+   `contfp` still dispatches on `loop_shape` and `rehome_rings` on
+   nothing.
 
 Two of the three agree on the instrument and disagree on the sample set
 and on the boundary; the first agrees with neither and is not a
@@ -57,8 +67,8 @@ differ, so a fourth caller has no way to choose and the obvious move
 
 `rehome_rings` reaches its normal through `chord_join::face_plane_normal`,
 which matches `Some(geom::Surface::Plane { normal, .. })` and refuses
-typed otherwise. `validate::nesting_region` (named `nesting_normal` until
-2026-09-24) does the same match inline, as do `validate`'s check-6 arm, `merge_faces`, `replace_face`,
+typed otherwise. `validate::nesting_normal` (briefly `nesting_region`,
+2026-09-24 to 2026-09-25) does the same match inline, as do `validate`'s check-6 arm, `merge_faces`, `replace_face`,
 `revert`, `boolean::join` and `face_normal` — nine sites in
 `crates/topo/src`, three of which multiply by `sense_sign` and the rest
 of which do not. `face_normal.rs` already owns the OUTWARD normal door

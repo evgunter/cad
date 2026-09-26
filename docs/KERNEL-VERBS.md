@@ -455,39 +455,35 @@ the table.
   name as well (`ValidationError::RingOutsideOuter`, carrying the face,
   the ring and the ring vertex the walk placed outside). That is the
   statement an inverted host/guest pick at the rim glue falsifies. The
-  instrument is the crate's one trilean containment walk
-  (`splitting::point_in_loop`) over the ring's vertices, and a pair no
+  instrument is the in-plane parity walk that reads each outer edge on
+  its own carrier (`splitting::containment::point_in_carrier_loop`: a
+  line as its segment, a circle or ellipse arc on its conic inside its
+  window) over the ring's vertices, so its region is the loop's region
+  on every outer loop of lines and arcs — a polygon, one circle's disc
+  (the annular rim of every shelled vessel of revolution), a slot, a
+  D-shaped cap whose arc bows past its chord, a half-disc. A pair no
   query could place is reported (`ValidationError::RingNestingUndecided`)
   rather than read as nested — the same escalate-never-guess direction
-  the contact arms take.
-
-  An outer loop that is ONE circle — `loop_shape`'s `Disc` class, the
-  annular rim of every shelled vessel of revolution — is decided too,
-  by `boolean::contain::disc_side`, the exact radial decide `contfp`
-  uses on that class.
+  the contact arms take. Why a one-circle outer loop gets no second
+  instrument (`boolean::contain::disc_side`) is argued at
+  `validate::ring_nesting`.
 
   **What the nesting half does NOT match, in the same shape**: any face
-  on a non-planar surface, and any planar face whose outer loop bears
-  an arc and is not one circle — the loop classes `loop_shape` calls
-  `ArcParity` (arcs over three or more vertices, where the polygon
-  through them is a proper region but not the loop's region: an arc
-  bowing outward leaves region between polygon and boundary) and
-  `NoWalk` (arc-bearing over fewer than three vertices, whose polygon
-  has zero area). Both are silent rather than answered, and so is a
-  loop the classifier could not read, because this arm REFUSES a body
-  on an `Out` and answering from a polygon that is not the region would
-  refuse valid ones — measured, on a bored D-rod's transverse cap.
-  `contfp` takes the opposite posture on `ArcParity` because one
-  point's classification is not a refusal. Filed:
-  `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`.
-  And inside the gate: the nesting arm places a whole ring from one
-  vertex on the premise that the two loops do not cross, which the
-  contact half checks wherever both loops carry only `Line` and
-  `Circle` edges — a ring arc bowing past the outer loop between inside
-  vertices is a `RingMeetsOuter` there. Where an edge is an `Ellipse`,
-  `Spiric` or NURBS carrier the premise is assumed, and a crossing whose
-  first decided vertex is inside passes (why the nesting arm does not
-  answer a crossing itself: `validate::ring_nesting`'s doc).
+  on a non-planar surface, and, on a plane, a ring the walk placed at
+  no vertex because the outer loop carries a `Spiric` or NURBS edge,
+  which has no crossing row — the walk answers such a loop only for a
+  point definitely outside a ball holding it, and is silent inside
+  that ball, because this arm REFUSES a body on an `Out` and answering
+  from a region that is not the loop's would refuse valid ones. And
+  inside the gate: the nesting arm places a whole ring from one vertex
+  on the premise that the two loops do not cross, which the contact
+  half checks wherever both loops carry only `Line` and `Circle` edges
+  — a ring arc bowing past the outer loop between inside vertices is a
+  `RingMeetsOuter` there. Where an edge is an `Ellipse`, `Spiric` or
+  NURBS carrier the premise is assumed (a vertex standing on a vertex
+  is still seen), and a crossing whose first decided vertex is inside
+  passes (why the nesting arm does not answer a crossing itself:
+  `validate::ring_nesting`'s doc).
 
   **Why nothing caught it, and the transferable lesson.** Not "the rim
   lift never had a consumer": `offd2_r1_probes::probe_opened_vessel_cup`

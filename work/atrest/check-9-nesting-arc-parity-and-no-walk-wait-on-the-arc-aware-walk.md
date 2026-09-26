@@ -2,7 +2,8 @@
 id: check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk
 kind: issue
 title: check 9's nesting arm is silent on the ArcParity and NoWalk outer-loop classes until an arc-aware walk exists: a ring outside an arc-bearing outer loop that is not one circle still certifies
-status: dispatched
+status: review
+pr: 3288
 opened: 2026-09-24
 priority: P0
 cost: H
@@ -54,3 +55,20 @@ the two classes through the arc-aware walk, flip
 `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`
 from asserting silence to asserting the inverted pick is refused by
 name, and run the D-rod row above as the false-refusal guard.
+
+**Resolved by ATREST-12.** Check 9's nesting arm places ring vertices
+with `splitting::containment::point_in_carrier_loop` (ATREST-9's walk,
+each edge read on its own carrier) on every planar outer loop, with no
+`loop_shape` dispatch in front of it: `validate::nesting_region` and
+`NestingRegion` are deleted, and the gate is `validate::nesting_normal`,
+the face's surface alone. `ArcParity` and `NoWalk` outer loops are
+decided (`crates/sweep/tests/topo_ring_nesting.rs`:
+`the_arc_bearing_classes_are_decided_in_both_directions`,
+`a_hole_in_the_lune_of_a_bowed_end_certifies`; crate-side
+`validate::tests::an_arc_bearing_outer_loop_is_decided_on_its_own_region`,
+which replaces `an_arc_bearing_outer_loop_is_the_gates_residue`), and
+the D-rod row stays green as the false-refusal guard. The `Disc` class
+moved off `disc_side` onto the same walk (the argument is at
+`validate::ring_nesting`). What remains silent: an outer loop carrying a
+spiric or spline edge, for a ring vertex inside the ball that holds the
+loop, and non-planar faces.
