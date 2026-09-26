@@ -439,6 +439,8 @@ mod mate6r2_probes;
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "per_part_gate_policy.rs"]
+mod per_part_gate_policy;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]

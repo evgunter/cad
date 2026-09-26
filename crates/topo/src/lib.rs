@@ -386,7 +386,7 @@ pub use geom_brep::{
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
-    graft_disjoint_all_onto_keyed,
+    graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
