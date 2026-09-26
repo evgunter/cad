@@ -2757,13 +2757,16 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// so consecutive cells share a cut point and the cells tile the
 /// rectangle with no gap.
 ///
-/// **Near-twin, recorded and deliberately not unified**:
-/// `geom_brep::patch_bound::split_points` builds the same concept for
-/// the patch-hull lane — a knot-aligned subdivision of a parameter
-/// range, with its own sliver guard. The two differ in what else they
-/// must carry (this one owes the coarse hull blocks their containment;
-/// that one does not) and unifying them is Track R's consolidation
-/// ground (C-m/D30, gated behind #723), not this lane's.
+/// **Not the equal-split schedule, though it reads like one**:
+/// [`geom_core::spline::algebra::equal_split_points`] cuts each nonempty
+/// SPAN of a whole vector into equal pieces, so its grid restarts at
+/// every knot and a knot is a span end by construction. This grid is
+/// uniform over the RANGE `[lo, hi]`, blind to where the knots fall;
+/// the knots join it as mandatory cuts and the sliver guard arbitrates
+/// between the two sets, which the per-span schedule never has to.
+/// Even on a single-span range, where the interior grids coincide, this
+/// list also carries the range ends and the coarse block edges it owes
+/// the hull blocks' containment.
 ///
 /// (The `inner`-knot-slice expression this note used to hand along
 /// with it is folded: it is

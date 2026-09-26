@@ -398,38 +398,12 @@ pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
     split_points(kv, RATIONAL_CERT_SPLITS)
 }
 
-/// **Near-twin, recorded and deliberately not unified**:
-/// `geom_brep::props::quad`'s `knot_aligned_cuts` builds the same
-/// concept for the rational patch-flux composite — a knot-aligned
-/// subdivision of a parameter range, with its own sliver guard — and
-/// arrived at the same sliver lesson independently. Unifying the two
-/// is Track R's consolidation ground (C-m/D30, gated behind #723),
-/// not either caller's.
-///
-/// The interior split points that cut every nonempty span of `kv`
-/// into `splits` equal pieces, skipping any point floating point
-/// collapses onto a span end — refinement is a tightening, never a
-/// correctness condition (the speed meter's rule, verbatim).
-pub fn split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
-    let mut add = Vec::new();
-    for span in kv.first_span()..=kv.last_span() {
-        if !kv.span_is_nonempty(span) {
-            continue;
-        }
-        let (Some(&lo), Some(&hi)) = (kv.knots().get(span), kv.knots().get(span + 1)) else {
-            continue;
-        };
-        for k in 1..splits {
-            #[allow(clippy::cast_precision_loss)]
-            let f = k as f64 / splits as f64;
-            let u = lo + (hi - lo) * f;
-            if u > lo && u < hi {
-                add.push(u);
-            }
-        }
-    }
-    add
-}
+/// The interior split points that cut every nonempty span of a knot
+/// vector into `splits` equal pieces — the schedule [`refine_chain`]
+/// and the rational lanes refine by. Homed below this crate, beside the
+/// refinement it feeds, so `geom-core`'s own callers reach the same
+/// rule; the name here is the one this lane's consumers read.
+pub use geom_core::spline::algebra::equal_split_points as split_points;
 
 /// A coefficient net as certification enclosures — the shared tensor assembly,
 /// homed in [`geom_core::spline::net`] (issue 1006). The alias is kept
@@ -736,7 +710,6 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // the knot differencing.
     let (kv_u, plans_u) = refine_chain(n.knots_u(), splits)?;
     let (kv_v, plans_v) = refine_chain(n.knots_v(), splits)?;
-    let (kv_u, kv_v) = (&kv_u, &kv_v);
     let (pu, pv) = (kv_u.degree(), kv_v.degree());
     let (nu0, nv0) = n.control_counts();
     let refine = |net: &Net| net.refine_u(&plans_u).refine_v(&plans_v);
@@ -764,13 +737,13 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
     // linear span pre-refinement — the C¹ gate — and refinement's
     // inserted knots are removable), so those nets are `None` and
     // their terms exact zeros; the CROSS terms stay.
-    let kv_u1 = (pu >= 2).then(|| derived_knots(kv_u)).transpose()?;
-    let kv_v1 = (pv >= 2).then(|| derived_knots(kv_v)).transpose()?;
-    let w_nets = DNets::build(&w_grid, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref());
+    let kv_u1 = (pu >= 2).then(|| derived_knots(&kv_u)).transpose()?;
+    let kv_v1 = (pv >= 2).then(|| derived_knots(&kv_v)).transpose()?;
+    let w_nets = DNets::build(&w_grid, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref());
     let a_base: Vec<Net> = comp_nets(n, true).iter().map(refine).collect();
     let a_nets: Vec<DNets> = a_base
         .iter()
-        .map(|g| DNets::build(g, kv_u, kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
+        .map(|g| DNets::build(g, &kv_u, &kv_v, kv_u1.as_ref(), kv_v1.as_ref()))
         .collect();
     // The refined control points, `P = A / w` per channel, ONCE for the
     // whole net. Each is read by every cell whose window covers it —
@@ -895,7 +868,7 @@ fn rational_cells(n: &NurbsSurface<f64>, splits: usize) -> Result<Vec<PatchCell>
                 s_uv[comp] = (a11s - s1u * w01s - s1v * w10s - v0s * w11s) / w_cell;
             }
             cells.push(cell_from(
-                (span_extent(kv_u, su), span_extent(kv_v, sv)),
+                (span_extent(&kv_u, su), span_extent(&kv_v, sv)),
                 [s_u, s_v, s_uu, s_uv, s_vv],
             ));
         }
