@@ -771,7 +771,9 @@ fn m10_10_the_plates_real_study_driven_whole() {
 /// scale it certifies with the algebra OFF, timed with the algebra on
 /// and off (`SymRules::shipped` against `SymRules::without_the_algebra`),
 /// plus the plate at its REAL study (scale 1), which is the
-/// affordability line's own number. `CAD_M10_10_DOCS` names a subset.
+/// affordability line's own number, and the two parameter-bulge D-tabs
+/// at `1e2·ε`, under their shipped ceilings. `CAD_M10_10_DOCS` names a
+/// subset.
 #[test]
 #[ignore = "evidence-only: prints the leaf cost with the algebra on and off"]
 fn m10_10_leaf_cost_with_and_without_the_algebra() {
@@ -780,7 +782,7 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
     let only = std::env::var("CAD_M10_10_DOCS")
         .ok()
         .filter(|s| !s.trim().is_empty());
-    let scales: [(&str, f64); 7] = [
+    let scales: [(&str, f64); 9] = [
         ("two_hole_plate", 1.0e2 * eps),
         ("two_hole_plate", 1.0),
         ("r2_filleted_bracket", 1.0e1 * eps),
@@ -788,8 +790,12 @@ fn m10_10_leaf_cost_with_and_without_the_algebra() {
         ("r2_rounded_pad", 1.0e2 * eps),
         ("r2_link", 1.0e1 * eps),
         ("r1_segment_boss", 1.0e2 * eps),
+        // The two parameter-bulge D-tabs, where the apothem's sign
+        // stands, each under its whole-certifying ceiling.
+        ("r2_d_tab_parameter", 1.0e2 * eps),
+        ("r2_d_tab_parameter_dyadic", 1.0e2 * eps),
     ];
-    let docs = documents(tol);
+    let docs: Vec<NamedStudy> = documents(tol).into_iter().chain(controls(tol)).collect();
     for (name, scale) in scales {
         if only
             .as_deref()
