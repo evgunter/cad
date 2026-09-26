@@ -330,3 +330,15 @@ One hosted red was a semantic merge conflict, the `NOT_CARRIED` length
 in `pncad/tests/all.rs`, fixed in the merge. **Local battery queue**,
 serial, from the orchestrator's session: 3264 (running), then 3259, then
 3143. The DR row rides 3143 as its last commit, after its battery.
+
+**PR 3280 review adjudicated** (STYLE). The finding with the most weight
+is that the two callers mean different things by "part". In step-import
+a part is a solid. In `product.rs` it is a source, gated whole. So a lone
+multi-solid source is gated twice on the same geometry, which is the
+identity the policy exists to skip. Switching the product to count
+sources would change which refusal a user meets. That makes it a
+decision, not something the unit fixes: it is filed as its own row, and
+this PR states the difference and pins today's behaviour. The
+source-reading guards could not see a `sources.len()` drift, which is
+the drift the item itself recorded. The product side gets a behavioural
+pin. The fix pass is back with the lane.
