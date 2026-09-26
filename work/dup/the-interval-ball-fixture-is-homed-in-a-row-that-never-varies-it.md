@@ -63,9 +63,17 @@ still builds `Body<Interval>` unconditionally, and `certified::ball(r)`
 and `review_arceval_r1_probes`' import of it were as the row describes.
 
 **The ball has one door**: `sweep::test_support::ball_poled_y(r, c,
-tol)`, generic in the scalar, the signature `ball_poled_z` already has.
+tol)`, generic in the scalar, the shape of `ball_poled_z_at`'s.
 `ball_poled_z_at` and it share one private first step (the lamina
 revolved at the origin), so the lamina is written once in that module.
+
+**Naming.** The door is generic but has no `_at` suffix, where
+`ball_poled_z_at` does: it follows the extrusion family, whose generic
+doors carry no suffix, and adds no `f64` twin, since
+`work/helper/sweep-test-support-two-wrapper-conventions.md` counts
+those `x` / `x_at` pairs as avoidable. `ball_poled_z` / `ball_poled_z_at`
+keep their pair; that row is where the two conventions get reconciled.
+
 `certified::ball` is gone; `recut_ball` is the door at
 `(1.5, 1.5, 0.5)`; E1 calls the door at the origin. `plate`,
 `recut_ball` and `RECUT_MAPPED_ENCLOSURE_HI` stay where the row said
@@ -97,3 +105,16 @@ rows):
 The rest of the class — origin balls, a lamina slid along the axis,
 copies in four other crates — is filed with its hit list as
 `work/dup/the-y-poled-ball-is-still-spelled-per-suite.md`.
+
+**Fix pass (2026-09-26, PR #3284).** `m5_pr12_die` and `m6_surgery` each still defined
+the same `ball_poled(r, c, pole)` — the y-ball turned onto any pole,
+byte-identical bodies in two files this PR had edited, invisible to
+the lamina grep once the lamina was gone from them. It is now
+`sweep::test_support::ball_poled(r, c, pole, tol)`, sharing the ball
+doors' first step; measured `Debug`-equal to the old function at the
+pips' radius for all six axis poles, and at `+z` equal to
+`ball_poled_z`. Plants: a panic at the caller reds 9 / 10
+(`m5_pr12_die` 3, `m6_surgery` 6; the loop's second call is the same
+row); the pole NEGATED reds 0 / 10 — a ball flipped end for end is the
+same point set, a symmetric plant — and the pole cycled onto a
+perpendicular axis reds 9 / 10.

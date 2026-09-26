@@ -98,3 +98,35 @@ cross; nothing here claims them unasserted.
 The same construction is written about twenty more times outside this
 corpus; filed as
 `work/dup/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+
+**Fix pass (2026-09-26, PR #3284).** The first version of this fold
+minted a second home beside `mate2_common`'s `three_arc` and
+`extruded`. There is now one: `common::three_arc(centre, radius,
+first)` (a loop, in `common/mod.rs`, where the routing rule puts
+section authoring) and `common::operands::three_arc_cylinder(centre,
+radius, z0, height, first)` over `sweep::test_support::extruded` on
+`sketch_at(z0)`. `mate2_common`'s two helpers are gone, and the other
+three-arc cylinders in the `sweep` suites fold onto the pair; the
+residue and the fold list are in
+`work/dup/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+The door's doc says "any angle" for `first` (it reduces each joint
+mod 360) and names the third pose, `s16_box_soundness::cylinder_apart`,
+a rigid translation of a finished cylinder.
+
+**The pose sentence, measured in the other direction.** Posing
+`s16_box_soundness`'s lifted tool by a rigid translation of the
+`z0 = 0` cylinder instead of a lifted sketch plane changes its body
+(`Debug` differs) and all 7 of the suite's rows stay green. Neither
+suite's rows read the pose in the direction measured, so the sentence
+stays deleted in both files. What those rows are shown to read is the
+body: the reach plant reds all 7 `s16` rows and the 98 row, and the
+radius plant reds 3 of 8.
+
+**Plants on the fix pass's shape** (filter: every suite that builds a
+three-arc cylinder, 84 rows): a panic in the loop at its caller reds
+58 / 84 and reaches every former copy (`n3r1`, `s16`, `mate2_common`'s
+collar and peg, `mate2_r2_probes` ×2, `m9_3_wall_door` ×2, `m9_3_zip`,
+`r1_probes_m9_3`, `m9_2b_r2_probes`, `m5_pr9_boss_union` ×3, `s49`,
+`review_blend1`, `verbs_pierce_r2`); `curved_mergedoor`'s `plate6_cyl`
+calls, masked there by the MATE-2 pegs, red 1 / 14 on their own run.
+Radius ×1.01 in the loop reds 28 / 84.

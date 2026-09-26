@@ -66,3 +66,6 @@ unit here, and was not checked.
 `topo`'s own `offset_together::scope_walks::moves_of` is a member too,
 and cannot share a home with these — `topo`'s in-crate tests cannot
 reach `sweep`'s test tree — unless the home is a `topo` door.
+
+**Fix pass (2026-09-26, PR #3284).** The private `charts_of` copies in `shell8_r1_probes` and
+`shell8_r2_probes` are gone; both import `shell8_common::charts_of`.

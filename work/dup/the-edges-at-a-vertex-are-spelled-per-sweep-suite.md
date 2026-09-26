@@ -5,7 +5,7 @@ title: The edges (or faces) meeting a vertex are read through its emanating orbi
 status: open
 opened: 2026-09-26
 priority: P1
-cost: E
+cost: D
 ---
 
 
@@ -66,4 +66,6 @@ door with a projection or separate doors is the decision, and a
 **Why P1 and not P4.** The test-side copies alone would be P4. The
 two `crates/sweep/src/blend` edge helpers are two implementations of
 one underlying logic in production, which is the band `work/README.md`
-puts at P1; the row is still cost `E`.
+puts at P1. It is cost `D`, not `E`: whether the face and surface
+variants are one door with a projection or separate doors is a design
+decision the taker makes before any fold.

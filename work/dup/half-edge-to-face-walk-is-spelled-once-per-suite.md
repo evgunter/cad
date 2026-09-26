@@ -391,5 +391,12 @@ build a cylinder sheet whose mint reaches the validator).
 
 The other buckets of this class remain on the rows filed in PR #2857
 (`helper`, `strut`, `emit`, `chord`, `export`, `issues`); none was in
-this unit. `Body::face_of_half_edge`'s rustdoc points here for the
-kept population, which the table above still is.
+this unit.
+
+**Fix pass (2026-09-26, PR #3284).** `Body::face_of_half_edge`'s and
+`Body::solid_of_face`'s rustdoc no longer point at a tracker row (a
+row pointer dangles once `work/dup/` is deleted); the doors say what
+they do and name the posture that keeps a caller's own walk, and this
+row's table is the dated measurement. `validate.rs`' two folded sites
+read the face through `get_face` beside the door rather than the arena
+directly.

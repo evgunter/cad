@@ -97,3 +97,22 @@ The two directions together red 12 of the 13 reached rows; the
 thirteenth, `shell10_r2_dump::shell10_r2_dump_corpus`, is a print-only
 differential instrument with no assertion by design, so no answer can
 red it.
+
+**Fix pass (2026-09-26, PR #3284).** `shell8_common::deep_dump` now decides ownership
+one way: faces and edges through `SolidOwners::face`, vertices through
+`SolidOwners::vertex`, each with an `.expect`. Two behaviours changed
+with it, both deliberately: the vertex arm now dumps a lone vertex
+(the lamina of an empty loop) that the old emanating-half-edge test
+skipped, and an entity the map does not place now panics where it was
+skipped. `shell8_r1_probes` and `shell8_r2_probes` also drop their
+private copies of `tol`, `volume`, `solid_of`, `faces_of`,
+`charts_of`, `beside`, `beside_raw` and `cap` for `shell8_common`'s.
+`r1`'s `beside` asserted nothing about validity where `shell8_common`'s
+does; measured before folding it (`r1` on the validating `beside`:
+11 / 11 passed), so the fold only adds a check that holds. Plants: a panic in each shared helper, only for callers in
+the two probe files, reached every deleted copy's callers (`r1`:
+`beside` (8 / 11 red, the validating door), `volume`, `solid_of`, `charts_of`, `faces_of`; `r2`:
+`beside`, `beside_raw`, `solid_of`, `cap`, `faces_of`, `charts_of`,
+`volume`) over three runs, 20 / 22, 11 / 22 and 4 / 22 red;
+`SolidOwners::face` answering the max solid reds 7 / 44 of the
+`shell(8|10)_` rows.

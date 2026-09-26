@@ -102,3 +102,9 @@ Two things a lane folding them should know, both measured on the
 
 `crates/sweep/tests` was another lane's live ground on 2026-09-20, so
 the dup unit did not touch these three.
+
+**Fix pass (2026-09-26, PR #3284).** The `shell8_r1_probes` and `shell8_r2_probes` copies of
+`solid_of` (and of `faces_of` / `charts_of`) are gone; both files
+import `shell8_common`'s. One `shell8` spelling of the walk remains,
+`shell8_common::solid_of`, still hand-written against
+`Body::solid_of_face`.

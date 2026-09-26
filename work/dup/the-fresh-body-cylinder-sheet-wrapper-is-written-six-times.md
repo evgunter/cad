@@ -117,3 +117,14 @@ built from two calls of one door keeps its agreement under a change
 applied to both sides. The asymmetric plant is the one that measures
 whether the answers are read, and seven `mate5_cyl_eps_rung` rows and
 `r2_flush_cylinder_seat_declines_touching_boundary` read them.
+
+**Fix pass (2026-09-26, PR #3284): the two kept members stay, and why.** Folding the
+`Body<Interval>` pair and `split_edge_pcurve_rows::wall` would need
+`wall_sheet` generic in the scalar and its source an `Option<u64>`.
+The first puts the scalar only in the return type, so each of the 37
+`f64` calls, whose consumers (`declared_pair_overlap`) are themselves
+generic, would need a turbofish or an annotation; the second puts
+`Some(..)` on those same 37 calls to serve one sourceless caller. Two
+members do not pay for either; a generic door with an `f64` wrapper
+is the `x` / `x_at` pair `work/helper/sweep-test-support-two-wrapper-conventions.md`
+counts as avoidable.

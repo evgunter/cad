@@ -21,8 +21,8 @@ cost: D
   `the-interval-ball-fixture-is-homed-in-a-row-that-never-varies-it`.
 
 That PR gave the ball one door, `sweep::test_support::ball_poled_y(r,
-c, tol)` — generic in the scalar, the same signature as
-`ball_poled_z`'s — and folded the members that were the door's body
+c, tol)` — generic in the scalar, the shape of `ball_poled_z_at`'s —
+and folded the members that were the door's body
 exactly: `m5_s12_curved_ops_interval`'s `ball(r)` and its recut
 cutter, `review_arceval_r1_probes`' E1 ball, the eight private
 `ball_at(r, c)` copies (`m5_pr12_battery`, `m5_pr12_die`,
@@ -91,3 +91,10 @@ outside `sweep`, the `mesh`, `stl` and `step-export` suites and
 `tools/tess-meter` already reach `sweep::test_support` through a
 dev-dependency, while `mesh/src`'s in-src fixtures cannot (`mesh` sits
 below `sweep`), so those stay or move with a manifest decision.
+
+**Fix pass (2026-09-26, PR #3284).** Not every member contains the lamina: a copy that
+builds on a ball door and then rotates it (the `ball_poled(r, c,
+pole)` pair in `m5_pr12_die` and `m6_surgery`) is invisible to this
+row's grep. That pair is folded (`sweep::test_support::ball_poled`);
+a taker re-censuses with a second instrument aimed at
+`rotation_about_axis` applied to a ball before trusting the list above.
