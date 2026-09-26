@@ -389,3 +389,13 @@ insertion form); its budget numbers follow that fix. Priced:
 `offset-fit-budget-face-speaks-for-a-round-whose-bound-rose` P3/E (a
 refusal naming the wrong lever). The local gate moved to 3275
 (`17bae9276b`).
+
+## PR 3275 merged on hosted green (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `17bae9276b` across every row.
+`H11` and `budget-refusal-drops-the-enclosure-the-caller-needs` are
+closed. The latter's last consumer step, the teapot spout probe, now
+measures through the certificate. Priced:
+`measure-budget-bracket-is-the-sign-level-one-not-the-continuations`
+P3/D (a consumer-facing bracket that is wider than the one the kernel
+held). The local gate moved to 3274 (`c4f5d26cdc`).
