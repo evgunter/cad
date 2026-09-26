@@ -105,6 +105,8 @@ the dup unit did not touch these three.
 
 **Fix pass (2026-09-26, PR #3284).** The `shell8_r1_probes` and `shell8_r2_probes` copies of
 `solid_of` (and of `faces_of` / `charts_of`) are gone; both files
-import `shell8_common`'s. One `shell8` spelling of the walk remains,
-`shell8_common::solid_of`, still hand-written against
-`Body::solid_of_face`.
+import `shell8_common`'s, and `shell8_common::solid_of` / `faces_of`
+now read `Body::solid_of_face` / `Body::faces_of_solid` (a panic
+planted in each door for that caller reds 4 and 16 of the `shell8`,
+`shell9` and `shell10` rows). No `shell8` spelling of the walk
+remains; the other members of this row are untouched.
