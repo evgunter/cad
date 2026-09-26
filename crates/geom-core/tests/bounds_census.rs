@@ -329,6 +329,24 @@ const ROSTER: &[Site] = &[
     },
     Site {
         path: "crates/topo/src/validate.rs",
+        subject: "curve_datum_errors",
+        why: Selection(
+            "check 1's carrier datum findings: reads no bracket itself, and carries the \
+             bound only to hand the carrier's margins to `analytic_datum_verdicts`, whose \
+             line is this file's one representability read",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/validate.rs",
+        subject: "surface_datum_errors",
+        why: Selection(
+            "check 1's surface datum findings: reads no bracket itself, and carries the \
+             bound only to hand the surface's margins to `analytic_datum_verdicts`, whose \
+             line is this file's one representability read",
+        ),
+    },
+    Site {
+        path: "crates/topo/src/validate.rs",
         subject: "analytic_datum_verdicts",
         why: Selection(
             "tier-3 check 1's representability read: `Bounds::lo` of each STORED datum's \
