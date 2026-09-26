@@ -41,3 +41,24 @@ viewer — most reach it through `NodeErrorKind`'s forwarding arms
 (feature tree fault line, status line) or through the checks window —
 and a `Display` written outside `impl Display` (a helper returning a
 `String`) is not seen.
+
+## Two more things the literal census could not see (ENCL, 2026-09-25)
+
+Found by ENCL's `encl-refusal-prose-outgrows-the-viewer` unit, which
+rendered every `geom_brep::patch_bound::PatchBoundError` note through
+the feature tree (`editor-core/tests/refusal_concision_chains.rs`,
+the `approx_recertify` rows under `Transform/ApproxRecertify/PatchBound/*`).
+
+- **A forwarded note.** `TessellateError::UnsupportedNurbsFace`
+  (`mesh/src/types.rs`) renders `PatchBoundError::note()` after its
+  own 12-word opening (`mesh/src/nurbs_cert.rs` `face_err`). The longest
+  note on main before that unit was 89 words
+  (`RefinedWeightLostPositivity`); that unit shortened it to 41 and
+  `NonPositiveWeight` from 60 to 34, so the arm is under budget on
+  today's notes, but nothing renders it: a note that grows moves this
+  arm with it.
+- **A stage prefix on every arm.** 17 `TessellateError` arms open with
+  `tessellate:`, the shape `test_utils::refusal::stage_prefixes`
+  rejects on the feature-tree rows. The viewer draws them through
+  `viewer::scene`'s `NotTessellated`. No row renders them against
+  `test_utils::refusal::problems`.

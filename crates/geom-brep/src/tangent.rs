@@ -37,11 +37,19 @@ pub struct TangentJet<T: Real> {
     /// first-order (normal-parallelism) defect. ~0 on a genuine
     /// tangency.
     pub sin_theta: T,
-    /// The relative transverse normal curvature `κ₁ − κ₂` (1/meters),
-    /// both measured against the SAME shared normal, along the
-    /// transverse direction `n̂ × τ̂`. Its magnitude bounded away from
-    /// zero is the second-order margin; its collapse means the
-    /// surfaces under-determine the locus.
+    /// The relative transverse curvature `κ₁ − κ₂` (1/meters), each
+    /// `κᵢ = σᵢ·d̂ᵀ(∇²Fᵢ)d̂ / |∇Fᵢ|` along `d̂ = n̂ × τ̂` (`n̂` the
+    /// first surface's unit normal), `σᵢ = ±1` the sign of `∇Fᵢ · n̂`.
+    /// At a tangency `d̂` lies in both tangent planes and each `κᵢ` is
+    /// that surface's normal curvature along it, signed against the
+    /// shared normal: its magnitude bounded away from zero is the
+    /// second-order margin, its collapse means the surfaces
+    /// under-determine the locus. Off a tangency `d̂` is not tangent
+    /// to the second surface and `κ₂` is a Hessian form that depends
+    /// on the implicit's normalisation, not a curvature; it stays
+    /// finite on every non-singular pair, so `1/|κ_rel|` is a
+    /// radius-scale lever and `sin θ / |κ_rel|` stays at or above
+    /// `sin θ` times a length of the surfaces' own scale.
     pub kappa_rel: T,
 }
 
@@ -64,11 +72,11 @@ pub fn tangent_jet<T: Real>(
     let n_hat = g1 / n1;
     let d = n_hat.cross(tangent.normalize());
     let d_hat = d / d.norm();
-    // Normal curvatures along d̂, both signed against n̂: κᵢ =
-    // d̂ᵀ(∇²Fᵢ)d̂ / (∇Fᵢ · n̂) — the denominator carries the sign when
-    // the gradients are antiparallel, so κ_rel is orientation-honest.
-    let k1 = implicit_hessian_form(s1, p, d_hat) / g1.dot(n_hat);
-    let k2 = implicit_hessian_form(s2, p, d_hat) / g2.dot(n_hat);
+    // κᵢ = σᵢ·d̂ᵀ(∇²Fᵢ)d̂ / |∇Fᵢ| (docs on `kappa_rel`), both spelled
+    // alike so a surface against itself reads κ_rel = 0 exactly;
+    // σ₁ = +1 because n̂ is ∇F₁'s own direction.
+    let k1 = implicit_hessian_form(s1, p, d_hat) / n1;
+    let k2 = implicit_hessian_form(s2, p, d_hat) / n2 * T::one().copysign(g2.dot(n_hat));
     TangentJet {
         sin_theta,
         kappa_rel: k1 - k2,

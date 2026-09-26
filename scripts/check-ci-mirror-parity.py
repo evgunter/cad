@@ -83,9 +83,9 @@ step-level `env:` and an inline prefix on its `run:` line, against the local
 half's prefixes — because an arm that read one spelling and not the other
 would pass exactly the divergence it exists to catch. Its extent is the PAIR
 rather than a shared cargo command, so it reads render rows that run no cargo
-at all; its allowlist is `SEMANTIC_ENV`, so the throughput knobs the local
-half deliberately does not mirror (`CARGO_PROFILE_*`, the mold link flag) are
-out by name at that table rather than by exemption. `CAD_RENDER_LOCAL_OVERRIDE`
+at all; its allowlist is `SEMANTIC_ENV`, so the throughput knobs either half may set
+or not (`CARGO_PROFILE_*`, the mold link flag) are out by name at that table
+rather than by exemption. `CAD_RENDER_LOCAL_OVERRIDE`
 — the divergence that is live, deliberate and correct — is declared in
 `PAIR_EXEMPT` with side `both` and reds if the two halves ever agree.
 
@@ -583,10 +583,10 @@ SEMANTIC_FLAGS = {
 #
 #   * THROUGHPUT KNOBS ARE OUT, BY NAME AND ON PURPOSE. `CARGO_PROFILE_*`,
 #     `CARGO_TARGET_DIR`, `RUSTC_WRAPPER` and the mold link flag change what a
-#     run COSTS, not what it proves. TWO OF THEM ARE RATIFIED NON-MIRRORS and
-#     say so at ci-local.sh's header — the mold flag and `CARGO_PROFILE_*`,
-#     the latter measured across the opt-level sweeps of 2026-08-12 and
-#     2026-08-25. The other two are this table's own judgement, of the same
+#     run COSTS, not what it proves. ci-local.sh's header says which of them it
+#     sets and why — the debuginfo pair it mirrors, the mold flag, strip and
+#     opt-level it does not, the last measured across the opt-level sweeps of
+#     2026-08-12 and 2026-08-25. The other two are this table's own judgement, of the same
 #     kind: a target directory is where artefacts land, a compiler wrapper is
 #     a cache. A claim that fired on any of them would be demanding a change
 #     the repo has decided against, or arguing about throughput in the one
@@ -4371,9 +4371,9 @@ def selftest() -> None:
              "          RUSTFLAGS: ${{ matrix.flags }}\n")
         _sub(t, LOCAL_HALF, f"{FIXTURE_CARGO_ROW}\n", f"RUSTFLAGS='--cfg two' {FIXTURE_CARGO_ROW}\n")
 
-    # A THROUGHPUT KNOB, HOSTED-ONLY, WHICH MUST NOT RED. The local half's
-    # refusal to mirror `CARGO_PROFILE_*` is ratified and measured; an arm
-    # that fired here would be demanding a change the repo decided against,
+    # A THROUGHPUT KNOB, HOSTED-ONLY, WHICH MUST NOT RED. Which
+    # `CARGO_PROFILE_*` knobs the local half sets is decided at ci-local.sh's
+    # header, not here; an arm that fired here would be deciding it instead,
     # and the exemption table would become the place to put that decision.
     def env_throughput_knob(t):
         _sub(t, HOSTED_HALF, f"        run: {FIXTURE_CARGO_ROW}\n",

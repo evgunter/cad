@@ -1100,7 +1100,7 @@ impl CylFrame {
 
     /// The chart map `S(u, v) = origin + radial(u)·radius + axis·v`.
     pub fn at<T: Real>(&self, u: f64, v: f64) -> Point3<T> {
-        lift_point(self.origin + self.radial(u) * self.radius + self.axis * v)
+        (self.origin + self.radial(u) * self.radius + self.axis * v).map(T::from_f64)
     }
 
     /// The axis point at height `v` — the centre of the rim there.
@@ -1111,20 +1111,12 @@ impl CylFrame {
     /// This frame's cylinder.
     pub fn surface<T: Real>(&self) -> Surface<T> {
         Surface::Cylinder {
-            origin: lift_point(self.origin),
-            axis: lift_vec(self.axis),
+            origin: self.origin.map(T::from_f64),
+            axis: self.axis.map(T::from_f64),
             radius: T::from_f64(self.radius),
-            u_ref: lift_vec(self.u_ref),
+            u_ref: self.u_ref.map(T::from_f64),
         }
     }
-}
-
-fn lift_point<T: Real>(p: Point3<f64>) -> Point3<T> {
-    Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z))
-}
-
-fn lift_vec<T: Real>(v: Vec3<f64>) -> Vec3<T> {
-    Vec3::new(T::from_f64(v.x), T::from_f64(v.y), T::from_f64(v.z))
 }
 
 /// Where a sheet's cylinder surface key lives.
@@ -1201,11 +1193,11 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
             .unwrap();
     }
     let rim = |body: &mut Body<T>, v: f64, ccw: bool| {
-        let centre = lift_point::<T>(frame.centre(v));
+        let centre = frame.centre(v).map(T::from_f64);
         let plane = body.add_surface(Surface::Plane {
             origin: centre,
-            normal: lift_vec(frame.axis),
-            u_ref: lift_vec(frame.u_ref),
+            normal: frame.axis.map(T::from_f64),
+            u_ref: frame.u_ref.map(T::from_f64),
         });
         // Ascending: the frame's own axis and seam, over [u0, u1].
         // Descending: the REVERSED axis with the seam moved to u1, so
@@ -1219,9 +1211,9 @@ pub fn cyl_wall_sheet_keyed<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
         };
         let carrier = Curve3::Circle {
             center: centre,
-            axis: lift_vec(axis),
+            axis: axis.map(T::from_f64),
             radius: T::from_f64(frame.radius),
-            u_ref: lift_vec(seam),
+            u_ref: seam.map(T::from_f64),
         };
         EdgeCurveSpec {
             description: EdgeDescriptionSpec::Intersection {
