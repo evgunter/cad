@@ -617,3 +617,20 @@ with the gate stubbed out. Full review dispatched. The lane's
 `work/issues/tangent-certificate-refusal-cause-depends-on-surface-order`
 duplicates this slate's `interval-jet-hulls-...`: it is to be folded in
 (keeping its `contact_verify` fix shape) at the fix pass.
+
+## CI load: batching and local gating settings (2026-09-26)
+
+(ENCL orchestrator) The user: combining unrelated units into one PR to
+spare CI is fine, and a PR gated green locally may carry `[skip ci]`
+(GitHub's spelling, already on the repo's bot commits). The user also
+suggested the settings that make the full local matrix fit this box's
+disk: `CARGO_INCREMENTAL=0` plus
+`CARGO_PROFILE_DEV_DEBUG=line-tables-only` and
+`CARGO_PROFILE_TEST_DEBUG=line-tables-only`.
+
+Plan: 3292, 3294 and 3295 land as ONE batch PR once each unit's review
+is adjudicated. The batch runs `local-scripts/ci-local.sh` once with
+those settings and no lane building beside it. If green, the batch
+head carries `[skip ci]`. The merge commit into main does NOT, because
+`work-status.yml` renders `STATUS.md` from push-to-main runs. If the
+local run cannot complete, one hosted run covers the batch.
