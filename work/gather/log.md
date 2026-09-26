@@ -406,3 +406,22 @@ line-tables-only debug info the worktree `target/` stands at 7.6 GB
 after the clippy and viewer rows, against the first run's 24 GB. That
 is the disk fix Ev pointed at. 3264 merges on this battery. The trimmed
 copy is deleted.
+
+## 2026-09-26 — 3264 merges on local green; the combined battery starts
+
+PR 3264 (step-arg roles) merged with `[skip ci]` on a local battery at
+`b9cf830e0`. Every row passed. `test (viewer app)` was 975/975 once
+lavapipe was installed. One row needed a manual re-run: `corrupt input
+(release profile)` can never pass locally, because the local mirror's
+`topo_release` omits `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`
+(which hosted pins, since `[profile.release]` has `debug-assertions =
+true`) and the `review_d18` filter, so the row's
+`garbage_in_garbage_out_release` is compiled out. Re-run exactly as
+hosted runs it, it gave 20/20 ok. That drift is filed on the owner of
+`local-scripts/`.
+
+**Dual log collision.** DR-8 and DR-9 landed from CONTACT and VNEWS
+first, so GATHER's row on 3143 is renumbered DR-10 (fair pairs 9), per
+protocol item 8. 3143, 3259 and 3280 merged main (`16d7350e0`,
+`2a1409cd1`, `f24455aa2`). The integration tree `8e0c09540` (main plus
+the three) is running its battery.
