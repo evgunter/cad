@@ -386,7 +386,7 @@ pub use geom_brep::{
 pub use geometry::{CurveKey, PointKey, SurfaceKey};
 pub use instance::{
     GraftKeys, graft_disjoint, graft_disjoint_all, graft_disjoint_all_keyed,
-    graft_disjoint_all_onto_keyed,
+    graft_disjoint_all_onto_keyed, per_part_gate_owed,
 };
 pub use merge_faces::{
     MergeCoplanarError, MergeCoplanarOutcome, MergeKind, MergedGroup, SkippedMerge,
@@ -430,11 +430,10 @@ pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
     CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, contact_marks, contact_marks_declared,
-    contact_marks_declared_structural, contact_marks_structural, per_part_gate_owed, validate,
-    validate_closed, validate_geometric, validate_geometric_certificate,
-    validate_geometric_certificate_declared, validate_geometric_certificate_declared_structural,
-    validate_geometric_certificate_structural, validate_geometric_declared,
-    validate_geometric_declared_structural, validate_geometric_structural, validate_pseudomanifold,
-    validate_pseudomanifold_certificate, validate_pseudomanifold_certificate_structural,
-    validate_pseudomanifold_structural,
+    contact_marks_declared_structural, contact_marks_structural, validate, validate_closed,
+    validate_geometric, validate_geometric_certificate, validate_geometric_certificate_declared,
+    validate_geometric_certificate_declared_structural, validate_geometric_certificate_structural,
+    validate_geometric_declared, validate_geometric_declared_structural,
+    validate_geometric_structural, validate_pseudomanifold, validate_pseudomanifold_certificate,
+    validate_pseudomanifold_certificate_structural, validate_pseudomanifold_structural,
 };

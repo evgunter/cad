@@ -210,10 +210,14 @@ cannot find a site phrased differently, and does not cross `work/`,
 
 ## The home (gather/per-part-gate-one-home)
 
-The policy is `topo::per_part_gate_owed(aggregate_solids)`, beside
-`topo::validate_geometric` in `crates/topo/src/validate.rs`. Its doc
-carries the WHEN (one solid is one subject, skipped as an identity),
-the counting rule (the aggregate's SOLIDS), and its dependents by name.
+The policy is `topo::per_part_gate_owed(aggregate_solids)`, in
+`crates/topo/src/instance.rs` beside `graft_disjoint` and
+`graft_disjoint_all`, the gather doors it governs. (`validate.rs` was
+the first home; its `door_roster` census holds that module's `pub fn`s
+to exactly the validator doors, and this is not one.) Its doc carries
+the WHEN (one solid is one subject, skipped as an identity), the
+counting rule (the aggregate's SOLIDS), and what each caller means by
+a part.
 The WHY each part is asked at all stays `docs/DESIGN.md` import step 4,
 and the doc says the reason is under question in
 `work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`:
@@ -235,6 +239,6 @@ per-part gate (code view). The editor-core file also pins the gather's
 behaviour on both sides of the threshold and at the sources-vs-solids
 seam (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`);
 step-import's is pinned by `review_r1_tier_gate_probes.rs`. `topo`
-pins the threshold itself (`per_part_gate_rows`), and
+pins the threshold itself (`instance::per_part_gate_rows`), and
 `declaration_tests::the_per_part_policy_still_skips_a_lone_solid` pins
 the premise `vertex_rest_contact` argues from.

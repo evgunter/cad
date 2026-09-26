@@ -10,7 +10,7 @@ cost: D
 
 
 Found by the style review of PR 3280, which gave the F8/D7 per-part
-policy its home in `topo::per_part_gate_owed` (`crates/topo/src/validate.rs`).
+policy its home in `topo::per_part_gate_owed` (`crates/topo/src/instance.rs`).
 
 **The two callers mean different things by a part.** The policy counts
 the aggregate's SOLIDS and skips the per-part gate at one, because one
