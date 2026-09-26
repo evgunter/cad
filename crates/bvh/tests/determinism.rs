@@ -17,10 +17,9 @@ test_utils::gated_to![
     "crates/bvh/src/",
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/real.rs",
-    "crates/bvh/tests/common/",
 ];
 
-use crate::common::boxed;
+use bvh::test_support::boxed;
 use bvh::{Aabb, Bvh};
 use proptest::prelude::*;
 

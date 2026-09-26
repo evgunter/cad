@@ -13,9 +13,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::pick::{AXES, aimed, det_and_conditioning};
 use bvh::Ray;
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::test_support::{AXES, aimed, det_and_conditioning};
 use geom_core::{Point2, Point3, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};

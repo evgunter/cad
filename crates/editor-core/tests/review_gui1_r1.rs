@@ -37,6 +37,7 @@
 // there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
+    "crates/editor-core/src/test_support.rs",
     "crates/bvh/src/",
     "crates/mesh/src/",
     "crates/geom-core/src/linalg/",
@@ -45,12 +46,13 @@ test_utils::gated_to![
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use editor_core::resolve::{TSpan, ray_triangle};
+use editor_core::test_support::listed;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
     RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
-use fixture::pick::{listed, ray};
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol};
 use mesh::Mesh;

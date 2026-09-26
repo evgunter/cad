@@ -3365,10 +3365,10 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
-    use crate::test_support::{edited, inserted, len, scl, square, xy_frame};
+    use crate::test_support::{declared, framed_square, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
-        Dimension, DimensionError, Doc, DocEdit, DocParam, Expr, Node, ParamName, PatternKind,
+        Dimension, DimensionError, Doc, DocParam, Expr, Node, ParamName, PatternKind,
         ProfileProgram, RecipeNodeId, SlotId,
     };
     use pncad::geom_core::Tol;
@@ -3449,17 +3449,12 @@ mod value_field_tests {
         /// row about a DRIVEN slot has something to drive it with.
         fn extrude_distance(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-            let (doc, _) = edited(
-                &doc,
-                DocEdit::SetDocParam {
-                    name: ParamName::new("base_r"),
-                    value: DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
-                },
-                tol,
+            let doc = declared(
+                label,
+                &ParamName::new("base_r"),
+                DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
             );
-            let (doc, plane) = inserted(&doc, xy_frame(), tol);
-            let (doc, profile) = inserted(&doc, square(plane, 0.04), tol);
+            let (doc, profile) = framed_square(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {

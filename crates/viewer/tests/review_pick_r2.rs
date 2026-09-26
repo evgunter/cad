@@ -44,7 +44,7 @@ use editor_core::resolve::{crossing, ray_triangle};
 use viewer::pickindex::PickIndex;
 
 use crate::common::corpus_pick::{FlatReference, over_every_landing, too_wide, wide_aim};
-use crate::fixture::pick::det_and_conditioning;
+use editor_core::test_support::det_and_conditioning;
 
 #[derive(Default)]
 struct Tally {

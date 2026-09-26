@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::boxed;
+use bvh::test_support::boxed;
 use bvh::{Aabb, Bvh};
 
 /// The exact separation of two axis-aligned boxes, computed in a way

@@ -10,11 +10,11 @@
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use editor_core::{
     CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, MeshPickError, Node,
     PickTarget, ProfileDoc, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
-use fixture::pick::ray;
 use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 use mesh::{FacePatch, Mesh};

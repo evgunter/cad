@@ -34,7 +34,7 @@ use viewer::pickindex::PickIndex;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::corpus;
-use crate::fixture::pick::{AXES, aimed};
+use editor_core::test_support::{AXES, aimed};
 
 // ---------------------------------------------------------------
 // The single-level reference.
@@ -337,8 +337,10 @@ pub fn ring_bump(doc: &ProfileDoc) -> (RecipeNodeId, SlotId, Expr) {
     panic!("no extrude or revolve in the document")
 }
 
-/// A slot write as the session's op spells it.
-fn set_slot(node: RecipeNodeId, slot: SlotId, expr: &Expr) -> SessionOp {
+/// **A slot write as the session's op spells it**: `expr` unparsed into
+/// the text `SessionOp::SetSlotExpression` carries — the one spelling of
+/// that conversion the corpus pick suites share.
+pub fn set_slot(node: RecipeNodeId, slot: SlotId, expr: &Expr) -> SessionOp {
     SessionOp::SetSlotExpression {
         node,
         slot,

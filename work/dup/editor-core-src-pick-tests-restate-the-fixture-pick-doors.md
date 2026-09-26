@@ -2,10 +2,11 @@
 id: editor-core-src-pick-tests-restate-the-fixture-pick-doors
 kind: issue
 title: editor-core's resolve::pick unit tests restate near_tangent, aimed, down_from and the uncertified conditioning that tests/fixture/pick holds
-status: open
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: E
+closed: 2026-09-26
 ---
 
 
@@ -53,3 +54,17 @@ cost: E
 
 The copies are test-side vocabulary spelled twice — S-DUP's charter.
 The ground is `editor-core/src`; any claimant may take it by `git mv`.
+
+## Closed
+
+Folded in the same PR that filed it (batch 6), on review: the
+"why it is a row" above was wrong. `editor-core` already has a
+`test-support` feature and a self dev-dependency enabling it, so the
+home needed no new shape. `editor_core::test_support` (behind
+`#[cfg(any(test, feature = "test-support"))]`) now holds `AXES`,
+`down_from`, `aimed`, `near_tangent`, `listed` and
+`det_and_conditioning`; `resolve::pick`'s unit module reads it
+(`ray_through` → `aimed`, `conditioning` → `det_and_conditioning(..).1`,
+its `near_tangent` and downward ray deleted), and so do the integration
+suites and `viewer`'s, which enables the feature by dev-dependency.
+`tests/fixture/pick.rs` is gone.

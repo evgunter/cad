@@ -39,11 +39,11 @@ test_utils::gated_to![
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickTarget, ProfileDoc,
     Ray, RecipeNodeId, ValuePayload, pick_face,
 };
-use fixture::pick::ray;
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol};
 use mesh::Mesh;

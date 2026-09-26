@@ -31,12 +31,12 @@
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
     "crates/bvh/src/",
-    "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
-use crate::fixture::pick::{aimed, near_tangent};
 use bvh::Ray;
 use editor_core::resolve::{crossing, ray_triangle};
+use editor_core::test_support::{aimed, near_tangent};
 use geom_core::{Point3, Vec3};
 use num_bigint::BigInt;
 

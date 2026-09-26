@@ -471,7 +471,7 @@ mod tests {
     use crate::drafts::Drafts;
     use crate::pane::headless::painted_while_hovering;
     use crate::sketch;
-    use crate::test_support::{inserted, xy_frame};
+    use crate::test_support::{inserted, try_inserted, xy_frame};
 
     /// **Drawing the editor never rewrites a document value.** A
     /// committed `circle_split` above the form's count cap (the
@@ -595,8 +595,8 @@ mod tests {
             loops,
             ids: Vec::new(),
         });
-        // The document admits a split circle above the form's cap.
-        let (doc, profile) = inserted(&doc, node, Tol::witness());
+        let (doc, profile) = try_inserted(&doc, node, Tol::witness())
+            .expect("the document admits a split circle above the form's cap");
         let mut drafts = Drafts::default();
         let edit = drafts.profile_edit(&doc, profile).expect("held");
         assert!(!edit.moved(), "fresh load");

@@ -2,10 +2,11 @@
 id: the-array-ray-and-box-adapters-are-one-per-crate-across-bvh-and-editor-core
 kind: issue
 title: bvh's and editor-core's test trees each hold the array-to-Ray adapter, and neither can reach the other's
-status: open
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: D
+closed: 2026-09-26
 ---
 
 
@@ -45,3 +46,14 @@ cost: D
 `crates/*/tests/` is S-TCOST's and S-TINT's in every crate, and the
 question is one construction spelled once per crate — S-DUP's
 charter. Any claimant may take it by `git mv`.
+
+## Closed
+
+Folded in the same PR that filed it (batch 6), on review: this was not
+a design question. A `test-support` feature on `bvh` with a
+dev-dependency edge from each consumer is the tree's existing shape.
+`bvh::test_support` holds `boxed` and `ray`; `bvh`'s suites reach it
+through a self dev-dependency, `editor-core`'s `test-support` forwards
+`bvh/test-support`, and `viewer` enables it by dev-dependency. The two
+per-crate homes (`bvh/tests/common`, `editor-core/tests/fixture/pick.rs`)
+are gone.

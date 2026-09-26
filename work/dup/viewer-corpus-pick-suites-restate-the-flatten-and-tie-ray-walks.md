@@ -84,14 +84,18 @@ Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
   `assert_flat_reference` renderings (they render a refusal as text
   rather than panic — folded into one local `rendered` instead), and
   the two review suites' own candidate walks (each measures two
-  acceptances over one candidate set; that walk IS the suite).
+  acceptances over one candidate set; that walk IS the suite — and
+  `review_pick2_r1` spelled it twice, now one local `nearest_both`).
 - **The homes.** `crates/viewer/tests/common/corpus_pick.rs`:
   `FlatReference` (with `FlatPart`, `FlatHit`, `every`, `pick`),
   `too_wide`, `extent`, `tie_rays_for`, `wide_aim` (+ `Aim`),
-  `ring_bump`, `over_every_landing`. The rays and the door-answer list
-  go one level lower, to `crates/editor-core/tests/fixture/pick.rs`
-  (`AXES`, `aimed`, `listed`, `det_and_conditioning`), which
-  `viewer`'s binary already mounts and `editor-core`'s suites share.
+  `ring_bump`, `set_slot`, `over_every_landing`. `set_slot` is the one
+  spelling of a slot write as a `SessionOp`; `index_memo`'s `Edit` now
+  carries the `Expr` and delegates to it. The rays and the
+  door-answer list go one level lower, to `editor_core::test_support`
+  (`AXES`, `aimed`, `listed`, `det_and_conditioning`), behind
+  `editor-core`'s `test-support` feature, which `viewer` enables
+  through a dev-dependency.
 - **The reconcile before the move**: `tie_rays_for` answers
   `Vec<(Ray, f64)>`; `index_memo` drops the reach at its one call.
 - **The per-row oracle test the row asked for**, suite by suite:
