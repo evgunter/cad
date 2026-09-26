@@ -30,7 +30,7 @@ use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
-use crate::shell8_common::{beside, cap, deep_dump, face_of_he, faces_of, solid_of, tol, volume};
+use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{tube, v, vessel};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
@@ -345,7 +345,10 @@ fn r2_subset_pass_leaves_a_retired_half_edges_row_and_the_whole_pass_drops_it() 
     let seam = b
         .edges()
         .find(|(_, e)| {
-            let (fa, fb) = (face_of_he(&b, e.he_plus), face_of_he(&b, e.he_minus));
+            let (fa, fb) = (
+                b.face_of_half_edge(e.he_plus).unwrap(),
+                b.face_of_half_edge(e.he_minus).unwrap(),
+            );
             let (sa, sb) = (
                 b.get_face(fa).unwrap().surface,
                 b.get_face(fb).unwrap().surface,

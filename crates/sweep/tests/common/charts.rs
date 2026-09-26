@@ -13,7 +13,7 @@
 //! appears in the face arena, and each group's faces in arena order —
 //! deterministic, so a printed move set reads the same run to run.
 //!
-//! **Deliberately NOT absorbed**, and the whole of it:
+//! **Deliberately NOT absorbed**:
 //! `shell10_r2_probes::chart_of`, the ONE chart a given face wears — a
 //! filter over the arena for one surface key, not the partition.
 //!
@@ -58,8 +58,11 @@ pub fn charts_of<T: Real>(body: &Body<T>, solid: SolidKey) -> Vec<Vec<FaceKey>> 
     )
 }
 
-/// One move per chart, each by the same signed `distance` along its
-/// faces' outward direction.
+/// One move per chart, each by the same signed `distance` along the
+/// chart's stored normal ([`ChartMove::distance`]) — out of the
+/// material on a positively-sensed face and into it on a reversed one,
+/// so one sign is not one direction across a body with both senses.
+/// [`moves_inward`] is the sense-aware twin.
 pub fn moves_by<T: Real>(charts: Vec<Vec<FaceKey>>, distance: T) -> Vec<ChartMove<T>> {
     charts
         .into_iter()
@@ -68,9 +71,9 @@ pub fn moves_by<T: Real>(charts: Vec<Vec<FaceKey>>, distance: T) -> Vec<ChartMov
 }
 
 /// One move per chart, each by `t` INTO the material — `shell`'s own
-/// inward rule: a chart's normal points out of the solid on a
-/// positively-sensed face and into it on a reversed one, so a
-/// positive sense moves by `−t`.
+/// inward rule over [`ChartMove::distance`]'s stored normal, which
+/// points out of the solid on a positively-sensed face and into it on
+/// a reversed one, so a positive sense moves by `−t`.
 pub fn moves_inward<T: Real>(body: &Body<T>, charts: Vec<Vec<FaceKey>>, t: T) -> Vec<ChartMove<T>> {
     charts
         .into_iter()

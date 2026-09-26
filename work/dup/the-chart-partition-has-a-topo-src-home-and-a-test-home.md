@@ -26,6 +26,11 @@ cost: D
   public door answers "this body's faces, grouped by the surface they
   wear".
 
+The same file holds the ONE-chart twin too: `shell.rs::faces_wearing`
+(every face wearing one surface key, in arena order) is the production
+spelling of `shell10_r2_probes::chart_of`, which the fold kept as not
+a member of the partition. A door decision here covers both.
+
 So the partition every caller of `offset_charts_together` and
 `offset_planes_together` has to build before it can call either door is
 spelled three times: once in production (`shell.rs`), once in `topo`'s
@@ -47,3 +52,13 @@ this row closes with that ruling and the two test spellings stay.
 **Why P4 and cost D**: the two test-side spellings are P4 on their own
 and the production one has no second production twin; the door
 question is a public-API decision on `topo`, which is what makes it D.
+
+**Why this row is on dup's slate and not `shell`'s** (method item 14):
+`work.py territory` puts `topo/src/shell.rs` and
+`topo/src/offset_together.rs` under the `shell` program and
+`sweep/tests/common/charts.rs` under `tcost` and `tint`. The finding is
+the three spellings taken together — one per owner — and it is a
+duplication question before it is any one owner's; filed on either
+owner's slate it would name ground the other two own. It announces to
+`shell` by seam, and moves there by `git mv` if `shell` claims the door
+question.

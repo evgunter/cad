@@ -63,11 +63,6 @@ pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
     body.faces_of_solid(solid).expect("the solid resolves")
 }
 
-pub(crate) fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
 /// Every vertex point of `body`, in arena order.
 pub(crate) fn points(body: &Body<f64>) -> Vec<(VertexKey, Point3<f64>)> {
     body.vertices()
@@ -102,7 +97,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         ));
     }
     for (k, e) in body.edges() {
-        if !mine(face_of_he(body, e.he_plus)) {
+        if !mine(body.face_of_half_edge(e.he_plus).unwrap()) {
             continue;
         }
         let c = body

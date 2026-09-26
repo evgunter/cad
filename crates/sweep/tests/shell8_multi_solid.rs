@@ -356,7 +356,8 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
         for (key, row) in edge_rows(&opened.body) {
             // An edge of the designated solid is expected to differ —
             // that solid is what the surgery re-authored.
-            if solid_of(&opened.body, face_of_he_pub(&opened.body, key)) == rim_solid {
+            let plus = opened.body.get_edge(key).unwrap().he_plus;
+            if solid_of(&opened.body, opened.body.face_of_half_edge(plus).unwrap()) == rim_solid {
                 continue;
             }
             let Some((_, want)) = sealed_rows.iter().find(|(k, _)| *k == key) else {
@@ -387,9 +388,4 @@ fn the_lift_re_authors_only_the_designated_faces_solid() {
             );
         }
     }
-}
-
-/// The face an edge's positive half belongs to.
-fn face_of_he_pub(body: &Body<f64>, edge: topo::EdgeKey) -> topo::FaceKey {
-    crate::shell8_common::face_of_he(body, body.get_edge(edge).unwrap().he_plus)
 }

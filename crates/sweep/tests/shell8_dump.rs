@@ -15,7 +15,7 @@
 use geom_core::Vec3;
 use topo::{Body, FaceKey};
 
-use crate::shell8_common::{cap, face_of_he, tol};
+use crate::shell8_common::{cap, tol};
 use crate::verbs_shell::{hollow_box, outer_and_void, two_void_box, vessel};
 
 fn dump(label: &str, body: &Body<f64>) {
@@ -38,7 +38,10 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, e) in body.edges() {
-        let (fa, fb) = (face_of_he(body, e.he_plus), face_of_he(body, e.he_minus));
+        let (fa, fb) = (
+            body.face_of_half_edge(e.he_plus).unwrap(),
+            body.face_of_half_edge(e.he_minus).unwrap(),
+        );
         let start = body.get_half_edge(e.he_plus).unwrap().start;
         let end = body.half_edge_end(e.he_plus).unwrap();
         let c = body

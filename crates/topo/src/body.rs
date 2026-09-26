@@ -1270,8 +1270,16 @@ impl<T: Real> Body<T> {
 
     /// The faces around `vertex`, each ONCE, in the order the orbit
     /// first reaches them — [`Body::edges_of_vertex`]'s walk projected
-    /// through [`Body::face_of_half_edge`] instead of onto the edge, and
-    /// every sentence of that door's contract holds here unchanged.
+    /// through [`Body::face_of_half_edge`] instead of onto the edge. A
+    /// foreign key on a live slot
+    /// [answers another vertex's faces](self#key-validity-stale-vs-foreign).
+    ///
+    /// The order, and the empty list for a vertex with no emanating
+    /// half-edge, are the edge door's. **The refusals are the edge
+    /// door's two and a THIRD**: `None` also where a half-edge of the
+    /// orbit names a loop that does not resolve — the edge door reads
+    /// no loop and answers there, so on such a body the two doors
+    /// disagree about whether the vertex can be read at all.
     ///
     /// A face can be reached more than once: a strut leaves one face on
     /// both sides of an edge at the vertex, and so does a seam meridian

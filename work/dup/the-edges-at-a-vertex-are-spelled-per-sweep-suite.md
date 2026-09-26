@@ -120,10 +120,12 @@ path argument; then every hit read past its walk):
 | `fillet_h5_hostless_rim::valence`, `ladder_split_key::incident`, `review_ladder_split_key_r1_probes::incident` | deleted; callers read `edges_of_vertex` (order-free uses) |
 | `review_ladder_split_key_r2_probes::meridian_at`, `verbs_arms3` (sorts: it compares to `mouth`'s arcs), `review_arms3_r1_probes`, `blend1_r1_probes` | folded |
 | `shell7_dump::faces_at`, `shell8_dump::faces_at` | deleted; the dumps sort at the site so their printed lines do not move |
-| `shell7_common::distinct_surfaces_at`, `sf2a_r1`, `sf2a_r1_head::worst_incidence`, `sf2b_head::corner_forms` | folded onto `faces_of_vertex` plus the surface or plane projection |
+| `shell7_common::distinct_surfaces_at`, `sf2a_r1`, `sf2a_r1_head::worst_incidence`, `sf2b_head::corner_forms` | folded onto `faces_of_vertex` plus the surface or plane projection. `sf2a_r1` and `sf2b_head` dropped their `emanating` guard, so a lone vertex now counts as valence 0 (a `0` histogram bucket, a `0 []` corner form) where it was skipped (`sf2a_r1_head`'s maximum reads nothing from one); their fixtures are closed solids with none, so nothing they print or assert moves |
 | `editor-core/tests/emit_union_flush_names.rs` `faces_at` (arena scan of half-edges starting at `v` and their mates' loops) | folded: on a manifold body the same SET, and both callers read it as a set |
 | `fillet_h5_r2_probes`, `verbs_f7_r2_probes` ×2, `topo/src/offset_axial.rs` `corner_arms`, `offset_together`'s corner arm lengths, `boolean/sectors.rs`, `splitting/neighborhood.rs`, `merge_faces.rs` ×2, `shell.rs::valence`, `boolean/rest.rs` ×3 more, `boolean/insert.rs` | **not members**: each reads the orbit's half-edges one by one (a length, a sector, a tangent, a mutation mid-walk), not a deduped set |
 | `review_m2_pr5::valence` (half-edges starting at `v`, counted by arena scan) | **not a member**: a half-edge count, independent of the orbit by construction |
+| `s49_census_jurisdiction::walls_by_vertex` (cylinder faces split by whether a loop holds a half-edge starting at `v`) | folded: `faces_of_vertex` then a partition of the cylinder faces, each side in arena order as before |
+| `band_ruled_d_hole` (~:93, any half-edge starting at `v` in a RING loop) | **not a member**: it asks which LOOP a half-edge lies in, which no face projection answers |
 | `editor-core/src/names/emit.rs` `vertex_edges`, `topo/src/census.rs` `vertex_faces`, `topo/src/review_m1_pr4.rs` `vertex_faces` | **not members**: whole-body incidence INDEXES built in one arena pass, not a per-vertex walk |
 
 **What the instruments could not see**: a walk spelled without
@@ -131,12 +133,35 @@ path argument; then every hit read past its walk):
 arena scans, which found `emit_union_flush_names`'s member and the three
 non-members above); a macro-assembled walk.
 
-**Behaviour on corrupt bodies only**: the three blend helpers answered
-`None` for a vertex with no emanating half-edge; the doors answer an
-empty list. A blend corner is an endpoint of a link edge, so its vertex
-has a fan on any body the validator passes; on one it does not, the
-blend refusal becomes a valence-0 `NEdgeVertex` instead of
-`BodyNotIntact` / `Indeterminate`. Still a refusal, named differently.
+**Behaviour on corrupt bodies: unchanged.** The doors answer an empty
+list for a vertex with no emanating half-edge; the old blend helpers
+answered `None` (`.emanating?`). At every blend site the vertex is a
+link end, a corner or a rim crossing, so edges meet it and an empty fan
+is corruption. One private helper, `blend::build::fan_at`, folds the
+empty answer back into the door's `None`, and all eight blend calls go
+through it, so each keeps its merge-base refusal (read at `032999ff2`):
+surgery's chain-end corner (~:589, `BodyNotIntact` "a chain end's
+vertex orbit does not walk"), `resolve_seam_split_rim`,
+`refresh_annulus_seams`, `resolve_annulus` and `rim_phase` (each
+`BodyNotIntact` "a rim vertex's edge orbit"), battery `classify`
+(`Indeterminate`), battery `cap_incidence` (`None`), and
+`CornerFaces::admit` (`BodyNotIntact` "a corner's face orbit does not
+walk") — none of them a geometric verdict with a recourse attached.
+Without the helper they read `unbuilt_chain` or a valence-0
+`NEdgeVertex` carrying `RunOutStopAtVertex`.
+
+**No `sweep` test can build that body**: a fan whose vertex holds
+`emanating: None` needs `Body::get_vertex_mut`, which is `pub(crate)`
+in `topo`, and `with_entity_removed_for_tests` removes entities rather
+than clearing a field. So the helper is pinned by its own row
+(`blend::build::tests::an_empty_fan_refuses_like_a_broken_orbit`) and
+measured by plant over the 953 rows of every module the reach control
+below reached:
+
+| plant in `fan_at` | red |
+| --- | --- |
+| R1 an empty fan passes as `Some(vec![])` (the pre-fix behaviour) | **1**: the helper's own row. No body in the suite reaches the empty case, which is what makes it corruption-only |
+| R2 every answer refused (reach control) | 317 (sweep lib 8, sweep `all` 256, editor-core 53) |
 
 **Measured by plant** (harness restores the file's pre-plant bytes and
 checks the tree hash; C1 over all of `topo` and `sweep` plus

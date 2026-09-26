@@ -44,6 +44,7 @@ use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, SurfaceKey, VertexKey}
 use super::arms::{
     BlendArm, EdgeBlend, Meridian, Ruling, chamfer_strip, plane_plane_blend, plane_sphere_blend,
 };
+use super::build::fan_at;
 use super::{BlendError, BlendKind, BlendSite, ClassifiedMargin, CornerConfig, decide};
 
 /// **Does this scalar hold nondegenerate brackets?** — which is the
@@ -1785,7 +1786,7 @@ pub(super) fn cap_incidence<T: Decide>(
     face_a: FaceKey,
     face_b: FaceKey,
 ) -> Option<(EdgeKey, EdgeKey, FaceKey)> {
-    let incident = body.edges_of_vertex(vertex)?;
+    let incident = fan_at(body.edges_of_vertex(vertex))?;
     let [_, _, _] = incident[..] else {
         return None;
     };
@@ -1843,7 +1844,7 @@ fn corner_at<T: Decide + Bounds>(
     // In key order, so the supports below are gathered — and their
     // normals reach the independence determinant — in an order that
     // does not depend on where the vertex's orbit starts.
-    let mut edges = body.edges_of_vertex(vertex).ok_or_else(indeterminate)?;
+    let mut edges = fan_at(body.edges_of_vertex(vertex)).ok_or_else(indeterminate)?;
     edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
