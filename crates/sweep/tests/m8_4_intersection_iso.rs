@@ -645,7 +645,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         panic!("the trimmed face's tessellation lane moved — re-pin this row")
     };
     assert!(
-        note.contains("C⁰ crease"),
+        note.contains("degree 1 with a sharp crease"),
         "tessellation refuses at the crease gate before any trimmed-region site: {note}"
     );
     println!("M8-4 tessellate on the trimmed chart: {note}");

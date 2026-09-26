@@ -626,7 +626,7 @@ fn direct_validation_door_behavior_at_dual64() {
     let body = corpus::body_of(&ev, planar.result.unwrap());
     // `die` carries filleted (cylindrical/spherical) faces — curved but
     // closed-form; what matters here is that the door a dual CAN take
-    // runs and answers. That door is the structural half: the composed
+    // runs and answers. That door is the `_structural` twin: the composed
     // entry carries the +V invariant's certified bound and cannot be
     // called at a dual at all.
     let direct = topo::validate_geometric_structural(body, tol);
@@ -641,19 +641,20 @@ fn direct_validation_door_behavior_at_dual64() {
     {
         let ev_n = eval::<Dual64>(&nurbs.doc);
         let body_n = corpus::body_of(&ev_n, result);
-        // MEASURED, and the reverse of what this row asserted before the
-        // validator split: a NURBS-walled body PASSES the structural
-        // half at a dual. Its refusal was the +V invariant's
-        // `VolumeUncomputable`, raised by the dual's refusing quadrature
-        // arm, and the split moved that invariant WHOLE — closed form
-        // included — into the certified half, so the structural door
-        // reports no orientation verdict of any kind. Nothing else the
-        // structural checks consult refuses this body.
-        assert_eq!(
-            topo::validate_geometric_structural(body_n, tol),
-            Ok(()),
-            "a NURBS-walled body passes the door a dual can take; its refusal was \
-             the certified half's"
+        // A NURBS-walled body is refused TYPED at the door a dual can
+        // take, and by nothing else: the `_structural` door makes check 7
+        // through the closed form, which has no flux for a described
+        // NURBS wall and says so as `VolumeUncomputable` rather than
+        // passing it unbounded. Nothing else the battery consults refuses
+        // this body.
+        let verdict = topo::validate_geometric_structural(body_n, tol);
+        assert!(
+            matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
+                e,
+                topo::ValidationError::VolumeUncomputable { .. }
+            ))),
+            "a NURBS-walled body is refused typed by the closed form's check 7, and \
+             only there: {verdict:?}"
         );
     }
     // Record the die outcome either way — the row's value is the pair

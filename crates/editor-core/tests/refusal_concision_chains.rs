@@ -120,6 +120,16 @@ pub(crate) const FILED: &[(&str, &str)] = &[
     ("Boolean/Join/Section(Carrier)", "ellipse construction"),
 ];
 
+/// Row namespaces whose wrapper sits in a file SHELL is reworking, each
+/// with the one stage prefix its rows may carry and leave to name their
+/// face by key: a generated family, one row per `OffsetFitError` sample
+/// ([`offset_fit_routes`]), so it is admitted by namespace rather than
+/// by listing every generated id. Any other prefix, a `Debug` struct,
+/// or a row outside the namespace is still red.
+// `topo/src/replace_face.rs`, SHELL's:
+// work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md
+pub(crate) const FILED_NAMESPACES: &[(&str, &str)] = &[("Shell/Face/Fit/", "replace_face_offset")];
+
 /// The split rows that may still offer "declare", which a split has no
 /// door for, each filed with its owner (the note above `FILED`'s
 /// `EllipseInvalid` entries).
@@ -139,14 +149,19 @@ pub(crate) const FILED_DEBUG: &[&str] = &[
 /// Every way the rows among `rows` fall short of the standard:
 /// [`test_utils::refusal::problems`] on each, with the labels
 /// [`ALLOWED_LABELS`] and [`FILED`] admit, the `Debug` rows [`FILED_DEBUG`]
-/// admits, and the keys
-/// [`KERNEL_KEYED`] admits.
+/// admits, the label and key [`FILED_NAMESPACES`] admits on its
+/// namespace, and the keys [`KERNEL_KEYED`] admits.
 pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
     let mut problems = Vec::new();
     for (name, text) in rows {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
         let mut allowed = ALLOWED_LABELS.to_vec();
         allowed.extend(FILED.iter().filter(|(row, _)| row == name).map(|(_, l)| *l));
+        let namespace = FILED_NAMESPACES
+            .iter()
+            .find(|(prefix, _)| name.starts_with(prefix));
+        allowed.extend(namespace.map(|(_, l)| *l));
+        let key_filed = format!("{name} dumps an arena key");
         let debug_filed = [
             format!("{name} renders a Debug struct"),
             format!("{name} dumps an arena key"),
@@ -162,7 +177,8 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
             .filter(|p| {
                 !(FILED_DEBUG.contains(&name.as_str())
                     && debug_filed.iter().any(|d| p.starts_with(d.as_str())))
-            }),
+            })
+            .filter(|p| !(namespace.is_some() && p.starts_with(key_filed.as_str()))),
         );
     }
     problems
@@ -870,20 +886,129 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "ApproxLaneUnsupported",
             E::ApproxLaneUnsupported { lane: "interval" },
         ),
-        (
-            "ApproxRecertify",
-            E::ApproxRecertify {
-                source: geom_brep::OffsetFitError::InvalidRequest {
-                    d: 0.0,
-                    tolerance: 1.0e-6,
-                },
-            },
-        ),
         ("Corrupt", E::Corrupt { what: "face" }),
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain(offset_fit_routes())
     .collect()
+}
+
+/// Every `geom_brep::OffsetFitError` arm, through each feature-tree
+/// route that can raise it.
+///
+/// **Which route renders which arms.** The offset fit's refusals reach
+/// the feature tree two ways:
+///
+/// - **The shell op's face replacement** (`Shell/Face/Fit/…`): the
+///   fit lane's mint runs the whole fit loop and then certifies, so it
+///   raises every arm but `WindowUnsupported` (the mint certifies over
+///   the chart rectangle it fitted). The loop's own terminations —
+///   `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
+///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
+///   and `NonFiniteSample` reach the user by this route only. Its
+///   wrapper still opens with a stage prefix and names the face by key;
+///   both are SHELL's and filed
+///   (`work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`),
+///   so [`FILED_NAMESPACES`] admits exactly that label and that key on
+///   these rows and nothing else.
+/// - **The transform op's re-certification** (`Transform/ApproxRecertify/…`):
+///   `certify_offset_over` runs the meters and the certificate limbs on
+///   a fit it did not make, so it raises `Meter`, `PatchBound`,
+///   `WindowUnsupported`, `Limb` and `Elevation`.
+///
+/// The roster is `topo`'s: every `OffsetFitError` sample
+/// `validation_error_samples` carries, which `topo`'s coverage row holds
+/// complete over the enum's variants, over `MeterError`'s and (by
+/// `strum`) over `PatchBoundError`'s.
+fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
+    use geom_brep::OffsetFitError as O;
+    use topo::{FaceKey, ReplaceFaceError, ShellError};
+    let roster: Vec<(String, O)> = topo::test_support::validation_error_samples()
+        .into_iter()
+        .filter_map(|(_, e)| match e {
+            topo::ValidationError::ApproxCertification { error, .. } => Some(error),
+            _ => None,
+        })
+        .map(|source| {
+            // The variant and the variant it carries, read off `Debug`:
+            // `Meter(NormalFloor`, `BoundNotFinite`.
+            let debug = format!("{source:?}");
+            let arm: String = debug
+                .chars()
+                .take_while(|c| c.is_alphanumeric() || matches!(c, '_' | '('))
+                .collect();
+            (arm.trim_end_matches('(').replace('(', "/"), source)
+        })
+        .collect();
+    // The roster is borrowed, so its reach is checked on the roster
+    // itself: a sample list that stopped carrying an arm would
+    // otherwise shrink these rows silently. `BoundNotFinite` and `Limb`
+    // each carry two samples (both `last_finite` cases, both limbs).
+    for (arm, samples) in [
+        ("Meter/NormalFloor", 1),
+        ("Meter/CurvatureHeadroom", 1),
+        ("Meter/Escalated", 1),
+        ("PatchBound/", 7),
+        ("Fit/", 1),
+        ("Structure/", 1),
+        ("InvalidRequest", 1),
+        ("NonFiniteSample", 1),
+        ("BudgetExhausted", 1),
+        ("SampleCapReached", 1),
+        ("BoundNotFinite", 2),
+        ("RefinementStalled", 1),
+        ("WindowUnsupported", 1),
+        ("Limb", 2),
+        ("Elevation/", 1),
+    ] {
+        let have = roster.iter().filter(|(n, _)| n.starts_with(arm)).count();
+        assert!(
+            have >= samples,
+            "the roster carries {have} OffsetFitError::{arm} sample(s), under {samples}"
+        );
+    }
+    let face = FaceKey::default();
+    let mut rows = Vec::new();
+    for (arm, source) in roster {
+        let certify = matches!(
+            source,
+            O::Meter(_)
+                | O::PatchBound(_)
+                | O::WindowUnsupported { .. }
+                | O::Limb { .. }
+                | O::Elevation(_)
+        );
+        if !matches!(source, O::WindowUnsupported { .. }) {
+            rows.push(row(
+                &format!("Shell/Face/Fit/{arm}"),
+                NodeErrorKind::Shell(Box::new(ShellError::Face {
+                    face,
+                    error: Box::new(ReplaceFaceError::<f64>::Fit {
+                        face,
+                        error: source.clone(),
+                    }),
+                })),
+            ));
+        }
+        if certify {
+            rows.push(row(
+                &format!("Transform/ApproxRecertify/{arm}"),
+                NodeErrorKind::Transform(topo::TransformError::ApproxRecertify { source }),
+            ));
+        }
+    }
+    // Two samples of one arm are two different sentences; the row id
+    // says which by position.
+    let mut seen = std::collections::BTreeMap::<String, usize>::new();
+    for (name, _) in &mut rows {
+        let n = seen.entry(name.clone()).or_default();
+        *n += 1;
+        if *n > 1 {
+            name.push_str(&format!("#{n}"));
+        }
+    }
+    rows
 }
 
 fn skin_arms() -> Vec<(&'static str, sweep::SkinError)> {
