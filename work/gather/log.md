@@ -214,3 +214,17 @@ more than reading the diff. Its new field census caught a via x/y swap
 that 1606 tests had missed. The lane filed EDIT's
 `node-slot-tables-are-spelled-three-times-in-node-rs` (P1) and LIB's
 `polygon-door-refuses-at-point-slots-its-corners-do-not-live-at` (P3).
+
+## 2026-09-26 — local CI authorized; GATHER's lanes gate on the local battery
+
+Ev, in chat, 2026-09-26: *"given the severe queueing, feel free to run
+ci locally."* GATHER's lanes now run `local-scripts/ci-local.sh`
+(change-filtered, the same classifier as hosted CI) once a change is
+final, and the orchestrator merges on a green local battery. The hosted
+run is left in place. **Serialized, because the box is small** (4
+cores, 15 GB RAM, about 24 GB free disk): a battery takes every build
+slot (`with-build-slot.sh -x`), so only one runs machine-wide. Other
+heavy cargo work also goes through the slot. Each lane deletes its
+worktree `target/` after its battery, and one with under 12 GB free asks
+before starting. The standing note handed to lanes is
+`local-ci-note.md` in the orchestrator's scratchpad.
