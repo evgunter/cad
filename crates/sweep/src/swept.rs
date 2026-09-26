@@ -342,19 +342,15 @@ pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, sweep: T, turn: Sign
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
-/// decided turn (`turn_axis`'s reading — a clockwise turn negates).
+/// decided turn (a clockwise turn negates, as in `turn_axis`).
 ///
-/// The turn is the profile's certified sign of the sweep, so at `f64`
-/// this is `|sweep|` to the bit, and at `Interval` it is `|sweep|`'s
-/// enclosure for every sweep whose box keeps its sign — which a
-/// classified arc's does. It is spelled through the turn rather than
-/// through `abs` because the symbolic tier reads forms: the span is
-/// then `±sweep`, the very node the pushforward
-/// ([`SketchSegment::eval`]) turns through, and rule D folds both
-/// through the one `atan` atom the lowering minted
-/// (`geom_core::sym::trig`). `abs(sweep)` would be an atom the tier
-/// cannot see through. [`register_span_identity`] is stated about this
-/// span.
+/// The turn is the profile's certified sign of the sweep, so this is
+/// `|sweep|` to the bit at `f64` and `|sweep|`'s enclosure at
+/// `Interval`. It is spelled through the turn, not `abs`, so that at
+/// `Sym` it is `±sweep`, the node [`SketchSegment::eval`] turns
+/// through, which rule D folds (`geom_core::sym::trig`); `abs(sweep)`
+/// would be an opaque atom. [`register_span_identity`] is stated about
+/// this span.
 pub(crate) fn arc_span<T: Real>(turn: Sign, sweep: T) -> T {
     match turn {
         Sign::Positive | Sign::Zero => sweep,

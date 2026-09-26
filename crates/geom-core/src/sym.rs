@@ -302,9 +302,8 @@
 //! 60-term, degree-16 products (`work/sym/symbolic-tier-census`).
 //! And the reach was measured at the UNIT bulge: a parameter bulge was
 //! outside the mechanism while the carrier's span was spelled `atan|b|`
-//! (R2's D-tab: `3.52e2 · ε` on and off alike; the span now shares the
-//! pushforward's atom, `trig`'s header, and the D-tab's nominal split
-//! is unmoved by it — its forms freeze on the ring first) and a literal
+//! (R2's D-tab, `3.52e2 · ε` on and off alike; the span now shares the
+//! pushforward's atom and the nominal split did not move) and a literal
 //! bulge other than 1 leaves residue — at M10-10 R1's boss at bulge 2
 //! stood at `carrier_matches_mapped_source` 6 of 54 and
 //! `carrier_on_surface_2` 27 of 90 numeric with its ceiling unmoved;

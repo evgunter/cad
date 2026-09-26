@@ -176,8 +176,7 @@ impl<T: Real> AxisFrame<T> {
 /// angles 0 and π of the radial direction), and whichever of those
 /// two points lies on the arc is folded in. Membership is the chord
 /// half-plane test the arc classes use (the chord splits the carrier
-/// into exactly two arcs; ours is the one on the side the sweep's sign
-/// names),
+/// into exactly two arcs; ours is on the side the sweep's sign names),
 /// folded **comparison-free** via `copysign`: the candidate enters
 /// the `max` lattice with the membership margin's sign, so an
 /// off-arc candidate is negated and never wins (`r_max ≥ 0`). A zero

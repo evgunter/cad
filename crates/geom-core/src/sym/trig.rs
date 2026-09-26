@@ -12,8 +12,9 @@
 //! `SketchSegment::eval`), which the profile's lowering mints as
 //! `4·atan(bulge)`, and its carrier is evaluated through `cos t`,
 //! `sin t` at `t = (i/8)·σ·θ`, the span signed by the decided turn σ
-//! (`Curve3::circle_at` over the certifier's schedule). Held opaque, `sin(½·atan b)` and `cos(atan b)` are two
-//! unrelated indeterminates and the residual between the spellings is
+//! (`Curve3::circle_at` over the certifier's schedule). Held opaque,
+//! `sin(½·atan b)` and `cos(atan b)` are two unrelated indeterminates
+//! and the residual between the spellings is
 //! not the zero form anywhere the trig has not collapsed. Written in
 //! closed form both sides are rational functions of `X` and one
 //! `sqrt` atom, and rules A/B (`super::algebra`) close the ring.
