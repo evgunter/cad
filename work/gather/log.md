@@ -271,3 +271,13 @@ guard, merging on the local battery before the hosted run lands is the
 owner's call. The orchestrator reads Ev's "feel free to run ci locally"
 as that call, merges on a green battery, leaves the hosted run in place,
 and names the basis at each merge.
+
+**The override cannot be used from a subagent.** The session's auto-mode
+permission classifier denies a lane's `ci-local.sh` launch that carries
+`CAD_LOCAL_CI_OVERRIDE`, reading it as a safety bypass (tag-vocabulary
+lane, 2026-09-26). No lane works around a denial. Until a permission
+rule allows it, GATHER's lanes verify with targeted runs through the
+shared build slot and poll the hosted run, and merges wait on hosted
+green. PR 3259 (tag vocabulary) is in its STYLE review. Its lane's
+finding: `transition_table!` builds all three projections, so the
+trigger had fired, and the three macros now share `tag_projections!`.
