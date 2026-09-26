@@ -100,6 +100,6 @@ BlendTarget`, `pane/properties.rs`'s entity heading,
   word other than `node`; the second pass
   (`rg -n '\b(node|id)\.0\b' crates/viewer/src`, filtered to text)
   found two `feature {}` literals that spell the chrome word WITHOUT
-  its home: `session/refuse.rs`'s `ProfileEditStale`-family
+  its home: `session/refuse.rs`'s `ProfileRestructure`
   "feature {} was not edited" and `sketch.rs`'s `NotAProfile` — the
   literal-sweep's own blind spot (`write!`, not `format!`).
