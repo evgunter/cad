@@ -743,6 +743,12 @@ pub const SHARED_CLAUSE_ONLY: &[(&str, &str)] = &[
         "an authored fillet radius metered against zero",
     ),
     (
+        "path_run_out_carrier",
+        "an emitted segment told apart from a fillet's arrival carrier: its end's lateral \
+         miss from the arrival ray and its advance along it, or its end's and arc midpoint's \
+         radial misses from the arrival circle",
+    ),
+    (
         "path_seam_arrival_lever",
         "the lever arm the seam arrival's own turn and side gates are metered through",
     ),

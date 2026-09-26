@@ -114,7 +114,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             certifies_at: 3.870e2,
             refuses_at: 3.873e2,
             registered: 144,
-            symbolic_zero: 1083,
+            // One of these is the bracket's fillet run out read against
+            // its arrival carrier (`path_run_out_carrier`), a margin the
+            // tier proves zero rather than measuring it.
+            symbolic_zero: 1084,
             at: Box::new(move |s: f64| crate::m10_7_r2_probes_interval::bracket(s, tol).0),
         },
         Study {
@@ -123,7 +126,8 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             refuses_at: 2.084e3,
             // 86 until SYM-5's rule E (`common_factor`). The pad is
             // the one of the five whose `registered` the rule moves,
-            // and it moves it UP: with the dial off this replay reads
+            // and it moves it UP: as measured when rule E landed, with
+            // the dial off this replay read
             // `symbolic_zero: 695, registered: 86, numeric: 1172`, with
             // it on `858 / 104 / 991` — 181 decisions leave `numeric`,
             // 163 of them as theorems and 18 through the door, and
@@ -141,9 +145,9 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // 104 until SYM-8's rule F (`manifest_sign`), which moves
             // this same document and only this one again, and again
             // the second cause: `without_rule_f` reads
-            // `symbolic_zero: 858, registered: 104, numeric: 991`
-            // here and the shipped set `854 / 128 / 971` — the same
-            // 1953 decisions, 24 of them moving INTO the door, 20 out
+            // `symbolic_zero: 861, registered: 104, numeric: 1002`
+            // here and the shipped set `857 / 128 / 982` — the same
+            // 1967 decisions, 24 of them moving INTO the door, 20 out
             // of `numeric` and FOUR out of `symbolic_zero`. Those four
             // are the unit's disclosed finding: opening an `abs` atom
             // the early walk was cancelling over can cost that walk a
@@ -154,7 +158,10 @@ pub(crate) fn measured_studies(tol: Tol) -> [Study; 5] {
             // nominal moves, and no ceiling on any of the eight
             // measured documents moves by a digit.
             registered: 128,
-            symbolic_zero: 854,
+            // Three of these are the pad's fillet run outs read against
+            // their arrival carriers (`path_run_out_carrier`), margins
+            // the tier proves zero rather than measuring them.
+            symbolic_zero: 857,
             at: Box::new(move |s: f64| crate::m10_8_r2_probes_interval::pad(s, tol).0),
         },
     ]
@@ -531,8 +538,8 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// side; this one is the DIFFERENTIAL that says what rule F
 /// (`SymRules::manifest_sign`) did to it. At the scale the pad
 /// certifies whole at, over its analyzed box, rule F off → on:
-/// `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
-/// 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+/// `symbolic_zero` 861 → 857, `registered` 104 → 128, `numeric`
+/// 1002 → 982, `frozen` 2750 either way — the same 1967 decisions, 24
 /// of them moving into the door, twenty out of `numeric` and FOUR out
 /// of `symbolic_zero`.
 ///
@@ -575,8 +582,8 @@ fn m10_9_the_pads_four_at_both_dials() {
         );
         got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (858, 104, 991, 2750), "rule F off");
-    assert_eq!(got[1], (854, 128, 971, 2750), "rule F on");
+    assert_eq!(got[0], (861, 104, 1002, 2750), "rule F off");
+    assert_eq!(got[1], (857, 128, 982, 2750), "rule F on");
     assert_eq!(
         got[0].0 + got[0].1 + got[0].2,
         got[1].0 + got[1].1 + got[1].2,

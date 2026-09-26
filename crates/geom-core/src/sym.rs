@@ -539,8 +539,8 @@
 //! and every whole-certifying ceiling is identical to the digit on all
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
-//! `symbolic_zero` 858 → 854, `registered` 104 → 128, `numeric`
-//! 991 → 971, `frozen` 2750 either way — the same 1953 decisions, 24
+//! `symbolic_zero` 861 → 857, `registered` 104 → 128, `numeric`
+//! 1002 → 982, `frozen` 2750 either way — the same 1967 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
 //! of `symbolic_zero`. Those four are the unit's finding: opening an
 //! atom the early walk was cancelling OVER can cost that walk a

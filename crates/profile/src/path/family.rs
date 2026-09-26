@@ -269,8 +269,12 @@ pub(super) fn resolve_arc_arrival<T: geom_core::Decide>(
     // by construction, so the arc's outgoing joint is declared exactly
     // when that run exists; on an exact fit the fillet arc ends the
     // side at the anchor itself and the outgoing direction stays free.
-    let follows = (trims.fit_out == Sign::Positive).then_some(super::ArrivalCarrier::Circle);
-    core.emit_fillet_arc(&trims, follows, meta.bound_at)?;
+    let circle = super::ArrivalCarrier::Circle(SegArc {
+        center: centre,
+        radius: (anchor - centre).norm_squared().sqrt(),
+    });
+    let follows = (trims.fit_out == Sign::Positive).then_some(circle);
+    core.emit_fillet_arc(&trims, follows, meta.bound_at, tol)?;
     let tip = if trims.fit_out == Sign::Positive {
         let head = core.head()?;
         let bulge = crate::sugar::bulge_from_center(head, anchor, centre, winding);
@@ -351,7 +355,11 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
     if trims.fit_out == Sign::Positive {
         // The arrival still has carrier run left: the fillet arc is an
         // interior segment and the run itself closes the loop.
-        core.emit_fillet_arc(&trims, Some(super::ArrivalCarrier::Circle), meta.bound_at)?;
+        let circle = super::ArrivalCarrier::Circle(SegArc {
+            center: centre,
+            radius,
+        });
+        core.emit_fillet_arc(&trims, Some(circle), meta.bound_at, tol)?;
         let head = core.head()?;
         let bulge = crate::sugar::bulge_from_center(head, start_pos, centre, winding);
         // The arrival spec's own step is the fused verb's (see
@@ -359,7 +367,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         if arrival_radius {
             core.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier2)?;
         }
-        core.set_leaving(bulge, FirstSeg::Arc)?;
+        core.close_leaving(bulge, FirstSeg::Arc)?;
         let chord = (start_pos - head).norm_squared().sqrt();
         junction_check(
             &Incoming {
@@ -383,7 +391,7 @@ pub(super) fn resolve_arc_close<T: geom_core::Decide>(
         // junction check below reads the resolver's computed carrier
         // and says nothing about what was stored.
         let leaving = core.record_fillet_arc(trims.arc.radius, meta.bound_at)?;
-        core.set_leaving(trims.bulge, FirstSeg::Arc)?;
+        core.close_leaving(trims.bulge, FirstSeg::Arc)?;
         debug_assert_eq!(leaving, core.verts.len() - 1, "{PAIRED}");
         junction_check(
             &Incoming {

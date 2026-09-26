@@ -362,36 +362,162 @@ pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
 }
 
 /// **A fillet's run lies on its own side's carrier**: a run in on the
-/// incoming side's, a run out on the arrival side's — straight where
-/// that side is a ray, an arc where the fused verb authored an arc
-/// carrier for it. A segment on any other carrier is the piece of the
-/// step that drew it, so a run of the wrong kind is a later step's
-/// segment credited to the fillet: a name on it would move to whatever
-/// the fillet's run becomes once that step is dropped.
+/// incoming side's, a run out on the arrival side's. A segment on any
+/// other carrier is the piece of the step that drew it, so a run off
+/// its carrier is a later step's segment credited to the fillet: a name
+/// on it would move to whatever the fillet's run becomes once that step
+/// is dropped.
+///
+/// A run meets its fillet's arc at one vertex `s`, where the side's
+/// carrier is tangent to the arc. So a ray side's run is straight, on
+/// the arc's tangent line at `s` and along it in the arc's travel
+/// sense, and an arc side's run lies on the one circle tangent there
+/// that the side's spec also pins: its centre, its radius and side, or
+/// a point it passes through. The run's far end and its arc midpoint
+/// are each measured from that circle, never the run's own circle
+/// rebuilt from its chord — the point deviation production's
+/// `PendingRunOut::rides` reads too, and for the same reason: it rounds
+/// at ε·R whatever the run's length. Each is a distance in meters,
+/// compared against the run's escalation threshold Kε: a run on a
+/// definitely different carrier is past it.
 pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
-    use profile::{PieceRole, Step};
-    for (k, p) in closed.structure.pieces.iter().enumerate() {
-        let straight = !matches!(closed.loop_.segments()[k], profile::Segment::Arc { .. });
-        // (incoming side straight, arrival side straight) per fillet verb.
+    use profile::{ArcData, ArcSide, PieceRole, Segment, Step, Target};
+    let tol = Tol::witness();
+    let reach = tol.k() * tol.eps();
+    let pieces = &closed.structure.pieces;
+    let verts = closed.loop_.vertices();
+    let segs = closed.loop_.segments();
+    let n = verts.len();
+    for (k, p) in pieces.iter().enumerate() {
+        // The incoming and arrival carriers per fillet verb: `None` is
+        // a ray, `Some` the fused verb's authored arc spec.
         let sides = match &closed.program[p.step] {
-            Step::Fillet { .. } => (true, true),
-            Step::FilletArc { .. } => (true, false),
-            Step::ArcFillet { .. } => (false, true),
-            Step::ArcFilletArc { .. } => (false, false),
+            Step::Fillet { .. } => (None, None),
+            Step::FilletArc { spec, .. } => (None, Some(*spec)),
+            Step::ArcFillet { spec, .. } => (Some(*spec), None),
+            Step::ArcFilletArc { spec, spec2, .. } => (Some(*spec), Some(*spec2)),
             _ => continue,
         };
-        let want = match p.role {
-            PieceRole::RunIn => sides.0,
-            PieceRole::RunOut => sides.1,
+        // The side's carrier, the fillet arc's segment, and the vertex
+        // the run shares with it.
+        let (carrier, arc_at, s) = match p.role {
+            PieceRole::RunIn => (sides.0, (k + 1) % n, verts[(k + 1) % n]),
+            PieceRole::RunOut => (sides.1, (k + n - 1) % n, verts[k]),
             PieceRole::Leg | PieceRole::Arc | PieceRole::Piece(_) => continue,
         };
         assert_eq!(
-            straight,
-            want,
-            "segment {k} is {p} but is {} while that side's carrier is {}",
-            if straight { "straight" } else { "an arc" },
-            if want { "a ray" } else { "a circle" },
+            pieces[arc_at],
+            profile::Piece {
+                step: p.step,
+                role: PieceRole::Arc,
+            },
+            "segment {k} is {p}, so segment {arc_at} beside it is that fillet's arc"
         );
+        let Segment::Arc {
+            centre: fc,
+            sweep: fs,
+            ..
+        } = segs[arc_at]
+        else {
+            panic!("segment {arc_at} is {p}'s fillet arc but is straight");
+        };
+        // The arc's unit tangent at `s`, in its travel sense, and its
+        // left normal. A run leaves or reaches `s` along that tangent.
+        let (rx, ry) = (s.x - fc.x, s.y - fc.y);
+        let rl = rx.hypot(ry);
+        let (tx, ty) = (-ry / rl * fs.signum(), rx / rl * fs.signum());
+        let (lx, ly) = (-ty, tx);
+        let other = if p.role == PieceRole::RunIn {
+            verts[k]
+        } else {
+            verts[(k + 1) % n]
+        };
+        let what = format!("segment {k} is {p}");
+        match (carrier, segs[k]) {
+            (None, Segment::Line) => {
+                let across = tx * (other.y - s.y) - ty * (other.x - s.x);
+                assert!(
+                    across.abs() <= reach,
+                    "{what} but leaves its ray's line by {across:e} (Kε = {reach:e})"
+                );
+                // The ray is a half-line: a run in reaches `s` along
+                // it, a run out leaves `s` along it.
+                let (ox, oy) = (other.x - s.x, other.y - s.y);
+                let ahead = if p.role == PieceRole::RunIn {
+                    -(tx * ox + ty * oy)
+                } else {
+                    tx * ox + ty * oy
+                };
+                assert!(
+                    ahead > 0.0,
+                    "{what} but runs backward along its ray's line ({ahead:e})"
+                );
+            }
+            (Some(spec), Segment::Arc { sweep, .. }) => {
+                // The side's circle: the one tangent to the fillet arc
+                // at `s` that the spec also pins, with its centre at
+                // `s + λ·left` — its centre, its radius and side, or a
+                // point it passes through.
+                let through = |q: Point2<f64>| {
+                    let (qx, qy) = (q.x - s.x, q.y - s.y);
+                    (qx * qx + qy * qy) / (2.0 * (lx * qx + ly * qy))
+                };
+                let lambda = match spec {
+                    ArcData::Center { c, .. } => {
+                        let (cx, cy) = (c.x - s.x, c.y - s.y);
+                        let along = tx * cx + ty * cy;
+                        assert!(
+                            along.abs() <= reach,
+                            "{what} but its side's centre {c:?} is {along:e} off the fillet \
+                             arc's normal (Kε = {reach:e})"
+                        );
+                        lx * cx + ly * cy
+                    }
+                    ArcData::Radius { r, side, .. }
+                    | ArcData::Sweep { r, side, .. }
+                    | ArcData::ArcLen { r, side, .. } => {
+                        let left = side == ArcSide::Left;
+                        assert_eq!(sweep > 0.0, left, "{what} but winds against {side:?}");
+                        if left { r } else { -r }
+                    }
+                    ArcData::Via { q, .. } => through(q),
+                    ArcData::Bulge {
+                        target: Target::Point(q),
+                        b,
+                    } => {
+                        assert_eq!(sweep > 0.0, b > 0.0, "{what} but winds against b = {b}");
+                        through(q)
+                    }
+                    ArcData::Bulge { target, .. } => {
+                        panic!("{what}: a bulge spec with a {target:?} target authors no circle")
+                    }
+                };
+                let (cx, cy, radius) = (s.x + lambda * lx, s.y + lambda * ly, lambda.abs());
+                // The run's far end and its arc midpoint, each measured
+                // from that circle: a point deviation, which rounds at
+                // ε·R however short the run — the same measurement, in
+                // the same convention, as `PendingRunOut::rides`, the
+                // production test of which step a run out is named for.
+                let (a, e, bulge) = (verts[k], verts[(k + 1) % n], closed.loop_.bulges()[k]);
+                let (hx, hy) = ((e.x - a.x) / 2.0, (e.y - a.y) / 2.0);
+                let mid = Point2::new(a.x + hx + hy * bulge, a.y + hy - hx * bulge);
+                for (at, q) in [("end", other), ("midpoint", mid)] {
+                    let miss = (q.x - cx).hypot(q.y - cy) - radius;
+                    assert!(
+                        miss.abs() <= reach,
+                        "{what} but its {at} is {miss:e} off its side's circle {spec:?} \
+                         (Kε = {reach:e})"
+                    );
+                }
+            }
+            (carrier, seg) => panic!(
+                "{what} but is {seg:?} while that side's carrier is {}",
+                match carrier {
+                    None => "a ray".to_owned(),
+                    Some(spec) => format!("the circle of {spec:?}"),
+                }
+            ),
+        }
     }
 }
 
