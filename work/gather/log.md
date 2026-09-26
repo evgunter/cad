@@ -342,3 +342,12 @@ this PR states the difference and pins today's behaviour. The
 source-reading guards could not see a `sources.len()` drift, which is
 the drift the item itself recorded. The product side gets a behavioural
 pin. The fix pass is back with the lane.
+
+**A full local battery barely fits this box's disk.** Even with
+incremental off, 3264's battery grew its worktree `target/` to 24 GB
+(`debug/deps` 17 GB, `debug/examples` 5.4 GB) against a budget of about
+37 GB, of which about 9 GB is the base system. At 2.4 GB free during the
+test rows, the finished clippy rows' `debug/examples` was deleted
+(back to 7.8 GB). Only one battery at a time, lane targets deleted
+between runs, and the worktree's `target/` removed before the next
+battery starts.
