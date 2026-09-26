@@ -1444,6 +1444,24 @@ fn torus_chart_windows<T: Decide>(
     Ok(acc)
 }
 
+/// **A point's elevation off a ring torus's tube**: `√((ρ − R)² + h²) − r`,
+/// the exact signed distance to the surface (negative inside the tube).
+/// Every door that asks "is this point ON the torus" reads this one
+/// expression, so the solid door, the face door and their rows cannot
+/// disagree about which points lie on the tube.
+pub(super) fn torus_elevation<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    p: Point3<T>,
+) -> T {
+    let w = p - center;
+    let h = w.dot(axis);
+    let rho = (w - axis * h).norm();
+    ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
+}
+
 /// Is the ON-TORUS point `p` within the torus face's chart trim?
 /// `Some(true/false)` definite, `None` a graze the ray schedule retries.
 /// [`point_on_wall_in_face`]'s contract, on the torus chart.
@@ -2636,10 +2654,7 @@ fn point_in_faces<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let w = q - center;
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
-                let elev = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
+                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
@@ -3611,11 +3626,17 @@ fn cast_ray<T: Decide>(
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
                     }
-                    let wp = p - center;
-                    let hp = wp.dot(axis);
-                    let rad = wp - axis * hp;
-                    let rho = rad.norm();
-                    let n_chart = (rad / rho * (rho - major_radius) + axis * hp) / minor_radius;
+                    // The tube's chart normal, from the one home it has.
+                    let n_chart = geom_brep::implicit_gradient(
+                        &Surface::Torus {
+                            center,
+                            axis,
+                            major_radius,
+                            minor_radius,
+                            u_ref,
+                        },
+                        p,
+                    );
                     let outward = oriented(
                         decide(
                             "bool_ray_torus_incidence",

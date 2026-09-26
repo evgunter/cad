@@ -195,25 +195,16 @@ pub(crate) fn resolve<T: Decide>(
             charted((point()? - *center).normalize(), SectorCarrier::Sphere)
         }
         // The chart normal of a ring torus at `p` is `p` minus its foot
-        // on the core circle — the circle of radius `major_radius` in
-        // the plane through `center` normal to `axis`. The foot is
-        // `center + R·r̂` with `r̂` the unit radial of `p`, which is
-        // defined because a point ON a ring torus sits at `ρ ≥ R − r > 0`
-        // from the axis (the ring convention tier-3 check 1 enforces at
-        // rest); `p − foot` then has length `r`.
-        geom::Surface::Torus {
-            center,
-            axis,
-            major_radius,
-            ..
-        } => {
-            let w = point()? - *center;
-            let radial = w - *axis * w.dot(*axis);
-            charted(
-                (w - radial.normalize() * *major_radius).normalize(),
-                SectorCarrier::Torus,
-            )
-        }
+        // on the core circle, over `r` — the implicit gradient, read from
+        // its one home rather than re-derived here. It is `0/0` only on
+        // the axis, which no point of a ring torus's tube reaches
+        // (`ρ ≥ R − r > 0`); a vertex there poisons the normal, and
+        // poison escalates typed at the first decide that reads it —
+        // the same outcome `point_on_torus_in_face`'s banded check gives.
+        s @ geom::Surface::Torus { .. } => charted(
+            geom_brep::implicit_gradient(s, point()?).normalize(),
+            SectorCarrier::Torus,
+        ),
         // The planar arm returned above; anything else has no arm.
         s => Err(SectorFaceError::Unsupported {
             face,

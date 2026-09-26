@@ -50,7 +50,7 @@
 use geom_core::{Band, Bounds, Decide, Margin, Point3, Sign};
 
 use super::boxes;
-use super::contain::{ContainError, FaceContainment, contfp};
+use super::contain::{ContainError, CurvedPlacement, FaceContainment, contfp};
 use super::plane_eq::PlaneDesc;
 use super::{BooleanError, ContactRecords, Operand, VfContact, VvContact};
 use crate::body::Body;
@@ -1243,7 +1243,7 @@ fn curved_face_arm<T: Decide>(
                 // pair that has no incidence to report — and refuses
                 // the whole op, since one refusing pair is enough.
                 //
-                // `Out` has THREE sources, and the argument differs by
+                // `Out` has TWO sources on the carrier, and the argument differs by
                 // source, so it is made per source rather than for the
                 // one that motivated the change:
                 //
@@ -1257,12 +1257,14 @@ fn curved_face_arm<T: Decide>(
                 //   Here NO sibling need hold it: the carrier simply
                 //   ends, and a floating peg's rim has no face of the
                 //   other operand under it at all.
-                // - **OFF-CARRIER** — the containment door's own first
-                //   test, reachable when the clearance row called the
-                //   arc on-carrier within the band and the point row
-                //   then resolves definitely off it at the same band.
                 //
-                // The last two have no neighbour to appeal to, so the
+                // An OFF-CARRIER answer is not a third source: the
+                // endpoint's residual decided `Zero` just above, so a
+                // containment that puts it definitely off the carrier
+                // contradicts that decision, and
+                // [`vertex_on_curved_face`] reports it `Undecided`.
+                //
+                // The HEIGHT source has no neighbour to appeal to, so the
                 // widening does NOT rest on one existing. What carries
                 // them is the **nothing-recorded guard** below: a pair
                 // whose every on-carrier endpoint came back `Elsewhere`
@@ -1931,13 +1933,22 @@ fn wall_crossing<T: Decide>(
         // remainder (a ringed face, a non-iso boundary, a full-period
         // azimuth window) and keeps the caller's frontier rather than
         // reading as "outside".
-        match super::contain::curved_face_containment(y, face, p, band) {
-            Ok(None) => return Ok(SpanVerdict::Unsettled),
-            // Definitely outside THIS face's trim: the carrier is
-            // crossed, but not here. The other root may still land in
-            // the face, so the loop continues rather than concluding.
-            Ok(Some(FaceContainment::Out)) => {}
-            Ok(Some(at)) => return Ok(SpanVerdict::Pierce { t, p, at }),
+        //
+        // **A landing point definitely OFF the carrier is not "outside
+        // the trim".** The root was certified ON the surface, so the
+        // point containment decides is off it CONTRADICTS that
+        // certificate — a root the band cannot stand behind at this
+        // pose. Reading it as a sibling face's crossing would step over
+        // a real crossing and report the span clear; it keeps the door.
+        match super::contain::curved_face_placement(y, face, p, band) {
+            Ok(CurvedPlacement::OffCarrier | CurvedPlacement::Trim(None)) => {
+                return Ok(SpanVerdict::Unsettled);
+            }
+            // On the carrier and definitely outside THIS face's trim:
+            // the carrier is crossed, but not here. The other roots may
+            // still land in the face, so the loop continues.
+            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
+            Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
             Err(super::contain::ContainError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
             }
@@ -2048,8 +2059,12 @@ fn vertex_on_curved_face<T: Decide>(
     band: Band,
     tol: Tol,
 ) -> Result<Placement, BooleanError> {
-    let verdict = super::contain::curved_face_containment(y, face, px, band)
+    let placement = super::contain::curved_face_placement(y, face, px, band)
         .map_err(|e| esc(e, x_is.other()))?;
+    let verdict = match placement {
+        CurvedPlacement::Trim(v) => v,
+        CurvedPlacement::OffCarrier => None,
+    };
     match verdict {
         Some(FaceContainment::OnVertex(vy)) => {
             push_vv(contacts, x_is, vx, vy);
@@ -2114,8 +2129,12 @@ fn vertex_on_curved_face<T: Decide>(
             Err(diag) => return Err(BooleanError::Escalated { diag }),
         }
     }
-    Ok(match verdict {
-        Some(FaceContainment::Out) => Placement::Elsewhere,
+    // Only an ON-carrier `Out` is a certified absence. Every caller
+    // reaches this door with the endpoint's residual decided `Zero`, so
+    // an off-carrier answer contradicts that decision and is not
+    // evidence the incidence lives elsewhere: it keeps the door.
+    Ok(match placement {
+        CurvedPlacement::Trim(Some(FaceContainment::Out)) => Placement::Elsewhere,
         _ => Placement::Undecided,
     })
 }

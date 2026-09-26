@@ -565,3 +565,165 @@ fn the_torus_waisted_union_stops_at_the_join_like_the_cylinder_control() {
         );
     }
 }
+
+// -------------------------------------------------------------------
+// A certified root the landing point contradicts keeps the door.
+// -------------------------------------------------------------------
+
+/// A `w × w` square bar along the unit direction `d`, from `o + d·t0`
+/// to `o + d·t1`: the square lies in the plane normal to `d` at the
+/// start, in the frame `u = normalize(d × ŷ)`, `v = d × u`.
+fn framed_bar(o: Point3<f64>, d: geom_core::Vec3<f64>, t0: f64, t1: f64, w: f64) -> Body<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let d = d.normalize();
+    let u = d.cross(Vec3::new(0.0, 1.0, 0.0)).normalize();
+    let v = d.cross(u);
+    let h = w / 2.0;
+    let lp = ProfileLoop::polygon([p2(-h, -h), p2(h, -h), p2(h, h), p2(-h, h)]);
+    let start = o + d * t0;
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(u, v, d),
+        start - Point3::origin(),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the framed bar's profile validates");
+    sweep::extrude(&vp, sweep::Extrusion::Distance(t1 - t0), Tol::witness())
+        .expect("the framed bar extrudes")
+        .body
+}
+
+/// **A bar through the tube is never answered as disjoint.** A near-
+/// perpendicular pose puts a certified quartic root a hair off the
+/// tube, and the landing point then reads definitely OFF the carrier.
+/// That used to be taken for "outside this face's trim", the root was
+/// stepped over, and the union came back as an assembly of two solids
+/// that overlap. Whatever the band does with this pose, it must not
+/// be that.
+#[test]
+fn a_near_perpendicular_bar_through_the_tube_never_comes_back_disjoint() {
+    let d = geom_core::Vec3::new(
+        -0.990_360_666_876_138_8,
+        1.376_996_009_986_983_2e-4,
+        0.138_512_564_568_957,
+    )
+    .normalize();
+    let o = Point3::new(
+        -2.109_637_800_205_744_5,
+        0.170_221_792_550_834_86,
+        1.920_645_887_674_835_4,
+    );
+    // A square narrower than a hundred ε is not a valid profile at the
+    // run's band, so the thinnest bar is taken only where it is one.
+    let floor = 100.0 * Tol::witness().get().eps;
+    for w in [1e-6, 1e-3].into_iter().filter(|&w| w > floor) {
+        let b = framed_bar(o, d, -4.6, -0.1, w);
+        if let Ok(r) = topo::union_with(&donut(), &b, &BooleanDeclarations::none(), Tol::witness())
+        {
+            panic!(
+                "a bar through the tube is not disjoint (w = {w}): {:?}",
+                r.body().map(|x| x.kind)
+            );
+        }
+    }
+}
+
+/// **A rod lying inside the tube is crossed twice, and never passed
+/// silently.** Its span leaves and re-enters the tube, so the sweep
+/// either accepts a crossing or refuses; and whatever the union
+/// answers, it is not two solids side by side.
+#[test]
+fn a_rod_inside_the_tube_is_not_passed_silently() {
+    let d = donut();
+    let rod = framed_bar(
+        Point3::new(
+            -1.647_779_393_496_495_5,
+            0.270_473_450_406_354_4,
+            1.497_185_557_815_917,
+        ),
+        geom_core::Vec3::new(
+            -0.980_697_285_232_897,
+            7.766_907_203_911_848e-5,
+            -0.195_532_167_952_848_92,
+        ),
+        -3.6,
+        4.5,
+        // The pose's own width, raised to a valid profile at a coarse
+        // run band (a square must stand clear of a hundred ε).
+        1e-5_f64.max(200.0 * Tol::witness().get().eps),
+    );
+    if let Ok((_, on_d)) = topo::sweep_traces(
+        &d,
+        &rod,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    ) {
+        assert!(!on_d.accepted.is_empty(), "the rod crosses the tube twice");
+    }
+    if let Ok(r) = topo::union(&d, &rod, Tol::witness()) {
+        assert!(!matches!(
+            r.body().expect("non-empty").kind,
+            topo::BooleanResultKind::Assembly
+        ));
+    }
+}
+
+/// **A grazing line keeps the door.** A rod along `y` whose edge
+/// touches the donut's outer equator at one point — a double root, a
+/// root count the quartic cannot certify — must refuse typed at the
+/// crossing layer. An uncertain count read as a miss would pass the
+/// rod as clear.
+#[test]
+fn a_rod_grazing_the_outer_equator_refuses_at_the_crossing_layer() {
+    let d = donut();
+    let rod = bar((-1e-3, 0.0), (-1.0, 1.0), (2.5, 2.501));
+    let err = topo::sweep_traces(
+        &d,
+        &rod,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .expect_err("a tangent line has no certified root count");
+    assert!(
+        matches!(
+            err,
+            BooleanError::CurvedPierceUnsupported {
+                operand: topo::Operand::B,
+                ..
+            }
+        ),
+        "the grazing edge keeps the crossing layer's door: {err:?}"
+    );
+}
+
+/// **A tilted segment through the tube, off the midplane** — the
+/// quartic's FERRARI arm (`e = d·a ≠ 0`, so the odd coefficient is
+/// definite and the resolvent cubic is solved), where every row above
+/// runs the biquadratic arm. The bar climbs from the hole to beyond the
+/// ring; each of its four long edges crosses the inner half and the
+/// outer half once, so the sweep mints eight fragments.
+#[test]
+fn a_tilted_segment_through_the_tube_is_pierced_on_the_ferrari_arm() {
+    let d = donut();
+    let dir = geom_core::Vec3::new(0.0, 0.3, 1.0).normalize();
+    let b = framed_bar(Point3::new(0.0, 0.25, 2.0), dir, -1.0, 1.0, 0.02);
+    let original: Vec<_> = b.edges().map(|(k, _)| k).collect();
+    let (_, b_on_d) =
+        topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
+            .expect("the sweep completes on the tilted bar");
+    let mut minted: Vec<_> = b_on_d
+        .accepted
+        .iter()
+        .map(|&(e, _)| e)
+        .filter(|e| !original.contains(e))
+        .collect();
+    minted.sort();
+    minted.dedup();
+    assert_eq!(
+        minted.len(),
+        8,
+        "two pierces on each of four edges: {b_on_d:?}"
+    );
+}

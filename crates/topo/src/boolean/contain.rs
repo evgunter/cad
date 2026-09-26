@@ -673,12 +673,51 @@ pub fn curved_face_containment<T: Decide>(
     q: Point3<T>,
     band: Band,
 ) -> Result<Option<FaceContainment>, ContainError> {
+    Ok(match curved_face_placement(body, face, q, band)? {
+        CurvedPlacement::OffCarrier => Some(FaceContainment::Out),
+        CurvedPlacement::Trim(v) => v,
+    })
+}
+
+/// [`curved_face_containment`] with its two kinds of `Out` kept apart.
+///
+/// A point outside a curved face is outside for one of two reasons, and
+/// a caller that put the point ON the carrier must not read them as one:
+///
+/// - [`CurvedPlacement::OffCarrier`]: the point is definitely off the
+///   face's SURFACE. For a caller that certified the point onto that
+///   surface — a certified root, a residual that decided `Zero` — this
+///   CONTRADICTS its own certificate, and the only honest answer is to
+///   keep its typed door.
+/// - `Trim(Some(FaceContainment::Out))`: the point is on the surface and
+///   the face's chart trim excludes it — a sibling face's incidence.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum CurvedPlacement {
+    /// Definitely off the face's carrier surface.
+    OffCarrier,
+    /// On the carrier (or not tested yet, where the boundary walk
+    /// already answered): the trim's verdict, `None` for no verdict.
+    Trim(Option<FaceContainment>),
+}
+
+/// The placement behind [`curved_face_containment`] (see
+/// [`CurvedPlacement`]); the public door is its projection.
+///
+/// # Errors
+///
+/// As [`curved_face_containment`].
+pub(crate) fn curved_face_placement<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    q: Point3<T>,
+    band: Band,
+) -> Result<CurvedPlacement, ContainError> {
     if let Some(v) = curved_boundary_containment(body, face, q, band)? {
-        return Ok(Some(v));
+        return Ok(CurvedPlacement::Trim(Some(v)));
     }
     let face_data = body.get_face(face).ok_or(ContainError::Corrupt)?;
     if !face_data.rings.is_empty() {
-        return Ok(None);
+        return Ok(CurvedPlacement::Trim(None));
     }
     let (origin, axis, radius, u_ref) = match body.get_surface(face_data.surface) {
         Some(&geom::Surface::Cylinder {
@@ -714,7 +753,7 @@ pub fn curved_face_containment<T: Decide>(
                 band,
             );
         }
-        _ => return Ok(None),
+        _ => return Ok(CurvedPlacement::Trim(None)),
     };
     // ON THE CHART FIRST. The trim below is parameter-domain work and
     // premises an on-wall point (`point_on_wall_in_face` says so in its
@@ -730,17 +769,19 @@ pub fn curved_face_containment<T: Decide>(
         band,
     ) {
         Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
     if !iso_bounded_wall(body, face, origin, axis, radius, band)? {
-        return Ok(None);
+        return Ok(CurvedPlacement::Trim(None));
     }
     let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
         Ok(t) => t,
         // A window this face cannot express is the honest remainder,
         // not corruption of the caller's query.
-        Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => return Ok(None),
+        Err(super::solid_contain::PointInSolidError::CorruptFace { .. }) => {
+            return Ok(CurvedPlacement::Trim(None));
+        }
         Err(e) => return Err(solid_err(e)),
     };
     // THE cosine-window construction's period guard, third site
@@ -759,15 +800,15 @@ pub fn curved_face_containment<T: Decide>(
         band,
     ) {
         Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => return Ok(None),
+        Ok(Sign::Zero | Sign::Negative) => return Ok(CurvedPlacement::Trim(None)),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, h, q, band,
     ) {
-        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
-        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
-        Ok(None) => Ok(None),
+        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
+        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+        Ok(None) => Ok(CurvedPlacement::Trim(None)),
         Err(e) => Err(solid_err(e)),
     }
 }
@@ -807,14 +848,14 @@ fn sphere_face_containment<T: Decide>(
     u_ref: Vec3<T>,
     q: Point3<T>,
     band: Band,
-) -> Result<Option<FaceContainment>, ContainError> {
+) -> Result<CurvedPlacement, ContainError> {
     match decide(
         "bool_curved_contain_carrier",
         Margin::of((q - center).norm() - radius),
         band,
     ) {
         Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
     let trim = match super::solid_contain::sphere_chart_trim(body, face, center, radius, axis, band)
@@ -822,18 +863,18 @@ fn sphere_face_containment<T: Decide>(
         Ok(Some(t)) => t,
         // A face the rectangle cannot express is the honest
         // remainder, not corruption of the caller's query.
-        Ok(None) => return Ok(None),
+        Ok(None) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
     if trim.az.is_none() {
-        return Ok(None);
+        return Ok(CurvedPlacement::Trim(None));
     }
     match super::solid_contain::point_on_sphere_in_face(
         face, center, radius, axis, u_ref, &trim, q, band,
     ) {
-        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
-        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
-        Ok(None) => Ok(None),
+        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
+        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+        Ok(None) => Ok(CurvedPlacement::Trim(None)),
         Err(e) => Err(solid_err(e)),
     }
 }
@@ -887,7 +928,7 @@ fn torus_face_containment<T: Decide>(
     chart: TorusChart<T>,
     q: Point3<T>,
     band: Band,
-) -> Result<Option<FaceContainment>, ContainError> {
+) -> Result<CurvedPlacement, ContainError> {
     let TorusChart {
         center,
         axis,
@@ -895,13 +936,11 @@ fn torus_face_containment<T: Decide>(
         minor_radius,
         u_ref,
     } = chart;
-    let w = q - center;
-    let h = w.dot(axis);
-    let rho = (w - axis * h).norm();
-    let elevation = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
+    let elevation =
+        super::solid_contain::torus_elevation(center, axis, major_radius, minor_radius, q);
     match decide("bool_curved_contain_carrier", Margin::of(elevation), band) {
         Ok(Sign::Zero) => {}
-        Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
+        Ok(Sign::Positive | Sign::Negative) => return Ok(CurvedPlacement::OffCarrier),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
     let (u_win, v_win) = match super::solid_contain::torus_face_windows(
@@ -915,7 +954,7 @@ fn torus_face_containment<T: Decide>(
         Err(
             super::solid_contain::PointInSolidError::PartialTorusFace { .. }
             | super::solid_contain::PointInSolidError::CorruptFace { .. },
-        ) => return Ok(None),
+        ) => return Ok(CurvedPlacement::Trim(None)),
         Err(e) => return Err(solid_err(e)),
     };
     match super::solid_contain::point_on_torus_in_face(
@@ -930,9 +969,9 @@ fn torus_face_containment<T: Decide>(
         q,
         band,
     ) {
-        Ok(Some(true)) => Ok(Some(FaceContainment::In)),
-        Ok(Some(false)) => Ok(Some(FaceContainment::Out)),
-        Ok(None) => Ok(None),
+        Ok(Some(true)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::In))),
+        Ok(Some(false)) => Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))),
+        Ok(None) => Ok(CurvedPlacement::Trim(None)),
         Err(e) => Err(solid_err(e)),
     }
 }
@@ -1098,6 +1137,10 @@ fn loop_cycle_points<T: Decide>(
     }
     Ok(out)
 }
+
+#[cfg(test)]
+#[path = "torus_landing_rows.rs"]
+mod torus_landing_rows;
 
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
