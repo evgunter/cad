@@ -2168,6 +2168,7 @@ test_utils::f6_variants! {
         MergedChordOffRim,
         SeamLineSides,
         MemberEdgeTied,
+        SplitReference,
         NarrowBand,
         Band,
         Escalated,
@@ -2329,6 +2330,22 @@ fn naming_error_display_names_its_content_not_its_struct() {
                 escalate: 1.5e-9,
             },
             vec!["naming band is too narrow", "below 2"],
+        ),
+        (
+            NamingError::SplitReference {
+                group: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(41),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                reference: Box::new(StableName {
+                    kind: EntityKind::Face,
+                    node: RecipeNodeId(43),
+                    path: vec![RoleSeg::Cap(CapEnd::Start)],
+                }),
+                curved: false,
+            },
+            vec!["node 41", "node 43", "several faces on different carriers"],
         ),
         (
             NamingError::Escalated {

@@ -172,8 +172,16 @@ transitive; the member faces so linked are one parent, named
 `Merged` of all of them, and a member face no merge links is its own
 parent. A parent the finished body holds as one face is that face's
 name. A parent it holds as several faces qualifies each with one
-`Fragment(SideOf)`: the partners are the parents of the faces across
-the group's seam edges, each cited by its parent name. So a face
+`Fragment(SideOf)`: the partners are the parents across the group's
+dividing seams, each cited by its parent name. A seam divides the
+parent when it belongs to a splitting feature — a member, or members
+that meet, whose seams border two or more of its faces; a member that
+borders one face and meets no other such member (a boss standing on
+it, a notch in it) divides nothing and is no partner. A curved
+partner has no plane to side against: where the planar partners tell
+every face apart it is set aside, and otherwise the union refuses
+(`NamingError::SplitReference`), as it does for a seam ranked against a
+curved side. So a face
 merged and then cut, and a face cut and then merged, are both
 `Merged(set)` + `SideOf`; a face cut by two members is one `SideOf`
 over both members' walls, whether one fold step cut it or two. The

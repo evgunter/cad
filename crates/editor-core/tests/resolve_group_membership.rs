@@ -470,17 +470,17 @@ fn a_seam_group_tied_parents_share_is_not_counted() {
     }
 }
 
-/// **A union counts what its later fold steps left of a group.**
+/// **A union names what its later fold steps left of a group.**
 ///
 /// The bar divides the plate's top into two at the first fold step,
 /// and the block C, united at the next, swallows one of the two pieces
-/// — so the published body holds ONE entity of that group, in both
-/// runs, before and after the bar slides. Its rim edges the same. A
-/// count taken where the group was formed would say 2 → 1; the
-/// published body says 1 → 1, and the rung declines. Both layouts: C
-/// over the far piece, and C over the near one.
+/// — so the published body holds ONE face of that parent, in both
+/// runs, before and after the bar slides. A parent held as one face is
+/// published under the parent's own name (N2), not as a fragment, so no
+/// name of the plate vanishes across the slide and the rung is never
+/// asked. Both layouts: C over the far piece, and C over the near one.
 #[test]
-fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
+fn a_union_group_a_later_step_partly_swallows_names_what_is_published() {
     for (label, c) in [
         ("far", ((1.7, 4.0), (-1.5, 4.5), 0.3, 1.4)),
         ("near", ((-1.0, 1.3), (-1.5, 4.5), 0.3, 1.4)),
@@ -516,16 +516,20 @@ fn a_union_group_a_later_step_partly_swallows_counts_what_is_published() {
             u,
             |n, _| matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate),
         );
-        assert!(
-            !rows.is_empty(),
-            "{label}: no fragment vanished, so the row pins nothing"
-        );
-        // 1 → 1 is no resize: the rung declines to the fallback.
-        for (n, d) in rows {
-            assert_eq!(
-                d,
-                fallback(u),
-                "{label}: {n:?} counted at the step that formed it"
+        assert!(rows.is_empty(), "{label}: {rows:?}");
+        for ev in [&ev1, &ev2] {
+            let t = &ev.value(u).expect("the union evaluates").name_table;
+            let plate_faces: Vec<_> = t
+                .iter()
+                .filter(|(n, _)| {
+                    n.kind == editor_core::EntityKind::Face
+                        && matches!(n.path.first(), Some(RoleSeg::FromMember { member, .. }) if *member == plate)
+                })
+                .map(|(n, _)| n.clone())
+                .collect();
+            assert!(
+                !plate_faces.is_empty() && plate_faces.iter().all(|n| n.path.len() == 1),
+                "{label}: the plate's faces are not all published whole: {plate_faces:?}"
             );
         }
     }

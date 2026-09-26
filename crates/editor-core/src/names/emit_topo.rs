@@ -60,6 +60,21 @@ pub(super) fn face_plane<T: Decide>(
     body: &Body<T>,
     f: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), NamingError> {
+    carrier_plane(body, f)?.ok_or(NamingError::Emission {
+        what: "face_plane: non-planar carrier in planar pipeline",
+    })
+}
+
+/// A point on a carrier plane and its outward normal ([`face_plane`]).
+pub(super) type OrientedPlane<T> = (Point3<T>, Vec3<T>);
+
+/// [`face_plane`] for a caller that has a rule of its own for a face
+/// whose carrier is not a plane: `None` there, the same oriented plane
+/// otherwise.
+pub(super) fn carrier_plane<T: Decide>(
+    body: &Body<T>,
+    f: FaceKey,
+) -> Result<Option<OrientedPlane<T>>, NamingError> {
     let bug = |what| NamingError::Emission { what };
     let face = body
         .get_face(f)
@@ -68,11 +83,11 @@ pub(super) fn face_plane<T: Decide>(
         .get_surface(face.surface)
         .ok_or_else(|| bug("face_plane: dangling surface"))?
     {
-        Surface::Plane { origin, normal, .. } => Ok((
+        Surface::Plane { origin, normal, .. } => Ok(Some((
             *origin,
             OutwardNormal::from_chart(*normal, face.sense).vec(),
-        )),
-        _ => Err(bug("face_plane: non-planar carrier in planar pipeline")),
+        ))),
+        _ => Ok(None),
     }
 }
 
