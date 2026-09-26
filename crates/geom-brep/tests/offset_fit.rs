@@ -574,9 +574,9 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// **The row asserts that the last round really did not improve**,
 /// because the name says so and a schedule change could otherwise
 /// leave it green over a loop that was never the shape it claims. The
-/// loop exposes no per-round trace, but it does not need to: the
-/// refinement schedule is a function of `(base, d)` alone — the
-/// tolerance decides only WHERE the walk stops — so a request whose
+/// loop exposes no per-round trace, but it does not need to: at a
+/// fixed band the tolerance decides only WHERE the walk stops
+/// (`BestBound`'s recourse claim), so a request whose
 /// tolerance an earlier round already met certifies ON that round and
 /// hands back exactly the bound this run stepped off. The ladder read
 /// back that way, at `d = 1e-4`:

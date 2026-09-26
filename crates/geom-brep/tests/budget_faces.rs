@@ -65,8 +65,8 @@ use crate::shared::tol::band;
 const TOLS: [f64; 5] = [1e-15, 1e-12, 1e-9, 1e-6, 1e-3];
 
 /// The best bound a face carries against the last one it carries:
-/// finite, above the tolerance (a request at it would otherwise have
-/// certified on the round that reached it), no larger than the last,
+/// finite, above the tolerance (the round that reached it would
+/// otherwise have certified), no larger than the last,
 /// and reached on a grid no finer. Returns the best bound, for the
 /// census to pin.
 fn best_is_the_smallest(
