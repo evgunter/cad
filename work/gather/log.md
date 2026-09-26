@@ -425,3 +425,12 @@ first, so GATHER's row on 3143 is renumbered DR-10 (fair pairs 9), per
 protocol item 8. 3143, 3259 and 3280 merged main (`16d7350e0`,
 `2a1409cd1`, `f24455aa2`). The integration tree `8e0c09540` (main plus
 the three) is running its battery.
+
+**The combined battery was lost twice to container reclaim.** It was
+first killed at `rustdoc` by a restart. It was then relaunched detached
+with nothing waiting on it, the session went idle, and the container was
+reclaimed within about three minutes. 3264's battery survived hours
+because a background waiter was always attached. The rule for long
+local batteries here: launch it with a waiter the session holds open, and
+never detach it and walk away. Relaunched that way at 12:27 on the same
+tree, `8e0c09540`.
