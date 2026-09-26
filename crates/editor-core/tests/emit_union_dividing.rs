@@ -2,12 +2,13 @@
 //! (N2's splitting features), not every neighbour of its pieces.
 //!
 //! A parent the finished body holds as several faces is qualified
-//! against the faces whose seams divide it: a partner's oriented plane
-//! has pieces strictly on both sides of it. A neighbour that stands on a
-//! piece, or notches or trims one, divides nothing, so it is no partner,
-//! whether it is curved (it has no plane at all) or planar. These rows
-//! hold that on the shapes that tell the two apart, and hold a split's
-//! names still under a value edit that moves the splitting feature.
+//! against the seams of the features that divide it: a member, or
+//! members that meet, whose seams border two or more of its faces. A
+//! member that stands on one face, or notches or trims one, divides
+//! nothing, so it is no partner, whether it is curved (it has no plane
+//! at all) or planar. These rows hold that on the shapes that tell the
+//! two apart, hold a split's names still under a value edit that moves
+//! the splitting feature, and hold that a curved divider refuses.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -163,8 +164,8 @@ fn a_curved_neighbour_that_divides_nothing_is_no_partner() {
         tables.push((format!("{order:?}"), names));
     }
     // The orders that fold the plate last split its top in the pair
-    // emitter's own step, which still sides against every seam neighbour
-    // and refuses on the boss
+    // emitter's own step, which sides against every seam neighbour and
+    // refuses on the boss
     // (`work/emit/the-pair-boolean-sides-a-split-face-against-every-seam-neighbour.md`);
     // the union adds no refusal of its own.
     assert_eq!(
@@ -325,4 +326,61 @@ fn a_split_keeps_its_names_when_the_splitting_feature_moves() {
         );
     }
     assert!(checked > 0);
+}
+
+/// A cylinder of radius 0.3 about the axis through `c` along `x × y`,
+/// from `c` for `length`.
+fn cylinder(
+    doc: ProfileDoc,
+    c: [f64; 3],
+    x: [f64; 3],
+    y: [f64; 3],
+    length: f64,
+) -> (ProfileDoc, RecipeNodeId) {
+    let (doc, plane) = insert(doc, frame(c, x, y));
+    let (doc, disc) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![LoopProgram::circle_split(0.0, 0.0, 0.3, 2, 0.0).unwrap()],
+            ids: Vec::new(),
+        }),
+    );
+    insert(
+        doc,
+        Node::Extrude {
+            profile: disc,
+            distance: len(length),
+        },
+    )
+}
+
+/// **A curved divider refuses where it divides, and the union adds no
+/// refusal of its own.** A cylinder lying along y across the plate's
+/// top divides it in two with curved walls, which have no plane to side
+/// the pieces against. Each member order refuses in the fold step that
+/// divides the top, as that pair boolean does alone, with the same
+/// refusal in both orders: the union neither publishes a guess nor
+/// refuses for a reason the pair does not.
+#[test]
+fn a_curved_divider_refuses_in_the_step_that_divides() {
+    let doc = ProfileDoc::empty_derived("union-dividing-across", Tol::witness());
+    let (doc, cyl) = cylinder(doc, [1.5, 4.0, 1.0], [1.0, 0.0, 0.0], [0.0, 0.0, 1.0], 5.0);
+    let (doc, plate) = block(doc, (0.0, 3.0), (0.0, 3.0), 0.0, 1.0);
+    let (pair_doc, pair) = insert(
+        doc.clone(),
+        Node::Boolean {
+            op: BooleanOp::Union,
+            a: plate,
+            b: cyl,
+            declare: None,
+        },
+    );
+    let alone = failure(&run(&pair_doc), pair).map(|e| format!("{e:?}"));
+    assert!(alone.is_some(), "the pair boolean publishes");
+    for order in permutations(&[0, 1]) {
+        let (docx, u) = union_of(doc.clone(), &[plate, cyl], &order);
+        let refused = failure(&run(&docx), u).map(|e| format!("{e:?}"));
+        assert_eq!(refused, alone, "{order:?}");
+    }
 }

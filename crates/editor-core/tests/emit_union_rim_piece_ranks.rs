@@ -229,6 +229,52 @@ pub(crate) fn cases() -> Vec<Case> {
     out
 }
 
+/// The split cases the row also runs under a value edit: `(case, block,
+/// dx)` moves that block, a slab dividing `a`'s top, `dx` along x.
+const EDITED: &[(&str, usize, f64)] = &[("r1two", 1, 0.05), ("r1flush", 2, 0.05)];
+
+impl Case {
+    /// This case with block `i` moved `dx` along x: the same recipe, node
+    /// for node, with only values changed, as a value edit leaves it.
+    fn moved(&self, i: usize, dx: f64) -> Case {
+        let mut blocks = self.blocks.clone();
+        let ((x0, x1), y, z) = blocks[i];
+        blocks[i] = ((x0 + dx, x1 + dx), y, z);
+        Case {
+            label: format!("{} moved", self.label),
+            blocks,
+            creation: self.creation.clone(),
+            flush: self.flush.clone(),
+            nested: self.nested,
+        }
+    }
+}
+
+/// Each fused run of `case`, by order and union tag → the centroid of
+/// each uniquely named entity.
+fn centroids(case: &Case) -> BTreeMap<String, BTreeMap<StableName, [f64; 3]>> {
+    let mut out = BTreeMap::new();
+    runs(case, |at, ev, _, unions| {
+        for &(tag, union) in unions {
+            if failure(ev, union).is_some() {
+                continue;
+            }
+            let at_union = geometry(ev, union)
+                .into_iter()
+                .map(|(n, ps)| {
+                    let k = ps.len() as f64;
+                    let sum = ps.iter().fold([0.0; 3], |c, p| {
+                        [c[0] + p.0 as f64, c[1] + p.1 as f64, c[2] + p.2 as f64]
+                    });
+                    (n, sum.map(|c| c / k / 1e6))
+                })
+                .collect();
+            out.insert(format!("{at} {tag}"), at_union);
+        }
+    });
+    out
+}
+
 /// Every pair of three blocks declared flush.
 const TRI: [(usize, usize); 3] = [(0, 1), (1, 2), (0, 2)];
 
@@ -343,8 +389,14 @@ const KNOWN_MIXED: &[(&str, &str, usize, &str)] = &[
 /// A name one fused order publishes and another does not fails the row,
 /// whatever it names: a vertex, a piece of a member edge, a face or a
 /// seam edge. Each is named for what the finished body holds — a face
-/// for its parent and the parents across its seams, a seam edge for the
-/// parents it lies between (N2, N3) — so it is the same in every order.
+/// for its parent and the parents across its dividing seams, a seam edge
+/// for the parents it lies between (N2, N3) — so it is the same in every
+/// order.
+///
+/// The split cases of [`EDITED`] run again under a value edit that
+/// slides a dividing slab: in every order, the same names are published
+/// before and after, and each denotes an entity the slide moved no
+/// further than itself.
 #[test]
 fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     let mut compared = 0;
@@ -447,6 +499,35 @@ fn a_name_two_member_orders_both_publish_denotes_the_same_geometry() {
     assert!(
         compared > 1000,
         "only {compared} cross-order names compared"
+    );
+    let mut edited = 0;
+    for &(label, block, dx) in EDITED {
+        let case = cases().into_iter().find(|c| c.label == label).unwrap();
+        let (before, after) = (centroids(&case), centroids(&case.moved(block, dx)));
+        assert_eq!(
+            before.keys().collect::<Vec<_>>(),
+            after.keys().collect::<Vec<_>>(),
+            "{label}: the edit changed which orders fuse"
+        );
+        for (at, was) in &before {
+            let now = &after[at];
+            assert_eq!(
+                was.keys().collect::<Vec<_>>(),
+                now.keys().collect::<Vec<_>>(),
+                "{label} {at}: the edit changed the published names"
+            );
+            for (name, p) in was {
+                let q = now[name];
+                let d =
+                    ((p[0] - q[0]).powi(2) + (p[1] - q[1]).powi(2) + (p[2] - q[2]).powi(2)).sqrt();
+                assert!(d <= dx + 1e-6, "{label} {at}: {name:?} moved {d}");
+                edited += 1;
+            }
+        }
+    }
+    assert!(
+        edited > 1000,
+        "only {edited} names compared across the edit"
     );
 }
 
