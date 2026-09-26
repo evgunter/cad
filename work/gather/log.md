@@ -434,3 +434,13 @@ because a background waiter was always attached. The rule for long
 local batteries here: launch it with a waiter the session holds open, and
 never detach it and walk away. Relaunched that way at 12:27 on the same
 tree, `8e0c09540`.
+
+**The combined battery finished green at 16:18, and its waiter never
+fired.** The waiter's `pgrep -f 'bash local-scripts/ci-local.sh'`
+matched its own command line, so it waited forever (the same self-match
+that misread the 12:24 check). A waiter must match a PID it captured,
+never a pattern that is in its own argv. The summary shows every row
+PASS apart from the known `corrupt input (release profile)` false red,
+plus filter SKIPs. Ev reports that the hosted queue is tolerable again,
+so 3259, 3143 and 3280 merged main `360eb7320` without `[skip ci]`
+(`a9aed8377`, `94aaa2eff`, `9bf006420`) and merge on hosted green.
