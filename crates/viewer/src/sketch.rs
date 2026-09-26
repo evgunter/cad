@@ -61,6 +61,8 @@ use pncad::profile::{
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
+use crate::frame::Tone;
+
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
 ///
@@ -785,6 +787,27 @@ impl ProfilePreview {
     pub fn has_open_chain(&self) -> bool {
         self.loops.iter().any(|drawn| !drawn.closed)
     }
+
+    /// **How loud the editor draws what this preview says** — the
+    /// salience a surface reads off the value, as
+    /// [`crate::session::Standing::tone`] reads it off a selection.
+    ///
+    /// A preview that did not validate ([`Self::invalid`]) is
+    /// [`Tone::Actionable`]: the loops cross, or a hole is not inside
+    /// its outer, and the commit door refuses the profile until the
+    /// reader moves a step somebody wrote.
+    ///
+    /// Everything else is [`Tone::Advisory`]. An OPEN chain is the
+    /// state every chain passes through while it is being written, so
+    /// saying it has not closed yet asks nothing of the reader but to
+    /// go on writing; and a drawn, valid preview is a report.
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match self.invalid {
+            Some(_) => Tone::Actionable,
+            None => Tone::Advisory,
+        }
+    }
 }
 
 /// Why a preview could not be drawn at all.
@@ -899,6 +922,35 @@ impl core::fmt::Display for PreviewError {
 }
 
 impl core::error::Error for PreviewError {}
+
+impl PreviewError {
+    /// **How loud the editor draws this refusal** — read off the
+    /// value, as [`ProfilePreview::tone`] reads a drawn preview's.
+    ///
+    /// **Unfinished is not wrong.** [`Self::Transition`] with no verb
+    /// says only that a chain has no closing verb yet, which is the
+    /// state every chain passes through while it is being written — a
+    /// one-point chain reaches the editor this way, because there is
+    /// no leg for the provisional close to be walked over. It is
+    /// [`Tone::Advisory`], the voice [`ProfilePreview::tone`] gives an
+    /// open chain that could be drawn.
+    ///
+    /// Every other refusal blames something somebody actually wrote —
+    /// a field that is not a number, an expression that will not
+    /// resolve, an ill-typed verb, a leg with no geometry, a point
+    /// that cannot be drawn — and is [`Tone::Actionable`].
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::Transition { verb: None, .. } => Tone::Advisory,
+            Self::Transition { verb: Some(_), .. }
+            | Self::Lowering(_)
+            | Self::Resolve { .. }
+            | Self::Unflattenable { .. }
+            | Self::Geometry { .. } => Tone::Actionable,
+        }
+    }
+}
 
 /// **Replay the loops a form is holding and flatten them for
 /// drawing.**
