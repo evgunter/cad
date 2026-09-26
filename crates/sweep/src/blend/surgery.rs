@@ -4091,12 +4091,13 @@ fn attach_contact<T: Decide + Bounds>(
         // definitely-smooth join, whose description is the must-carry
         // rule's to decide over the whole edge
         // (`geom_brep::must_carry_over_edge` — the lane gate, the
-        // certification schedule's interior stations and the three-way
-        // answer, in their one home). The rule decides; this site does
-        // not argue. Jet-determinate stores the intrinsic tangency,
+        // certification schedule's interior stations and the verdict,
+        // in their one home). The rule decides; this site does not
+        // argue. Jet-determinate stores the intrinsic tangency,
         // under-determined the conventional chart image, in-band
         // refuses typed at the door (D4 ¶3) — never silently either
-        // side.
+        // side — and a transverse station refutes this branch's
+        // smooth premise, refused as the invariant it breaks.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         let verdict = {
             let (Some(surf1), Some(surf2)) = (body.get_surface(s1), body.get_surface(s2)) else {

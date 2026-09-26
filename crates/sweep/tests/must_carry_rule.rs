@@ -580,7 +580,9 @@ fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
         let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
         for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
             let MustCarryVerdict::InBand(source) = verdict else {
-                panic!("{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}");
+                panic!(
+                    "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
+                );
             };
             assert_eq!(
                 source.predicate,

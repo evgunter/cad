@@ -36,7 +36,8 @@
 //!    the certification schedule's interior stations, in its one home:
 //!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
 //!    image in the previous wall's chart, in-band ⇒ the typed sliver,
-//!    a transverse station ⇒ `Intersection` as at a transverse midpoint),
+//!    a transverse station ⇒ the typed
+//!    [`ExtrudeError::SmoothJoinRefuted`]),
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
@@ -261,6 +262,21 @@ pub enum ExtrudeError {
         /// The classifier's diagnostic.
         source: Indeterminate,
     },
+    /// The must-carry rule read a station of a strut definitely
+    /// transverse ([`geom_brep::MustCarryVerdict::Transverse`]) after
+    /// the join's witness classified definitely smooth: the geometry
+    /// refuted the premise the smooth arm was entered on.
+    ///
+    /// Defense-in-depth (the `CapPlane` posture): both walls are ruled
+    /// along the strut, so their normals are constant along it and
+    /// every station reads what the witness read. Reaching this means
+    /// the inputs carried something a validated profile cannot, and it
+    /// is surfaced rather than stored under a description neither
+    /// reading chose.
+    SmoothJoinRefuted {
+        /// The strut edge whose station refuted the smooth premise.
+        edge: EdgeKey,
+    },
     /// A cap plane failed Newell certification (non-planar or
     /// degenerate loop data — unreachable for validated profiles,
     /// surfaced rather than trusted).
@@ -337,6 +353,12 @@ impl fmt::Display for ExtrudeError {
                 f,
                 "the rim where loop {loop_index} segment {segment_index}'s wall meets a cap \
                  is neither a definite corner nor definitely smooth: {source}"
+            ),
+            Self::SmoothJoinRefuted { edge } => write!(
+                f,
+                "the wall join along {edge:?} classified definitely smooth at its witness \
+                 but definitely a corner at a certification station, so the construction \
+                 refuses rather than choose a description for it"
             ),
             Self::CapPlane { source } => write!(f, "a cap is not planar: {source}"),
             Self::SidePlane {
@@ -955,23 +977,22 @@ fn sweep_loop<T: Decide>(
                 key: topo::GeomRef::Surface(k_next),
             })?;
         let mid = qs[j] + w * T::from_f64(0.5);
-        // The corner's description: the plain intersection locus.
-        let corner = || EdgeCurveSpec {
-            description: EdgeDescriptionSpec::Intersection {
-                s1: k_prev,
-                s2: k_next,
-                witness: mid,
-            },
-            carrier: strut_carrier(qs[j], w),
-            param_start: T::zero(),
-            param_end: w_norm,
-        };
         match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
                 // was impossible (the side surfaces did not exist);
                 // re-describe through the certified setter.
-                body.set_edge_curve(struts[j].edge, corner(), tol)?;
+                let spec = EdgeCurveSpec {
+                    description: EdgeDescriptionSpec::Intersection {
+                        s1: k_prev,
+                        s2: k_next,
+                        witness: mid,
+                    },
+                    carrier: strut_carrier(qs[j], w),
+                    param_start: T::zero(),
+                    param_end: w_norm,
+                };
+                body.set_edge_curve(struts[j].edge, spec, tol)?;
             }
             Ok(DihedralClass::Smooth) => {
                 // OQ7's must-carry, applied at construction over the
@@ -1067,17 +1088,14 @@ fn sweep_loop<T: Decide>(
                             source,
                         });
                     }
-                    // A station reads the join a corner. Both walls'
-                    // normals are constant along the ruling the strut
-                    // is, so a station cannot disagree with the
-                    // midpoint on a sound pair of walls; if one does,
-                    // the edge takes the corner's description and its
-                    // certification is what says whether it is a
-                    // corner along its whole length — never the
-                    // conventional form, which the rule no longer
-                    // vouches for.
+                    // A station reads the join a corner where the
+                    // midpoint read it smooth: this arm's premise is
+                    // refuted, and the strut refuses rather than
+                    // store a description neither reading chose.
                     geom_brep::MustCarryVerdict::Transverse => {
-                        body.set_edge_curve(struts[j].edge, corner(), tol)?;
+                        return Err(ExtrudeError::SmoothJoinRefuted {
+                            edge: struts[j].edge,
+                        });
                     }
                 }
             }

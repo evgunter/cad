@@ -87,9 +87,10 @@ fn edge_data<T: SpanLocate>(body: &Body<T>, edge: EdgeKey) -> Result<EdgeData<T>
 /// the must-carry rule over the edge
 /// ([`geom_brep::must_carry_over_edge`] — the lane gate and the
 /// certification schedule's interior stations, in its one home), and a
-/// station the rule reads transverse takes `Intersection` as a
-/// transverse witness does; Indeterminate is the typed error built by
-/// `sliver`, at the first-order classification and at the rule alike.
+/// station the rule reads transverse refuses
+/// [`RevolveError::SmoothJoinRefuted`]; Indeterminate is the typed
+/// error built by `sliver`, at the first-order classification and at
+/// the rule alike.
 pub(super) fn upgrade_intersection<T: Decide>(
     body: &mut Body<T>,
     edge: EdgeKey,
@@ -112,20 +113,19 @@ pub(super) fn upgrade_intersection<T: Decide>(
         .ok_or(EulerOpError::StaleGeometry {
             key: topo::GeomRef::Surface(s2),
         })?;
-    // The corner's description: the plain intersection locus.
-    let corner = || EdgeCurveSpec {
-        description: EdgeDescriptionSpec::Intersection {
-            s1,
-            s2,
-            witness: data.witness,
-        },
-        carrier: data.carrier.clone(),
-        param_start: data.t0,
-        param_end: data.t1,
-    };
     match classify_dihedral(&surf1, &surf2, data.witness, data.extent, band) {
         Ok(DihedralClass::Transverse) => {
-            body.set_edge_curve(edge, corner(), tol)?;
+            let spec = EdgeCurveSpec {
+                description: EdgeDescriptionSpec::Intersection {
+                    s1,
+                    s2,
+                    witness: data.witness,
+                },
+                carrier: data.carrier,
+                param_start: data.t0,
+                param_end: data.t1,
+            };
+            body.set_edge_curve(edge, spec, tol)?;
             Ok(())
         }
         // A revolve join's carrier is a latitude CIRCLE, which the
@@ -181,16 +181,12 @@ pub(super) fn upgrade_intersection<T: Decide>(
                 // the same answer the transverse arm's `Err` below
                 // gives, and the same one the extrude strut gives.
                 MustCarryVerdict::InBand(source) => return Err(sliver(source)),
-                // A station reads the join a corner. The latitude
-                // circle is carried by a symmetry flow of both
-                // surfaces, so a station cannot disagree with the
-                // witness on a sound pair; if one does, the edge takes
-                // the corner's description and its certification is
-                // what says whether it is a corner along its whole
-                // length — never the conventional form, which the rule
-                // no longer vouches for.
+                // A station reads the join a corner where the witness
+                // read it smooth: this arm's premise is refuted, and
+                // the edge refuses rather than store a description
+                // neither reading chose.
                 MustCarryVerdict::Transverse => {
-                    body.set_edge_curve(edge, corner(), tol)?;
+                    return Err(RevolveError::SmoothJoinRefuted { edge });
                 }
             }
             Ok(())
