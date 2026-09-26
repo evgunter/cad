@@ -299,13 +299,7 @@ fn a_pattern_placed_pick_mates_through_an_instance_headed_reference() {
 
     let copy_one = copy_pick(&session, 1);
     assert_eq!(copy_one.node, pattern, "the ray met the pattern's body");
-    let shelf_bottom = asm::pick_face(
-        &session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(copy_one.clone());
     tool.pick(shelf_bottom.clone());
@@ -400,13 +394,7 @@ fn a_pattern_copy_over_a_transform_is_an_instance_pick() {
 
     let copy_one = copy_pick(&session, 1);
     assert_eq!(copy_one.node, pattern);
-    let shelf_bottom = asm::pick_face(
-        &session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(copy_one);
     tool.pick(shelf_bottom);
@@ -464,13 +452,7 @@ fn a_pick_on_a_fused_body_is_not_an_instance_pick() {
     );
     assert_eq!(post_top.node, fused, "the ray met the fusion's body");
     let _ = bench.post_a;
-    let shelf_bottom = asm::pick_face(
-        &session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(post_top);
     tool.pick(shelf_bottom);
@@ -518,13 +500,7 @@ fn a_pick_on_a_moved_instance_authors_the_transform_and_seats() {
         post_top.name.node, bench.post_b,
         "and the name still points at the minting instance (N1)"
     );
-    let shelf_bottom = asm::pick_face(
-        &session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(post_top.clone());
     tool.pick(shelf_bottom.clone());
@@ -660,13 +636,7 @@ fn a_circular_pattern_copy_authors_the_masters_unrotated_frame() {
         "one part-local face, two copies"
     );
 
-    let shelf_bottom = asm::pick_face(
-        &session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = asm::shelf_underside(&session);
     let (doc, eval) = session.landed_pair().expect("landed");
     let proposal_of = |copy: &FaceSelection| {
         let mut tool = MateTool::new();
@@ -809,17 +779,6 @@ fn nested_session(bench: &asm::Bench, tag: &str, tol: Tol) -> (DocSession, [Reci
     (session, [post_i, shelf_i, inner, part, outer, loose])
 }
 
-/// The shelf's underside, picked.
-fn shelf_underside(session: &DocSession) -> FaceSelection {
-    asm::pick_face(
-        session,
-        &asm::up_at(
-            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-        ),
-    )
-}
-
 /// The two picked faces meet in the world the evaluation draws.
 fn assert_faces_meet(session: &DocSession, a: &FaceSelection, b: &FaceSelection, what: &str) {
     let (_, eval) = session.landed_pair().expect("landed");
@@ -858,7 +817,7 @@ fn a_nested_copy_pick_reads_the_master_and_seats() {
         ),
     );
     assert_eq!(nested.node, outer, "the ray met the outer pattern's body");
-    let shelf_bottom = shelf_underside(&session);
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(nested.clone());
     tool.pick(shelf_bottom.clone());
@@ -921,7 +880,7 @@ fn a_part_over_a_pattern_pick_is_a_member_and_seats() {
         ),
     );
     assert_eq!(picked.node, loose, "the ray met the Part's body");
-    let shelf_bottom = shelf_underside(&session);
+    let shelf_bottom = asm::shelf_underside(&session);
     let mut tool = MateTool::new();
     tool.pick(picked.clone());
     tool.pick(shelf_bottom.clone());

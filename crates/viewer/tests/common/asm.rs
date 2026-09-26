@@ -310,6 +310,18 @@ pub fn pick_face(session: &DocSession, ray: &pncad::select::Ray) -> FaceSelectio
     super::face_at(session, &index_of(session), ray)
 }
 
+/// The shelf's underside, picked from below at its middle — whatever
+/// instance a row has placed there.
+pub fn shelf_underside(session: &DocSession) -> FaceSelection {
+    pick_face(
+        session,
+        &up_at(
+            SHELF_AT[0] + SHELF_LENGTH / 2.0,
+            SHELF_AT[1] + SHELF_DEPTH / 2.0,
+        ),
+    )
+}
+
 /// **The two picks the seat mate starts from**: post_b's top cap from
 /// above, then the shelf's underside from below, each at its face's
 /// middle and each checked to land on the instance it aims at.
@@ -322,13 +334,7 @@ pub fn seat_picks(session: &DocSession, bench: &Bench) -> (FaceSelection, FaceSe
         ),
     );
     assert_eq!(post_top.node, bench.post_b, "the first pick is post_b's");
-    let shelf_bottom = pick_face(
-        session,
-        &up_at(
-            SHELF_AT[0] + SHELF_LENGTH / 2.0,
-            SHELF_AT[1] + SHELF_DEPTH / 2.0,
-        ),
-    );
+    let shelf_bottom = shelf_underside(session);
     assert_eq!(
         shelf_bottom.node, bench.shelf_i,
         "the second pick is the shelf's"

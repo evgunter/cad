@@ -160,17 +160,14 @@ fn the_exit_demo_walk() {
         node: post_top.node,
         body: post_top.body,
     });
-    let shelf_bottom = index
-        .face_at_for(
-            eval,
-            &asm::up_at(
-                asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
-                asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
-            ),
-            &view,
-        )
-        .expect("answers")
-        .expect("the shelf's underside is picked");
+    let shelf_bottom = common::face_at(
+        &session,
+        &index,
+        &asm::up_at(
+            asm::SHELF_AT[0] + asm::SHELF_LENGTH / 2.0,
+            asm::SHELF_AT[1] + asm::SHELF_DEPTH / 2.0,
+        ),
+    );
     assert_eq!(shelf_bottom.node, bench.shelf_i);
     tool.pick(shelf_bottom);
     assert!(matches!(tool.state(), MateToolState::Two { .. }));
