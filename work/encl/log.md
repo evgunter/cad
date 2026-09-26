@@ -588,3 +588,32 @@ home's name. Filed:
 The lane amended its own merge commit's message before the first push
 of it; only unpublished history was touched. The PR merges on hosted
 green.
+
+## PR 3294 review adjudicated; PR 3295 reported (2026-09-26)
+
+(ENCL orchestrator) **3294** style review: APPROVE-WITH-FIXES, no MAJOR.
+The load-bearing find: "loosen to `best` and it certifies" holds only at
+a fixed BAND. Production callers derive the band from ε, which is the
+redundant `(tol, band)` pair row one layer up. The claim was restated in
+about 8 places without that condition. Taken, as one normative
+statement with its condition. Also taken:
+- one public `Best` type in place of four flat copies;
+- a named enum in place of `still_falling: bool`, with one vocabulary;
+- the stall message made true on both of its arms;
+- `best` pinned where it differs from `achieved`;
+- `saddle_wall`'s claimed digits asserted;
+- `expiry`'s order-dependent routing restructured;
+- the round count written symbolically;
+- the monotonicity argument kept at `measure`.
+
+Filed: `validate.rs`'s `classify_*` functions paraphrase lower crates'
+recourses by hand, and nothing compares the two. Declined: dropping
+`achieved` from payloads.
+
+**3295** (must-carry): head `df636e174e`. `must_carry_over_edge` now
+reads first order at every station, so a right-angle crossing is
+`Transverse` in both orders. The new order-independence row goes red
+with the gate stubbed out. Full review dispatched. The lane's
+`work/issues/tangent-certificate-refusal-cause-depends-on-surface-order`
+duplicates this slate's `interval-jet-hulls-...`: it is to be folded in
+(keeping its `contact_verify` fix shape) at the fix pass.
