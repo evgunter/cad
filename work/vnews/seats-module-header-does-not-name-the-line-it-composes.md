@@ -2,10 +2,13 @@
 id: seats-module-header-does-not-name-the-line-it-composes
 kind: issue
 title: seats' module header lists what the module is the one place for and leaves out seat_line
-status: open
+status: closed
 opened: 2026-09-20
 priority: P3
 cost: E
+closed: 2026-09-25
+branch: vnews/one-seat-line
+pr: 3281
 ---
 
 
@@ -48,3 +51,14 @@ addition.
 ## Home
 
 VNEWS's: `crates/viewer/src/seats.rs`.
+
+## Closed (`vnews/one-seat-line`, PR 3281, 2026-09-25)
+
+The header's sentence is re-stated from the module's public surface
+rather than repaired by addition: the state and its two behaviours
+(pick rule, survival step — `Seats`), and the three sentences about a
+held pick the module composes — the still-empty refusal (`SeatError`),
+the drop notice (`SeatEvent`) and the panel line (`seat_line`), which
+every tool panel shows, the mate tool's included (`picks_line`). The
+mate-exception paragraph now says what the mate tool DOES share (the
+line) beside what it does not (the state, the rule).

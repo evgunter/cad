@@ -1,6 +1,9 @@
 //! **Role-typed pick seats**: the state every modal tool that consumes
-//! node picks is built out of, and the one place their pick rule,
-//! survival step and refusal sentence live.
+//! node picks is built out of — its pick rule and survival step — and
+//! the one place a sentence about a held pick is composed: the
+//! still-empty refusal ([`SeatError`]), the drop notice
+//! ([`SeatEvent`]) and the panel line ([`seat_line`]), which every
+//! tool panel shows, the mate tool's included (`picks_line`).
 //!
 //! # Why one value and not one per tool
 //!
@@ -26,7 +29,10 @@
 //! step — meaningful there, wrong here. Its picks are also faces rather
 //! than nodes, so it shares neither the state nor the rule; the
 //! divergence is stated in both module docs and neither is the other's
-//! accident.
+//! accident. **What it does share is the panel line**: a held pick is
+//! still a role and what fills it, so the mate panel composes its line
+//! through `picks_line` — the same empty-state sentence, item shape
+//! and mark — and a picked node is called what [`seat_line`] calls it.
 //!
 //! # Kinds ROUTE a pick; they still do not judge one
 //!
@@ -216,9 +222,9 @@ impl core::fmt::Display for SeatEvent {
         match self {
             Self::PickLost { seat, node } => write!(
                 f,
-                "the {} pick (node {}) is no longer in the document; the tool dropped it",
+                "the {} pick ({}) is no longer in the document; the tool dropped it",
                 seat.name(),
-                node.0
+                crate::tree::node_number(*node)
             ),
         }
     }
@@ -266,6 +272,19 @@ impl Seats {
         self.held.iter().all(Option::is_none)
     }
 
+    /// **How many seats this value has**: one when its role names
+    /// itself twice ([`Seats::one`]), else two — the one place the
+    /// arity is read off the roles.
+    fn arity(&self) -> usize {
+        if self.roles[0] == self.roles[1] { 1 } else { 2 }
+    }
+
+    /// Each seat's role and what it holds, in seat order — one entry
+    /// per SEAT, so a one-seat tool's unused second slot is not one.
+    fn each(&self) -> impl Iterator<Item = (Seat, Option<RecipeNodeId>)> + '_ {
+        (0..self.arity()).map(|i| (self.roles[i], self.held[i]))
+    }
+
     /// Fill the first empty seat; with both full, REPLACE the second
     /// (the module docs' pick rule) — **unless the seat that would
     /// take the pick cannot hold this KIND of node and the other seat
@@ -289,7 +308,7 @@ impl Seats {
         // written over the first EMPTY slot: on a one-seat tool that
         // sends a second pick to a slot nothing reads, and the pick
         // is then a click that silently did nothing.
-        if self.roles[0] == self.roles[1] {
+        if self.arity() == 1 {
             self.held[0] = Some(node);
             return;
         }
@@ -351,36 +370,56 @@ impl Seats {
     }
 }
 
-/// **The one sentence a tool panel shows for its held picks**, so the
-/// seats read the same way in every panel and a reader can tell which
-/// pick is in which role — the fact that decides what a subtraction
-/// removes.
+/// **The line a seated tool's panel shows for its held picks**: each
+/// seat's role and the feature it holds, in the order the tool's
+/// [`Seats`] declares them — so a reader can tell which pick is in
+/// which role, the fact that decides what a subtraction removes.
+///
+/// Takes the value that owns the roles rather than a list of them: a
+/// panel that re-listed its tool's roles could name them in another
+/// order, or name ones the tool no longer has, and still compile.
+pub fn seat_line(seats: &Seats) -> String {
+    picks_line(
+        seats
+            .each()
+            .map(|(seat, held)| (seat.name(), held.map(crate::tree::node_number))),
+    )
+}
+
+/// **The one composition of a panel's held-picks line**: `no picks
+/// yet` while nothing is held, else one `role: pick` item per seat,
+/// `—` for an open one, joined on `"; "`. [`seat_line`] reaches it for
+/// the seated tools and [`crate::matetool::MateToolState::line`] for
+/// the mate tool, whose picks are faces and whose state is not
+/// [`Seats`] (module docs) but whose line has this shape.
 ///
 /// Composed here rather than in the widgets because it is the same
 /// vocabulary a lost-pick notice is composed from, and two copies is
 /// how the two drift.
 ///
-/// **The `"; "` below is this line's own mark and is deliberately not
-/// [`crate::frame::LIST_SEPARATOR`]**, which it shares a spelling
-/// with. That constant is what ONE notice puts between the items of a
-/// list of its own — items a counted preamble introduces, inside an
-/// enclosing sentence. This is a panel label, not a notice: it reaches
-/// no [`crate::frame::Message`], nothing counts the seats and no
-/// preamble introduces them, so there is no enclosing sentence for
-/// them to be the items of. Reading the constant here would put a line
-/// outside that population under its edits, which is the failure that
-/// took the startup notices off it (`crates/viewer/README.md`, "The
-/// third consumer was the second level misread").
-pub fn seat_line(seats: &[(Seat, Option<RecipeNodeId>)]) -> String {
-    if seats.iter().all(|(_, held)| held.is_none()) {
+/// **The mark is a literal, and this function is its only spelling.**
+/// It is deliberately not [`crate::frame::LIST_SEPARATOR`], which it
+/// shares two characters with: that constant is what ONE notice puts
+/// between the items of a list of its own — items a counted preamble
+/// introduces, inside an enclosing sentence. This is a panel label,
+/// not a notice: it reaches no [`crate::frame::Message`], nothing
+/// counts the picks and no preamble introduces them. Reading the
+/// constant here would put a line outside that population under its
+/// edits (`crates/viewer/README.md`, "The third consumer was the
+/// second level misread"). Nor does the mark earn a constant of its
+/// own: nothing splits a panel line back into its items, so there is
+/// no hold for a name to carry, and every line of this shape is
+/// joined here.
+pub(crate) fn picks_line<R: core::fmt::Display>(
+    picks: impl IntoIterator<Item = (R, Option<String>)>,
+) -> String {
+    let picks: Vec<_> = picks.into_iter().collect();
+    if picks.iter().all(|(_, held)| held.is_none()) {
         return "no picks yet".to_owned();
     }
-    seats
+    picks
         .iter()
-        .map(|(seat, held)| match held {
-            Some(node) => format!("{}: {}", seat.name(), crate::tree::node_number(*node)),
-            None => format!("{}: —", seat.name()),
-        })
+        .map(|(role, held)| format!("{role}: {}", held.as_deref().unwrap_or("—")))
         .collect::<Vec<_>>()
         .join("; ")
 }

@@ -23,7 +23,7 @@ use crate::matetool::{MateChoice, MateToolState, admitted_classes};
 use crate::pane::profile::{notation_row, path_steps_ui, preview_verdict};
 use crate::parts::{PartChooser, PartEntry};
 use crate::props::render_number;
-use crate::seats::{Seat, seat_line};
+use crate::seats::{Seats, seat_line};
 use crate::session::{
     FaceFrameFault, FaceSelection, ProfilePlane, Selection, SessionOp, Standing, face_frame_seat,
 };
@@ -139,6 +139,25 @@ pub(crate) fn duplicate_note() -> String {
          every slot is editable afterwards",
         render_number(DUPLICATE_GAP * 100.0),
     )
+}
+
+/// **A seated tool's held picks, drawn**: [`seat_line`] over the
+/// tool's own [`Seats`], in the advisory voice every tool panel says
+/// its picks in.
+///
+/// Takes the `Seats` rather than a line or a list of roles, so a panel
+/// has no roles to re-list and no line to compose; a free function over
+/// the `Ui` so a headless row can read what it paints
+/// (`crate::pane::headless`).
+pub(crate) fn seats_row(ui: &mut egui::Ui, seats: &Seats, theme: &Theme) {
+    crate::widgets::message_toned(ui, seat_line(seats), theme, Tone::Advisory);
+}
+
+/// **The mate tool's held picks, drawn** — [`MateToolState::line`],
+/// the seated tools' line over the mate's two sides, in the same voice
+/// as [`seats_row`].
+pub(crate) fn mate_picks_row(ui: &mut egui::Ui, state: &MateToolState, theme: &Theme) {
+    crate::widgets::message_toned(ui, state.line(), theme, Tone::Advisory);
 }
 
 /// **The smallest pattern count the form offers.**
@@ -516,22 +535,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Mate.says(&"pick two faces in the viewport"));
-        match tool.state() {
-            MateToolState::Idle => {
-                ui.weak("no picks yet");
-            }
-            MateToolState::One(a) => {
-                ui.weak(format!("pick a: face of node {}", a.node.0));
-            }
-            MateToolState::Two { a, b } => {
-                crate::widgets::message_toned(
-                    ui,
-                    format!("pick a: node {}; pick b: node {}", a.node.0, b.node.0),
-                    &self.theme,
-                    Tone::Advisory,
-                );
-            }
-        }
+        mate_picks_row(ui, tool.state(), &self.theme);
         // The class choice, offered THROUGH the kernel's admission
         // table: each class is shown with its verdict, and the
         // deferral (Fit and every future class) is a sentence here
@@ -1186,15 +1190,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Revolve.says(&"pick the profile, then the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::RevolveProfile, tool.profile()),
-                (Seat::RevolveAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("angle");
             unit_field(
@@ -1227,12 +1223,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Boolean.says(&"pick the first body, then the second"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::OperandA, tool.a()), (Seat::OperandB, tool.b())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("operation");
             // One button per operation the KERNEL has, in its order:
@@ -1267,15 +1258,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Split.says(&"pick the body, then the datum plane"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::SplitTarget, tool.target()),
-                (Seat::SplitPlane, tool.plane()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         self.tool_commit_row(ui, "Commit split", ToolKind::Split, |_| Ok(tool.op()?));
     }
 
@@ -1289,12 +1272,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Transform.says(&"pick the body to place"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::TransformBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             unit_vec3_row(
                 ui,
@@ -1349,15 +1327,7 @@ impl ViewerBehavior<'_> {
             ui,
             ToolKind::Pattern.says(&"pick the body, then (circular) the axis"),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PatternBody, tool.input()),
-                (Seat::PatternAxis, tool.axis()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         ui.horizontal(|ui| {
             ui.label("rule");
             for (kind, label) in PatternKindChoice::ALL {
@@ -1462,15 +1432,7 @@ impl ViewerBehavior<'_> {
                   of",
             ),
         );
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[
-                (Seat::PartSplit, tool.split()),
-                (Seat::PartInstance, tool.pattern()),
-            ]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         part_selector_rows(
             ui,
             &self.theme,
@@ -1502,12 +1464,7 @@ impl ViewerBehavior<'_> {
             return;
         };
         crate::widgets::message(ui, ToolKind::Duplicate.says(&"pick the body to duplicate"));
-        crate::widgets::message_toned(
-            ui,
-            seat_line(&[(Seat::DuplicateBody, tool.input())]),
-            &self.theme,
-            Tone::Advisory,
-        );
+        seats_row(ui, tool.seats(), &self.theme);
         crate::widgets::message_toned(ui, duplicate_note(), &self.theme, Tone::Advisory);
         self.tool_commit_row(ui, "Commit duplicate", ToolKind::Duplicate, |_| {
             Ok(tool.op()?)
@@ -1733,17 +1690,78 @@ mod tests {
     #![allow(clippy::expect_used)]
     #![allow(clippy::panic)]
 
-    use pncad::document::RecipeNodeId;
-
+    use pncad::document::{Doc, ProfileProgram, RecipeNodeId};
+    use pncad::geom_core::Tol;
+    use pncad::prelude::{CapEnd, EntityKind, RoleSeg, StableName};
     use pncad::select::SplitHalf;
 
     use super::{
-        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, part_selector_rows,
-        profile_plane_row,
+        NEW_XY_LABEL, ProfilePlane, clear_picks_button, duplicate_note, mate_picks_row,
+        part_selector_rows, profile_plane_row, seats_row,
     };
+    use crate::combine::BooleanTool;
     use crate::forms::PartSelectChoice;
+    use crate::matetool::MateToolState;
     use crate::pane::headless::{painted_after_clicking, painted_text, painted_while_hovering};
+    use crate::session::FaceSelection;
     use crate::theme::Theme;
+
+    /// A face pick on the body of `node`.
+    fn face_on(node: u64) -> FaceSelection {
+        FaceSelection {
+            name: StableName {
+                kind: EntityKind::Face,
+                node: RecipeNodeId(node),
+                path: vec![RoleSeg::Cap(CapEnd::End)],
+            },
+            node: RecipeNodeId(node),
+            body: 0,
+        }
+    }
+
+    /// **The mate panel's picks, painted**: the seated tools' line —
+    /// one `role: pick` item per side, `—` for the open one, the
+    /// seated line's empty sentence — with a pick called the face of a
+    /// FEATURE, which is what every other panel calls a node.
+    #[test]
+    fn the_mate_panel_says_its_picks_in_the_seated_panels_line() {
+        let painted =
+            |state: &MateToolState| painted_text(|ui| mate_picks_row(ui, state, &Theme::DEFAULT));
+        assert_eq!(painted(&MateToolState::Idle), "no picks yet");
+        assert_eq!(
+            painted(&MateToolState::One(face_on(3))),
+            "pick a: face of feature 3; pick b: —"
+        );
+        assert_eq!(
+            painted(&MateToolState::Two {
+                a: face_on(3),
+                b: face_on(5),
+            }),
+            "pick a: face of feature 3; pick b: face of feature 5"
+        );
+    }
+
+    /// **A seated panel's picks, painted in its tool's role order**:
+    /// the boolean's first pick is the operand a subtraction KEEPS,
+    /// and the line says so before the second is picked.
+    #[test]
+    fn the_boolean_panel_says_which_operand_each_pick_is() {
+        let doc = Doc::<ProfileProgram>::empty_derived("seats-row", Tol::witness());
+        let mut tool = BooleanTool::new();
+        let painted =
+            |tool: &BooleanTool| painted_text(|ui| seats_row(ui, tool.seats(), &Theme::DEFAULT));
+        assert_eq!(painted(&tool), "no picks yet");
+        tool.pick(&doc, RecipeNodeId(3));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: —"
+        );
+        tool.pick(&doc, RecipeNodeId(5));
+        assert_eq!(
+            painted(&tool),
+            "first operand: feature 3; second operand: feature 5"
+        );
+    }
 
     /// The part form's selector rows, driven: the half choice paints
     /// the kernel's own two sides and no index field.

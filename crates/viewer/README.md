@@ -1048,28 +1048,27 @@ the spelling is not membership: `LIST_SEPARATOR` is `"; "`, two
 characters any sentence may use. A site is a consumer only if the mark
 separates the items of a list ONE `frame::Message` carries, introduced
 by a counted preamble — the test the third consumer failed on, applied
-forwards. Two sites in `crates/viewer/src` write those two characters
-between items of their own and are NOT consumers by it, both because
-they reach no `frame::Message` and nothing counts or introduces their
-items: `seats::seat_line`'s panel label, whose doc comment carries the
-argument, and `pane::create`'s mate-tool panel, which spells the same
-line a second time inside a format string
-(`work/vnews/mate-panel-hand-rolls-the-seat-line` is that duplication,
-and a second copy is still not a consumer). **The list is disposed, not
-swept**, and deliberately. Neither available pattern is the property:
+forwards. One site in `crates/viewer/src` writes those two characters
+between items of its own and is NOT a consumer by it, because it
+reaches no `frame::Message` and nothing counts or introduces its items:
+`seats::picks_line`, the one composition of a tool panel's held-picks
+line, which every seated panel reaches through `seats::seat_line` and
+the mate panel through `MateToolState::line`. Its doc comment carries
+the argument, and why the mark earns no constant of its own either.
+**The list is disposed, not swept**, and deliberately. Neither
+available pattern is the property:
 
     rg -n '"; "' crates/viewer/src
 
-prints **3** — the constant, `seat_line`'s join and the doc comment
-that argues about it — and misses the mate panel entirely, whose mark
-is inside `"pick a: node {}; pick b: node {}"`; while
+prints the constant, `picks_line`'s join and the doc comment that
+argues about it, and would miss a second composition whose mark sat
+inside a format string; while
 
     rg -n '"[^"]*; ' crates/viewer/src
 
-prints **43**, which is every sentence in the crate that uses a
-semicolon. Between the two there is no pattern for *joins its own
-items*, so what this section holds is the test, run against the two
-sites it has been run against.
+prints every sentence in the crate that uses a semicolon. Between the
+two there is no pattern for *joins its own items*, so what this section
+holds is the test, run against the site it has been run against.
 
 ### The app driver, split for size
 

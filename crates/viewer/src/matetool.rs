@@ -378,6 +378,31 @@ pub enum MateToolState {
     },
 }
 
+impl MateToolState {
+    /// **The line the mate panel shows for its held picks** — the
+    /// seated tools' line (`seats::picks_line`), with the
+    /// mate's two sides as its roles and each pick said as the face of
+    /// the feature whose body it was taken on.
+    ///
+    /// The tool's state is not [`crate::seats::Seats`] (module docs:
+    /// neither the state nor the survival rule is shared), but the
+    /// line is the same sentence about the same thing — a role and
+    /// what fills it — so it is composed by the same door.
+    pub fn line(&self) -> String {
+        let (a, b) = match self {
+            Self::Idle => (None, None),
+            Self::One(a) => (Some(a), None),
+            Self::Two { a, b } => (Some(a), Some(b)),
+        };
+        crate::seats::picks_line([(MateSide::A, a), (MateSide::B, b)].map(|(side, pick)| {
+            (
+                format!("pick {}", side.name()),
+                pick.map(|pick| format!("face of {}", crate::tree::node_number(pick.node))),
+            )
+        }))
+    }
+}
+
 /// A typed tool event the chrome renders — every state change that
 /// was not the direct echo of an op.
 #[derive(Debug)]
@@ -402,9 +427,9 @@ impl core::fmt::Display for MateToolEvent {
         match self {
             Self::PickLost { side, pick, .. } => write!(
                 f,
-                "pick {} (a face of node {}) no longer resolves; the tool dropped it",
+                "pick {} (a face of {}) no longer resolves; the tool dropped it",
                 side.name(),
-                pick.node.0
+                crate::tree::node_number(pick.node)
             ),
         }
     }

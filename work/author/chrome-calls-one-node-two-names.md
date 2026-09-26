@@ -77,3 +77,29 @@ BlendTarget`, `pane/properties.rs`'s entity heading,
   node.0)` — a node named by id as "instance N", beside the entity
   heading that says `feature N` through `node_number`. Found by
   `grep -nE 'format!\([^)]*\.0\b' crates/viewer/src`.
+
+## Evidence 2026-09-25 (VNEWS, `vnews/one-seat-line`, PR 3281)
+
+- **The three widget/notice sites this row names have moved to
+  `feature`**, through `tree::node_number`: the mate panel's picks
+  line (now `MateToolState::line`, composed by `seats::picks_line`),
+  `SeatEvent::PickLost`'s notice, and — not listed above, same class —
+  `MateToolEvent::PickLost`'s (`pick a (a face of feature N) no longer
+  resolves`). All three are held-pick sentences read on a chrome
+  surface, so they land on `feature` under both the "everywhere" and
+  "split by surface" answers; only "node everywhere" would move them
+  back, and that answer would also have to rewrite `node_number`.
+- **What is left is refusal and report prose**, re-derived with
+  `rg -n '"[^"]*\bnode \{[a-z_.0-9]*\}' crates/viewer/src`:
+  `pickindex.rs` (four sentences: patch offered twice, body drawn by two
+  parts, no body of node, edge out of range), `matetool.rs`'s
+  `NotAnInstancePick` and same-member refusals, `session/refuse.rs`'s
+  `NoSuchSlot` and `WrongNodeKind`, `display.rs`'s two instance
+  refusals and its fused-geometry sentence, and `props.rs`'s two slot
+  sentences. That pattern cannot see a node number passed through a
+  word other than `node`; the second pass
+  (`rg -n '\b(node|id)\.0\b' crates/viewer/src`, filtered to text)
+  found two `feature {}` literals that spell the chrome word WITHOUT
+  its home: `session/refuse.rs`'s `ProfileRestructure`
+  "feature {} was not edited" and `sketch.rs`'s `NotAProfile` — the
+  literal-sweep's own blind spot (`write!`, not `format!`).

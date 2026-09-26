@@ -2,10 +2,13 @@
 id: seat-lines-item-mark-has-no-name
 kind: issue
 title: seat_line's item separator is an unnamed literal, and whether a panel line's mark deserves a name is undecided
-status: open
+status: closed
 opened: 2026-09-20
 priority: P3
 cost: E
+closed: 2026-09-25
+branch: vnews/one-seat-line
+pr: 3281
 ---
 
 
@@ -65,3 +68,19 @@ VNEWS's: `crates/viewer/src/seats.rs`,
 `crates/viewer/src/pane/create.rs`. `frame.rs` is not in scope — a
 constant for this level does not belong beside the notice marks unless
 the decision above says it does.
+
+## Closed: no name (`vnews/one-seat-line`, PR 3281, 2026-09-25)
+
+**Answered by the third branch the row named: the two sites were one
+population, and routing them through one composer left one spelling.**
+The mate panel's hand-rolled line is gone
+(`mate-panel-hand-rolls-the-seat-line`), so `"; "` for a panel line's
+items is written once, inside `seats::picks_line`, the only function
+that joins such items. A constant would be a name with one reader and
+no claim behind it — nothing splits a panel line back, so there is no
+hold for it to carry — and minting it beside `NOTICE_MARK` and
+`LIST_SEPARATOR` would read as a third level of the notice line, which
+it is not. `picks_line`'s doc says both halves at the site: why the
+mark is not `LIST_SEPARATOR`, and why it earns no constant of its own.
+`crates/viewer/README.md`'s disposed-not-swept paragraph now names the
+one site.
