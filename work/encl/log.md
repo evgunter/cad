@@ -452,3 +452,20 @@ Priced:
   descriptions by argument order.
 - `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing` P3/D. It
   refuses in the safe direction, under the wrong named cause.
+
+## PR 3274 merged (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `c4f5d26cdc`, and it merged after
+a targeted run on the tree it actually lands in. That tree was 3274
+merged over main-with-3269, because the two meet in `offset_fit.rs`,
+`validate.rs` and the transform route. Results: clippy on five crates;
+geom-brep 753/753; topo 1470/1470 (which includes the
+`shell_tolerance_chain` census binary); editor-core refusal rows 6/6;
+sweep offset-fit rows 28/28. 3270, merged meanwhile, shares no
+non-doc file with it. `approx-surface-tolerance-is-now-always-the-runs-eps`
+is closed: the stored tolerance is retired and O2 reads as Ev ratified
+it. Priced: `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`
+P3/D.
+
+**Wave 1 and 2 are done**: 3272, 3275, 3269, 3270 and 3274 are all
+merged. In flight: wave 3 (`encl/offset-fit-loop-faces`).
