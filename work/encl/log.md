@@ -656,3 +656,31 @@ The lane's plain `cargo doc -D warnings` reports private-item links, but
 the repo's doc gate runs with `-A rustdoc::private_intra_doc_links`, so
 the batch's local gate decides it. Ready for the batch with 3292; 3295
 is in review.
+
+## PR 3295 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) Full review on `df636e174e`: APPROVE-WITH-FIXES.
+The gate is correct: stubbing it reds the new row in the defect's exact
+shape, and the full sweep binary passes 1652/0. All four MINORs taken:
+- **A.** The filed `work/issues/` certify row duplicates this slate's
+  `interval-jet-hulls-...`. It is deleted, and its `contact_verify` fix
+  shape is folded into the existing row.
+- **B.** A collapsed-arm tangency (extent ≤ K·ε) now reads
+  `InBand(dihedral_arm)` where it read `UnderDetermined`: disclosed and
+  pinned. This is arguably better, since tier 3 reports
+  `SliverDihedral` there anyway.
+- **C.** An out-of-lane transverse pair still stores a conventional
+  description: filed P1/D, with the doc corrected.
+- **D.** Stale "three-way" prose, and the "same walk as tier 3" claim.
+
+Also taken:
+- **Style Q1**: surgery refuses while extrude and revolve store
+  `Intersection` for the same event. All three now answer with one loud
+  refusal.
+- The new doc paragraph trimmed to its invariant.
+- `sectors.rs::tangent_relative_side`'s callers checked for the same
+  missing gate.
+
+K-REPORT: the population growth of `dihedral_arm`/`dihedral_wedge` is a
+distribution change to READ, not to re-derive, per the `demo_flush_*`
+precedent. The batch's local gate runs k-lint and is that read.
