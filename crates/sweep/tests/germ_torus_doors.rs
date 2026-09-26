@@ -756,3 +756,133 @@ fn a_torus_poking_through_a_slab_face_is_not_an_assembly() {
         }
     }
 }
+
+/// **The extent gate holds against a curved partner too.** A cylinder
+/// of radius 0.55 along `x` through `(0, 0, 3)` dips into the donut's
+/// outer equator at the top of the ring: the two walls meet in a closed
+/// loop that touches no edge of either body, which no vertex probe can
+/// see.
+#[test]
+fn a_cylinder_grazing_the_outer_equator_is_not_an_assembly() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let lp = bulge_loop(vec![(p2(-0.55, 3.0), 1.0), (p2(0.55, 3.0), 1.0)]);
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(Vec3::unit_y(), Vec3::unit_z(), Vec3::unit_x()),
+        Vec3::new(-1.0, 0.0, 0.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the circle validates");
+    let cyl = sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
+        .expect("the cylinder extrudes")
+        .body;
+    if let Ok(r) = topo::union(&donut(), &cyl, Tol::witness()) {
+        assert!(
+            !matches!(
+                r.body().expect("non-empty").kind,
+                topo::BooleanResultKind::Assembly
+            ),
+            "overlapping shells returned as an assembly"
+        );
+    }
+}
+
+/// **And against another torus.** Two donuts four point nine metres
+/// apart along `z` overlap near the tops of both rings, in an oval
+/// interior to both outer faces.
+#[test]
+fn two_tori_meeting_in_an_oval_are_not_an_assembly() {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let d = donut();
+    let far = topo::transform_rigid(
+        &d,
+        &Affine3::from_parts(Mat3::identity(), Vec3::new(0.0, 0.0, 4.9)),
+        Tol::witness(),
+    )
+    .expect("the donut translates");
+    if let Ok(r) = topo::union(&d, &far, Tol::witness()) {
+        assert!(
+            !matches!(
+                r.body().expect("non-empty").kind,
+                topo::BooleanResultKind::Assembly
+            ),
+            "overlapping shells returned as an assembly"
+        );
+    }
+}
+
+/// **The crossing layer itself, not the union behind it.** On the
+/// near-perpendicular bar and the rod, a certified root the landing
+/// test puts off the tube must keep the crossing layer's door: the
+/// sweep refuses, or it records the crossings. A clean sweep with no
+/// event on the donut means a root was stepped over — which the union
+/// would only catch one gate later, and only at some bands.
+#[test]
+fn the_sweep_never_steps_over_a_contradicted_torus_root() {
+    let bar = geom_core::Vec3::new(
+        -0.990_360_666_876_138_8,
+        1.376_996_009_986_983_2e-4,
+        0.138_512_564_568_957,
+    );
+    let rod = geom_core::Vec3::new(
+        -0.980_697_285_232_897,
+        7.766_907_203_911_848e-5,
+        -0.195_532_167_952_848_92,
+    );
+    let floor = 200.0 * Tol::witness().get().eps;
+    let poses = [
+        (
+            Point3::new(
+                -2.109_637_800_205_744_5,
+                0.170_221_792_550_834_86,
+                1.920_645_887_674_835_4,
+            ),
+            bar,
+            -4.6,
+            -0.1,
+            1e-3_f64,
+        ),
+        (
+            Point3::new(
+                -1.647_779_393_496_495_5,
+                0.270_473_450_406_354_4,
+                1.497_185_557_815_917,
+            ),
+            rod,
+            -3.6,
+            4.5,
+            1e-5_f64.max(floor),
+        ),
+    ];
+    for (o, d, t0, t1, w) in poses {
+        let b = framed_bar(o, d, t0, t1, w);
+        if let Ok((_, on_d)) = topo::sweep_traces(
+            &donut(),
+            &b,
+            topo::SweepStrategy::Realized,
+            None,
+            Tol::witness(),
+        ) {
+            assert!(
+                !on_d.accepted.is_empty(),
+                "the edges cross the tube, so a clean sweep stepped over a root"
+            );
+        }
+    }
+}
+
+/// **The extent gate's known conservative refusal, stated.** A cube in
+/// the donut's hole touches nothing, but the donut's outer face's box
+/// spans the hole, so the no-crossings fallback refuses the union on a
+/// box overlap rather than answering it. Pinned so that a gate that
+/// learns to separate the two is a visible change.
+#[test]
+fn a_cube_in_the_donuts_hole_is_the_extent_gates_conservative_refusal() {
+    let cube = bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5));
+    let err = topo::union(&donut(), &cube, Tol::witness())
+        .expect_err("the gate cannot separate a box overlap from a meeting");
+    assert!(
+        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+        "{err:?}"
+    );
+}

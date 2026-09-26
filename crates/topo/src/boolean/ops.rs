@@ -1995,10 +1995,14 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 ///
 /// No certificate exists for the kind (a torus has no `center ± r`
 /// extent to consult, and no exact torus-vs-face gap test is wired), so
-/// the gate refuses on REACH: a torus face whose certified box may meet
-/// a face of the other operand. Boxes are supersets, so a torus clear of
-/// the other body costs nothing — the disjoint-operands fallback stays
-/// open. SPHERE partners are left to the sphere arm below, which refuses
+/// the gate refuses on REACH: a torus face whose certified BOX overlaps
+/// the box of a face of the other operand. That is a box test, not a
+/// meeting: a torus whose BOXES clear the other body's costs nothing,
+/// but one whose boxes overlap refuses even where the loci stand apart.
+/// **The known conservative refusal is a cube sitting in the donut's
+/// hole**: it touches nothing, yet the outer face's box spans the hole,
+/// so the union refuses here (main refused it too, at the operand gate).
+/// SPHERE partners are left to the sphere arm below, which refuses
 /// on reach in its own words; this gate must not shadow it.
 fn torus_extent_gate<T: Decide + Bounds>(
     a: &Body<T>,
@@ -2022,11 +2026,11 @@ fn torus_extent_gate<T: Decide + Bounds>(
                     return Err(BooleanError::FallbackExtentUnsupported {
                         operand: x_is,
                         face,
-                        what: "a torus face's certified extent meets a face of the other \
+                        what: "a torus face's box overlaps the box of a face of the other \
                                solid and no crossing layer saw an event — a torus can meet \
                                any face in a closed loop interior to both, which no vertex \
                                probe and no edge event can see, and no exact torus-vs-face \
-                               gap test is wired to rule it out",
+                               gap test is wired to rule the meeting in or out",
                     });
                 }
             }
