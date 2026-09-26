@@ -885,8 +885,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, apply,
-        evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
@@ -901,7 +900,7 @@ mod tests {
     use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
-    use crate::test_support::{inserted, xy_frame};
+    use crate::test_support::{inserted, try_edited, try_inserted, xy_frame};
 
     /// **An accepted `NewXy` leaves the form on the frame it
     /// minted**, so the next submit draws on that frame instead of
@@ -1278,7 +1277,8 @@ mod tests {
             loops,
             ids: Vec::new(),
         });
-        let (doc, profile) = inserted(&doc, node, tol);
+        let (doc, profile) =
+            try_inserted(&doc, node, tol).expect("the form's default path is a profile");
         (doc, drafts, profile)
     }
 
@@ -1296,18 +1296,14 @@ mod tests {
         let edits = sketch::program_edits(current, &loops).expect("same shape");
         assert_eq!(edits.len(), 1, "one argument moved: {edits:?}");
         edits.into_iter().fold(doc.clone(), |doc, (slot, expr)| {
-            apply(
-                &doc,
-                &DocEdit::SetParam {
-                    node: edit.node,
-                    slot,
-                    expr,
-                },
-                Tol::witness(),
-                &pncad::document::RefusingReach,
-            )
-            .expect("the edit door takes it")
-            .doc
+            let edit = DocEdit::SetParam {
+                node: edit.node,
+                slot,
+                expr,
+            };
+            try_edited(&doc, edit, Tol::witness())
+                .expect("the edit door takes it")
+                .0
         })
     }
 

@@ -660,13 +660,7 @@ mod tests {
     use crate::generation::Generation;
     use crate::pickindex::{EdgeId, PickIndex, PictureKey};
     use crate::scene;
-
-    /// Coarse enough to keep the row cheap, fine enough that the
-    /// plate's hole is a ring of facets — the plate-scale suites'
-    /// reading (`tests/common`'s `plate_delta`), for the same reason.
-    fn delta() -> scene::DisplayTolerance {
-        scene::DisplayTolerance::new(2.0e-4).expect("a positive delta")
-    }
+    use crate::test_support::plate_delta;
 
     /// The spike plate, evaluated, indexed — the picture a frame marks
     /// in.
@@ -685,8 +679,13 @@ mod tests {
             &EvalOptions::default(),
             tol,
         );
-        let index = PickIndex::build(&doc, &eval, PictureKey::of(Generation::FIRST, delta()), tol)
-            .expect("the plate indexes");
+        let index = PickIndex::build(
+            &doc,
+            &eval,
+            PictureKey::of(Generation::FIRST, plate_delta()),
+            tol,
+        )
+        .expect("the plate indexes");
         (index, extrude)
     }
 

@@ -25,13 +25,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to![
-    "crates/bvh/src/",
-    "crates/geom-core/src/linalg/",
-    "crates/bvh/tests/common/",
-];
+test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/",];
 
-use crate::common::{boxed, ray};
+use bvh::test_support::{boxed, ray};
 use bvh::{Aabb, Bvh, Ray};
 use geom_core::{Point3, Vec3};
 use test_utils::{fuzz, vacuity::Exposure};
@@ -115,22 +111,16 @@ fn exact_hit_interval(o: [i64; 3], d: [i64; 3], lo: [i64; 3], hi: [i64; 3]) -> O
     }
 }
 
+/// [`boxed`] over integer corners: every coordinate this suite's exact
+/// oracle reads IS an integer, so it is converted here, once, and the
+/// `i64` is what the oracle is handed.
 fn box_of(lo: [i64; 3], hi: [i64; 3]) -> Aabb {
-    Aabb {
-        min_x: lo[0] as f64,
-        min_y: lo[1] as f64,
-        min_z: lo[2] as f64,
-        max_x: hi[0] as f64,
-        max_y: hi[1] as f64,
-        max_z: hi[2] as f64,
-    }
+    boxed(lo.map(|v| v as f64), hi.map(|v| v as f64))
 }
 
+/// [`ray`] over an integer origin and direction, for the same reason.
 fn ray_of(o: [i64; 3], d: [i64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(o[0] as f64, o[1] as f64, o[2] as f64),
-        dir: Vec3::new(d[0] as f64, d[1] as f64, d[2] as f64),
-    }
+    ray(o.map(|v| v as f64), d.map(|v| v as f64))
 }
 
 fn small(rng: &mut fuzz::Rng, span: i64) -> i64 {
@@ -319,14 +309,10 @@ fn permutation_invariance_of_the_candidate_answer() {
                     rng.range(0.0, 12.0),
                     rng.range(0.0, 12.0),
                 ];
-                Aabb {
-                    min_x: c[0] - e[0],
-                    min_y: c[1] - e[1],
-                    min_z: c[2] - e[2],
-                    max_x: c[0] + e[0],
-                    max_y: c[1] + e[1],
-                    max_z: c[2] + e[2],
-                }
+                boxed(
+                    [c[0] - e[0], c[1] - e[1], c[2] - e[2]],
+                    [c[0] + e[0], c[1] + e[1], c[2] + e[2]],
+                )
             })
             .collect();
         // A duplicate box guarantees at least one exact t_enter tie,
@@ -417,13 +403,9 @@ fn permutation_invariance_of_the_candidate_answer() {
 /// itself is a review finding, not something this file supplies.
 #[test]
 fn interleaved_ties_come_back_in_ascending_index_order() {
-    let near = |k: usize| Aabb {
-        min_x: if k >= 100 { 1.0 } else { 3.0 },
-        min_y: -1.0,
-        min_z: -1.0,
-        max_x: if k >= 100 { 2.0 } else { 4.0 },
-        max_y: 1.0,
-        max_z: 1.0,
+    let near = |k: usize| {
+        let (lo, hi) = if k >= 100 { (1.0, 2.0) } else { (3.0, 4.0) };
+        boxed([lo, -1.0, -1.0], [hi, 1.0, 1.0])
     };
     let boxes: Vec<Aabb> = (0..200).map(near).collect();
     let tree = Bvh::build(&boxes);

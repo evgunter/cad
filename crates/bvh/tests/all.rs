@@ -7,12 +7,14 @@
 //! directory on every run, and a number written out beside it is a
 //! second, unchecked copy of a set the compiler already knows.
 //!
-//! The files themselves are untouched: each keeps its own `//!` docs and its
-//! inner attributes (`#![cfg(feature = "probe")]` and friends work as
-//! module-level attributes). The shared helper tree `tests/common/` is
-//! declared ONCE, below, as a module of THIS root, and a suite that wants
-//! it says `use crate::common::…;` — one declaration is one compile of it
-//! per binary rather than one per including suite.
+//! The files themselves are untouched: each keeps its own `//!` docs, its inner
+//! attributes (`#![cfg(feature = "probe")]` and friends work as
+//! module-level attributes), and its own `mod <helper>;` lines — a
+//! `#[path]` module's child modules resolve against the DIRECTORY
+//! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
+//! its own crate root. The fixtures the suites share are the crate's own
+//! `bvh::test_support`, on for these tests through the self
+//! dev-dependency.
 //!
 //! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
 //! constant dominated the workspace build job — the suites are small, so
@@ -30,11 +32,6 @@
 //! Test IDs gain a module prefix (`export::round_trip` rather than
 //! `round_trip`, under binary `all` rather than binary `export`); the set
 //! of tests is otherwise identical.
-
-// The shared helper tree. No `#[path]` on it, deliberately: a path
-// attribute in this file is the aggregation guard's census of SUITE
-// files, and a helper directory carrying a `mod.rs` is not a suite.
-mod common;
 
 #[path = "aggregator_headers.rs"]
 mod aggregator_headers;

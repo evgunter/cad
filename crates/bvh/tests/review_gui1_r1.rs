@@ -31,13 +31,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to![
-    "crates/bvh/src/",
-    "crates/geom-core/src/linalg/",
-    "crates/bvh/tests/common/",
-];
+test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/",];
 
-use crate::common::{boxed, ray};
+use bvh::test_support::{boxed, ray};
 use bvh::{Bvh, RayCandidate};
 use test_utils::fuzz;
 

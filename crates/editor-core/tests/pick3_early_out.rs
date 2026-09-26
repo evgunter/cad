@@ -26,19 +26,21 @@
 
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
+    "crates/editor-core/src/test_support.rs",
     "crates/bvh/src/",
     "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::test_support::{down_from, near_tangent};
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickHit, PickTarget,
     ProfileDoc, RecipeNodeId, ValuePayload, pick_face,
 };
-use fixture::pick::{down_from, near_tangent, ray};
 use fixture::{insert, len, on_frame};
 use geom_core::{Point3, Tol, Vec3};
 use mesh::Mesh;
@@ -232,14 +234,14 @@ fn corner_tangent(k: f64, scale: f64, at: f64) -> [Point3<f64>; 3] {
 #[test]
 fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
     let zeta = 2f64.powi(-20);
-    let ray = ray([0.0, 0.0, 0.0], [1.0, 1.0, zeta]);
+    let skew = ray([0.0, 0.0, 0.0], [1.0, 1.0, zeta]);
     let tris = [
         corner_tangent(154.0, 1.0, 4.0),
         corner_tangent(238.0, 1.0, 4.5),
     ];
-    let wide = span_of(&ray, &tris[0], "the wide candidate");
-    let narrow = span_of(&ray, &tris[1], "the narrow candidate");
-    let entry_narrow = entry(&ray, &tris[1]);
+    let wide = span_of(&skew, &tris[0], "the wide candidate");
+    let narrow = span_of(&skew, &tris[1], "the narrow candidate");
+    let entry_narrow = entry(&skew, &tris[1]);
     // The premises, so the row cannot pass on a fixture that drifted.
     assert!(
         wide.t_hi < entry_narrow,
@@ -259,7 +261,7 @@ fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
     );
 
     let door = Door::new("pick3_early_out_r1");
-    let hits = door.tied(&[&tris], &[0], &ray);
+    let hits = door.tied(&[&tris], &[0], &skew);
     assert_eq!(
         hits.iter().map(|h| h.t).collect::<Vec<_>>(),
         vec![wide.t, narrow.t],

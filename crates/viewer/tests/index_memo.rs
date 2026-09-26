@@ -26,7 +26,7 @@ use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
 use editor_core::{
     Dimension, DocEdit, Evaluation, Expr, HitTestError, NodePick, ProfileDoc, RecipeNodeId, SlotId,
-    StableName, unparse,
+    StableName,
 };
 use pncad::geom_core::{Point3, Tol, Vec3};
 use pncad::mesh::Mesh;
@@ -36,9 +36,11 @@ use viewer::scene::DisplayTolerance;
 use viewer::session::{DocSession, SessionOp};
 
 use crate::common;
-use crate::common::corpus_pick::{FlatHit, FlatReference, ring_bump, tie_rays_for, too_wide};
+use crate::common::corpus_pick::{
+    FlatHit, FlatReference, ring_bump, set_slot, tie_rays_for, too_wide,
+};
 use crate::corpus;
-use crate::fixture::pick::{AXES, aimed, listed};
+use editor_core::test_support::{AXES, aimed, listed};
 
 fn fnv(h: &mut u64, x: u64) {
     for b in x.to_le_bytes() {
@@ -88,21 +90,18 @@ fn digest(m: &Mesh) -> u64 {
     h
 }
 
-/// One edit as the session spells it.
+/// One slot write: the node, the slot and the expression written.
 #[derive(Clone, Debug)]
 struct Edit {
     node: RecipeNodeId,
     slot: SlotId,
-    text: String,
+    expr: Expr,
 }
 
 impl Edit {
+    /// The write as the session's op spells it.
     fn op(&self) -> SessionOp {
-        SessionOp::SetSlotExpression {
-            node: self.node,
-            slot: self.slot,
-            text: self.text.clone(),
-        }
+        set_slot(self.node, self.slot, &self.expr)
     }
 }
 
@@ -114,15 +113,11 @@ fn bump_of(c: &corpus::CorpusDoc) -> Option<(Edit, Edit)> {
     };
     let original = c.doc.node(node)?.expr(slot)?;
     Some((
+        Edit { node, slot, expr },
         Edit {
             node,
             slot,
-            text: unparse(&expr),
-        },
-        Edit {
-            node,
-            slot,
-            text: unparse(original),
+            expr: original.clone(),
         },
     ))
 }
@@ -151,7 +146,7 @@ fn another_length_slot(doc: &ProfileDoc, not: RecipeNodeId) -> Option<Edit> {
             return Some(Edit {
                 node,
                 slot,
-                text: unparse(&scaled),
+                expr: scaled,
             });
         }
     }
@@ -306,8 +301,6 @@ fn assert_memo_is_one_picture(name: &str, step: &str, seam: &InlineIndexer, inde
     assert!(r.tables >= 1 || faces == 0);
 }
 
-/// The plain door's answer for the same run: the definition of the
-/// picture.
 /// A fixed set of rays for the picture: the six axis rays through the
 /// bounding box's centre and the eight corner-to-centre diagonals.
 fn rays_for(index: &PickIndex) -> Vec<Ray> {
@@ -873,15 +866,11 @@ fn the_gallery_ring_indexes_the_same_through_the_seam_across_edits() {
         .expect("a node")
         .expr(slot)
         .expect("its slot");
-    let bump = Edit {
-        node,
-        slot,
-        text: unparse(&expr),
-    };
+    let bump = Edit { node, slot, expr };
     let revert = Edit {
         node,
         slot,
-        text: unparse(original),
+        expr: original.clone(),
     };
     let edits = sequence(&doc, bump, revert);
     drive("gallery_ring", doc, &edits, tol);
@@ -913,11 +902,7 @@ fn the_ring_grazing_ray_answers_the_corner_it_grazes() {
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
-    let bump = Edit {
-        node,
-        slot,
-        text: unparse(&expr),
-    };
+    let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let outcome = session.perform(bump.op());
@@ -1040,11 +1025,7 @@ fn a_wide_but_informative_candidate_answers_before_the_rings_aimed_vertex() {
     let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
     let doc = loaded.snapshot;
     let (node, slot, expr) = ring_bump(&doc);
-    let bump = Edit {
-        node,
-        slot,
-        text: unparse(&expr),
-    };
+    let bump = Edit { node, slot, expr };
     let mut session = DocSession::inline(doc, tol);
     session.pump();
     let outcome = session.perform(bump.op());

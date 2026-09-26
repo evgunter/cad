@@ -77,29 +77,37 @@ struct Contingency {
     aim_lost_examples: Vec<String>,
 }
 
+/// The nearest `t` each acceptance answers over every candidate box the
+/// ray meets: `(main's, the landed door's)`. ONE candidate set feeds
+/// both, which is what makes the two comparable ray by ray.
+fn nearest_both(reference: &FlatReference, ray: &Ray) -> (Option<f64>, Option<f64>) {
+    let mut best_landed: Option<f64> = None;
+    let mut best_main: Option<f64> = None;
+    for flat in &reference.parts {
+        for cand in flat.tree.ray(ray) {
+            let tri = &flat.corners[cand.item];
+            if let Some(span) = ray_triangle(ray, tri)
+                && best_landed.is_none_or(|b| span.t < b)
+            {
+                best_landed = Some(span.t);
+            }
+            if let Some(t) = main_ray_triangle(ray, tri)
+                && best_main.is_none_or(|b| t < b)
+            {
+                best_main = Some(t);
+            }
+        }
+    }
+    (best_main, best_landed)
+}
+
 fn sweep(name: &str, step: &str, index: &PickIndex, c: &mut Contingency) {
     let reference = FlatReference::of(index);
     for aim in wide_aim(index) {
         let (v, dir, reach) = (aim.at, aim.dir, aim.reach);
         c.rays += 1;
         let ray = aim.ray();
-        let mut best_landed: Option<f64> = None;
-        let mut best_main: Option<f64> = None;
-        for flat in &reference.parts {
-            for cand in flat.tree.ray(&ray) {
-                let tri = &flat.corners[cand.item];
-                if let Some(span) = ray_triangle(&ray, tri)
-                    && best_landed.is_none_or(|b| span.t < b)
-                {
-                    best_landed = Some(span.t);
-                }
-                if let Some(t) = main_ray_triangle(&ray, tri)
-                    && best_main.is_none_or(|b| t < b)
-                {
-                    best_main = Some(t);
-                }
-            }
-        }
+        let (best_main, best_landed) = nearest_both(&reference, &ray);
         let aimed = |t: Option<f64>| t.is_some_and(|t| (t - reach).abs() < 1e-9);
         let (am, al) = (aimed(best_main), aimed(best_landed));
         c.aimed_main += usize::from(am);
@@ -178,23 +186,7 @@ fn tie_sweep(name: &str, step: &str, index: &PickIndex, a: &mut TieAim) {
     let reference = FlatReference::of(index);
     for (ray, reach) in tie_rays_for(index) {
         a.rays += 1;
-        let mut best_landed: Option<f64> = None;
-        let mut best_main: Option<f64> = None;
-        for flat in &reference.parts {
-            for cand in flat.tree.ray(&ray) {
-                let tri = &flat.corners[cand.item];
-                if let Some(span) = ray_triangle(&ray, tri)
-                    && best_landed.is_none_or(|b| span.t < b)
-                {
-                    best_landed = Some(span.t);
-                }
-                if let Some(t) = main_ray_triangle(&ray, tri)
-                    && best_main.is_none_or(|b| t < b)
-                {
-                    best_main = Some(t);
-                }
-            }
-        }
+        let (best_main, best_landed) = nearest_both(&reference, &ray);
         let beyond = |t: Option<f64>| !t.is_some_and(|t| t <= reach + 1e-9);
         let (bm, bl) = (beyond(best_main), beyond(best_landed));
         a.beyond_or_miss_main += usize::from(bm);

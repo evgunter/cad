@@ -1,38 +1,31 @@
 //! **The fixture doors a test in this crate authors a document with** —
 //! literals of each dimension, the world xy frame, an axis-aligned
-//! rectangle, and one edit or insert through the document's own `apply`.
+//! rectangle, one edit or insert through the document's own `apply`, and
+//! the display tolerances the suites index at.
 //!
 //! Module kind: **vocabulary** — it names no driver type and no toolkit
-//! type; every door is a pure function over `pncad`'s document values.
+//! type; every door is a pure function over document and display
+//! values.
 //!
-//! ONE text, compiled into two crates. `lib.rs` declares it
-//! `#[cfg(test)]`, so this crate's unit-test modules reach it as
-//! `crate::test_support`; and `tests/common/mod.rs` mounts this same
-//! file by `#[path]` and re-exports every door, so the integration
-//! suites' `common::len` and a unit test's `test_support::len` are one
-//! definition rather than two that can drift. That is also why nothing
-//! here names `crate::` or `viewer::`: the path would mean a different
-//! crate in each of the two binaries, so the file speaks only through
-//! `pncad`, which both of them depend on.
+//! Behind this crate's `test-support` feature, which only its own self
+//! dev-dependency turns on: the unit-test modules reach it as
+//! `crate::test_support` and `tests/` as `viewer::test_support` (through
+//! `tests/common`'s re-export), so the two read ONE definition.
 //!
-//! No door here carries an oracle. Each is the spelling of a value the
-//! document vocabulary already has, and a row that reads one asserts
-//! about what it built with it.
+//! Whether a door carries an oracle is a question about that door, asked
+//! in its own docs where the answer is not "no": the δ doors fix what a
+//! pick or a draw is measured at.
 
-// One instance per binary; no single consumer uses all of it, and the
-// `app`-gated modules that read most of it are absent from a
-// default-feature build.
-#![allow(dead_code)]
-#![allow(unreachable_pub)]
-// why: root Cargo.toml, the `unreachable_pub` stanza
-// Panicking is a test's failure mechanism (workspace lint note).
+// Panicking is a fixture's failure mechanism (workspace lint note).
 #![allow(clippy::expect_used)]
 
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, Expr, LoopProgram, Node, ProfileProgram, RecipeNodeId,
-    RefusingReach, apply,
+    Datum, Dimension, Doc, DocEdit, DocParam, EditError, Expr, LoopProgram, Node, ParamName,
+    ProfileProgram, RecipeNodeId, RefusingReach, apply,
 };
 use pncad::geom_core::Tol;
+
+use crate::scene::DisplayTolerance;
 
 // --- literals -------------------------------------------------------
 
@@ -87,24 +80,66 @@ pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
 // the reach is the refusing one and is never asked.
 
 /// Apply one edit, answering the new document and any minted id.
+///
+/// # Panics
+///
+/// If the document refuses the edit — the fixture is wrong. A row whose
+/// PREMISE is that the edit applies calls [`try_edited`] and names that
+/// premise in its own `.expect(..)`.
 pub fn edited(
     doc: &Doc<ProfileProgram>,
     edit: DocEdit<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol, &RefusingReach).expect("the fixture's edit applies");
-    (applied.doc, applied.record.minted)
+    try_edited(doc, edit, tol).expect("the fixture's edit applies")
+}
+
+/// [`edited`] with the refusal handed back, for a row whose premise is
+/// that the edit applies: the row's `.expect(..)` says which premise
+/// failed.
+///
+/// # Errors
+///
+/// The document's own refusal of the edit, unaltered.
+pub fn try_edited(
+    doc: &Doc<ProfileProgram>,
+    edit: DocEdit<ProfileProgram>,
+    tol: Tol,
+) -> Result<(Doc<ProfileProgram>, Option<RecipeNodeId>), EditError> {
+    let applied = apply(doc, &edit, tol, &RefusingReach)?;
+    Ok((applied.doc, applied.record.minted))
 }
 
 /// Insert a node through the document's own door, answering the new
 /// document and the minted id.
+///
+/// # Panics
+///
+/// If the document refuses the node — the fixture is wrong. A row whose
+/// PREMISE is that the document admits the node calls [`try_inserted`]
+/// and names that premise in its own `.expect(..)`.
 pub fn inserted(
     doc: &Doc<ProfileProgram>,
     node: Node<ProfileProgram>,
     tol: Tol,
 ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
-    (doc, minted.expect("an insert mints an id"))
+    try_inserted(doc, node, tol).expect("the fixture's edit applies")
+}
+
+/// [`inserted`] with the refusal handed back, for a row whose premise is
+/// that the document admits the node: the row's `.expect(..)` says which
+/// premise failed.
+///
+/// # Errors
+///
+/// The document's own refusal of the insert, unaltered.
+pub fn try_inserted(
+    doc: &Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> Result<(Doc<ProfileProgram>, RecipeNodeId), EditError> {
+    let (doc, minted) = try_edited(doc, DocEdit::InsertNode { node }, tol)?;
+    Ok((doc, minted.expect("an insert mints an id")))
 }
 
 // --- the nodes a fixture sketches with ------------------------------
@@ -159,4 +194,93 @@ pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<
 /// at the plane origin.
 pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
     rectangle(plane, [0.0, 0.0], side, side)
+}
+
+// --- documents built from the doors above ---------------------------
+
+/// **A document holding one declared parameter and nothing else** —
+/// the fixture both panel suites build their parameter rows on.
+///
+/// `label` is the document's derived name, so two fixtures in one
+/// binary cannot share an identity. No oracle: it is the spelling of
+/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
+/// asserts is about the `value` it handed in.
+pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
+    let tol = Tol::witness();
+    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
+    edited(
+        &doc,
+        DocEdit::SetDocParam {
+            name: name.clone(),
+            value,
+        },
+        tol,
+    )
+    .0
+}
+
+/// The `&mut` spelling of `inserted`: insert a node in place and
+/// answer the minted id, for a fixture that threads one document
+/// through a sequence of edits rather than rebinding at each one.
+/// Same call and same refusal behaviour — only the caller differs.
+pub fn insert_into(
+    doc: &mut Doc<ProfileProgram>,
+    node: Node<ProfileProgram>,
+    tol: Tol,
+) -> RecipeNodeId {
+    let (applied, id) = inserted(doc, node, tol);
+    *doc = applied;
+    id
+}
+
+/// The `&mut` spelling of `edited`, for an edit whose minted id (if
+/// any) the caller does not want.
+pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
+    let (applied, _) = edited(doc, edit, tol);
+    *doc = applied;
+}
+
+/// **A frame and a square drawn on it**, answering the document and the
+/// PROFILE's id — two nodes where a fixture used to insert one, because
+/// a profile names the plane it is drawn on.
+pub fn framed_square(
+    doc: &Doc<ProfileProgram>,
+    side: f64,
+    tol: Tol,
+) -> (Doc<ProfileProgram>, RecipeNodeId) {
+    let (doc, plane) = inserted(doc, xy_frame(), tol);
+    inserted(&doc, square(plane, side), tol)
+}
+
+// --- the display tolerances the suites index at ---------------------
+
+/// The display tolerance the plate-scale suites run the display
+/// pipeline at, 2*10^-4 m — whatever they hand it to: an index build,
+/// a pick cache sync, a fit request.
+///
+/// Two bounds pull opposite ways on it — coarser is cheaper to run,
+/// finer resolves more of a curved face — and this value is where the
+/// suites that share it settled. A suite whose fixture is a different
+/// size chooses its own; `tests/common`'s `asm::delta` is the assembly
+/// fixture's.
+pub fn plate_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-4).expect("a positive delta")
+}
+
+/// The display tolerance the corpus suites hand the pick seam,
+/// 2*10^-3 m.
+///
+/// An order coarser than [`plate_delta`], for a reason those suites do
+/// not share: the corpus holds documents whose tessellation at the
+/// application's own δ is large enough that a suite walking all of
+/// them pays for every facet.
+pub fn corpus_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-3).expect("a positive delta")
+}
+
+/// The display tolerance the GUI-2 suites index the gallery ring at,
+/// 2*10^-3 m — a cost choice: those rows are about the selection walk,
+/// not the facet count.
+pub fn ring_delta() -> DisplayTolerance {
+    DisplayTolerance::new(2.0e-3).expect("a positive delta")
 }

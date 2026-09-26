@@ -36,7 +36,7 @@ use viewer::pickindex::PickIndex;
 use crate::common::corpus_pick::{
     FlatHit, FlatReference, over_every_landing, tie_rays_for, too_wide, wide_aim,
 };
-use crate::fixture::pick::listed;
+use editor_core::test_support::listed;
 
 // ---------------------------------------------------------------
 // The exhaustive walk is `common::corpus_pick`'s `FlatReference`: every
