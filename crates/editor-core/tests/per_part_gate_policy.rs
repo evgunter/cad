@@ -26,10 +26,11 @@
 
 use crate::fixture;
 use editor_core::{
-    BooleanValue, CancelToken, EvalOptions, Evaluation, Node, NodeResult, ProductError, ProfileDoc,
-    RecipeNodeId, ValuePayload, evaluate, product_recorded,
+    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Node,
+    NodeResult, ProductError, ProfileDoc, RecipeNodeId, ValuePayload, evaluate, product_recorded,
 };
-use fixture::{insert, len, on_frame, square};
+use fixture::resolver::{PartStore, with_resolver};
+use fixture::{insert, len, on_frame, square, step};
 use geom_core::Tol;
 use std::sync::Arc;
 use test_utils::source::{ItemBody, blanked, code_only, item_body, required_matches};
@@ -148,32 +149,55 @@ fn two_single_solid_sources_name_the_invalid_one() {
     }
 }
 
-/// **One source holding several solids** — a disjoint union — **with
-/// one inside-out**. The policy counts SOLIDS, so the per-part gate is
-/// owed here and gates the source whole: `SolidInvalid`, naming the
-/// union. This pins TODAY's behaviour, where the part gated is a source
-/// and the aggregate is the same geometry. Counting sources instead
-/// would answer `ProductInvalid`; that is an open decision
+/// A one-solid part document, for the store the sub-assembly reads.
+fn part(label: &str) -> ProfileDoc {
+    block(
+        ProfileDoc::empty(DocumentId::derive(label), Tol::witness()),
+        0.0,
+    )
+    .0
+}
+
+/// **One source holding several solids** — an instantiated
+/// sub-assembly of two parts, which evaluates to one body of two
+/// solids — **with one inside-out**. The policy counts SOLIDS, so the
+/// per-part gate is owed here and gates the source whole:
+/// `SolidInvalid`, naming the instantiation. This pins TODAY's
+/// behaviour, where the part gated is a source and the aggregate is the
+/// same geometry. Counting sources instead would answer
+/// `ProductInvalid`; that is an open decision
 /// (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`),
 /// and this row is what moves if it is taken.
 #[test]
 fn a_lone_multi_solid_source_is_gated_as_a_part_today() {
-    let (doc, a) = block(ProfileDoc::empty_derived("per-part-3", Tol::witness()), 0.0);
-    let (doc, b) = block(doc, 5.0);
-    let (doc, union) = insert(
-        doc,
-        Node::Boolean {
-            a,
-            b,
-            op: editor_core::BooleanOp::Union,
-            declare: None,
-        },
+    let mut store = PartStore::default();
+    let p = store.insert(part("per-part-3-p"), Tol::witness());
+    let mut sub = ProfileDoc::empty(DocumentId::derive("per-part-3-b"), Tol::witness());
+    for dx in [0.0, 3.0] {
+        let (next, id) = insert(sub, Node::instantiate_part(p));
+        let (next, _) = step(
+            next,
+            DocEdit::SetPlacement {
+                node: id,
+                frame: Frame::translation([dx, 0.0, 0.0]),
+            },
+        );
+        sub = next;
+    }
+    let b = store.insert(sub, Tol::witness());
+    let (doc, source) = insert(
+        ProfileDoc::empty(DocumentId::derive("per-part-3-a"), Tol::witness()),
+        Node::instantiate_part(b),
     );
-    assert_eq!(doc.roots(), &[union][..], "one source");
-    let mut ev = run(&doc);
-    assert_eq!(invert(&mut ev, union), 2, "the one source holds two solids");
+    assert_eq!(doc.roots(), &[source][..], "one source");
+    let mut ev = fixture::run(&doc, &with_resolver(store));
+    assert_eq!(
+        invert(&mut ev, source),
+        2,
+        "the one source holds two solids"
+    );
     match product_recorded(&doc, &ev, Tol::witness()) {
-        Err(ProductError::SolidInvalid { node, .. }) => assert_eq!(node, union),
+        Err(ProductError::SolidInvalid { node, .. }) => assert_eq!(node, source),
         other => panic!("want the per-source gate's refusal, got {other:?}"),
     }
 }

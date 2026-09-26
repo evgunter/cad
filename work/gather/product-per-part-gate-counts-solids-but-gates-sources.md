@@ -24,7 +24,7 @@ solid is one subject.
   pass 2) sums `solids().count()` over its sources and passes that to
   the policy, but the part it gates is a SOURCE body, gated whole. A
   source can carry several solids (an instantiated sub-assembly, a
-  disjoint union).
+  `PlacedUnion`).
 
 So a product whose only root is one multi-solid source is gated twice
 on the same geometry: once as the part (tier 3, refusing
