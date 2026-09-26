@@ -211,7 +211,7 @@ fn r1_rows_corpus() {
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
         .solids()
-        .find(|(k, _)| pair_h.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair_h, vessel_solid);
@@ -384,7 +384,7 @@ fn r1_end_to_end() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
-        .find(|(k, _)| pair.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair, vessel_solid);

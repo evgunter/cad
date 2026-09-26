@@ -12,14 +12,14 @@
 use crate::common::approx::band;
 use crate::common::operands;
 use geom_brep::SurfaceKind;
-use geom_core::{Affine3, Point2, Vec2, Vec3};
 use geom_core::{MarginDiag, Tol};
+use geom_core::{Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::arms::BlendArm;
 use sweep::blend::battery::{BlendRequest, ChainClosure, Convexity, run_battery};
 use sweep::blend::{BlendError, CornerConfig, RunOutPolicy};
-use sweep::test_support::{block, realized};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::{ball_poled_y, block, realized};
+use sweep::{Extrusion, extrude};
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
@@ -49,28 +49,16 @@ fn notched() -> Body<f64> {
         .body
 }
 
-/// A radius-`r` ball centred at `c` (the S13 authoring).
-fn ball_at(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(c), Tol::witness()).unwrap()
-}
-
 /// A 4 × 4 × 1 slab with ONE spherical pip bitten out of its top face
 /// (S13's live `slab ∖ ball`): the fixture that carries a plane–sphere
 /// rim, which is the pip-rim torus arm's input.
 fn pipped(pip_r: f64, pip_h: f64) -> Body<f64> {
     let slab = operands::slab();
-    let ball = ball_at(pip_r, Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h));
+    let ball = ball_poled_y(
+        pip_r,
+        Vec3::new(2.0, 2.0, 1.0 + pip_r - pip_h),
+        Tol::witness(),
+    );
     realized(BooleanOp::Subtract, &slab, &ball, Tol::witness())
 }
 

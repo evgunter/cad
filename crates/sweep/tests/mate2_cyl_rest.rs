@@ -45,6 +45,7 @@ use crate::mate2_common;
 use geom_core::Tol;
 use mate2_common::*;
 use profile::{ProfileLoop, RawLoop};
+use sweep::test_support::{extruded, sketch_at};
 use topo::{ContactClass, FacePairDeclaration};
 
 /// Spelling (3)/(1): the shaft-in-a-bore mate at fixture (i)'s face
@@ -123,7 +124,7 @@ fn seated_collar_with_a_planar_rest_unions() {
     // wall would be an undeclared cosurface touch and refuse on its
     // own account, which is a different question.
     let plate = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
-    let flange = extruded(vec![plate], 0.0, 1.0);
+    let flange = extruded(sketch_at(0.0), vec![plate], 1.0, Tol::witness());
     let shaft = peg(0.6, 1.9);
     let seated = body_of(topo::union(&flange, &shaft, Tol::witness()).unwrap());
     let c = collar();

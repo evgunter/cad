@@ -2161,3 +2161,44 @@ Every unit's review found something, and the findings rhyme:
 nine (every one of them priced, most P4/E, one P1/D:
 `step-program-embed-has-no-map-door`). Per the third sitting's log, the
 P4 tail is cut into its own program once #3242 lands.
+
+## 2026-09-26 — the fifth batch: two drains, and gating on local CI
+
+Hosted CI's queue ran hours deep. Ev: run CI locally (a new override
+sentence landed as #3276 so the certification is true), merge on local
+green, mark such commits `[skip ci]`, combine units where convenient,
+and use line tables only for disk (#3296 made that the repo default).
+
+Merged: **#3242** (scalar lift, hosted green), **#3285** (viewer drain:
+four rows closed, one left open for a design decision, none filed) and
+**#3284** (sweep/topo drain: six rows closed, four filed). Both drains
+went through a style review and a fix pass; both merged on a hosted
+green that landed before the local run finished, with the local run's
+completed rows (8161 and 8192 tests at two eps rows, the viewer app row
+978/978) agreeing.
+
+- **Fold, don't file held better, and the recurring defect still
+  appeared in both.** The viewer drain's first cut stopped three class
+  sweeps at the first file; the sweep drain minted a second home for the
+  three-arc cylinder beside `mate2_common::three_arc` and left two
+  byte-identical `ball_poled` twins in files it edited. Both fix passes
+  went past their findings (the sweep pass folded eleven more cylinder
+  spellings) and every fold was planted.
+- **Local CI, runtime parity.** Static parity passed; the first local run
+  still reddened the viewer app row for want of a Vulkan adapter the
+  hosted half installs (method item 28). With it installed the row
+  matches. On 4 cores a full local matrix is 4-6 hours, one eps test row
+  25-70 minutes; with line tables a run's target fits in ~15 GB.
+- **Method item 13 amended**: no rustdoc pointer to a tracker row.
+
+### The slate, and a decision deferred to Ev's view
+
+`dup` reads **40.5/30** after two drain batches that closed ten rows:
+the lanes filed four, three of them D-cost populations (a y-poled ball
+~50 sites, three-arc cylinders ~20, private `extruded` wrappers ~40).
+The census-first method surfaces a class's remainder as fast as a
+drain closes its head, and a priority-seam split is degenerate (the
+slate is all P4 but one P1 and one P3). Recommendation, put to Ev in
+chat: cut the population rows (the ones that are "route the rest of a
+class onto a door that already exists") into their own program, which
+lands under budget, and let S-DUP keep the rows that still need a door.

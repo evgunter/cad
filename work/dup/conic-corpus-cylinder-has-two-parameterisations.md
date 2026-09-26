@@ -2,10 +2,12 @@
 id: conic-corpus-cylinder-has-two-parameterisations
 kind: issue
 title: The two conic-pruning suites cut with two spellings of one three-arc cylinder
-status: open
+status: closed
 opened: 2026-09-20
 priority: P4
 cost: E
+closed: 2026-09-26
+pr: 3284
 ---
 
 
@@ -53,3 +55,78 @@ and S-DUP claims no territory by design (`plan.md`, *"this program
 claims nothing and announces by seam"*). One row rather than two,
 because the two suites are one object here; a program that wants it
 claims it by `git mv` per `work/README.md`.
+
+## Closed (2026-09-26, PR #3284)
+
+**Checked first: are the two parameterisations deliberate?** Both
+files said so ("which pose a rim carries is part of what these rows
+check", written by a fix pass, `5a05a2992`, not ratified), and the row
+asked for the measurement. Taken with a plant: `n3r1_prune`'s
+`cylinder_at(cx)` rebuilt by sliding the SKETCH PLANE in `x` instead of
+the profile. The bodies differ — `Debug` differs at `cx` = 1.001 and
+0.3, is equal at 0 — and `n3r1_prune`'s one row, the hard 98, stays
+green (1 / 1 passed). So that row does not read the pose, and the
+sentence is gone from both files. The other direction has no plant:
+`s16_box_soundness`'s blind-bore tool is lifted in `z`, which no
+profile slide in the sketch plane can express.
+
+**One spelling, two knobs.** `common::operands::three_arc_cylinder(cx,
+z0, height, first)` slides the profile by `cx` and lifts the plane by
+`z0`, so each suite builds exactly the body it built before and no
+verdict has a new input: measured `Debug`-equal to both old builders
+at every argument either suite uses (`n3r1`: `cx` ∈ {0, 1.001, 0.3};
+`s16`: `(0, 1, 0°)`, `(0.5, 1, 0°)`, `(0, 1, 240°)`), with a 1e-12
+offset as the negative control. `n3r1_prune` keeps `cylinder_at(cx)`
+and `s16_box_soundness` keeps `cylinder(z0, height)` as one-line names
+for their own pose; `cylinder_from` is gone (its two calls name the
+door). `operands`' not-absorbed list and both files' ``NOT `common::``
+markers lose their cylinder entries together, as the module's rule
+requires.
+
+**Plants** (filter: the two suites, 8 rows):
+
+| plant | reds | per site |
+| --- | --- | --- |
+| the door panics at its caller | 7 / 8 | `n3r1` `cylinder_at` 1 (the 98 row); `s16` `cylinder` 6 |
+| the same at `s16` ~:425, then ~:430 (the 240° starts, masked above) | 1 / 8, then 1 / 8 | `conic_pruning_never_loses_an_accepted_pair` both times |
+| radius 0.5 → 0.502 | 3 / 8 | — |
+
+The four rows the radius plant leaves green are reached (row 1) and
+assert refusal or clearance classes a 0.4% radius change does not
+cross; nothing here claims them unasserted.
+
+The same construction is written about twenty more times outside this
+corpus; filed as
+`work/reroute/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+
+**Fix pass (2026-09-26, PR #3284).** The first version of this fold
+minted a second home beside `mate2_common`'s `three_arc` and
+`extruded`. There is now one: `common::three_arc(centre, radius,
+first)` (a loop, in `common/mod.rs`, where the routing rule puts
+section authoring) and `common::operands::three_arc_cylinder(centre,
+radius, z0, height, first)` over `sweep::test_support::extruded` on
+`sketch_at(z0)`. `mate2_common`'s two helpers are gone, and the other
+three-arc cylinders in the `sweep` suites fold onto the pair; the
+residue and the fold list are in
+`work/reroute/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+The door's doc says "any angle" for `first` (it reduces each joint
+mod 360) and names the third pose, `s16_box_soundness::cylinder_apart`,
+a rigid translation of a finished cylinder.
+
+**The pose sentence, measured in the other direction.** Posing
+`s16_box_soundness`'s lifted tool by a rigid translation of the
+`z0 = 0` cylinder instead of a lifted sketch plane changes its body
+(`Debug` differs) and all 7 of the suite's rows stay green. Neither
+suite's rows read the pose in the direction measured, so the sentence
+stays deleted in both files. What those rows are shown to read is the
+body: the reach plant reds all 7 `s16` rows and the 98 row, and the
+radius plant reds 3 of 8.
+
+**Plants on the fix pass's shape** (filter: every suite that builds a
+three-arc cylinder, 84 rows): a panic in the loop at its caller reds
+58 / 84 and reaches every former copy (`n3r1`, `s16`, `mate2_common`'s
+collar and peg, `mate2_r2_probes` ×2, `m9_3_wall_door` ×2, `m9_3_zip`,
+`r1_probes_m9_3`, `m9_2b_r2_probes`, `m5_pr9_boss_union` ×3, `s49`,
+`review_blend1`, `verbs_pierce_r2`); `curved_mergedoor`'s `plate6_cyl`
+calls, masked there by the MATE-2 pegs, red 1 / 14 on their own run.
+Radius ×1.01 in the loop reds 28 / 84.

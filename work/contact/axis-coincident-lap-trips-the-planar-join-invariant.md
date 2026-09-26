@@ -2,11 +2,12 @@
 id: axis-coincident-lap-trips-the-planar-join-invariant
 kind: issue
 title: A box lap whose plane CONTAINS the cylinder axis reaches the all-planar join lane's conic guard through the public subtract door
-status: dispatched
+status: closed
 opened: 2026-09-09
 priority: P0
 cost: H
 parent: CONTACT-2
+closed: 2026-09-26
 ---
 
 
@@ -74,3 +75,12 @@ all-planar join lane reached a conic run edge (the operand gate promises
 every carrier planar)" })`. The same pocket from the top refuses
 `JoinDesync` instead; both are rowed at
 `work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`.
+
+## Closed
+
+By CONTACT-2 (PR 3250). The gate's promise was the false half: the
+Planar lane now measures a conic against its section plane, and no
+pose reaches the invariant. What each pose does now is in
+`crates/sweep/tests/axis_lap.rs`. The axis lap's remaining refusal is
+ZIP's `an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`,
+and the top-entry D pocket is ZIP's `blind-d-pocket-subtract-refuses-with-join-internal-words`.
