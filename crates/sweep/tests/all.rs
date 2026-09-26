@@ -125,6 +125,8 @@ mod sf2b_interval_probe;
 mod sf2b_r1_probes;
 #[path = "sf2b_r2_probes.rs"]
 mod sf2b_r2_probes;
+#[path = "shallow_arc_extrude_grid_interval.rs"]
+mod shallow_arc_extrude_grid_interval;
 #[path = "shellfix1_bitdump.rs"]
 mod shellfix1_bitdump;
 #[path = "shellfix1_r1_probes.rs"]

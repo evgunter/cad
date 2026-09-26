@@ -202,7 +202,7 @@ pub(super) fn radial_extent<T: Real>(profile: &ValidatedProfile<T>, frame: &Axis
                 turn,
             } = s.kind
             {
-                let apex = arc_apex(s.start, s.end, center, radius, turn);
+                let apex = arc_apex(s.start, s.end, sweep, turn);
                 r_max = r_max.max(frame.r(apex).abs());
                 // Arc-interior radial extrema: the carrier points
                 // c ± R·ê_r, each folded in iff on the arc. A
@@ -486,7 +486,7 @@ fn classify_segment<T: Decide>(
                             });
                         }
                     }
-                    let r_apex = frame.r(arc_apex(s.a, s.b, center, radius, turn));
+                    let r_apex = frame.r(arc_apex(s.a, s.b, sweep, turn));
                     match decide("axis_arc_apex", Margin::of(r_apex), band).map_err(escalated)? {
                         Sign::Positive => {}
                         // On or below the axis: tangential/crossing

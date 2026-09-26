@@ -309,19 +309,18 @@ const PLATE_MAX_TERMS: usize = 288;
 ///
 /// Re-captured again when the sketch pushforward began reading the
 /// segment's stored carrier and sweep (`geom_brep::SketchSegment`), and
-/// a cap's arc apex began being built from the carrier
-/// (`centre − n̂·σ·radius`) rather than from the bulge's sagitta: plain
-/// and early decision forms +6 each, door forms −32, one fewer
-/// assertion form. Calls, frozen counts and every decision count are
-/// unchanged.
+/// a cap's arc apex began reading the sweep (`mid − n̂·σ·(len/2)·
+/// tan(|Δθ|/4)`) rather than the bulge: plain and early decision forms
+/// +16 each, door forms −20, one fewer assertion form. Calls, frozen
+/// counts and every decision count are unchanged.
 const PLATE_LEDGER: &str = "\
-     Plain/Decision calls 951 forms 15036 frozen 672 digest a5afd3a91c0bc4c94d924ff63643e296\n\
-     Plain/Assertion calls 462 forms 2593 frozen 372 digest 8a01cf4fb9a9f5355e40de2654525d5c\n\
+     Plain/Decision calls 951 forms 15046 frozen 672 digest 9d9520907ea00bbbc140a06fb59883de\n\
+     Plain/Assertion calls 462 forms 2593 frozen 372 digest a65c6becddcd3c0c854d538a57a53cc3\n\
      Plain/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Early/Decision calls 320 forms 7985 frozen 8 digest 5034e8dc57738e9e66464004e0104e06\n\
-     Early/Assertion calls 462 forms 3405 frozen 104 digest fa0a5ae1190fb0ee8fddab08b3c34e51\n\
+     Early/Decision calls 320 forms 7995 frozen 8 digest d67eacf3f05307284a8d82b7ee794b41\n\
+     Early/Assertion calls 462 forms 3405 frozen 104 digest ed303ef94076429a1258d6382e297b72\n\
      Early/Report calls 8 forms 0 frozen 0 digest 00000000000000000000000000000000\n\
-     Door/Decision calls 330 forms 11852 frozen 104 digest 935291bca634a4e2cd8bfc16ab304ee6\n\
+     Door/Decision calls 330 forms 11864 frozen 104 digest 3a2220ee7df89a020b305363b74a0efc\n\
      Door/Assertion calls 190 forms 0 frozen 0 digest 00000000000000000000000000000000";
 
 /// **What the walks BUILD is pinned, not only what the tier decides.**

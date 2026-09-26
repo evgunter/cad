@@ -286,15 +286,6 @@ fn both_sweeps_evaluate_in_one_document() {
 /// there, and `cut_cylinder`'s and `kitchen_sink`'s are now the same
 /// numbers the split suite pins — one feed, one number per document.
 ///
-/// RE-MINTED for `boss_union` alone when an arc's apex began being
-/// built from its stored carrier (`swept::arc_apex`,
-/// `centre − n̂·σ·radius`) instead of the sagitta closed form in the
-/// bulge: the apex is a cap plane's fit point, the two spellings part
-/// in the last bits at a bulge that is not 1 (the boss is
-/// `circle_split(3)`), and the boss cap's plane carries them. The
-/// unit-bulge circles (`cut_cylinder`) and the polygon and revolve
-/// documents are unmoved.
-///
 /// They are goldens in the ordinary sense — when one moves the question
 /// is whether the new behaviour is right, never how to restore the old
 /// number.
@@ -304,7 +295,7 @@ fn the_sweep_documents_evaluate_to_their_committed_digests() {
         ("die", 0x591f_47ce_aa59_12e9),
         ("corner_table", 0x82f6_6598_1367_177a),
         ("cut_cylinder", 0x6b92_0ace_eeb8_c896),
-        ("boss_union", 0x32c5_831b_6e74_4397),
+        ("boss_union", 0x784f_5dfd_4f52_16f3),
         ("kitchen_sink", 0x6e3a_8472_c4c9_c90b),
     ];
     let mut moved: Vec<String> = Vec::new();

@@ -321,28 +321,33 @@ fn sketch_segment_of<T: Real>(a: Point2<T>, b: Point2<T>, kind: SweptKind<T>) ->
 /// interior point of the segment, and the point that keeps a 2-vertex
 /// loop plane-determining.
 ///
-/// It lies on the chord's perpendicular bisector, one radius from the
-/// centre on the side the arc bows to: `centre − n̂·(σ·radius)`, with
-/// `n̂` the unit left normal of the chord `a → b` and σ the turn's sign
-/// (a counterclockwise arc bows to the right of its chord, a clockwise
-/// one to the left). Rational in the segment's own data, with no trig
-/// of the sweep: the apex is a fit point of a cap plane, and the
-/// rotation's `sin`/`cos` at half the sweep would put trig atoms (or,
-/// at `Interval`, their enclosures) into every cap plane built on it.
-pub(crate) fn arc_apex<T: Real>(
-    a: Point2<T>,
-    b: Point2<T>,
-    centre: Point2<T>,
-    radius: T,
-    turn: Sign,
-) -> Point2<T> {
-    let u = (b - a).normalize();
+/// It is the chord midpoint moved off the chord by the sagitta:
+/// `mid − n̂·σ·(len/2)·tan(|Δθ|/4)`, with `n̂` the unit left normal of
+/// the chord `a → b` and σ the turn's sign (a counterclockwise arc bows
+/// to the right of its chord, a clockwise one to the left). Over the
+/// reals it is `centre − n̂·σ·radius`, for every `|Δθ| < 2π`.
+///
+/// **Chord-scale, not radius-scale**, which is why it is not written
+/// through the carrier. At `Interval` the carrier's centre carries the
+/// chord's relative width amplified by the radius (∝ 1/b for a flat
+/// arc), so `centre − n̂·σ·radius` is that wide too (3.6e-12 at unit
+/// chord and b = 1e-4, measured), while the sagitta form stays at the
+/// endpoints' own scale. And it is rational in the endpoints plus one
+/// tangent of the sweep, not the sweep's sine and cosine: the apex is a
+/// fit point of a cap plane, and trig of the half-sweep in every cap
+/// plane is what cost r1_annulus its certification ceiling.
+pub(crate) fn arc_apex<T: Real>(a: Point2<T>, b: Point2<T>, sweep: T, turn: Sign) -> Point2<T> {
+    let chord = b - a;
+    let len = chord.norm();
+    let u = chord / len;
     let nhat = Vec2::new(T::zero() - u.y, u.x);
+    let mid = a.lerp(b, T::from_f64(0.5));
+    let sagitta = len * T::from_f64(0.5) * (arc_span(turn, sweep) * T::from_f64(0.25)).tan();
     let bow = match turn {
-        Sign::Positive | Sign::Zero => radius,
-        Sign::Negative => T::zero() - radius,
+        Sign::Positive | Sign::Zero => sagitta,
+        Sign::Negative => T::zero() - sagitta,
     };
-    centre - nhat * bow
+    mid - nhat * bow
 }
 
 /// The arc parameter span |Δθ|: the sweep signed by the segment's
@@ -637,14 +642,8 @@ pub(crate) fn cap_points<T: Real, S: SweptChord<T>>(
     let mut pts = Vec::with_capacity(segs.len() * 2);
     for (j, s) in segs.iter().enumerate() {
         pts.push(qs[j]);
-        if let SweptKind::Arc {
-            center,
-            radius,
-            turn,
-            ..
-        } = s.kind()
-        {
-            let apex = arc_apex(s.a(), s.b(), center, radius, turn);
+        if let SweptKind::Arc { sweep, turn, .. } = s.kind() {
+            let apex = arc_apex(s.a(), s.b(), sweep, turn);
             pts.push(place.transform_point(Point3::new(apex.x, apex.y, T::zero())));
         }
     }
@@ -791,4 +790,46 @@ pub(crate) fn describe_face_rim_at_rest<T: Decide>(
         body.describe_at_rest(edge, chart, tol)?;
     }
     Ok(())
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod tests {
+    use super::*;
+    use geom_core::{Bounds, Interval};
+
+    /// **The cap apex stays at the chord's scale at `Interval`.** Over
+    /// the shallow-arc grid (chord `L` ∈ {1e-3, 1, 50}, bulge down to
+    /// 1e-5, exact endpoints), the apex enclosure is no wider than a
+    /// few ulps of the chord. The carrier spelling
+    /// `centre − n̂·σ·radius` fails this by five decades on the flat
+    /// arcs (3.6e-12 at unit chord and b = 1e-4): the centre carries
+    /// the chord's width amplified by the radius.
+    #[test]
+    fn the_apex_enclosure_is_chord_scale_on_flat_arcs() {
+        let iv = Interval::from_f64;
+        for l in [1e-3, 1.0, 50.0] {
+            for b in [0.5, 1e-2, 1e-3, 1e-4, 1e-5] {
+                let (a, e) = (
+                    Point2::new(iv(-l / 2.0), iv(0.0)),
+                    Point2::new(iv(l / 2.0), iv(0.0)),
+                );
+                let lp = profile::test_support::bulge_loop(vec![
+                    (a, iv(b)),
+                    (e, iv(0.0)),
+                    (Point2::new(iv(0.0), iv(-l)), iv(0.0)),
+                ]);
+                let profile::Segment::Arc { sweep, .. } = lp.segments()[0] else {
+                    panic!("a nonzero bulge lowers to an arc");
+                };
+                let apex = arc_apex(a, e, sweep, Sign::Positive);
+                let width = (apex.x.hi() - apex.x.lo()).max(apex.y.hi() - apex.y.lo());
+                assert!(
+                    width <= 16.0 * f64::EPSILON * l,
+                    "L = {l:e}, b = {b:e}: the apex enclosure is {width:e} wide, past the \
+                     chord's own scale"
+                );
+            }
+        }
+    }
 }
