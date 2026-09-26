@@ -273,29 +273,25 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     );
 }
 
-/// **A sliver corner whose side is in band.** A parallelepiped resting
-/// a corner on the wall `x = 1`, with a 3 cm edge off the wall and a
-/// 0.8 m edge leaving it at a small elevation `e`. Every direction of a
-/// cone is decided at its metering arm — the shortest edge at the
-/// corner, 3 cm — so the long edge reads `e · 0.03 / 0.8` off the wall.
-/// The fixture puts that reading at the geometric mean of the run
-/// band's two thresholds, so it is in band at every eps row, while the
-/// far endpoint itself stands `e` (about 27 × the reading, past the
-/// escalation threshold) off the wall and no sweep escalates: the rest
-/// is refused typed as in band rather than read from the far endpoint.
-/// At the base the vertex-on-face analysis read the far endpoint and
-/// cleared.
+/// **A sliver corner is read at each edge's own length.** A
+/// parallelepiped rests a corner on the wall `x = 1` with a 3 cm edge
+/// off the wall and a 0.8 m edge leaving it at an elevation `e` just
+/// past the run band's escalation threshold. Every boundary ray is
+/// decided at its own edge's length, so the long edge reads `e` —
+/// definitely off the wall, on the concavity's side — and the corner is
+/// a rest: the pair carries no placement finding. (Levered at the
+/// corner's shortest edge instead, the same edge would read
+/// `e · 0.03 / 0.8`, inside the band, and the corner would refuse; the
+/// same lever reads a DIPPING edge as on the wall, which is the reason
+/// it is not used — `census::tests::a_long_ray_dipping_into_the_other_is_never_a_rest`.)
 #[test]
-fn a_sliver_corner_whose_side_is_in_band_refuses_typed() {
+fn a_sliver_corner_clears_on_its_long_edge_s_own_reading() {
     let band = Band::linear(Tol::witness()).unwrap();
-    let (arm, long) = (0.03, 0.8);
-    let reading = (band.zero() * band.escalate()).sqrt();
-    let e = reading * long / arm;
-    assert!(e > band.escalate(), "the far endpoint is definite: {e}");
+    let e = 2.0 * band.escalate();
     let body = bracket_with(&parallelepiped(
         [1.0, 2.0, 0.5],
-        [arm, 0.0, 0.0],
-        [e, long, 0.0],
+        [0.03, 0.0, 0.0],
+        [e, 0.8, 0.0],
         [0.0, 0.0, 0.3],
     ));
     let errors = refused(&body, &ContactRecords::default());
@@ -303,10 +299,7 @@ fn a_sliver_corner_whose_side_is_in_band_refuses_typed() {
         !errors
             .iter()
             .any(|e| matches!(e, ValidationError::CensusEscalated { .. })),
-        "no sweep escalates; only the touch is in band: {errors:?}"
+        "no sweep escalates: {errors:?}"
     );
-    assert!(
-        the_refusal(&errors).contains("too close to call"),
-        "{errors:?}"
-    );
+    assert!(placement_findings(&errors).is_empty(), "{errors:?}");
 }
