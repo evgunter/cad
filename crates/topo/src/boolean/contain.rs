@@ -186,10 +186,10 @@ pub fn contfp<T: Decide>(
 /// Which walk can express a loop's region — the question [`contfp`]'s
 /// interior/exterior step must answer before it asks any other.
 ///
-/// Visible to the crate because it is the classification tier 3's
-/// check 9 gates its nesting arm on as well: the same question, about
-/// the same loops, and a second spelling of it was a second answer to
-/// maintain.
+/// Visible to the crate because tier 3's check 9 reads its `Disc`
+/// class to decide two whole-circle loops against each other: the
+/// same question, about the same loops, and a second spelling of it
+/// was a second answer to maintain.
 pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
@@ -210,8 +210,9 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// [`contfp`] walks it anyway — one point's verdict, the posture
     /// it has always taken, with #1076 owning the general case. A
     /// consumer that would REFUSE a body on an `Out` must not: tier
-    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] and
-    /// [`Self::Disc`] alone for exactly that reason.
+    /// 3's check 9 places its rings with
+    /// `splitting::containment::point_in_carrier_loop`, which reads
+    /// each edge on its own carrier, for exactly that reason.
     ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
