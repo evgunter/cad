@@ -93,7 +93,7 @@ fn voided() -> (ProfileDoc, RecipeNodeId) {
     )
 }
 
-fn checks(doc: &ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
+fn checks(doc: &editor_core::ProfileDoc, cfg: &ChecksConfig) -> ChecksReport {
     let ev = run(doc);
     run_checks(doc, &ev, cfg, Tol::witness()).expect("checks run over a completed evaluation")
 }

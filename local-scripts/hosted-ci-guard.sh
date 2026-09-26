@@ -29,6 +29,16 @@
 # certifying is one nobody types by accident, and one that reads as a claim
 # in the shell history that produced the run.
 #
+# WHAT IT CERTIFIES is that THIS run should not wait on hosted CI: hosted
+# is down (a billing outage, an Actions incident, no network), or its queue
+# is so deep that a run on an otherwise idle box returns first (Ev,
+# 2026-09-26: the queue behind a PR's run had stood over two hours). The
+# sentence used to certify only the first case, which made the second one
+# unsayable without a false claim in the shell history. What the run then
+# IS differs by case, and the messages below say which: during an outage it
+# is the fallback gate; beside a queued hosted run it is an early answer,
+# and merging on it before the hosted run lands is the owner's call.
+#
 # THE RULE IS STRUCTURAL, NOT SNIFFED. There is no GITHUB_ACTIONS check
 # here on purpose — hosted CI does not call these scripts at all (verified:
 # ci.yml mirrors the matrix, it does not invoke the mirror), and a sniffed
@@ -41,7 +51,7 @@
 # the WHOLE-MATRIX entry points only. Per memories/local-battery-scope.md,
 # scoping the local battery to the change shape is the rule; this guard
 # enforces the ceiling, not the floor.
-CAD_LOCAL_CI_OVERRIDE_SENTENCE='i-certify-hosted-ci-is-unavailable'
+CAD_LOCAL_CI_OVERRIDE_SENTENCE='i-certify-this-run-should-not-be-hosted'
 
 # $1: the entry point's name, for the message. Returns (0) only when the
 # override is set to the exact sentence; otherwise prints the pointer and
@@ -52,10 +62,11 @@ require_hosted_ci() {
 
     if [ "$got" = "$CAD_LOCAL_CI_OVERRIDE_SENTENCE" ]; then
         echo "[$entry] LOCAL FULL-MATRIX OVERRIDE in effect." >&2
-        echo "[$entry]   You have certified that hosted CI is unavailable." >&2
-        echo "[$entry]   This run takes every build slot on the machine and is" >&2
-        echo "[$entry]   NOT the merge gate — hosted CI still is, the moment it" >&2
-        echo "[$entry]   is back. Re-push and let it run before merging." >&2
+        echo "[$entry]   You have certified that this run should not be hosted." >&2
+        echo "[$entry]   This run takes every build slot on the machine. It is" >&2
+        echo "[$entry]   the merge gate only while hosted CI is DOWN; beside a" >&2
+        echo "[$entry]   queued hosted run it is an early answer, and merging on" >&2
+        echo "[$entry]   it before the hosted run lands is the owner's call." >&2
         return 0
     fi
 
@@ -82,8 +93,10 @@ require_hosted_ci() {
         echo "  scripts/doc-gate.sh                   # rustdoc only"
         echo "  cargo clippy --workspace --all-targets -- -D warnings"
         echo
-        echo "IF HOSTED CI IS ACTUALLY DOWN (billing outage, Actions incident,"
-        echo "no network) this script is the fallback gate. Say so explicitly:"
+        echo "IF THIS RUN SHOULD NOT WAIT ON HOSTED CI, say so explicitly. That is"
+        echo "true when hosted is down (this script is then the fallback gate) or"
+        echo "when its queue is deeper than this run is long, on a box nothing"
+        echo "else needs (an early answer; the hosted run is still the gate):"
         echo
         echo "  CAD_LOCAL_CI_OVERRIDE=$CAD_LOCAL_CI_OVERRIDE_SENTENCE $entry"
         echo

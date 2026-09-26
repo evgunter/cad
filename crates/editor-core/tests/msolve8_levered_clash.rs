@@ -1081,7 +1081,7 @@ fn band_document(label: &str) -> (ProfileDoc, Vec<RecipeNodeId>) {
 /// the solve's own `Band` fault, so no INSERT lands one — a snapshot
 /// loaded under this tolerance still can — and the solve reaches
 /// every instance the document holds.
-fn band_refuses_every_mate(doc: &ProfileDoc, ids: &[RecipeNodeId]) {
+fn band_refuses_every_mate(doc: &editor_core::ProfileDoc, ids: &[RecipeNodeId]) {
     let tol = Tol::witness();
     assert!(
         Band::linear(tol).is_err(),

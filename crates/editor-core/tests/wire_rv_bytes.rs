@@ -137,6 +137,7 @@ fn program() -> ProfileProgram {
             LoopProgram::circle(1.0, 1.0, 0.5).unwrap(),
             LoopProgram::circle_split(2.0, 2.0, 0.75, 5, 0.2).unwrap(),
         ],
+        ids: Vec::new(),
     }
 }
 
