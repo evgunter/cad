@@ -610,7 +610,7 @@ SEMANTIC_FLAGS = {
 # adding names against no subject — and an allowlist grown that way is a
 # roster, which is the thing this whole file is about. The day one is set, it
 # is added here in the diff that sets it.
-SEMANTIC_ENV = ("RUSTFLAGS", "RUSTDOCFLAGS")
+SEMANTIC_ENV = ("RUSTFLAGS", "RUSTDOCFLAGS", "CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS")
 SEMANTIC_ENV_PREFIX = "CAD_"
 
 
