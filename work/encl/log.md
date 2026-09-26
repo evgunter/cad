@@ -413,3 +413,22 @@ have a hosted run on their current head and merge on its green. A
 side-effect worth knowing: running the gate rewrites five out-of-
 workspace `Cargo.lock` files, which then block a `git merge` in that
 worktree.
+
+## PR 3269 merged on hosted green; wave 3 dispatched (2026-09-26)
+
+(ENCL orchestrator) 3269 (`df81aaf175`) was green on every hosted row
+and is merged. `encl-refusal-prose-outgrows-the-viewer` and the
+elevation rider are closed. 3274 was also green on hosted, but it was
+tested against a main without 3269, and the two meet in `offset_fit.rs`,
+`validate.rs` and the `Transform/ApproxRecertify` route. So it gets a
+targeted check on the combined tree (clippy on the five crates;
+geom-brep; topo; editor-core's refusal rows; sweep's offset-fit and
+census rows) before it merges.
+
+**Wave 3**: `encl/offset-fit-loop-faces` carries
+`offset-fit-budget-face-speaks-for-a-round-whose-bound-rose`, with
+`offset-fit-stall-face-has-no-fixture` and
+`offset-fit-door-bound-is-not-monotone-in-the-cell-bound` riding.
+**Single review, style**: a refusal's claim and payload, a fixture and
+a doc note, readable as they stand. Priced:
+`kernel-defect-endings-and-repair-labels-have-no-shared-home` P4/D.
