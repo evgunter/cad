@@ -318,3 +318,22 @@ a number. Filed: `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-door
 The lane stopped building when the disk ran short, so the sweep rows and
 the 1e-6 and 1e-12 rows are unverified on this head; the local gate is
 their verification. Gate queue: 3272 (running) → 3275 → 3274.
+
+## PR 3269 fix pass in (2026-09-26)
+
+(ENCL orchestrator) Head `df81aaf175`. Every item was taken except two
+declines, both accepted:
+- `WindowUnsupported` keeps its `{:?}` tuples, because LIB's
+  `prose_census.rs` counts them.
+- The `PatchBound` notes keep their `: repair` form; that is the class
+  the new row carries.
+
+Filed:
+- `kernel-defect-endings-and-repair-labels-have-no-shared-home` (here);
+- `refusal-checker-stays-green-when-a-message-loses-its-recourse` (CHROME).
+
+`PatchBoundError` gained `strum::EnumIter` behind geom-brep's
+`test-support` feature, so its roster is compiler-derived. The loop arms
+render through `Shell/Face/Fit/*`, the route that can raise them.
+Builds were paused for disk, so the local gate is this head's first
+full run. Gate queue: 3272 (running) → 3275 → 3274 → 3269.
