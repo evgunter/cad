@@ -186,6 +186,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "encl_curved_loft_shell.rs"]
+mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
 mod extrude_acceptance;
 #[path = "extrude_interval.rs"]
