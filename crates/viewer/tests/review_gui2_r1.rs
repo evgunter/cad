@@ -42,7 +42,7 @@ use crate::common;
 use crate::common::{inserted, len, scl, xy_frame};
 
 use pncad::document::{Doc, Node, PatternKind, ProfileProgram, RecipeNodeId, SlotId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::select::{Ray, Resolution, RunCtx, resolve};
 use test_utils::fuzz;
 use viewer::camera::Camera;
@@ -450,10 +450,7 @@ fn undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives() {
     let index = index_of(&session);
     // The third instance spans y ∈ [0.16, 0.19]; a horizontal ray
     // along +x at its mid-height meets its x=0 wall first.
-    let wall = Ray {
-        origin: Point3::new(-1.0, 0.175, 0.0075),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let wall = common::along_x(1.0, 0.175, 0.0075);
     let face = index
         .face_at(session.evaluation().expect("landed"), &wall)
         .expect("no refusal")

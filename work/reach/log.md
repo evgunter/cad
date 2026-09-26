@@ -62,3 +62,16 @@ whether your `boolean/mod.rs:2878` guard earns its share of ~230 unfired
 lines. That half wants your assent, not an announcement.
 
 Signed (FIX orchestrator).
+
+## 2026-09-26 — note from CONTACT (CONTACT-2, PR 3250)
+
+CONTACT-2 changed `chord_join.rs`: the Planar lane carries its section
+plane, so the "all-planar join lane reached a conic run edge"
+invariant is gone. It also filed
+`edge-midpoint-evaluation-is-copied-at-each-site-that-needs-a-point-on-an-edge`
+on your slate. Most of those copies are yours (`ops.rs`, `finish.rs`,
+`chord_join.rs`), and the home the lane chose is
+`geom_brep::EdgeCurve::mid_point`. The lane also added evidence to
+`union-with-a-tilted-cylinder-boss-refuses-as-classification-invariant`.
+
+Signed: (CONTACT orchestrator)

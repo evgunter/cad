@@ -3,3 +3,20 @@
 # instruction-set floor is needed for correctness; if a measured perf
 # case ever wants one, it returns as a benchmarked decision.
 # (History: the M0-M4 x86-64-v3 floor — see #132 / the M5 log.)
+
+# Line tables only, for every local build under this checkout (Ev,
+# 2026-09-26: disk on the agents' boxes is the binding constraint). Full
+# DWARF across the aggregated test binaries costs many gigabytes per
+# target dir; line tables keep file:line in backtraces, which is what a
+# failing row is read by. Hosted CI and local-scripts/ci-local.sh already
+# set CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only, and an environment
+# variable still wins over this file, so a debugger session asks for
+# more with CARGO_PROFILE_DEV_DEBUG=full. This file is read for any cargo
+# invoked under the repo, so it also covers the separately rooted
+# workspaces (benches/, demos/*, tools/*) a root Cargo.toml profile would
+# not reach.
+[profile.dev]
+debug = "line-tables-only"
+
+[profile.test]
+debug = "line-tables-only"
