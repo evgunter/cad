@@ -45,10 +45,9 @@ fn a_placed_copy_grafts_and_the_union_certifies() {
     // The copy sits where the map put it, and the original did not
     // move: x runs 0..1 for one solid and 10..11 for the other.
     let extent = |solid| {
-        dst.solids()
-            .find(|(k, _)| *k == solid)
-            .map(|(_, s)| {
-                s.shells
+        dst.shells_of_solid(solid)
+            .map(|shells| {
+                shells
                     .iter()
                     .flat_map(|&sh| dst.get_shell(sh).unwrap().faces.clone())
                     .flat_map(|f| {
@@ -234,9 +233,8 @@ fn a_multi_solid_graft_equals_sequential_single_solid_grafts() {
     // Solid ORDER is preserved: the k-th returned key is the k-th
     // source solid, and it sits where that solid sat.
     let x_of = |b: &topo::Body<f64>, k: topo::SolidKey| {
-        b.get_solid(k)
+        b.shells_of_solid(k)
             .unwrap()
-            .shells
             .iter()
             .flat_map(|&sh| b.get_shell(sh).unwrap().faces.clone())
             .map(|f| {

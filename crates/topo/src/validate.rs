@@ -7023,10 +7023,8 @@ fn edge_adjacent_faces<T: Real>(
     (FaceKey, crate::geometry::SurfaceKey),
 )> {
     let face_of = |he: HalfEdgeKey| {
-        let he_data = body.half_edges.get(he)?;
-        let loop_data = body.loops.get(he_data.parent_loop)?;
-        let face_data = body.faces.get(loop_data.face)?;
-        Some((loop_data.face, face_data.surface))
+        let face = body.face_of_half_edge(he)?;
+        Some((face, body.get_face(face)?.surface))
     };
     Some((face_of(he_plus)?, face_of(he_minus)?))
 }
@@ -7846,12 +7844,12 @@ fn shell_component<T: Real>(
                         component_edges.insert(he.edge, ());
                         // Glue across the edge via mate.
                         let mate = body.mate(member)?;
-                        let mate_he = body.half_edges.get(mate)?;
-                        let mate_loop = body.loops.get(mate_he.parent_loop)?;
-                        let mate_face = body.faces.get(mate_loop.face)?;
-                        if mate_face.shell == shell && !visited.contains_key(mate_loop.face) {
-                            visited.insert(mate_loop.face, ());
-                            pending.push(mate_loop.face);
+                        let mate_face = body.face_of_half_edge(mate)?;
+                        if body.get_face(mate_face)?.shell == shell
+                            && !visited.contains_key(mate_face)
+                        {
+                            visited.insert(mate_face, ());
+                            pending.push(mate_face);
                         }
                     }
                 }

@@ -149,7 +149,12 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     measurement for a future lane.** Two doors in a row shipped a census
     sentence with nothing holding it true. The fix is not to guard the
     sentence; it is to make no census claim at the door and let the row
-    hold the measurement, dated, with its instruments named.
+    hold the measurement, dated, with its instruments named. **And no
+    pointer to the row either**: a closed program's directory is
+    deleted (`work/README.md`, the closing rules), so a rustdoc line
+    naming a `work/` file dangles the day the program closes, and "re-
+    measured by a lane" is a promise nobody keeps once the row is closed.
+    Three doors carried one until #3284 removed them (2026-09-26).
 
 14. **File the residue as items, one per seam owner** (`work/README.md`,
     Ev 2026-09-06). *"That sweep sees items, not sentences."* A lane
@@ -374,6 +379,18 @@ while it was being worked: 5 → 8, 2 → 16, 11 → 14 → 17, 17 → 19,
     when a count is wanted. A memorised count is item 22's shape: a
     measurement that was right once and is now an instrument.
     (2026-09-25, `dup/owner-index-divergence`.)
+
+28. **A local mirror can agree with its twin on paper and still
+    differ at runtime.** `check-ci-mirror-parity.py` compared every row,
+    flag, env var and directory of `ci-local.sh` against `ci.yml` and
+    passed, yet the viewer app row reddened locally: hosted installs a
+    software Vulkan adapter (`mesa-vulkan-drivers`, lavapipe) as a
+    package, and a package is not something either script spells. The
+    first local run of a mirror is itself the parity check, row by row
+    against a hosted run on the same commit; read its failures for an
+    environment the hosted half provisions before reading them as the
+    change's. (2026-09-26, `#3285`'s local run; after the install the
+    row went 978/978 on `#3284`.)
 
 ## Review posture
 

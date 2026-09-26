@@ -29,11 +29,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
 use geom::Surface;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
 
@@ -46,19 +45,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// by `rot` degrees about its axis: radius 0.5, three ARC edges per
 /// cap, three cap vertices at `rot + {0°, 120°, 240°}`.
 fn cylinder(z0: f64, rot: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = (deg + rot).to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(0.0, 0.0), 0.5, z0, 1.0, rot)
 }
 
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +

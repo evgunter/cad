@@ -14,8 +14,9 @@
     clippy::panic
 )]
 
-use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use crate::common::three_arc;
+use geom_core::{Point2, Tol};
+use sweep::test_support::{extruded, sketch_at};
 use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
@@ -24,32 +25,16 @@ pub fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A circle at the origin as three 120° arcs, first joint at `deg0`.
-pub fn three_arc(radius: f64, deg0: f64) -> ProfileLoop<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        p2(radius * th.cos(), radius * th.sin())
-    };
-    bulge_loop(vec![
-        (at(deg0), b120),
-        (at(deg0 + 120.0), b120),
-        (at(deg0 + 240.0), b120),
-    ])
-}
-
-pub fn extruded(loops: Vec<ProfileLoop<f64>>, z0: f64, h: f64) -> Body<f64> {
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, loops).validate(Tol::witness()).unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
 /// The collar: an annulus (outer r = 1.5, bore r = 0.5), z ∈ [1, 2],
 /// both rims three 120° arcs starting at `deg0` — bore wall is 3 faces.
 pub fn collar_at(deg0: f64) -> Body<f64> {
-    extruded(vec![three_arc(1.5, deg0), three_arc(0.5, deg0)], 1.0, 1.0)
+    let o = p2(0.0, 0.0);
+    extruded(
+        sketch_at(1.0),
+        vec![three_arc(o, 1.5, deg0), three_arc(o, 0.5, deg0)],
+        1.0,
+        Tol::witness(),
+    )
 }
 
 pub fn collar() -> Body<f64> {
@@ -61,7 +46,12 @@ pub fn collar() -> Body<f64> {
 /// **Argument order is `(deg0, z0, h)`** — the azimuth first, then the
 /// span. The two suites that grew their own copy disagreed about this.
 pub fn peg_at(deg0: f64, z0: f64, h: f64) -> Body<f64> {
-    extruded(vec![three_arc(0.5, deg0)], z0, h)
+    extruded(
+        sketch_at(z0),
+        vec![three_arc(p2(0.0, 0.0), 0.5, deg0)],
+        h,
+        Tol::witness(),
+    )
 }
 
 pub fn peg(z0: f64, h: f64) -> Body<f64> {

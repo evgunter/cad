@@ -139,7 +139,7 @@ fn r2_e2e_box_beside_vessel_opened_on_the_vessels_void_ceiling() {
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let ves = solids[1];
-    let ves_shell = pair.get_solid(ves).unwrap().shells[0];
+    let ves_shell = pair.shells_of_solid(ves).unwrap()[0];
     let top = cap(&pair, ves_shell, Vec3::new(0.0, 1.0, 0.0), 2.0);
 
     let hollow = topo::shell(&pair, t, tol()).expect("hollow both");
