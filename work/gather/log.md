@@ -301,3 +301,13 @@ on PR 3264's head `b9cf830e0`, launched under the override from this
 session on 2026-09-26. From here on, final local batteries run from the
 orchestrator's session, one at a time, in the lane's retained worktree.
 Lanes iterate with targeted runs.
+
+**The local battery must run with `CARGO_INCREMENTAL=0` on this box.**
+The first battery on 3264 grew its worktree `target/` to 21 GB, 9 GB of
+it `debug/incremental`, and took the disk to 982 MB free during the test
+rows. `ci-local.sh` does not disable incremental. It was stopped by its
+own process group, the cache was dropped, idle lane targets were
+deleted, and it was restarted with incremental off. The
+`viewer gpu::tests::every_pass_builds_on_a_real_device` row failed in
+that first run, and this container has no GPU. The restarted run shows
+whether that is the only red and whether it is environmental.
