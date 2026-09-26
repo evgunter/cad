@@ -217,31 +217,52 @@ where
 {
     let n = verts.len();
     for i in 0..n {
-        let (a, b) = (verts[i], verts[(i + 1) % n]);
-        let e = b.disp(a);
-        let w = q.disp(a);
-        let len2 = P::norm_squared(e);
-        let gap = match decide(rows.segment, P::length_margin(e), band)? {
-            Sign::Zero => w,
-            _ => {
-                // Foot parameter clamped to the span — evaluation lane
-                // (no comparison): t = clamp(w·e / e·e, 0, 1) via
-                // min/max.
-                let t = (P::dot(w, e) / len2).max(T::zero()).min(T::one());
-                let foot = a.offset(P::scale(e, t));
-                q.disp(foot)
-            }
-        };
-        // The distance stays a DISPLACEMENT until the door, so the
-        // norm is taken inside `Margin::norm2`/`norm3` rather than
-        // handed to `Margin::of` already rooted.
-        // Zero ⇒ on boundary; Positive (Negative unreachable for a
-        // distance) ⇒ strictly off this segment.
-        if decide(rows.boundary, P::length_margin(gap), band)? == Sign::Zero {
+        if on_segment(verts[i], verts[(i + 1) % n], q, rows, band)? {
             return Ok(true);
         }
     }
     Ok(false)
+}
+
+/// Is `q` within the band of the closed segment `[a, b]`? One step of
+/// [`on_boundary`], for a caller whose cycle is not all segments — a
+/// loop with arcs asks it of its straight edges only, since an arc's
+/// chord is not boundary.
+///
+/// # Errors
+///
+/// As [`on_boundary`].
+pub(crate) fn on_segment<T, P>(
+    a: P,
+    b: P,
+    q: P,
+    rows: &ParityRows,
+    band: Band,
+) -> Result<bool, Indeterminate>
+where
+    T: Decide,
+    P: RaySpace<T>,
+{
+    let e = b.disp(a);
+    let w = q.disp(a);
+    let len2 = P::norm_squared(e);
+    let gap = match decide(rows.segment, P::length_margin(e), band)? {
+        Sign::Zero => w,
+        _ => {
+            // Foot parameter clamped to the span — evaluation lane
+            // (no comparison): t = clamp(w·e / e·e, 0, 1) via
+            // min/max.
+            let t = (P::dot(w, e) / len2).max(T::zero()).min(T::one());
+            let foot = a.offset(P::scale(e, t));
+            q.disp(foot)
+        }
+    };
+    // The distance stays a DISPLACEMENT until the door, so the
+    // norm is taken inside `Margin::norm2`/`norm3` rather than
+    // handed to `Margin::of` already rooted.
+    // Zero ⇒ on boundary; Positive (Negative unreachable for a
+    // distance) ⇒ strictly off this segment.
+    Ok(decide(rows.boundary, P::length_margin(gap), band)? == Sign::Zero)
 }
 
 /// One schedule member's parity walk, in the in-plane orthonormal
@@ -269,6 +290,32 @@ where
     T: Decide,
     P: RaySpace<T>,
 {
+    Ok(ray_crossings(verts, q, d, side_axis, rows, band, |_| true)?
+        .map(|crossings| !crossings.is_multiple_of(2)))
+}
+
+/// [`ray_verdict`]'s count, over the cycle's segments `i → i + 1` for
+/// which `counted(i)` holds — every vertex is still asked the side row,
+/// so a vertex on the ray line grazes whichever edges it bounds. A
+/// loop with arcs counts its straight edges here and crosses its arcs
+/// on their own carriers.
+///
+/// # Errors
+///
+/// As [`ray_verdict`].
+pub(crate) fn ray_crossings<T, P>(
+    verts: &[P],
+    q: P,
+    d: P::Disp,
+    side_axis: P::Disp,
+    rows: &ParityRows,
+    band: Band,
+    counted: impl Fn(usize) -> bool,
+) -> Result<Option<usize>, Indeterminate>
+where
+    T: Decide,
+    P: RaySpace<T>,
+{
     let n = verts.len();
 
     // Signed frame coordinates of each vertex relative to q.
@@ -289,8 +336,8 @@ where
     let mut crossings = 0usize;
     for i in 0..n {
         let j = (i + 1) % n;
-        if sides[i] == sides[j] {
-            continue; // no straddle, no crossing
+        if !counted(i) || sides[i] == sides[j] {
+            continue; // not a segment of this count, or no straddle
         }
         // Straddling: the crossing's advance along the ray.
         let advance = Margin::over_lever(xs[i] * ys[j] - xs[j] * ys[i], ys[j] - ys[i]);
@@ -302,7 +349,7 @@ where
             Sign::Zero => return Ok(None),
         }
     }
-    Ok(Some(!crossings.is_multiple_of(2)))
+    Ok(Some(crossings))
 }
 
 #[cfg(test)]

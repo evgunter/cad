@@ -17,7 +17,7 @@ use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::Body;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -47,34 +47,25 @@ fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
 /// expression as if it produced the literal would be quoting a number
 /// this kernel never returned.
 ///
-/// It is a typed refusal now, from the JOIN layer: the events are
-/// found, both bodies are split, and what has no arm is the join of a
-/// pierce ring in an arc-bounded planar face. A refusal is not the
-/// answer this case deserves, but it is honest, and the wrong volume
-/// is gone.
+/// The union answers the truth: the events are found, both bodies are
+/// split, and the join resolves each pierce region's role by probing
+/// the other operand with `point_in_solid`, whose planar arm reads the
+/// arc-bounded cap on its circle.
 #[test]
 fn a_box_driven_through_a_cap_no_longer_unions_as_two_disjoint_solids() {
     let tol = Tol::witness();
     let a = cyl(1.0, 0.0, 2.0);
     let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
-    let err = match topo::union(&a, &b, tol) {
-        Err(e) => e,
-        Ok(topo::BooleanResult::Body(out)) => {
-            let v = topo::mass_properties(&out.body, tol).unwrap().volume;
-            panic!(
-                "the cap crossing must not be silent: volume {v} \
-                 (the old wrong answer was 7.003185307179585, truth \
-                 6.643185307179586)"
-            );
-        }
-        Ok(other) => panic!("expected one solid or a typed refusal, got {other:?}"),
+    let out = match topo::union(&a, &b, tol) {
+        Ok(topo::BooleanResult::Body(out)) => out.body,
+        other => panic!("the box-through-cap union answers one solid, got {other:?}"),
     };
+    assert_eq!(topo::validate_geometric(&out, tol), Ok(()), "tier 3");
+    let v = topo::mass_properties(&out, tol).unwrap().volume;
     assert!(
-        matches!(
-            err,
-            BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-        ),
-        "the crossing layer passes it; the join layer owns what is left: {err:?}"
+        (v - 6.643185307179586).abs() < 1e-12,
+        "the overlap is counted once: volume {v} (the old wrong answer was \
+         7.003185307179585, truth 6.643185307179586)"
     );
 }
 

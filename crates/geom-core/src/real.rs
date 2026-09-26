@@ -1441,6 +1441,8 @@ pub mod bounds_allowlist {
 ///   brackets they store never leave the door.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
+/// - [`crate::Sym`] — delegates to its numeric channel, so it refuses
+///   exactly where the scalar it wraps does.
 ///
 /// Every one of them therefore honours one postcondition, which is what
 /// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
