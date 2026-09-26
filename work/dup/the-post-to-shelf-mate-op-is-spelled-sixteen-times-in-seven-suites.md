@@ -91,5 +91,13 @@ Folded by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
   (`assembly_display::seat_alignment`) is `asm::middle_seat`; the mate
   tool's seat choice written out three times beside `asm::seat`
   (`review_gui4_r1::rest_choice`, `review_gui4_r2::seat`, an inline
-  one in `assembly_walk`) routes to `asm::seat`.
+  one in `assembly_walk`) routes to `asm::seat`; and the face pick the
+  tool rows start from — a private `pick_at` / `pick` written
+  byte-identically in `mate_tool_flow`, `review_gui4_r2` and
+  `rv_matehead_probes`, with an index-taking variant in
+  `review_gui4_r1` and `story_assembly` — is `common::face_at` /
+  `asm::pick_face`, the two seat picks (`two_picks` twice,
+  `seat_picks`) are `asm::seat_picks`, and `mate_tool_flow`'s
+  `shelf_underside` helper, which that file also spelled inline five
+  more times, is `asm::shelf_underside`.
 - The plants and their per-row red lists are in the PR body.
