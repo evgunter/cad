@@ -72,8 +72,8 @@
 //!
 //! Every curved-face quantity is extracted from **stored** data —
 //! carrier parameter intervals (angle-true for circle carriers; spans
-//! minted from `θ = 4·atan|bulge|` or the sweep angle at construction,
-//! the sanctioned re-inspection), stored circle centers/axes/radii,
+//! minted from the segment's stored sweep or the sweep angle at
+//! construction), stored circle centers/axes/radii,
 //! and carrier endpoint evaluations — never from endpoint `atan2`
 //! chart inversion (the wedge-unwrap trap, M2 PR 6's blocker: two
 //! endpoint inversions differenced lose the winding and sit on a
