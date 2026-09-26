@@ -1413,21 +1413,6 @@ pub(crate) fn walk_chains<T: Decide>(links: Vec<Link<T>>) -> Vec<Chain<T>> {
     chains
 }
 
-/// The vertex's incident edges (its orbit) — the valence predicate 6
-/// classifies.
-fn vertex_edges<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let v = body.get_vertex(vertex)?;
-    let he = v.emanating?;
-    let orbit = body.vertex_orbit(he)?;
-    let mut edges: Vec<EdgeKey> = orbit
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
-
 /// **Run the battery** — C8's six predicates over the request's
 /// inputs, in C8's order, before any construction.
 ///
@@ -1800,7 +1785,7 @@ pub(super) fn cap_incidence<T: Decide>(
     face_a: FaceKey,
     face_b: FaceKey,
 ) -> Option<(EdgeKey, EdgeKey, FaceKey)> {
-    let incident = vertex_edges(body, vertex)?;
+    let incident = body.edges_of_vertex(vertex)?;
     let [_, _, _] = incident[..] else {
         return None;
     };
@@ -1855,7 +1840,11 @@ fn corner_at<T: Decide + Bounds>(
 ) -> Result<Option<CornerConfig>, BlendError> {
     let indeterminate =
         || super::surgery::unbuilt_corner_config(vertex, CornerConfig::Indeterminate);
-    let edges = vertex_edges(body, vertex).ok_or_else(indeterminate)?;
+    // In key order, so the supports below are gathered — and their
+    // normals reach the independence determinant — in an order that
+    // does not depend on where the vertex's orbit starts.
+    let mut edges = body.edges_of_vertex(vertex).ok_or_else(indeterminate)?;
+    edges.sort_unstable();
     let valence = edges.len();
     // A chart seam crossing a smooth rim is NOT a corner, so it is
     // recognized before the valence is read as a corner configuration —

@@ -104,23 +104,6 @@ fn corners(body: &Body<f64>, face: FaceKey) -> Vec<Point3<f64>> {
     out
 }
 
-fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
-}
-
 // ---------------------------------------------------------------
 // P1. `sf2b_r2_probes::r2_per_chart_door_on_a_mirror_nappe_cone`
 //     claims to carry "the whole differential, in one number". Measure

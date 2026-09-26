@@ -21,9 +21,9 @@ use sweep::{TubeWindow, tube_along_arc};
 use topo::{Body, ShellError, SolidKey};
 
 use crate::common::approx::band;
+use crate::common::charts::{charts_of, moves_by};
 use crate::shell8_common::{
-    beside, bits, charts_of, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol,
-    top_chart, volume,
+    beside, bits, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol, top_chart, volume,
 };
 use crate::verbs_shell::{hollow_box, v, vessel};
 
@@ -247,15 +247,8 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
         10.0,
     );
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
-    let moves = |body: &Body<f64>, solid: SolidKey, d: f64| -> Vec<topo::ChartMove<f64>> {
-        charts_of(body, solid)
-            .into_iter()
-            .map(|faces| topo::ChartMove { faces, distance: d })
-            .collect()
-    };
-
     // A solid named in PART still refuses, naming the face nothing moved.
-    let mut partial = moves(&pair, solids[0], -0.1);
+    let mut partial = moves_by(charts_of(&pair, solids[0]), -0.1);
     partial.pop();
     let mut work = pair.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol())
@@ -269,8 +262,13 @@ fn a_simultaneous_door_moves_one_solid_and_leaves_the_other_bitwise() {
     // Every face of ONE solid: builds, and the other is bitwise.
     let before = points(&pair);
     let mut work = pair.clone();
-    topo::offset_planes_together(&mut work, &moves(&pair, solids[0], -0.1), band(), tol())
-        .expect("one solid's charts move together");
+    topo::offset_planes_together(
+        &mut work,
+        &moves_by(charts_of(&pair, solids[0]), -0.1),
+        band(),
+        tol(),
+    )
+    .expect("one solid's charts move together");
     let after = points(&work);
     assert_eq!(before.len(), after.len(), "no vertex minted or killed");
     let owners = topo::SolidOwners::of(&pair);

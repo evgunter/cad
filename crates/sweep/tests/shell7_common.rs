@@ -129,12 +129,11 @@ pub(crate) fn same_surface(body: &Body<f64>, e: EdgeKey) -> bool {
 }
 
 pub(crate) fn distinct_surfaces_at(body: &Body<f64>, v: VertexKey) -> usize {
-    let em = body.get_vertex(v).unwrap().emanating.unwrap();
     let mut s: Vec<_> = body
-        .vertex_orbit(em)
+        .faces_of_vertex(v)
         .unwrap()
         .into_iter()
-        .map(|he| body.get_face(face_of_he(body, he)).unwrap().surface)
+        .map(|f| body.get_face(f).unwrap().surface)
         .collect();
     s.sort();
     s.dedup();
@@ -189,26 +188,4 @@ pub(crate) fn edge_refusal(e: &ShellError<f64>) -> Option<(EdgeKey, &'static str
         ReplaceFaceError::TogetherAxialEdge { edge, what } => Some((edge, what)),
         _ => None,
     }
-}
-
-/// Every chart of `body` moved inward by `t` through the simultaneous
-/// door — the moves `shell` builds, spelled at the door itself.
-pub(crate) fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }

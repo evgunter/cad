@@ -36,7 +36,7 @@ use geom_core::{Decide, Point3, Real};
 use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, VertexKey};
 
 use super::battery::{Chain, Convexity, Link};
-use super::build::{face_cycle, outward_of, vertex_faces};
+use super::build::{face_cycle, outward_of};
 use super::surgery::{
     CORNER_SUPPORT_NOT_PLANAR, not_intact, unbuilt_chain, unbuilt_corner_config, unbuilt_geometry,
     unbuilt_run_out,
@@ -289,7 +289,7 @@ impl CornerFaces {
     /// [`BlendError::UnsupportedCorner`] when the corner is not
     /// trivalent.
     pub(super) fn admit<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Result<Self, BlendError> {
-        let faces = vertex_faces(body, vertex).ok_or_else(|| {
+        let faces = body.faces_of_vertex(vertex).ok_or_else(|| {
             not_intact(
                 EntityId::Vertex(vertex),
                 "a corner's face orbit does not walk",
@@ -304,7 +304,7 @@ impl CornerFaces {
             ));
         };
         // Distinctness is what makes `third` total, so it is checked
-        // here rather than inherited from `vertex_faces`' dedup.
+        // here rather than inherited from `Body::faces_of_vertex`' dedup.
         // **This arm cannot fire today** — the walk already dedups, so
         // no input reaches it and no row can drive it; what is guarded
         // is the predicate, in `distinct_faces_is_pairwise`, and what
@@ -619,7 +619,7 @@ mod tests {
     }
 
     /// The predicate [`super::CornerFaces::third`]'s totality rests on.
-    /// Its one call site cannot fire (`vertex_faces` already dedups), so
+    /// Its one call site cannot fire (`Body::faces_of_vertex` already dedups), so
     /// the property is exercised here instead of being left as a guard
     /// nobody can tell is working.
     #[test]

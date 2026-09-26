@@ -1241,6 +1241,70 @@ impl<T: Real> Body<T> {
         }
     }
 
+    /// The edges meeting `vertex`, each ONCE — or `None` where the
+    /// vertex key is stale or its orbit does not walk
+    /// ([`Body::vertex_orbit`]'s `None`). A foreign key is not caught
+    /// (see the [module docs](self)).
+    ///
+    /// **The order is the orbit's, and it is part of the answer**: the
+    /// walk starts at the vertex's stored [`Vertex::emanating`] and goes
+    /// clockwise ([`Body::vertex_orbit`]), and each edge sits where the
+    /// walk FIRST reaches it. An edge both of whose half-edges start
+    /// here — a closed edge whose one vertex is this one — is reached
+    /// twice and listed once. A caller that wants a set sorts; the
+    /// orbit order cannot be recovered from a sorted list, so the door
+    /// does not sort for it.
+    ///
+    /// **The empty list and the refusal are different answers**, as at
+    /// [`Body::faces_of_solid`]: a vertex with no emanating half-edge
+    /// (the lone vertex `mvfs` leaves) meets no edge, which is a body
+    /// state, and a stale key or a broken orbit is not.
+    ///
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose refusal names WHICH hop failed keeps its own walk
+    /// ([`Body::face_of_half_edge`] states the rule).
+    #[must_use]
+    pub fn edges_of_vertex(&self, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+        self.orbit_projection(vertex, |he| self.get_half_edge(he).map(|h| h.edge))
+    }
+
+    /// The faces around `vertex`, each ONCE, in the order the orbit
+    /// first reaches them — [`Body::edges_of_vertex`]'s walk projected
+    /// through [`Body::face_of_half_edge`] instead of onto the edge, and
+    /// every sentence of that door's contract holds here unchanged.
+    ///
+    /// A face can be reached more than once: a strut leaves one face on
+    /// both sides of an edge at the vertex, and so does a seam meridian
+    /// on a face that closes around its own chart. It is listed at its
+    /// first reach. A caller that wants the distinct SURFACES reads each
+    /// face's [`Face::surface`] and dedups that — two faces can wear one
+    /// chart, so the surface count is not this list's length.
+    #[must_use]
+    pub fn faces_of_vertex(&self, vertex: VertexKey) -> Option<Vec<FaceKey>> {
+        self.orbit_projection(vertex, |he| self.face_of_half_edge(he))
+    }
+
+    /// The engine of the two vertex doors: `project` over the vertex's
+    /// orbit, each value kept at its first appearance; `None` on a
+    /// stale vertex, a broken orbit, or a projection that refuses.
+    fn orbit_projection<K: PartialEq>(
+        &self,
+        vertex: VertexKey,
+        project: impl Fn(HalfEdgeKey) -> Option<K>,
+    ) -> Option<Vec<K>> {
+        let Some(first) = self.get_vertex(vertex)?.emanating else {
+            return Some(Vec::new());
+        };
+        let mut out: Vec<K> = Vec::new();
+        for he in self.vertex_orbit(first)? {
+            let k = project(he)?;
+            if !out.contains(&k) {
+                out.push(k);
+            }
+        }
+        Some(out)
+    }
+
     /// Bounded loop-cycle walk with the three-way outcome the validator
     /// needs (see [`Walk`]). Step: `next`.
     pub(crate) fn loop_walk(&self, first: HalfEdgeKey) -> Walk {
@@ -1426,7 +1490,7 @@ mod tests {
     use super::*;
     use crate::EntityId;
     use crate::ReplaceFaceError;
-    use crate::fixtures::{mvfs_state, pillow, prov, refile_shells};
+    use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
     fn origin() -> Point3<f64> {
@@ -1887,6 +1951,71 @@ mod tests {
             assert_eq!(t.body.get_half_edge(he).unwrap().start, t.vertices[0]);
         }
         assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
+    }
+
+    /// The vertex doors answer the orbit's projection, each entity once
+    /// at its FIRST reach, in orbit order — pinned against the orbit
+    /// itself rather than against a sorted set, so a door that sorted,
+    /// kept a repeat, or started elsewhere in the fan reds here. The
+    /// strut's root is the vertex where a face repeats: the top face
+    /// lies on both sides of the strut.
+    #[test]
+    fn the_vertex_doors_project_the_orbit_once_each_in_orbit_order() {
+        let s = ops_strut_cube(Tol::witness());
+        let body = &s.body;
+        fn first_reach<K: PartialEq>(raw: Vec<K>) -> Vec<K> {
+            let mut out = Vec::new();
+            for k in raw {
+                if !out.contains(&k) {
+                    out.push(k);
+                }
+            }
+            out
+        }
+        let root = body.get_half_edge(s.strut.he_plus).unwrap().start;
+        let tip = body.get_half_edge(s.strut.he_minus).unwrap().start;
+        for (v, edges, faces) in [(root, 4, 3), (tip, 1, 1)] {
+            let orbit = body
+                .vertex_orbit(body.get_vertex(v).unwrap().emanating.unwrap())
+                .unwrap();
+            let raw_edges: Vec<EdgeKey> = orbit
+                .iter()
+                .map(|h| body.get_half_edge(*h).unwrap().edge)
+                .collect();
+            let raw_faces: Vec<FaceKey> = orbit
+                .iter()
+                .map(|h| body.face_of_half_edge(*h).unwrap())
+                .collect();
+            let got_edges = body.edges_of_vertex(v).unwrap();
+            let got_faces = body.faces_of_vertex(v).unwrap();
+            assert_eq!(got_edges, first_reach(raw_edges));
+            assert_eq!(got_faces, first_reach(raw_faces.clone()));
+            assert_eq!((got_edges.len(), got_faces.len()), (edges, faces));
+            if v == root {
+                assert_eq!(raw_faces.len(), 4, "the root's orbit reaches a face twice");
+            }
+        }
+
+        // A lone vertex meets nothing, and says so rather than refusing.
+        let lone = mvfs_state();
+        assert_eq!(lone.body.edges_of_vertex(lone.vertex), Some(vec![]));
+        assert_eq!(lone.body.faces_of_vertex(lone.vertex), Some(vec![]));
+
+        // A stale vertex, a broken orbit, and a face projection that
+        // does not resolve each refuse — the last only on the face door.
+        assert_eq!(body.edges_of_vertex(VertexKey::default()), None);
+        assert_eq!(body.faces_of_vertex(VertexKey::default()), None);
+        let mut broken = s.body.clone();
+        broken.get_half_edge_mut(s.strut.he_minus).unwrap().next = HalfEdgeKey::default();
+        assert_eq!(broken.edges_of_vertex(root), None);
+        assert_eq!(broken.faces_of_vertex(root), None);
+        let mut orphan = s.body.clone();
+        orphan
+            .get_half_edge_mut(s.strut.he_plus)
+            .unwrap()
+            .parent_loop = LoopKey::default();
+        assert!(orphan.edges_of_vertex(root).is_some());
+        assert_eq!(orphan.faces_of_vertex(root), None);
     }
 
     #[test]
