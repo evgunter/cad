@@ -737,29 +737,18 @@ fn a_corrupt_declaration_certifies_clean_and_survives_tier3() {
 
 /// **`split` at a face-coplanar plane, cross-checked at tier 3.**
 ///
-/// `splitting/finish.rs`'s `describe_section_boundary` upgrades a
-/// section-boundary edge to `Intersection` when the dihedral is
-/// transverse and — its own comment — *"Smooth: the conventional chord
-/// stays (D2)"*, an EMPTY arm. That is the exact pre-collapse shape
-/// `extrude`'s eighth family had: doing nothing used to keep a legal
-/// conventional description, and since U2 it keeps whatever the edge
-/// happens to carry — a scaffolding chord, or a stale citation.
+/// The Fig. 14.2 notched block, built by the real verb, split at its
+/// own face-coplanar plane, both products cross-checked. It is the cut
+/// that makes a citation stale: an operand edge lands on the section
+/// boundary with its transverse partner reassigned to the OTHER
+/// product, so the `Intersection` it carried names a surface that is
+/// not on its side. `splitting/finish.rs`'s `describe_section_boundary`
+/// restates that description, and one left standing fails this row's
+/// cross-check as `DescriptionNotAdjacent`.
 ///
-/// The committed coplanar-split row (`m3_pr3_split::notched_block_end_
-/// to_end`) asserts tier 2 only, so the battery never measured this
-/// body at tier 3. This row does: the Fig. 14.2 notched block, built
-/// by the real verb, split at its face-coplanar plane, both sides
-/// cross-checked.
-///
-/// **RED, and filed rather than fixed here: #1152.** R1 measured this
-/// byte-identically on `main`, so it is a pre-existing `topo::split`
-/// defect and not the pcurve collapse's — this unit changed no `split`
-/// code. Absorbing someone else's defect into a migration is how a
-/// unit becomes unreviewable, so the probe is adopted, ignored against
-/// the issue, and preserved as the reproduction: the Fig. 14.2 notched
-/// block split at its own face-coplanar plane reports
-/// `DescriptionNotAdjacent` on three edges of the `below` product.
-/// Un-ignore it when #1152 lands.
+/// `m3_pr3_split::notched_block_end_to_end` asserts tier 3 on the same
+/// cut over `topo`'s own prism; this row reaches it through `sweep`'s
+/// extrude.
 #[test]
 fn coplanar_split_products_carry_no_scaffold_at_rest() {
     let notched = ProfileLoop::polygon(

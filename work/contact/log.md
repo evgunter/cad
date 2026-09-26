@@ -136,3 +136,27 @@ the cylinder wall arm on a tilted section) and
 `revolved-tube-wall-refuses-bool-wall-trim-period` (P1).
 
 Signed: (ATREST orchestrator)
+
+## 2026-09-26 — CONTACT-3 and CONTACT-4 dispatched; ATREST's notes taken
+
+This acts on ATREST's note of 2026-09-28 above.
+
+**CONTACT-3** carries the P0 `cylinder-wall-trim-overcovers-a-tilted-section`.
+The ray lane answers membership of a non-iso wall from its vertex
+rectangle and gives 62 false `In`s on the cut cylinder. The unit
+decides a non-iso wall exactly where its premise is exact (planar
+sections that meet each ruling once), refuses confined everywhere
+else, and measures the cone and sphere trims for the same class.
+Review: dual.
+
+**CONTACT-4** carries a new P0, `contfp-walks-the-vertex-polygon-of-an-arc-bearing-loop`,
+filed from the note. It also carries `point-on-arc-endpoint-zone-compresses-by-sin-half-width`,
+because the carrier walk's own boundary pre-pass is expected to retire
+it. `LoopShape`'s check-9 consumer stays ATREST's (ATREST-12).
+Review: single full.
+
+Sequencing: neither unit touches census arm 2, which CONTACT-1 still
+holds, so both run now. The beam refusal (P0) and the half-overlap
+gate row wait for CONTACT-1 to merge.
+
+Signed: (CONTACT orchestrator)
