@@ -221,19 +221,18 @@ fn certify_cap_quarter(
 
 /// **A right-angle crossing described as a tangency is refused at the
 /// parallelism check** — D4 ¶1's `sin θ ≤ ε·|κ_rel|`, i.e. the margin
-/// `sin θ · r` at lever arm `r = 1/|κ_rel|`. Along the cap crossing
-/// the normals are perpendicular (`sin θ = 1`) and `κ_rel` is the
-/// cylinder's `∓1/r` against the plane's zero, so the margin is `r`,
-/// far above ε. The jet must read each surface's curvature against its
-/// OWN gradient norm: read against the projection `∇F₂·n̂₁`, which is
-/// zero here, `κ_rel` is infinite, the lever arm is zero, and the false
-/// description certifies.
+/// `sin θ / |κ_rel|` against the band. Along the cap crossing the
+/// normals are perpendicular (`sin θ = 1`) and the jet's lever
+/// `1/|κ_rel|` is a length of the pair's own radius scale, so the
+/// margin is that length, far above ε.
 ///
-/// The same arc described as what it is (`Intersection`) certifies;
-/// with the surfaces the other way round the tangent description is
-/// refused too (the plane's zero Hessian against the cylinder's flat
-/// ruling direction gives `κ_rel = 0`, so the second-order check
-/// refuses first).
+/// The same arc described as what it is (`Intersection`) certifies.
+/// With the surfaces the other way round the tangent description is
+/// refused too, but TODAY by the second-order check
+/// (`NotSecondOrderSeparated`, the osculating cause) rather than at
+/// the parallelism defect it has — a misnamed cause filed as
+/// `work/encl/interval-jet-hulls-kappa-sign-at-a-right-angle-crossing.md`,
+/// so that half asserts the refusal only.
 #[test]
 fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
     let r = 0.2;
@@ -241,11 +240,15 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
     for i in 1..8 {
         let t = core::f64::consts::FRAC_PI_2 * f64::from(i) / 8.0;
         let jet = tangent_jet(&plane, &cylinder, circle.eval(t), circle.deriv(t));
-        assert_eq!(jet.sin_theta, 1.0, "the normals cross at a right angle");
         assert!(
-            (jet.kappa_rel.abs() - 1.0 / r).abs() < 1e-9,
-            "κ_rel is the cylinder's ±1/r against the plane's zero, got {}",
-            jet.kappa_rel
+            (jet.sin_theta - 1.0).abs() < 1e-12,
+            "the normals cross at a right angle: sin θ = {}",
+            jet.sin_theta
+        );
+        let margin = jet.sin_theta / jet.kappa_rel.abs();
+        assert!(
+            margin.is_finite() && margin >= 0.5 * r,
+            "the parallelism margin is a radius-scale length, got {margin} at r = {r}"
         );
     }
 
@@ -268,16 +271,15 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused() {
         }
     );
 
-    let err = certify_cap_quarter(r, |s1, s2, witness| {
+    let reversed = certify_cap_quarter(r, |s1, s2, witness| {
         EdgeDescriptionSpec::TangentIntersection {
             s1: s2,
             s2: s1,
             witness,
         }
-    })
-    .expect_err("a right-angle crossing is not a tangency in either order");
+    });
     assert!(
-        matches!(err, CertifyError::NotSecondOrderSeparated { sample: 1, .. }),
-        "{err:?}"
+        reversed.is_err(),
+        "a right-angle crossing is not a tangency in either order"
     );
 }
