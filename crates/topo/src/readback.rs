@@ -183,10 +183,8 @@ pub enum ReadbackError {
 // the PROBLEM in read-back's own vocabulary — which lookup came back
 // empty, and what that emptiness means about the model. The two
 // `Dangling` lanes are kept apart in the prose because they are
-// different facts: a topological key that does not resolve is a stale
-// or foreign handle, while a geometry key reached FROM a live entity
-// that does not resolve is a dangling reference inside the body. The
-// keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
+// different facts about the model, which `DanglingRef`'s docs state.
+// The keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
 // crate's noun functions, so a read-back refusal reads exactly like
 // the euler-layer stale-key refusal its arms map across to.
 impl core::fmt::Display for ReadbackError {

@@ -2,11 +2,13 @@
 id: the-stale-vs-foreign-key-clause-is-spelled-at-thirteen-body-doors
 kind: issue
 title: The stale-vs-foreign key clause is spelled at thirteen Body doors, two of them near-identically
-status: open
+status: closed
 opened: 2026-09-20
 refs: [the-guarded-shell-list-of-a-solid-is-spelled-thirteen-times]
 priority: P4
 cost: D
+closed: 2026-09-26
+branch: dup/b6-c
 ---
 
 ## Finding
@@ -82,3 +84,83 @@ Its subject is one argument spelled four times, which is this
 program's charter; `orient-module-prose-accumulation` on the same
 slate is the same class in another module. `crates/topo/src/body.rs`
 carries no `territory` owner.
+
+
+## Closed (2026-09-26, PR: batch 6)
+
+**Re-measured at the merge base `032999ff2`**, `git grep -n -i foreign
+-- crates/topo/src/body.rs`, then `git grep -n -i -E 'foreign
+(key|handle|`)|not caught|stale-vs-foreign|stale.vs.foreign|stale/foreign'`
+over every tracked file with no path argument. The row's title said
+thirteen and its body counted eleven; **the class was sixteen**:
+
+- **Eleven short parentheticals**, not seven — *"or `None` if the key is
+  stale (a foreign key is not caught — see the module docs)"* at
+  `get_solid`, `get_shell`, `get_face`, `get_loop`, `get_half_edge`,
+  `get_edge`, `get_vertex`, and four the row did not list: `get_point`,
+  `get_curve_geom`, `get_surface` and `provenance`.
+- **Four long forms**, as the row said: `solid_of_face` and
+  `face_of_half_edge` (two lookups composed), `faces_of_solid` and
+  `shells_of_solid` (a solid's member list; `shells_of_solid` already
+  pointed at `faces_of_solid`).
+- **One outside `Body`**: `readback::ReadbackError::Dangling`, *"foreign
+  keys are not caught; see the `Body` docs"*.
+- Plus two restatements that are not doors: the `// Lookup.` banner
+  comment above the doors, and the `Body` struct docs' lineage section
+  (a pointer, kept, as below).
+
+**The fold.** The module docs' `# Key validity: stale vs. foreign`
+section is the one home. It gains one paragraph: a door that answers
+THROUGH its key carries a foreign key onward, in two shapes (two
+lookups composed; a solid's member list), with each shape's consequence
+stated there once. Every door above now keeps only its own `None`
+contract and links to the section by anchor
+(`self#key-validity-stale-vs-foreign`, and `crate::body#…` from
+`readback`). The banner comment points to the section too.
+
+**Divergent members, kept.** The four long forms differ from the short
+form in substance, not only in wording. A lookup whose foreign key lands
+on a live slot hands back one wrong entity. A door answering *through*
+the key hands back a well-formed answer about the wrong owner, or
+another solid's whole member list. So the difference is kept: its
+consequence moved into the home as the paragraph above, and each of
+the four doors states which shape it is (a fact about that door) and
+links. The `Body` struct's `# Lineage-scoped keys` section is kept as
+it was, with its pointer retargeted to the anchor: it argues the other
+face of the coin (lineage-scoped keys are what the interval replay
+relies on), which the module section does not state.
+
+**The second family** (*"`None` is the only refusal this door can
+make"*, three doors). `solid_of_face` stays its home, and
+`shells_of_solid` already pointed there. `face_of_half_edge`'s
+restatement now points there too: *"the argument transfers hop for hop,
+the half-edge's loop standing where the face's shell stands there"*.
+
+**Also folded where the unit stood**: `readback.rs`'s `Display` comment
+restated `DanglingRef`'s two lanes and now points to that type's docs.
+`get_curve_geom`'s `since M3 PR 1` archaeology went with its
+parenthetical.
+
+**Sweeps and their blind spots.**
+- Pass 1, the clause's own words (above). It cannot match a restatement
+  that uses none of "foreign", "not caught" or "stale/foreign".
+- Pass 2, aimed at that gap over `crates/topo/src`:
+  `lineage|arbitrary|another body|unrelated|another solid|whatever
+  (face|half-edge|entity)`. The only new hits were `Body`'s lineage
+  section (kept, as above) and `a_stale_key_has_no_origin`'s rustdoc,
+  which is a test citing the module docs and not a door. What neither
+  pass can see is a restatement worded with none of those phrases.
+- Pointers left as they were: `crates/topo/src/geometry.rs`'s module
+  docs, which point at `Body`, and `crates/geom-brep/src/keys.rs`, whose
+  plain-text pointer cannot link, because `geom-brep` sits below `topo`.
+- Not this class: the repo-wide pass also hit the `Dangling` two-lanes
+  argument in `lib`'s crates. It is filed there as
+  `work/lib/dangling-two-lanes-argument-is-restated-outside-danglingref.md`.
+
+**Instrument for the fold**: `cargo doc -p topo --all-features
+--document-private-items --no-deps` under the gate's
+`RUSTDOCFLAGS="-D warnings -A rustdoc::private_intra_doc_links"`,
+clean. rustdoc does not check an anchor fragment, so the rendered HTML
+was read: `body/index.html` carries `id="key-validity-stale-vs-foreign"`,
+`struct.Body.html` has 16 links to it, and `ReadbackError`'s page has 1.
+
