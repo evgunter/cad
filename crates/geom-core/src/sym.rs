@@ -540,9 +540,13 @@
 //! EIGHT, with the over-band set at ceiling + δ identical too. The
 //! exception is the pad's replay at the scale it certifies whole at:
 //! `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
-//! 1083 → 1063, `frozen` 2722 either way — the same 2073 decisions, 24
+//! 1075 → 1055, `frozen` 2750 either way — the same 2065 decisions, 24
 //! of them moving into the door, twenty out of `numeric` and FOUR out
-//! of `symbolic_zero`. Those four are the unit's finding: opening an
+//! of `symbolic_zero` (the rows' stored values; the replay's
+//! `numeric` and `frozen` currently measure off them by a drift not
+//! yet attributed,
+//! `work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`).
+//! Those four are the unit's finding: opening an
 //! atom the early walk was cancelling OVER can cost that walk a
 //! theorem, which is
 //! `work/sym/coefficient-ring-width-is-not-monotone-in-reach`'s class.

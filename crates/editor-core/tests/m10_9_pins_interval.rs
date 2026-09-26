@@ -548,9 +548,14 @@ fn m10_9_no_registrant_lies_on_any_measured_document() {
 /// (`SymRules::manifest_sign`) did to it. At the scale the pad
 /// certifies whole at, over its analyzed box, rule F off → on:
 /// `symbolic_zero` 886 → 882, `registered` 104 → 128, `numeric`
-/// 1083 → 1063, `frozen` 2722 either way — the same 2073 decisions, 24
+/// 1075 → 1055, `frozen` 2750 either way — the same 2065 decisions, 24
 /// of them moving into the door, twenty out of `numeric` and FOUR out
-/// of `symbolic_zero`.
+/// of `symbolic_zero`. Those are the STORED tuples; the replay
+/// currently measures `numeric` 8 higher and `frozen` 2722 at both
+/// dials, a drift that predates the stored values and is not yet
+/// attributed
+/// (`work/sym/ignored-sym-receipt-rows-drifted-red-on-main-unattributed`),
+/// so this row is red until it is.
 ///
 /// No decision is lost and the document certifies whole at both dials,
 /// which is asserted here; what moved is the STRENGTH of four claims.
@@ -591,8 +596,10 @@ fn m10_9_the_pads_four_at_both_dials() {
         );
         got.push((c.symbolic_zero, c.registered, c.numeric, c.frozen));
     }
-    assert_eq!(got[0], (886, 104, 1083, 2722), "rule F off");
-    assert_eq!(got[1], (882, 128, 1063, 2722), "rule F on");
+    // Each side carries +28 `symbolic_zero` and +84 `numeric` from the
+    // must-carry rule's per-station dihedral gate.
+    assert_eq!(got[0], (886, 104, 1075, 2750), "rule F off");
+    assert_eq!(got[1], (882, 128, 1055, 2750), "rule F on");
     assert_eq!(
         got[0].0 + got[0].1 + got[0].2,
         got[1].0 + got[1].1 + got[1].2,

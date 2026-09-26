@@ -35,9 +35,12 @@ use crate::m10_9_pins_interval::measured_studies;
 const PAST_THE_CEILING: [(&str, [u64; 4]); 5] = [
     ("two_hole_plate", [803, 140, 470, 1044]),
     ("r1_annulus", [328, 140, 209, 1056]),
-    ("r2_link", [214, 76, 179, 556]),
-    ("r2_filleted_bracket", [428, 141, 343, 1096]),
-    ("r2_rounded_pad", [882, 128, 1063, 2722]),
+    ("r2_link", [214, 76, 175, 556]),
+    ("r2_filleted_bracket", [428, 141, 341, 1096]),
+    // +28 `symbolic_zero` and +84 `numeric` from the must-carry rule's
+    // per-station dihedral gate (16 edges x 7 stations of
+    // `dihedral_wedge`).
+    ("r2_rounded_pad", [882, 128, 1055, 2750]),
 ];
 
 /// One whole-box replay at `Sym<Interval>`, ON ITS OWN THREAD: the
