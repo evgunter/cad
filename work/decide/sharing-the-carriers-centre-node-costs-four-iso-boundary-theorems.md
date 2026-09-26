@@ -48,3 +48,16 @@ it, and whether the early memo should re-attempt a node frozen under
 another decision's walk. Rebuilding the centre inside `eval` would take
 the four back, but at the cost of the unit's point: the pushforward
 reads the stored carrier.
+
+## A traversal-order dependence (from #3254's review, R1 S8): for DECIDE's triage
+
+A decision's classification (theorem or numeric) depends on the state
+in which the walk first meets a frozen `0 − x` node. With identical
+node contents, only the order of construction differs. So the tier's
+answer depends on traversal order, not only on the forms: two walks
+over the same DAG, meeting its nodes in a different order, can classify
+the same decision differently. D9 (determinism) holds, because the
+order is fixed per build. Invariance under a re-ordering that leaves
+the forms unchanged does not hold. Marked for DECIDE's triage: whether
+a node frozen under one decision's walk should be re-attempted under
+another's, and whether a row should pin order-invariance on a fixture.
