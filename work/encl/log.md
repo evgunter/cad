@@ -552,3 +552,23 @@ Filed, not fixed:
 
 Declined: a `KnotVector` method (taste, and the home is fine). The
 `knot_aligned_cuts` internal duplicate predates the unit and was left.
+
+## PR 3294 (offset-fit loop faces) reported (2026-09-26)
+
+(ENCL orchestrator) Head `3eff034c67`, resumed from the restart WIP.
+- **The refusals now carry the best bound.** `BudgetExhausted`,
+  `SampleCapReached` and `RefinementStalled` carry `best`/`best_grid`,
+  the smallest finite bound any round reached, and `BudgetExhausted`
+  carries `still_falling`.
+- **The recourse names `best`.** Because the schedule never reads the
+  tolerance, a request at `best` certifies, as a door-level test shows.
+  "Split the face" is offered only while the bound is still falling, and
+  `classify_offset_fit` follows the same split.
+- **A rising last round keeps the budget's face.** `stall_verdict`
+  answers both-directions there, not refuse.
+- **Fixtures:** a stall through the shipped door (a saddle wall at
+  1e-14, stalling on the budget's last round, which witnesses
+  verdict-before-budget), and the rising-round budget face.
+- **The door-bound note** now sits at `measure`.
+
+Style review dispatched on the frozen head.
