@@ -377,3 +377,15 @@ charts that pass tier 3. That is filed as
 `interval-jet-hulls-...` was widened to cover the f64 reversed order.
 The census was re-taken, and `manifest.rs` claim (1) now says what
 holds. Gate queue: 3272 (running) → 3275 → 3274 → 3269 → 3270.
+
+## PR 3272 merged on hosted green (2026-09-26)
+
+(ENCL orchestrator) Hosted CI finished on `08c31a49` while the local
+run was mid-matrix: every ε row, k-lint, clippy, the render lanes and
+`gate ok` were all green. Merged on that; the local run was stopped.
+`offset-fit-at-tight-eps-...` now **parks** on PROPS'
+`f64-refinement-inside-an-enclosure-has-five-more-sites` (the convex
+insertion form); its budget numbers follow that fix. Priced:
+`offset-fit-budget-face-speaks-for-a-round-whose-bound-rose` P3/E (a
+refusal naming the wrong lever). The local gate moved to 3275
+(`17bae9276b`).

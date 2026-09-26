@@ -2,12 +2,11 @@
 id: offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart
 kind: issue
 title: the offset fit's certified bound rises from round 6 on, from Bézier-insertion width, so tight-eps fits refuse; and no NURBS-walled body shells, so the body-level cost has no operand
-status: dispatched
+status: parked
 opened: 2026-09-05
 priority: P0
 cost: H
-branch: encl/offset-fit-tight-eps
-pr: 3272
+blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 **Owner: the offset fit's — PROPS / S-CERT
