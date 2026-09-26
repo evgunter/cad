@@ -30,11 +30,17 @@ by `pane/viewport.rs`'s `cursor_news`), and nothing says the id.
 
 ## Why it was not fixed there
 
-`cursor_news` returns one `Message`, and on a frame where the pick
-path skipped the ray, that slot already carries the refusal. Saying
-both needs either two notices from `cursor_news` or a sentence that is
-not a `Disagreement`, because `Disagreement`'s shape is two answers.
-Both are a change to what the comparison publishes. The residue is
+What blocks it is the sentence, not the slot. `Disagreement` is two
+ANSWERS, and it has no sentence for a refused ray beside an id. The
+slot is not the obstacle. On a frame where the pick path asked the
+ray, the pick loop pushes the refusal itself and `cursor_news`'s
+answer is empty (`disagreement` returns `None`), so there is room. On a
+frame where it did not ask (`!ray_asked`), `cursor_news` returns the
+refusal, and a second notice could still ride beside it, because a
+frame joins several notices into one line. Either way the fix is a
+sentence for *the ray refused here, and the id buffer answered an id
+this picture does not draw*, which is a change to what the comparison
+publishes. The residue is
 narrow: the ray refuses on a camera fault and on the hit test's bug
 arms, not on ordinary cursors, so an operator's issue #1097 §4 sweep
 still sees the id everywhere the ray answers.

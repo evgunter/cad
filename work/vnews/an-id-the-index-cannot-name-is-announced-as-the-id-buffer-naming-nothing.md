@@ -99,3 +99,8 @@ per false sentence. Both drive `cursor_news` and assert fixed text.
 
 Filed from this unit: `an-unassigned-id-under-a-refused-ray-is-unsaid`
 (a refused ray still returns no verdict before the id is read).
+Also filed after review: `a-corrupt-id-on-a-hidden-roots-patch-reads-as-a-named-face`
+(here), on FIT `name-of-answers-none-for-both-nothing-and-an-unassigned-id`
+(the typed split belongs at `PickIndex::name_of`, and `IdAnswer`
+collapses into it), and on EDIT `an-unnamed-patch-is-reported-as-a-hit-test`
+(the forwarded refusal's *"hit test:"* prefix).
