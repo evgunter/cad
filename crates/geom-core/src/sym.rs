@@ -4096,10 +4096,7 @@ fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Ru
     // nothing else. Not asked where the early walk already folds
     // (`signed_root`: the walk would be the early one again), nor in a
     // session with no bracket to read.
-    if first.0.early
-        && first.0.signed_root_last
-        && !first.0.signed_root
-        && !sess.params.is_empty()
+    if first.0.early && first.0.signed_root_last && !first.0.signed_root && !sess.params.is_empty()
     {
         let r = walk(sess, id, WalkKind::SignRead, 0, first);
         if r.is_zero() {
@@ -5716,10 +5713,7 @@ mod tests {
         let run = |rules| {
             with_session_rules(budget(), rules, || {
                 let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
-                (
-                    decides_zero(r.abs() - r),
-                    decides_zero((r * r).sqrt() - r),
-                )
+                (decides_zero(r.abs() - r), decides_zero((r * r).sqrt() - r))
             })
         };
         let (out, shipped) = run(SymRules::shipped());
