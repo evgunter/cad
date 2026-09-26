@@ -230,14 +230,16 @@ pub enum CameraError {
     /// **or** a viewport aspect that was not a positive finite ratio.
     ///
     /// One arm for two inputs, deliberately, and the name is the older
-    /// of the two: both are "the framing request names no view", and
-    /// the doors that return it ([`Camera::fitted`],
-    /// [`Camera::projection_matrix`]) take exactly those two arguments,
-    /// so the caller's next question — *which of my two arguments was
-    /// wrong* — is answered by which door refused. Splitting a
-    /// `UnusableAspect` arm out was considered and declined: it would
-    /// buy that one bit at the cost of a promoted review suite that
-    /// pins this arm by name.
+    /// of the two: both are "the framing request names no view" — a
+    /// box with nothing to frame, or a viewport with no area to frame
+    /// it in — and the caller's next question, *which of my arguments
+    /// was wrong*, has its answer in the caller's hand without a
+    /// second arm. The doors that take only a viewport
+    /// ([`Camera::projection_matrix`], [`Camera::ray_through`],
+    /// [`crate::datums::datum_view`]) have one candidate, so the door
+    /// that refused names it; [`Camera::framing`] and
+    /// [`Camera::fitted`] take both, and there the aspect the caller
+    /// passed settles it — this arm under a positive aspect is the box.
     UnusableBounds,
     /// The view-projection this camera and viewport give does not
     /// narrow to the `f32` a GPU matrix holds
