@@ -191,9 +191,15 @@ use crate::plate::{Plate, WEB, plate};
 /// says so, which is a statement about the COST rather than a thumb
 /// on the answer: a reader who doubts it can raise the number and
 /// watch the certified mass grow and the verdict not change.
+///
+/// **Parallel**, because those leaves are independent replays and the
+/// driver's two schedules give bit-identical verdicts
+/// ([`DriveConfig::parallel`]): the drive is the cell's cost, and the
+/// serial one was most of `demo-tour certified`'s wall time.
 fn starved() -> DriveConfig {
     DriveConfig {
         max_leaves: 512,
+        parallel: true,
         ..DriveConfig::default()
     }
 }
@@ -227,8 +233,7 @@ fn real_study(tol: Tol) {
     // The verdict on the requirement, read off the ASSERTION NODE over
     // each certified leaf — stop 2's discipline, applied to the study
     // a user actually has.
-    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
-    let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
+    let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&analyzed)));
@@ -386,7 +391,7 @@ fn certified_study(tol: Tol) {
     // numbers that differ by less than the run's own coincidence
     // threshold, and a demo that decides on it is claiming a certainty
     // the kernel refuses to claim one line away.
-    let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+    let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
     match stackup(&doc, measure, &analyzed, &verdict, None, true, tol) {
         Ok(report) => {
             println!("{}", indent(&report.render(&analyzed)));
@@ -470,33 +475,6 @@ fn describe(d: &Decided) -> &'static str {
     }
 }
 
-fn assertion_over_leaves(
-    doc: &ProfileDoc,
-    verdict: &ParamBoxVerdict,
-    assertion: RecipeNodeId,
-    tol: Tol,
-) -> Decided {
-    let mut seen: Option<Decided> = None;
-    for leaf in verdict.certified() {
-        // On the lane the drive certified the leaf on — the verdict
-        // carries it, so a consumer never has to know which.
-        let one = match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol) {
-            Some(v) => match v.holds() {
-                Some(true) => Decided::Holds,
-                Some(false) => Decided::Violated,
-                None => Decided::Unevaluated,
-            },
-            None => Decided::Nothing,
-        };
-        seen = Some(match seen {
-            None => one,
-            Some(prev) if prev == one => prev,
-            Some(_) => Decided::Mixed,
-        });
-    }
-    seen.unwrap_or(Decided::Nothing)
-}
-
 /// **The requirement's answer WITH ITS MASSES**: over the certified
 /// leaves, how much of the study's probability mass sits where the
 /// assertion HOLDS, where it is VIOLATED, and where the kernel refuses
@@ -511,29 +489,48 @@ struct RequirementMasses {
     unevaluated: f64,
 }
 
-fn requirement_masses(
+/// **The requirement read off the assertion node over every certified
+/// leaf, in ONE pass**: the collapsed [`Decided`] and the
+/// [`RequirementMasses`] behind it. Both are the same `assertion_at`
+/// per leaf — on the lane the drive certified the leaf on, which the
+/// verdict carries, so a consumer never has to know which — and that
+/// call is the whole cost (stop 1 has hundreds of certified leaves,
+/// each a replay), so it is taken once and read twice.
+fn requirement_over_leaves(
     doc: &ProfileDoc,
     analyzed: &AnalyzedBox,
     verdict: &ParamBoxVerdict,
     assertion: RecipeNodeId,
     tol: Tol,
-) -> RequirementMasses {
-    let mut out = RequirementMasses {
+) -> (Decided, RequirementMasses) {
+    let mut seen: Option<Decided> = None;
+    let mut masses = RequirementMasses {
         holds: 0.0,
         violated: 0.0,
         unevaluated: 0.0,
     };
     for leaf in verdict.certified() {
+        let reading = assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol);
+        let holds = reading.as_ref().and_then(|v| v.holds());
         let mass = leaf_mass(analyzed, &leaf.box_);
-        match assertion_at(doc, assertion, &leaf.box_, verdict.symbolic(), tol)
-            .and_then(|v| v.holds())
-        {
-            Some(true) => out.holds += mass,
-            Some(false) => out.violated += mass,
-            None => out.unevaluated += mass,
+        match holds {
+            Some(true) => masses.holds += mass,
+            Some(false) => masses.violated += mass,
+            None => masses.unevaluated += mass,
         }
+        let one = match (reading.is_some(), holds) {
+            (false, _) => Decided::Nothing,
+            (true, Some(true)) => Decided::Holds,
+            (true, Some(false)) => Decided::Violated,
+            (true, None) => Decided::Unevaluated,
+        };
+        seen = Some(match seen {
+            None => one,
+            Some(prev) if prev == one => prev,
+            Some(_) => Decided::Mixed,
+        });
     }
-    out
+    (seen.unwrap_or(Decided::Nothing), masses)
 }
 
 /// One leaf's mass under the study's distributions: the product over
@@ -782,7 +779,7 @@ mod tests {
             "the caption says every refusal is the leaf budget: {:?}",
             verdict.receipt()
         );
-        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+        let (decided, masses) = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol);
         assert_eq!(
             decided,
             Decided::Mixed,
@@ -792,7 +789,6 @@ mod tests {
         // The VIOLATED mass is a number, not only a `Mixed`: the floor
         // fails on a certified part of the study, and holds on most of
         // it.
-        let masses = requirement_masses(&doc, &analyzed, &verdict, assertion, tol);
         println!(
             "stop 1 at {} leaves: {:?}; holds {:.4}, violated {:.4}, unevaluated {:.4}",
             starved().max_leaves,
@@ -910,7 +906,7 @@ mod tests {
         // by less than eps, and the recorded requirement says HOLDS
         // over exactly those leaves. A caption that printed "FAILS"
         // off the float contradicted the row that gates.
-        let decided = assertion_over_leaves(&doc, &verdict, assertion, tol);
+        let decided = requirement_over_leaves(&doc, &analyzed, &verdict, assertion, tol).0;
         assert_eq!(
             decided,
             Decided::Holds,
