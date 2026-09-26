@@ -455,9 +455,9 @@ fn circle_is_a_one_step_program_that_replays_to_its_two_poles() {
     );
     let lowered = pinned(closed);
     assert_eq!(lowered.vertices().len(), 2);
-    assert_eq!(lowered.vertices()[0].pos().x.to_bits(), 2.25_f64.to_bits());
-    assert_eq!(lowered.vertices()[1].pos().x.to_bits(), 0.75_f64.to_bits());
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), 1.0_f64.to_bits());
+    assert_eq!(lowered.vertices()[0].x.to_bits(), 2.25_f64.to_bits());
+    assert_eq!(lowered.vertices()[1].x.to_bits(), 0.75_f64.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), 1.0_f64.to_bits());
     assert!(
         lowered.tangent_joints().is_empty(),
         "same-carrier joints declare nothing — there is no tangency to claim"
@@ -479,15 +479,15 @@ fn circle_split_is_a_one_step_program_with_structural_seams() {
     // Expected values through the SAME libm-pure trig the lowering uses
     // (geom-core `Real`; std's tan/sin_cos may differ by an ulp).
     let expected_bulge = geom_core::Real::tan(std::f64::consts::PI / 6.0);
-    for v in lowered.vertices() {
-        assert_eq!(v.bulge().to_bits(), expected_bulge.to_bits());
+    for b in lowered.bulges() {
+        assert_eq!(b.to_bits(), expected_bulge.to_bits());
     }
     // Vertex k at centre + r·(cos θ_k, sin θ_k), θ_k = phase + k·2π/n.
     for (k, v) in lowered.vertices().iter().enumerate() {
         let theta = 0.25 + (k as f64) * std::f64::consts::TAU / 3.0;
         let (s, c) = geom_core::Real::sin_cos(theta);
-        assert_eq!(v.pos().x.to_bits(), (1.0 + 0.4 * c).to_bits());
-        assert_eq!(v.pos().y.to_bits(), (0.5 + 0.4 * s).to_bits());
+        assert_eq!(v.x.to_bits(), (1.0 + 0.4 * c).to_bits());
+        assert_eq!(v.y.to_bits(), (0.5 + 0.4 * s).to_bits());
     }
     assert!(
         lowered.tangent_joints().is_empty(),
@@ -562,16 +562,16 @@ fn the_equator_through_tangent_arc_to_is_arc_continues_table_bit_for_bit() {
     assert_eq!(lowered.vertices().len(), 3);
     let v1 = lowered.vertices()[1];
     assert_eq!(
-        (v1.pos().x.to_bits(), v1.pos().y.to_bits()),
+        (v1.x.to_bits(), v1.y.to_bits()),
         (0.5f64.to_bits(), 0.0f64.to_bits()),
         "the equator vertex is the authored point exactly"
     );
-    assert_eq!(lowered.vertices()[0].bulge().to_bits(), q.to_bits());
+    assert_eq!(lowered.bulges()[0].to_bits(), q.to_bits());
     assert_eq!(
-        v1.bulge().to_bits(),
+        lowered.bulges()[1].to_bits(),
         0x3fda827999fcef33,
         "the derived bulge is the retired verb's, bit for bit (got {:#x})",
-        v1.bulge().to_bits()
+        lowered.bulges()[1].to_bits()
     );
     assert_eq!(lowered.tangent_joints(), &[1], "the joint is declared");
     validate_ok(&lowered);
@@ -1194,12 +1194,12 @@ fn an_arc_no_radius_drew_records_no_emission() {
 /// neighbour that happens to be an arc too.
 fn stored_radius(closed: &ClosedLoop<f64>, i: usize) -> Option<f64> {
     let vs = closed.loop_.vertices();
-    let b = vs[i].bulge();
+    let b = closed.loop_.bulges()[i];
     if b == 0.0 {
         return None;
     }
-    let a = vs[i].pos();
-    let z = vs[(i + 1) % vs.len()].pos();
+    let a = vs[i];
+    let z = vs[(i + 1) % vs.len()];
     let chord = (z - a).norm_squared().sqrt();
     Some(chord * (1.0 + b * b) / (4.0 * b.abs()))
 }
@@ -1474,4 +1474,197 @@ fn every_radius_role_is_reached_by_the_corpus() {
          {missing:?} — the guided fence reproduces only the roles it reaches, \
          so add a chain to `coverage_corpus` that authors them"
     );
+}
+
+// ------------------------------------------------------------------
+// Pieces: which step and role each segment is.
+// ------------------------------------------------------------------
+
+/// The pieces a closed chain's segments are, as `(step, role)`.
+fn pieces_of(closed: &ClosedLoop<f64>) -> Vec<(usize, profile::PieceRole)> {
+    closed
+        .structure
+        .pieces
+        .iter()
+        .map(|p| (p.step, p.role))
+        .collect()
+}
+
+/// EDIT's zero-fit chain: `at`, `toward(+x)`, `fillet(r)`,
+/// `toward(+y)`, `to (2, 2)`, `line_to(0, 2)`, `line_to(Start)`.
+fn zero_fit_chain(r: f64) -> ClosedLoop<f64> {
+    let t = Tol::witness();
+    Open.at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(r, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(p2(2.0, 2.0), t)
+        .unwrap()
+        .line_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap()
+}
+
+/// **A fillet draws its run in, its arc and its run out, all credited
+/// to the step its radius is authored on.** The far end's own leg is
+/// the run out drawn as one segment with it; the fillet is authored
+/// first, so the segment is the fillet's run out and the far-end step
+/// draws nothing of its own.
+#[test]
+fn a_fillet_draws_its_run_in_its_arc_and_its_run_out() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let closed = zero_fit_chain(0.3);
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(2, RunIn), (2, Arc), (2, RunOut), (5, Leg), (6, Leg)]
+    );
+    pinned(closed);
+}
+
+/// **A run a `Zero` fit suppresses is no piece, and nothing else moves**:
+/// at `r = 2` both runs have no length, the arc spans the whole corner,
+/// and every other segment keeps the piece it was.
+#[test]
+fn a_zero_fit_run_is_no_piece_and_every_other_keeps_its_own() {
+    use profile::PieceRole::{Arc, Leg};
+    let closed = zero_fit_chain(2.0);
+    assert_eq!(pieces_of(&closed), vec![(2, Arc), (5, Leg), (6, Leg)]);
+    pinned(closed);
+}
+
+/// **A leg a fillet's run continues keeps the segment**: the `line`
+/// is authored before the fillet, so the extended segment is the
+/// line's leg and the fillet's run in is not drawn.
+#[test]
+fn a_leg_a_run_continues_keeps_the_segment() {
+    use profile::PieceRole::{Arc, Leg, RunOut};
+    let t = Tol::witness();
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .line(1.0, t)
+        .unwrap()
+        .fillet(0.3, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(p2(2.0, 2.0), t)
+        .unwrap()
+        .line_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(2, Leg), (3, Arc), (3, RunOut), (6, Leg), (7, Leg)]
+    );
+    pinned(closed);
+}
+
+/// `at`, `toward(+x)`, `fillet(1)`, `toward(+y)`, `at(2, 1)` — a corner
+/// fillet whose arrival point is exactly its tangent point, so the
+/// chain's next segment is the first one after the arc, drawn by
+/// whichever step comes next.
+fn corner_then()
+-> profile::PartialPath<f64, profile::path::HasPos<profile::path::Plain>, profile::path::HasAng> {
+    let t = Tol::witness();
+    Open.at(p2(0.0, 0.0))
+        .toward(1.0, 0.0, t)
+        .unwrap()
+        .fillet(1.0, t)
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .at(p2(2.0, 1.0), t)
+        .unwrap()
+}
+
+/// **A fillet's run out is only a segment on its arrival carrier.** A
+/// straight leg up the arrival ray after the fillet is its run out,
+/// drawn as one segment with the leg; a tangent arc there rides a
+/// circle, so it is the tangent arc's own leg and the fillet's run out
+/// is not drawn. Crediting the arc to the fillet would let a name on it
+/// move onto whatever straight run the fillet draws once the tangent
+/// arc's step is dropped.
+#[test]
+fn a_run_out_is_only_a_segment_on_the_arrival_carrier() {
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let t = Tol::witness();
+    let straight = corner_then()
+        .line(1.0, t)
+        .unwrap()
+        .line_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&straight),
+        vec![(2, RunIn), (2, Arc), (2, RunOut), (6, Leg), (7, Leg)]
+    );
+    pinned(straight);
+    let arc = corner_then()
+        .tangent_arc_to(p2(0.0, 2.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&arc),
+        vec![(2, RunIn), (2, Arc), (5, Leg), (6, Leg)]
+    );
+    pinned(arc);
+}
+
+/// **A fused verb's authored arc carrier is its run**: `arc_fillet`'s
+/// incoming arc is its run in, drawn by the fused step itself.
+#[test]
+fn a_fused_verbs_incoming_arc_is_its_run_in() {
+    use profile::Bulge;
+    use profile::PieceRole::{Arc, Leg, RunIn, RunOut};
+    let t = Tol::witness();
+    let closed = Open
+        .at(p2(0.0, 0.0))
+        .arc_fillet(
+            Bulge {
+                p: p2(3.0, 0.0),
+                b: 0.2,
+            },
+            0.2,
+            t,
+        )
+        .unwrap()
+        .toward(0.0, 1.0, t)
+        .unwrap()
+        .to(p2(3.3, 4.0), t)
+        .unwrap()
+        .line_to(p2(0.0, 4.0), t)
+        .unwrap()
+        .line_to(Start, t)
+        .unwrap();
+    assert_eq!(
+        pieces_of(&closed),
+        vec![(1, RunIn), (1, Arc), (1, RunOut), (4, Leg), (5, Leg)]
+    );
+    pinned(closed);
+}
+
+/// **A circle is two pieces, a `circle_split` is `n`**: the one step's
+/// `Piece(k)` for its segment `k`.
+#[test]
+fn a_carrier_form_draws_piece_k_for_its_segment_k() {
+    use profile::PieceRole::Piece;
+    let t = Tol::witness();
+    let circle = profile::circle(p2(0.0, 0.0), 1.0, t).unwrap();
+    assert_eq!(pieces_of(&circle), vec![(0, Piece(0)), (0, Piece(1))]);
+    let split = profile::circle_split(p2(0.0, 0.0), 1.0, 3, 0.0, t).unwrap();
+    assert_eq!(
+        pieces_of(&split),
+        vec![(0, Piece(0)), (0, Piece(1)), (0, Piece(2))]
+    );
+    pinned(circle);
+    pinned(split);
 }

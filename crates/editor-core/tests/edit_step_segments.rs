@@ -6,23 +6,23 @@
 //! permutation canonicalization recorded. Two independent things can be
 //! wrong with that answer, and the sections below are one apiece.
 //!
-//! **1. The ANCHORING** (§2). A ref named `segment: s` must land on the
-//! wall program segment `s` swept. The mutant is a door that applies
-//! canonicalization's permutation to its answer: a profile ref reaches
-//! a name table already rewritten canonical → program
-//! (`eval::anchor`), so a permuted answer names the wrong wall on
-//! exactly the loops where the permutation is not the identity. Three
-//! prisms build the non-identity cases — reversed, rotated, and
-//! reversed-AND-rotated at a start the reversal arithmetic cannot
-//! confuse with its own mirror — and each asserts that it IS the case it
+//! **1. The ANCHORING** (§2). A ref the door answers must land on the
+//! wall the step's own segment swept. Published refs are CANONICAL —
+//! the loop's authored start kept, its sense normalized — so the
+//! mutant is a door that answers the program's own index: it names the
+//! wrong wall on exactly the loops authored against their canonical
+//! sense. The prisms build both senses, from a lexicographic-minimum
+//! corner and from another one, and each asserts that it IS the case it
 //! claims to be before it asserts anything about the door. Measured in
 //! 3-space against the extruded body, never by re-doing the door's
-//! index arithmetic here.
+//! index arithmetic here: a ref is read back to its program segment
+//! through canonicalization's own record ([`Records::prog`]), not the
+//! anchor the door reads.
 //!
 //! **2. The ATTRIBUTION** (§3). Which STEP a segment is credited to.
 //! §2 cannot see this at all: it reads `e.segment` and the wall that
-//! segment swept, which is a property of the anchor rewrite and holds
-//! whatever the per-step spans say. Neither can the partition check,
+//! segment swept, which is a property of the anchor and holds whatever
+//! the per-step spans say. Neither can the partition check,
 //! which holds by construction (`profile`'s `assert_spans_partition`
 //! says so in its own words). So §3 reads each step's OWN AUTHORED
 //! ARGUMENTS — the point a `line_to` names, the length a `line` names,
@@ -55,14 +55,14 @@ use crate::corpus;
 use crate::fixture;
 
 use editor_core::{
-    CancelToken, EntityKey, Entry, EvalOptions, Evaluation, Expr, LoopProgram, Node, ProfileDoc,
-    ProfileEdgeRef, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId,
-    RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
+    CancelToken, CanonicalSegment, CapEnd, EntityKey, Entry, EvalOptions, Evaluation, Expr,
+    LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
+    RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
 use fixture::{insert, len, on_frame, tol};
 use geom_core::Point2;
 use profile::{CanonicalStructure, ProfileStructure, SketchPlane, Step, Target};
-use topo::{Body, FaceKey};
+use topo::{Body, EdgeKey, FaceKey};
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -98,7 +98,7 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 /// what holds that pairing honest: a rebuild that had drifted from the
 /// evaluation would disagree with the published anchor's permutation
 /// and every row here would refuse rather than pass.
-fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
+fn records(doc: &editor_core::ProfileDoc, program: &ProfileProgram) -> Records {
     let env = doc.param_env::<f64>();
     let resolved = program.resolve::<f64>(&env).expect("the corpus resolves");
     let mut loops = Vec::new();
@@ -112,15 +112,41 @@ fn records(doc: &ProfileDoc, program: &ProfileProgram) -> Records {
     let verts = assembled
         .loops
         .iter()
-        .map(|lp| lp.vertices().iter().map(|v| (v.pos(), v.bulge())).collect())
+        .map(|lp| {
+            lp.vertices()
+                .iter()
+                .zip(lp.bulges())
+                .map(|(&v, &b)| (v, b))
+                .collect()
+        })
         .collect();
-    let (_, canonical) = assembled
+    let (validated, canonical) = assembled
         .validate_recording(tol())
         .expect("the corpus validates");
+    // Which canonical loop each program loop became, read off the
+    // GEOMETRY — the loop whose vertex set is the program loop's — so
+    // the rows below check the door's loop index against something the
+    // door does not compute.
+    let bits = |p: Point2<f64>| (p.x.to_bits(), p.y.to_bits());
+    let canonical_loop = assembled
+        .loops
+        .iter()
+        .map(|lp| {
+            let mut want: Vec<_> = lp.vertices().iter().map(|&v| bits(v)).collect();
+            want.sort_unstable();
+            let found = validated.loops().iter().position(|cl| {
+                let mut got: Vec<_> = cl.vertices().iter().map(|&v| bits(v)).collect();
+                got.sort_unstable();
+                got == want
+            });
+            u32::try_from(found.expect("every program loop is a canonical loop")).unwrap()
+        })
+        .collect();
     Records {
         structure: ProfileStructure { replay, canonical },
         steps: resolved,
         verts,
+        canonical_loop,
     }
 }
 
@@ -133,6 +159,31 @@ struct Records {
     /// Per loop, per vertex: where it sits and the bulge of the segment
     /// LEAVING it. Segment `k` leaves vertex `k`.
     verts: Vec<Vec<(Point2<f64>, f64)>>,
+    /// Per program loop, the canonical loop it became.
+    canonical_loop: Vec<u32>,
+}
+
+impl Records {
+    /// The PROGRAM segment a published ref names on program loop `li`.
+    ///
+    /// Published refs are canonical, and the canonical start is the
+    /// authored one, so the hop is read off canonicalization's OWN
+    /// record of the loop — its `reversed` bit — rather than the naming
+    /// anchor the door reads: identity for a loop authored in its
+    /// canonical sense, `k ↦ n − 1 − k` for one authored against it.
+    /// The ref's loop is checked against the canonical loop the
+    /// program loop's geometry is.
+    fn prog(&self, li: usize, e: &CanonicalSegment) -> usize {
+        assert_eq!(
+            e.loop_index, self.canonical_loop[li],
+            "program loop {li}'s ref names canonical loop {}, the loop its geometry is",
+            self.canonical_loop[li]
+        );
+        let c = &self.structure.canonical.loops[li];
+        let n = self.verts[li].len();
+        let k = e.segment as usize;
+        if c.reversed { n - 1 - k } else { k }
+    }
 }
 
 /// The door's answer for every step of one loop, in program order.
@@ -148,7 +199,7 @@ fn edges_by_step(
     loop_: u32,
     steps: usize,
     what: &str,
-) -> Vec<Vec<ProfileEdgeRef>> {
+) -> Vec<Vec<CanonicalSegment>> {
     (0..steps)
         .map(|step| {
             program
@@ -168,18 +219,17 @@ fn edges_by_step(
 /// loop's own and that no step's span was dropped or duplicated on the
 /// way through the permutation check — which the profile-side row
 /// cannot see.
-fn assert_partition(per_step: &[Vec<ProfileEdgeRef>], loop_: u32, segments: usize, what: &str) {
-    let mut seen: Vec<u32> = Vec::new();
+fn assert_partition(r: &Records, per_step: &[Vec<CanonicalSegment>], li: usize, what: &str) {
+    let mut seen: Vec<usize> = Vec::new();
     for edges in per_step {
         for e in edges {
-            assert_eq!(e.loop_index, loop_, "{what}: the ref names its own loop");
-            seen.push(e.segment);
+            seen.push(r.prog(li, e));
         }
     }
-    let want: Vec<u32> = (0..segments as u32).collect();
+    let want: Vec<usize> = (0..r.verts[li].len()).collect();
     assert_eq!(
         seen, want,
-        "{what} loop {loop_}: the steps' segments, in program order, are the loop's own — \
+        "{what} loop {li}: the steps' segments, in program order, are the loop's own — \
          a segment claimed twice, or by nobody, is a map that cannot be read"
     );
 }
@@ -216,8 +266,14 @@ fn face_vertex_points(body: &Body<f64>, face: FaceKey) -> Vec<geom_core::Point3<
 
 /// The face a lateral name addresses, `None` where the table has no
 /// such name.
-fn lateral(ev: &Evaluation<f64>, node: RecipeNodeId, e: ProfileEdgeRef) -> Option<FaceKey> {
-    let name = fixture::fname(node, RoleSeg::Lateral(e));
+fn lateral(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<FaceKey> {
+    let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
+    let name = fixture::fname(node, RoleSeg::Lateral(piece));
     match ev.value(node)?.name_table.lookup(&name)? {
         Entry::Unique(r) => match r.key {
             EntityKey::Face(f) => Some(f),
@@ -272,11 +328,11 @@ fn every_corpus_step_is_answered_and_the_answers_partition_the_loop() {
             };
             answered_nodes += 1;
             let r = records(&d.doc, program);
-            for (li, loop_verts) in r.verts.iter().enumerate() {
+            for li in 0..r.verts.len() {
                 let steps = r.structure.replay[li].steps.len();
                 let per_step =
                     edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, d.name);
-                assert_partition(&per_step, li as u32, loop_verts.len(), d.name);
+                assert_partition(&r, &per_step, li, d.name);
                 answered += per_step.len();
                 loops_seen += 1;
             }
@@ -339,23 +395,27 @@ fn prism(id: &str, points: Vec<(f64, f64)>) -> (ProfileDoc, RecipeNodeId, Recipe
 /// the fixture IS that case before it asserts anything about the door:
 /// a row whose permutation turned out to be the identity cannot see a
 /// permuted answer, and would pass while proving nothing.
+///
+/// The canonical start is always the authored one, so the only
+/// permutation there is to apply is the reversal.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum Perm {
-    /// Neither reversed nor rotated.
+    /// Authored in the loop's canonical sense: canonical = program.
     Identity,
-    /// Reversed to reach the role's winding, from canonical start 0.
+    /// Authored against it: canonical segment `k` is program segment
+    /// `n − 1 − k`.
     Reversed,
-    /// Rotated to the lexicographic-minimum start, not reversed.
-    Rotated,
-    /// **Both**, at a start the reversed arithmetic cannot confuse with
-    /// its own mirror: `(n - start) % n != start`, which needs
-    /// `2 * start != n`. The two-record check maps `start` on the
-    /// ORIENTED chain to the anchor's `offset` on the program chain
-    /// through exactly that expression, and every other fixture here
-    /// satisfies it accidentally — an identity or a rotation has
-    /// `start = 0` on the reversed branch, and a 4-gon reversed at
-    /// `start = 2` is its own mirror.
-    ReversedAndRotated,
+}
+
+/// Which permutation canonicalization applied to program loop `li` of
+/// `r`, read off its own record.
+fn perm_of(r: &Records, li: usize) -> Perm {
+    let canonical = &r.structure.canonical.loops[li];
+    if canonical.reversed {
+        Perm::Reversed
+    } else {
+        Perm::Identity
+    }
 }
 
 /// The shared body of the anchoring rows: every step's refs name walls
@@ -380,19 +440,10 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     let r = records(&doc, program);
     let n = r.verts[0].len();
 
-    let canonical = &r.structure.canonical.loops[0];
-    let found = match (canonical.reversed, canonical.start) {
-        (true, 0) => Perm::Reversed,
-        (true, s) if 2 * s == n => Perm::Reversed,
-        (true, _) => Perm::ReversedAndRotated,
-        (false, 0) => Perm::Identity,
-        (false, _) => Perm::Rotated,
-    };
+    let found = perm_of(&r, 0);
     assert_eq!(
         found, want,
-        "{id}: the fixture is the {found:?} case (reversed = {}, start = {} of \
-         {n}), not the {want:?} one it is written to be",
-        canonical.reversed, canonical.start
+        "{id}: the fixture is the {found:?} case, not the {want:?} one it is written to be"
     );
 
     let ValuePayload::Body(body) = &ev.value(ext).expect("the extrude evaluates").payload else {
@@ -403,15 +454,15 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
 
     let steps = r.structure.replay[0].steps.len();
     let per_step = edges_by_step(program, &r.structure, &pv.naming, 0, steps, id);
-    assert_partition(&per_step, 0, n, id);
+    assert_partition(&r, &per_step, 0, id);
     let mut walls = BTreeSet::new();
     for (step, edges) in per_step.iter().enumerate() {
         for e in edges {
-            let face = lateral(&ev, ext, *e)
+            let face = lateral(&ev, ext, &pv.pieces, *e)
                 .unwrap_or_else(|| panic!("{id}: step {step}'s ref {e:?} names no wall"));
             walls.insert(face);
             let pts = face_vertex_points(body, face);
-            let s = e.segment as usize;
+            let s = r.prog(0, e);
             for end in [r.verts[0][s].0, r.verts[0][(s + 1) % n].0] {
                 assert!(
                     touches(&pts, place(end), 1e-9),
@@ -429,9 +480,8 @@ fn assert_steps_bound_their_walls(id: &str, points: Vec<(f64, f64)>, want: Perm)
     );
 }
 
-/// The identity case: authored counterclockwise from its own
-/// lexicographic-minimum corner, so canonicalization neither reverses
-/// nor rotates and every reading agrees.
+/// The identity case: authored counterclockwise, so canonicalization
+/// changes nothing and every reading agrees.
 #[test]
 fn a_ccw_loop_names_the_walls_its_steps_bound() {
     assert_steps_bound_their_walls(
@@ -442,9 +492,10 @@ fn a_ccw_loop_names_the_walls_its_steps_bound() {
 }
 
 /// **Reversed.** The same rectangle authored clockwise: canonicalization
-/// orients an outer loop counterclockwise, so it reverses the chain. A
-/// door that handed back canonical indices would name the walls in the
-/// reversed order here and the endpoints would not match.
+/// orients an outer loop counterclockwise, so it reverses the chain and
+/// the published refs are the program's reflected, `s ↦ n − 1 − s`. A
+/// door that handed back the program's own indices would name the walls
+/// in the reversed order here and the endpoints would not match.
 #[test]
 fn a_reversed_loop_names_the_walls_its_steps_bound() {
     assert_steps_bound_their_walls(
@@ -454,40 +505,542 @@ fn a_reversed_loop_names_the_walls_its_steps_bound() {
     );
 }
 
-/// **Rotated.** Authored counterclockwise but starting from a corner
-/// that is not the lexicographic minimum, so canonicalization rotates
-/// the chain without reversing it. A door that handed back canonical
-/// indices would name the walls shifted by that rotation.
+/// **Authored from another corner.** Counterclockwise, but starting
+/// from a corner that is not the lexicographic minimum: the canonical
+/// form keeps the authored start, so this is the identity case too, and
+/// a door that rotated its answer to a geometric start would name the
+/// walls shifted by that rotation.
 #[test]
-fn a_rotated_loop_names_the_walls_its_steps_bound() {
+fn a_loop_authored_from_any_corner_keeps_its_start() {
     assert_steps_bound_their_walls(
         "step-segments-rot",
         vec![(2.0, 1.0), (0.0, 1.0), (0.0, 0.0), (2.0, 0.0)],
-        Perm::Rotated,
+        Perm::Identity,
     );
 }
 
-/// **Reversed AND rotated, at a start that is not its own mirror.** A
-/// convex pentagon authored clockwise from a corner that is not the
-/// lexicographic minimum: canonicalization reverses it to reach the
-/// outer role's winding and then rotates by a `start` with
-/// `2 * start != n`.
-///
-/// This is the only fixture that can see the reversed branch of the
-/// two-record check. That branch maps canonicalization's `start`, which
-/// counts on the ORIENTED chain, to the naming anchor's `offset`, which
-/// counts on the program chain, through `(n - start) % n`. Replace that
-/// expression with `start` and every other row here still passes: an
-/// identity and a rotation never reach the branch, and a 4-gon reversed
-/// at `start = 2` has `(4 - 2) % 4 = 2`. Here the two differ (1 against
-/// 4), so the mutant makes the door read its two records as different
-/// permutations, the two-record assertion fires and the row reds.
+/// **Reversed, from a corner that is not the lexicographic minimum.**
+/// A convex pentagon authored clockwise: canonicalization reverses it
+/// to reach the outer role's winding and keeps the authored start, so
+/// the answer is the reflection alone, on an odd `n` where the
+/// reflection fixes a segment (`2`) and moves the rest.
 #[test]
-fn a_reversed_and_rotated_loop_names_the_walls_its_steps_bound() {
+fn a_reversed_loop_from_any_corner_names_the_walls_its_steps_bound() {
     assert_steps_bound_their_walls(
         "step-segments-cw-rot",
         vec![(0.0, 0.0), (-1.0, 1.0), (1.0, 2.0), (3.0, 1.0), (2.0, 0.0)],
-        Perm::ReversedAndRotated,
+        Perm::Reversed,
+    );
+}
+
+// ------------------------------------------------------------------
+// 2b. A loft: every section's steps name the walls they bound
+// ------------------------------------------------------------------
+//
+// A loft publishes ONE ref per wall, and the skin pairs canonical
+// segment `k` of every section into wall `k`. The canonical form keeps
+// each loop's authored start and hole order, so wall `k` is every
+// section's own canonical segment `k`, and the ordinary door — asked
+// with each section's OWN naming anchor — answers any section. The rows
+// author sections in both senses, with holes, with the hole first, and
+// with a section 0 whose anchor is not the identity; each fixture is a
+// straight prism, so a wall carries every section's segment at that
+// segment's plan position.
+
+/// A loft of `sections[i]`'s loops (outer and holes, in the order the
+/// section authors them), section `i` at `z = i`.
+fn loft_of_loops(
+    id: &str,
+    sections: &[Vec<Vec<(f64, f64)>>],
+) -> (ProfileDoc, Vec<RecipeNodeId>, RecipeNodeId) {
+    let mut doc = ProfileDoc::empty_derived(id, tol());
+    let mut ids = Vec::new();
+    for (i, loops) in sections.iter().enumerate() {
+        let (d, s) = on_frame(
+            doc,
+            [0.0, 0.0, i as f64],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+            loops.clone(),
+        );
+        doc = d;
+        ids.push(s);
+    }
+    let (doc, loft) = insert(
+        doc,
+        Node::Loft {
+            profiles: ids.clone(),
+            v_degree: Expr::count(1),
+        },
+    );
+    (doc, ids, loft)
+}
+
+/// The edge a rim name addresses, `None` where the table has no such
+/// name.
+fn rim(
+    ev: &Evaluation<f64>,
+    node: RecipeNodeId,
+    end: CapEnd,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<EdgeKey> {
+    let piece = pieces.edge(e.loop_index as usize, e.segment as usize)?;
+    let name = fixture::ename(node, RoleSeg::RimEdge(end, piece));
+    match ev.value(node)?.name_table.lookup(&name)? {
+        Entry::Unique(r) => match r.key {
+            EntityKey::Edge(k) => Some(k),
+            _ => None,
+        },
+        Entry::Tied(_) => None,
+    }
+}
+
+/// The loft wall at canonical segment `e`: named by the piece every
+/// section draws there, `None` where a section draws none or the table
+/// has no such name.
+fn loft_wall(
+    ev: &Evaluation<f64>,
+    loft: RecipeNodeId,
+    sections: &[RecipeNodeId],
+    e: CanonicalSegment,
+) -> Option<FaceKey> {
+    let pieces = sections
+        .iter()
+        .map(|&s| match &ev.value(s)?.payload {
+            ValuePayload::Profile(pv) => pv.pieces.edge(e.loop_index as usize, e.segment as usize),
+            _ => None,
+        })
+        .collect::<Option<Vec<_>>>()?;
+    let name = fixture::fname(loft, RoleSeg::LoftWall(pieces));
+    match ev.value(loft)?.name_table.lookup(&name)? {
+        Entry::Unique(r) => match r.key {
+            EntityKey::Face(f) => Some(f),
+            _ => None,
+        },
+        Entry::Tied(_) => None,
+    }
+}
+
+/// For EACH section of an evaluated straight-prism loft, every step of
+/// every program loop, asked through the ordinary door with the
+/// section's own program, records and naming anchor:
+///
+/// - names a loft wall that carries the step's segment — its placed
+///   endpoints on the first and last sections, whose segments are the
+///   walls' own corners; their plan positions on a middle one, whose
+///   segment endpoints are no vertex of the body;
+/// - on the first and last sections, names the `Start` / `End` rim
+///   whose two endpoints ARE that segment's, placed.
+///
+/// The segment a step produced is read off its own recorded span, never
+/// off the ref, so nothing here re-does the door's arithmetic. Between
+/// them each section's steps name every wall exactly once.
+fn assert_sections_bound_their_walls(
+    id: &str,
+    doc: &ProfileDoc,
+    ev: &Evaluation<f64>,
+    ids: &[RecipeNodeId],
+    loft: RecipeNodeId,
+    want: &[Vec<Perm>],
+) {
+    let value = ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("{id}: the loft evaluates: {:?}", ev.node_error(loft)));
+    let ValuePayload::Body(body) = &value.payload else {
+        panic!("{id}: the loft carries a body");
+    };
+    let last = ids.len() - 1;
+    let mut every_wall = BTreeSet::new();
+    for (si, &section) in ids.iter().enumerate() {
+        let Some(Node::Profile(program)) = doc.node(section) else {
+            panic!("{id}: section {si} is a program");
+        };
+        let ValuePayload::Profile(pv) = &ev.value(section).expect("the section evaluates").payload
+        else {
+            panic!("{id}: section {si} carries a profile");
+        };
+        let r = records(doc, program);
+        let placement = pv.validated.plane().placement;
+        let place =
+            |p: Point2<f64>| placement.transform_point(geom_core::Point3::new(p.x, p.y, 0.0));
+        let mut walls = BTreeSet::new();
+        assert_eq!(want[si].len(), r.verts.len(), "{id}: one case per loop");
+        for (li, want) in want[si].iter().enumerate() {
+            let found = perm_of(&r, li);
+            assert_eq!(
+                found, *want,
+                "{id}: section {si} loop {li} is the {found:?} case, not the {want:?} one it \
+                 is written to be"
+            );
+            let n = r.verts[li].len();
+            let steps = r.structure.replay[li].steps.len();
+            let per_step = edges_by_step(program, &r.structure, &pv.naming, li as u32, steps, id);
+            for (step, edges) in per_step.iter().enumerate() {
+                let span = r.structure.replay[li].steps[step];
+                assert_eq!(
+                    edges.len(),
+                    span.iter().count(),
+                    "{id}: section {si} loop {li} step {step} answers one ref per segment"
+                );
+                for (e, s) in edges.iter().zip(span.iter()) {
+                    let face = loft_wall(ev, loft, ids, *e).unwrap_or_else(|| {
+                        panic!("{id}: section {si} loop {li} step {step}: {e:?} names no wall")
+                    });
+                    walls.insert(face);
+                    let pts = face_vertex_points(body, face);
+                    let ends = [r.verts[li][s].0, r.verts[li][(s + 1) % n].0];
+                    for end in ends {
+                        let p = place(end);
+                        let bound = if si == 0 || si == last {
+                            touches(&pts, p, 1e-9)
+                        } else {
+                            pts.iter()
+                                .any(|q| (q.x - p.x).abs() <= 1e-9 && (q.y - p.y).abs() <= 1e-9)
+                        };
+                        assert!(
+                            bound,
+                            "{id}: section {si} loop {li} step {step}'s wall for {e:?} does \
+                             not carry {end:?}, an endpoint of the segment that step \
+                             produced (wall vertices {pts:?})"
+                        );
+                    }
+                    let cap = match si {
+                        0 => Some(CapEnd::Start),
+                        i if i == last => Some(CapEnd::End),
+                        _ => None,
+                    };
+                    if let Some(cap) = cap {
+                        let edge = rim(ev, loft, cap, &pv.pieces, *e).unwrap_or_else(|| {
+                            panic!(
+                                "{id}: section {si} step {step}'s ref {e:?} names no {cap:?} rim"
+                            )
+                        });
+                        let [a, b] = fixture::ends(body, edge);
+                        let got = [fixture::point(body, a), fixture::point(body, b)];
+                        for end in ends {
+                            assert!(
+                                touches(&got, place(end), 1e-9),
+                                "{id}: section {si} step {step}'s {cap:?} rim for {e:?} \
+                                 does not end at {end:?} (rim ends {got:?})"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+        let total: usize = r.verts.iter().map(Vec::len).sum();
+        assert_eq!(
+            walls.len(),
+            total,
+            "{id}: section {si}'s steps name every wall exactly once"
+        );
+        every_wall.extend(walls);
+    }
+    assert_eq!(
+        every_wall.len(),
+        body.faces().count() - 2,
+        "{id}: every section names the same walls — the loft's, and no others"
+    );
+}
+
+/// [`assert_sections_bound_their_walls`] on a freshly evaluated loft.
+fn assert_loft_bounds_its_walls(id: &str, sections: &[Vec<Vec<(f64, f64)>>], want: &[Vec<Perm>]) {
+    let (doc, ids, loft) = loft_of_loops(id, sections);
+    let ev = run(&doc);
+    assert_sections_bound_their_walls(id, &doc, &ev, &ids, loft, want);
+}
+
+/// The 2 × 1 rectangle, counterclockwise from `(0, 0)`.
+fn rect_ccw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (2.0, 0.0), (2.0, 1.0), (0.0, 1.0)]
+}
+
+/// The same rectangle, CLOCKWISE from the same corner.
+fn rect_cw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (0.0, 1.0), (2.0, 1.0), (2.0, 0.0)]
+}
+
+/// **A section authored CLOCKWISE**, from the same corner as a
+/// counterclockwise section 0: canonicalization reverses it and keeps
+/// its start, so its walls are section 0's, and the door answers its
+/// steps through its own anchor — the reflection — with no data about
+/// any other section.
+#[test]
+fn a_loft_section_authored_clockwise_names_the_walls_its_steps_bound() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-section-cw",
+        &[vec![rect_ccw()], vec![rect_cw()]],
+        &[vec![I], vec![R]],
+    );
+}
+
+/// **Section 0 clockwise, section 1 counterclockwise** — the case a
+/// table published in section 0's program numbering got wrong.
+#[test]
+fn a_loft_whose_first_section_is_clockwise_names_the_walls_every_section_bounds() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-section0-cw",
+        &[vec![rect_cw()], vec![rect_ccw()]],
+        &[vec![R], vec![I]],
+    );
+}
+
+/// **Three sections, a clockwise middle.** The middle section carries
+/// no rim and no body vertex, so it is the one whose answer only a wall
+/// can check; the last is the `End` cap's.
+#[test]
+fn a_three_section_loft_names_the_walls_every_section_bounds() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-three",
+        &[vec![rect_ccw()], vec![rect_cw()], vec![rect_cw()]],
+        &[vec![I], vec![R], vec![R]],
+    );
+}
+
+/// A 4 × 4 outer square counterclockwise from `(0, 0)`.
+fn outer_ccw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
+}
+/// The same square, clockwise from `(0, 0)`.
+fn outer_cw() -> Vec<(f64, f64)> {
+    vec![(0.0, 0.0), (0.0, 4.0), (4.0, 4.0), (4.0, 0.0)]
+}
+/// A triangular hole, counterclockwise from `(1, 1)` — against a
+/// hole's canonical (clockwise) sense.
+fn tri_ccw() -> Vec<(f64, f64)> {
+    vec![(1.0, 1.0), (3.0, 1.0), (2.0, 3.0)]
+}
+/// The same hole, clockwise from `(1, 1)` — in its canonical sense.
+fn tri_cw() -> Vec<(f64, f64)> {
+    vec![(1.0, 1.0), (2.0, 3.0), (3.0, 1.0)]
+}
+
+/// **A hole, in a later section that authors it FIRST and both loops
+/// against section 0's senses**: the section's program loop numbering
+/// differs from its canonical one (outer first), and every loop is
+/// answered through its own anchor.
+#[test]
+fn a_loft_with_a_hole_authored_first_in_a_later_section_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-hole",
+        &[vec![outer_ccw(), tri_ccw()], vec![tri_cw(), outer_cw()]],
+        &[vec![I, R], vec![I, R]],
+    );
+}
+
+/// **Section 0 itself is not the identity** (the hole first, the outer
+/// clockwise), on three sections.
+#[test]
+fn a_loft_whose_first_section_is_not_the_identity_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-s0-perm",
+        &[
+            vec![tri_ccw(), outer_cw()],
+            vec![outer_ccw(), tri_ccw()],
+            vec![outer_ccw(), tri_cw()],
+        ],
+        &[vec![R, R], vec![I, R], vec![I, I]],
+    );
+}
+
+/// The 2 × 1 rectangle, counterclockwise from `(2, 1)` — a corner
+/// that is not its lexicographic minimum `(0, 0)`.
+fn rect_ccw_from_2_1() -> Vec<(f64, f64)> {
+    vec![(2.0, 1.0), (0.0, 1.0), (0.0, 0.0), (2.0, 0.0)]
+}
+/// The same rectangle, clockwise from `(2, 1)`.
+fn rect_cw_from_2_1() -> Vec<(f64, f64)> {
+    vec![(2.0, 1.0), (2.0, 0.0), (0.0, 0.0), (0.0, 1.0)]
+}
+/// The 4 × 4 outer square, counterclockwise from `(4, 4)` — not its
+/// lexicographic minimum.
+fn outer_ccw_from_4_4() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (0.0, 4.0), (0.0, 0.0), (4.0, 0.0)]
+}
+/// The same square, clockwise from `(4, 4)`.
+fn outer_cw_from_4_4() -> Vec<(f64, f64)> {
+    vec![(4.0, 4.0), (4.0, 0.0), (0.0, 0.0), (0.0, 4.0)]
+}
+/// The triangular hole, counterclockwise from `(3, 1)` — not its
+/// lexicographic minimum `(1, 1)`.
+fn tri_ccw_from_3_1() -> Vec<(f64, f64)> {
+    vec![(3.0, 1.0), (2.0, 3.0), (1.0, 1.0)]
+}
+/// The same hole, clockwise from `(3, 1)`.
+fn tri_cw_from_3_1() -> Vec<(f64, f64)> {
+    vec![(3.0, 1.0), (1.0, 1.0), (2.0, 3.0)]
+}
+
+/// **Sections authored from a corner that is NOT the lexicographic
+/// minimum**, in both senses. The rows above start every loop at its
+/// lexicographic minimum, where the authored start and a geometric one
+/// agree and no row can tell them apart. Here every section starts at
+/// `(2, 1)`: under the authored start the loft is the straight prism and
+/// each step's ref names the wall it bounds; a canonical form that
+/// re-started the loop at `(0, 0)` would pair and number the walls from
+/// another corner, and every wall check below would name a neighbour.
+#[test]
+fn a_loft_authored_from_a_non_lex_min_corner_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-non-lex-min",
+        &[
+            vec![rect_ccw_from_2_1()],
+            vec![rect_cw_from_2_1()],
+            vec![rect_ccw_from_2_1()],
+        ],
+        &[vec![I], vec![R], vec![I]],
+    );
+}
+
+/// **An outer loop and a hole both authored from a non-lex-min corner**,
+/// the hole first and both senses flipped in the second section — the
+/// start rule on a hole, where the canonical loop order and the
+/// reflection both enter as well.
+#[test]
+fn a_loft_whose_outer_and_hole_start_off_their_lex_min_names_its_walls() {
+    use Perm::{Identity as I, Reversed as R};
+    assert_loft_bounds_its_walls(
+        "loft-non-lex-min-hole",
+        &[
+            vec![outer_ccw_from_4_4(), tri_ccw_from_3_1()],
+            vec![tri_cw_from_3_1(), outer_cw_from_4_4()],
+        ],
+        &[vec![I, R], vec![I, R]],
+    );
+}
+
+/// **Memo: re-authoring a section re-derives its answer.** Section 1
+/// re-authored clockwise (the same point set) against a prior
+/// evaluation: its anchor changes, the loft is recomputed, and the door
+/// asked with the NEW section's naming names the walls its steps bound.
+#[test]
+fn a_reauthored_section_is_answered_after_a_memoized_reevaluation() {
+    let before = [vec![rect_ccw()], vec![rect_ccw()]];
+    let after = [vec![rect_ccw()], vec![rect_cw()]];
+    let (a, ids, loft) = loft_of_loops("loft-memo", &before);
+    let (b, ids_b, loft_b) = loft_of_loops("loft-memo", &after);
+    assert_eq!((&ids, loft), (&ids_b, loft_b));
+    let ea = run(&a);
+    let again = evaluate::<f64>(
+        &a,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    assert!(again.reused > 0, "control: an unchanged document reuses");
+    let eb = evaluate::<f64>(
+        &b,
+        Some(&ea),
+        &CancelToken::new(),
+        &EvalOptions::default(),
+        tol(),
+    );
+    let naming = |ev: &Evaluation<f64>| match &ev.value(ids[1]).expect("section 1").payload {
+        ValuePayload::Profile(pv) => pv.naming.clone(),
+        _ => panic!("section 1 carries a profile"),
+    };
+    assert_ne!(
+        naming(&ea),
+        naming(&eb),
+        "the re-authoring changes section 1's anchor"
+    );
+    use Perm::{Identity as I, Reversed as R};
+    assert_sections_bound_their_walls("loft-memo", &b, &eb, &ids, loft, &[vec![I], vec![R]]);
+}
+
+/// `canonical_segment` inverts `segment`, and `canonical_vertex`
+/// inverts `vertex`, for both anchor shapes and every n.
+#[test]
+fn canonical_segment_inverts_segment_everywhere() {
+    for n in 1..=9u32 {
+        for reversed in [false, true] {
+            let a = editor_core::eval::LoopAnchor {
+                program_loop: 0,
+                reversed,
+                len: n,
+            };
+            for k in 0..n {
+                assert_eq!(a.canonical_segment(a.segment(k)), k, "{a:?} k={k}");
+                assert_eq!(a.segment(a.canonical_segment(k)), k, "{a:?} s={k}");
+                assert_eq!(a.canonical_vertex(a.vertex(k)), k, "{a:?} v={k}");
+            }
+        }
+    }
+}
+
+/// **The twist is the author's.** Section 0 is the centred square;
+/// section 1, one unit up, is the same square rotated +30° about its
+/// centre, written vertex for vertex as the images of section 0's. The
+/// loft pairs each vertex with its own image: every strut runs from a
+/// section-0 corner to that corner rotated +30°, and the volume is the
+/// +30° solid's.
+///
+/// The volume is exact for the ruled walls: a cross-section at height
+/// `t` is the polygon of the interpolated corners, so its area is
+/// quadratic in `t` and Simpson's rule is exact. The mid-section's
+/// corners are `(p + R₃₀ p) / 2 = cos 15° · R₁₅ p`, so
+/// `A(½) = 4 cos² 15°` and `V = (4 + 4 + 16 cos² 15°) / 6 ≈ 3.8214`. The
+/// −60° solid a geometric start pairs this fixture into has
+/// `A(½) = 4 cos² 30° = 3` and `V = 20 / 6 ≈ 3.3333`.
+#[test]
+fn a_twisted_loft_takes_the_twist_the_author_wrote() {
+    let square = vec![(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)];
+    let (sn, cs) = core::f64::consts::FRAC_PI_6.sin_cos();
+    let rotated: Vec<(f64, f64)> = square
+        .iter()
+        .map(|&(x, y)| (cs * x - sn * y, sn * x + cs * y))
+        .collect();
+    let (doc, sections, loft) =
+        loft_of_loops("loft-twist", &[vec![square.clone()], vec![rotated.clone()]]);
+    let ev = run(&doc);
+    let ValuePayload::Body(body) = &ev
+        .value(loft)
+        .unwrap_or_else(|| panic!("the twisted loft builds: {:?}", ev.node_error(loft)))
+        .payload
+    else {
+        panic!("the loft carries a body");
+    };
+    for (k, (&(x0, y0), &(x1, y1))) in square.iter().zip(&rotated).enumerate() {
+        let name = fixture::ename(
+            loft,
+            RoleSeg::LoftSeam(
+                sections
+                    .iter()
+                    .map(|&s| fixture::vpiece(&doc, s, 0, k))
+                    .collect(),
+            ),
+        );
+        let strut = fixture::edge_of(&ev.value(loft).unwrap().name_table, "strut", &name);
+        let [a, b] = fixture::ends(body, strut);
+        let got = [fixture::point(body, a), fixture::point(body, b)];
+        for want in [
+            geom_core::Point3::new(x0, y0, 0.0),
+            geom_core::Point3::new(x1, y1, 1.0),
+        ] {
+            assert!(
+                touches(&got, want, 1e-9),
+                "strut {k} runs {got:?}; the author paired corner {k} with its own image, \
+                 so it ends at {want:?}"
+            );
+        }
+    }
+    let volume = topo::mass_properties(body, tol())
+        .expect("mass properties")
+        .volume;
+    let c15 = (core::f64::consts::PI / 12.0).cos();
+    let want = (8.0 + 16.0 * c15 * c15) / 6.0;
+    assert!(
+        (volume - want).abs() <= 1e-6 * want,
+        "the +30° twisted loft's volume is {want}; measured {volume} (the −60° solid's is {})",
+        20.0 / 6.0
     );
 }
 
@@ -580,17 +1133,20 @@ struct Tally {
 /// **Every step the door answered is answered with the segments its own
 /// authored geometry describes.**
 fn assert_attribution(
-    steps: &[Step<f64>],
-    per_step: &[Vec<ProfileEdgeRef>],
-    verts: &[(Point2<f64>, f64)],
+    r: &Records,
+    li: usize,
+    per_step: &[Vec<CanonicalSegment>],
     what: &str,
     tally: &mut Tally,
 ) {
+    let steps = &r.steps[li];
+    let verts = &r.verts[li];
+    let seg = |e: &CanonicalSegment| r.prog(li, e);
     let n = verts.len();
     let near = |a: Point2<f64>, b: Point2<f64>| (a - b).norm_squared() <= 1e-18;
     for (j, step) in steps.iter().enumerate() {
         let edges = &per_step[j];
-        let arrives = |edges: &[ProfileEdgeRef]| {
+        let arrives = |edges: &[CanonicalSegment]| {
             let e = edges.last().unwrap_or_else(|| {
                 panic!(
                     "{what} step {j} ({:?}) names where it ends, so it produced \
@@ -598,7 +1154,7 @@ fn assert_attribution(
                     step.verb()
                 )
             });
-            verts[(e.segment as usize + 1) % n].0
+            verts[(seg(e) + 1) % n].0
         };
         match claim(j, step) {
             Claim::Seeds(p) => {
@@ -651,7 +1207,7 @@ fn assert_attribution(
                     "{what} step {j} is a `line` of one straight leg; the door gave \
                      it {edges:?}"
                 );
-                let s = edges[0].segment as usize;
+                let s = seg(&edges[0]);
                 assert_eq!(
                     verts[s].1, 0.0,
                     "{what} step {j} is a `line`, so the segment it produced carries \
@@ -674,7 +1230,7 @@ fn assert_attribution(
                     "{what}: the carrier's one step produced the whole loop"
                 );
                 for e in edges {
-                    let v = verts[e.segment as usize].0;
+                    let v = verts[seg(e)].0;
                     let d = (v - centre).norm_squared();
                     assert!(
                         (d - radius * radius).abs() <= 1e-9,
@@ -689,7 +1245,7 @@ fn assert_attribution(
         if edges.len() >= 2 {
             tally.multi += 1;
         }
-        if edges.iter().any(|e| verts[e.segment as usize].1 != 0.0) {
+        if edges.iter().any(|e| verts[seg(e)].1 != 0.0) {
             tally.arcs += 1;
         }
     }
@@ -724,7 +1280,7 @@ fn every_corpus_step_is_answered_against_its_own_authored_geometry() {
                 continue;
             };
             let r = records(&d.doc, program);
-            for (li, loop_verts) in r.verts.iter().enumerate() {
+            for li in 0..r.verts.len() {
                 let per_step = edges_by_step(
                     program,
                     &r.structure,
@@ -733,7 +1289,7 @@ fn every_corpus_step_is_answered_against_its_own_authored_geometry() {
                     r.steps[li].len(),
                     d.name,
                 );
-                assert_attribution(&r.steps[li], &per_step, loop_verts, d.name, &mut tally);
+                assert_attribution(&r, li, &per_step, d.name, &mut tally);
             }
         }
     }
@@ -791,7 +1347,7 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
             "step {j} is a plain line_to: it produced exactly one segment, \
              the door gave it {edges:?}"
         );
-        let s = edges[0].segment as usize;
+        let s = r.prog(0, &edges[0]);
         let end = r.verts[0][(s + 1) % n].0;
         assert_eq!(
             (end.x.to_bits(), end.y.to_bits()),
@@ -820,8 +1376,8 @@ fn a_line_to_step_is_answered_with_the_segment_that_ends_where_it_says() {
 /// reader of the panic needs in order to tell which of the two lied.
 #[test]
 #[should_panic(expected = "the evaluation's two records of loop 0's permutation \
-     disagree: canonicalization recorded reversed=false start=0 over 4 segments, \
-     the naming anchor recorded reversed=true offset=0 over 4 vertices. One \
+     disagree: canonicalization recorded reversed=false over 4 segments, \
+     the naming anchor recorded reversed=true over 4 vertices. One \
      evaluation produces both, so they describe one permutation or the kernel \
      has contradicted itself")]
 fn two_records_describing_different_loops_assert() {
@@ -876,7 +1432,7 @@ fn a_naming_without_this_loop_refuses_rather_than_asserting() {
 /// typed.**
 ///
 /// The three are the arms that stand between a FOREIGN record and an
-/// out-of-range `ProfileEdgeRef`. A consumer holds a structure and a
+/// out-of-range `CanonicalSegment`. A consumer holds a structure and a
 /// naming that it believes go with this program, and nothing in the
 /// types says they do; `SpanOffTheLoop` in particular is the last guard
 /// before the door mints refs for segments the loop does not have.
@@ -1000,6 +1556,7 @@ fn arc_prism(
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -1014,8 +1571,13 @@ fn arc_prism(
 
 /// The radius the wall named by `e` stores, `None` where that wall is
 /// not a cylinder at all.
-fn wall_radius(ev: &Evaluation<f64>, ext: RecipeNodeId, e: ProfileEdgeRef) -> Option<f64> {
-    let face = lateral(ev, ext, e)?;
+fn wall_radius(
+    ev: &Evaluation<f64>,
+    ext: RecipeNodeId,
+    pieces: &editor_core::ProfilePieces,
+    e: CanonicalSegment,
+) -> Option<f64> {
+    let face = lateral(ev, ext, pieces, e)?;
     let ValuePayload::Body(body) = &ev.value(ext)?.payload else {
         return None;
     };
@@ -1068,7 +1630,7 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
             "{id}: the edges are answered in program-step order, so pair {k} carries \
              arc {k}'s own expression"
         );
-        let got = wall_radius(&ev, ext, *e).unwrap_or_else(|| {
+        let got = wall_radius(&ev, ext, &pv.pieces, *e).unwrap_or_else(|| {
             panic!("{id}: {e:?} names no cylindrical wall, so it is not an arc's edge")
         });
         assert!(
@@ -1083,12 +1645,12 @@ fn assert_arcs_are_answered(id: &str, side: profile::ArcSide, radii: &[f64], wan
         if answered.contains(&segment) {
             continue;
         }
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
             segment,
         };
         assert_eq!(
-            wall_radius(&ev, ext, e),
+            wall_radius(&ev, ext, &pv.pieces, e),
             None,
             "{id}: {e:?} was answered for by nobody, so its wall must not be an arc's"
         );
@@ -1154,6 +1716,7 @@ fn a_carrier_loop_is_answered_at_every_edge() {
                 n: 3,
                 phase: fixture::ang(0.3),
             }],
+            ids: Vec::new(),
         }),
     );
     let ev = run(&doc);
@@ -1292,6 +1855,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![filleted],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -1338,7 +1902,7 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
         "and that arrival step holds no radius of its own: {:?}",
         steps[emitter]
     );
-    let got = wall_radius(&ev, ext, edge)
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall, so it is not the arc's"));
     assert!(
         (got - 0.5).abs() < 1e-9,
@@ -1402,6 +1966,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![chain],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -1433,8 +1998,8 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
          is what this row is about, and step {emitter} emitted {}",
         r.structure.replay[0].steps[emitter]
     );
-    let got =
-        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the answered edge is the FILLET arc's wall, at its own radius, not {got}"
@@ -1448,7 +2013,8 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
             wall_radius(
                 &ev,
                 ext,
-                ProfileEdgeRef {
+                &pv.pieces,
+                CanonicalSegment {
                     loop_index: 0,
                     segment: *s,
                 },
@@ -1525,7 +2091,7 @@ fn the_per_edge_door_refuses_where_the_map_does() {
 /// The record arrives as a second argument, so nothing in the types
 /// says it belongs to this program. An emission crediting a segment
 /// the loop does not have would mint an out-of-range
-/// [`ProfileEdgeRef`]; one crediting an argument the step it names
+/// [`CanonicalSegment`]; one crediting an argument the step it names
 /// does not hold — a different role, or a step past the end of the
 /// program — would pair an edge with somebody else's expression, or
 /// with none. Both refuse where they are read, and neither guesses.
@@ -1620,13 +2186,15 @@ fn a_radius_emission_that_is_not_this_programs_refuses_typed() {
 }
 
 /// A closed chain whose lexicographic-minimum vertex is NOT its
-/// program start, so canonicalization ROTATES it; `side` reverses it as
-/// well. `Right` mirrors the whole chain in y, so its arcs close the
+/// program start — the start a geometric canonical form would move it
+/// to, and the one the authored-start form keeps; `side` reverses it
+/// as well. `Right` mirrors the whole chain in y, so its arcs close the
 /// same shape the `Left` ones do.
 ///
-/// [`arc_prism`]'s chains all begin at their own minimum, which makes
-/// their anchor hop a pure reversal or the identity. This one adds the
-/// other half of the permutation.
+/// [`arc_prism`]'s chains all begin at their own minimum, so a door
+/// that re-started a loop at its minimum could not be told apart from
+/// one that kept the author's start on them. This one tells them
+/// apart.
 fn rotated_arc_prism(
     id: &str,
     side: profile::ArcSide,
@@ -1672,6 +2240,7 @@ fn rotated_arc_prism(
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -1684,17 +2253,17 @@ fn rotated_arc_prism(
     (doc, profile, ext, vec![r1, r2])
 }
 
-/// The shared body of the rotated rows: the door's answer AND the
+/// The shared body of the any-corner rows: the door's answer AND the
 /// attach's own list are both read against the geometry, on a loop
-/// whose anchor hop is a rotation.
+/// authored from a corner that is not its lexicographic minimum.
 ///
-/// Two claims, because the rotation can be dropped at either end. The
-/// door answers in program indices, checked by the wall each answered
-/// ref names being a cylinder at the answered expression's radius. The
-/// value's `edge_radii` is that answer re-addressed to CANONICAL
-/// positions, checked position by position against the wall canonical
-/// segment `j` swept: a consumer that carried the reversal through the
-/// hop and dropped the rotation names a different wall here.
+/// Two claims, because the start can be lost at either end. The door
+/// answers in canonical indices, checked by the wall each answered ref
+/// names being a cylinder at the answered expression's radius. The
+/// value's `edge_radii` is that answer laid out by CANONICAL position,
+/// checked position by position against the wall canonical segment `j`
+/// swept: a consumer that re-started the loop at a geometric vertex
+/// names a different wall here.
 fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_reversed: bool) {
     let (doc, profile, ext, exprs) = rotated_arc_prism(id, side);
     let ev = run(&doc);
@@ -1707,9 +2276,6 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let r = records(&doc, program);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
-    assert_ne!(c.start, 0, "{id}: the fixture is written to be ROTATED too");
-    let a = &pv.naming.loops[0];
-    assert_ne!(a.offset, 0, "{id}: the anchor hop is a rotation too");
     let answer = program
         .segment_radii(&r.structure, &pv.naming, 0)
         .unwrap_or_else(|e| panic!("{id}: the door answers: {e}"));
@@ -1717,7 +2283,7 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     let radii = [1.0, 0.25];
     for (k, ((e, expr), want)) in answer.iter().zip(&exprs).enumerate() {
         assert_eq!(*expr, want, "{id}: pair {k} carries arc {k}'s expression");
-        let got = wall_radius(&ev, ext, *e)
+        let got = wall_radius(&ev, ext, &pv.pieces, *e)
             .unwrap_or_else(|| panic!("{id}: {e:?} names no cylindrical wall"));
         assert!(
             (got - radii[k]).abs() < 1e-9,
@@ -1726,11 +2292,11 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
         );
     }
     for (j, slot) in pv.edge_radii[0].iter().enumerate() {
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
-            segment: a.segment(j as u32),
+            segment: u32::try_from(j).unwrap(),
         };
-        let wall = wall_radius(&ev, ext, e);
+        let wall = wall_radius(&ev, ext, &pv.pieces, e);
         match (slot, wall) {
             (Some(expr), Some(got)) => {
                 let want = if *expr == exprs[0] { 1.0 } else { 0.25 };
@@ -1747,30 +2313,26 @@ fn assert_rotated_arcs_are_answered(id: &str, side: profile::ArcSide, want_rever
     }
 }
 
-/// **The answer is in program indices on a loop canonicalization
-/// ROTATES**, without reversing it.
+/// **The answer is in canonical indices on a loop authored from a
+/// corner that is not its lexicographic minimum**, counterclockwise.
 ///
-/// Authored counterclockwise from a corner that is not the
-/// lexicographic minimum, so `start` is non-zero and canonical segment
-/// `k` is a different segment from program segment `k` by a shift. The
-/// fixture asserts it IS that case before it asserts anything about the
-/// door, per §2's rule.
+/// The canonical form keeps that start, so canonical segment `k` IS
+/// program segment `k`; the row asserts the fixture is that case — the
+/// start kept — before it asserts anything about the door, per §2's
+/// rule.
 #[test]
-fn a_rotated_chains_arcs_are_answered_in_program_indices() {
+fn a_chain_authored_from_any_corner_is_answered_in_canonical_indices() {
     assert_rotated_arcs_are_answered("segment-radii-rot", profile::ArcSide::Left, false);
 }
 
-/// **Reversed AND rotated** — the anchor hop non-identity in both
-/// senses, which is the case the other chain rows cannot see.
-///
-/// Every `arc_prism` chain starts at its own lexicographic-minimum
-/// vertex, so its hop is a pure reversal and a consumer that applied
-/// the reversal and dropped the rotation still names the right wall.
-/// Here `offset` is non-zero too and it names the wrong one, at both
-/// ends the rotation can be dropped: the door's own answer and the
-/// canonical re-addressing `ProfileValue::edge_radii` carries.
+/// **Reversed, from a corner that is not the lexicographic minimum**
+/// — the anchor hop is the reflection, and the start the author wrote
+/// is kept: a consumer that re-started the loop at its lexicographic
+/// minimum names the wrong wall, at both ends the start can be lost —
+/// the door's own answer and the canonical layout
+/// `ProfileValue::edge_radii` carries.
 #[test]
-fn a_reversed_and_rotated_chains_arcs_are_answered_in_program_indices() {
+fn a_reversed_chain_from_any_corner_is_answered_in_canonical_indices() {
     assert_rotated_arcs_are_answered("segment-radii-rot-rev", profile::ArcSide::Right, true);
 }
 
@@ -1900,6 +2462,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![program],
+            ids: Vec::new(),
         }),
     );
     doc
@@ -1953,6 +2516,7 @@ fn a_fillet_cannot_be_a_loops_closing_corner() {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![head(closer.clone())],
+                    ids: Vec::new(),
                 }),
             },
             tol(),
@@ -2067,6 +2631,7 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![program],
+                    ids: Vec::new(),
                 }),
             },
             tol(),
@@ -2107,8 +2672,8 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
         1,
         "and the step that drew it is not the step that emitted it"
     );
-    let got =
-        wall_radius(&ev, ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
+    let got = wall_radius(&ev, ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
     assert!(
         (got - 0.2).abs() < 1e-9,
         "the answered wall is the fillet arc's, at its own radius, not {got}"
@@ -2173,6 +2738,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![program],
+            ids: Vec::new(),
         }),
     );
     let (doc, ext) = insert(
@@ -2200,7 +2766,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
         .expect("the door answers");
     assert_eq!(answer.len(), 3, "three radii, three arcs — got {answer:?}");
     for ((edge, expr), want) in answer.iter().zip([2.0, 0.25, 3.0]) {
-        let got = wall_radius(&ev, ext, *edge)
+        let got = wall_radius(&ev, ext, &pv.pieces, *edge)
             .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
         assert!(
             (got - want).abs() < 1e-9,
@@ -2232,12 +2798,11 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
 // radius" to one answer.
 // ------------------------------------------------------------------
 
-/// A closed chain with a `fillet(r)` BINDER whose canonical loop is
-/// ROTATED (its lexicographic minimum (0,0) is not vertex 0) and,
+/// A closed chain with a `fillet(r)` BINDER, authored from a vertex
+/// that is not its lexicographic minimum ((0,0) is not vertex 0) and,
 /// under `s = -1` (a mirror in y), REVERSED as well. The binder's arc
 /// is emitted by the far-end arrival, so the emission record is the
-/// only thing pairing it, and the anchor hop is a non-identity in
-/// both senses.
+/// only thing pairing it.
 fn rotated_fillet_prism(id: &str, s: f64) -> (fixture::Swept, Expr) {
     let pt = |x: f64, y: f64| [len(x), len(y * s)];
     let radius = len(0.5);
@@ -2266,9 +2831,8 @@ fn rotated_fillet_prism(id: &str, s: f64) -> (fixture::Swept, Expr) {
 }
 
 /// The one answered edge is the fillet arc's wall, a cylinder at `r`,
-/// on a loop whose anchor hop is a rotation (and a reversal); and the
-/// canonical re-addressing `edge_radii` carries lands on that same
-/// wall.
+/// on a loop authored from a non-minimal vertex (and reversed); and
+/// the canonical layout `edge_radii` carries lands on that same wall.
 fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let (row, radius) = rotated_fillet_prism(id, s);
     let program = row.program();
@@ -2276,9 +2840,6 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert_eq!(c.reversed, want_reversed, "{id}: the winding case");
-    assert_ne!(c.start, 0, "{id}: the fixture is ROTATED");
-    let a = &pv.naming.loops[0];
-    assert_ne!(a.offset, 0, "{id}: the anchor hop is a rotation");
     assert!(
         r.structure.replay[0].steps[3].is_empty(),
         "{id}: the binder emitted nothing"
@@ -2295,16 +2856,16 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
         3,
         "{id}: credited to the binder, emitted elsewhere"
     );
-    let got = wall_radius(&row.ev, row.ext, edge)
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
         .unwrap_or_else(|| panic!("{id}: {edge:?} names no cylindrical wall — the neighbour"));
     assert!((got - 0.5).abs() < 1e-9, "{id}: the wall stores {got}");
     let mut cylinders = 0;
     for (j, slot) in pv.edge_radii[0].iter().enumerate() {
-        let e = ProfileEdgeRef {
+        let e = CanonicalSegment {
             loop_index: 0,
-            segment: a.segment(j as u32),
+            segment: u32::try_from(j).unwrap(),
         };
-        match (slot, wall_radius(&row.ev, row.ext, e)) {
+        match (slot, wall_radius(&row.ev, row.ext, &pv.pieces, e)) {
             (Some(expr), Some(got)) => {
                 cylinders += 1;
                 assert_eq!(*expr, radius);
@@ -2319,26 +2880,28 @@ fn assert_rotated_fillet_is_answered(id: &str, s: f64, want_reversed: bool) {
     assert_eq!(cylinders, 1, "{id}: exactly one wall is the fillet arc's");
 }
 
-/// **A `fillet(r)` binder on a ROTATED loop reaches its own wall.**
+/// **A `fillet(r)` binder on a loop authored from any corner reaches
+/// its own wall.**
 #[test]
-fn a_rotated_loops_fillet_binder_reaches_its_arcs_wall() {
+fn a_fillet_binder_on_a_loop_authored_from_any_corner_reaches_its_arcs_wall() {
     assert_rotated_fillet_is_answered("fillet-rot", 1.0, false);
 }
 
-/// **A `fillet(r)` binder on a REVERSED AND ROTATED loop reaches its
-/// own wall** — the identity map from recorded segment to published
-/// ref, on the hop that is a non-identity both ways.
+/// **A `fillet(r)` binder on a REVERSED loop authored from any corner
+/// reaches its own wall** — the reflection from recorded segment to
+/// published ref.
 #[test]
-fn a_reversed_and_rotated_loops_fillet_binder_reaches_its_arcs_wall() {
+fn a_fillet_binder_on_a_reversed_loop_from_any_corner_reaches_its_arcs_wall() {
     assert_rotated_fillet_is_answered("fillet-rot-rev", -1.0, true);
 }
 
-/// **An arrival step's fillet arc on a REVERSED AND ROTATED loop** —
+/// **An arrival step's fillet arc on a REVERSED loop** —
 /// [`an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not`]
-/// mirrored in x: the chain runs clockwise and its lexicographic
-/// minimum is the fillet arc's own end, so the hop is both.
+/// mirrored in x: the chain runs clockwise from a vertex that is not
+/// its lexicographic minimum, so the hop is the reflection and the
+/// start is the author's.
 #[test]
-fn a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
+fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
     let s = -1.0;
     let pt = |x: f64, y: f64| [len(x * s), len(y)];
     let h = 2.0_f64.sqrt();
@@ -2368,8 +2931,6 @@ fn a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
     let r = records(&row.doc, program);
     let c = &r.structure.canonical.loops[0];
     assert!(c.reversed, "the mirrored chain is clockwise");
-    assert_ne!(c.start, 0, "and rotated");
-    assert_ne!(pv.naming.loops[0].offset, 0);
     let answer = program
         .segment_radii(&r.structure, &pv.naming, 0)
         .expect("the door answers");
@@ -2377,8 +2938,8 @@ fn a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
         panic!("one radius — got {answer:?}");
     };
     assert_eq!(*expr, radius);
-    let got =
-        wall_radius(&row.ev, row.ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the FILLET arc's wall, not the Via arc's: {got}"
@@ -2391,11 +2952,12 @@ fn a_reversed_and_rotated_via_closes_fillet_arc_reaches_its_wall() {
     let [j] = attached[..] else {
         panic!("one canonical slot: {attached:?}");
     };
-    let e = ProfileEdgeRef {
+    let e = CanonicalSegment {
         loop_index: 0,
-        segment: pv.naming.loops[0].segment(j as u32),
+        segment: u32::try_from(j).unwrap(),
     };
-    let got = wall_radius(&row.ev, row.ext, e).expect("the attached slot is a cylinder");
+    let got =
+        wall_radius(&row.ev, row.ext, &pv.pieces, e).expect("the attached slot is a cylinder");
     assert!(
         (got - 0.5).abs() < 1e-9,
         "the attach lands on the fillet arc's wall: {got}"
@@ -2455,8 +3017,8 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
     };
     assert_eq!(*expr, radius);
     assert_eq!(edge.segment, 2, "the closing segment");
-    let got =
-        wall_radius(&row.ev, row.ext, edge).unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
+    let got = wall_radius(&row.ev, row.ext, &pv.pieces, edge)
+        .unwrap_or_else(|| panic!("{edge:?} names no cylinder"));
     assert!(
         (got - 0.5).abs() < 1e-9,
         "a cylinder at the fillet's radius: {got}"
@@ -2517,7 +3079,7 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
             **expr == fillet || **expr == carrier,
             "each pair carries one of the step's own two radii"
         );
-        let got = wall_radius(&row.ev, row.ext, *edge)
+        let got = wall_radius(&row.ev, row.ext, &pv.pieces, *edge)
             .unwrap_or_else(|| panic!("{edge:?} names no cylindrical wall"));
         assert!(
             (got - want).abs() < 1e-9,

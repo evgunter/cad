@@ -17,8 +17,8 @@ use crate::docm7_union_declare::{block, declared_union, failure, flush_pairs, ru
 use crate::fixture::{edge_of, member_entity, table};
 
 use editor_core::{
-    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, ProfileEdgeRef, Qualifier,
-    RecipeNodeId, RoleSeg, StableName,
+    CapEnd, EntityKind, NamingError, NodeErrorKind, ProfileDoc, Qualifier, RecipeNodeId, RoleSeg,
+    StableName,
 };
 use geom_core::Tol;
 
@@ -76,14 +76,15 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     let (a, b, c) = (ids[0], ids[1], ids[2]);
     let mut name_sets = Vec::new();
     for order in [[b, c, a], [c, b, a]] {
-        let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+        let (docx, union, _) =
+            declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
         let ev = run(&docx);
         assert!(
             failure(&ev, union).is_none(),
             "{order:?}: {:?}",
             failure(&ev, union)
         );
-        assert_rim_pieces(&ev, union, a, &order);
+        assert_rim_pieces(&doc, &ev, union, a, &order);
         name_sets.push(
             table(&ev, union)
                 .iter()
@@ -97,10 +98,12 @@ fn a_chord_between_two_merged_faces_is_named_as_its_members_rim_edge() {
     );
 }
 
-/// `a`'s rim between its top cap and its y = 1 wall publishes as two
-/// `OrderAlong` pieces, x = 0.0..0.3 and x = 0.4..0.5 at y = z = 1 (the
-/// rest of it is inside `b`'s merged faces or `c`).
+/// `a`'s rim between its top cap and its y = 1 wall publishes two
+/// pieces, x = 0.4..0.5 and x = 0.0..0.3 at y = z = 1: cells 1 and 3 of
+/// the four the body's vertices cut it into along −x (1.0, 0.5, 0.4, 0.3,
+/// 0.0). Cell 0 is `b`'s in these orders, and cell 2 is inside `c`.
 fn assert_rim_pieces(
+    doc: &editor_core::ProfileDoc,
     ev: &editor_core::Evaluation<f64>,
     union: RecipeNodeId,
     a: RecipeNodeId,
@@ -111,16 +114,13 @@ fn assert_rim_pieces(
         node: a,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 2,
-            },
+            crate::fixture::piece(doc, a, 0, 2),
         )],
     };
     let piece = |rank| {
         let mut n = member_entity(union, a, rim.clone(), EntityKind::Edge);
         n.path
-            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 2 }));
+            .push(RoleSeg::Fragment(Qualifier::OrderAlong { rank, of: 4 }));
         n
     };
     let t = table(ev, union);
@@ -140,13 +140,12 @@ fn assert_rim_pieces(
         let (x0, x1) = (x(edge.he_plus), x(edge.he_minus));
         (x0.min(x1), x0.max(x1))
     };
-    let mut spans = [span(&piece(0)), span(&piece(1))];
-    spans.sort_by(|p, q| p.0.total_cmp(&q.0));
+    let spans = [span(&piece(1)), span(&piece(3))];
     let near =
         |(p, q): (f64, f64), (r, s): (f64, f64)| (p - r).abs() < 1e-12 && (q - s).abs() < 1e-12;
     assert!(
-        near(spans[0], (0.0, 0.3)) && near(spans[1], (0.4, 0.5)),
-        "{order:?}: the two pieces of a's rim, got {spans:?}"
+        near(spans[0], (0.4, 0.5)) && near(spans[1], (0.0, 0.3)),
+        "{order:?}: cells 1 and 3 of a's rim, got {spans:?}"
     );
 }
 
@@ -170,7 +169,8 @@ fn no_order_of_the_rows_documents_refuses_with_an_emission() {
         let (doc, ids) = document(&rest);
         let (a, b) = (ids[0], ids[1]);
         for order in permutations(&ids) {
-            let (docx, union, _) = declared_union(doc.clone(), &order, flush_pairs((a, a), (b, b)));
+            let (docx, union, _) =
+                declared_union(doc.clone(), &order, flush_pairs(&doc, (a, a), (b, b)));
             let ev = run(&docx);
             if let Some(e) = failure(&ev, union) {
                 assert!(

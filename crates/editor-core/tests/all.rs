@@ -66,6 +66,8 @@ mod asm2a_instantiate;
 mod asm2b_multisolid;
 #[path = "asm4_split_inline.rs"]
 mod asm4_split_inline;
+#[path = "asm_parent_held_names.rs"]
+mod asm_parent_held_names;
 #[path = "asm_r2a_mate_solve.rs"]
 mod asm_r2a_mate_solve;
 #[path = "asm_r2a_mate_wire.rs"]
@@ -178,8 +180,14 @@ mod fix_loop_polygon_expr;
 mod fix_pattern_mate_crossing;
 #[path = "refusal_concision.rs"]
 mod refusal_concision;
+#[path = "refusal_concision_at_rest.rs"]
+mod refusal_concision_at_rest;
 #[path = "refusal_concision_chains.rs"]
 mod refusal_concision_chains;
+#[path = "remap_reorders_ids.rs"]
+mod remap_reorders_ids;
+#[path = "resolve_group_membership.rs"]
+mod resolve_group_membership;
 #[path = "resolve_upstream_scope.rs"]
 mod resolve_upstream_scope;
 #[path = "rv_dm7_probes.rs"]
@@ -188,6 +196,8 @@ mod rv_dm7_probes;
 #[path = "rv_matehead_probes.rs"]
 mod rv_matehead_probes;
 
+#[path = "gather_placed_under_two_roots.rs"]
+mod gather_placed_under_two_roots;
 #[path = "gui1_pick.rs"]
 mod gui1_pick;
 #[path = "gui1_pick_r2.rs"]
@@ -248,6 +258,8 @@ mod m10_3_r2_probes_interval;
 mod m10_4_r1_probes_interval;
 #[path = "m10_4_seed.rs"]
 mod m10_4_seed;
+#[path = "maintenance_net.rs"]
+mod maintenance_net;
 #[path = "msolve10_door_admission.rs"]
 mod msolve10_door_admission;
 #[path = "msolve1_transform_aware.rs"]
@@ -423,6 +435,10 @@ mod mate6_gather_mints;
 mod mate6r1_shared;
 #[path = "mate6r2_probes.rs"]
 mod mate6r2_probes;
+#[path = "parallel_node_map_interval.rs"]
+mod parallel_node_map_interval;
+#[path = "parallel_node_map_probe.rs"]
+mod parallel_node_map_probe;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -615,5 +631,11 @@ mod decide_1_self_dot_interval;
 mod emit_seam_edge_merged;
 #[path = "emit_seam_junction.rs"]
 mod emit_seam_junction;
+#[path = "emit_shared_rim_several.rs"]
+mod emit_shared_rim_several;
 #[path = "emit_split_duplicate.rs"]
 mod emit_split_duplicate;
+#[path = "emit_union_flush_names.rs"]
+mod emit_union_flush_names;
+#[path = "emit_union_rim_piece_ranks.rs"]
+mod emit_union_rim_piece_ranks;

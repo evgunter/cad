@@ -34,8 +34,8 @@ use common::lift;
 use geom_core::{Point2, Sign};
 use profile::RawLoop;
 use profile::{
-    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, ProfileVertex, SegmentKind,
-    SegmentRef, ValidatedProfile, bulge_from_center, bulge_from_via,
+    ArcSweep, ContactKind, LoopRole, ProfileError, ProfileLoop, SegmentKind, SegmentRef,
+    ValidatedProfile, bulge_from_center, bulge_from_via, test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
@@ -83,6 +83,7 @@ fn dxf_quarter_arc_center_left_apex_right() {
             center,
             radius,
             turn,
+            ..
         } => {
             // Hand values: L = 2, r = L(1+b^2)/(4b) = sqrt(2),
             // apothem = L(1-b^2)/(4b) = 1 -> center = (1, 1).
@@ -131,71 +132,71 @@ fn two_arc_circle_is_ccw_and_winding_invisible() {
 
 // --------------------------------------------- canonicalization attacks --
 
-/// 1-ulp-separated lex-min candidates: two leftmost vertices with
-/// x = 1.0 and x = 1.0 + ulp. The exact-order band must order them
-/// definitely and rotation/reversal-invariantly.
+/// 1-ulp-separated leftmost vertices: two corners with x = 1.0 and
+/// x = 1.0 + ulp. The canonical start is the AUTHORED one whichever of
+/// them the author starts from — no ordering between the two is
+/// consulted for it — and reversal leaves the canonical form
+/// byte-identical at every start.
 #[test]
-fn one_ulp_lex_min_tie_is_deterministic() {
+fn one_ulp_leftmost_tie_keeps_the_authored_start() {
     let x_lo = 1.0f64;
     let x_hi = 1.0f64.next_up(); // 1 + 2^-52
     let base = ProfileLoop::polygon([p2(x_lo, 0.0), p2(3.0, 0.0), p2(3.0, 2.0), p2(x_hi, 2.0)]);
-    let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos();
-    assert_eq!(v0.x.to_bits(), x_lo.to_bits(), "lex-min must be x = 1.0");
     for r in 0..4 {
-        for reversed in [false, true] {
-            let n = base.vertices().len();
-            let rotated = ProfileLoop::new(
-                (0..n)
-                    .map(|k| base.vertices()[(r + k) % n])
-                    .collect::<Vec<_>>(),
-            );
-            let lp = if reversed {
-                rotated.reversed()
-            } else {
-                rotated
-            };
-            let vp = ok(&profile(vec![lp]));
-            assert_eq!(
-                format!("{canon:?}"),
-                format!("{vp:?}"),
-                "rot {r} rev {reversed}"
-            );
-        }
+        let n = base.vertices().len();
+        let rotated = bulge_loop(
+            (0..n)
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
+                .collect::<Vec<_>>(),
+        );
+        let canon = ok(&profile(vec![rotated.clone()]));
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
+        assert_eq!(
+            (v0.x.to_bits(), v0.y.to_bits()),
+            (want.x.to_bits(), want.y.to_bits()),
+            "rot {r}: the canonical start is the authored one"
+        );
+        let vp = ok(&profile(vec![rotated.reversed()]));
+        assert_eq!(format!("{canon:?}"), format!("{vp:?}"), "rot {r} reversed");
     }
 }
 
-/// Symmetric square centered at the origin: automorphisms do not break
-/// canonical-start uniqueness (vertices are distinct points).
+/// Symmetric square centered at the origin: every authored start is
+/// kept (vertices are distinct points, so each start is a different
+/// canonical form), and the traversal direction is invisible.
 #[test]
-fn origin_centered_square_canonicalizes_uniquely() {
+fn origin_centered_square_keeps_each_authored_start() {
     let base = ProfileLoop::polygon([p2(-1.0, -1.0), p2(1.0, -1.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
-    let canon = ok(&profile(vec![base.clone()]));
-    let v0 = canon.loops()[0].vertices()[0].pos();
-    assert_eq!((v0.x, v0.y), (-1.0, -1.0));
+    let mut starts = Vec::new();
     for r in 0..4 {
-        for reversed in [false, true] {
-            let n = base.vertices().len();
-            let rotated = ProfileLoop::new(
-                (0..n)
-                    .map(|k| base.vertices()[(r + k) % n])
-                    .collect::<Vec<_>>(),
-            );
-            let lp = if reversed {
-                rotated.reversed()
-            } else {
-                rotated
-            };
-            let vp = ok(&profile(vec![lp]));
-            assert_eq!(format!("{canon:?}"), format!("{vp:?}"));
-        }
+        let n = base.vertices().len();
+        let rotated = bulge_loop(
+            (0..n)
+                .map(|k| (base.vertices()[(r + k) % n], 0.0))
+                .collect::<Vec<_>>(),
+        );
+        let canon = ok(&profile(vec![rotated.clone()]));
+        let v0 = canon.loops()[0].vertices()[0];
+        let want = rotated.vertices()[0];
+        assert_eq!((v0.x, v0.y), (want.x, want.y), "rot {r}");
+        starts.push((v0.x.to_bits(), v0.y.to_bits()));
+        let vp = ok(&profile(vec![rotated.reversed()]));
+        assert_eq!(format!("{canon:?}"), format!("{vp:?}"), "rot {r} reversed");
     }
+    starts.sort_unstable();
+    starts.dedup();
+    assert_eq!(
+        starts.len(),
+        4,
+        "four authored starts, four canonical starts"
+    );
 }
 
 /// A loop that revisits a coordinate exactly (pinch at a bit-identical
 /// non-adjacent vertex) is rejected by simplicity, so validated loops
-/// can never contain two bit-identical vertices and lex-min stays
-/// unique.
+/// can never contain two bit-identical vertices and the containment
+/// representative (the lexicographic minimum) stays unique.
 #[test]
 fn self_pinch_at_repeated_vertex_is_rejected() {
     // Hourglass revisiting (1, 1).
@@ -277,9 +278,9 @@ fn cocircular_partial_arc_overlap() {
     let b = at(290.0);
     // Two vertices: `a` leaves along the shared carrier to `b`, and `b`
     // closes back on the straight chord.
-    let riding = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
-        ProfileVertex::new(b, 0.0),
+    let riding = bulge_loop(vec![
+        (a, bulge_from_center(a, b, p2(1.0, 0.0), ArcSweep::Ccw)),
+        (b, 0.0),
     ]);
     match err(&profile(vec![lens, riding])) {
         ProfileError::NonSimple {
@@ -472,7 +473,7 @@ fn far_from_origin_rectangle_and_l_profile_validate() {
     let r = rect(big, big, 2.0, 1.0);
     let vp = ok(&profile(vec![r]));
     assert_eq!(vp.loops()[0].role(), LoopRole::Outer);
-    let v0 = vp.loops()[0].vertices()[0].pos();
+    let v0 = vp.loops()[0].vertices()[0];
     assert_eq!((v0.x, v0.y), (big, big));
     // With a hole (ray casting + orientation of both loops far away).
     let vp = ok(&profile(vec![
@@ -514,8 +515,8 @@ fn near_full_arc_with_chord_closure_validates() {
     let bulge = (theta / 4.0).tan();
     let lp = chain(&[(a.x, a.y, bulge), (b.x, b.y, 0.0)]);
     let vp = ok(&profile(vec![lp]));
-    // Canonical start is the lex-min vertex (bit-identical x tie on
-    // cos(delta), broken by least y => b), so the arc is segment 1.
+    // The canonical start is the authored one, `a`, so the arc is
+    // segment 0; the search below does not depend on it.
     let arc = vp.loops()[0]
         .segments()
         .iter()

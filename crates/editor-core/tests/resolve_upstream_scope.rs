@@ -22,7 +22,7 @@ use geom_core::Sign;
 use geom_core::Tol;
 use geom_core::k_stats::Verdict;
 
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     evaluate::<f64>(
         doc,
         prior,
@@ -159,18 +159,38 @@ fn a_flip_at_a_node_the_name_does_not_depend_on_is_not_its_cause() {
         flips.iter().any(|(n, _)| *n == cut2),
         "the unrelated edit records a flip at the second cut: {flips:?}"
     );
+    // The first bar's walls (`block`'s profile runs counter-clockwise
+    // from `(x0, y0)`: wall 0 is y = y0, 1 is x = x1, 3 is x = x0).
+    let Some(Node::Transform { input: bar1, .. }) = doc.node(tr1) else {
+        panic!("slot() places the bar behind a transform");
+    };
+    let wall = |segment| StableName {
+        kind: EntityKind::Face,
+        node: *bar1,
+        path: vec![RoleSeg::Lateral(crate::fixture::piece(
+            &doc, *bar1, 0, segment,
+        ))],
+    };
     let mut vanished = 0;
     for name in &names {
         if ev2.value(cut1).unwrap().name_table.lookup(name).is_some() {
             continue;
         }
         vanished += 1;
+        // Landing short of the cap's far edge, the bar's y = y0 wall
+        // starts crossing the cap, and both its x walls leave the cap's
+        // near rim edge.
+        let (gone, new) = match name.kind {
+            EntityKind::Face => (vec![], vec![wall(0)]),
+            _ => (vec![wall(1), wall(3)], vec![]),
+        };
         assert_eq!(
             diagnosis((&doc2, &ev2), (&doc, &ev1), name),
             Diagnosis::GroupResized {
                 node: cut1,
                 was: 2,
                 now: 1,
+                cutters: editor_core::GroupCutters::Read { gone, new },
             },
             "{name:?}"
         );
@@ -250,7 +270,7 @@ fn set_members(doc: ProfileDoc, node: RecipeNodeId, members: Vec<RecipeNodeId>) 
 /// The strict ancestors of `node` in ONE document — the test's own
 /// reading of "fed the minting node in this run", independent of the
 /// walk under test.
-fn ancestors_in(doc: &ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
+fn ancestors_in(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> BTreeSet<RecipeNodeId> {
     let mut seen = BTreeSet::new();
     let mut stack = doc.node(node).map(|n| n.inputs()).unwrap_or_default();
     while let Some(n) = stack.pop() {
@@ -598,6 +618,7 @@ fn two_node_eval(
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(table),
+            fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(log),

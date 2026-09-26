@@ -12,16 +12,13 @@ use profile::RawLoop;
 
 use geom_core::Tol;
 use geom_core::{Point2, Vec2};
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, revolve};
 
 /// The four acceptance shapes as (profile loops, revolution).
 fn shapes() -> Vec<(Vec<ProfileLoop<f64>>, Revolution<f64>)> {
-    let half_disc = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(0.0, -1.0), 1.0),
-        ProfileVertex::new(p2(0.0, 1.0), 0.0),
-    ]);
+    let half_disc = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
     let triangle = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
     let washer = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
     let square = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
@@ -56,25 +53,15 @@ fn rebuild_is_byte_identical_and_volumes_positive() {
 #[test]
 fn dual_value_channel_matches_f64_bitwise() {
     use geom_core::{Dual, Dual64};
-    let lift = |lp: &ProfileLoop<f64>| -> ProfileLoop<Dual64> {
-        ProfileLoop::new(
-            lp.vertices()
-                .iter()
-                .map(|v| {
-                    ProfileVertex::new(
-                        Point2::new(Dual::constant(v.pos().x), Dual::constant(v.pos().y)),
-                        Dual::constant(v.bulge()),
-                    )
-                })
-                .collect(),
-        )
-    };
     for (i, (loops, rev)) in shapes().into_iter().enumerate() {
         let vp = validated(loops.clone());
         let f = revolve(&vp, axis_y(), rev, Tol::witness()).unwrap();
         let dp = Profile::new(
             SketchPlane::<Dual64>::xy(),
-            loops.iter().map(&lift).collect(),
+            loops
+                .iter()
+                .map(|lp| lp.map_scalar(Dual::constant))
+                .collect(),
         )
         .validate(Tol::witness())
         .unwrap();

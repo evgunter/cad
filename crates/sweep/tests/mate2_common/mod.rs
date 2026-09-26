@@ -15,7 +15,7 @@
 )]
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
@@ -31,10 +31,10 @@ pub fn three_arc(radius: f64, deg0: f64) -> ProfileLoop<f64> {
         let th: f64 = deg.to_radians();
         p2(radius * th.cos(), radius * th.sin())
     };
-    ProfileLoop::new(vec![
-        ProfileVertex::new(at(deg0), b120),
-        ProfileVertex::new(at(deg0 + 120.0), b120),
-        ProfileVertex::new(at(deg0 + 240.0), b120),
+    bulge_loop(vec![
+        (at(deg0), b120),
+        (at(deg0 + 120.0), b120),
+        (at(deg0 + 240.0), b120),
     ])
 }
 

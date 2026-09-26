@@ -786,7 +786,7 @@ the day it has one:
 **Why (1) is needed and a printed note would not have been.** The
 metre rules see nothing on the refusal side: a large negative margin
 is decisive and passes both. And a refusal does not surface elsewhere
-either — `crates/topo/src/props.rs`'s `sign_certified` says *"A face
+either — `crates/topo/src/props.rs`'s `sign_walk` says *"A face
 that refuses on BUDGET is different — it has an enclosure, and the sum
 keeps it — so the refusal rides on the certificate, and whether it is
 REPORTED is the caller's decision, taken by `last_word`"*, and
@@ -834,6 +834,31 @@ than once per cell, so its population is orders of magnitude smaller
 than the other five and should not be read against them. They pool with nothing: a chart-boundary cell margin is its own
 population, which is exactly why the shared parity walk takes its row
 names from the caller.
+
+**Roster addition (ATREST-9): the arc-aware planar loop walk.** Eleven
+names from `topo/src/splitting/containment.rs`'s `point_in_carrier_loop`,
+the in-face test `point_in_solid`'s planar arm reads a loop with circle
+or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
+(`ARC_LOOP_ROWS`), the rest bare literals at their `decide` sites:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_segment` | `ParityRows` field |
+| `point_in_arc_loop_boundary` | `ParityRows` field |
+| `point_in_arc_loop_side` | `ParityRows` field |
+| `point_in_arc_loop_advance` | `ParityRows` field |
+| `point_in_arc_loop_arm` | a bare literal passed to `walk_schedule` |
+| `point_in_arc_loop_reach` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_span` | a bare literal at the `decide` site (once per arc edge) |
+| `point_in_arc_loop_conic_on` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_window` | a bare literal in `ConicArc::in_window` |
+| `point_in_arc_loop_conic_disc` | a bare literal at the `decide` site |
+| `point_in_arc_loop_conic_advance` | a bare literal at the `decide` site |
+
+Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
+`point_in_arc_loop_*` rows. They pool with nothing: a loop of lines
+still decides under `point_in_loop_*`, so the polygon population is
+unchanged by this walk.
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of

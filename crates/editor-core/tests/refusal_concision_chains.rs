@@ -125,11 +125,13 @@ pub(crate) const FILED: &[(&str, &str)] = &[
 /// `EllipseInvalid` entries).
 pub(crate) const FILED_DECLARE: &[&str] = &["Split/Join/Section(Carrier)"];
 
-/// The rows that render a `Debug` struct from a file an open PR is
-/// reworking, by exact row id, each filed with its owner.
+/// The rows that render a `Debug` form — a struct, or an arena key —
+/// by exact row id, each filed with its owner.
 pub(crate) const FILED_DEBUG: &[&str] = &[
-    // `editor-core/src/measure.rs` (#2702) renders the clearance
-    // engine's refusal class through `Debug`, PROPS's:
+    // `ClearanceRefusal::payload` (`editor-core/src/clearance.rs`)
+    // renders the faces of `Unsupported` and `PoisonEnclosure`, the two
+    // arms `min_separation` refuses with that carry evidence, as
+    // `FaceKey` `Debug`, and this arm prints it; PROPS's:
     // work/props/props-refusal-prose-outgrows-the-viewer.md
     "MeasureClearanceRefused",
 ];
@@ -145,7 +147,10 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
         eprintln!("MEASURE {} {name}: {text}", text.split_whitespace().count());
         let mut allowed = ALLOWED_LABELS.to_vec();
         allowed.extend(FILED.iter().filter(|(row, _)| row == name).map(|(_, l)| *l));
-        let debug_filed = format!("{name} renders a Debug struct");
+        let debug_filed = [
+            format!("{name} renders a Debug struct"),
+            format!("{name} dumps an arena key"),
+        ];
         problems.extend(
             test_utils::refusal::problems(
                 name,
@@ -154,7 +159,10 @@ pub(crate) fn over_budget(rows: &[(String, String)]) -> Vec<String> {
                 KERNEL_KEYED.contains(&name.as_str()),
             )
             .into_iter()
-            .filter(|p| !(FILED_DEBUG.contains(&name.as_str()) && p.starts_with(&debug_filed))),
+            .filter(|p| {
+                !(FILED_DEBUG.contains(&name.as_str())
+                    && debug_filed.iter().any(|d| p.starts_with(d.as_str())))
+            }),
         );
     }
     problems
@@ -281,6 +289,16 @@ fn own_arms() -> Vec<(String, NodeErrorKind)> {
             },
         ),
         row("ProfileAnchor", NodeErrorKind::ProfileAnchor { loop_: 0 }),
+        row(
+            "ProfilePieces",
+            NodeErrorKind::ProfilePieces {
+                fault: editor_core::PiecesFault::Length {
+                    loop_: 0,
+                    recorded: 4,
+                    anchored: 5,
+                },
+            },
+        ),
         row(
             "CurvedSolidFrontier",
             NodeErrorKind::CurvedSolidFrontier {
@@ -1971,11 +1989,11 @@ fn doc_ref() -> editor_core::DocRef {
 
 /// The contact, frame, witness, part and measure arms.
 fn document_arms() -> Vec<(String, NodeErrorKind)> {
+    use editor_core::clearance::ClearanceRefusal;
     use editor_core::{
         BifurcationKind, BranchMarginEvidence, ContactClass, DirectionRefusal, EntityKind,
         FaceName, FlushEvidence, FlushFinding, FlushRung, Implicated, InterrogateError,
-        MeasureNodeFault, MinClearanceRefusal, PartFault, ResolveFault, SitedRef, WitnessAge,
-        WitnessBifurcation,
+        MeasureNodeFault, PartFault, ResolveFault, SitedRef, WitnessAge, WitnessBifurcation,
     };
     use geom_core::UnitVec3Error;
     use payloads::*;
@@ -2059,9 +2077,9 @@ fn document_arms() -> Vec<(String, NodeErrorKind)> {
         ),
         row(
             "MeasureClearanceRefused",
-            NodeErrorKind::MeasureClearanceRefused(MinClearanceRefusal {
-                class: "budget",
-                payload: "Depth { max_cell_depth: 20 }".to_owned(),
+            NodeErrorKind::MeasureClearanceRefused(ClearanceRefusal::Unsupported {
+                carrier: "a free-form face",
+                face: FaceKey::default(),
             }),
         ),
     ];
@@ -2472,8 +2490,7 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
     use crate::fixture::{self, ang, fname, insert, len, on_frame, square, wall};
     use editor_core::measure::{MeasureExpr, MeasurePrimitive};
     use editor_core::{
-        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, ProfileVertexRef,
-        SitedRef, evaluate,
+        CancelToken, CapEnd, Datum, EvalOptions, Node, NodeResult, ProfileDoc, SitedRef, evaluate,
     };
     use geom_core::Tol;
     let doc = ProfileDoc::empty_derived("refusal_concision_chains", Tol::witness());
@@ -2491,16 +2508,9 @@ fn found_arms() -> Vec<(String, NodeErrorKind)> {
             distance: len(1.0),
         },
     );
-    let face = fname(body, wall(2));
-    let edge = fixture::prism_edges(body, 4).remove(2);
-    let vertex = fixture::cap_vertex(
-        body,
-        CapEnd::End,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex: 0,
-        },
-    );
+    let face = fname(body, wall(&doc, body, 2));
+    let edge = fixture::prism_edges(&doc, body, 4).remove(2);
+    let vertex = fixture::cap_vertex(body, CapEnd::End, crate::fixture::vpiece(&doc, body, 0, 0));
     let (doc, shell) = insert(doc, Node::shell(body, len(0.1), vec![edge.clone()]));
     let (doc, fillet) = insert(doc, Node::fillet(body, len(0.1), vec![face.clone()]));
     let (doc, frame) = insert(
@@ -2759,6 +2769,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         (
             "PartialTorusFace",
             PointInSolidError::PartialTorusFace { face },
+        ),
+        (
+            "EdgeCarrierUnsupported",
+            PointInSolidError::EdgeCarrierUnsupported { face },
         ),
         (
             "NoSuchSolid",

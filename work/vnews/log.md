@@ -487,3 +487,66 @@ lands second must carry `refusable_button` into `part_entry`. Keeping
 compile error.
 
 (CHROME implementer lane, chrome/create-messages)
+
+## 2026-09-24 — a VNEWS lane crosses into `pane/profile.rs` and `pane/headless`
+
+`vnews/gated-controls-say-why-while-disabled` closes
+`clear-picks-hover-text-is-invisible-while-disabled`. **Announced
+crossings:**
+- `pane/profile.rs` is claimed by no program. The four step-row glyph
+  controls now go through a private `step_control`. Revert moves out
+  of `edit_profile_ui` into a free `revert_button`, which the method
+  calls.
+- In `pane/create.rs`, `blend_commit_row`'s Clear picks moves into a
+  free `clear_picks_button`.
+- `crate::pane::headless` gains `painted_while_hovering`, and its
+  `hit` takes an occurrence index. The three drives now share one
+  private `frame`, so the module's *"one drive"* claim is true again.
+  It had not been since `painted_after_clicking` inlined its own copy.
+
+Tier: style review, no correctness arm. The failure mode is a wrong
+or missing tooltip. That is visible, and every disabled sentence is
+asserted by its text.
+
+The fix pass on #3216 (2026-09-25) also crosses into
+`crates/viewer/src/forms.rs`, which belongs to author, chrome, forms and
+vseam. Only doc text changed there: `SHAPE_LOCKED`'s doc and
+`ShapeEdits`'s doc no longer say the notice is drawn "once" above the
+list, because the step controls' disabled hovers now read it too.
+`pane/profile.rs`'s Revert moved into `apply_and_revert`, and Apply
+moved with it.
+
+## 2026-09-25 — the tone unit's two residue rows close; a VNEWS lane crosses into `session/select.rs`
+
+`vnews/salience-read-from-the-value` (#3230) closes
+`a-tree-rows-message-line-picks-its-affordance-by-hand` and
+`resolution-and-standing-pick-their-tone-by-hand`. Each row states its
+decision. **Announced crossings:**
+- `crates/viewer/src/session/select.rs`, which CHROME and VSEAM own:
+  `Standing` gains `tone()`, and the file gains a test module for it.
+- `pane/properties.rs`, shared with AUTHOR, CHROME and VGEOM: every
+  standing verdict is drawn by one free `standing_verdict`;
+  `entity_standing_ui` becomes the header-only `entity_header_ui`; the
+  parameter panel's duplicate `"that parameter is gone"` line is
+  deleted, and a deleted node no longer claims to carry no parameters.
+- `crates/viewer/src/session/refuse.rs`: `FaceFrameFault` gains
+  `tone()`.
+- `crates/viewer/src/parts.rs`: `PartChooser` gains `tone()`.
+- `pane/create.rs`: the part chooser's body becomes the free
+  `part_listing`, reading `PartChooser::tone`, and drops its quiet
+  `"no directory"` header; the face-frame fault reads
+  `FaceFrameFault::tone`; the add-profile form's held reason is a typed
+  `Held`.
+- `app.rs`, which CHROME and VSEAM own: `toned`'s doc only.
+- `crate::pane::headless` gains `Landed::ink`, `Voices`,
+  `landed_voiced` and `find_opening`.
+
+Filed: `a-verdict-drawn-outside-a-tone-has-no-value-to-read`. Moved
+from `work/issues/`: `preview-error-picks-its-tone-by-hand-in-a-comment`,
+because `pane/profile.rs` is VNEWS-claimed today.
+Filed on VDOC: `viewer-readme-counts-one-tone-function-outside-frame`
+(the README is VDOC's carve-out).
+Final pass: `app.rs` gains a test module, `properties_pane_tests`, which
+drives the real app frame headlessly (`ViewerApp::assemble`, eframe's
+`Frame::_new_kittest`). Filed: `add-profile-held-reason-is-overwritten-not-first`,
+`part-census-dir-iff-refusal-is-held-in-prose`.

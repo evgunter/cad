@@ -313,10 +313,10 @@ fn deep_digest<T: Decide + Bounds>(ev: &Evaluation<T>) -> u64 {
                         d.u64(13);
                         for lp in p.validated.loops() {
                             d.u64(lp.vertices().len() as u64);
-                            for v in lp.vertices() {
-                                d.s(v.pos().x);
-                                d.s(v.pos().y);
-                                d.s(v.bulge());
+                            for (v, s) in lp.vertices().iter().zip(lp.segments()) {
+                                d.s(v.x);
+                                d.s(v.y);
+                                d.s(s.bulge);
                             }
                         }
                     }
@@ -548,6 +548,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![disc],
+        ids: Vec::new(),
     }));
     let puck = r.insert(Node::Extrude {
         profile,

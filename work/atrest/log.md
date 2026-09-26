@@ -670,3 +670,115 @@ sentence, so it is prose.
 `validate-rs-exports-sixteen-doors-on-an-irregular-matrix`), which
 collides head-on with ATREST-3's change to the certificate doors'
 return types and waits for it.
+
+## 2026-09-24 — ATREST-7 stopped at measure-first; the walk under it is wrong
+
+ATREST-7 (check 10, the shell-winding invariant) measured its refusal
+surface over the full corpus before landing, as specced. Every
+deliberate multi-shell product certified — `graft` onto, the coplanar
+split, `editor-core`'s islands and placed union, ZIP's hollow-operand
+subtraction — except ONE: `sweep::torax_axial::torax_the_torus_corners_survive_a_rigid_re_pose`,
+where `topo::shell` validates its own output and check 10 refuses. The
+lane stopped and diagnosed rather than landing: the cause is not a
+winding violation but `point_in_solid_faces` answering **`Out` from a
+point strictly inside** a rigidly re-posed torus-walled shell. The
+unposed body answers correctly. A false answer from a certified walk,
+not a refusal — so no "silent on `Err`" posture can absorb it, and it
+reaches the boolean's containment fallback and the census too.
+
+The stop clause is working as this program learned to write it: the
+check-10 retraction and ATREST-2's lessons were both about settling a
+claim before measuring who it refuses. This time the measurement ran
+first and found a bug one layer down instead of a false refusal
+shipped.
+
+**Ruled: ATREST claims the row and fixes the walk, as ATREST-9.** The
+row was filed for CONTACT (it owns `solid_contain.rs`), but CONTACT is
+`ready` with no orchestrator and nothing dispatched, so a P0 wrong
+answer that two programs' checks read would sit indefinitely. The
+alternative — landing check 10 with torus-walled shells declared out of
+its domain — would scope around one observed pose of a defect whose
+class nobody has measured, and leave the boolean's wrong answer with
+nobody on it. ATREST-9 reproduces without check 10, measures the kind ×
+pose class, and fixes the arm; seam announced on CONTACT's log.
+**Tier: dual** — numeric soundness in a certified walk the boolean
+trusts.
+
+ATREST-7 and its carried row are **parked** on the claimed row. The
+branch is pushed and green apart from the torax row; it resumes the
+moment ATREST-9 lands (re-run the matrix, open the PR, single full
+review as specced). Its own residue row
+(`check-10-is-silent-where-point-in-solid-refuses`) stays on that
+branch and lands with it.
+
+Operational: ATREST-3's lane held the machine-wide build mutex for over
+an hour with a full `--no-fail-fast` battery (piped through `tail`,
+against the discipline), plus an orphaned 1h42m waiter, starving five
+lanes and a reviewer. Told to release it and keep measurements
+targeted; every later brief says so explicitly.
+
+## 2026-09-27 — ATREST-5 merged; three reviews adjudicated; one outage
+
+**ATREST-5 merged** (PR #3179; fix-pass run 36055931100 green at six
+`test` and five `k-lint`, read at step level). Check 9's nesting arm
+now decides the `Disc` class through `contain::disc_side` — the annular
+rim of every shelled vessel of revolution. `check-9-nesting-is-line-bounded-only`
+closed; its `ArcParity`/`NoWalk` thirds live on as
+`check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`,
+parked on TANG's #1076. The review (single, full) found no MAJOR;
+all ten findings were taken, including a `rehome_rings` finding given
+its own row on REACH's slate with the reviewer's corrected class
+(`ArcParity`, not `Disc`). The vertex-only choice for disc-class rings
+was upheld: the case a two-circle test adds is a crossing, and the
+crossing is its own row (`check-9-contact-half-misses-a-crossing-and-a-tangency`).
+The landing now follows the ledger convention: the spec deleted with a
+`docs/doc-ledger/atrest-5-spec.md` note naming the SHA it is
+recoverable at, and the docs-only state-sync run cancelled rather than
+killed mid-flight at merge.
+
+**ATREST-4 reviewed** (single, full): APPROVE-WITH-FIXES, no MAJOR.
+The segment term `axis·R²(Δ−sinΔ)` was re-derived by hand and holds for
+every arc shape; the assigner's path is bit-identical. The finding that
+matters: the PR argued the sweep verbs' cap normals
+(`newell_plane(cap_points)`) always get the sign right, and the argument
+covers concave arcs only — the reviewer's C-shaped profile with a 350°
+CONVEX arc gives an apex polygon of −1.53 against a true region of
++1.44, i.e. an extruded cap whose normal points into the material. The
+fix pass MEASURES it through the public doors rather than arguing
+either way; if `extrude` produces that body, it is a P0 producer defect
+filed on the verbs' owner — and the widened check 6 is what now
+catches it at rest. Also owed: a row that pins the segment term's
+MAGNITUDE (every new row used semicircles or unit radii and asserted
+sign only), and the arc term's second home in `join.rs`.
+
+**ATREST-8 reviewed** (single, style): APPROVE-WITH-FIXES. The arms read
+far better, every re-baseline held or tightened — but the budget guard
+passed because of which samples it picked: composed at-rest renderings
+the viewer draws run to 99 words (`CensusUnsupported` over
+`ChartRegion` causes; `Containment(ArcLoopUnsupported)`; the
+`Uncertified` header at 59 words before any cause), and the guard
+hand-rolled a budget-only loop beside the shared `test_utils::refusal`
+checker that also checks arena keys and prefixes. The fix pass samples
+every composed shape the viewer can draw, adopts the shared checker,
+and takes the recourses that stopped being true once their caveats
+were cut.
+
+**Outage.** On 2026-09-24 the account's weekly usage limit killed all
+five live agents mid-work. Nothing was lost — every lane had pushed or
+held its work on disk (ATREST-4 five unpushed commits, ATREST-9 its
+trace instrumentation) — and all five were resumed with their context
+at the reset on 2026-09-27.
+
+## Announced seam from PATHS (2026-09-25)
+
+When #3231 lands, it carries a three-arm fix to
+`crates/topo/src/validate.rs`. main had stopped compiling `topo`: the
+`Display` match for `RingMeetsOuter` (#3185) covered only `Vertex`,
+`VertexOnEdge` and `Edge`. `a3d5c47e1` added three more contact arms
+(`OuterVertexOnEdge`, `Circles`, `EdgesMeet`), and the match had no
+arms for them. The new sentences are "where a corner of the outline
+meets an edge of the hole", "where the two circles cross or touch"
+and "where two of their edges cross or touch". No test pins any of
+them. Re-word them if ATREST prefers other phrasing.
+
+Signed (PATHS orchestrator).

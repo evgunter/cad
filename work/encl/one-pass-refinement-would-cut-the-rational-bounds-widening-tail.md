@@ -4,6 +4,8 @@ kind: issue
 title: One-pass (Oslo) refinement would cut the rational bound's widening tail: the fold pays a rounding per insertion where A5.4 pays one per degree
 status: open
 opened: 2026-09-22
+priority: P2
+cost: H
 ---
 
 

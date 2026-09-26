@@ -29,7 +29,6 @@
 use core::f64::consts::SQRT_2;
 
 use geom_core::{Point2, Point3, Sign, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
@@ -42,8 +41,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 // ------------------------------------------------------------------

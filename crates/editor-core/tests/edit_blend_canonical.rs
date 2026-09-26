@@ -18,8 +18,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, EditError, EntityKind, EvalOptions, InputFault, Node,
-    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileEdgeRef, ProfileProgram,
-    RecipeNodeId, RoleSeg, SnapshotError, StableName, apply, evaluate, load, save,
+    NodeErrorKind, NodeResult, PersistError, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg,
+    SnapshotError, StableName, apply, evaluate, load, save,
 };
 use geom_core::Tol;
 use sweep::blend::BlendKind;
@@ -41,17 +41,21 @@ fn prism() -> (ProfileDoc, RecipeNodeId) {
     (r.doc, solid)
 }
 
-/// One END-cap rim edge of the prism, by profile segment — the names
-/// sort by segment, so `edge(n, 0) < edge(n, 2)`.
+/// One END-cap rim edge-shaped name on the prism, indexed `segment`:
+/// the first step's piece in role `Piece(segment)`, which the square
+/// never draws. These rows are about the ORDER of a selection, which
+/// the doors check before anything resolves, so the names only have to
+/// be well formed, spell a minted step, and sort by `segment` — so
+/// `edge(n, 0) < edge(n, 2)`.
 fn edge(node: RecipeNodeId, segment: u32) -> StableName {
     StableName {
         kind: EntityKind::Edge,
         node,
         path: vec![RoleSeg::RimEdge(
             CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment,
+            editor_core::ProfileEdgeRef::Piece {
+                step: editor_core::StepId(1),
+                role: editor_core::PieceRole::Piece(segment),
             },
         )],
     }
@@ -89,21 +93,21 @@ fn saved_fillet(segments: &[u32]) -> String {
     save(&doc, &[], Tol::witness()).expect("the fixture saves")
 }
 
-/// Rewrites the FIRST `"segment": <from>` at or after the `"selection"`
-/// key to `<to>`, leaving the rest of the document alone: the selection
-/// is the only list this suite corrupts, and the caller reads the
-/// refusal that comes back.
+/// Rewrites the FIRST [`edge`] `from` at or after the `"selection"`
+/// key to [`edge`] `to`, leaving the rest of the document alone: the
+/// selection is the only list this suite corrupts, and the caller reads
+/// the refusal that comes back.
 fn corrupt_selection(text: &str, from: u32, to: u32) -> String {
     let sel = text
         .find("\"selection\"")
         .expect("the selection reaches the wire");
-    let needle = format!("\"segment\": {from}");
+    let needle = format!("\"Piece\": {from}");
     let at = sel
         + text[sel..]
             .find(&needle)
             .expect("the selection names the segment");
     format!(
-        "{}\"segment\": {to}{}",
+        "{}\"Piece\": {to}{}",
         &text[..at],
         &text[at + needle.len()..]
     )
@@ -342,7 +346,7 @@ fn both_doors_forward_one_sentence() {
 #[test]
 fn at_names_each_position() {
     let solid = RecipeNodeId(2);
-    let cases: &[(&str, Vec<u32>, Option<u32>)] = &[
+    let cases: &[(&str, Vec<u32>, Option<usize>)] = &[
         ("canonical", vec![0, 2, 4], None),
         ("swap at 0", vec![2, 0, 4], Some(0)),
         ("swap at 1", vec![0, 4, 2], Some(1)),

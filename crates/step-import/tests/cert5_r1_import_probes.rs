@@ -52,8 +52,7 @@
 
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use std::path::PathBuf;
 use step_import::{ImportOptions, StepImportError, import_step};
 
@@ -152,8 +151,8 @@ const STATIONS: usize = 6;
 const V_DEGREE: usize = 2;
 
 fn balloon_section() -> Vec<ProfileLoop<f64>> {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
-    vec![ProfileLoop::new(vec![
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
+    vec![bulge_loop(vec![
         v(-1.0, -1.0, 0.0),
         v(1.0, -1.0, BULGE),
         v(1.0, 1.0, 0.0),
@@ -333,7 +332,10 @@ fn own_rational_wall_roundtrips_through_the_import_door() {
             // recomputed: a `Solid` exists only because the aggregate
             // tier-3′ gate certified this body, and `enclosure` is the
             // object its +V invariant decided on.
-            let m = enclosure;
+            let m = enclosure.expect(
+                "the native body measured above, so the import's continuation of the same \
+                 quadrature measures too",
+            );
             eprintln!(
                 "CERT5-R1 roundtrip: import+gate in {dt:?}; native {} +- {}, imported {} +- {}",
                 native.volume, native.volume_pad, m.volume, m.volume_pad

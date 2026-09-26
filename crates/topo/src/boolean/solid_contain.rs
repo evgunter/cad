@@ -1,13 +1,14 @@
 //! Trilean **point-in-solid** containment (F8): the ray design of
-//! profile's 2-D machinery and PR 3's [`point_in_loop`] promoted to
-//! 3-D — the boolean containment fallback for operands whose
-//! boundaries do not intersect (§15.9: "the ONLY place a
-//! point-in-solid test is ever needed").
+//! profile's 2-D machinery and PR 3's [`point_in_loop`](crate::splitting::containment::point_in_loop) promoted to
+//! 3-D. Its consumers: the boolean's containment fallback for operands
+//! whose boundaries do not intersect (the case §15.9 names), the
+//! split-join's role resolution for a region its section cannot place
+//! (`join.rs`), and the census's material test.
 //!
 //! # Method: closest-hit ray test with the fixed schedule
 //!
 //! Cast a ray from `q` along a direction of the fixed schedule — the
-//! same 16-member golden-angle table as [`point_in_loop`], and
+//! same 16-member golden-angle table as [`point_in_loop`](crate::splitting::containment::point_in_loop), and
 //! literally the same const (`SCHEDULE`, read from
 //! `splitting::containment`), used here as space directions
 //! **directly**: this module normalizes the raw triple, where
@@ -15,11 +16,13 @@
 //! near-parallel members. One table, two different sweeps — the
 //! shared const buys the absence of drift between copies, not
 //! agreement on a direction, and determinism is per site (a `const`
-//! swept in a fixed order every run). For each face
-//! (planar — the F5 regime):
+//! swept in a fixed order every run). For each planar face:
 //! intersect the ray with the face plane, test the hit point against
-//! the face's loops (outer minus rings) via [`point_in_loop`], and
-//! keep the **closest** crossing. The verdict reads the material side
+//! the face's loops (outer minus rings) on their edges' own carriers
+//! ([`point_in_carrier_loop`]: the vertex polygon for a loop of lines,
+//! each circle or ellipse arc crossed on its conic otherwise) — and
+//! keep the **closest** crossing; the curved kinds' arms below fold
+//! their roots the same way. The verdict reads the material side
 //! from that crossing's outward normal: `d·n > 0` at the closest hit
 //! ⇒ the ray *exits* material there ⇒ `In`; `d·n < 0` ⇒ `Out`.
 //!
@@ -53,6 +56,9 @@
 //!   skipped, not grazed).
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - The in-face walk's rows are its own module's (`point_in_loop_*`
+//!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
+//!   [`point_in_carrier_loop`] lists them).
 //! - **`bool_point_in_solid_order`**: `t − t_best` (closest-hit
 //!   selection; Zero ⇒ tie ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
@@ -114,7 +120,9 @@ use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
+use crate::splitting::containment::{
+    LoopContainment, PointInLoopError, SCHEDULE, point_in_carrier_loop,
+};
 use crate::validate::decide;
 
 use super::surface_group::{RimExemption, surface_group};
@@ -257,6 +265,22 @@ pub enum PointInSolidError {
         /// The torus face neither class expresses.
         face: FaceKey,
     },
+    /// A ray's hit on a `Plane` face could land inside it, and the face
+    /// is bounded by an edge on a carrier the in-face walk has no
+    /// crossing row for — a spiric (a plane's section of a torus) or a
+    /// spline.
+    ///
+    /// The walk crosses every boundary edge on its own carrier: a line
+    /// where its end vertices straddle the ray, a circle or an ellipse
+    /// at the roots of its quadratic inside the arc's window. For these
+    /// two carriers the only curve on offer is the chord, a different
+    /// curve, so the loop is answered only where no crossing could
+    /// matter — a hit definitely outside a ball holding the whole loop
+    /// is a miss — and refused inside that ball.
+    EdgeCarrierUnsupported {
+        /// The planar face whose outline the walk cannot cross.
+        face: FaceKey,
+    },
     /// [`point_in_solid_of`] was asked about a solid the body does not
     /// hold — an arena claim, like [`Self::CorruptFace`].
     NoSuchSolid {
@@ -322,6 +346,10 @@ impl PointInSolidError {
             | Self::PartialTorusFace { .. } => {
                 "the instance carries a curved face outside the point-in-solid door's \
                  chart classes, so its material cannot be probed"
+            }
+            Self::EdgeCarrierUnsupported { .. } => {
+                "a probe ray from the material witness met a flat face bounded by a \
+                 spline or torus-section edge, whose outline cannot be crossed exactly"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
             Self::SurfaceSharedOutsideSolid { .. } => {
@@ -410,6 +438,13 @@ impl core::fmt::Display for PointInSolidError {
                  (parallels and meridians), or let its faces together cover the whole \
                  torus"
             ),
+            Self::EdgeCarrierUnsupported { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: a test ray met a flat face \
+                 bounded by a spline or torus-section edge, near enough that the edge \
+                 decides, and that outline cannot be crossed exactly. The solid itself is fine. Recourse: test a \
+                 point farther from that face"
+            ),
             Self::NoSuchSolid { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: the body holds no such solid"
@@ -435,7 +470,7 @@ impl std::error::Error for PointInSolidError {}
 /// whose answer is ray-crossing parity and therefore blind to the
 /// normal's sign either way; threading here is what keeps the door's
 /// CONTRACT honest for the next consumer.
-pub(super) fn face_plane<T: Decide>(
+pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
@@ -2251,8 +2286,11 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
 
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
-/// loop is reported as `None` (graze).
-pub(super) fn point_in_face<T: Decide>(
+/// loop is reported as `None` (graze). Each loop is read on its edges'
+/// own carriers ([`point_in_carrier_loop`]); a loop the walk can only
+/// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
+/// where `p` could land in it.
+pub(crate) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,
@@ -2270,7 +2308,11 @@ pub(super) fn point_in_face<T: Decide>(
     ) {
         return Ok(Some(false));
     }
-    match point_in_loop(body, f.outer, normal, p, band)? {
+    let region = |lk| -> Result<LoopContainment, PointInSolidError> {
+        point_in_carrier_loop(body, lk, normal, p, band)?
+            .ok_or(PointInSolidError::EdgeCarrierUnsupported { face })
+    };
+    match region(f.outer)? {
         LoopContainment::Out => return Ok(Some(false)),
         LoopContainment::OnBoundary => return Ok(None),
         LoopContainment::In => {}
@@ -2282,7 +2324,7 @@ pub(super) fn point_in_face<T: Decide>(
         ) {
             continue; // a lone ring vertex excludes no area
         }
-        match point_in_loop(body, ring, normal, p, band)? {
+        match region(ring)? {
             LoopContainment::In => return Ok(Some(false)),
             LoopContainment::OnBoundary => return Ok(None),
             LoopContainment::Out => {}

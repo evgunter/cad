@@ -11,10 +11,12 @@
 //!
 //! This module holds the one answer to "is this name on a seam line,
 //! and which pair", for the rankers that know a seam only by its NAME.
-//! The pair emitter reads it to pick the direction; the union's collapse
-//! reads it to decide whether putting that pair in name order reversed
-//! the direction. Both read the same answer through the same wrappers,
-//! so they cannot disagree about which ranks lie on a seam line.
+//! The pair emitter reads it to pick the direction; the canonical form
+//! (`names::canonical`) reads it, in a name's earlier and later
+//! spelling, to decide whether a rewrite — the union's collapse, or a
+//! re-map of a published name — reversed the direction. Both read the
+//! same answer through the same wrappers, so they cannot disagree about
+//! which ranks lie on a seam line.
 
 use super::role::{EntityKind, Qualifier};
 use super::role::{RoleSeg, StableName, name_free_seg};
@@ -64,9 +66,9 @@ fn head(seg: &RoleSeg) -> Head<'_> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
+        | RoleSeg::BandCross { .. }
         | RoleSeg::BandCut(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandSlit { .. }
         | RoleSeg::Inner(_)
         | RoleSeg::Rim(_)
         | RoleSeg::HoleRim { .. }
@@ -88,13 +90,27 @@ fn head(seg: &RoleSeg) -> Head<'_> {
 /// carrier like any other edge — the union's collapse, which never swaps
 /// an equal pair, agrees.
 pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableName)> {
-    if name.kind != EntityKind::Edge {
+    seam_through(name, EntityKind::Edge).filter(|(a, b)| a != b)
+}
+
+/// The two parents `(a, b)` of a seam VERTEX name, if it is one: a
+/// vertex minted as `Seam { a, b }`, or a pass-through of one, found
+/// the way [`seam_line_pair`] finds an edge's pair. A junction (a run
+/// of lines) answers its first line; it carries no rank.
+pub(super) fn seam_vertex_parents(name: &StableName) -> Option<(&StableName, &StableName)> {
+    seam_through(name, EntityKind::Vertex)
+}
+
+/// The `Seam` a `kind` name is minted as, through the wrappers [`head`]
+/// lists as `Through`: the one walk both answers above take.
+fn seam_through(name: &StableName, kind: EntityKind) -> Option<(&StableName, &StableName)> {
+    if name.kind != kind {
         return None;
     }
     match head(name.path.first()?) {
-        Head::Seam(a, b) if a != b => Some((a, b)),
-        Head::Seam(..) | Head::Merged(_) | Head::Stop => None,
-        Head::Through(inner) => seam_line_pair(inner),
+        Head::Seam(a, b) => Some((a, b)),
+        Head::Merged(_) | Head::Stop => None,
+        Head::Through(inner) => seam_through(inner, kind),
     }
 }
 
@@ -102,7 +118,7 @@ pub(super) fn seam_line_pair(name: &StableName) -> Option<(&StableName, &StableN
 /// `x` itself or `x` followed by discriminators, through any number of
 /// the wrappers [`head`] passes through, or a merged face with such a
 /// constituent.
-fn face_descends_from(n: &StableName, x: &StableName) -> bool {
+pub(crate) fn face_descends_from(n: &StableName, x: &StableName) -> bool {
     if n.kind == x.kind && n.node == x.node && n.path.starts_with(&x.path) {
         return true;
     }

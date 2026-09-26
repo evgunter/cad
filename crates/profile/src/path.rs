@@ -358,7 +358,6 @@
 //! let again = path.line_to(Start);
 //! ```
 
-use crate::RawLoop;
 use core::marker::PhantomData;
 
 use geom_core::k_stats::decide;
@@ -367,6 +366,7 @@ use geom_core::{
     Band, Decide, Indeterminate, Margin, Point2, Real, Sign, Tol, Vec2, is_finite_length,
 };
 
+use crate::ProfileLoop;
 use crate::path::program::{ClosedLoop, Step, Target};
 use crate::seg;
 use crate::sugar::{
@@ -378,7 +378,6 @@ use crate::validate::{
     FILLET_STORED_FORM_INBAND_RECOURSE, FilletLeg, FilletLegCarrier, NoCornerReason,
     fillet_recourse_for,
 };
-use crate::{ProfileLoop, ProfileVertex};
 
 /// The arc-carrier fillet boundary — the algebra's derived-corner
 /// resolution and the lifted S8 ladder (LIB-G2 §3b). It is a separate
@@ -1185,11 +1184,14 @@ pub enum PathError<T: Real> {
         /// The refused authored datum (bulge, angle, or length).
         value: T,
     },
-    /// A [`circle_split`] subdivision count below 2: one vertex cannot
-    /// carry a full turn (bulge = tan(θ/4) diverges at θ = 2π), so the
-    /// smallest declared subdivision of a closed carrier is two arcs —
-    /// which is [`circle`]'s own private lowering. A structural check,
-    /// not a classified one: `n` is a count, never a measured value.
+    /// A [`circle_split`] subdivision count outside `2..=u32::MAX`.
+    /// One vertex cannot carry a full turn (bulge = tan(θ/4) diverges
+    /// at θ = 2π), so the smallest declared subdivision of a closed
+    /// carrier is two arcs — which is [`circle`]'s own private
+    /// lowering; and each arc is named by a `u32` piece index
+    /// ([`crate::PieceRole::Piece`]), so a count past that bound would
+    /// spell two arcs alike. A structural check, not a classified one:
+    /// `n` is a count, never a measured value.
     CircleSplitCount {
         /// The refused subdivision count.
         n: usize,
@@ -1809,9 +1811,10 @@ impl<T: Real> core::fmt::Display for PathError<T> {
             ),
             Self::CircleSplitCount { n } => write!(
                 f,
-                "circle_split needs at least 2 arcs (got n = {n}): a single vertex cannot \
-                 carry a full turn (bulge diverges), so the smallest subdivision of a \
-                 closed carrier is two arcs"
+                "circle_split needs between 2 and {max} arcs (got n = {n}): a single vertex \
+                 cannot carry a full turn (bulge diverges), and each arc is named by a u32 \
+                 piece index",
+                max = u32::MAX
             ),
             Self::PolygonTooFewVertices { given } => write!(
                 f,
@@ -2203,6 +2206,39 @@ struct PosData<T: Real> {
     incoming: Option<Incoming<T>>,
 }
 
+/// **The carrier a fillet's run out rides** — its arrival side's: a
+/// ray for a straight arrival, a circle for a fused verb's authored
+/// arrival arc. A run out is a segment ON that carrier (N1's "two
+/// pieces on one carrier"), so only an emission of the same kind can
+/// be it; [`Core::run_out`] says why the kind is the whole test.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum ArrivalCarrier {
+    /// A straight arrival: the run out is a straight segment.
+    Ray,
+    /// An authored arrival arc: the run out is an arc segment.
+    Circle,
+}
+
+/// A fillet whose run out may be the next emission: the step that
+/// authored its radius, and the carrier the run rides.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct PendingRunOut {
+    /// The step the fillet's pieces are credited to.
+    step: usize,
+    /// The arrival carrier.
+    carrier: ArrivalCarrier,
+}
+
+impl PendingRunOut {
+    /// Whether a segment of `kind` lies on this run's carrier.
+    fn rides(&self, kind: FirstSeg) -> bool {
+        matches!(
+            (self.carrier, kind),
+            (ArrivalCarrier::Ray, FirstSeg::Line) | (ArrivalCarrier::Circle, FirstSeg::Arc)
+        )
+    }
+}
+
 /// What kind of segment leaves the entry vertex — pinned at first
 /// emission so the seam knows side 1's carrier kind structurally
 /// (never by comparing a bulge to zero).
@@ -2255,7 +2291,7 @@ struct PendingMeta<T: Real> {
 #[doc(hidden)]
 #[derive(Clone, Debug)]
 pub struct Core<T: Real> {
-    verts: Vec<ProfileVertex<T>>,
+    verts: Vec<(Point2<T>, T)>,
     tangent: Vec<usize>,
     start_pos: Option<Point2<T>>,
     start_ang: Option<Dir<T>>,
@@ -2295,6 +2331,35 @@ pub struct Core<T: Real> {
     /// one step pushed, and so the segments it produced —
     /// [`Core::step_spans`] does that arithmetic once, at the close.
     step_starts: Vec<usize>,
+    /// **The piece each emitted segment is**, indexed by the vertex the
+    /// segment leaves — written when the segment's bulge is set
+    /// ([`Core::set_leaving`], every emission's one door) and reported
+    /// beside the spans ([`Core::finish`]).
+    pieces: Vec<Option<crate::structure::Piece>>,
+    /// The role the NEXT emission draws, where a fillet names it: its
+    /// run in or its arc. `None` is the default, the current step's
+    /// leg.
+    claim: Option<crate::structure::Piece>,
+    /// **A fillet whose run out may be the next segment**: set when a
+    /// fillet arc is emitted with something tangent following it, and
+    /// taken by the next emission, which is that run exactly when it
+    /// lies on the fillet's arrival carrier ([`PendingRunOut::rides`]).
+    ///
+    /// The segment's kind decides that, and only the kind, because of
+    /// where a run out can be emitted. A circle run out is emitted by
+    /// the same fused-verb resolution that emits the arc, immediately
+    /// after it, so the next emission is that run. A ray run out whose
+    /// arrival verb draws the next segment itself (`line_to`, the
+    /// far-end anchor, the straight close) is the same. One whose
+    /// arrival only binds the tip (`at`, `toward`, `angle`) leaves the
+    /// tip directed along the arrival ray, and every straight segment
+    /// the chain emits from a directed tip departs along that ray: a
+    /// leg, a `to` continuation, the continuation close, or the next
+    /// fillet's run in. Whatever else can follow it draws an arc on
+    /// another carrier — `tangent_arc_to`, a fused verb's incoming
+    /// arc, a fillet arc sprung off the tip — and that segment is its
+    /// own step's piece, never this fillet's.
+    run_out: Option<PendingRunOut>,
     /// How this lowering treats the discrete decisions inside it:
     /// selecting freely and recording what it selected, or consuming a
     /// prior elaboration's selections and re-verifying each at this
@@ -2316,6 +2381,9 @@ impl<T: Real> Core<T> {
             radii: Vec::new(),
             program: Vec::new(),
             step_starts: Vec::new(),
+            pieces: Vec::new(),
+            claim: None,
+            run_out: None,
             guide: crate::structure::Guide::recording(),
         }
     }
@@ -2387,10 +2455,7 @@ impl<T: Real> Core<T> {
     /// Seeds the entry vertex (the chain's provisional first vertex —
     /// a seam fillet may later retrim it to the seam arc's end).
     fn seed(&mut self, p: Point2<T>) {
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push((p, T::zero()));
         self.start_pos = Some(p);
     }
 
@@ -2402,23 +2467,70 @@ impl<T: Real> Core<T> {
             self.first_seg = kind;
         }
         match self.verts.last_mut() {
-            Some(v) => {
-                v.bulge = bulge;
-                Ok(())
+            Some((_, leaving)) => {
+                *leaving = bulge;
             }
-            None => Err(PathError::UnderdeterminedLeg {
-                site: "set_leaving on an empty chain",
-            }),
+            None => {
+                return Err(PathError::UnderdeterminedLeg {
+                    site: "set_leaving on an empty chain",
+                });
+            }
         }
+        self.attribute(self.verts.len() - 1, kind)
+    }
+
+    /// **Names the segment leaving vertex `segment`** as the piece it
+    /// is (`crate::structure::Piece`): the fillet role a site claimed
+    /// for it, or else the current step's leg — and a pending run out
+    /// competes for it when the segment rides the fillet's arrival
+    /// carrier, since that segment is the fillet's run out whichever
+    /// step draws it. A segment named before (a closing segment re-set)
+    /// keeps its earlier name where that one outranks.
+    fn attribute(&mut self, segment: usize, kind: FirstSeg) -> Result<(), PathError<T>> {
+        use crate::structure::{Piece, PieceRole};
+        let claimed = self.claim.take();
+        let mut best = match claimed {
+            Some(c) => c,
+            None => Piece {
+                step: self.current_step()?,
+                role: PieceRole::Leg,
+            },
+        };
+        let run_out = self.run_out.take();
+        if best.role != PieceRole::Arc
+            && let Some(run) = run_out
+            && run.rides(kind)
+        {
+            let candidate = Piece {
+                step: run.step,
+                role: PieceRole::RunOut,
+            };
+            if candidate.outranks(&best) {
+                best = candidate;
+            }
+        }
+        if self.pieces.len() <= segment {
+            self.pieces.resize(segment + 1, None);
+        }
+        if let Some(Some(earlier)) = self.pieces.get(segment)
+            && earlier.outranks(&best)
+        {
+            best = *earlier;
+        }
+        self.pieces[segment] = Some(best);
+        Ok(())
+    }
+
+    /// Claims the next emission as `role` of the fillet bound at
+    /// `step`.
+    fn claim(&mut self, step: usize, role: crate::structure::PieceRole) {
+        self.claim = Some(crate::structure::Piece { step, role });
     }
 
     /// Appends a straight segment to `p` (the raw `line_to`).
     fn push_line(&mut self, p: Point2<T>) -> Result<(), PathError<T>> {
         self.set_leaving(T::zero(), FirstSeg::Line)?;
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push((p, T::zero()));
         Ok(())
     }
 
@@ -2427,10 +2539,7 @@ impl<T: Real> Core<T> {
     /// about an emitted arc beyond the tip's own incoming data.
     fn push_arc(&mut self, p: Point2<T>, bulge: T) -> Result<(), PathError<T>> {
         self.set_leaving(bulge, FirstSeg::Arc)?;
-        self.verts.push(ProfileVertex {
-            pos: p,
-            bulge: T::zero(),
-        });
+        self.verts.push((p, T::zero()));
         Ok(())
     }
 
@@ -2438,7 +2547,7 @@ impl<T: Real> Core<T> {
     fn head(&self) -> Result<Point2<T>, PathError<T>> {
         self.verts
             .last()
-            .map(|v| v.pos)
+            .map(|&(pos, _)| pos)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "head of an empty chain",
             })
@@ -2501,6 +2610,7 @@ impl<T: Real> Core<T> {
     fn record_fillet_arc(&mut self, radius: T, bound_at: usize) -> Result<usize, PathError<T>> {
         let leaving = self.record_radius(bound_at, crate::structure::RadiusRole::Fillet)?;
         self.fillet_arcs.push((leaving, radius));
+        self.claim(bound_at, crate::structure::PieceRole::Arc);
         Ok(leaving)
     }
 
@@ -2538,15 +2648,30 @@ impl<T: Real> Core<T> {
     fn finish(mut self) -> ClosedLoop<T> {
         let spans = self.step_spans();
         let radii = core::mem::take(&mut self.radii);
+        let pieces = self.segment_pieces();
         let structure = self.take_structure();
         ClosedLoop {
-            loop_: ProfileLoop {
-                vertices: self.verts,
-                tangent_joints: self.tangent,
-            },
+            loop_: ProfileLoop::lower(&self.verts, self.tangent),
             program: self.program,
-            structure: structure.into_record(spans, radii),
+            structure: structure.into_record(spans, radii, pieces),
         }
+    }
+
+    /// The piece every segment of the closed chain is, in segment
+    /// order. Every segment of a closed chain had its bulge set, and so
+    /// was named ([`Core::set_leaving`]); a segment that was not would
+    /// be an emission that bypassed the door.
+    fn segment_pieces(&self) -> Vec<crate::structure::Piece> {
+        (0..self.verts.len())
+            .map(|k| {
+                self.pieces.get(k).copied().flatten().unwrap_or_else(|| {
+                    unreachable!(
+                        "every segment of a closed chain is emitted through set_leaving, which \
+                         names it; segment {k} was not"
+                    )
+                })
+            })
+            .collect()
     }
 }
 
@@ -2637,22 +2762,14 @@ fn junction_check<T: Decide>(
         Ok(Sign::Zero) => {
             let margin = turn * inc.arm;
             // Which refusal class — tangent (dep ≈ incoming) or cusp
-            // (dep ≈ reverse)? A decision, so it goes through the
-            // funnel: the alignment cos φ levered by the same arm. A
-            // Zero here means the arm itself is degenerate (both
-            // components sub-ε) — refused as the tangent class, the
-            // recourse that names moving the geometry.
-            let side = decide(
-                "path_junction_side",
-                Margin::levered(u_in.dot(u_dep), inc.arm),
-                band,
-            );
-            match side {
-                Ok(Sign::Negative) => Err(PathError::JunctionCusp {
+            // (dep ≈ reverse)? `path_junction_side`, in its one home
+            // (validation asks it of every declared joint too).
+            match seg::junction_reverses(u_in, u_dep, inc.arm, band) {
+                Ok(true) => Err(PathError::JunctionCusp {
                     margin,
                     arm: inc.arm,
                 }),
-                Ok(_) => {
+                Ok(false) => {
                     if seam {
                         Err(PathError::SeamTangent { margin })
                     } else {
@@ -2772,16 +2889,11 @@ fn carriers_are_identical<T: Decide>(
     }
 }
 
-/// **An arc leg's lever arm**, in one place: the smaller of its
-/// carrier's radius and its chord.
-///
-/// The radius is what an angular margin displaces over; the chord bounds
-/// it for an arc shorter than its own radius, where the radius would
-/// overstate how far the leg actually reaches. Named because several
-/// sites spell it and three of them are junction LEVERS, where the
-/// choice is a contract rather than an expression.
+/// **An arc leg's lever arm** from its carrier: [`seg::arc_lever`],
+/// the one home of that choice. Three of its callers are junction
+/// LEVERS, where the choice is a contract rather than an expression.
 fn arc_arm<T: Real>(carrier: &ArcData<T>, chord: T) -> T {
-    carrier.radius.min(chord)
+    seg::arc_lever(carrier.radius, chord)
 }
 
 /// The straight leg's EMISSION, shared by the two `line(len)` rows —
@@ -2969,8 +3081,8 @@ impl<T: Decide> Core<T> {
         let n = self.verts.len();
         for &(leaving, radius) in &self.fillet_arcs {
             let stored = |i: usize| {
-                let v = self.verts[i];
-                seg::build_seg(v.pos(), self.verts[(i + 1) % n].pos(), v.bulge(), band)
+                let ((start, bulge), end) = (self.verts[i], self.verts[(i + 1) % n].0);
+                seg::build_seg(start, end, crate::lower_to(start, bulge, end), bulge, band)
             };
             // A recorded index always names a vertex of the chain it was
             // recorded on: `record_fillet_arc` reads `verts.len() - 1`
@@ -2984,7 +3096,7 @@ impl<T: Decide> Core<T> {
                 .ok_or(PathError::UnderdeterminedLeg {
                     site: "a recorded fillet arc outside the chain it was recorded on",
                 })?;
-            let bulge = self.verts[leaving].bulge();
+            let bulge = self.verts[leaving].1;
             let turn = T::from_f64(4.0) * bulge.atan();
             let flattened =
                 |predicate: &'static str, margin: T| PathError::FilletArcFlattenedInStorage {
@@ -3125,7 +3237,7 @@ impl<T: Decide> Core<T> {
                 self.set_leaving(trims.bulge, FirstSeg::Arc)?;
                 debug_assert_eq!(leaving, self.verts.len() - 1, "{PAIRED}");
                 match self.verts.first_mut() {
-                    Some(v0) => v0.pos = trims.t2,
+                    Some((v0, _)) => *v0 = trims.t2,
                     None => {
                         return Err(PathError::UnderdeterminedLeg {
                             site: "seam fillet on an empty chain",
@@ -3134,9 +3246,12 @@ impl<T: Decide> Core<T> {
                 }
                 self.tangent.push(0);
             }
-            ArrivalKind::Continues => self.emit_fillet_arc(&trims, true, meta.bound_at)?,
+            ArrivalKind::Continues => {
+                self.emit_fillet_arc(&trims, Some(ArrivalCarrier::Ray), meta.bound_at)?;
+            }
             ArrivalKind::EndsAtAnchor => {
-                self.emit_fillet_arc(&trims, trims.fit_out == Sign::Positive, meta.bound_at)?;
+                let follows = (trims.fit_out == Sign::Positive).then_some(ArrivalCarrier::Ray);
+                self.emit_fillet_arc(&trims, follows, meta.bound_at)?;
             }
         }
         Ok((trims.arc, trims.fit_out))
@@ -3260,6 +3375,7 @@ impl<T: Decide> Core<T> {
                 // the leg's end is the leg→arc tangency.
                 self.extend_leg_to(trims.t1)?;
             } else {
+                self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                 self.push_line(trims.t1)?;
                 self.declare_last();
             }
@@ -3275,7 +3391,7 @@ impl<T: Decide> Core<T> {
         if kind == ArrivalKind::Seam {
             self.set_leaving(trims.bulge, FirstSeg::Arc)?;
             match self.verts.first_mut() {
-                Some(v0) => v0.pos = trims.t2,
+                Some((v0, _)) => *v0 = trims.t2,
                 None => {
                     return Err(PathError::UnderdeterminedLeg {
                         site: "seam fillet on an empty chain",
@@ -3296,6 +3412,10 @@ impl<T: Decide> Core<T> {
             // a construction.
             if kind == ArrivalKind::Continues || trims.fit_out == Sign::Positive {
                 self.declare_last();
+                self.run_out = Some(PendingRunOut {
+                    step: meta.bound_at,
+                    carrier: ArrivalCarrier::Ray,
+                });
             }
         }
         Ok((arc, trims.fit_out))
@@ -3324,7 +3444,10 @@ impl<T: Decide> Core<T> {
         if t.fit_in == Sign::Positive {
             match t.in_arc {
                 None if merge => self.extend_leg_to(t.t1)?,
-                None => self.push_line(t.t1)?,
+                None => {
+                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
+                    self.push_line(t.t1)?;
+                }
                 // An EXTENSION emits no segment — the leg's own end
                 // vertex moves along the carrier it already had — so
                 // the segment keeps the address the leg step gave it
@@ -3338,6 +3461,7 @@ impl<T: Decide> Core<T> {
                     if meta.incoming_radius {
                         self.record_radius(meta.bound_at, crate::structure::RadiusRole::Carrier)?;
                     }
+                    self.claim(meta.bound_at, crate::structure::PieceRole::RunIn);
                     self.push_arc(t.t1, bulge)?;
                 }
             }
@@ -3359,8 +3483,8 @@ impl<T: Decide> Core<T> {
     /// what a hand author drawing the leg long would have written.
     fn extend_leg_to(&mut self, t1: Point2<T>) -> Result<(), PathError<T>> {
         match self.verts.last_mut() {
-            Some(v) => {
-                v.pos = t1;
+            Some((v, _)) => {
+                *v = t1;
                 Ok(())
             }
             None => Err(PathError::UnderdeterminedLeg {
@@ -3387,30 +3511,36 @@ impl<T: Decide> Core<T> {
         let from = n
             .checked_sub(2)
             .and_then(|i| self.verts.get(i))
-            .map(|v| v.pos)
+            .map(|&(pos, _)| pos)
             .ok_or(PathError::UnderdeterminedLeg {
                 site: "arc extension without an incoming segment",
             })?;
         let bulge = bulge_from_center(from, t1, centre, sweep);
-        self.verts[n - 2].bulge = bulge;
-        self.verts[n - 1].pos = t1;
+        self.verts[n - 2] = (from, bulge);
+        self.verts[n - 1].0 = t1;
         Ok(())
     }
 
     /// **G2**: emits the fillet arc itself as a chain segment, declaring
     /// its outgoing joint when something tangent actually follows it
-    /// (see [`ArrivalKind`]).
+    /// (see [`ArrivalKind`]): `follows` is that something's carrier, the
+    /// arrival side's, and the next emission on it is the fillet's run
+    /// out ([`Core::run_out`]).
     fn emit_fillet_arc(
         &mut self,
         t: &arc_fillet::ArcFilletTrims<T>,
-        declare: bool,
+        follows: Option<ArrivalCarrier>,
         bound_at: usize,
     ) -> Result<(), PathError<T>> {
         let leaving = self.record_fillet_arc(t.arc.radius, bound_at)?;
         self.push_arc(t.t2, t.bulge)?;
         debug_assert_eq!(leaving, self.verts.len() - 2, "{PAIRED}");
-        if declare {
+        if let Some(carrier) = follows {
             self.declare_last();
+            self.run_out = Some(PendingRunOut {
+                step: bound_at,
+                carrier,
+            });
         }
         Ok(())
     }
@@ -3585,16 +3715,13 @@ fn circle_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    Ok(ProfileLoop::new(vec![
-        ProfileVertex {
-            pos: Point2::new(center.x + radius, center.y),
-            bulge: T::one(),
-        },
-        ProfileVertex {
-            pos: Point2::new(center.x - radius, center.y),
-            bulge: T::one(),
-        },
-    ]))
+    Ok(ProfileLoop::lower(
+        &[
+            (Point2::new(center.x + radius, center.y), T::one()),
+            (Point2::new(center.x - radius, center.y), T::one()),
+        ],
+        Vec::new(),
+    ))
 }
 
 /// The kernel behind the table's split-circle row: the lowered loop
@@ -3612,22 +3739,22 @@ fn circle_split_kernel<T: Decide>(
         Ok(_) => return Err(PathError::NonpositiveCircleRadius { radius }),
         Err(source) => return Err(PathError::Escalated { source }),
     }
-    if n < 2 {
+    if n < 2 || u32::try_from(n).is_err() {
         return Err(PathError::CircleSplitCount { n });
     }
     let n_t = T::from_f64(n as f64);
     let bulge = (T::pi() / (T::from_f64(2.0) * n_t)).tan();
-    let vertices = (0..n)
+    let chain: Vec<(Point2<T>, T)> = (0..n)
         .map(|k| {
             let theta = phase + T::from_f64(2.0) * T::pi() * T::from_f64(k as f64) / n_t;
             let (s, c) = theta.sin_cos();
-            ProfileVertex {
-                pos: Point2::new(center.x + radius * c, center.y + radius * s),
+            (
+                Point2::new(center.x + radius * c, center.y + radius * s),
                 bulge,
-            }
+            )
         })
         .collect();
-    Ok(ProfileLoop::new(vertices))
+    Ok(ProfileLoop::lower(&chain, Vec::new()))
 }
 
 impl<T: Decide, A: AngMarker> PartialPath<T, NoPos, A> {
@@ -5374,6 +5501,7 @@ mod fillet_stored_form {
             kind: SegKind::Arc(seg::ArcGeom {
                 center: centre,
                 radius,
+                sweep: 4.0 * arc.bulge.atan(),
                 apex,
                 span_chord: arc.a.distance(apex),
                 turn: if arc.bulge >= 0.0 {
@@ -5422,7 +5550,9 @@ mod fillet_stored_form {
         let n = vs.len();
         let declared = lp.tangent_joints();
         (0..n).find(|&i| {
-            declared.contains(&i) && declared.contains(&((i + 1) % n)) && vs[i].bulge() != 0.0
+            declared.contains(&i)
+                && declared.contains(&((i + 1) % n))
+                && matches!(lp.segments()[i], crate::Segment::Arc { .. })
         })
     }
 
@@ -5441,20 +5571,28 @@ mod fillet_stored_form {
                 format!(
                     "| {theta:e} | no joint-declared arc: n = {n}, declared = {:?}, bulges = {:?} |",
                     lp.tangent_joints(),
-                    vs.iter().map(|v| v.bulge()).collect::<Vec<_>>()
+                    lp.bulges()
                 ),
                 [0.0; 2],
             );
         };
         let built: Vec<Result<Seg<f64>, SegIssue<f64>>> = (0..n)
-            .map(|i| seg::build_seg(vs[i].pos(), vs[(i + 1) % n].pos(), vs[i].bulge(), band))
+            .map(|i| {
+                seg::build_seg(
+                    vs[i],
+                    vs[(i + 1) % n],
+                    lp.segments()[i],
+                    lp.bulges()[i],
+                    band,
+                )
+            })
             .collect();
         let validates = match Profile::new(SketchPlane::xy(), vec![lp.clone()]).validate(tol) {
             Ok(_) => "ok".to_string(),
             Err(e) => format!("REFUSED: {}", short(&e.to_string())),
         };
-        let bulge = vs[s].bulge();
-        let chord = vs[s].pos().distance(vs[(s + 1) % n].pos());
+        let bulge = lp.bulges()[s];
+        let chord = vs[s].distance(vs[(s + 1) % n]);
         let head = format!(
             "| {theta:e} | {:e} | {chord:e} | {bulge:e} | {:e} |",
             R * theta,

@@ -502,7 +502,7 @@ fn every_target_len_mint_is_rostered_or_excused() {
 /// large `|m|` passes both metre rules clean. What covers it is
 /// [`EPS_COUPLED_UNRULED`]'s own gate, which fires on the NAME
 /// appearing and so does not depend on a row's sign or size;
-/// `crates/topo/src/props.rs` (`sign_certified`'s doc) is why that
+/// `crates/topo/src/props.rs` (`sign_walk`'s doc) is why that
 /// gate is needed rather than nice, since a budget refusal rides on
 /// the certificate and is reported only when `settle` never accepted.
 ///

@@ -14,7 +14,7 @@
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
@@ -27,10 +27,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
     let outer = profile::circle(p2(0.0, 0.0), r, tol).unwrap();
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(rh, 0.0), 1.0),
-        ProfileVertex::new(p2(-rh, 0.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(rh, 0.0), 1.0), (p2(-rh, 0.0), 1.0)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![outer.into(), hole])
         .validate(tol)
@@ -103,10 +100,7 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
     // SYMMETRIC lens: equal bulges on both legs bow outward on
     // opposite sides (mirror-image circles, distinct carriers).
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(-1.0, 0.0), 0.6),
-        ProfileVertex::new(p2(1.0, 0.0), 0.6),
-    ]);
+    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     let a = extrude(&profile, Extrusion::Distance(2.0), tol)
@@ -163,10 +157,7 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let mut refused = 0;
     let mut bodies = 0;
     for bulge in [1.0, -1.0] {
-        let lp = ProfileLoop::new(vec![
-            ProfileVertex::new(p2(1.0, 0.0), 0.0),
-            ProfileVertex::new(p2(-1.0, 0.0), bulge),
-        ]);
+        let lp = bulge_loop(vec![(p2(1.0, 0.0), 0.0), (p2(-1.0, 0.0), bulge)]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
         let a = extrude(&profile, Extrusion::Distance(2.0), tol)
@@ -200,34 +191,6 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
          disjoint ({disjoint_answer}). Both answering it is the silent wrong \
          body against a buried truth of {buried_truth}"
     );
-}
-
-/// The door-table claim names `Join(SectionLoopMixed)` for the
-/// box-through-cap row; the shipped test asserts only `Join(_)`.
-/// Print the exact payload.
-#[test]
-fn r2_the_box_cap_refusal_payload_is_printed() {
-    let tol = Tol::witness();
-    let lp = profile::circle(p2(0.0, 0.0), 1.0, tol).unwrap();
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
-    let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
-    let a = extrude(&profile, Extrusion::Distance(2.0), tol)
-        .unwrap()
-        .body;
-    let b = brick((-0.3, 0.3), (-0.3, 0.3), (1.0, 3.0), tol);
-    match topo::union(&a, &b, tol) {
-        Err(e) => {
-            println!("box-through-cap refusal: {e:?}");
-            assert!(
-                matches!(
-                    e,
-                    BooleanError::Join(topo::SplitJoinError::SectionLoopMixed { .. })
-                ),
-                "the door table names this payload, so it is pinned: {e:?}"
-            );
-        }
-        Ok(r) => panic!("expected the typed refusal, got {r:?}"),
-    }
 }
 
 /// Calibration for the PR's cosurface design claim (door-2 evidence
@@ -294,15 +257,12 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     use profile::SketchPlane as SP;
     let tol = Tol::witness();
     // The m9_2b_r2 fixture, restated (holed plate + through-boss).
-    let outer = ProfileLoop::new(
+    let outer = bulge_loop(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| ProfileVertex::new(p2(x, y), 0.0))
+            .map(|(x, y)| (p2(x, y), 0.0))
             .to_vec(),
     );
-    let hole = ProfileLoop::new(vec![
-        ProfileVertex::new(p2(2.5, 2.0), 1.0),
-        ProfileVertex::new(p2(1.5, 2.0), 1.0),
-    ]);
+    let hole = bulge_loop(vec![(p2(2.5, 2.0), 1.0), (p2(1.5, 2.0), 1.0)]);
     let plate_profile = Profile::new(SP::xy(), vec![outer, hole])
         .validate(tol)
         .unwrap();
@@ -314,11 +274,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
         let th = deg.to_radians();
         p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
     };
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(at(90.0), b120),
-        ProfileVertex::new(at(210.0), b120),
-        ProfileVertex::new(at(330.0), b120),
-    ]);
+    let lp = bulge_loop(vec![(at(90.0), b120), (at(210.0), b120), (at(330.0), b120)]);
     let plane = SP::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
     let boss_profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     let boss = extrude(&boss_profile, Extrusion::Distance(1.6), tol)

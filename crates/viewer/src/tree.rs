@@ -232,6 +232,25 @@ impl RowStatus {
             Self::Poisoned { message, .. } => message.as_deref(),
         }
     }
+
+    /// **The row a click on [`message`](RowStatus::message) selects**,
+    /// when that line is a pointer rather than words to read.
+    ///
+    /// The target and the affordance are one answer: a line with
+    /// somewhere to go is a link, and a line with nowhere to go is
+    /// read. So this is the only thing a surface asks to learn both,
+    /// and no second value says which of the two a line is.
+    ///
+    /// Only a poisoned row's line is a pointer — at `through`, the row
+    /// that owns the failure. A failed row's words are its own cause;
+    /// the node THEY name as the one to repair is the row's, not the
+    /// status's ([`TreeRow::repair_at`]), and gets a line of its own.
+    pub fn jump(&self) -> Option<RecipeNodeId> {
+        match self {
+            Self::Poisoned { through, .. } => Some(*through),
+            Self::Ok | Self::Unevaluated | Self::Failed { .. } => None,
+        }
+    }
 }
 
 /// One line of the feature tree.
@@ -543,6 +562,36 @@ fn status_of(id: RecipeNodeId, evaluation: Option<&Evaluation<f64>>) -> RowStatu
             })
         }
         Some(NodeResult::Poisoned { through }) => poisoned_through(*through, ev),
+    }
+}
+
+/// **The row this tree sends a reader to for `id`'s failure**: `id`
+/// itself when its row is `Failed`, the row it points at when it is
+/// `Poisoned`, and `None` when it is `Ok` or never ran.
+///
+/// Read off [`status_of`], so a surface reporting a CONSEQUENCE of a
+/// node's failure names the same row the tree badges `Failed` —
+/// blame through a poisoning and through a mate refusal included —
+/// rather than re-deriving the blame from the evaluation and drawing
+/// it differently.
+///
+/// **Every `Some` is a row the tree draws `Failed`.** A `Poisoned` row
+/// carries its pointer only when its chain ends at a failure
+/// ([`poisoned_through`]); the `message: None` arm is the broken
+/// invariant reported as absence, and it answers `None` here too, so a
+/// caller that says "feature N, which failed" cannot be handed an `N`
+/// the tree does not badge failed. That arm is not expected to be
+/// reachable — the evaluation names a failed ancestor as `through` —
+/// and it is refused rather than assumed for the same reason the tree
+/// reports it as absence.
+pub fn cause_row(id: RecipeNodeId, evaluation: &Evaluation<f64>) -> Option<RecipeNodeId> {
+    match status_of(id, Some(evaluation)) {
+        RowStatus::Failed { .. } => Some(id),
+        RowStatus::Poisoned {
+            through,
+            message: Some(_),
+        } => Some(through),
+        RowStatus::Poisoned { message: None, .. } | RowStatus::Ok | RowStatus::Unevaluated => None,
     }
 }
 

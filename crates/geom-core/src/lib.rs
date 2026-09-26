@@ -22,6 +22,7 @@ pub mod interval;
 pub mod k_stats;
 pub mod linalg;
 pub mod predicate;
+pub mod readable;
 pub mod real;
 pub mod spline;
 pub mod sym;
@@ -40,9 +41,10 @@ pub use predicate::{
     IndeterminatePayload, InfSpeed, Margin, MarginDiag, MissingRecourse, NO_DECLARATION_RECOURSE,
     RANGE_RECOURSE, SPLIT_PLANE_RECOURSE, Sign, SupSpeed,
 };
+pub use readable::Readable;
 pub use real::{
     Bounds, CertifiedBounds, CertifiedEnclosure, Real, Witness, is_finite_length,
-    is_underflowed_length,
+    is_underflowed_length, is_zero_length,
 };
 pub use spline::{KnotVector, SpanLocate, SpanSet, SplineError};
 pub use sym::{ParamSymbol, Sym, SymBudget, SymCounts, SymId, SymRules};

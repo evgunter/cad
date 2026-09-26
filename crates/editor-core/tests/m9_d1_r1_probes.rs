@@ -10,8 +10,8 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName,
-    ValuePayload, evaluate, vertex_position,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
+    vertex_position,
 };
 use fixture::{ang, insert, len, scl, table};
 use geom_core::Tol;
@@ -28,14 +28,8 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 
 /// A pole of the document's one outer loop — the only loop these
 /// revolves have, so a row names a pole by its vertex alone.
-fn outer_pole(node: RecipeNodeId, v: u32) -> StableName {
-    fixture::pole(
-        node,
-        ProfileVertexRef {
-            loop_index: 0,
-            vertex: v,
-        },
-    )
+fn outer_pole(doc: &editor_core::ProfileDoc, node: RecipeNodeId, v: u32) -> StableName {
+    fixture::pole(node, crate::fixture::vpiece(doc, node, 0, v as usize))
 }
 
 /// A revolve doc for one authored chain on the xz-authoring plane of
@@ -48,6 +42,7 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
         Node::Profile(ProfileProgram {
             plane,
             loops: vec![LoopProgram::Chain(steps)],
+            ids: Vec::new(),
         }),
     );
     let (doc, axis) = insert(
@@ -98,6 +93,7 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
                 b: scl(1.0),
             }),
         ])],
+        ids: Vec::new(),
     });
     doc.apply(
         &DocEdit::InsertNode { node },
@@ -129,12 +125,12 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     // Canonical v0=(0,0), v1=(1,0) off-axis, v2=(0,1).
-    assert!(t.lookup(&outer_pole(rev, 0)).is_some());
+    assert!(t.lookup(&outer_pole(&doc, rev, 0)).is_some());
     assert!(
-        t.lookup(&outer_pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "off-axis vertex is not a pole"
     );
-    assert!(t.lookup(&outer_pole(rev, 2)).is_some());
+    assert!(t.lookup(&outer_pole(&doc, rev, 2)).is_some());
 }
 
 /// The subdivided axis run, authored through the program layer: the
@@ -157,10 +153,10 @@ fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
 }
 
 /// The `poles` export of the doc's profile, re-swept at the same
-/// revolution, reindexed by PROGRAM vertex: the emitter reads canonical
-/// indices and the published table is program-anchored, so the arm a
-/// row compares against the emitter's outcome has to cross the anchor.
-fn export_poles_by_program_vertex(
+/// revolution, by CANONICAL vertex: the emitter reads canonical indices
+/// and the published table carries them as they are, so the arm a row
+/// compares against the table needs no reindexing.
+fn export_poles_by_canonical_vertex(
     doc: &ProfileDoc,
     ev: &Evaluation<f64>,
     revolution: sweep::Revolution<f64>,
@@ -184,12 +180,7 @@ fn export_poles_by_program_vertex(
         Tol::witness(),
     )
     .expect("the revolve the evaluation already ran");
-    let anchor = vp.naming.loops[0];
-    let mut by_program = vec![false; built.poles[0].len()];
-    for (k, p) in built.poles[0].iter().enumerate() {
-        by_program[anchor.vertex(u32::try_from(k).expect("a loop index")) as usize] = p.is_some();
-    }
-    by_program
+    built.poles[0].iter().map(Option::is_some).collect()
 }
 
 /// **FULL revolve of a subdivided axis run: the interior on-axis vertex
@@ -206,19 +197,19 @@ fn full_subdivided_axis_run_names_no_vertex_for_the_interior() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     assert!(
-        t.lookup(&outer_pole(rev, 0)).is_some(),
+        t.lookup(&outer_pole(&doc, rev, 0)).is_some(),
         "run tip v0 unnamed"
     );
     assert!(
-        t.lookup(&outer_pole(rev, 1)).is_none(),
+        t.lookup(&outer_pole(&doc, rev, 1)).is_none(),
         "the deleted interior vertex must have no name"
     );
     assert!(
-        t.lookup(&outer_pole(rev, 2)).is_some(),
+        t.lookup(&outer_pole(&doc, rev, 2)).is_some(),
         "run tip v2 unnamed"
     );
     assert_eq!(
-        export_poles_by_program_vertex(&doc, &ev, sweep::Revolution::Full),
+        export_poles_by_canonical_vertex(&doc, &ev, sweep::Revolution::Full),
         vec![true, false, true],
         "the export's arm must agree with what the emitter named"
     );
@@ -235,11 +226,15 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
     let ev = run(&doc);
     let t = table(&ev, rev);
     for v in 0..3 {
-        assert!(t.lookup(&outer_pole(rev, v)).is_some(), "pole {v} unnamed");
+        assert!(
+            t.lookup(&outer_pole(&doc, rev, v)).is_some(),
+            "pole {v} unnamed"
+        );
     }
     // The interior vertex is the run's midpoint, not a third tip.
-    let at =
-        |v| vertex_position(&ev, rev, &outer_pole(rev, v)).expect("a named pole has a position");
+    let at = |v| {
+        vertex_position(&ev, rev, &outer_pole(&doc, rev, v)).expect("a named pole has a position")
+    };
     let (a, b, c) = (at(0), at(1), at(2));
     for (mid, ends) in [(b.x, a.x + c.x), (b.y, a.y + c.y), (b.z, a.z + c.z)] {
         assert!(
@@ -248,7 +243,7 @@ fn partial_subdivided_axis_run_names_the_interior_vertex_a_pole() {
         );
     }
     assert_eq!(
-        export_poles_by_program_vertex(
+        export_poles_by_canonical_vertex(
             &doc,
             &ev,
             sweep::Revolution::Partial(std::f64::consts::FRAC_PI_2)

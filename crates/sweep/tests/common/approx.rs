@@ -49,7 +49,7 @@ use geom::{Curve3, NurbsSurface, Surface};
 use geom_brep::EdgeCurveSpec;
 use geom_brep::keys::SurfaceKey;
 use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use sweep::Lofted;
 use topo::{Body, CurveGeom, EdgeKey, FaceKey, FaceSurface};
 
@@ -65,9 +65,9 @@ pub fn band() -> Band {
 /// A straight-walled square prism lofted between two identical
 /// sections — four PLANAR described-NURBS walls.
 pub fn prism() -> Body<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0),
             v(2.0, 0.0),
             v(2.0, 2.0),
@@ -98,36 +98,34 @@ pub fn twisted_loft(theta: f64) -> Body<f64> {
 /// placements, so the roll is authored into the section and no path
 /// carries it.
 ///
-/// **`theta` is the angle the top SECTION is written at, and it is not
-/// the body's roll.** For `theta` in `(0, pi/2)` the body rolls by
-/// `theta - pi/2`: validation rotates each loop to its lex-min vertex,
-/// which for the rotated square is one vertex earlier than for the
-/// upright one, and the loft pairs the CANONICAL loops by index. So
-/// `twisted_loft(0.05)` is a quarter turn of twist less a twentieth of
-/// a radian, not a twentieth of a radian of twist — measured, and
-/// asserted by the orientation row that reads this fixture's roll off
-/// its level rings.
+/// **`theta` is the angle the top SECTION is written at, and it is the
+/// body's roll.** The top square is written vertex for vertex as the
+/// images of the bottom one's, and validation keeps each loop's
+/// authored start, so the loft pairs each vertex with its own image:
+/// `twisted_loft(0.05)` is a twentieth of a radian of twist — measured,
+/// and asserted by the orientation row that reads this fixture's roll
+/// off its level rings.
 ///
 /// The SIGN is part of the fixture either way: a body rolled the other
 /// way is a different body, and only a row that measures the roll
 /// reads that datum at all.
 pub fn twisted_lofted(theta: f64) -> Lofted<f64> {
-    let v = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let v = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let (s, c) = theta.sin_cos();
     let rv = |x: f64, y: f64| {
         let (dx, dy) = (x - 1.0, y - 1.0);
-        ProfileVertex::new(
+        (
             Point2::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy),
             0.0,
         )
     };
-    let square = vec![ProfileLoop::new(vec![
+    let square = vec![bulge_loop(vec![
         v(0.0, 0.0),
         v(2.0, 0.0),
         v(2.0, 2.0),
         v(0.0, 2.0),
     ])];
-    let rotated = vec![ProfileLoop::new(vec![
+    let rotated = vec![bulge_loop(vec![
         rv(0.0, 0.0),
         rv(2.0, 0.0),
         rv(2.0, 2.0),

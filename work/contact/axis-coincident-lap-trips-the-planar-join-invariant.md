@@ -2,10 +2,11 @@
 id: axis-coincident-lap-trips-the-planar-join-invariant
 kind: issue
 title: A box lap whose plane CONTAINS the cylinder axis reaches the all-planar join lane's conic guard through the public subtract door
-status: open
+status: dispatched
 opened: 2026-09-09
 priority: P0
 cost: H
+parent: CONTACT-2
 ---
 
 
@@ -62,3 +63,14 @@ siblings — and a row on the pose either way, since nothing in tree
 reaches this arm today.
 
 Refs `work/bool/slab-cut-cylinder-refuses-sector-side` (#1455).
+
+## Second pose (2026-09-25, `band/ruled-d-hole-ring-crease`)
+
+The same payload from a different operand: the block `[−1, 1]² × [0, 1]`
+minus a D-profile rod (chord `x = 0.3`, major arc r = 0.5 about the
+origin) extruded for `1.0` from `z = −0.5` — a blind D pocket entering
+through the BOTTOM face — refuses `Join(SectionInvariant { what: "the
+all-planar join lane reached a conic run edge (the operand gate promises
+every carrier planar)" })`. The same pocket from the top refuses
+`JoinDesync` instead; both are rowed at
+`work/zip/blind-d-pocket-subtract-refuses-with-join-internal-words`.

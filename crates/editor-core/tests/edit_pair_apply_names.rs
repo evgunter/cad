@@ -41,7 +41,7 @@ use std::collections::BTreeSet;
 
 use editor_core::{
     CancelToken, CapEnd, DocEdit, DocumentId, EditError, EvalOptions, Evaluation, HitTestError,
-    Node, ProfileDoc, ProfileEdgeRef, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
+    Node, ProfileDoc, RecipeNodeId, RoleSeg, SlotId, apply_with_names, evaluate,
 };
 use fixture::{ename, insert, len, on_frame};
 use geom_core::Tol;
@@ -125,13 +125,7 @@ impl Twins {
 
         let fourth = ename(
             sq,
-            RoleSeg::RimEdge(
-                CapEnd::End,
-                ProfileEdgeRef {
-                    loop_index: 0,
-                    segment: 3,
-                },
-            ),
+            RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
         );
         let edit = DocEdit::InsertNode {
             node: Node::fillet(sq, len(0.1), vec![fourth.clone()]),
@@ -306,13 +300,7 @@ fn the_pairing_is_identity_and_survives_a_new_version_of_the_document() {
 
     let fourth = ename(
         sq,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            ProfileEdgeRef {
-                loop_index: 0,
-                segment: 3,
-            },
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&square, sq, 0, 3)),
     );
     let edit = DocEdit::InsertNode {
         node: Node::fillet(sq, len(0.1), vec![fourth]),
@@ -535,9 +523,9 @@ fn a_later_evaluation_of_the_same_document_is_admitted() {
         .expect("a later evaluation of the same document is admitted");
     assert_eq!(
         names_after, names_before,
-        "the index is the one that was built, and a program-anchored \
-         name does not move when a parameter does: the later run answers \
-         the same name in every slot"
+        "the index is the one that was built, and a canonical name — \
+         counted from the loop's authored start — does not move when a \
+         parameter does: the later run answers the same name in every slot"
     );
     assert!(
         pick.boundary_names(&after).is_ok(),

@@ -143,6 +143,7 @@ fn edits_of(program: LoopProgram) -> [DocEdit<ProfileProgram>; 2] {
             node: Node::Profile(ProfileProgram {
                 plane: PLANE,
                 loops: vec![program],
+                ids: Vec::new(),
             }),
         },
     ]
@@ -162,7 +163,7 @@ fn slot(step: u32, arg: StepArg) -> ExprPath {
 
 /// What a reader asking the document what one argument says gets back:
 /// the canonical value, and the notation it was written in.
-fn read_back(doc: &ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
+fn read_back(doc: &editor_core::ProfileDoc, step: u32, arg: StepArg) -> (f64, &'static str) {
     let Some(e) = doc.expr_at(&slot(step, arg)) else {
         panic!("the document addresses ({step}, {arg:?})")
     };
@@ -219,7 +220,7 @@ fn vertex_bits(doc: &ProfileDoc) -> Vec<(u64, u64)> {
     pv.validated.loops()[0]
         .vertices()
         .iter()
-        .map(|vx| (vx.pos().x.to_bits(), vx.pos().y.to_bits()))
+        .map(|vx| (vx.x.to_bits(), vx.y.to_bits()))
         .collect()
 }
 
@@ -331,10 +332,12 @@ fn two_notations_of_one_leg_are_one_program_and_one_geometry() {
     let a = ProfileProgram {
         plane: PLANE,
         loops: vec![millimetres.clone()],
+        ids: Vec::new(),
     };
     let b = ProfileProgram {
         plane: PLANE,
         loops: vec![metres.clone()],
+        ids: Vec::new(),
     };
     assert!(a == b, "bit equality is blind to the notation");
     assert_eq!(

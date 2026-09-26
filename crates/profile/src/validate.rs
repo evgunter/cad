@@ -116,9 +116,11 @@
 //! like a sliver (width in (ε, Kε)) already escalated at the simplicity
 //! stage — the sliver band is one consistent notion across predicates.
 //!
-//! **The exact-order band.** Canonical-start selection is a
-//! *representation* choice, not a geometric coincidence question: it
-//! must be total, transitive, and bit-deterministic, and a tolerance
+//! **The exact-order band.** Choosing each loop's containment
+//! representative — its lexicographic-minimum vertex, the point the
+//! containment forest casts its rays from — is a *representation*
+//! choice, not a geometric coincidence question: it must be total,
+//! transitive, and bit-deterministic, and a tolerance
 //! band would make near-ties non-transitive (x-coordinates 1.5ε apart
 //! are legitimate and must still order). It therefore classifies
 //! against the documented hairline band (`geom_core::BandError::Empty`
@@ -143,7 +145,7 @@ use crate::seg::{self, CKind, PairOutcome, Seg, SegIssue, SegKind, build_seg};
 use crate::structure::{
     CanonicalStructure, Decision, DecisionValue, LoopCanonical, SegmentShape, StructureRefusal,
 };
-use crate::{Profile, ProfileLoop, ProfileVertex};
+use crate::{Profile, ProfileLoop};
 
 /// Identifies a segment of the *input* profile: `segment_index` k is the
 /// segment from vertex k to vertex k+1 (mod n) of loop `loop_index`, in
@@ -475,12 +477,13 @@ pub const FILLET_FIT_RECOURSE: &str =
 
 /// **The recourse for a fillet arc too shallow to be STORED as an arc.**
 ///
-/// A profile holds an arc as a chord and a bulge, and a reader
-/// classifies that pair back through `segment_straightness`, whose
-/// margin is the sagitta `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε
-/// the stored segment is read as a line and the carrier the door
-/// computed is simply not in the loop, so the tangency the fillet
-/// declares has nothing to be about.
+/// A profile stores an arc as its vertices plus a carrier and sweep
+/// lowered from the chord and the bulge, and validation classifies the
+/// segment through `segment_straightness`, whose margin is the sagitta
+/// `r(1 − cos(θ/2)) ≈ r·θ²/8`. Below the run's ε the stored arc is
+/// read as a line and the carrier the door computed is simply not in
+/// the validated loop, so the tangency the fillet declares has nothing
+/// to be about.
 ///
 /// Both levers move the sagitta, and the sentence says which way each
 /// runs — a larger turn, or a larger radius. The radius lever has a
@@ -1077,6 +1080,10 @@ pub enum SegmentKind<T: Real> {
         center: Point2<T>,
         /// The carrier circle's radius (positive).
         radius: T,
+        /// The signed sweep Δθ from the segment's start to its end about
+        /// `center`, positive counterclockwise — the arc's parameter
+        /// span is `|sweep|`.
+        sweep: T,
         /// The turn sense: `Positive` = counterclockwise sweep
         /// (positive bulge), `Negative` = clockwise. Never `Zero` (that
         /// classification is a `Line`).
@@ -1091,16 +1098,16 @@ pub struct ValidatedSegment<T: Real> {
     pub start: Point2<T>,
     /// End point.
     pub end: Point2<T>,
-    /// The bulge, in canonical traversal (reversal negated it if the
-    /// input wound the other way). This is carried-through input data;
-    /// **consumers select carriers by [`ValidatedSegment::kind`], never
-    /// by re-inspecting the bulge** — a sub-tolerance bulge classifies
-    /// as `Line` while retaining its stored value. One sanctioned
-    /// re-inspection: for an `Arc` segment the **parameter span is
-    /// θ = 4·atan|bulge|**, taken from the stored bulge (exact input
-    /// data; deriving the span from endpoint `atan2` angles instead is
-    /// seam-fragile for wide arcs at small ε) — PR 4's sweeps rely on
-    /// this.
+    /// The bulge the segment was lowered from, in canonical traversal
+    /// (reversal negated it if the input wound the other way) — see
+    /// [`crate::ProfileLoop::bulges`] for why it is kept beside the
+    /// canonical form. **Consumers select carriers by
+    /// [`ValidatedSegment::kind`], never by the bulge** — a
+    /// sub-tolerance bulge classifies as `Line` while retaining its
+    /// value. The one boundary that still reads the bulge itself is the
+    /// `geom-brep` sketch segment, whose form is the bulge: the sweep's
+    /// arc span (`4·atan|b|`) and apex are spelled on it there, beside
+    /// the segment they build.
     pub bulge: T,
     /// The classified carrier — the decision sweeps consume (PR 4
     /// lowers `Arc` to a circle carrier, `Line` to a line carrier).
@@ -1110,11 +1117,12 @@ pub struct ValidatedSegment<T: Real> {
 impl ValidatedSegment<f64> {
     /// The `f64` segment embedded at `U`: the endpoints and the bulge
     /// through `from_f64`, the classification and turn carried, and an
-    /// arc's carrier REBUILT at `U` from the embedded endpoints and
-    /// bulge through validation's own arithmetic
-    /// ([`seg::arc_carrier`] on the segment's [`seg::ChordFrame`]) —
-    /// the carrier is derived data, not a stored value, and at a
-    /// certified scalar the derivation is what mints its enclosure.
+    /// arc's carrier and sweep REBUILT at `U` from the embedded
+    /// endpoints and bulge through the arc lowering
+    /// ([`crate::lower_arc`]: [`seg::arc_carrier`] on the segment's
+    /// [`seg::ChordFrame`], and Δθ = 4·atan(b)) — the carrier
+    /// and sweep are derived data, not stored values, and at a
+    /// certified scalar the derivation is what mints their enclosure.
     /// See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedSegment<U> {
         let (start, end, bulge) = (
@@ -1125,10 +1133,15 @@ impl ValidatedSegment<f64> {
         let kind = match self.kind {
             SegmentKind::Line => SegmentKind::Line,
             SegmentKind::Arc { turn, .. } => {
-                let carrier = seg::arc_carrier(&seg::ChordFrame::of(start, end), bulge);
+                let crate::LoweredArc {
+                    centre,
+                    radius,
+                    sweep,
+                } = crate::lower_arc(start, end, bulge);
                 SegmentKind::Arc {
-                    center: carrier.center,
-                    radius: carrier.radius,
+                    center: centre,
+                    radius,
+                    sweep,
                     turn,
                 }
             }
@@ -1146,9 +1159,10 @@ impl ValidatedSegment<f64> {
 /// read-only.
 #[derive(Debug, Clone)]
 pub struct ValidatedLoop<T: Real> {
-    vertices: Vec<ProfileVertex<T>>,
+    vertices: Vec<Point2<T>>,
     segments: Vec<ValidatedSegment<T>>,
     tangent_joints: Vec<usize>,
+    cusp_joints: Vec<usize>,
     role: LoopRole,
 }
 
@@ -1158,9 +1172,9 @@ impl<T: Real> ValidatedLoop<T> {
         self.role
     }
 
-    /// The canonical vertex chain (see [`ValidatedProfile`] for the
-    /// canonical-form rules).
-    pub fn vertices(&self) -> &[ProfileVertex<T>] {
+    /// The canonical vertices, verbatim (see [`ValidatedProfile`] for
+    /// the canonical-form rules).
+    pub fn vertices(&self) -> &[Point2<T>] {
         &self.vertices
     }
 
@@ -1178,24 +1192,46 @@ impl<T: Real> ValidatedLoop<T> {
         &self.tangent_joints
     }
 
+    /// **The declared joints that are CUSPS**: the subset of
+    /// [`Self::tangent_joints`], canonical and ascending, at which the
+    /// leaving segment departs along the arriving one's heading
+    /// REVERSED — the `.cusp()` door's joint, or a raw-authored joint
+    /// of the same shape. The rest of the declared joints continue the
+    /// heading (a smooth, G1 joint).
+    ///
+    /// The declaration does not say which, so validation decides it,
+    /// once per declared joint, with the question the path door asks
+    /// of the same junction (`path_junction_side`). A swept wall pair
+    /// meeting at a cusp joint subtends material wedge 0 (2π on a hole
+    /// loop), which the at-rest gate holds legal only where the pair is
+    /// declared in `Tangent` contact — the record the sweep verbs carry
+    /// out of exactly this set.
+    pub fn cusp_joints(&self) -> &[usize] {
+        &self.cusp_joints
+    }
+
     /// **Which segment is the fillet at corner k?** — every arc
     /// segment this loop declares TANGENT at both of its junctions, in
     /// CANONICAL segment order.
     ///
-    /// **Authored order is not preserved, and entry `k` is not the
-    /// k-th fillet you wrote.** Validation canonicalizes: it rotates
-    /// the chain to its lex-min vertex, and it REVERSES a loop wound
-    /// the wrong way for its role — so a hole authored with fillets
-    /// `[r1, r2]` answers `[r2, r1]`. Correlate by
+    /// **Authored order is not always preserved, and entry `k` is not
+    /// always the k-th fillet you wrote.** Validation canonicalizes: it
+    /// keeps the authored start, but it REVERSES a loop wound the wrong
+    /// way for its role — so a hole authored with fillets `[r1, r2]`
+    /// answers `[r2, r1]`. Correlate by
     /// [`BlendArc::segment`] (a canonical index, which is the only
     /// index this layer has) or by the arc data itself, which is
     /// self-identifying; do not index by authoring position.
     ///
     /// A corner fillet leaves exactly this shape behind: an arc that
-    /// meets both legs tangentially, with both junctions declared (and
-    /// verified — validation refuses an unmet declaration). So the
-    /// answer is STRUCTURAL — it reads [`ValidatedLoop::tangent_joints`],
-    /// decides nothing, and compares no floats. That is what makes it
+    /// CONTINUES both legs' headings, with both junctions declared (and
+    /// verified — validation refuses an unmet declaration). A declared
+    /// joint that reverses the heading is a cusp, not a continuation, so
+    /// an arc with a cusp at either end (an arbelos's small arcs) is not
+    /// listed. So the answer is STRUCTURAL — it reads
+    /// [`ValidatedLoop::tangent_joints`] less
+    /// [`ValidatedLoop::cusp_joints`], decides nothing, and compares no
+    /// floats. That is what makes it
     /// a replacement for the alternative every caller wrote instead:
     /// scanning the segments for "the arc whose radius equals R",
     /// which finds the wrong arc as soon as two blends share a radius,
@@ -1251,7 +1287,10 @@ impl<T: Real> ValidatedLoop<T> {
     #[must_use]
     pub fn blend_arcs(&self) -> Vec<BlendArc<T>> {
         let n = self.segments.len();
-        let tangent_at = |v: usize| self.tangent_joints.binary_search(&v).is_ok();
+        let tangent_at = |v: usize| {
+            self.tangent_joints.binary_search(&v).is_ok()
+                && self.cusp_joints.binary_search(&v).is_err()
+        };
         (0..n)
             .filter(|&j| matches!(self.segments[j].kind, SegmentKind::Arc { .. }))
             .filter(|&j| tangent_at(j) && tangent_at((j + 1) % n))
@@ -1265,8 +1304,8 @@ impl<T: Real> ValidatedLoop<T> {
 
 impl ValidatedLoop<f64> {
     /// The `f64` loop embedded at `U`: each vertex through
-    /// [`ProfileVertex::map`], the segments in place, the role and the
-    /// joint set carried. See [`ValidatedProfile::lift_onto`].
+    /// [`Point2::map`], the segments in place, the role and the joint
+    /// set carried. See [`ValidatedProfile::lift_onto`].
     fn lift<U: Real>(self) -> ValidatedLoop<U> {
         ValidatedLoop {
             vertices: self
@@ -1276,6 +1315,7 @@ impl ValidatedLoop<f64> {
                 .collect(),
             segments: self.segments.into_iter().map(|s| s.lift()).collect(),
             tangent_joints: self.tangent_joints,
+            cusp_joints: self.cusp_joints,
             role: self.role,
         }
     }
@@ -1301,22 +1341,29 @@ pub struct BlendArc<T: Real> {
 /// - **Traversal**: the outer loop runs counterclockwise, holes run
 ///   clockwise, *in sketch coordinates* (reversal negates bulges — the
 ///   involution of the crate docs).
-/// - **Starting vertex**: each loop starts at its lexicographically
-///   minimal vertex (least x, then least y), compared through the
-///   exact-order band (module docs) — total and rotation-invariant.
+/// - **Starting vertex**: each loop starts at its AUTHORED vertex 0.
+///   Reversal keeps vertex 0 in place ([`ProfileLoop::reversed`]), so
+///   canonical vertex `k` is the author's vertex `k` counted along the
+///   canonical traversal.
 ///
 /// The canonical form is invariant under the input's traversal
-/// direction and starting-vertex rotation of every loop (under test,
-/// byte-level). Stated honestly, this is *decision* invariance: the
-/// output values are exact reindexings of the input, but the
-/// predicate margins deciding them are computed in
-/// rotation-dependent order (e.g. `loop_orientation` anchors its
-/// shoelace at the chain's first vertex), so a margin within an ulp
-/// of a band edge could in principle classify differently across
-/// rotations — a measure-zero configuration, stated rather than
-/// hidden. It is **not** invariant under reordering the input's loop
-/// *list*: holes keep discovery (input) order, and D9 recipes replay
-/// that order — see the crate docs.
+/// direction (under test, byte-level) and follows its starting vertex:
+/// a loop authored from another vertex is the same point set with a
+/// different canonical start. That is deliberate. Where a loop starts
+/// is information a consumer can need and no per-loop rule can
+/// recover — a loft pairs canonical segment `k` of every section, so
+/// the authored start is what says which edges correspond — and a
+/// geometric start (the lexicographic minimum, say) jumps to another
+/// vertex when a vertex moves. Stated honestly, the direction
+/// invariance is *decision* invariance: the output values are exact
+/// reindexings of the input, but the predicate margins deciding them
+/// are computed in traversal-dependent order (e.g. `loop_orientation`
+/// anchors its shoelace at the chain's first vertex), so a margin
+/// within an ulp of a band edge could in principle classify
+/// differently across directions — a measure-zero configuration,
+/// stated rather than hidden. It is **not** invariant under reordering
+/// the input's loop *list*: holes keep discovery (input) order, and D9
+/// recipes replay that order — see the crate docs.
 #[derive(Debug, Clone)]
 pub struct ValidatedProfile<T: Real> {
     plane: crate::SketchPlane<T>,
@@ -1339,10 +1386,11 @@ impl<T: Real> ValidatedProfile<T> {
 
 impl ValidatedProfile<f64> {
     /// The `f64` canonical form embedded at `U`, on `plane`: every
-    /// stored scalar — each vertex's position and bulge, each segment's
-    /// endpoints and bulge — through [`Real::from_f64`]; each arc's
-    /// carrier, which is DERIVED data, rebuilt at `U` from the embedded
-    /// endpoints and bulge through validation's own arithmetic; the
+    /// stored scalar — each vertex's position, each segment's endpoints
+    /// and the bulge it was lowered from — through [`Real::from_f64`];
+    /// each arc's carrier and sweep, which are DERIVED data, rebuilt at
+    /// `U` from the embedded endpoints and bulge through the lowering's
+    /// own arithmetic; the
     /// plane taken as given (validation is 2-D and reads nothing of it
     /// — [`ValidatedProfile::plane`]); everything else carried. No
     /// predicate runs and no verdict is logged. A `ValidatedProfile` is
@@ -1359,7 +1407,7 @@ impl ValidatedProfile<f64> {
     /// vertex indices — are index structure; the lift maps no index,
     /// so they hold at `U` by construction. The DECIDED ones — each
     /// loop's role, its traversal sense (outer counterclockwise, holes
-    /// clockwise), its start at the lex-min vertex, each segment's
+    /// clockwise), its start at the authored vertex, each segment's
     /// `Line`/`Arc` classification and turn, each joint's verified
     /// tangency, the absence of contact — are the verdicts `validate`
     /// made at `f64`. They are carried AS THE `f64` DECISIONS, and that
@@ -1424,7 +1472,7 @@ impl<T: Decide> Profile<T> {
 
     /// [`validate`](Self::validate) keeping the structure record it
     /// built: the containment forest, the roles, and every loop's
-    /// canonical rotation, reversal and segment shapes.
+    /// reversal and segment shapes.
     ///
     /// Recording asks no predicate a different question, so this is
     /// [`validate`](Self::validate)'s canonical form bit for bit, plus
@@ -1448,15 +1496,16 @@ impl<T: Decide> Profile<T> {
     /// **Guided validation**: canonicalize at this scalar while
     /// CONSUMING `structure`'s decisions instead of remaking them.
     ///
-    /// The two canonicalization predicates are STRUCTURALLY ABSENT
-    /// here, not merely expected to agree. `lex_min`'s ordering runs
-    /// against a band an ulp wide — total at `f64` by that band's
-    /// design, and indeterminate at an interval scalar on essentially
-    /// every input, because two enclosures of nearly-equal coordinates
-    /// overlap. `loop_orientation` is the same story at a sliver.
-    /// Re-running either at a lane scalar would therefore refuse
-    /// almost everything it was asked, so the rotation and the
-    /// reversal are taken from the record, and what this pass verifies
+    /// The pinned predicates are STRUCTURALLY ABSENT here, not merely
+    /// expected to agree. `lex_min`'s ordering (the containment
+    /// representative) runs against a band an ulp wide — total at `f64`
+    /// by that band's design, and indeterminate at an interval scalar
+    /// on essentially every input, because two enclosures of
+    /// nearly-equal coordinates overlap. `loop_orientation` is the same
+    /// story at a sliver. Re-running either at a lane scalar would
+    /// therefore refuse almost everything it was asked, so the
+    /// representative, the start and the reversal are taken from the
+    /// record, and what this pass verifies
     /// instead is the VALUE channel that hangs off them: the segments
     /// the recorded permutation produces, classified here, must have
     /// the recorded shapes, and the declared joints must land where
@@ -1491,8 +1540,8 @@ impl<T: Decide> Profile<T> {
         guide: &mut CanonGuide,
     ) -> Result<ValidatedProfile<T>, ProfileError> {
         let band = Band::linear(tol).map_err(ProfileError::Band)?;
-        // The exact-order band for canonical-start selection (module
-        // docs): no representable f64 lies strictly inside it.
+        // The exact-order band for the containment representative
+        // (module docs): no representable f64 lies strictly inside it.
         let exact = Band::new(f64::from_bits(1), f64::from_bits(2)).map_err(ProfileError::Band)?;
 
         if self.loops.is_empty() {
@@ -1541,14 +1590,17 @@ impl<T: Decide> Profile<T> {
         // near-tangency escalates from the pair classification exactly
         // as before this arm existed. Definite-Zero tangency between
         // distinct carriers must be declared; a declaration must be
-        // definite-Zero tangency (verified, never trusted).
+        // definite-Zero tangency (verified, never trusted). Each
+        // declared joint's heading is decided here too: which of them
+        // are cusps (INPUT indices; canonicalization remaps them).
+        let mut input_cusps: Vec<Vec<usize>> = Vec::with_capacity(self.loops.len());
         for (li, lp) in self.loops.iter().enumerate() {
-            judge_joints(lp, &loop_segs[li], li, band)?;
+            input_cusps.push(judge_joints(lp, &loop_segs[li], li, band)?);
         }
 
         // Representative point per loop: the lexicographic minimum
-        // vertex (rotation/reversal invariant; needed for both
-        // containment and the canonical start). PINNED under guidance
+        // vertex (rotation/reversal invariant), the point containment
+        // is decided from. PINNED under guidance
         // — see `validate_guided` for why `lex_min` is not a predicate
         // a lane scalar can be asked.
         let mut rep: Vec<Point2<T>> = Vec::with_capacity(self.loops.len());
@@ -1565,7 +1617,7 @@ impl<T: Decide> Profile<T> {
                     lp.vertices.len(),
                 )));
             };
-            rep.push(v.pos);
+            rep.push(*v);
             rep_index.push(idx);
         }
 
@@ -1663,16 +1715,23 @@ impl<T: Decide> Profile<T> {
                     DecisionValue::Role(role),
                 )));
             }
-            let (validated, shapes) =
-                canonicalize_loop(lp, &loop_segs[li], role, li, band, exact, guide.loop_at(li))?;
+            let (validated, shapes) = canonicalize_loop(
+                lp,
+                &loop_segs[li],
+                &input_cusps[li],
+                role,
+                li,
+                band,
+                guide.loop_at(li),
+            )?;
             guide.record(LoopCanonical {
                 role,
                 inside: core::mem::take(&mut within[li]),
                 representative: rep_index[li],
                 reversed: shapes.reversed,
-                start: shapes.start,
                 segments: shapes.segments,
                 tangent_joints: validated.tangent_joints.clone(),
+                cusp_joints: validated.cusp_joints.clone(),
             });
             canonical[li] = Some(validated);
         }
@@ -1734,22 +1793,23 @@ fn build_loop_segs<T: Decide>(
     }
     let mut segs = Vec::with_capacity(n);
     for k in 0..n {
-        let a = lp.vertices[k];
-        let b = lp.vertices[(k + 1) % n];
-        segs.push(build_seg(a.pos, b.pos, a.bulge, band).map_err(|issue| {
-            let at = SegmentRef {
-                loop_index,
-                segment_index: k,
-            };
-            match issue {
-                SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
-                SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
-                SegIssue::Escalated(source) => ProfileError::Escalated {
-                    site: EscalationSite::Segment(at),
-                    source,
-                },
-            }
-        })?);
+        let (a, b) = (lp.vertices[k], lp.vertices[(k + 1) % n]);
+        segs.push(
+            build_seg(a, b, lp.segments[k], lp.bulges[k], band).map_err(|issue| {
+                let at = SegmentRef {
+                    loop_index,
+                    segment_index: k,
+                };
+                match issue {
+                    SegIssue::Degenerate { .. } => ProfileError::DegenerateSegment(at),
+                    SegIssue::NearFull { .. } => ProfileError::NearFullArc(at),
+                    SegIssue::Escalated(source) => ProfileError::Escalated {
+                        site: EscalationSite::Segment(at),
+                        source,
+                    },
+                }
+            })?,
+        );
     }
     Ok(segs)
 }
@@ -1781,10 +1841,10 @@ fn judge_pair<T: Decide>(
     if li == lj {
         let n = loop_segs[li].len();
         if sj == si + 1 {
-            shared.push(profile.loops[li].vertices[(si + 1) % n].pos);
+            shared.push(profile.loops[li].vertices[(si + 1) % n]);
         }
         if si == 0 && sj == n - 1 {
-            shared.push(profile.loops[li].vertices[0].pos);
+            shared.push(profile.loops[li].vertices[0]);
         }
     }
 
@@ -1853,13 +1913,19 @@ fn judge_pair<T: Decide>(
 ///   the directions agree here. The arm that used to refuse it is
 ///   retired — see the match below, which is the normative statement;
 /// - in-band / poisoned ⇒ [`ProfileError::Escalated`] at the pair site.
+///
+/// Every declared joint that passes is then asked which way it departs
+/// ([`seg::junction_reverses`], `path_junction_side` — the question the
+/// path door asks of the same junction): the returned joints, ascending
+/// INPUT indices, are the ones that reverse the heading — the cusps.
 fn judge_joints<T: Decide>(
     lp: &ProfileLoop<T>,
     segs: &[Seg<T>],
     loop_index: usize,
     band: Band,
-) -> Result<(), ProfileError> {
+) -> Result<Vec<usize>, ProfileError> {
     let n = segs.len();
+    let mut cusps = Vec::new();
     for joint in 0..n {
         let prev = (joint + n - 1) % n;
         let first = SegmentRef {
@@ -1904,12 +1970,25 @@ fn judge_joints<T: Decide>(
             // to refuse it is retired: identity is a fact about the
             // carriers, tangency is a fact about the directions, and the
             // directions agree here.
-            (seg::JointClass::SameCarrier, true)
-            | (seg::JointClass::Tangent, true)
-            | (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
+            (seg::JointClass::SameCarrier, true) | (seg::JointClass::Tangent, true) => {
+                let (arriving, leaving) = (&segs[prev], &segs[joint]);
+                if seg::junction_reverses(
+                    arriving.heading_at(arriving.b),
+                    leaving.heading_at(leaving.a),
+                    arriving.arm(),
+                    band,
+                )
+                .map_err(|source| ProfileError::Escalated {
+                    site: EscalationSite::SegmentPair(first, second),
+                    source,
+                })? {
+                    cusps.push(joint);
+                }
+            }
+            (seg::JointClass::Transversal | seg::JointClass::SameCarrier, false) => {}
         }
     }
-    Ok(())
+    Ok(cusps)
 }
 
 /// Ray-parity containment of point `p` in the loop with segments
@@ -1954,16 +2033,16 @@ fn lex_less<T: Decide>(p: Point2<T>, q: Point2<T>, exact: Band) -> Result<bool, 
     }
 }
 
-/// The index of a chain's lexicographically minimal vertex (the
-/// canonical start; also the containment representative point).
+/// The index of a chain's lexicographically minimal vertex — the
+/// containment representative point.
 fn lex_min_index<T: Decide>(
-    vertices: &[ProfileVertex<T>],
+    vertices: &[Point2<T>],
     exact: Band,
     loop_index: usize,
 ) -> Result<usize, ProfileError> {
     let mut best = 0;
     for i in 1..vertices.len() {
-        if lex_less(vertices[i].pos, vertices[best].pos, exact).map_err(|source| {
+        if lex_less(vertices[i], vertices[best], exact).map_err(|source| {
             ProfileError::Escalated {
                 site: EscalationSite::Loop { loop_index },
                 source,
@@ -1975,32 +2054,40 @@ fn lex_min_index<T: Decide>(
     Ok(best)
 }
 
-/// Orients, rotates, and re-derives one loop into its canonical form.
+/// Orients and re-derives one loop into its canonical form.
+///
+/// The canonical start is the AUTHORED start: reversing a chain keeps
+/// its vertex 0 at position 0 ([`ProfileLoop::reversed`]), so the
+/// oriented chain already starts where the author started it. A loop's
+/// start is information no per-loop canonicalization can recover — a
+/// loft's correspondence between sections is carried by it — so it is
+/// kept rather than replaced by a geometric choice that jumps when a
+/// vertex moves.
 ///
 /// Orientation is the **`loop_orientation`** predicate — margin:
 /// 2·A/P, the loop's mean width (meters): A is the bulge-polygon signed
 /// area (shoelace about the loop's first vertex — the ch. 13
 /// translate-to-origin accuracy fix — plus per-arc circular-segment
-/// corrections (r²/2)·(θ − sin θ), θ = 4·atan(b)); P is the true
+/// corrections (r²/2)·(θ − sin θ), θ the arc's sweep); P is the true
 /// perimeter (chords for lines, r·|θ| for arcs). Positive = the input
 /// chain runs counterclockwise. The area, a length², acts through the
 /// half-perimeter lever arm to become the honest sliver-width margin —
 /// a thin loop of width w has 2A/P ≈ w.
+#[allow(clippy::too_many_arguments)] // one call site; the arguments are
+// the loop's own validation results, not a configuration surface.
 fn canonicalize_loop<T: Decide>(
     lp: &ProfileLoop<T>,
     segs: &[Seg<T>],
+    input_cusps: &[usize],
     role: LoopRole,
     loop_index: usize,
     band: Band,
-    exact: Band,
     recorded: Option<&LoopCanonical>,
 ) -> Result<(ValidatedLoop<T>, LoopPermutation), ProfileError> {
-    // The permutation is PINNED under guidance: neither `lex_min` nor
-    // `loop_orientation` runs at all, because neither is a question a
-    // lane scalar can answer — `lex_min`'s band is an ulp wide, and two
-    // enclosures of nearly-equal coordinates overlap it on essentially
-    // every input. What the guided pass verifies is the value channel
-    // the recorded permutation produces, below.
+    // The permutation is PINNED under guidance: `loop_orientation` does
+    // not run at all, because it is not a question a lane scalar can be
+    // trusted to answer the f64 way. What the guided pass verifies is
+    // the value channel the recorded permutation produces, below.
     let reversed = match recorded {
         Some(rec) => rec.reversed,
         None => {
@@ -2017,28 +2104,28 @@ fn canonicalize_loop<T: Decide>(
             }
         }
     };
+    // The canonical start is the authored vertex 0, which `reversed()`
+    // keeps in place: no rotation runs, so the oriented chain IS the
+    // canonical one.
     let chain = if reversed { lp.reversed() } else { lp.clone() };
-    let start = match recorded {
-        Some(rec) => rec.start,
-        None => lex_min_index(&chain.vertices, exact, loop_index)?,
-    };
     let n = chain.vertices.len();
-    if start >= n {
-        return Err(ProfileError::Structure(StructureRefusal::out_of_range(
-            start, n,
-        )));
-    }
-    let vertices: Vec<ProfileVertex<T>> = (0..n).map(|k| chain.vertices[(start + k) % n]).collect();
-    // Declared joints follow their vertex through the rotation
-    // (reversal already remapped them in `reversed()`); indices are
-    // in range — validated at entry. Sorted + deduplicated: canonical.
-    let mut tangent_joints: Vec<usize> = chain
-        .tangent_joints
-        .iter()
-        .map(|&j| (j + n - start) % n)
-        .collect();
+    let (vertices, lowered, bulges) = (chain.vertices, chain.segments, chain.bulges);
+    // Declared joints: reversal already remapped them in `reversed()`,
+    // and indices are in range — validated at entry. Sorted +
+    // deduplicated: canonical.
+    let mut tangent_joints: Vec<usize> = chain.tangent_joints;
     tangent_joints.sort_unstable();
     tangent_joints.dedup();
+    // The cusps `judge_joints` decided on the INPUT chain, carried to
+    // the canonical one by the same reindexing `reversed()` applies to
+    // the declarations (joint j ↦ (n − j) mod n). Whether a joint
+    // reverses its heading is itself reversal-invariant — reversing the
+    // chain negates both headings — so nothing is re-decided.
+    let mut cusp_joints: Vec<usize> = input_cusps
+        .iter()
+        .map(|&j| if reversed { (n - j) % n } else { j })
+        .collect();
+    cusp_joints.sort_unstable();
 
     // Re-derive classified segments on the canonical chain. The
     // classifications are reversal/rotation-symmetric (distances are
@@ -2047,9 +2134,8 @@ fn canonicalize_loop<T: Decide>(
     let mut segments = Vec::with_capacity(n);
     let mut shapes = Vec::with_capacity(n);
     for k in 0..n {
-        let a = vertices[k];
-        let b = vertices[(k + 1) % n];
-        let s = build_seg(a.pos, b.pos, a.bulge, band).map_err(|issue| {
+        let (a, b) = (vertices[k], vertices[(k + 1) % n]);
+        let s = build_seg(a, b, lowered[k], bulges[k], band).map_err(|issue| {
             let at = SegmentRef {
                 loop_index,
                 segment_index: k,
@@ -2080,6 +2166,7 @@ fn canonicalize_loop<T: Decide>(
             SegKind::Arc(g) => SegmentKind::Arc {
                 center: g.center,
                 radius: g.radius,
+                sweep: g.sweep,
                 turn: g.turn,
             },
         };
@@ -2125,16 +2212,28 @@ fn canonicalize_loop<T: Decide>(
             DecisionValue::Set(tangent_joints.clone()),
         )));
     }
+    // The heading decision is re-run under guidance (an ordinary
+    // decided predicate a lane can answer, like the containment
+    // forest), so its answer is compared against the record.
+    if let Some(rec) = recorded
+        && rec.cusp_joints != cusp_joints
+    {
+        return Err(ProfileError::Structure(StructureRefusal::flipped(
+            Decision::CuspJoints { loop_: loop_index },
+            DecisionValue::Set(rec.cusp_joints.clone()),
+            DecisionValue::Set(cusp_joints.clone()),
+        )));
+    }
     Ok((
         ValidatedLoop {
             vertices,
             segments,
             tangent_joints,
+            cusp_joints,
             role,
         },
         LoopPermutation {
             reversed,
-            start,
             segments: shapes,
         },
     ))
@@ -2144,7 +2243,6 @@ fn canonicalize_loop<T: Decide>(
 /// the part of a [`LoopCanonical`] only `canonicalize_loop` knows.
 struct LoopPermutation {
     reversed: bool,
-    start: usize,
     segments: Vec<SegmentShape>,
 }
 
@@ -2153,7 +2251,6 @@ struct LoopPermutation {
 fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Indeterminate> {
     let origin = segs[0].a;
     let half = T::from_f64(0.5);
-    let four = T::from_f64(4.0);
     let mut twice_area = T::zero();
     let mut perimeter = T::zero();
     for s in segs {
@@ -2163,7 +2260,7 @@ fn loop_orientation<T: Decide>(segs: &[Seg<T>], band: Band) -> Result<Sign, Inde
                 perimeter = perimeter + s.len;
             }
             SegKind::Arc(g) => {
-                let theta = four * s.bulge.atan();
+                let theta = g.sweep;
                 // Circular-segment correction: (r²/2)(θ − sin θ),
                 // doubled here since we accumulate 2A. `r²` is the tight
                 // square, and here it is the tight square of something

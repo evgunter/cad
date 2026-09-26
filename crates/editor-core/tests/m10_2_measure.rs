@@ -43,7 +43,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -52,7 +52,7 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// Inserts a node and returns the document beside the minted id — the
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
-fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -120,6 +120,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Node::Profile(ProfileProgram {
                 plane: xy,
                 loops: vec![outer],
+                ids: Vec::new(),
             }),
         },
     );
@@ -145,6 +146,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -246,6 +248,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![square()],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -299,6 +302,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -808,6 +812,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -867,6 +872,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
+                ids: Vec::new(),
             }),
         },
     );
@@ -1169,4 +1175,57 @@ fn the_measurement_nodes_carry_no_slots() {
         );
         assert!(node.expr(SlotId::Distance).is_none());
     }
+}
+
+/// A document whose one root is an extrude of a `.cusp()` lune
+/// evaluates, and the product gate refuses it `UndeclaredCusp`: the
+/// extrude carries the declaration (`Extruded::declared_contacts`) but
+/// the recipe layer drops it and the gate reads none. The red-first row
+/// of `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
+/// which flips it to gathering.
+#[test]
+fn a_cusp_extrude_document_refuses_at_the_product_gate() {
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive("cusp-extrude-lune"), Tol::witness()),
+        xy_frame(),
+    );
+    let lune = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(4.0)]),
+        ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Turn(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+        ProgramStep::Cusp,
+        ProgramStep::TangentArcTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![lune],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, ex) = mint(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.result(ex), Some(NodeResult::Ok(_))),
+        "the cusp extrude evaluates"
+    );
+    // TODAY: refuses at the aggregate gate. The gather item's red-first
+    // row flips this to `Ok`.
+    let err = editor_core::product(&doc, &ev, Tol::witness())
+        .map(|b| b.solids().count())
+        .expect_err("the product gate reads no declarations yet");
+    let rendered = format!("{err:?}");
+    assert!(
+        rendered.starts_with("ProductInvalid") && rendered.contains("UndeclaredCusp"),
+        "{rendered}"
+    );
 }

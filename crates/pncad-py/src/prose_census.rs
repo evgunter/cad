@@ -1698,26 +1698,15 @@ fn local_binding_span(
 /// The count is part of the key. Without it a Display impl rendering
 /// one binding at several sites collapses to one row, and repairing
 /// some of them leaves the guard green over the rest.
-const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
-    (
-        "crates/editor-core/src/eval/mod.rs",
-        "NodeErrorKind",
-        "slot",
-        2,
-        "`SlotId::Profile` is a struct variant, and `SlotId::label` is \
-         the prose spelling this site does not use — WIRE's, filed at \
-         work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
-    ),
-    (
-        "crates/topo/src/boolean/voids.rs",
-        "VoidInsertError",
-        "e",
-        1,
-        "`RevertError` carries struct variants. Found BY this census;\
-         reachability into `typed_err` not traced, so severity is undecided and\
-         the site is disclosed rather than claimed",
-    ),
-];
+const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[(
+    "crates/topo/src/boolean/voids.rs",
+    "VoidInsertError",
+    "e",
+    1,
+    "`RevertError` carries struct variants. Found BY this census; \
+     reachability into `typed_err` not traced, so severity is undecided and \
+     the site is disclosed rather than claimed",
+)];
 
 /// The blind spot, written down WITH ITS REASON.
 ///
@@ -1797,7 +1786,7 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         "crates/topo/src/boolean/mod.rs",
         "BooleanError",
         POSITIONAL,
-        3,
+        1,
         "a positional `{:?}` over an expression this census does not type",
     ),
     (
@@ -1902,20 +1891,6 @@ const UNDECIDED: &[(&str, &str, &str, usize, &str)] = &[
         1,
         "the binding is introduced by a pattern NESTED inside the field pattern\
          this census reads — `endpoints: (u, v)` — so no declared type reaches it",
-    ),
-    (
-        "crates/topo/src/validate.rs",
-        "CensusContact",
-        POSITIONAL,
-        2,
-        "a positional `{:?}` over an expression this census does not type",
-    ),
-    (
-        "crates/topo/src/validate.rs",
-        "ValidationError",
-        POSITIONAL,
-        2,
-        "a positional `{:?}` over an expression this census does not type",
     ),
     (
         "crates/viewer/src/idpass.rs",
@@ -2464,8 +2439,15 @@ impl fmt::Display for PlantedError {
             sources.len()
         );
         let sites = census(&sources);
+        // A floor against reading nothing, not a count to keep: it
+        // falls as `Debug` renderings leave the tree's `Display`s (the
+        // at-rest findings dropped their arena keys, 2026-09-24, taking
+        // the tree from ~340 sites to 280).
+        // Lowered by hand when that happens, and only then: the floor
+        // is a guard against a scan that read nothing, so its number is
+        // set well under the tree's count, never at it.
         assert!(
-            sites.len() > 300,
+            sites.len() > 200,
             "the same vacuity one level in: {} sites",
             sites.len()
         );

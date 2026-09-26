@@ -375,8 +375,8 @@ fn the_measure_node_fault_tag_is_stable() {
 /// `MeasureUnavailableAt` is what the `f64` lane answers a
 /// `min_clearance` with, and the binding evaluates at `f64` — so it is
 /// reachable from Python and `tests/test_measures.py` reaches it
-/// through a real document. `MinClearanceRefusal` is the interval
-/// engine's own, and its ONLY producer is
+/// through a real document. `ClearanceRefusal` is the interval
+/// engine's own, and its ONLY producer on the measure path is
 /// `impl MinClearanceLane for geom_core::Interval`; no Python
 /// evaluation reaches it, because the binding evaluates at `f64` and the
 /// lane is what gates it. So this row is where the second one's tag and
@@ -384,7 +384,7 @@ fn the_measure_node_fault_tag_is_stable() {
 #[test]
 fn the_fourth_verbs_two_refusals_are_stable() {
     use crate::tags::{measure_unavailable_at_tag, node_error_tag};
-    use pncad::document::{MeasureUnavailableAt, MinClearanceRefusal};
+    use pncad::document::{ClearanceRefusal, MeasureUnavailableAt, NodeErrorKind};
 
     let absent = MeasureUnavailableAt::NeedsEnclosure {
         verb: "min_clearance",
@@ -398,17 +398,32 @@ fn the_fourth_verbs_two_refusals_are_stable() {
     // rather than handing back a worse number.
     assert!(absent.to_string().contains("clearance::min_separation"));
 
-    let refused = MinClearanceRefusal {
-        class: "SubdivisionBudget",
-        payload: "depth 12".to_string(),
-    };
-    assert_eq!(
-        node_error_tag(&pncad::document::NodeErrorKind::MeasureClearanceRefused(
-            refused.clone()
-        )),
-        "measure_clearance_refused"
-    );
-    assert!(crate::errors::reads_as_prose(&refused.to_string()));
+    // The four arms `clearance::min_separation` refuses with — the
+    // only ones this carrier's producer can build — all cross as one
+    // tag.
+    let refused = |r| NodeErrorKind::MeasureClearanceRefused(r);
+    let empty = refused(ClearanceRefusal::EmptyScope);
+    let unpaired = refused(ClearanceRefusal::NoAdmittedPair);
+    let unsupported = refused(ClearanceRefusal::Unsupported {
+        carrier: "a free-form face",
+        face: FaceKey::default(),
+    });
+    let poison = refused(ClearanceRefusal::PoisonEnclosure {
+        a: FaceKey::default(),
+        b: FaceKey::default(),
+    });
+    for e in [&empty, &unpaired, &unsupported, &poison] {
+        assert_eq!(node_error_tag(e), "measure_clearance_refused", "{e}");
+    }
+    // The prose is pinned on the two arms whose rendering is a
+    // sentence. `Unsupported` and `PoisonEnclosure` print their faces
+    // as `FaceKey` `Debug` — the defect
+    // work/props/props-refusal-prose-outgrows-the-viewer.md owns — and
+    // `reads_as_prose` does not look for an arena key, so a pin there
+    // would pass and prove nothing.
+    for e in [&empty, &unpaired] {
+        assert!(crate::errors::reads_as_prose(&e.to_string()), "{e}");
+    }
 }
 
 /// LIB-B-MEASURES: an assertion's two directions, and the symbols a
@@ -1263,6 +1278,7 @@ fn resolution_status_tags_are_stable() {
                 LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
                     .expect("finite corners"),
             ],
+            ids: Vec::new(),
         }),
     );
     let (doc, extrude) = insert(
@@ -1790,6 +1806,7 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
             node: Node::Profile(ProfileProgram {
                 plane,
                 loops: vec![square],
+                ids: Vec::new(),
             }),
         },
         tol,
@@ -2309,7 +2326,7 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     use pncad::document::{
         AttrKind, Axis3, ContentPin, Dimension, DimensionError, Distribution, DocParamValue,
         DocumentId, EditError as E, ExprPath, Frame, MeasureNodeFault, MetaVersionError, ParamName,
-        ProvenanceFault, RecipeNodeId, RootFault, SlotId,
+        RecipeNodeId, RootFault, SlotId, StepId, StepIdFault,
     };
     use pncad::prelude::StableName;
     use pncad::select::{EntityKind, RoleSeg};
@@ -2337,12 +2354,9 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     carries(&E::SetMembersOnNonList { node: id(1) }, &["node"]);
     carries(&E::SetProgramOnNonProfile { node: id(1) }, &["node"]);
     carries(
-        &E::ProvenanceMalformed {
+        &E::StepIdsRefused {
             node: id(1),
-            fault: ProvenanceFault::LoopCount {
-                loops: 1,
-                provenance: 2,
-            },
+            fault: StepIdFault::Repeated { step: StepId(2) },
         },
         &["node"],
     );
@@ -2553,6 +2567,11 @@ fn every_edit_arm_projects_the_payload_it_carries() {
     // ---- names, kinds and appearance ----
     for arm in [
         E::DeclareNamesMissingNode { name: named() },
+        E::NameStepNeverMinted {
+            name: named(),
+            step: StepId(9),
+            next_step: 4,
+        },
         E::RebindTargetMissingNode { name: named() },
         E::RebindUnknownName { name: named() },
         E::RebindIdentity { name: named() },
@@ -3415,17 +3434,17 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
         );
     }
 
-    // The payload survives the rewording: an arena key still names
-    // each entity, so the prose is a diagnosis a caller can act on
-    // rather than a sentence that dropped its subject.
+    // The prose names what touched and where, in words — the keys
+    // ride in the typed payload a caller resolves against — and ends
+    // on the recourse.
     let message = census.to_string();
     assert!(
-        message.contains("vertex") && message.contains("(0.0, 0.0, 0.0)"),
+        message.contains("a vertex lying on a face at (0.0, 0.0, 0.0)"),
         "the finding still names its entities and its witness: {message}"
     );
     assert!(
-        message.contains("never blessed from discovery"),
-        "the undeclared-contact recourse is the actionable half"
+        message.ends_with("Recourse: declare the named contact class, or move the geometry"),
+        "the undeclared-contact recourse is the actionable half: {message}"
     );
 }
 
@@ -3438,7 +3457,8 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// so most of the enum is unreachable
 /// from an authoring script: `census_unsupported` and
 /// `census_lane_unsupported` want a carrier outside the certifiable
-/// inventory or a scalar with no certified chart-overlap lane, and
+/// inventory or a door that holds no certified chart-overlap lane
+/// (the `_structural` ones, which the binding does not expose), and
 /// the structural arms want a corrupt arena, which the public API
 /// cannot mint. Those are exactly the arms whose projection the
 /// Python suite cannot exercise, so they are constructed here and
@@ -3602,17 +3622,19 @@ fn every_stale_declaration_arm_projects_the_payload_it_carries() {
 
 /// **Every `RingContact` arm's word, built and read.**
 ///
-/// The arm table for `ring_contact_kind`, executable. The three arms
-/// are three different repairs — a shared position one vertex move
-/// clears, a ring vertex standing on an outer edge's interior, and a
-/// shared arc no single move separates — so each is pinned by name.
+/// The arm table for `ring_contact_kind`, executable. The six arms
+/// are different repairs — a shared position one vertex move clears,
+/// a vertex of either loop standing on an edge's interior in the
+/// other, a shared arc no single move separates, two edges crossing or
+/// touching at a point, and two whole circles doing so — so each is
+/// pinned by name.
 ///
-/// **None of the three is reachable from Python.** A ring meeting its
+/// **None of the six is reachable from Python.** A ring meeting its
 /// own face's outer loop is minted by raw Euler surgery on a body
 /// (the shell verb's suites glue a lifted counterpart chart on with
 /// `kfmrh` to build one); every Python door answers a body its own
 /// producer already validated, and the binding exposes no Euler
-/// operator to build one with. So the three words are pinned here,
+/// operator to build one with. So the six words are pinned here,
 /// and `tests/test_validate.py` says the gap is the DOORS' rather
 /// than the projection's.
 #[test]
@@ -3650,6 +3672,27 @@ fn every_ring_contact_arm_projects_the_payload_it_carries() {
             outer_edge: Default::default(),
         }),
         Some("edge_along_edge")
+    );
+    assert_eq!(
+        word(RingContact::OuterVertexOnEdge {
+            outer_vertex: VertexKey::default(),
+            ring_edge: Default::default(),
+        }),
+        Some("vertex_on_ring_edge")
+    );
+    assert_eq!(
+        word(RingContact::EdgesMeet {
+            ring_edge: Default::default(),
+            outer_edge: Default::default(),
+        }),
+        Some("edge_edge_point")
+    );
+    assert_eq!(
+        word(RingContact::Circles {
+            ring_loop: Default::default(),
+            outer_loop: Default::default(),
+        }),
+        Some("circle_circle")
     );
 
     // The escalated sibling carries a margin, not a shape: it is a
@@ -4360,6 +4403,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_non_finite",
             "meta_not_set",
             "meta_unversioned",
+            "name_step_never_minted",
             "name_unresolved_in_evaluation",
             "non_finite_alignment",
             "non_finite_doc_param",
@@ -4373,7 +4417,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "placement_on_non_instance",
             "placement_rule_mismatch",
             "profile_program_refused",
-            "provenance_malformed",
             "read_site_missing_node",
             "rebind_appearance_collision",
             "rebind_identity",
@@ -4389,6 +4432,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension_mismatch",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids_refused",
             "structural_slot_needs_structural_edit",
             "too_few_members",
             "unknown_node",
@@ -4414,7 +4458,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "meta_version_error_tag",
             "node_error_tag",
             "program_refusal_tag",
-            "provenance_fault_tag",
+            "step_id_fault_tag",
         ],
     },
     TagEntry {
@@ -4554,9 +4598,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "inline_edit",
             "instance_body_name_referenced",
             "instance_consumed",
+            "name_on_dropped_step",
             "not_an_instance",
             "param_conflict",
             "part_carries_metadata",
+            "step_map_diverged",
             "stranded_part_name",
             "unknown_node",
             "unplaceable_frame",
@@ -4618,7 +4664,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "gauge_rewrite",
             "join",
             "orphaned_declare",
-            "rebound",
             "split",
             "strand",
             "stranded_appearance",
@@ -4691,11 +4736,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "emission",
             "escalated",
             "fragment_lineage_cycle",
+            "member_edge_tied",
             "merged_chord",
             "merged_chord_off_rim",
             "missing_upstream",
+            "narrow_band",
             "seam_line_sides",
             "seam_vertex_parentage",
+            "seam_vertex_partners",
             "split_lineage_cycle",
             "unnamed",
         ],
@@ -4754,6 +4802,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "profile",
             "profile_anchor",
             "profile_lane_replay",
+            "profile_pieces",
             "profile_replay",
             "revolve",
             "seed",
@@ -4799,6 +4848,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "naming_error_tag",
             "param_attach_error_tag",
             "param_box_error_tag",
+            "pieces_fault_tag",
             "profile_error_tag",
             "readback_error_tag",
             "replay_error_tag",
@@ -4944,6 +4994,11 @@ const TAG_INVENTORY: &[TagEntry] = &[
         delegates: &[],
     },
     TagEntry {
+        function: "pieces_fault_tag",
+        values: &["length", "no_ids", "no_record", "no_step_id"],
+        delegates: &[],
+    },
+    TagEntry {
         function: "placement_rule_fault_tag",
         values: &[
             "empty_placement_list",
@@ -4960,6 +5015,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "evaluation_of_another_document",
             "graft_refused",
             "no_body_roots",
+            "placed_under_two_roots",
             "product_invalid",
             "product_naming",
             "root_failed",
@@ -4998,7 +5054,15 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "program_refusal_tag",
-        values: &["geometry", "record", "resolve", "transition", "validate"],
+        values: &[
+            "geometry",
+            "pieces",
+            "resolve",
+            "step_ids",
+            "transition",
+            "unminted",
+            "validate",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5009,19 +5073,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "promoted_kind_tag",
         values: &["cylinder", "plane"],
-        delegates: &[],
-    },
-    TagEntry {
-        function: "provenance_fault_tag",
-        values: &[
-            "loop_count",
-            "no_such_old_loop",
-            "no_such_old_step",
-            "old_loop_continued_twice",
-            "old_step_continued_twice",
-            "step_count",
-            "step_of_new_loop",
-        ],
         delegates: &[],
     },
     TagEntry {
@@ -5110,7 +5161,14 @@ const TAG_INVENTORY: &[TagEntry] = &[
     },
     TagEntry {
         function: "ring_contact_tag",
-        values: &["edge_along_edge", "vertex_on_edge", "vertex_vertex"],
+        values: &[
+            "circle_circle",
+            "edge_along_edge",
+            "edge_edge_point",
+            "vertex_on_edge",
+            "vertex_on_ring_edge",
+            "vertex_vertex",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5252,6 +5310,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "mate_alignment",
             "measure_refs",
             "metadata_unversioned",
+            "name_step_beyond_counter",
             "order_mismatch",
             "payload_doc_param_dimension",
             "payload_unknown_doc_param",
@@ -5263,6 +5322,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "slot_dimension",
             "slot_doc_param_dimension",
             "slot_unknown_doc_param",
+            "step_ids",
             "witness_on_missing_node",
             "witness_site",
         ],
@@ -5278,6 +5338,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
         values: &[
             "body_name_crosses_cut",
             "empty_cut",
+            "name_on_dropped_step",
             "name_straddles_cut",
             "operand_severed_from_mate",
             "part_edit",
@@ -5286,6 +5347,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "remainder_edit",
             "severed_edge",
             "split_pin",
+            "step_map_diverged",
             "torn_cluster",
             "uncut_param_reference",
             "unknown_cut_node",
@@ -5300,6 +5362,18 @@ const TAG_INVENTORY: &[TagEntry] = &[
     TagEntry {
         function: "stale_declaration_tag",
         values: &["curve_locus", "patch", "vertex_on_face", "vertex_vertex"],
+        delegates: &[],
+    },
+    TagEntry {
+        function: "step_id_fault_tag",
+        values: &[
+            "beyond_counter",
+            "loop_count",
+            "not_this_profiles",
+            "preminted",
+            "repeated",
+            "shape",
+        ],
         delegates: &[],
     },
     TagEntry {
@@ -5478,7 +5552,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "multiply_owned",
             "negative_volume",
             "next_prev_mismatch",
-            "nonpositive_torus_tube",
             "null_edge_at_rest",
             "null_face_at_rest",
             "null_scaffold_shared",
@@ -5492,6 +5565,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "planar_boundary_residual",
             "planar_face_escalated",
             "planar_face_residual",
+            "poisoned_surface_datum",
             "poisoned_surface_description",
             "ring_contact_escalated",
             "ring_meets_outer",
@@ -5514,6 +5588,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "undeclared_contact",
             "undeclared_cusp",
             "unreachable_half_edge",
+            "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
             "volume_uncomputable",
         ],
@@ -5613,6 +5688,9 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("io", 2),
     ("join", 3),
     ("measure_malformed", 2),
+    // A split's and an inline's refusal of a name on a dropped step: one
+    // fact (`editor_core::refactor::Unmapped::Step`), one word.
+    ("name_on_dropped_step", 2),
     ("no_at_rest_record", 2),
     ("no_such_body", 2),
     ("node_failed", 4),
@@ -5647,6 +5725,8 @@ const SHARED_TAG_WORDS: &[(&str, usize)] = &[
     ("slot_doc_param_dimension", 2),
     ("slot_unknown_doc_param", 2),
     ("split", 2),
+    ("step_ids", 2),
+    ("step_map_diverged", 2),
     ("structure", 3),
     ("tolerance_conflict", 2),
     ("transition", 2),
@@ -9312,6 +9392,7 @@ mod product_memo_rows {
                 d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
                 d::ProgramStep::LineTo(d::ProgramTarget::Start),
             ])],
+            ids: Vec::new(),
         })
     }
 

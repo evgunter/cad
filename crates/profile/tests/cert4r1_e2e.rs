@@ -25,7 +25,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
     fn pt<T: Real>(p: Point2<f64>) -> Point2<T> {
-        Point2::new(T::from_f64(p.x), T::from_f64(p.y))
+        p.map(T::from_f64)
     }
     fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
         match t {
@@ -170,9 +170,9 @@ fn cert4r1_my_fused_tangency_is_input_width_at_interval() {
     let mut widest = 0.0f64;
     for (k, (a, b)) in iv.vertices().iter().zip(f.vertices()).enumerate() {
         for (what, enc, exact) in [
-            ("x", a.pos().x, b.pos().x),
-            ("y", a.pos().y, b.pos().y),
-            ("bulge", a.bulge(), b.bulge()),
+            ("x", a.x, b.x),
+            ("y", a.y, b.y),
+            ("bulge", iv.bulges()[k], f.bulges()[k]),
         ] {
             let w = enc.hi() - enc.lo();
             widest = widest.max(w);
@@ -229,8 +229,8 @@ fn cert4r1_the_enclosure_width_scales_with_the_profile() {
         match try_replay_at::<Interval>(&prog) {
             Ok(iv) => {
                 let mut widest = 0.0f64;
-                for v in iv.vertices() {
-                    for enc in [v.pos().x, v.pos().y, v.bulge()] {
+                for (v, &b) in iv.vertices().iter().zip(iv.bulges()) {
+                    for enc in [v.x, v.y, b] {
                         widest = widest.max(enc.hi() - enc.lo());
                     }
                 }

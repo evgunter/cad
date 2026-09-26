@@ -41,24 +41,24 @@
 
 use geom_core::{Point2, Real, Tol};
 use profile::{
-    Fidelity, LiftOutcome, Open, ProfileLoop, ProfileVertex, RawLoop, Start, Step, Target,
-    lift_checked,
+    Fidelity, LiftOutcome, Open, ProfileLoop, RawLoop, Start, Step, Target, lift_checked,
+    test_support::bulge_loop,
 };
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-/// A table only the fixture door can spell: arcs of both signs, a
+/// A table only the fixture helpers can spell: arcs of both signs, a
 /// semicircle, a signed zero, declarations duplicated and out of
 /// order, then the whole thing reversed (so the joints are remapped).
 fn awkward() -> ProfileLoop<f64> {
-    <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, -0.0), 0.3),
-        ProfileVertex::new(p2(2.0, 0.0), -0.5),
-        ProfileVertex::new(p2(2.0, 2.0), 1.0),
-        ProfileVertex::new(p2(1.0, 3.0), 0.0),
-        ProfileVertex::new(p2(0.0, 2.0), 0.123_456_789_012_3),
+    bulge_loop(vec![
+        (p2(0.0, -0.0), 0.3),
+        (p2(2.0, 0.0), -0.5),
+        (p2(2.0, 2.0), 1.0),
+        (p2(1.0, 3.0), 0.0),
+        (p2(0.0, 2.0), 0.123_456_789_012_3),
     ])
     .with_tangent_joints(vec![4, 1, 1, 0])
     .reversed()
@@ -66,10 +66,11 @@ fn awkward() -> ProfileLoop<f64> {
 
 /// `sweep/src/loft.rs::end_profile`'s walk before the unit, verbatim.
 fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
-            .map(|v| ProfileVertex::new(v.pos().map(T::from_f64), T::from_f64(v.bulge())))
+            .zip(lp.bulges())
+            .map(|(v, &b)| (v.map(T::from_f64), T::from_f64(b)))
             .collect(),
     )
     .with_tangent_joints(lp.tangent_joints().to_vec())
@@ -78,13 +79,14 @@ fn loft_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
 /// `editor-core/src/eval/anchor.rs::embed_profile`'s walk before the
 /// unit, verbatim.
 fn anchor_walk<T: Real>(lp: &ProfileLoop<f64>) -> ProfileLoop<T> {
-    ProfileLoop::new(
+    bulge_loop(
         lp.vertices()
             .iter()
-            .map(|vx| {
-                ProfileVertex::new(
-                    Point2::new(T::from_f64(vx.pos().x), T::from_f64(vx.pos().y)),
-                    T::from_f64(vx.bulge()),
+            .zip(lp.bulges())
+            .map(|(vx, &b)| {
+                (
+                    Point2::new(T::from_f64(vx.x), T::from_f64(vx.y)),
+                    T::from_f64(b),
                 )
             })
             .collect(),
@@ -99,7 +101,8 @@ fn table<T: Real + std::fmt::Debug>(lp: &ProfileLoop<T>) -> String {
     let vs: Vec<String> = lp
         .vertices()
         .iter()
-        .map(|v| format!("{:?},{:?};{:?}", v.pos().x, v.pos().y, v.bulge()))
+        .zip(lp.bulges())
+        .map(|(v, b)| format!("{:?},{:?};{:?}", v.x, v.y, b))
         .collect();
     format!("{} | {:?}", vs.join(" "), lp.tangent_joints())
 }
@@ -128,40 +131,24 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
         .zip(anchor.vertices())
         .enumerate()
     {
+        assert_eq!(d.x.to_bits(), l.x.to_bits(), "vertex {i} x vs loft");
+        assert_eq!(d.y.to_bits(), l.y.to_bits(), "vertex {i} y vs loft");
         assert_eq!(
-            d.pos().x.to_bits(),
-            l.pos().x.to_bits(),
-            "vertex {i} x vs loft"
-        );
-        assert_eq!(
-            d.pos().y.to_bits(),
-            l.pos().y.to_bits(),
-            "vertex {i} y vs loft"
-        );
-        assert_eq!(
-            d.bulge().to_bits(),
-            l.bulge().to_bits(),
+            door.bulges()[i].to_bits(),
+            loft.bulges()[i].to_bits(),
             "vertex {i} bulge vs loft"
         );
+        assert_eq!(d.x.to_bits(), a.x.to_bits(), "vertex {i} x vs anchor");
+        assert_eq!(d.y.to_bits(), a.y.to_bits(), "vertex {i} y vs anchor");
         assert_eq!(
-            d.pos().x.to_bits(),
-            a.pos().x.to_bits(),
-            "vertex {i} x vs anchor"
-        );
-        assert_eq!(
-            d.pos().y.to_bits(),
-            a.pos().y.to_bits(),
-            "vertex {i} y vs anchor"
-        );
-        assert_eq!(
-            d.bulge().to_bits(),
-            a.bulge().to_bits(),
+            door.bulges()[i].to_bits(),
+            anchor.bulges()[i].to_bits(),
             "vertex {i} bulge vs anchor"
         );
     }
     // `reversed` keeps vertex 0 in place, so the signed zero is at 0.
     assert_eq!(
-        door.vertices()[0].pos().y.to_bits(),
+        door.vertices()[0].y.to_bits(),
         (-0.0f64).to_bits(),
         "the signed zero travels"
     );
@@ -173,14 +160,14 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
 /// bit, exactly as the former walks carried it.
 #[test]
 fn r1_embed_is_total_on_a_poisoned_table() {
-    let src = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(f64::INFINITY, 0.0), f64::NAN),
-        ProfileVertex::new(p2(1.0, f64::NEG_INFINITY), -0.0),
+    let src = bulge_loop(vec![
+        (p2(f64::INFINITY, 0.0), f64::NAN),
+        (p2(1.0, f64::NEG_INFINITY), -0.0),
     ])
     .with_tangent_joints(vec![usize::MAX]);
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
     assert_eq!(table(&door), table(&loft_walk::<f64>(&src)));
-    assert!(door.vertices()[0].bulge().is_nan());
+    assert!(door.bulges()[0].is_nan());
     assert_eq!(door.tangent_joints(), [usize::MAX]);
 }
 
@@ -199,14 +186,10 @@ fn r1_embed_is_both_former_walks_at_interval() {
     // And the coordinates are point intervals of the stored bits.
     let table_scalar = |x: &dyn std::fmt::Debug| format!("{x:?}");
     for (d, s) in door.vertices().iter().zip(src.vertices()) {
-        assert_eq!(
-            table_scalar(&d.pos().x),
-            format!("{:?}", Interval::from_f64(s.pos().x))
-        );
-        assert_eq!(
-            table_scalar(&d.bulge()),
-            format!("{:?}", Interval::from_f64(s.bulge()))
-        );
+        assert_eq!(table_scalar(&d.x), format!("{:?}", Interval::from_f64(s.x)));
+    }
+    for (d, s) in door.bulges().iter().zip(src.bulges()) {
+        assert_eq!(table_scalar(d), format!("{:?}", Interval::from_f64(*s)));
     }
 }
 
@@ -250,8 +233,13 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
     let source = stadium();
     let n = source.vertices().len();
     for r in 0..n {
-        let reseamed: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::new(
-            (0..n).map(|k| source.vertices()[(k + r) % n]).collect(),
+        let reseamed: ProfileLoop<f64> = bulge_loop(
+            (0..n)
+                .map(|k| {
+                    let j = (k + r) % n;
+                    (source.vertices()[j], source.bulges()[j])
+                })
+                .collect(),
         )
         .with_tangent_joints((0..n).collect());
         match lift_checked(&reseamed, Tol::witness()) {
@@ -286,11 +274,8 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
 /// The chain form seams at 0 and closes with the tangent arrival.
 #[test]
 fn r1_a_two_arc_circle_with_both_joints_declared_lifts() {
-    let circle = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(0.0, 0.0), 1.0),
-        ProfileVertex::new(p2(2.0, 0.0), 1.0),
-    ])
-    .with_tangent_joints(vec![0, 1]);
+    let circle =
+        bulge_loop(vec![(p2(0.0, 0.0), 1.0), (p2(2.0, 0.0), 1.0)]).with_tangent_joints(vec![0, 1]);
     let outcome = lift_checked(&circle, Tol::witness());
     match &outcome {
         LiftOutcome::Lifted {

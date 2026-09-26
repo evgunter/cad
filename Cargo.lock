@@ -1180,6 +1180,7 @@ dependencies = [
  "geom-core",
  "nalgebra 0.35.0",
  "proptest",
+ "strum",
  "test-utils",
 ]
 
@@ -1191,6 +1192,7 @@ dependencies = [
  "geom-core",
  "proptest",
  "slotmap",
+ "strum",
  "test-utils",
 ]
 
@@ -1205,6 +1207,8 @@ dependencies = [
  "num-integer",
  "num-traits",
  "proptest",
+ "rayon",
+ "strum",
  "test-utils",
 ]
 
@@ -4211,6 +4215,7 @@ dependencies = [
  "pollster 1.0.1",
  "profile",
  "quantity",
+ "rayon",
  "rfd",
  "sweep",
  "test-utils",

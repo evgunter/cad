@@ -93,7 +93,7 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         ),
     ];
     let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| Point2::new(T::from_f64(p.x), T::from_f64(p.y));
+        let pt = |p: Point2<f64>| p.map(T::from_f64);
         let tgt = |t: Target<f64>| match t {
             Target::Start => Target::Start,
             Target::StartArriving => Target::StartArriving,
@@ -126,10 +126,10 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
                 println!("RSTRUCT {lane} fixture{i} ok {}", lp.vertices().len());
-                for (j, v) in lp.vertices().iter().enumerate() {
-                    scalar(&format!("{lane} fixture{i} v{j} x"), v.pos().x);
-                    scalar(&format!("{lane} fixture{i} v{j} y"), v.pos().y);
-                    scalar(&format!("{lane} fixture{i} v{j} b"), v.bulge());
+                for (j, (v, &b)) in lp.vertices().iter().zip(lp.bulges()).enumerate() {
+                    scalar(&format!("{lane} fixture{i} v{j} x"), v.x);
+                    scalar(&format!("{lane} fixture{i} v{j} y"), v.y);
+                    scalar(&format!("{lane} fixture{i} v{j} b"), b);
                 }
             }
             Err(_) => println!("RSTRUCT {lane} fixture{i} refused"),

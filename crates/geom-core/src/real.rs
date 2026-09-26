@@ -812,7 +812,39 @@ pub fn is_finite_length<T: Real>(x: T) -> bool {
 /// unbounded enclosure rather than poison, the answer is `false`, and
 /// the enclosure lane goes on deciding against the band as before.
 pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
-    is_finite_length(len / witness) && !is_finite_length(witness / len)
+    !is_zero_length(len, witness) && !is_finite_length(witness / len)
+}
+
+/// **Is this the ZERO vector?** — the other case
+/// [`is_underflowed_length`] separates out, and the one spelling of
+/// that half of its arithmetic (the underflow door is written over this
+/// one), asked with the same pairing through the value channel, with no bracket
+/// read and no threshold.
+///
+/// `len` and `witness` are exactly [`is_underflowed_length`]'s pair,
+/// and so is the precondition: **ask it AFTER [`is_finite_length`] of
+/// `len`, never instead of it.** Of a finite length, `len / witness` is
+/// the scalar's poison (`0/0`) exactly when both are zero — the vector
+/// has no nonzero component — and a finite ratio otherwise, `0`
+/// included (an underflowed length, whose direction is fine). An
+/// OVERFLOWED length breaks that: `∞ / witness` is not finite for a
+/// vector with perfectly finite components, which is why the
+/// precondition is not optional — a caller that skips it names a large
+/// direction the zero vector.
+///
+/// It bites at the point scalars and at the interval scalar alike for
+/// an exactly-zero vector: `[0, 0] / [0, 0]` is the empty interval,
+/// which is poison.
+///
+/// **Which doors ask it** — hand-kept, like its siblings' rosters:
+///
+/// - `topo`'s tier-3 check 1, of a stored plane `normal`, where a zero
+///   normal is a datum that describes no locus. It does not DECIDE the
+///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
+///   job, metered and band-relative): a datum is asked whether it is
+///   the zero vector, not whether it is short.
+pub fn is_zero_length<T: Real>(len: T, witness: T) -> bool {
+    !is_finite_length(len / witness)
 }
 
 /// Bracket extraction off a scalar — deliberately a separate trait, never
@@ -1306,14 +1338,18 @@ pub mod bounds_allowlist {
     //! **What it owes "brackets never decide", stated at the substance and
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
-    //! [`Bounds::lo`](super::Bounds::lo) of a torus's tube radius, the
-    //! representability read. The certified half's own bracket read is
-    //! `props`' certified quadrature, already ratified at the `props.rs`
-    //! seam; this one compares a STORED DATUM's lower bound with zero — a
-    //! tube radius that is zero, negative or poison does not describe a small
-    //! torus, it fails to describe one — so the read is about whether the
-    //! datum is a number at all and not about where geometry lies, and the
-    //! value never crosses into a certificate. It takes no `k_stats` name and
+    //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
+    //! analytic surface's conventions state (`geom`'s
+    //! `Surface::representability_margins` — a cylinder's, sphere's or
+    //! torus tube's radius, and a cone half-angle's distance from each end
+    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! bracket read is `props`' certified quadrature, already ratified at
+    //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
+    //! its convention with zero — a radius that is zero, negative or poison
+    //! does not describe a small cylinder, sphere or torus, it fails to
+    //! describe one — so the read is about whether the datum lies inside
+    //! the convention its variant states and not about where geometry lies,
+    //! and the value never crosses into a certificate. It takes no `k_stats` name and
     //! no band precisely because it meters nothing — the chamfer's
     //! `NonpositiveSize` precedent — and the geometric question beside it
     //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
@@ -1402,6 +1438,8 @@ pub mod bounds_allowlist {
 ///   brackets they store never leave the door.
 /// - `k_stats::Probe` (feature `probe`) — refuses on NaN, byte-for-byte
 ///   as `f64` does; D9 forbids the recording lane diverging.
+/// - [`crate::Sym`] — delegates to its numeric channel, so it refuses
+///   exactly where the scalar it wraps does.
 ///
 /// Every one of them therefore honours one postcondition, which is what
 /// a generic `T: CertifiedEnclosure` body may rely on: **a `Some` never
@@ -1811,6 +1849,49 @@ mod tests {
             crate::Vec3::new(1e200_f64, 0.0, 0.0),
         ] {
             assert!(!ask(v), "{v:?} did not underflow");
+        }
+    }
+
+    /// The zero-vector door answers the zero vector and nothing else,
+    /// at `f64` and at the interval scalar, once its precondition has
+    /// held — and the precondition row shows why it is one: a finite
+    /// vector whose NORM overflowed would be named zero without it.
+    #[test]
+    fn is_zero_length_names_only_the_zero_vector_after_the_finiteness_question() {
+        fn ask<T: Real>(v: crate::Vec3<T>) -> Option<bool> {
+            let len = v.norm();
+            is_finite_length(len).then(|| is_zero_length(len, v.norm_witness()))
+        }
+        assert_eq!(ask(crate::Vec3::new(0.0_f64, 0.0, 0.0)), Some(true));
+        for v in [
+            crate::Vec3::new(1.0_f64, 2.0, 3.0),
+            crate::Vec3::new(1e-200_f64, 0.0, 0.0),
+            crate::Vec3::new(f64::from_bits(1), 0.0, 0.0),
+            crate::Vec3::new(1e150_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), Some(false), "{v:?} is a direction");
+        }
+        // Overflowed norms: the precondition refuses to ask, and the
+        // door asked anyway would answer the wrong thing.
+        for v in [
+            crate::Vec3::new(1e160_f64, 0.0, 0.0),
+            crate::Vec3::new(1e200_f64, 0.0, 0.0),
+        ] {
+            assert_eq!(ask(v), None, "{v:?}'s norm overflows at f64");
+            assert!(is_zero_length(v.norm(), v.norm_witness()));
+        }
+        {
+            use crate::Interval;
+            let iv = |x: f64, y: f64, z: f64| {
+                crate::Vec3::new(
+                    Interval::from_f64(x),
+                    Interval::from_f64(y),
+                    Interval::from_f64(z),
+                )
+            };
+            assert_eq!(ask(iv(0.0, 0.0, 0.0)), Some(true), "[0,0]/[0,0] is empty");
+            assert_eq!(ask(iv(0.0, 0.0, 1.0)), Some(false));
+            assert_eq!(ask(iv(1e200, 0.0, 0.0)), Some(false));
         }
     }
 

@@ -16,7 +16,7 @@ use geom_core::{Point2, Real};
 use profile::RawLoop;
 use profile::{
     ArcSweep, Center, ClosedLoop, CornerReason, CornerRefusal, FilletLeg, FilletLegCarrier, Open,
-    PathError, Profile, ProfileLoop, ProfileVertex, SketchPlane, Start,
+    PathError, Profile, ProfileLoop, SketchPlane, Start, test_support::bulge_loop,
 };
 
 /// A point in the profile frame, from its two coordinates.
@@ -149,34 +149,24 @@ pub fn quarter_bulge() -> f64 {
 
 /// Lifts an `f64` profile to any scalar (exact embedding per
 /// `Real::from_f64`).
+///
+/// `Profile::map_scalar` except for the plane: this mints `xy` at `T`
+/// rather than lifting `p`'s, and every caller's profile is on `xy`.
 pub fn lift<T: Real>(p: &Profile<f64>) -> Profile<T> {
     Profile::new(
         SketchPlane::xy(),
         p.loops
             .iter()
-            .map(|lp| {
-                ProfileLoop::new(
-                    lp.vertices()
-                        .iter()
-                        .map(|v| {
-                            ProfileVertex::new(
-                                Point2::new(T::from_f64(v.pos().x), T::from_f64(v.pos().y)),
-                                T::from_f64(v.bulge()),
-                            )
-                        })
-                        .collect(),
-                )
-                .with_tangent_joints(lp.tangent_joints().to_vec())
-            })
+            .map(|lp| lp.map_scalar(T::from_f64))
             .collect(),
     )
 }
 
 /// A loop from `(x, y, bulge)` triples.
 pub fn chain(vs: &[(f64, f64, f64)]) -> ProfileLoop<f64> {
-    ProfileLoop::new(
+    bulge_loop(
         vs.iter()
-            .map(|&(x, y, bulge)| ProfileVertex::new(Point2::new(x, y), bulge))
+            .map(|&(x, y, bulge)| (Point2::new(x, y), bulge))
             .collect(),
     )
 }
@@ -341,7 +331,68 @@ pub fn pinned(closed: ClosedLoop<f64>) -> ProfileLoop<f64> {
     };
     assert_bit_identical(&closed.loop_, &replayed);
     assert_spans_partition(&closed);
+    assert_pieces_name_one_segment_each(&closed);
     closed.loop_
+}
+
+/// **Every segment is exactly one piece, and no piece is two
+/// segments**: one piece per segment of the loop, each naming a step
+/// of the program, no two alike — which is what lets a `{ step, role }`
+/// locator denote one wall. A step whose role list the lowering can
+/// draw twice would land here, over the whole corpus.
+pub fn assert_pieces_name_one_segment_each(closed: &ClosedLoop<f64>) {
+    let pieces = &closed.structure.pieces;
+    assert_eq!(
+        pieces.len(),
+        closed.loop_.vertices().len(),
+        "one piece per segment"
+    );
+    for (k, p) in pieces.iter().enumerate() {
+        assert!(
+            p.step < closed.program.len(),
+            "segment {k}'s piece names step {}, past the program's {} steps",
+            p.step,
+            closed.program.len()
+        );
+        if let Some(j) = pieces[..k].iter().position(|q| q == p) {
+            panic!("segments {j} and {k} are both {p}: a locator on it would denote two walls");
+        }
+    }
+    assert_runs_ride_their_carriers(closed);
+}
+
+/// **A fillet's run lies on its own side's carrier**: a run in on the
+/// incoming side's, a run out on the arrival side's — straight where
+/// that side is a ray, an arc where the fused verb authored an arc
+/// carrier for it. A segment on any other carrier is the piece of the
+/// step that drew it, so a run of the wrong kind is a later step's
+/// segment credited to the fillet: a name on it would move to whatever
+/// the fillet's run becomes once that step is dropped.
+pub fn assert_runs_ride_their_carriers(closed: &ClosedLoop<f64>) {
+    use profile::{PieceRole, Step};
+    for (k, p) in closed.structure.pieces.iter().enumerate() {
+        let straight = !matches!(closed.loop_.segments()[k], profile::Segment::Arc { .. });
+        // (incoming side straight, arrival side straight) per fillet verb.
+        let sides = match &closed.program[p.step] {
+            Step::Fillet { .. } => (true, true),
+            Step::FilletArc { .. } => (true, false),
+            Step::ArcFillet { .. } => (false, true),
+            Step::ArcFilletArc { .. } => (false, false),
+            _ => continue,
+        };
+        let want = match p.role {
+            PieceRole::RunIn => sides.0,
+            PieceRole::RunOut => sides.1,
+            PieceRole::Leg | PieceRole::Arc | PieceRole::Piece(_) => continue,
+        };
+        assert_eq!(
+            straight,
+            want,
+            "segment {k} is {p} but is {} while that side's carrier is {}",
+            if straight { "straight" } else { "an arc" },
+            if want { "a ray" } else { "a circle" },
+        );
+    }
 }
 
 /// **The per-step segment span partitions the loop**: one span per
@@ -412,9 +463,13 @@ pub fn assert_bit_identical(lowered: &ProfileLoop<f64>, replayed: &ProfileLoop<f
         .zip(replayed.vertices())
         .enumerate()
     {
-        assert_eq!(a.pos().x.to_bits(), b.pos().x.to_bits(), "vertex {i} x");
-        assert_eq!(a.pos().y.to_bits(), b.pos().y.to_bits(), "vertex {i} y");
-        assert_eq!(a.bulge().to_bits(), b.bulge().to_bits(), "vertex {i} bulge");
+        assert_eq!(a.x.to_bits(), b.x.to_bits(), "vertex {i} x");
+        assert_eq!(a.y.to_bits(), b.y.to_bits(), "vertex {i} y");
+        assert_eq!(
+            lowered.bulges()[i].to_bits(),
+            replayed.bulges()[i].to_bits(),
+            "vertex {i} bulge"
+        );
     }
     let mut la = lowered.tangent_joints().to_vec();
     let mut lb = replayed.tangent_joints().to_vec();

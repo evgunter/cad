@@ -2241,217 +2241,27 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// The signed winding of a cycle loop around `normal`, through the
-    /// reified `bool_ring_run_winding` predicate (the plane's Newell
-    /// functional — twice the enclosed signed area; the same margin
-    /// the boolean join's ring lane decides on). `None` for empty
-    /// loops (a lone-vertex ring bounds no area and stays a ring).
-    ///
-    /// Dimension (audit F4): the Newell area is metered to a LENGTH by
-    /// the loop's own perimeter — `2A/P`, the region's mean width. The
-    /// derivation, and why this predicate must state it identically at
-    /// all three of its sites, is in `boolean::join::ring_run_ccw`.
-    ///
-    /// # The carriers this answers about
-    ///
-    /// Line, Circle and Ellipse. A cycle carrying a NURBS edge returns
-    /// `None` — the honest remainder: a chord winding says nothing
-    /// about a fitted carrier's region and no closed form exists for
-    /// it, so the caller refuses rather than guesses.
-    ///
-    /// For the conic carriers the enclosed vector area decomposes
-    /// EXACTLY, per edge — this is a substitution, not an
-    /// approximation:
-    ///
-    /// ```text
-    ///   2·A⃗ = Σ_edges       (p_prev − p₀) × (p − p₀)      [chord Newell]
-    ///        + Σ_conic-edges axis · sa·sb · (Δ − sin Δ)    [bulge]
-    /// ```
-    ///
-    /// A circular arc of radius `R` spanning signed angle `Δ` cuts off
-    /// a circular segment of area `R²(Δ − sin Δ)/2` between itself and
-    /// its chord; twice that is `R²(Δ − sin Δ)`, which is the
-    /// cross-sum's own `2A` convention, and it is ODD in `Δ` — so it
-    /// carries the traversal sign the winding question is about. The
-    /// ellipse is the circle's affine image, which scales every area by
-    /// `major·minor/R²`, giving `sa·sb`. The chord term is untouched
-    /// for every edge, so the bulge is a CORRECTION on a chord polygon
-    /// and a mixed Line+Circle cycle needs no case split beyond the
-    /// per-edge carrier match.
-    ///
-    /// The perimeter lever moves with the area (the same F4 metering
-    /// statement): a conic edge contributes `|Δ|·sa` — the circle's
-    /// exact arc length, the ellipse's upper bound, and an over-large
-    /// `P` understates the width, i.e. escalates rather than decides.
-    ///
-    /// A LINE-ONLY cycle is decided bit-identically to before this arm
-    /// existed: the correction block below is structurally skipped, not
-    /// zero-added into a reordered sum.
-    ///
-    /// Behaviour change riding with that metering (the unit's
-    /// deviation 1, SECOND site — the join lane's zero-perimeter note
-    /// has the same shape): a cycle whose perimeter is exactly zero —
-    /// every vertex coincident — now divides `0/0`, poisons, and
-    /// escalates typed, where it previously answered `Some(Zero)` and
-    /// let `normalize_merged_roles` read it as "not the positively-wound
-    /// cycle". Empty loops still return `None` earlier, so reaching this
-    /// needs a real cycle of coincident points. The fail-loud direction
-    /// is deliberate: a loop with no extent has no winding to report,
-    /// and refusing typed beats handing back a role decision derived
-    /// from an area and a perimeter that are both nothing.
-    ///
-    /// `normal` must be the face's OUTWARD normal (S10): the caller
-    /// folds the sense into the chart normal exactly once, through
-    /// `face_normal`'s door, and the Newell sum here is left alone.
-    /// That sum is built from the
-    /// loop's STORED cycle order, which `revert` reverses in the same
-    /// breath as it flips the sense bit, so it already changes sign on
-    /// its own — threading the sense onto both factors would cancel
-    /// and leave the outer/ring roles as wrong as threading neither.
+    /// [`Body::planar_loop_winding`] at ellipse reach, in this door's
+    /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
+    /// an in-band margin escalates. `None` is an empty loop or a NURBS
+    /// or spiric carrier. `normal` is the face's OUTWARD normal.
     fn loop_winding(
         &self,
         l: LoopKey,
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let corrupt = || MergeCoplanarError::Op {
-            error: EulerOpError::StaleKey {
-                key: EntityId::Loop(l),
-            },
-        };
-        let crate::entity::LoopBoundary::Cycle { first } =
-            self.get_loop(l).ok_or_else(corrupt)?.boundary
-        else {
-            return Ok(None);
-        };
-        let cycle = self.loop_cycle(first).ok_or_else(corrupt)?;
-        // What this half-edge's carrier is to the winding sum: a chord,
-        // a chord plus a closed-form bulge, or nothing this can answer
-        // about. `None` when anything on the way to the carrier fails
-        // to resolve — a torn half-edge, edge or curve leaves the cycle
-        // undecidable exactly as it did when the guard was line-only.
-        enum Carrier {
-            Line,
-            Conic,
-        }
-        let carrier_of = |he| {
-            self.get_half_edge(he)
-                .and_then(|hd| self.get_edge(hd.edge))
-                .and_then(|e| self.get_curve_geom(e.curve))
-                .and_then(crate::null::CurveGeom::certified)
-                .and_then(|c| match c.carrier() {
-                    geom::Curve3::Line { .. } => Some(Carrier::Line),
-                    geom::Curve3::Circle { .. } | geom::Curve3::Ellipse { .. } => {
-                        Some(Carrier::Conic)
-                    }
-                    // A spiric is the honest remainder as a spline is:
-                    // its region has no conic-bulge winding here.
-                    geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => None,
-                })
-        };
-        // A NURBS edge is the honest remainder — its region has no
-        // closed-form area and its chord winding is not that region's,
-        // so the cycle stays undecidable (`None`; the caller then
-        // refuses rather than guesses if roles hinge on it).
-        if cycle.iter().any(|&he| carrier_of(he).is_none()) {
-            return Ok(None);
-        }
-        // Whether the chord polygon IS the region: on a line-only cycle
-        // the correction block below never runs, which is what makes
-        // every pre-existing decision bit-identical.
-        let all_lines = cycle
-            .iter()
-            .all(|&he| matches!(carrier_of(he), Some(Carrier::Line)));
-        let point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
-            let v = self.get_half_edge(he).ok_or_else(corrupt)?.start;
-            self.get_vertex(v)
-                .and_then(|vd| self.get_point(vd.point).copied())
-                .ok_or_else(corrupt)
-        };
-        let p0 = point_of(cycle[0])?;
-        let mut newell = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-        // The F4 metering lever: this cycle's perimeter, accumulated
-        // with the area (chords here; the conic arm re-meters below).
-        let mut perimeter = T::zero();
-        let mut prev = p0;
-        for &he in &cycle[1..] {
-            let p = point_of(he)?;
-            newell = newell + (prev - p0).cross(p - p0);
-            perimeter = perimeter + (p - prev).norm();
-            prev = p;
-        }
-        perimeter = perimeter + (p0 - prev).norm();
-        // The arc correction (fn docs), stated as
-        // `boolean::join::ring_run_ccw`'s `run_term` states it: one
-        // curve lookup yields both the vector area between an arc and
-        // its chord and the half-edge's own boundary length. It runs
-        // only when some carrier is a conic, so a line-only cycle keeps
-        // the arithmetic and the accumulation order it had.
-        if !all_lines {
-            let end_point_of = |he| -> Result<geom_core::Point3<T>, MergeCoplanarError> {
-                let v = self.half_edge_end(he).ok_or_else(corrupt)?;
-                self.get_vertex(v)
-                    .and_then(|vd| self.get_point(vd.point).copied())
-                    .ok_or_else(corrupt)
-            };
-            let zero = geom_core::Vec3::new(T::zero(), T::zero(), T::zero());
-            // `(bulge, boundary length)`. Every lookup here already
-            // resolved for `carrier_of` above; announcing rather than
-            // discarding is what keeps a body torn under us from
-            // answering a role question anyway. That is the third
-            // divergence from `run_term`, which degrades a failed
-            // lookup to a chord — stricter here, deliberately: this
-            // site's answer decides a ROLE, and a role derived from a
-            // silently-shortened boundary is the silent-corrupt-export
-            // class the winding pass exists to close.
-            let arc_term = |he| -> Result<(geom_core::Vec3<T>, T), MergeCoplanarError> {
-                let chord = || -> Result<T, MergeCoplanarError> {
-                    Ok((end_point_of(he)? - point_of(he)?).norm())
-                };
-                let edge = self
-                    .get_half_edge(he)
-                    .and_then(|hd| self.get_edge(hd.edge))
-                    .ok_or_else(corrupt)?;
-                let curve = self
-                    .get_curve_geom(edge.curve)
-                    .and_then(crate::null::CurveGeom::certified)
-                    .ok_or_else(corrupt)?;
-                let (t0, t1) = curve.params();
-                let (axis, sa, sb) = match *curve.carrier() {
-                    geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-                    geom::Curve3::Ellipse {
-                        axis, major, minor, ..
-                    } => (axis, major, minor),
-                    geom::Curve3::Line { .. }
-                    | geom::Curve3::Spiric { .. }
-                    | geom::Curve3::Nurbs(_) => {
-                        return Ok((zero, chord()?));
-                    }
-                };
-                // Signed by traversal: the half-edge runs with
-                // increasing carrier parameter iff it is the plus
-                // half. `|Δ|·sa` is the circle's exact arc length
-                // and the ellipse's upper bound.
-                let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
-                Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
-            };
-            let mut bulge = zero;
-            let mut metered = T::zero();
-            for &he in &cycle {
-                let (b, len) = arc_term(he)?;
-                bulge = bulge + b;
-                metered = metered + len;
-            }
-            newell = newell + bulge;
-            perimeter = metered;
-        }
-        match crate::validate::decide(
-            "bool_ring_run_winding",
-            Margin::over_lever(normal.dot(newell), perimeter),
-            band,
-        ) {
-            Ok(sign) => Ok(Some(sign)),
-            Err(diag) => Err(MergeCoplanarError::Escalated { diag }),
+        let winding = self
+            .planar_loop_winding(l, normal, band, crate::loop_winding::LoopCarriers::Elliptic)
+            .map_err(|crate::loop_winding::TornLoop| MergeCoplanarError::Op {
+                error: EulerOpError::StaleKey {
+                    key: EntityId::Loop(l),
+                },
+            })?;
+        match winding {
+            None => Ok(None),
+            Some(Ok(sign)) => Ok(Some(sign)),
+            Some(Err(diag)) => Err(MergeCoplanarError::Escalated { diag }),
         }
     }
 
@@ -2506,7 +2316,7 @@ impl<T: Decide> Body<T> {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod tests {
     use super::*;
-    use crate::test_support_fixtures::declined_cube;
+    use crate::test_support_fixtures::{declined_cube, plant_ring_face};
 
     /// A shared edge of the ops cube, as the pair of faces meeting
     /// there — addressed exactly as the absorption scan addresses it,
@@ -2833,36 +2643,18 @@ mod tests {
             mefs,
             ..
         } = declined_cube::<f64>(tol);
-        let strut = |body: &mut Body<f64>, at, x, y, z| {
-            body.mev_line(
-                crate::euler::MevSite::Fan { he1: at, he2: at },
-                pt(x, y, z),
-                tol,
-            )
-            .expect("the fan strut grows")
-        };
-        let hole_strut = strut(&mut body, mefs[1].he_plus, 0.25, 0.25, 1.0);
-        let kill = body
-            .kemr(hole_strut.he_plus, hole_strut.he_minus)
-            .expect("the strut becomes a lone-vertex ring");
-        let s_pq = body
-            .mev_line(
-                crate::euler::MevSite::Lone { r#loop: kill.ring },
+        let membrane = plant_ring_face(
+            &mut body,
+            mefs[1].he_plus,
+            &[
+                pt(0.25, 0.25, 1.0),
                 pt(0.75, 0.25, 1.0),
-                tol,
-            )
-            .expect("the ring grows its first edge");
-        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
-        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
-        let membrane = body
-            .mef_chord(
-                crate::euler::MefSite::Chords {
-                    he1: s_pq.he_plus,
-                    he2: s_rs.he_minus,
-                },
-                tol,
-            )
-            .expect("the rim closes into a membrane face");
+                pt(0.75, 0.75, 1.0),
+                pt(0.25, 0.75, 1.0),
+            ],
+            tol,
+        )
+        .membrane;
         (body, seed.face, membrane.face)
     }
 
@@ -2981,36 +2773,18 @@ mod tests {
             };
             first
         };
-        let strut = |body: &mut Body<f64>, at, x, y, z| {
-            body.mev_line(
-                crate::euler::MevSite::Fan { he1: at, he2: at },
-                pt(x, y, z),
-                tol,
-            )
-            .expect("the fan strut grows")
-        };
-        let hole_strut = strut(&mut body, host_he, 0.25, 0.25, 1.0);
-        let kill = body
-            .kemr(hole_strut.he_plus, hole_strut.he_minus)
-            .expect("the strut becomes a lone-vertex ring");
-        let s_pq = body
-            .mev_line(
-                crate::euler::MevSite::Lone { r#loop: kill.ring },
+        let membrane = plant_ring_face(
+            &mut body,
+            host_he,
+            &[
+                pt(0.25, 0.25, 1.0),
                 pt(0.75, 0.25, 1.0),
-                tol,
-            )
-            .expect("the ring grows its first edge");
-        let s_qr = strut(&mut body, s_pq.he_minus, 0.75, 0.75, 1.0);
-        let s_rs = strut(&mut body, s_qr.he_minus, 0.25, 0.75, 1.0);
-        let membrane = body
-            .mef_chord(
-                crate::euler::MefSite::Chords {
-                    he1: s_pq.he_plus,
-                    he2: s_rs.he_minus,
-                },
-                tol,
-            )
-            .expect("the rim closes into a membrane face");
+                pt(0.75, 0.75, 1.0),
+                pt(0.25, 0.75, 1.0),
+            ],
+            tol,
+        )
+        .membrane;
         (body, membrane.face)
     }
 

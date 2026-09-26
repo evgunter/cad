@@ -72,13 +72,17 @@
 //!   stack holds it; the compiler refuses the move. The stack itself is
 //!   thread-local, so work sent to a worker records on the worker or
 //!   nowhere, and idiom-1 parallelism has two shapes over that:
-//!   - **the unit opens its own bracket on the worker** (whole nodes on
-//!     one worker each: `editor_core`'s evaluator brackets inside the
-//!     mapped closure and returns the [`Recorded`] on the node), or
+//!   - **the unit opens its own bracket on the worker** and returns the
+//!     [`Recorded`] as part of its value, which covers the verdict and
+//!     escalation channels and nothing else, or
 //!   - **the unit records into a frame of its own and the caller's fold
-//!     splices it back** ([`detached`] / [`splice`]): the shape a walk
-//!     needs when the CALLER holds the bracket — `topo::props`' face
-//!     walk, whose bracket is the op's and whose units are faces.
+//!     splices it back** ([`map_detached`] / [`splice`]), which covers
+//!     the sample sink too: the shape a walk needs when the CALLER holds
+//!     the bracket or the sink — `topo::props`' face walk, whose bracket
+//!     is the op's and whose units are faces, and `editor_core`'s node
+//!     schedule, whose nodes each open a bracket of their own INSIDE
+//!     the detached frame (so the two nest) and whose samples reach the
+//!     caller's sink only through the splice.
 //!
 //!   A map that does neither loses what its workers decided, and the
 //!   funnel cannot tell: see
@@ -950,6 +954,40 @@ pub fn splice(recording: Detached) {
             sink.extend(samples);
         }
     });
+}
+
+/// **Idiom 1 over deciding units, one home**: one slot per item in the
+/// caller's order, each item run on a rayon worker under a frame and a
+/// sink of ITS OWN ([`detached`]), so the caller's sequential fold can
+/// [`splice`] what it recorded back in whatever order the serial walk
+/// would have recorded it. Results are written positionally and never
+/// combined arithmetically, so the schedule cannot reach the bits.
+///
+/// Only the map is shared. The fold is the caller's, because the order
+/// it splices in and what it does on a refusal are properties of the
+/// walk, not of the map.
+///
+/// **A caller owes [`crate::sym::decisions_are_thread_portable`]
+/// first**: a frame and a sink compose back, the symbolic session and
+/// the shape report do not, so while either is installed the walk has
+/// to be the serial one and this map must not be reached. The map
+/// asserts it (a `debug_assert!`, and this workspace builds every
+/// profile with debug assertions on), so a caller that skipped the test
+/// panics here rather than recording a schedule-shaped answer.
+pub fn map_detached<I: Sync, R: Send>(
+    items: &[I],
+    run: impl Fn(&I) -> R + Send + Sync,
+) -> Vec<(R, Detached)> {
+    use rayon::prelude::*;
+    debug_assert!(
+        crate::sym::decisions_are_thread_portable(),
+        "map_detached reached with a symbolic session or shape report installed: the caller \
+         owes the serial walk here (`sym::decisions_are_thread_portable`)"
+    );
+    items
+        .par_iter()
+        .map(|item| detached(|| run(item)))
+        .collect()
 }
 
 /// How many brackets are open on this thread — the tests' witness that

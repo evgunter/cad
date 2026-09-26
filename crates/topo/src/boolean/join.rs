@@ -1337,8 +1337,9 @@ fn choose_roles<T: Decide>(
 /// # Dimension (audit F4, `docs/predicate-dimension-audit.md`)
 ///
 /// The CANONICAL statement for this predicate's three sites (the other
-/// two are `merge_faces::loop_winding` and `validate`'s tier-3 check 6,
-/// which cross-reference here): the Newell functional is an AREA (m²)
+/// two — the merge's role assigner and `validate`'s tier-3 check 6 —
+/// share one statement, `crate::loop_winding`, which cross-references
+/// here): the Newell functional is an AREA (m²)
 /// and ε is a point deviation (D4), so the decided margin divides it by
 /// the run's boundary PERIMETER `P`. `2A/P` is the region's MEAN WIDTH
 /// — exactly the deviation the winding sign is about: it is the
@@ -1426,29 +1427,16 @@ fn ring_run_ccw<T: Decide>(
         let edge = body
             .get_edge(he_data.edge)
             .ok_or(desync("run edge no longer resolves"))?;
-        let Some(curve) = body
+        // The conic term has one home (`crate::loop_winding`); every
+        // other carrier, and a null-edge scaffold, is its chord.
+        match body
             .get_curve_geom(edge.curve)
             .and_then(crate::null::CurveGeom::certified)
-        else {
-            return Ok((zero, chord()?));
-        };
-        let (t0, t1) = curve.params();
-        let (axis, sa, sb) = match *curve.carrier() {
-            geom::Curve3::Circle { axis, radius, .. } => (axis, radius, radius),
-            geom::Curve3::Ellipse {
-                axis, major, minor, ..
-            } => (axis, major, minor),
-            // A spiric's winding contribution has no conic-bulge
-            // closed form; chord only, as a spline. Unreachable behind
-            // the operand gate today.
-            geom::Curve3::Line { .. } | geom::Curve3::Spiric { .. } | geom::Curve3::Nurbs(_) => {
-                return Ok((zero, chord()?));
-            }
-        };
-        let span = if edge.he_plus == he { t1 - t0 } else { t0 - t1 };
-        // `|Δ|·sa` is the circle's exact arc length and the ellipse's
-        // upper bound (fn docs: over-large P escalates, never decides).
-        Ok((axis * (sa * sb * (span - span.sin())), span.abs() * sa))
+            .and_then(|curve| crate::loop_winding::conic_segment_term(curve, edge.he_plus == he))
+        {
+            Some(term) => Ok(term),
+            None => Ok((zero, chord()?)),
+        }
     };
     loop {
         let (bulge, len) = run_term(he)?;
@@ -1809,20 +1797,36 @@ fn resolve_roles_geometric<T: Decide>(
                             // the oriented one regardless (S10).
                             let (_, normal) = super::solid_contain::face_plane(body, region_face)
                                 .map_err(BooleanError::Containment)?;
-                            if super::solid_contain::point_in_face(
+                            match super::solid_contain::point_in_face(
                                 body,
                                 region_face,
                                 normal,
                                 p,
                                 band,
-                            )
-                            .map_err(BooleanError::Containment)?
-                                != Some(true)
-                            {
+                            ) {
+                                Ok(Some(true)) => {}
                                 // Not certified interior (outside, in a
-                                // ring, or grazing a loop): candidate
+                                // ring, or grazing a loop) — or not
+                                // certifiable at all (an in-band margin,
+                                // an exhausted schedule, an outline the
+                                // walk cannot cross): the candidate is
                                 // discarded, never probed.
-                                continue;
+                                Ok(_)
+                                | Err(
+                                    super::solid_contain::PointInSolidError::Escalated { .. }
+                                    | super::solid_contain::PointInSolidError::Loop(
+                                        crate::splitting::PointInLoopError::Escalated { .. }
+                                        | crate::splitting::PointInLoopError::RayExhausted {
+                                            ..
+                                        },
+                                    )
+                                    | super::solid_contain::PointInSolidError::EdgeCarrierUnsupported {
+                                        ..
+                                    },
+                                ) => continue,
+                                // A body the walk cannot read is corrupt,
+                                // not inconclusive.
+                                Err(e) => return Err(BooleanError::Containment(e)),
                             }
                         }
                         match super::solid_contain::point_in_solid(other_pristine, p, band, tol)

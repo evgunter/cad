@@ -52,7 +52,7 @@
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge};
 use geom_core::{Band, MarginDiag, Point2, Point3, Tol, Vec2, Vec3};
-use profile::{Profile, ProfileLoop, ProfileVertex, RawLoop, SketchPlane};
+use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
 
@@ -108,15 +108,15 @@ fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let q = MERIDIAN_R;
     // A quarter arc: bulge = tan(θ/4) at θ = π/2.
     let b = (core::f64::consts::FRAC_PI_8).tan();
-    let lp = <ProfileLoop<f64> as RawLoop<f64>>::new(vec![
-        ProfileVertex::new(p2(q, 0.0), 0.0),
-        ProfileVertex::new(p2(1.0 - q, 0.0), b),
-        ProfileVertex::new(p2(1.0, q), 0.0),
-        ProfileVertex::new(p2(1.0, 1.0 - q), b),
-        ProfileVertex::new(p2(1.0 - q, 1.0), 0.0),
-        ProfileVertex::new(p2(q, 1.0), b),
-        ProfileVertex::new(p2(0.0, 1.0 - q), 0.0),
-        ProfileVertex::new(p2(0.0, q), b),
+    let lp = bulge_loop(vec![
+        (p2(q, 0.0), 0.0),
+        (p2(1.0 - q, 0.0), b),
+        (p2(1.0, q), 0.0),
+        (p2(1.0, 1.0 - q), b),
+        (p2(1.0 - q, 1.0), 0.0),
+        (p2(q, 1.0), b),
+        (p2(0.0, 1.0 - q), 0.0),
+        (p2(0.0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -156,11 +156,11 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
     );
     let outer = shoulder.x;
     let bulge = (3.0 * core::f64::consts::FRAC_PI_4 / 4.0).tan();
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(r_bore, -h), 0.0),
-        ProfileVertex::new(Point2::new(outer, -h), 0.0),
-        ProfileVertex::new(shoulder, bulge),
-        ProfileVertex::new(Point2::new(r_bore, 0.0), 0.0),
+    let lp = bulge_loop(vec![
+        (Point2::new(r_bore, -h), 0.0),
+        (Point2::new(outer, -h), 0.0),
+        (shoulder, bulge),
+        (Point2::new(r_bore, 0.0), 0.0),
     ])
     .with_tangent_joints(vec![3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -599,15 +599,15 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
     let b = Probe(core::f64::consts::FRAC_PI_8.tan());
     let p2 = |x: f64, y: f64| Point2::new(Probe(x), Probe(y));
     let q = MERIDIAN_R;
-    let lp = <ProfileLoop<Probe> as RawLoop<Probe>>::new(vec![
-        ProfileVertex::new(p2(q, 0.0), zero),
-        ProfileVertex::new(p2(1.0 - q, 0.0), b),
-        ProfileVertex::new(p2(1.0, q), zero),
-        ProfileVertex::new(p2(1.0, 1.0 - q), b),
-        ProfileVertex::new(p2(1.0 - q, 1.0), zero),
-        ProfileVertex::new(p2(q, 1.0), b),
-        ProfileVertex::new(p2(0.0, 1.0 - q), zero),
-        ProfileVertex::new(p2(0.0, q), b),
+    let lp = bulge_loop::<Probe>(vec![
+        (p2(q, 0.0), zero),
+        (p2(1.0 - q, 0.0), b),
+        (p2(1.0, q), zero),
+        (p2(1.0, 1.0 - q), b),
+        (p2(1.0 - q, 1.0), zero),
+        (p2(q, 1.0), b),
+        (p2(0.0, 1.0 - q), zero),
+        (p2(0.0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -646,17 +646,15 @@ fn a_filleted_block_spends_the_rules_stations_once_per_smooth_strut() {
 #[cfg(feature = "probe")]
 fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
-    let pt = |p: Point3<f64>| Point3::new(Probe(p.x), Probe(p.y), Probe(p.z));
-    let v = |d: Vec3<f64>| Vec3::new(Probe(d.x), Probe(d.y), Probe(d.z));
     match *s {
         Surface::Plane {
             origin,
             normal,
             u_ref,
         } => Surface::Plane {
-            origin: pt(origin),
-            normal: v(normal),
-            u_ref: v(u_ref),
+            origin: origin.map(Probe),
+            normal: normal.map(Probe),
+            u_ref: u_ref.map(Probe),
         },
         Surface::Cone {
             apex,
@@ -664,10 +662,10 @@ fn probe_surface(s: &Surface<f64>) -> Surface<geom_core::k_stats::Probe> {
             half_angle,
             u_ref,
         } => Surface::Cone {
-            apex: pt(apex),
-            axis: v(axis),
+            apex: apex.map(Probe),
+            axis: axis.map(Probe),
             half_angle: Probe(half_angle),
-            u_ref: v(u_ref),
+            u_ref: u_ref.map(Probe),
         },
         _ => panic!("only the out-of-lane triple's kinds are lifted here"),
     }
@@ -679,8 +677,8 @@ fn probe_carrier(c: &Curve3<f64>) -> Curve3<geom_core::k_stats::Probe> {
     use geom_core::k_stats::Probe;
     match *c {
         Curve3::Line { origin, dir } => Curve3::Line {
-            origin: Point3::new(Probe(origin.x), Probe(origin.y), Probe(origin.z)),
-            dir: Vec3::new(Probe(dir.x), Probe(dir.y), Probe(dir.z)),
+            origin: origin.map(Probe),
+            dir: dir.map(Probe),
         },
         _ => panic!("only the out-of-lane triple's carrier is lifted here"),
     }

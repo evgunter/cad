@@ -28,7 +28,12 @@ sweep-testing = []
 # of the vocabulary and the copies drift (S52). Off by default and
 # enabled only through the self-dev-dependency below, so it is on
 # exactly for this crate's own tests and off for every normal build.
-test-support = []
+test-support = [
+    "dep:strum",
+    "geom-brep/test-support",
+    "geom/test-support",
+    "geom-core/test-support",
+]
 # THE SCALPEL for D1's once-per-door tier-1 postcondition (the ruling on
 # `work/perf/d1-per-op-tier1-sweep-price`). A door-level failure names
 # the door; with this on, the whole-body sweep runs after EVERY Euler
@@ -54,20 +59,22 @@ per-op-postcondition = []
 probe = ["geom-core/probe", "geom-brep/probe"]
 
 [dependencies]
+# Optional: `test-support` above (the `Undecided` roster).
+strum = { version = "0.28", features = ["derive"], optional = true }
 # The boolean sweep's candidate generation (M5 PR 8): the tree prunes,
 # predicates decide — see boolean/reduce.rs module docs.
 bvh = { path = "../bvh" }
 geom-brep = { path = "../geom-brep" }
 geom-core = { path = "../geom-core" }
 geom = { path = "../geom" }
-# D9 addendum idiom 1 over the per-face mass-property fluxes
-# (`props.rs`'s `decide_faces`): one slot per face in arena order, the
-# sum a sequential arena-order fold. The workspace pin; `editor-core`
-# takes the same edge for the same idiom.
-rayon = { workspace = true }
 slotmap = { workspace = true }
 
 [dev-dependencies]
+# The explicit-width pools the face walks' thread-count rows run under
+# (`props.rs`'s tests). The walks themselves map through
+# `geom_core::k_stats::map_detached`, so production takes no rayon edge
+# of its own here.
+rayon = { workspace = true }
 # Shared fuzz harness for this crate's randomized sweeps (one RNG, the
 # per-run seed, the CAD_FUZZ_EFFORT dial). A dependency-free leaf crate
 # named by [dev-dependencies] only, here and everywhere else — which is

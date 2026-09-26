@@ -247,6 +247,13 @@ impl BandField {
 /// Typed error from [`Band`] construction (D9: every failure is a typed
 /// error, never a panic).
 #[derive(Debug, Clone, Copy, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(BandErrorKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum BandError {
     /// A threshold of the attempted `Band` is not finite and strictly
     /// positive.
@@ -906,6 +913,13 @@ impl<T: crate::real::Real> InfSpeed<T> {
 /// classification saw (M0 PR 4), and [`MarginDiag::Invalid`] the poison
 /// outcome either scalar can produce.
 #[derive(Debug, Clone, Copy, PartialEq)]
+// The variant roster `topo`'s sample-coverage row reads (this
+// crate's `test-support` feature, test builds only).
+#[cfg_attr(
+    feature = "test-support",
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(MarginDiagKind), derive(strum::EnumIter), doc(hidden))
+)]
 pub enum MarginDiag {
     /// The classified `f64` margin, signed, exactly as submitted — it
     /// landed strictly inside the ambiguity band. It is here for error

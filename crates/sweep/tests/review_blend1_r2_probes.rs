@@ -54,7 +54,6 @@ use core::f64::consts::{PI, SQRT_2};
 use std::collections::BTreeSet;
 
 use geom_core::{Point2, Tol};
-use profile::ProfileVertex;
 use sweep::Revolution;
 use sweep::blend::build::fillet_edges;
 use sweep::blend::{BlendError, CornerConfig, FILLET3_SEAM_VERTEX_RECOURSE};
@@ -65,8 +64,8 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn v(x: f64, y: f64, bulge: f64) -> ProfileVertex<f64> {
-    ProfileVertex::new(Point2::new(x, y), bulge)
+fn v(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
+    (Point2::new(x, y), bulge)
 }
 
 const SHOULDER: (f64, f64) = (0.8, 0.6);
@@ -305,10 +304,10 @@ fn arcs_of_two_different_rims_refuse_typed() {
 // Naming.
 // ------------------------------------------------------------------
 
-/// **No two birth rows of one field key on the same source entity.**
-/// The PR's claim is "every name stays unique because each row keys on
-/// a distinct source entity"; this measures it on every rim of the
-/// lantern rather than on one.
+/// **No two birth rows of one field key on the same source key** —
+/// the key each row's NAME is built from: the source entity, plus the
+/// support side for a trimline and the band for a seam split or a slit.
+/// Measured on every rim of the lantern rather than on one.
 #[test]
 fn a_seam_split_bands_birth_rows_key_uniquely() {
     let source = lantern();
@@ -339,11 +338,17 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
             "rim_feet",
             rec.rim_feet.iter().map(|(_, v)| format!("{v:?}")).collect(),
         );
+        // A band is a SET of source edges; its name sorts it.
+        let band_key = |b: &Vec<EdgeKey>| {
+            let mut b = b.clone();
+            b.sort_unstable();
+            format!("{b:?}")
+        };
         uniq(
             "meridian_splits",
             rec.meridian_splits
                 .iter()
-                .map(|(_, e)| format!("{e:?}"))
+                .map(|(_, e, b)| format!("{e:?}/{}", band_key(b)))
                 .collect(),
         );
         uniq(
@@ -355,7 +360,10 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
         );
         uniq(
             "slits",
-            rec.slits.iter().map(|(_, e)| format!("{e:?}")).collect(),
+            rec.slits
+                .iter()
+                .map(|(_, e, b)| format!("{e:?}/{}", band_key(b)))
+                .collect(),
         );
         // The MINTED side must be injective too: one key, one row.
         let mut minted: Vec<String> = rec
@@ -363,9 +371,13 @@ fn a_seam_split_bands_birth_rows_key_uniquely() {
             .iter()
             .map(|(k, _, _)| format!("e{k:?}"))
             .chain(rec.meridian_remnants.iter().map(|(k, _)| format!("e{k:?}")))
-            .chain(rec.slits.iter().map(|(k, _)| format!("e{k:?}")))
+            .chain(rec.slits.iter().map(|(k, _, _)| format!("e{k:?}")))
             .chain(rec.rim_feet.iter().map(|(k, _)| format!("v{k:?}")))
-            .chain(rec.meridian_splits.iter().map(|(k, _)| format!("v{k:?}")))
+            .chain(
+                rec.meridian_splits
+                    .iter()
+                    .map(|(k, _, _)| format!("v{k:?}")),
+            )
             .collect();
         let n = minted.len();
         minted.sort();

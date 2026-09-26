@@ -535,18 +535,18 @@ fn fillet_segment(
     for i in 0..n {
         let a = lp.vertices()[i];
         let b = lp.vertices()[(i + 1) % n];
-        let bl = a.bulge();
+        let bl = lp.bulges()[i];
         if bl == 0.0 {
             continue;
         }
-        let (_, rf) = circle_from_bulge(a.pos(), b.pos(), bl);
+        let (_, rf) = circle_from_bulge(a, b, bl);
         if (rf - r).abs() < 1e-6 * r.max(1.0) {
             assert!(
                 found.is_none(),
                 "two segments recover the fillet radius — {}",
                 ctx()
             );
-            found = Some((a.pos(), b.pos(), bl));
+            found = Some((a, b, bl));
         }
     }
     found.unwrap_or_else(|| {

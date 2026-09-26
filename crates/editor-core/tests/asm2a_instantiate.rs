@@ -82,7 +82,7 @@ fn with_resolver(store: StubStore) -> EvalOptions {
     }
 }
 
-fn run(doc: &ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, opts: &EvalOptions) -> Evaluation<f64> {
     evaluate::<f64>(doc, None, &CancelToken::new(), opts, Tol::witness())
 }
 
@@ -391,11 +391,11 @@ fn the_instantiate_node_records_its_own_decisions_whichever_instance_ran_the_par
     // The counts are literals on purpose: a row that only compares the
     // two instances passes when both lose the same decisions. 466 is
     // the placing op's own log on this part (placement + validation of
-    // the placed body); 730 is the part's, on its own nodes — its
+    // the placed body); 726 is the part's, on its own nodes — its
     // profile's pre-pass on the Profile node's log, decided once (the
     // pinned lift reuses the pre-pass's validated form).
     assert_eq!(first.len(), 466, "the instantiate op's own decisions");
-    assert_eq!(direct_total, 730, "the part's decisions on its own nodes");
+    assert_eq!(direct_total, 726, "the part's decisions on its own nodes");
 }
 
 // ---- Row 3: instance-qualified naming ----

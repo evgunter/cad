@@ -281,6 +281,12 @@ use crate::null::CurveGeom;
 
 /// Typed refusal of the pcurve minting pass (D4 ¶3).
 #[derive(Clone, Debug, PartialEq)]
+// The variant roster the sample-coverage row reads (test builds only).
+#[cfg_attr(
+    test,
+    derive(strum::EnumDiscriminants),
+    strum_discriminants(name(PcurveMintErrorKind), vis(pub(crate)), derive(strum::EnumIter))
+)]
 pub enum PcurveMintError {
     /// A key failed to resolve mid-pass — a structurally corrupt body
     /// (tier 1's job to report; this pass only refuses to guess).
@@ -2918,6 +2924,22 @@ pub(crate) mod staleness_posture {
                 "cube_into",
                 Neither,
                 "`prism_ops` at the unit square then `describe_as_intersections`",
+            ),
+            (
+                "plant_ring_face",
+                Neither,
+                "`mev_line`, `kemr` and `mef_chord`, every one of them already sorted above",
+            ),
+            (
+                "drill_hole",
+                Neither,
+                "`plant_ring_face`, then `mev_line`, `mef_chord` and `kfmrh`, every one of \
+                 them already sorted above",
+            ),
+            (
+                "plane_every_face",
+                Neither,
+                "`set_face_surface` per face, on that entry's terms",
             ),
         ]
     };

@@ -34,7 +34,10 @@ pub(crate) use wire::{
     need_vec3, stepped_rule_map, transform_map, unit as unit_direction,
 };
 
-pub use anchor::{LoopAnchor, ProfileNaming, ProfileValue};
+pub(crate) use anchor::derive_naming;
+pub use anchor::{
+    CanonicalSegment, LoopAnchor, PiecesFault, ProfileNaming, ProfilePieces, ProfileValue,
+};
 pub use memo::{ContentBits, ContentKey, KeyHasher, NamingKey};
 pub use wire::{DirectionRefusal, FramePlacement};
 
@@ -241,6 +244,12 @@ pub struct NodeValue<T: Decide> {
     /// (body, arena key). Rides the value, so memo reuse transfers
     /// names with geometry (the content key is the proof).
     pub name_table: Arc<NameTable>,
+    /// The fragment groups the node's emitter formed
+    /// ([`crate::names::FragmentGroups`]): the membership the
+    /// diagnosis ladder's group-size rung counts. Rides the value with
+    /// the names it was minted beside; like the verdict log, it is
+    /// not persisted.
+    pub fragment_groups: Arc<crate::names::FragmentGroups>,
     /// The DECLARED CONTACT RECORDS the node's output body 0 carries
     /// (ASM-R2b D-1's contacts channel; [`crate::eval::wire::OpOut`]
     /// states the invariant). Empty for every op but instantiate — a
@@ -341,7 +350,7 @@ pub enum ValuePayload<T: Decide> {
     Datum(DatumValue<T>),
     /// A validated profile (D3: replayed from the node's program
     /// through the driver, then the profile crate's validation door),
-    /// its program-anchor naming map, and the radius expression each
+    /// its naming anchor, and the radius expression each
     /// of its edges is authored at ([`ProfileValue`]).
     Profile(Arc<ProfileValue<T>>),
     /// A single body: every one-body op (extrude, revolve, the tubes,
@@ -1022,13 +1031,20 @@ pub enum NodeErrorKind {
         /// The consumed decision, when the wall was the record.
         structure: Option<profile::StructureRefusal>,
     },
-    /// The program-anchor derivation failed to match a canonical loop
+    /// The naming-anchor derivation failed to match a canonical loop
     /// back to a program loop — an internal invariant break
     /// (validate's canonical form is an exact reindexing of its
     /// input), surfaced typed rather than panicking.
     ProfileAnchor {
         /// The canonical loop index that failed to match.
         loop_: u32,
+    },
+    /// The naming anchor, the replay record and the program's minted
+    /// step ids do not describe one program, so the profile's pieces
+    /// have no names — an internal invariant break, surfaced typed.
+    ProfilePieces {
+        /// Where the three disagree.
+        fault: PiecesFault,
     },
     /// The extrude op refused.
     Extrude(ExtrudeError),
@@ -1421,6 +1437,11 @@ pub enum NodeErrorKind {
     /// arm here. The refusal says so in the type rather than degrading
     /// to an emission bug, which would blame this crate for a
     /// document a user wrote.
+    ///
+    /// No evaluation raises it: a union's contacts are judged pairwise
+    /// between member views before the fold, whose rows are all member
+    /// entities, and a fold step's contact refusal is an emission bug
+    /// (DM4: the fold mints no contact verdict).
     UndeclarableContact {
         /// The fold-minted row, in the union's PUBLISHED name space —
         /// the space its other refusals name.
@@ -1728,11 +1749,9 @@ pub enum NodeErrorKind {
         /// which no road can have written ([`entity_door::Found`]).
         found: entity_door::Found,
     },
-    /// The clearance engine refused a `min_clearance` measurement,
-    /// typed and by its own class name (E7's refusal vocabulary,
-    /// carried into the document vocabulary by
-    /// [`crate::measure::MinClearanceRefusal`]).
-    MeasureClearanceRefused(crate::measure::MinClearanceRefusal),
+    /// The clearance engine refused a `min_clearance` measurement: its
+    /// own typed refusal (E7's refusal vocabulary), carried unaltered.
+    MeasureClearanceRefused(crate::clearance::ClearanceRefusal),
     /// An `Assertion`'s bound is dimensioned differently from the
     /// measure it constrains — comparing metres with radians is a
     /// document fault, refused rather than compared.
@@ -1881,7 +1900,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::Expr { slot, source } => {
                 write!(
                     f,
-                    "the expression at slot {slot:?} failed to evaluate: {source}"
+                    "the expression at slot {} failed to evaluate: {source}",
+                    slot.label()
                 )
             }
             Self::Profile(e) => write!(f, "the replayed profile failed validation: {e}"),
@@ -1909,6 +1929,9 @@ impl core::fmt::Display for NodeErrorKind {
                 "profile loop {loop_} did not match back to a loop of the program, which is \
                  a kernel bug"
             ),
+            Self::ProfilePieces { fault } => {
+                write!(f, "the profile's pieces have no names: {fault}")
+            }
             Self::Mate(fault) => write!(f, "the mate solve refused: {fault}"),
             Self::CrossingUnverified {
                 instance,
@@ -2021,8 +2044,8 @@ impl core::fmt::Display for NodeErrorKind {
             Self::MissingSlot { slot } => {
                 write!(
                     f,
-                    "the node's wiring expected its {slot:?} input, which is absent (a kernel \
-                     bug)"
+                    "the node's wiring expected its {} input, which is absent (a kernel bug)",
+                    slot.label()
                 )
             }
             // The sentence is single-homed at the run doors' own
@@ -2234,7 +2257,14 @@ impl core::fmt::Display for NodeErrorKind {
                 found.article(),
                 found.noun()
             ),
-            Self::MeasureClearanceRefused(refusal) => write!(f, "{refusal}"),
+            Self::MeasureClearanceRefused(refusal) => {
+                write!(f, "the clearance engine refused `{}`", refusal.name())?;
+                let payload = refusal.payload();
+                if !payload.is_empty() {
+                    write!(f, " ({payload})")?;
+                }
+                Ok(())
+            }
             Self::AssertionDimension { measured, bound } => write!(
                 f,
                 "the assertion's bound is {} {bound} and the measure it constrains is \
@@ -2276,9 +2306,12 @@ impl Epoch {
     }
 }
 
-/// The cooperative cancel token (spec D5): checked BETWEEN nodes
-/// (sequential path) or between levels (parallel path) — node
-/// granularity in v1; tokens are never threaded into kernel ops.
+/// The cooperative cancel token (spec D5): checked BETWEEN nodes on
+/// the serial walk, and between levels on the level schedule — node
+/// granularity in v1; tokens are never threaded into kernel ops. A
+/// `parallel` request that runs as the serial walk (a symbolic session
+/// or shape report installed, [`EvalOptions::parallel`]) is checked
+/// between nodes.
 #[derive(Debug, Clone, Default)]
 pub struct CancelToken(Arc<AtomicBool>);
 
@@ -2549,6 +2582,21 @@ pub struct EvalOptions {
     /// D6). A RUNTIME switch so the D9 determinism cross-check can
     /// compare both schedules in one test run; results land by node
     /// id either way — order is data, not schedule.
+    ///
+    /// The `k_stats` recordings (verdicts, escalations, `probe`
+    /// samples) are the serial walk's at any thread count, in the
+    /// serial walk's order, with one exception. When a document
+    /// instantiates the same part more than once, the part is evaluated
+    /// once, by whichever instance takes the part cache's lock first,
+    /// and that evaluation's `probe` samples are recorded with that
+    /// instance. The serial walk records them with the first instance
+    /// in its order; the level schedule may record them with another
+    /// (`work/wire/part-cache-miss-samples-land-on-whichever-instance-wins-the-lock.md`).
+    ///
+    /// A request, not a guarantee: while the calling thread has a
+    /// symbolic session or shape report installed
+    /// (`geom_core::sym::decisions_are_thread_portable`) the run is the
+    /// serial walk.
     pub parallel: bool,
     /// Which candidate-generation path boolean nodes run (M5 PR 8) —
     /// a runtime switch in the `parallel` mold so the BVH differential
@@ -2822,10 +2870,12 @@ pub fn mate_reach<'a, T: EvalScalar>(opts: &'a EvalOptions, tol: Tol) -> PartRea
 /// whole, recorded on [`Evaluation::prior_refused`], and the run
 /// recomputes every node.
 ///
-/// `cancel` is checked between nodes (sequential) or between levels
-/// (parallel) — spec D5's cooperative yield points at node
-/// granularity; a canceled run returns the completed prefix with
-/// [`EvalOutcome::Canceled`].
+/// `cancel` is checked between nodes on the serial walk and between
+/// levels on the level schedule — spec D5's cooperative yield points at
+/// node granularity; a canceled run returns the completed prefix with
+/// [`EvalOutcome::Canceled`]. A `parallel` request runs as the serial
+/// walk, and is checked between nodes, while a symbolic session or
+/// shape report is installed ([`EvalOptions::parallel`]).
 pub fn evaluate<T>(
     doc: &Doc<ProfileProgram>,
     prior: Option<&Evaluation<T>>,
@@ -2950,7 +3000,20 @@ where
     let mut reused = 0usize;
     let mut outcome = EvalOutcome::Completed;
 
-    if opts.parallel {
+    // The level schedule runs only where a decision is thread-portable
+    // (`geom_core::sym::decisions_are_thread_portable`): under an
+    // installed symbolic session or shape report a node decided on a
+    // worker would decide, count and report differently from one
+    // decided here, so the walk is the serial one below, exactly.
+    if opts.parallel && geom_core::sym::decisions_are_thread_portable() {
+        // What each node recorded outside its own bracket — its `probe`
+        // samples, and anything its bracket did not take — held until
+        // the walk ends and then spliced in `sched.order`, which is the
+        // order the serial walk records in. Levels are not that order
+        // (a later level's node can precede an earlier level's in it),
+        // so splicing level by level would give the same population in
+        // a schedule-shaped sequence.
+        let mut recordings: BTreeMap<RecipeNodeId, geom_core::k_stats::Detached> = BTreeMap::new();
         for level in &sched.levels {
             if cancel.is_canceled() {
                 outcome = EvalOutcome::Canceled;
@@ -2960,14 +3023,20 @@ where
             // per-node slots — results land keyed by node id, the
             // combination is positional (one map entry per node),
             // never arithmetic, so the schedule cannot leak into bits.
-            use rayon::prelude::*;
-            let results: Vec<(RecipeNodeId, NodeStep<T>)> = level
-                .par_iter()
-                .map(|&id| (id, eval_node(doc, &env, id, &nodes, prior, &op_env, tol)))
-                .collect();
-            for (id, step) in results {
+            // Each node runs under a K-funnel frame of its own; its
+            // bracket in `eval_node` nests inside that frame.
+            let results = geom_core::k_stats::map_detached(level, |&id| {
+                eval_node(doc, &env, id, &nodes, prior, &op_env, tol)
+            });
+            for (&id, (step, recording)) in level.iter().zip(results) {
                 bookkeep(&step, &mut recomputed, &mut reused);
                 nodes.insert(id, step.result);
+                recordings.insert(id, recording);
+            }
+        }
+        for id in &sched.order {
+            if let Some(recording) = recordings.remove(id) {
+                geom_core::k_stats::splice(recording);
             }
         }
     } else {
@@ -3298,7 +3367,7 @@ where
                 Ok(placement) => placement,
                 Err(kind) => return fail(bracket, kind),
             };
-            match wire::prepare_profile(placement, resolved, tol) {
+            match wire::prepare_profile(placement, resolved, &program.ids, tol) {
                 Ok(pre) => Some(pre),
                 Err(kind) => return fail(bracket, kind),
             }
@@ -3467,6 +3536,7 @@ where
             result: NodeResult::Ok(NodeValue {
                 payload: out.payload,
                 name_table: out.names,
+                fragment_groups: out.groups,
                 contacts: out.contacts,
                 carried: out.carried,
                 verdicts: Arc::new(recorded.verdicts),
@@ -4156,6 +4226,18 @@ where
                     }
                 }
                 None => h.write_tag(tag::presence::ABSENT),
+            }
+            // The steps' minted ids: what every name a sweep over this
+            // profile publishes spells (N1), so two programs that
+            // replay alike but carry different ids — one step
+            // re-authored in place of another — are two keys, and a
+            // memo hit cannot serve one's names for the other's.
+            h.write_u64(program.ids.len() as u64);
+            for ids in &program.ids {
+                h.write_u64(ids.len() as u64);
+                for id in ids {
+                    h.write_u64(id.0);
+                }
             }
             // The f64 stream above IS the structure identity and stays
             // in the key unconditionally, lane-independent as ever.
@@ -5129,6 +5211,8 @@ fn seg_content_tag(tag: SegTag) -> u8 {
         S::RimEdge => 4,
         S::LateralEdge => 5,
         S::CapVertex => 6,
+        S::LoftWall => 45,
+        S::LoftSeam => 46,
         S::Band => 7,
         S::BandRim => 8,
         S::BandRimPi => 9,
@@ -5189,13 +5273,48 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         crate::names::RimSupport::Host => 1u8,
         crate::names::RimSupport::Mate => 2,
     };
-    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| {
-        h.write_u64(u64::from(e.loop_index));
-        h.write_u64(u64::from(e.segment));
+    // A locator: its form's word, then the step's minted id or the
+    // section's circle, then the role (its word, and a piece's index).
+    let role = |h: &mut KeyHasher, r: crate::names::PieceRole| {
+        use crate::names::PieceRole;
+        match r {
+            PieceRole::Leg => h.write_tag(1),
+            PieceRole::RunIn => h.write_tag(2),
+            PieceRole::Arc => h.write_tag(3),
+            PieceRole::RunOut => h.write_tag(4),
+            PieceRole::Piece(k) => {
+                h.write_tag(5);
+                h.write_u64(u64::from(k));
+            }
+        }
     };
-    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| {
-        h.write_u64(u64::from(v.loop_index));
-        h.write_u64(u64::from(v.vertex));
+    let circle = |c: crate::names::SectionCircle| match c {
+        crate::names::SectionCircle::Outer => 1u8,
+        crate::names::SectionCircle::Bore => 2,
+    };
+    let pe = |h: &mut KeyHasher, e: crate::names::ProfileEdgeRef| match e {
+        crate::names::ProfileEdgeRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileEdgeRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
+    };
+    let pv = |h: &mut KeyHasher, v: crate::names::ProfileVertexRef| match v {
+        crate::names::ProfileVertexRef::Piece { step, role: r } => {
+            h.write_tag(1);
+            h.write_u64(step.0);
+            role(h, r);
+        }
+        crate::names::ProfileVertexRef::Section { circle: c, role: r } => {
+            h.write_tag(2);
+            h.write_tag(circle(c));
+            role(h, r);
+        }
     };
     let qual = |h: &mut KeyHasher, q: &Qualifier| {
         h.write_tag(match q {
@@ -5244,6 +5363,18 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::CapVertex(c, v) => {
             h.write_tag(cap(*c));
             pv(h, *v);
+        }
+        RoleSeg::LoftWall(es) => {
+            h.write_u64(es.len() as u64);
+            for e in es {
+                pe(h, *e);
+            }
+        }
+        RoleSeg::LoftSeam(vs) => {
+            h.write_u64(vs.len() as u64);
+            for v in vs {
+                pv(h, *v);
+            }
         }
         RoleSeg::Band(e) => {
             pe(h, *e);
@@ -5357,14 +5488,15 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::BandFoot(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandCross(n) => {
-            feed_stable_name(h, n);
-        }
         RoleSeg::BandCut(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandSlit(n) => {
-            feed_stable_name(h, n);
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            feed_stable_name(h, edge);
+            h.write_u64(band.len() as u64);
+            for n in band {
+                feed_stable_name(h, n);
+            }
         }
         // The n-ary union's member key. BOTH halves feed: two members
         // of one union can be

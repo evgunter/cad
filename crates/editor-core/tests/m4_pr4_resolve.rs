@@ -35,7 +35,7 @@ use geom_core::Tol;
 /// The realized sweep prunes the disjoint side's pair space empty
 /// (its job); that production-path degradation is pinned in
 /// `m4_pr4_banked` (both strategies) — see `fixture/pr4.rs`'s note.
-fn run(doc: &ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
+fn run(doc: &editor_core::ProfileDoc, prior: Option<&Evaluation<f64>>) -> Evaluation<f64> {
     let opts = EvalOptions {
         boolean_sweep: topo::SweepStrategy::Idealized,
         ..EvalOptions::default()
@@ -297,10 +297,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
     let base = StableName {
         kind: EntityKind::Edge,
         node,
-        path: vec![RoleSeg::AxisEdge(editor_core::ProfileEdgeRef {
-            loop_index: 0,
-            segment: 0,
-        })],
+        path: vec![RoleSeg::AxisEdge(crate::fixture::no_piece())],
     };
     let mut table = NameTable::new();
     table.insert_tied(base.clone(), vec![e1, e2]).unwrap();
@@ -310,6 +307,7 @@ fn ranked_reference_widens_to_the_tied_base_row() {
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(table),
+            fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(vec![]),
@@ -770,10 +768,7 @@ fn apply_with_names_refuses_unresolvable_declare_names_and_keeps_the_carveout() 
     let bogus = minted(
         EntityKind::Face,
         a,
-        RoleSeg::Lateral(editor_core::ProfileEdgeRef {
-            loop_index: 7,
-            segment: 7,
-        }),
+        RoleSeg::Lateral(crate::fixture::no_piece()),
     );
     let err = apply_with_names(
         &doc,
@@ -828,13 +823,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let rim = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 0,
-                segment: 0,
-            },
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::piece(&doc, a, 0, 0)),
     );
     assert!(
         apply_with_names(
@@ -852,13 +841,7 @@ fn apply_with_names_checks_a_fillet_selection_under_the_same_rule() {
     let bogus = minted(
         EntityKind::Edge,
         a,
-        RoleSeg::RimEdge(
-            CapEnd::End,
-            editor_core::ProfileEdgeRef {
-                loop_index: 7,
-                segment: 7,
-            },
-        ),
+        RoleSeg::RimEdge(CapEnd::End, crate::fixture::no_piece()),
     );
     let err = apply_with_names(
         &doc,
@@ -925,9 +908,7 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::CornerFace(x)
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
-        | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => under(x),
@@ -944,6 +925,11 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::EndArc { vertex: x, edge: y } => under(x) || under(y),
         // A set.
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().any(under),
+        // A source edge (derivation) and the band that crossed or slit
+        // it (a discriminator, like a `SideOf` partner).
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            under(edge) || (partners == Partners::Include && band.iter().any(under))
+        }
         // ANOTHER document's id space: a local name and a part-local
         // name that print alike are different names, so a walk that
         // descended here would report occurrences that are not.
@@ -971,7 +957,9 @@ fn occurs(hay: &StableName, needle: &StableName, partners: Partners) -> bool {
         | RoleSeg::Pole(_)
         | RoleSeg::AxisEdge(_)
         | RoleSeg::SplitBody(_)
-        | RoleSeg::SectionFace { .. } => false,
+        | RoleSeg::SectionFace { .. }
+        | RoleSeg::LoftWall(_)
+        | RoleSeg::LoftSeam(_) => false,
     })
 }
 
@@ -1376,6 +1364,7 @@ fn one_node_eval(
         editor_core::NodeResult::Ok(editor_core::NodeValue {
             payload: editor_core::ValuePayload::Declarations(vec![]),
             name_table: Arc::new(t),
+            fragment_groups: Arc::default(),
             contacts: Arc::new(topo::ContactRecords::default()),
             carried: Arc::new(editor_core::CarriedDeclarations::default()),
             verdicts: Arc::new(vec![]),

@@ -22,7 +22,7 @@
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
-use profile::{ProfileLoop, ProfileVertex, RawLoop};
+use profile::test_support::bulge_loop;
 use topo::{Body, FaceKey};
 
 fn nurbs_wall(body: &Body<f64>) -> FaceKey {
@@ -113,9 +113,9 @@ fn sample_check(tag: &str, s: &Surface<f64>) {
 
 #[test]
 fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
-    let v = |x: f64, y: f64, bulge: f64| ProfileVertex::new(Point2::new(x, y), bulge);
+    let v = |x: f64, y: f64, bulge: f64| (Point2::new(x, y), bulge);
     let bulged = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             v(0.0, 0.0, 0.0),
             v(2.0, 0.0, 0.4),
             v(2.0, 2.0, 0.0),
@@ -144,9 +144,9 @@ fn probe_sampled_bounds_hold_on_the_acceptance_walls() {
         }
     }
     // The bowed IsoLine wall too.
-    let sq = |x: f64, y: f64| ProfileVertex::new(Point2::new(x, y), 0.0);
+    let sq = |x: f64, y: f64| (Point2::new(x, y), 0.0);
     let square = || {
-        vec![ProfileLoop::new(vec![
+        vec![bulge_loop(vec![
             sq(-1.0, -1.0),
             sq(1.0, -1.0),
             sq(1.0, 1.0),

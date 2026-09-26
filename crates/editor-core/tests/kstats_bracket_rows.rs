@@ -88,7 +88,7 @@ fn per_node(ev: &Evaluation<f64>) -> BTreeMap<RecipeNodeId, usize> {
 /// assembled profile. The plane's two axes are NOT among them — the
 /// frame node decides its own placement, at both scalars, and the
 /// precompute READS it (`NodeValue::placement`).
-const PRE_PASS: usize = 73;
+const PRE_PASS: usize = 69;
 /// The one-solid part's log sizes by node: frame, profile, extrude.
 /// Under the pinned lift (the default) the Profile node's op reuses
 /// the pre-pass's validated form and decides nothing, so its log is
@@ -598,6 +598,7 @@ fn a_pre_pass_that_escalates_before_failing_carries_the_escalation() {
             LoopProgram::polygon(square(0.0, 0.0, 0.5)).expect("finite corners"),
             island,
         ],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, extrude) = insert(
@@ -675,6 +676,7 @@ fn a_pre_key_expr_refusal_carries_no_escalations() {
             [over(), len(1.0)],
             [len(0.0), len(1.0)],
         ])],
+        ids: Vec::new(),
     };
     let (doc, profile) = insert(doc, Node::Profile(program));
     let (doc, _) = step(

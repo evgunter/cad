@@ -73,7 +73,7 @@ use crate::pickindex::{PickIndex, PictureKey};
 use crate::platform;
 use crate::prefs::{self, Prefs, PrefsStore};
 use crate::scene::{self, DisplayTolerance, SceneError, SceneMesh};
-use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp};
+use crate::session::{DocSession, ProfilePlane, Refusal, Selection, SessionOp, Step};
 use crate::sketch::{self, PreviewError, ProfilePreview};
 use crate::theme::{Polarity, Theme};
 use crate::tools::Tools;
@@ -198,11 +198,11 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 
 /// `text` in the weight or colour its [`frame::Tone`] asks for.
 ///
-/// **The one place the tone-to-chrome mapping is made.** Its two
-/// readers are the toolbar's badge family ([`draw_badge`]) and the
-/// feature tree's row badge, which reads the same tone off
-/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
-/// `Advisory` looks like is changed here or nowhere.
+/// **The one place the tone-to-chrome mapping is made**: anything drawn
+/// in a [`frame::Tone`] is drawn through this, directly or through
+/// `widgets::message_toned`, so what `Advisory` looks like is changed
+/// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
+/// are not listed here, because a list is what falls behind.
 ///
 /// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
 /// REDUNDANT — everything wearing it says its own words — so this
@@ -212,6 +212,30 @@ pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -
     match tone {
         frame::Tone::Advisory => text.weak(),
         frame::Tone::Actionable => text.color(chrome(theme.unresolved)),
+    }
+}
+
+/// **Draw a control whose refusal decides both halves of it**: live
+/// exactly while `blocked` is `None`, and out of it carrying that
+/// refusal's own words as the reason it cannot be used. Answers
+/// whether it was clicked.
+///
+/// The one composition of the rule *a control a reader cannot use owes
+/// the sentence a click would have been answered with*
+/// (`crates/viewer/README.md`). Four controls obey it — the toolbar's
+/// two cancel doors, its Undo and Redo, its New-document Create, and
+/// the parts catalogue's entries — and each spelled the same three
+/// lines until they were one call. The caller keeps what a click
+/// MEANS, because the four push different things.
+pub(crate) fn refusable_button(
+    ui: &mut egui::Ui,
+    label: impl Into<egui::WidgetText>,
+    blocked: Option<&Refusal>,
+) -> bool {
+    let button = ui.add_enabled(blocked.is_none(), egui::Button::new(label));
+    match blocked {
+        Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
+        None => button.clicked(),
     }
 }
 
@@ -1123,21 +1147,18 @@ impl ViewerApp {
             let tool_edit = self.tools.commits_open_tool(&op);
             let accepted_op = op.clone();
             let mut outcome = self.session.perform(op);
-            // **Where a withdrawal reaches the user**: everything
-            // this operation's document transition took out of the
-            // display state, onto the frame's notices like every other
-            // one (`frame::frame_status` carries the argument).
+            // **Where an outcome's news reaches the user**: what this
+            // operation's document transition took out of the display
+            // state, and what its committed edits did that nobody
+            // asked for by name, onto the frame's notices like every
+            // other one (`frame::frame_status` carries the argument).
             //
-            // ONE call, not one per kind. Three hand-written `extend`s
-            // stood here, and the list they fanned out was held to the
-            // report's by nothing — this code is `app`-gated, so no
-            // row can execute it and a kind dropped here is invisible
-            // until a user misses a sentence. `Withdrawal::all`
-            // destructures the report, so the list is the report's and
-            // a fourth kind reds there.
-            notices.extend(
-                frame::Withdrawal::all(&outcome.withdrawn).map(|withdrawal| withdrawal.notice()),
-            );
+            // ONE call. This code is `app`-gated, so no row can
+            // execute it and a kind dropped here is invisible until a
+            // user misses a sentence; `frame::outcome_notices`
+            // destructures the outcome, so a row can run the whole
+            // fan-out and a new field reds there.
+            notices.extend(frame::outcome_notices(&outcome));
             // Read before the match below moves the refusal out: a
             // form that just committed a node it will go on referring
             // to learns its id here and nowhere else.
@@ -1445,9 +1466,12 @@ impl ViewerApp {
             // The New… control (GAUTH-1): one name field, because
             // the document id is derived from the name — see
             // `SessionOp::NewDocument`. The field is a draft; the
-            // op is emitted only by Create, and only for a
-            // non-blank name (the typed refusal backing the
-            // disabled button is `Refusal::EmptyName`).
+            // op is emitted only by Create, and only with the name
+            // `Refusal::new_document_name` hands back — the door's own
+            // rule, trim included, so the button cannot offer a click
+            // the door refuses and cannot send a name the door would
+            // have normalised differently. Out of it the button shows
+            // that refusal's own words.
             match self.drafts.new_doc_name.as_mut() {
                 None => {
                     if ui.button("New…").clicked() {
@@ -1460,13 +1484,11 @@ impl ViewerApp {
                             .hint_text("document name")
                             .desired_width(120.0),
                     );
-                    let typed = name.trim().to_owned();
-                    if ui
-                        .add_enabled(!typed.is_empty(), egui::Button::new("Create"))
-                        .on_disabled_hover_text("the document id is derived from the name")
-                        .clicked()
-                    {
-                        ops.push(SessionOp::NewDocument { name: typed });
+                    let named = Refusal::new_document_name(name).map(str::to_owned);
+                    if refusable_button(ui, "Create", named.as_ref().err()) {
+                        if let Ok(name) = named {
+                            ops.push(SessionOp::NewDocument { name });
+                        }
                         self.drafts.new_doc_name = None;
                     } else if ui.button("Cancel").clicked() {
                         self.drafts.new_doc_name = None;
@@ -1515,17 +1537,24 @@ impl ViewerApp {
                 }
             }
             ui.separator();
-            if ui
-                .add_enabled(self.session.history().can_undo(), egui::Button::new("Undo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Undo);
-            }
-            if ui
-                .add_enabled(self.session.history().can_redo(), egui::Button::new("Redo"))
-                .clicked()
-            {
-                ops.push(SessionOp::Redo);
+            // **The history controls**, drawn the way the cancel
+            // doors below are: the refusal the step would be answered
+            // with decides both whether the button is live and what it
+            // says while it is not (`Refusal::nothing_to_step`). These
+            // two buttons are the only hand that pushes
+            // `SessionOp::Undo` or `SessionOp::Redo`, so a sentence
+            // they do not show is one no reader ever meets — and the
+            // refusal names ITS OWN direction, because a redo waiting
+            // on the branch the cursor just left makes a sentence
+            // about both false of the half that is live.
+            for (label, direction, op) in [
+                ("Undo", Step::Undo, SessionOp::Undo),
+                ("Redo", Step::Redo, SessionOp::Redo),
+            ] {
+                let blocked = Refusal::nothing_to_step(self.session.history(), direction);
+                if refusable_button(ui, label, blocked.as_ref()) {
+                    ops.push(op);
+                }
             }
             ui.separator();
             // **The cancel doors**, beside the history controls
@@ -1543,12 +1572,7 @@ impl ViewerApp {
             // operation itself would give — the value that knows
             // carries the words, so the two cannot disagree.
             for door in self.session.cancel_doors() {
-                let button = ui.add_enabled(door.blocked.is_none(), egui::Button::new(door.label));
-                let clicked = match &door.blocked {
-                    Some(refusal) => button.on_disabled_hover_text(refusal.to_string()).clicked(),
-                    None => button.clicked(),
-                };
-                if clicked {
+                if refusable_button(ui, door.label, door.blocked.as_ref()) {
                     ops.push(door.op);
                 }
             }
@@ -1685,7 +1709,7 @@ impl ViewerApp {
             // (`frame::unindexed_refusal`).
             for badge in [
                 frame::scene_badge(self.scene_fault.as_ref()),
-                frame::index_badge(self.picks.error()),
+                frame::index_badge(self.picks.error(), self.session.evaluation()),
                 frame::projection_badge(self.projection_fault.as_ref()),
             ]
             .into_iter()
@@ -2427,6 +2451,7 @@ pub async fn run_web(tol: Tol, canvas_id: &str) -> Result<(), WebStartupError> {
 mod tests {
     // Panicking is a test's failure mechanism (workspace lint note).
     #![allow(clippy::expect_used)]
+    #![allow(clippy::panic)]
 
     use super::{CANCELED_LINE, FEATURES_SHARE_CAP, Polarity, Theme, ViewerApp, features_fraction};
     use crate::session::SessionOp;
@@ -2728,6 +2753,238 @@ mod tests {
         );
     }
 
+    /// Every text run a headless frame painted, with the rect it
+    /// occupies.
+    ///
+    /// The toolbar's own labels, and — when the pointer is resting on
+    /// a control that cannot be used — the words
+    /// `on_disabled_hover_text` puts in front of the reader. Painting
+    /// is the only place those words exist: `add_enabled` and
+    /// `on_disabled_hover_text` hand back a `Response` and keep no
+    /// value, so a row that does not read the frame can assert the
+    /// refusal a control was BUILT from and never which control got
+    /// it.
+    fn painted_text(shapes: &[egui::epaint::ClippedShape]) -> Vec<(String, egui::Rect)> {
+        fn walk(shape: &egui::Shape, out: &mut Vec<(String, egui::Rect)>) {
+            match shape {
+                egui::Shape::Text(text) => out.push((
+                    text.galley.text().to_owned(),
+                    egui::Rect::from_min_size(text.pos, text.galley.size()),
+                )),
+                egui::Shape::Vec(inner) => inner.iter().for_each(|shape| walk(shape, out)),
+                _ => {}
+            }
+        }
+        let mut out = Vec::new();
+        for clipped in shapes {
+            walk(&clipped.shape, &mut out);
+        }
+        out
+    }
+
+    /// The real toolbar in a headless context, with a pointer that can
+    /// be rested on one of its controls.
+    struct Toolbar {
+        ctx: egui::Context,
+        app: ViewerApp,
+        /// Frames are numbered in seconds because a tooltip is a
+        /// function of how long the pointer has been still.
+        time: f64,
+    }
+
+    impl Toolbar {
+        fn open() -> Self {
+            let ctx = egui::Context::default();
+            // A tooltip this row waited half a second for would be a
+            // row about `tooltip_delay`. Nothing else about the hover
+            // changes.
+            ctx.all_styles_mut(|style| style.interaction.tooltip_delay = 0.0);
+            let app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+                .expect("startup that needs no graphics device");
+            Self {
+                ctx,
+                app,
+                time: 0.0,
+            }
+        }
+
+        /// One frame of the real [`ViewerApp::toolbar_ui`], with the
+        /// pointer where the caller puts it. Answers what was painted
+        /// and what the toolbar asked the session for.
+        fn frame(&mut self, pointer: Option<egui::Pos2>) -> Vec<(String, egui::Rect)> {
+            self.time += 1.0;
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 600.0),
+                )),
+                time: Some(self.time),
+                events: pointer.map(egui::Event::PointerMoved).into_iter().collect(),
+                ..Default::default()
+            };
+            let Self { ctx, app, .. } = self;
+            let mut output = ctx.run_ui(input, |ui| {
+                egui::Panel::top("viewer_toolbar").show(ui, |ui| {
+                    let mut ops: Vec<SessionOp> = Vec::new();
+                    let mut chosen = Theme::ALL[0];
+                    app.toolbar_ui(ui, &mut ops, &mut chosen);
+                });
+            });
+            // Nothing here paints, so the frame's texture delta is
+            // dropped rather than uploaded.
+            output.textures_delta.clear();
+            painted_text(&output.shapes)
+        }
+
+        /// **What the toolbar puts in front of a reader who rests the
+        /// pointer on the control labelled `label`** — `None` when the
+        /// control is live and has nothing to explain.
+        ///
+        /// Read as the difference between a quiet frame and a hovered
+        /// one, so it names no wording of its own: whatever the hover
+        /// ADDED to the picture is what the reader gained by hovering.
+        fn reason_shown_on(&mut self, label: &str) -> Option<String> {
+            // The pointer is parked off the toolbar first, so that a
+            // tooltip left over from the previous control is not in
+            // the picture this one is measured against. egui keeps the
+            // last position it was given, so "no event" is not "no
+            // pointer".
+            self.frame(Some(Self::ELSEWHERE));
+            let quiet = self.frame(Some(Self::ELSEWHERE));
+            let rect = quiet
+                .iter()
+                .find(|(text, _)| text == label)
+                .unwrap_or_else(|| {
+                    panic!("the toolbar draws a control labelled {label}: {quiet:?}")
+                })
+                .1;
+            // Two frames with the pointer on it: egui decides hover
+            // against the rect the previous frame left behind.
+            self.frame(Some(rect.center()));
+            let hovered = self.frame(Some(rect.center()));
+            let before: Vec<&str> = quiet.iter().map(|(text, _)| text.as_str()).collect();
+            let gained: Vec<String> = hovered
+                .iter()
+                .map(|(text, _)| text.clone())
+                .filter(|text| !before.contains(&text.as_str()))
+                .collect();
+            assert!(
+                gained.len() <= 1,
+                "hovering {label} added more than one text run, so this row cannot say which is \
+                 the reason: gained {gained:?}, quiet {quiet:?}, hovered {hovered:?}"
+            );
+            gained.into_iter().next()
+        }
+
+        /// A point inside the window and off the toolbar, for a frame
+        /// in which nothing is hovered.
+        const ELSEWHERE: egui::Pos2 = egui::Pos2::new(1500.0, 550.0);
+    }
+
+    /// **A disabled toolbar control says what its own operation
+    /// refuses** — and says it about ITSELF.
+    ///
+    /// Three controls are held to it: Undo, Redo, and Create on the
+    /// New-document form. For each, the words a reader actually sees
+    /// are read back off the painted frame and compared with the
+    /// sentence the session answers that control's own operation with.
+    ///
+    /// **Reading the paint is what makes this a row about the
+    /// MAPPING.** A row that asserts a refusal value against the op
+    /// that raises it holds the coupling and nothing else: every such
+    /// assertion survives a permutation of the direction table in
+    /// `toolbar_ui`, which is the map this file owns, or a swap of
+    /// both arms of the direction-to-verb match. Both of those put the
+    /// wrong sentence under the right button, which is the whole
+    /// failure the unit exists to prevent, and only the frame can see
+    /// it.
+    ///
+    /// **Three controls, hand-listed, and that is this row's blind
+    /// spot.** `gesture_table.rs`'s
+    /// `a_closed_door_says_what_its_own_operation_refuses` walks
+    /// `DocSession::cancel_doors`, so a fifth cancel door is held the
+    /// day it is added. There is no such value here — a toolbar's
+    /// disabled controls are not enumerable — so a fourth control
+    /// added to `toolbar_ui` is not caught by this row. The instrument
+    /// that finds one is the `add_enabled` sweep
+    /// (`crates/viewer/README.md`, the disabled-control rule), and the
+    /// gate that would hold the population rather than a reader's
+    /// attention is filed as
+    /// `work/guard/viewer-disabled-control-population-has-no-gate`.
+    #[test]
+    fn a_disabled_toolbar_control_says_what_its_own_operation_refuses() {
+        let mut toolbar = Toolbar::open();
+        // The New-document form is a draft the New… button opens; the
+        // Create button is not drawn until it is open.
+        toolbar.app.drafts.new_doc_name = Some(String::new());
+
+        // A freshly assembled session is at the root of a history with
+        // no branch beyond it, so all three are refused at once.
+        for (label, op) in [
+            ("Undo", SessionOp::Undo),
+            ("Redo", SessionOp::Redo),
+            (
+                "Create",
+                SessionOp::NewDocument {
+                    name: String::new(),
+                },
+            ),
+        ] {
+            let shown = toolbar.reason_shown_on(label).unwrap_or_else(|| {
+                panic!("{label} is disabled in this state, so hovering it says why")
+            });
+            // Refused, so the session is not moved by asking.
+            let refused = toolbar
+                .app
+                .session
+                .perform(op)
+                .refusal
+                .unwrap_or_else(|| panic!("{label}'s own operation refuses in this state"));
+            assert_eq!(
+                shown,
+                refused.to_string(),
+                "{label}: the words the reader sees are the words its own operation refuses with"
+            );
+        }
+
+        // **And the history sentences name THEIR OWN direction.**
+        //
+        // Everything above compares two renderings of ONE value, so it
+        // is true under any permutation of the direction-to-verb map:
+        // swap both arms and each button says the opposite of the
+        // truth with every assertion still passing. The two history
+        // sentences differ by one verb and nothing else, so the verb
+        // is the whole of what a reader gets, and it needs a pin that
+        // does not route through the same `Display` both sides of an
+        // equality do.
+        //
+        // The control's OWN NAME is that pin, and it is not a golden:
+        // it holds a relation between two things the reader has in
+        // front of them — what the button is called, and the reason it
+        // gives — rather than a copy of the sentence. Re-wording the
+        // refusal moves nothing here; putting the wrong verb under a
+        // button reds it.
+        //
+        // The Create button takes no such clause: it has no sibling to
+        // be confused with, and its sentence is about the name rather
+        // than about the verb on the button.
+        for (label, other) in [("Undo", "Redo"), ("Redo", "Undo")] {
+            let shown = toolbar
+                .reason_shown_on(label)
+                .unwrap_or_else(|| panic!("{label} is disabled in this state"));
+            let own = label.to_lowercase();
+            let sibling = other.to_lowercase();
+            assert!(
+                shown.contains(&own),
+                "the {label} button's reason does not say {own}: {shown:?}"
+            );
+            assert!(
+                !shown.contains(&sibling),
+                "the {label} button's reason is about {sibling}: {shown:?}"
+            );
+        }
+    }
+
     /// **And the STATUS LINE wraps under itself**, in the real
     /// toolbar, which is Ev's second symptom measured where he saw it.
     ///
@@ -2905,5 +3162,86 @@ mod tests {
             door,
             "the context's light style spells {WITNESS} its own way"
         );
+    }
+}
+
+/// **What the properties pane says about a selection that no longer
+/// denotes**, read off a whole headless frame of the real app — so the
+/// pane's own gates and deletions are held, not only the free function
+/// that draws the verdict (`pane::properties::verdict_tests`).
+#[cfg(test)]
+mod properties_pane_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use pncad::document::{ParamName, RecipeNodeId};
+
+    use super::ViewerApp;
+    use crate::session::{Selection, SessionOp};
+
+    /// Every text the app painted on the second of two frames with
+    /// `selection` made, in paint order.
+    fn painted_with(selection: Selection) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        app.perform_batch(vec![SessionOp::Select(selection)]);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut texts = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 1000.0),
+                )),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                eframe::App::ui(&mut app, ui, &mut frame);
+            });
+            texts = crate::pane::headless::landed_in(&output.shapes)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect();
+            // Nothing here paints, so the frame's texture delta is
+            // dropped rather than uploaded.
+            output.textures_delta.clear();
+        }
+        texts
+    }
+
+    /// **A deleted node is called deleted, and nothing claims it
+    /// carries no parameters** — it carries nothing because it is not
+    /// there, which the `live()` gate on that line keeps unsaid.
+    #[test]
+    fn a_deleted_node_is_not_said_to_carry_no_parameters() {
+        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
+        assert!(
+            !painted
+                .iter()
+                .any(|text| text.contains("carries no parameters")),
+            "{painted:?}"
+        );
+    }
+
+    /// **An undeclared parameter is said once**: against the frame with
+    /// nothing selected, the pane gains the verdict line and loses the
+    /// "select a feature" prompt, and nothing else.
+    #[test]
+    fn an_undeclared_parameter_is_said_once_in_the_pane() {
+        let verdict = "parameter nope is no longer declared";
+        let mut with = painted_with(Selection::Param(ParamName("nope".to_owned())));
+        let mut without = painted_with(Selection::None);
+        assert!(
+            without.iter().any(|text| text == "select a feature"),
+            "the properties pane is drawn in this frame: {without:?}"
+        );
+        without.retain(|text| text != "select a feature");
+        without.push(verdict.to_owned());
+        with.sort();
+        without.sort();
+        assert_eq!(with, without);
     }
 }

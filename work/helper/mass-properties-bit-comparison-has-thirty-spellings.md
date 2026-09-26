@@ -17,7 +17,7 @@ thirty test files. Sweep (pattern and blind spot below), as of
 `to_bits()`:
 
 ```
-8 sweep/tests/sign_certified_plus_v.rs          3 sweep/tests/shellfix1_bitdump.rs
+8 sweep/tests/sign_walk_plus_v.rs          3 sweep/tests/shellfix1_bitdump.rs
 7 pncad/tests/all.rs                            3 sweep/tests/sf2a_r1.rs
 4 sweep/tests/tcost_k3_certificate.rs           3 sweep/tests/lib_u3_sections.rs
 4 sweep/tests/shell_census_is_thread_count_invariant.rs

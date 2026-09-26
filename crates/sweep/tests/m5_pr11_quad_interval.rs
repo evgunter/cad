@@ -7,8 +7,7 @@
 
 use geom_core::Tol;
 use geom_core::{Bounds, Interval, Point2, Point3, Vec3};
-use profile::RawLoop;
-use profile::{Profile, ProfileLoop, ProfileVertex, SketchPlane};
+use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate_geometric};
@@ -22,9 +21,9 @@ fn i(x: f64) -> Interval {
 }
 
 fn halves() -> (Body<Interval>, Body<Interval>) {
-    let lp = ProfileLoop::new(vec![
-        ProfileVertex::new(Point2::new(i(-R), i(0.0)), i(1.0)),
-        ProfileVertex::new(Point2::new(i(R), i(0.0)), i(1.0)),
+    let lp = bulge_loop(vec![
+        (Point2::new(i(-R), i(0.0)), i(1.0)),
+        (Point2::new(i(R), i(0.0)), i(1.0)),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())

@@ -32,10 +32,7 @@ fn curve3(k: &KnotVector, weights: Vec<f64>) -> NurbsCurve3<f64> {
 fn lift3<T: Real>(c: &NurbsCurve3<f64>) -> NurbsCurve3<T> {
     NurbsCurve3::new(
         c.knots().clone(),
-        c.control()
-            .iter()
-            .map(|p| Point3::new(T::from_f64(p.x), T::from_f64(p.y), T::from_f64(p.z)))
-            .collect(),
+        c.control().iter().map(|p| p.map(T::from_f64)).collect(),
         c.weights().to_vec(),
     )
     .unwrap()

@@ -92,7 +92,7 @@ fn scene() -> Scene {
 
 /// Re-point `hole_r` — the edit that must NEVER refuse at the door
 /// (§4d: `SetDocParam` does not refuse for downstream profile breakage).
-fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
+fn set_hole_r(doc: &editor_core::ProfileDoc, value: f64) -> ProfileDoc {
     apply(
         doc,
         &DocEdit::SetDocParam {
@@ -107,7 +107,7 @@ fn set_hole_r(doc: &ProfileDoc, value: f64) -> ProfileDoc {
 }
 
 /// The failure a node reported, if it failed.
-fn node_error(doc: &ProfileDoc, id: RecipeNodeId) -> Option<String> {
+fn node_error(doc: &editor_core::ProfileDoc, id: RecipeNodeId) -> Option<String> {
     let ev = eval::<f64>(doc);
     match ev.nodes.iter().find(|(n, _)| **n == id).map(|(_, r)| r) {
         Some(NodeResult::Failed(e)) => Some(format!("{:?}", e.kind)),

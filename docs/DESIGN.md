@@ -355,7 +355,11 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   holes in its one shell.
 - **The minimal sphere at rest is V2/E2/F2**: tier 2's valence-1 ban
   makes a one-band wire sweep unrepresentable, so axis-touching full
-  revolves sweep two π-bands and poles have valence 2.
+  revolves sweep two π-bands and poles have valence 2. The split is
+  owed only by CURVED walls, whose pole or apex must keep valence 2. A
+  full revolve emits each PLANAR wall as one face: a disc's centre is
+  interior to the face, not a vertex, and no revolve returns two
+  adjacent faces on one plane.
 - **Parameterization conventions** (authoritative text in the `geom`
   crate docs and its `curves`/`surfaces` modules): curve entities are
   complete loci; an edge's bounds derive from its vertices via the
@@ -369,12 +373,19 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   ∂u × ∂v with no "outward" contract — topology carries sense. A seam
   is defined SPATIALLY (the u_ref half-plane meridian), which on
   mirror-nappe cones differs from chart u = 0.
-- **Profile format**: a profile loop is a vertex chain with bulge
-  (b = tan(θ/4) of the arc to the next vertex, DXF-compatible) — zero
-  representation-consistency conditions by construction; closed
-  carriers split into ≥ 2 vertices; winding is invisible to users
-  (roles derive from containment). Downstream re-inspection of arc
-  geometry uses the stored bulge/carrier data, never endpoint atan2.
+- **Profile format**: a profile loop is a vertex chain whose segments
+  are each a carrier plus a signed interval on it — a line (the chord
+  between its two vertices), or an arc (centre, radius and signed sweep
+  Δθ, |Δθ| ≤ 2π). Vertices are stored verbatim and are authoritative; a
+  full turn is ONE segment at ONE vertex (|Δθ| = 2π), so a closed
+  carrier is one edge. The form is redundant (the vertices lie on the
+  carrier, Δθ agrees with them mod 2π), and those consistency
+  conditions are verified at validate, never trusted. Bulge
+  (b = tan(Δθ/4), DXF-compatible) is one of the path algebra's arc
+  modes, lowered into this form once, at the algebra — not the
+  storage. Winding is invisible to users (roles derive from
+  containment). Downstream re-inspection of arc geometry uses the
+  stored carrier data, never endpoint atan2.
 - **Declared-tangency discipline**: profiles refuse undeclared
   definite-Zero tangency at junctions (`UndeclaredTangency`, with a
   repair menu); declarations are verified, never trusted
@@ -404,10 +415,13 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 - **Maximal-faces precondition and the merge stage.** Booleans
   precondition no two adjacent coplanar faces (`NonMaximalFaces`); the
   explicit opt-in normalization op is `merge_coplanar_faces` (merging
-  is never silent), and boolean *outputs* run it as a documented final
-  stage of the op's contract — the seam zip manufactures coplanar
-  pairs by construction; the recipe records one boolean node, not
-  hidden healing. Merge glues on the structural and declared rungs
+  is never silent), and two ops run it as a documented final stage of
+  their contract, because each manufactures coplanar pairs by
+  construction: boolean *outputs* (the seam zip), and *sweeps* over a
+  profile side the author subdivided with a declared straight
+  continuation (the two walls are one carrier by that declaration, so
+  they share a surface key and merge on the structural rung). In
+  either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
   only; numeric coincidence never merges. Load-bearing dependency:
   `merge_coplanar_faces` **never elides vertices**, and tier 3′'s
   strict record-drop rule (a contact record whose vertex pair fused
@@ -1019,7 +1033,7 @@ Each layer depends only on the layers below it.
 | `bvh` | Deterministic AABB tree: arena-order build, fixed split rule with total tie-breaks, conservative-superset contract — the tree prunes, exact predicates decide. Below the geometry crates (only `geom-core` under it) so SSI subdivision can consume it; certified box constructors live beside their invariants in `geom` |
 | `geom` | Analytic + NURBS types, evaluators, closest-point, curve×curve and curve×surface intersection. Curves and surfaces are two modules of one crate, so the parameterization conventions and the totality/poison policy are stated once |
 | `geom-brep` | The B-rep geometry layer: D2's `EdgeDescription`, certified carrier caches, the dihedral classification predicate, Newell face equations, pcurve caches, SSI, the surface-pair dispatch table, certified mass properties, offset surfaces |
-| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the bulge-chain `Profile` and its trilean validation |
+| `profile` | 2-D sketch profiles: the PATHS authoring algebra and the profile-program it records, lowering to the `Profile` of verbatim vertices and canonical segments, and its trilean validation |
 | `topo` | Arenas, entities, Euler operators, the validation tiers; plane splitting, the boolean engine and its census/declared-contact machinery (sibling modules at the crate root), shell/offset surgery, the kernel query seat |
 | `sweep` | Solids from validated profiles: extrude, revolve, loft, sweep, tube; the blend family (fillets, chamfers) and its composition surgery |
 | `verbs` | The kernel verb vocabulary seat (VERB-SEAT-DESIGN §2): one closed `Verb` enum reifying an operation's parameters as data, run dispatch, and the parameter→field flow; a layer guard keeps serde, `Expr`, `StableName` and recipe ids out |

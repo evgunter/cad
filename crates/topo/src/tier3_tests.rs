@@ -19,7 +19,7 @@ use geom_core::{Point3, Vec3};
 
 use crate::contact::{ContactClass, DeclaredContact};
 use crate::euler::FaceSurface;
-use crate::fixtures::test_curve;
+use crate::fixtures::{refile_shells, test_curve};
 use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
     validate_geometric, validate_geometric_declared,
@@ -327,6 +327,334 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
                 _ => {}
             }
         }
+    }
+}
+
+/// The check-1 datum verdicts a body draws, in report order.
+fn datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
+    errs.iter()
+        .filter(|e| {
+            matches!(
+                e,
+                ValidationError::PoisonedSurfaceDatum { .. }
+                    | ValidationError::UnrepresentableSurfaceDatum { .. }
+            )
+        })
+        .cloned()
+        .collect()
+}
+
+fn cylinder(radius: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn sphere(radius: f64) -> Surface<f64> {
+    Surface::Sphere {
+        center: pt(0.0, 0.0, 0.0),
+        radius,
+        axis: Vec3::unit_z(),
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn cone(half_angle: f64) -> Surface<f64> {
+    Surface::Cone {
+        apex: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
+    Surface::Torus {
+        center: pt(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        major_radius,
+        minor_radius,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+fn plane(origin: Point3<f64>, normal: Vec3<f64>) -> Surface<f64> {
+    Surface::Plane {
+        origin,
+        normal,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// **Check 1 names an analytic surface's datum when it describes no
+/// locus**, on the tier-3-clean pillow with one face's surface swapped:
+/// the datum verdict is the FIRST finding the body draws — check 1 runs
+/// before the checks that read the surface for other questions — and it
+/// names the face, the kind and the datum.
+///
+/// Two halves. A datum that is not a number (NaN or `±∞`), or a plane
+/// normal that is the zero vector, is `PoisonedSurfaceDatum`; a finite
+/// datum outside its variant's convention is
+/// `UnrepresentableSurfaceDatum`. The first six rungs are the
+/// measurement the carried row took before check 1 read any analytic
+/// datum, when every one of them was refused only by checks 3–5's
+/// escalations.
+#[test]
+fn check_1_names_the_analytic_datum_that_describes_no_locus() {
+    use geom::ConventionEnd::{Lower, Upper};
+    use geom::SurfaceDatum as D;
+    use geom_brep::SurfaceKind as K;
+    enum Verdict {
+        Poisoned,
+        Unrepresentable(geom::ConventionEnd),
+    }
+    let tol = Tol::witness();
+    let o = pt(0.0, 0.0, 0.0);
+    let cases: Vec<(&str, Surface<f64>, K, D, Verdict)> = vec![
+        (
+            "plane, NaN origin",
+            plane(pt(f64::NAN, 0.0, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, zero normal",
+            plane(o, Vec3::new(0.0, 0.0, 0.0)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN normal",
+            plane(o, Vec3::new(f64::NAN, f64::NAN, f64::NAN)),
+            K::Plane,
+            D::Normal,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, NaN radius",
+            cylinder(f64::NAN),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, zero radius",
+            sphere(0.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "cone, NaN half-angle",
+            cone(f64::NAN),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, infinite origin",
+            plane(pt(0.0, f64::INFINITY, 0.0), Vec3::unit_z()),
+            K::Plane,
+            D::Origin,
+            Verdict::Poisoned,
+        ),
+        (
+            "plane, NaN u_ref",
+            Surface::Plane {
+                origin: o,
+                normal: Vec3::unit_z(),
+                u_ref: Vec3::new(f64::NAN, 0.0, 0.0),
+            },
+            K::Plane,
+            D::URef,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, negative radius",
+            cylinder(-1.0),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "cylinder, infinite radius",
+            cylinder(f64::INFINITY),
+            K::Cylinder,
+            D::Radius,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, negative radius",
+            sphere(-2.0),
+            K::Sphere,
+            D::Radius,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "cone, zero half-angle",
+            cone(0.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "cone, half-angle pi/2",
+            cone(core::f64::consts::FRAC_PI_2),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Upper),
+        ),
+        (
+            "cone, half-angle past pi/2",
+            cone(2.0),
+            K::Cone,
+            D::HalfAngle,
+            Verdict::Unrepresentable(Upper),
+        ),
+        (
+            "torus, zero tube",
+            torus(2.0, 0.0),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Unrepresentable(Lower),
+        ),
+        (
+            "torus, NaN tube",
+            torus(2.0, f64::NAN),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite major radius",
+            torus(f64::INFINITY, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, NaN major radius",
+            torus(f64::NAN, 0.5),
+            K::Torus,
+            D::MajorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "torus, infinite tube",
+            torus(2.0, f64::INFINITY),
+            K::Torus,
+            D::MinorRadius,
+            Verdict::Poisoned,
+        ),
+        (
+            "cone, NaN apex",
+            Surface::Cone {
+                apex: pt(0.0, f64::NAN, 0.0),
+                axis: Vec3::unit_z(),
+                half_angle: core::f64::consts::FRAC_PI_4,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cone,
+            D::Apex,
+            Verdict::Poisoned,
+        ),
+        (
+            "cylinder, infinite axis",
+            Surface::Cylinder {
+                origin: o,
+                axis: Vec3::new(0.0, 0.0, f64::INFINITY),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            K::Cylinder,
+            D::Axis,
+            Verdict::Poisoned,
+        ),
+        (
+            "sphere, NaN center",
+            Surface::Sphere {
+                center: pt(f64::NAN, 0.0, 0.0),
+                radius: 1.0,
+                axis: Vec3::unit_z(),
+                u_ref: Vec3::unit_x(),
+            },
+            K::Sphere,
+            D::Center,
+            Verdict::Poisoned,
+        ),
+    ];
+    for (name, surface, kind, datum, verdict) in cases {
+        let (errs, face) = pillow_on(surface, tol);
+        let expected = match verdict {
+            Verdict::Poisoned => ValidationError::PoisonedSurfaceDatum { face, kind, datum },
+            Verdict::Unrepresentable(end) => ValidationError::UnrepresentableSurfaceDatum {
+                face,
+                kind,
+                datum,
+                end,
+            },
+        };
+        assert_eq!(
+            errs.first(),
+            Some(&expected),
+            "{name}: check 1's datum verdict is the first finding: {errs:?}",
+        );
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![expected],
+            "{name}: one datum verdict, on the swapped face: {errs:?}",
+        );
+    }
+}
+
+/// The control, and the boundary on the inside: surfaces whose every
+/// datum is a number inside its convention draw no datum verdict,
+/// whatever else the swap costs the body — a cone ONE ULP inside either
+/// end of `(0, π/2)` (so a bound carrying any tolerance reds), a plane
+/// whose normal underflows its length without being zero, and a plane
+/// whose finite normal's NORM overflows (a direction, not the zero
+/// vector) included.
+#[test]
+fn datums_inside_their_conventions_draw_no_datum_verdict() {
+    let tol = Tol::witness();
+    let cases: Vec<(&str, Surface<f64>)> = vec![
+        ("unit cylinder", cylinder(1.0)),
+        ("unit sphere", sphere(1.0)),
+        ("cone at pi/4", cone(core::f64::consts::FRAC_PI_4)),
+        ("cone one ulp above 0", cone(f64::from_bits(1))),
+        (
+            "cone one ulp below pi/2",
+            cone(f64::from_bits(core::f64::consts::FRAC_PI_2.to_bits() - 1)),
+        ),
+        ("ring torus", torus(2.0, 0.5)),
+        (
+            "plane, normal underflowed but not zero",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e160)",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e160)),
+        ),
+        (
+            "plane, normal whose norm overflows at f64 (1e200)",
+            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e200)),
+        ),
+    ];
+    for (name, surface) in cases {
+        let (mut body, split) = coplanar_pillow(tol);
+        body.set_face_surface(split.face, FaceSurface::New(surface))
+            .unwrap();
+        let errs = validate_geometric(&body, tol).err().unwrap_or_default();
+        assert_eq!(
+            datum_verdicts(&errs),
+            vec![],
+            "{name}: a datum inside its convention earns no verdict: {errs:?}",
+        );
     }
 }
 
@@ -1172,29 +1500,6 @@ fn solids_of(body: &Body<f64>) -> Vec<crate::entity::SolidKey> {
     body.solids().map(|(k, _)| k).collect()
 }
 
-/// Every shell of `donor` refiled under `keeper`, and `donor` removed —
-/// the raw-arena spelling of "these shells are one solid's".
-fn refile_shells(
-    body: &mut Body<f64>,
-    donor: crate::entity::SolidKey,
-    keeper: crate::entity::SolidKey,
-) {
-    let moved = body.shells_of_solid(donor).expect("a live donor").to_vec();
-    for shell in &moved {
-        body.get_shell_mut(*shell).expect("a live shell").solid = keeper;
-    }
-    body.get_solid_mut(keeper)
-        .expect("a live keeper")
-        .shells
-        .extend(moved);
-    body.get_solid_mut(donor)
-        .expect("a live donor")
-        .shells
-        .clear();
-    body.solids.remove(donor);
-    body.solid_provenance.remove(donor);
-}
-
 /// The axis-aligned extent of `shell`'s stored vertex positions.
 /// A read of the geometry rather than of the fixture's literals: a
 /// cube placed somewhere else moves this.
@@ -1276,16 +1581,17 @@ fn two_ordinary_solids_in_one_body_certify() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 }
 
-/// **The number a multi-solid body's certificate door hands back is
+/// **The number a multi-solid body's certificate door continues to is
 /// the whole-body measurement, bit for bit.**
 ///
-/// Check 7's subject is a SOLID, so over several solids no subject's
-/// read is the body's and the tier-3′ door takes a further arena-wide
-/// reporting read for its return value
-/// (`work/atrest/the-multi-solid-reporting-quadrature-is-unscheduled`).
-/// That read carries exactly one promise — that it is the number
-/// [`crate::mass_properties`] would give — and this row is what reds if
-/// the two ever diverge.
+/// Check 7's subject is a SOLID, so the tier-3′ door's certificate is
+/// the per-solid walks assembled into face-arena order, and the number
+/// a caller asks of it is that assembly continued to the reporting
+/// target. The continuation carries exactly one promise — that it is
+/// the number [`crate::mass_properties`] would give — and this row is
+/// what reds if the two ever diverge. (That no further arena-wide read
+/// is taken is a COUNT, and it lives where a quadrature body can be
+/// built: `sweep`'s `tcost_k3_certificate`.)
 #[test]
 fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     let tol = Tol::witness();
@@ -1295,7 +1601,9 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
     assert_eq!(solids_of(&body).len(), 2, "two cubes are two solids");
     let certified =
         crate::validate_pseudomanifold_certificate(&body, &crate::ContactRecords::default(), tol)
-            .expect("two ordinary cubes certify");
+            .expect("two ordinary cubes certify")
+            .refine_to_target()
+            .expect("two ordinary cubes measure");
     let measured = crate::mass_properties(&body, tol).expect("the cubes measure");
     assert_eq!(
         (
@@ -1310,7 +1618,56 @@ fn a_multi_solid_certificate_is_the_whole_body_measurement() {
             measured.volume_pad.to_bits(),
             measured.area_pad.to_bits()
         ),
-        "the door's reporting read is the measurement door's"
+        "the door's certificate, continued, is the measurement door's"
+    );
+}
+
+/// **A `_structural` certificate is continued at a scalar that may not
+/// certify, to the closed form's own number.**
+///
+/// `SignCertificate`'s continuation is generic over `Decide`, so the
+/// certificate the no-lane tier-3′ door hands back at a
+/// [`geom_core::Dual64`] can be asked for its number: it carries no lane,
+/// every face is closed-form and finished at round 0, and the
+/// continuation is the fold of what it holds. That fold must BE
+/// [`crate::mass_properties_structural`] on the same body — value and
+/// derivative, compared through `Debug` (which renders every `f64`
+/// round-trip exactly) — over two solids, so the assembly re-orders
+/// real parts.
+#[test]
+fn a_structural_certificate_continues_at_a_dual_to_the_closed_form() {
+    use geom_core::Dual64;
+    use geom_core::Real as _;
+    let tol = Tol::witness();
+    let mut body = Body::<Dual64>::new();
+    for (ox, s) in [(0.0, 1.0), (5.0, 0.5)] {
+        crate::test_support_fixtures::cube_into(
+            &mut body,
+            move |x, y, z| {
+                Point3::new(
+                    Dual64::from_f64(ox + x * s),
+                    Dual64::from_f64(y * s),
+                    Dual64::from_f64(z * s),
+                )
+            },
+            tol,
+        );
+    }
+    assert_eq!(body.solids().count(), 2, "two boxes are two solids");
+    let continued = crate::validate_pseudomanifold_certificate_structural(
+        &body,
+        &crate::ContactRecords::default(),
+        tol,
+    )
+    .expect("two closed-form boxes pass the no-lane tier-3′ door at a dual")
+    .refine_to_target()
+    .expect("a closed-form certificate's continuation cannot refuse");
+    let measured =
+        crate::mass_properties_structural(&body, tol).expect("the closed form measures two boxes");
+    assert_eq!(
+        format!("{continued:?}"),
+        format!("{measured:?}"),
+        "the continued no-lane certificate is the closed form's own measurement"
     );
 }
 

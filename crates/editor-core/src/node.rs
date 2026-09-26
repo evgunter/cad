@@ -62,6 +62,16 @@ macro_rules! name_free_node {
 )]
 pub struct RecipeNodeId(pub u64);
 
+/// **A profile program step's identity** (`names/README.md`, "N1, the
+/// profile pieces"): minted from the document's monotone step counter
+/// when the step is authored — by `InsertNode` or `SetProgram` — never
+/// reused, never positional, and unique across the document. A
+/// profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub struct StepId(pub u64);
+
 pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
@@ -1366,9 +1376,9 @@ pub enum InputFault {
     /// a corrupt file, and is refused rather than repaired.
     RepeatedDesignation {
         /// The position of the entry's first occurrence.
-        first: u32,
+        first: usize,
         /// The position at which it is named again.
-        again: u32,
+        again: usize,
     },
     /// A SORTED designation is not in canonical form. A blend's
     /// `selection` ([`Node::Fillet`], [`Node::Chamfer`]) is the payload
@@ -1390,7 +1400,7 @@ pub enum InputFault {
         /// sentence spells both out because a reader comparing two
         /// entries wants both numbers in front of them; the payload
         /// carries the one that is data.
-        at: u32,
+        at: usize,
     },
 }
 
@@ -2031,9 +2041,16 @@ pub enum Node<P> {
     ///
     /// # The `declare` field, and why it records no position
     ///
-    /// Members that touch refuse `UndeclaredContact` exactly as a pair
-    /// boolean's operands do, and the recourse is the same one: a
-    /// [`Node::Declare`] input. Its pairs name SITED entities
+    /// Contact is judged pairwise, before the fold: every two members
+    /// whose boxes meet, or between which a pair is declared, are
+    /// evaluated as the two-member union of just those two, with the
+    /// pairs declared between them, and two members
+    /// that touch with the contact undeclared refuse `UndeclaredContact`
+    /// exactly as a pair boolean's operands do. That holds in every
+    /// member order, and for a contact a third member covers too. The
+    /// fold then builds the body and judges no contact of its own. The
+    /// recourse is the pair boolean's: a [`Node::Declare`] input. Its
+    /// pairs name SITED entities
     /// ([`SitedRef`]) — the entity's name in a MEMBER's own table,
     /// with that member beside it. A declaration therefore says "this
     /// face of member `m` meets that face of member `n`" while naming
@@ -2075,12 +2092,15 @@ pub enum Node<P> {
     /// `c` to `d`) fuses in every order of the three, with
     /// `Merged({a, c, d})` as the fused cap's row in each.
     ///
-    /// Merges are the whole of it. A member face the fold consumed
-    /// otherwise — split by a later member, swallowed by containment,
-    /// or inside a merged row that was later fragmented — is not
-    /// looked through, and a pair naming it resolves only in the
-    /// orders that reach it while it is still a row
-    /// (`work/wire/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// A declared pair authorizes its contact wherever the fold meets
+    /// it, and does not demand that the fold meet it: a pair one of
+    /// whose faces another member contained whole before the pair's
+    /// step, so that no row descends from it, is satisfied. A member
+    /// face that survives only in pieces — split by another member, or
+    /// inside a merged row that was later fragmented — is not looked
+    /// through, and a pair naming it resolves only in the orders that
+    /// reach it while it is still a row
+    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise
@@ -2914,10 +2934,7 @@ impl<P> Node<P> {
         if let Node::Shell { open, .. } = self {
             for (again, name) in open.iter().enumerate() {
                 if let Some(first) = open[..again].iter().position(|n| n == name) {
-                    return Some(InputFault::RepeatedDesignation {
-                        first: first as u32,
-                        again: again as u32,
-                    });
+                    return Some(InputFault::RepeatedDesignation { first, again });
                 }
             }
         }
@@ -2929,7 +2946,7 @@ impl<P> Node<P> {
         if let Node::Fillet { selection, .. } | Node::Chamfer { selection, .. } = self
             && let Some(at) = selection.windows(2).position(|w| w[0] >= w[1])
         {
-            return Some(InputFault::SelectionNotCanonical { at: at as u32 });
+            return Some(InputFault::SelectionNotCanonical { at });
         }
         None
     }
@@ -3536,57 +3553,6 @@ impl<P> Node<P> {
         hits
     }
 
-    /// **The profile whose program coordinates this node's own profile
-    /// locators are spelled in** — the node whose `ProfileEdgeRef`s
-    /// and `ProfileVertexRef`s a `SetProgram` on that profile has to
-    /// remap — or `None` for a node whose names carry no locator of
-    /// its own.
-    ///
-    /// A sweep's table is program-anchored to the profile it sweeps
-    /// (`eval::anchor`, DM8): every `Lateral`, `RimEdge`, `Band`,
-    /// `Pole` and their siblings that the extrude or revolve at this
-    /// node mints names a segment or vertex of THAT profile's
-    /// program. A loft's table is anchored by its FIRST section's map
-    /// alone (DM8's stated exception), so its locators are section
-    /// 0's coordinates and a reshaping of a later section moves none
-    /// of them. A sweep's frontier publishes no table today; the
-    /// answer is the profile it would anchor to, which is the same
-    /// lowering as the extrude's, and costs nothing while no name
-    /// exists to remap. Everything else mints locator-free names of
-    /// its own and CARRIES upstream ones inside `NameRef`s, whose
-    /// locators are their minting node's — reached by descending the
-    /// name, not by asking here.
-    ///
-    /// Exhaustive with no wildcard arm: a node kind that begins to
-    /// sweep a profile has to say so here or stop compiling.
-    pub fn anchoring_profile(&self) -> Option<RecipeNodeId> {
-        match self {
-            Node::Extrude { profile, .. }
-            | Node::Revolve { profile, .. }
-            | Node::Sweep { profile, .. } => Some(*profile),
-            Node::Loft { profiles, .. } => profiles.first().copied(),
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
-            | Node::Declare { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Mate { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
-        }
-    }
-
     /// The node ids [`Node::payload_names`] reaches: the heads whose
     /// existence the insert door checks.
     pub fn named_nodes(&self) -> Vec<RecipeNodeId> {
@@ -3839,10 +3805,9 @@ impl<P> Node<P> {
         };
         let mut prims = Vec::new();
         expr.primitives(&mut prims);
-        let arity = u32::try_from(refs.len()).unwrap_or(u32::MAX);
         for prim in prims {
             for index in prim.refs() {
-                if index >= arity {
+                if !usize::try_from(index).is_ok_and(|i| i < refs.len()) {
                     return Some(MeasureNodeFault::RefIndexOutOfRange {
                         verb: prim.verb(),
                         index,
