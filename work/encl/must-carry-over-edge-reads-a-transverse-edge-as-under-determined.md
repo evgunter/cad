@@ -4,6 +4,8 @@ kind: issue
 title: must_carry_over_edge has no first-order gate: a transverse edge routed to the tangent branch is stored as a conventional chart in one surface order
 status: open
 opened: 2026-09-26
+priority: P1
+cost: D
 ---
 
 ## Finding
