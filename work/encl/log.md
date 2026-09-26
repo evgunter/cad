@@ -224,3 +224,16 @@ inside the bracket. Rows it filed: two on PROPS (`brk-has-no-certified-door`,
 priced at the state sync after 3275 merges). Queued for the local gate
 behind 3272. A loose end, recorded rather than taken: building
 `demos/tour` on main rewrites its `Cargo.lock` (`rayon` moves).
+
+## PR 3269 (refusal prose + elevation arm) reported (2026-09-26)
+
+(ENCL orchestrator) Final head `4a7fd1e4`. Ten arms were brought under
+the viewer standard (NormalFloor 131 → 62 words, among others), and the
+standard's census now reaches `OffsetFitError` through
+`Transform/ApproxRecertify` in 24 rows that went red on first run. The
+rider's `OffsetFitError::Elevation(KnotAlgebraError)` is declared
+unreachable by construction, since the C¹ gate makes a degree-1
+direction a single span. The style review is dispatched on the frozen
+head, and the head is queued for the local gate behind 3272 and 3275.
+Crossings: `topo/src/validate.rs` (ATREST, one match arm); evidence was
+added to TESS's `tess-refusal-prose-outgrows-the-viewer`.
