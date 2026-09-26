@@ -140,13 +140,21 @@ impl<T: Real> SketchSegment<T> {
     /// total — degenerate data yields poison values, caught by
     /// certification.
     ///
-    /// **The start is exact and the end is not.** At `s = 0` the
-    /// rotation term is identically zero and `a` comes back as stored
-    /// (at `f64`, bit for bit); at `s = 1` the result is `a` turned by
-    /// the whole sweep, which is `b` over the reals and within the
-    /// rotation's rounding of it here. The endpoints the topology
-    /// holds are the vertices, never this evaluation, and `Real` has
-    /// no comparison to special-case `s = 1` on.
+    /// **The start is exact and the end is not, by choice.** At `s = 0`
+    /// the rotation term is identically zero and `a` comes back as
+    /// stored (at `f64`, bit for bit); at `s = 1` the result is `a`
+    /// turned by the whole sweep, which is `b` over the reals and within
+    /// the rotation's rounding of it here. A form exact at both ends
+    /// exists without any comparison — the blend
+    /// `(1 − s)·rot_a(s·Δθ) + s·rot_b((s − 1)·Δθ)`, anchored on `a` and
+    /// on `b` — and it is not the one used: it evaluates two rotations
+    /// and sums their enclosures, where the anchored form below carries
+    /// one, and it builds a second rotation's nodes at every `Sym`
+    /// sample. Endpoint authority is
+    /// held elsewhere: the topology's endpoints are the vertices, never
+    /// this evaluation, and certification meters the evaluation
+    /// against the carrier at every sample, `s = 1` included
+    /// (`work/paths/sketch-segment-eval-could-be-exact-at-both-ends.md`).
     ///
     /// **The rotation is anchored on `a`, not on the centre**: the
     /// evaluated form is `a + (R − I)·v` (v = a − centre, R the
