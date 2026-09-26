@@ -76,4 +76,16 @@ Folded by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
   toward −x", and the sign is the one argument that varies.
 - **Routed**: all seven. `select_pick::at_the_wall` stays as the name
   of the plate's wall, over the door.
-- The plants and their per-row red lists are in the PR body.
+- The plants, and every row each one reddened, are listed below.
+
+## Plant red lists
+
+Every red row in the `viewer::all` binary (805 rows each run; passed + failed = 805; tree restored byte-exact and checked clean), grouped by suite. The instrument: a copy/restore harness over `cargo nextest run -p viewer --no-fail-fast`, reading every `FAIL` line.
+
+- **`E_level_wrong_side`**, 7 red:
+  - `mate_tool_flow`: `a_circular_pattern_copy_authors_the_masters_unrotated_frame`
+  - `review_gui2_r1`: `undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives`
+  - `review_gui2_r2`: `picking_again_replaces_rather_than_accumulates`
+  - `review_gui4_r2`: `two_different_faces_of_one_instance_refuse_same_pick`
+  - `select_pick`: `selecting_twice_keeps_exactly_one_selection`, `two_cursors_on_one_face_agree_and_a_wall_is_a_different_face`
+  - `story_assembly`: `the_windmill_story`
