@@ -1534,10 +1534,38 @@ impl DocSession {
     /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
     /// an expression has no authored notation to change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
-        match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
+        match self.slot_unit_admission(node, slot, unit) {
             Ok(edit) => self.commit(edit),
-            Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
+            Err(refusal) => OpOutcome::refused(refusal),
         }
+    }
+
+    /// **What `SessionOp::SetSlotUnit` would answer for this slot and
+    /// unit, or `None` where it would accept** — asked ahead of the
+    /// click by the control that pushes it.
+    ///
+    /// The op's own admission, not a reading of it: `set_slot_unit`
+    /// commits or refuses on exactly this value, so a control gated on
+    /// it is disabled where the op refuses and nowhere else, and the
+    /// words it carries are the refusal's own.
+    pub fn slot_unit_refusal(
+        &self,
+        node: RecipeNodeId,
+        slot: SlotId,
+        unit: UnitDef,
+    ) -> Option<Refusal> {
+        self.slot_unit_admission(node, slot, unit).err()
+    }
+
+    /// The one admission [`Self::set_slot_unit`] and
+    /// [`Self::slot_unit_refusal`] share.
+    fn slot_unit_admission(
+        &self,
+        node: RecipeNodeId,
+        slot: SlotId,
+        unit: UnitDef,
+    ) -> Result<DocEdit<ProfileProgram>, Refusal> {
+        props::slot_unit_edit(self.committed_doc(), node, slot, unit).map_err(Refusal::SlotUnit)
     }
 
     /// **The declared dimensions `parse_expr` reads text against** —
