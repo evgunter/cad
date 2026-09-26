@@ -2,11 +2,12 @@
 id: point-on-arc-endpoint-zone-compresses-by-sin-half-width
 kind: issue
 title: point_on_arc's endpoint neighbourhood (None) spans eps/sin(w/2) of arc length, so contain's boundary pre-pass can read a point on a short or near-full arc as off the boundary, or escalate far from any vertex
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P1
 cost: D
 refs: [ATREST-11]
+parent: CONTACT-4
 ---
 
 

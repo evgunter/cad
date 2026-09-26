@@ -4,6 +4,8 @@ kind: issue
 title: geom-brep offset refusals spell the kernel-defect ending three ways and the repair two ways, with no shared home
 status: open
 opened: 2026-09-26
+priority: P4
+cost: D
 ---
 
 

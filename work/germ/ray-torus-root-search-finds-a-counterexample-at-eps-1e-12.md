@@ -2,11 +2,13 @@
 id: ray-torus-root-search-finds-a-counterexample-at-eps-1e-12
 kind: issue
 title: the ray-torus root search disagrees with its geometric oracle on a rare pose at eps = 1e-12
-status: dispatched
+status: closed
 opened: 2026-09-16
 priority: P0
 cost: H
 branch: germ/ray-torus-root-search
+closed: 2026-09-26
+pr: 3255
 ---
 
 
@@ -123,3 +125,35 @@ Same torus (`R = 1`, `r = 0.9`), again both disagreements on one ray,
 again agreeing to about six digits (`3.2e-6`), but this ray is NOT
 near-perpendicular to the axis (`d.z = 0.81`), so the first pose's
 reading — two inner roots approaching each other — does not cover it.
+
+## Closed (PR 3255, 2026-09-26)
+
+**`line_torus_roots` was wrong**; the oracle and the row's criterion were
+right. Two corrections to the reading above:
+- the `gap 0.61` is the oracle's smallest root spacing, not the
+  disagreement;
+- the criterion is an absolute 1e-6 at every eps. The pose went red only at
+  1e-12 because at 1e-9 and 1e-6 it is `Uncertain` through
+  `bool_ray_torus_split_lead`.
+
+**Cause.** On a near-perpendicular ray, the resolvent cubic's one real root
+(`z ≈ 1.3e-9`) came out of Cardano as a difference of O(1) terms, and both
+roots were off by 2.9e-6. Values only: no certified count or enclosure
+excluded the truth.
+
+**Fix.** `cubic_largest_real_root` assembles the root without the
+cancellation, and certifies across the resolvent's `Q = 0` surface at
+`Interval`. The rows that pin it are `r1_the_near_perpendicular_ray_keeps_its_roots`,
+`r1_a_ray_on_the_resolvents_q_zero_surface_still_certifies_at_interval` and
+`r1_the_q_zero_surface_certifies_on_both_sides`.
+
+**The second counterexample is covered too.** Its seed
+(`0x78705bd8ba1c45ed`, `eps = default`) replays on the fix with 6
+certified, 0 uncertain and 0 disagreements, where it had 2. The
+generic-pose row draws the torus's axis at random too, so `d.z = 0.81`
+said nothing about the ray's angle to the axis.
+
+**Residue, filed:**
+- `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead.md`
+- `work/contact/torus-split-lead-escalates-a-legitimately-small-resolvent-root.md`
+- `work/germ/generic-pose-window-is-tighter-than-the-biquadratic-arm-bound.md`
