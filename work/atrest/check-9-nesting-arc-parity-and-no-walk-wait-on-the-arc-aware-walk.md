@@ -3,6 +3,7 @@ id: check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk
 kind: issue
 title: check 9's nesting arm is silent on the ArcParity and NoWalk outer-loop classes until an arc-aware walk exists: a ring outside an arc-bearing outer loop that is not one circle still certifies
 status: review
+pr: 3288
 opened: 2026-09-24
 priority: P0
 cost: H
