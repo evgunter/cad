@@ -3219,8 +3219,28 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
         doing: "write the preferences",
         because: "the disk is full".to_owned(),
     };
+    let tied = |t: f64| pncad::select::PickHit {
+        name: StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(3),
+            path: vec![],
+        },
+        node: RecipeNodeId(3),
+        body: 0,
+        t,
+        t_lo: t,
+        t_hi: t,
+        point: Point3::new(0.0, 0.0, t),
+    };
     let cases = [
         ("a refused camera move", fold, frame::Retold::Again),
+        (
+            "a pick tied between faces",
+            frame::pick_refusal(&pickindex::PickError::HitTest(HitTestError::Ambiguous {
+                hits: vec![tied(1.0), tied(1.0)],
+            })),
+            frame::Retold::Again,
+        ),
         (
             "a pick the camera could not un-project",
             frame::pick_refusal(&pickindex::PickError::Camera(
