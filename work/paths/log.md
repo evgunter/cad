@@ -333,3 +333,9 @@ grid, and a chord-scale form that reads Δθ is to be tried. The rest:
 - inventory the new hand copies on unit 5;
 - document the redundant fields;
 - measure `offset_axial::reauthor`.
+
+**Ev, 2026-09-26 (in chat): "please merge on local green without waiting
+for ci."** From now on PATHS merges on a green
+`CAD_LOCAL_CI_OVERRIDE=… local-scripts/ci-local.sh --full` run at the
+PR's head, without waiting for hosted CI. A hosted red that lands later
+is fixed forward on main at once.
