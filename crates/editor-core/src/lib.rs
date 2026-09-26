@@ -73,6 +73,12 @@ pub mod roots;
 /// leaf identity, and the gating `worst_case` is a certified interval
 /// enclosure.
 pub mod stackup;
+// Test fixtures for the pick door; see the module's docs. The gate is
+// this crate's `test-support` feature, on only through dev-dependency
+// edges. `doc(hidden)` because the rustdoc gate runs `--all-features`.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
 pub mod update;
 mod verbs;
 pub mod witness;

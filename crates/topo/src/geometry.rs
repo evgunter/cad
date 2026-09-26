@@ -29,8 +29,8 @@
 //!
 //! The key types are **defined in `geom-brep`** (its descriptions
 //! reference surfaces by arena key — see `geom_brep::keys` for the
-//! layering rationale) and re-exported here unchanged; a key's lineage
-//! scoping and stale/foreign semantics are documented on
-//! [`Body`](crate::Body).
+//! layering rationale) and re-exported here unchanged; a key's
+//! [stale/foreign semantics](crate::body#key-validity-stale-vs-foreign)
+//! and its [lineage scoping](crate::Body) are documented with the arena.
 
 pub use geom_brep::{CurveKey, PointKey, SurfaceKey};

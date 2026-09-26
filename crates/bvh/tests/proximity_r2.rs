@@ -14,18 +14,8 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use bvh::test_support::boxed;
 use bvh::{Aabb, Bvh};
-
-fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
-    Aabb {
-        min_x: min[0],
-        min_y: min[1],
-        min_z: min[2],
-        max_x: max[0],
-        max_y: max[1],
-        max_z: max[2],
-    }
-}
 
 /// The exact separation of two axis-aligned boxes, computed in a way
 /// that cannot overflow: the per-axis gaps are scaled down by the

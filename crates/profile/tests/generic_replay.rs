@@ -33,125 +33,14 @@
 
 use crate::common;
 
-use common::{coverage_corpus, tol};
+use common::{coverage_corpus, tol, try_replay_at};
 use geom_core::{Dual64, Point2, Real};
-use profile::{ArcData, ProfileLoop, ReplayError, Step, Target, replay};
-
-/// Embeds a resolved `f64` step into any scalar, coordinate by
-/// coordinate through `Real::from_f64` — the same exact embedding the
-/// parameter environment and the profile lift use.
-///
-/// Exhaustive over the step vocabulary and over the arc-spec modes, so
-/// a verb the transition table gains breaks this file at compile rather
-/// than silently dropping out of the off-`f64` rows.
-fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
-    fn pt<T: Real>(p: Point2<f64>) -> Point2<T> {
-        p.map(T::from_f64)
-    }
-    fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
-        match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        }
-    }
-    fn spec<T: Real>(s: ArcData<f64>) -> ArcData<T> {
-        match s {
-            ArcData::Radius { r, side } => ArcData::Radius {
-                r: T::from_f64(r),
-                side,
-            },
-            ArcData::Bulge { target, b } => ArcData::Bulge {
-                target: tgt(target),
-                b: T::from_f64(b),
-            },
-            ArcData::Via { q, target } => ArcData::Via {
-                q: pt(q),
-                target: tgt(target),
-            },
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            ArcData::Sweep { r, side, angle } => ArcData::Sweep {
-                r: T::from_f64(r),
-                side,
-                angle: T::from_f64(angle),
-            },
-            ArcData::ArcLen { r, side, len } => ArcData::ArcLen {
-                r: T::from_f64(r),
-                side,
-                len: T::from_f64(len),
-            },
-        }
-    }
-    match *step {
-        Step::At(p) => Step::At(pt(p)),
-        Step::Angle(theta) => Step::Angle(T::from_f64(theta)),
-        Step::Toward { dx, dy } => Step::Toward {
-            dx: T::from_f64(dx),
-            dy: T::from_f64(dy),
-        },
-        Step::Tangent => Step::Tangent,
-        Step::Cusp => Step::Cusp,
-        Step::Turn(delta) => Step::Turn(T::from_f64(delta)),
-        Step::Line(len) => Step::Line(T::from_f64(len)),
-        Step::LineTo(t) => Step::LineTo(tgt(t)),
-        Step::ContinueTo(t) => Step::ContinueTo(tgt(t)),
-        Step::ArcTo(s) => Step::ArcTo(spec(s)),
-        Step::TangentArcTo(t) => Step::TangentArcTo(tgt(t)),
-        Step::Fillet { radius } => Step::Fillet {
-            radius: T::from_f64(radius),
-        },
-        Step::FilletArc { radius, spec: s } => Step::FilletArc {
-            radius: T::from_f64(radius),
-            spec: spec(s),
-        },
-        Step::ArcFillet { spec: s, radius } => Step::ArcFillet {
-            spec: spec(s),
-            radius: T::from_f64(radius),
-        },
-        Step::ArcFilletArc {
-            spec: s,
-            radius,
-            spec2,
-        } => Step::ArcFilletArc {
-            spec: spec(s),
-            radius: T::from_f64(radius),
-            spec2: spec(spec2),
-        },
-        Step::FarEndTo(p) => Step::FarEndTo(pt(p)),
-        Step::CloseTo => Step::CloseTo,
-        Step::Circle { centre, radius } => Step::Circle {
-            centre: pt(centre),
-            radius: T::from_f64(radius),
-        },
-        Step::CircleSplit {
-            centre,
-            radius,
-            n,
-            phase,
-        } => Step::CircleSplit {
-            centre: pt(centre),
-            radius: T::from_f64(radius),
-            n,
-            phase: T::from_f64(phase),
-        },
-    }
-}
+use profile::{ProfileLoop, ReplayError, Step};
 
 /// One corpus row's program, embedded and replayed at `T`.
 fn replay_at<T: profile::ArcCarrierScalar>(program: &[Step<f64>]) -> ProfileLoop<T> {
     try_replay_at(program)
         .unwrap_or_else(|e| panic!("the corpus program refused at the lifted scalar: {e}"))
-}
-
-fn try_replay_at<T: profile::ArcCarrierScalar>(
-    program: &[Step<f64>],
-) -> Result<ProfileLoop<T>, ReplayError<T>> {
-    let embedded: Vec<Step<T>> = program.iter().map(embed_step).collect();
-    replay(&embedded, tol())
 }
 
 /// The `Dual64` instantiation: same structure, same value bits, zero
@@ -450,7 +339,10 @@ fn the_anchor_coincident_corner_reduces_to_input_width_at_interval() {
     use profile::Verb;
 
     /// The eye's one fused step, with every length scaled by `s` — the
-    /// same geometry, read at a different size.
+    /// same geometry, read at a different size. A scale, not a scalar
+    /// lift: `Step::map_scalar` would move the angles and bulges too, so
+    /// this walks the lengths itself and refuses any step or mode whose
+    /// fields it has not sorted into the two.
     fn scaled(step: &Step<f64>, s: f64) -> Step<f64> {
         use profile::{ArcData, Target};
         let pt = |p: Point2<f64>| Point2::new(p.x * s, p.y * s);

@@ -622,9 +622,14 @@ topo_release() {
   local log rc passed
   log=$(mktemp) || return 1
   set -o pipefail
+  # Hosted's env and filter, verbatim: the workspace's release profile
+  # keeps debug assertions ON, so without the override the
+  # `cfg(not(debug_assertions))` rows this job exists for never compile.
+  CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false \
   cargo test --release -p topo --lib -- \
     review_m1_pr2::release_corruption \
     review_m1_pr4::kill_ops_survive_torn_bodies_without_panicking \
+    review_d18 \
     2>&1 | tee "$log"
   rc=$?
   set +o pipefail

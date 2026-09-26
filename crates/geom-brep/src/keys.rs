@@ -11,7 +11,8 @@
 //! # Lineage scoping (Q1)
 //!
 //! A key is meaningful only within the lineage of the body that minted
-//! it. The full stale-vs-foreign story is documented on `topo::Body`;
+//! it. The full stale-vs-foreign story is documented in the `topo::body`
+//! module docs (their `Key validity` section);
 //! the one-line consequence for this crate: certification never resolves
 //! keys itself — resolution is injected by the caller (a lookup closure
 //! over the owning body's arenas), so a key never silently crosses

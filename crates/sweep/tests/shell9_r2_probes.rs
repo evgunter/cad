@@ -13,8 +13,9 @@ use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::charts::hollow_moves;
 use super::common::latitude_seam::two_arc_sphere;
-use super::shell7_common::{drum, hollow_moves, p2, polyline, revolved, tol};
+use super::shell7_common::{drum, p2, polyline, revolved, tol};
 use super::shell8_common::beside;
 use super::verbs_shell::vessel;
 

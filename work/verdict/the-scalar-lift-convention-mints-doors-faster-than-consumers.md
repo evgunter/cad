@@ -225,3 +225,15 @@ deletion of it was reverted when the interval lane went red. This row's
 were taken without `--features interval`. They should be re-taken with it
 before any of them is acted on. Add `--keep-going` as well, because
 without it cargo stops at the first failing crate.
+
+## One more member, minted 2026-09-26 (S-DUP, `dup/b6-c`)
+
+`profile::Step::map_scalar` (`crates/profile/src/path/program.rs`) is
+new. It is `pub`, and its only consumers are tests: six hand-written
+recorded-program embeds in `profile/tests/` and `editor-core/tests/`
+now route through it (`work/dup/step-program-embed-has-no-map-door.md`).
+Nothing in `src` lifts a `Step`. The two rungs under it,
+`Target::map_scalar` and `ArcData::map_scalar`, were minted
+`pub(crate)`, because nothing outside the ladder lifts a bare target or
+spec. So the new member adds one `pub` door to this row's population,
+not three.

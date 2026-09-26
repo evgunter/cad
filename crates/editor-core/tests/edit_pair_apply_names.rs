@@ -412,12 +412,10 @@ fn the_name_doors_refuse_a_twins_evaluation() {
     );
 }
 
-/// Straight down the prism's axis, through the end cap.
+/// Straight down the prism's axis, through the end cap, from above
+/// it — the height is this suite's claim about its own prism.
 fn down() -> editor_core::Ray {
-    editor_core::Ray {
-        origin: geom_core::Point3::new(0.0, 0.0, 5.0),
-        dir: geom_core::Vec3::new(0.0, 0.0, -1.0),
-    }
+    editor_core::test_support::down_from(0.0, 0.0, 5.0)
 }
 
 /// **`pick_face` refuses a target of another document**, before it

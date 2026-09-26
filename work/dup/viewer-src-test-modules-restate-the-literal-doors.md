@@ -2,10 +2,11 @@
 id: viewer-src-test-modules-restate-the-literal-doors
 kind: issue
 title: crates/viewer/src unit-test modules restate len and scl at fourteen sites, with no shared home they can reach
-status: open
+status: closed
 opened: 2026-09-24
 priority: P4
 cost: D
+closed: 2026-09-26
 ---
 
 
@@ -89,3 +90,65 @@ The ground is `crates/viewer/src/`, which `view` owns, and a fold there
 needs a module `view` would have to accept; any claimant may take it by
 `git mv`. It sits here because the subject — one construction spelled
 fourteen times — is S-DUP's charter.
+
+## Closed
+
+Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
+`032999ff2`. PR #3302.
+
+- **Census re-taken at the merge base**, with the row's instrument
+  and without its `.expect` shape (`git grep -n 'Expr::literal' --
+  crates/viewer/src/`, each hit's line against its file's first
+  `#[cfg(test)]`): the fourteen, as the row counted them —
+  `session.rs` 6, `drafts.rs` 4, `pane/profile.rs` 2, `widgets.rs` 2.
+  The seven `apply(DocEdit::InsertNode)` sites the row added, and
+  `widgets.rs`'s own `edited` / `inserted` / `node_insert`, longhand
+  xy frame and 0.04 m square, all present. A second pass for the
+  frame (`Datum::Frame {` / `DatumSpec::Frame {` in test code) found
+  the xy frame written out in all four files — three of them through
+  `session::author::datum_node`, which maps `DatumSpec::Frame` to
+  `Datum::Frame` field for field, so the value is the same.
+- **The home, and the sharing question the row raised.**
+  `crates/viewer/src/test_support.rs`, declared
+  `#[cfg(any(test, feature = "test-support"))] #[doc(hidden)] pub mod
+  test_support;` with a self dev-dependency turning the feature on —
+  the mechanism `sweep`, `profile`, `topo` and `editor-core` already
+  use, guarded by `test-features-dev-only.sh`. The unit-test modules
+  reach it as `crate::test_support`, and `tests/common` re-exports it
+  whole (`pub use viewer::test_support::*;`), so the two read ONE
+  definition. It holds the literal family, `edited` / `try_edited`,
+  `inserted` / `try_inserted`, `insert_into` / `edit_into`,
+  `declared`, `frame` / `xy_frame`, `rectangle_loop` / `rectangle` /
+  `square` / `framed_square`, and the three δ doors, all moved out of
+  `tests/common` rather than copied. No production build carries the
+  feature (`cargo tree -e normal` over default and `app` finds no
+  `test-support`). The module declares itself a **vocabulary**.
+- **Premises**: a row whose premise is that an edit applies calls the
+  `try_` door and names the premise in its own `.expect(..)` (the split
+  circle above the form's cap, the form's default path, the edit door
+  taking a held loop); every other row takes the plain door, whose
+  failure is the fixture's.
+- **Routed**: all fourteen literal sites, all seven inserts,
+  `widgets.rs`'s five private doors, and the xy frame in all four
+  files. `drafts.rs`'s `SetParam` fold and `session.rs`'s refusal
+  premise and replay are not inserts and stay.
+- **Plants**, through the feature path (copy/restore harness, tree
+  clean against HEAD after each; `--features app`, 978 rows, unless
+  noted): a `panic!` in `inserted` reds 321 — every unit row that
+  authors through it (`session` 3, `drafts` 4, `pane::profile` 1,
+  `widgets::value_field_tests` 5) and 308 integration rows; one in
+  `try_edited` reds 331, the same 13 unit rows and 318 integration
+  rows; doubling `len` reds 66 integration rows and no unit row, so
+  the unit rows are reached and do not measure a length. `framed_square`
+  at twice the side reds nothing; its `panic!` control reds 122,
+  `widgets`' 5 among them — reached, and no row measures the side.
+  `plate_delta` coarsened 100x reds one row (`edge_pick`, default
+  features, 806); its `panic!` control reds 77, `marks`' one `plate()`
+  row among them.
+- **Also folded, once the home could name `viewer` types**:
+  `marks.rs`'s `delta()` is `test_support::plate_delta`, and
+  `widgets.rs`'s `Row::extrude_distance` is `declared` +
+  `framed_square`.
+- **Not folded, filed**: `pane/viewport.rs`'s `plate_index`, which
+  names `DocSession` — a driver type the vocabulary home may not name.
+  `viewer-src-test-modules-hold-the-pick-index-build-no-shared-home-can-take`.

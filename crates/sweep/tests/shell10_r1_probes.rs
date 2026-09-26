@@ -11,6 +11,7 @@ use sweep::test_support::block;
 use topo::{Body, FaceKey, HalfEdgeKey, SolidKey};
 
 use crate::common::approx::band;
+use crate::common::charts::{charts_of, moves_by};
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, outer_and_void_of, tol, volume};
 use crate::verbs_shell::vessel;
 
@@ -28,14 +29,6 @@ fn dead_rows(body: &Body<f64>) -> Vec<HalfEdgeKey> {
 
 fn all_faces(body: &Body<f64>) -> Vec<FaceKey> {
     body.faces().map(|(k, _)| k).collect()
-}
-
-/// Every chart of `solid` as a move of `distance`.
-fn moves_of(body: &Body<f64>, solid: SolidKey, distance: f64) -> Vec<topo::ChartMove<f64>> {
-    crate::shell8_common::charts_of(body, solid)
-        .into_iter()
-        .map(|faces| topo::ChartMove { faces, distance })
-        .collect()
 }
 
 // ---------------------------------------------------------------
@@ -274,8 +267,13 @@ fn r1_e2e_direct_door_over_one_of_two_with_an_unmintable_neighbour() {
 
     let before = deep_dump(&pair, bx);
     let mut work = pair.clone();
-    topo::offset_charts_together(&mut work, &moves_of(&pair, ves, -0.05), band(), tol())
-        .expect("the door reads its scope, and its scope charts");
+    topo::offset_charts_together(
+        &mut work,
+        &moves_by(charts_of(&pair, ves), -0.05),
+        band(),
+        tol(),
+    )
+    .expect("the door reads its scope, and its scope charts");
     println!(
         "[r1e2e-c] the door built; out-of-scope deep rows {} unchanged",
         before.len()
@@ -325,8 +323,13 @@ fn r1_the_door_no_longer_launders_a_half_minted_out_of_scope_face() {
     );
 
     let mut work = pair.clone();
-    topo::offset_charts_together(&mut work, &moves_of(&pair, ves, -0.05), band(), tol())
-        .expect("the door builds");
+    topo::offset_charts_together(
+        &mut work,
+        &moves_by(charts_of(&pair, ves), -0.05),
+        band(),
+        tol(),
+    )
+    .expect("the door builds");
     let after = topo::validate_geometric(&work, tol());
     println!("[r1p3] tier 3 on the door's result: {after:?}");
     assert!(
@@ -372,7 +375,7 @@ fn r1_cost() {
     // Row 4 of the PR's table: the axial door on 1 of 2 vessels.
     let pair = beside(&vessel(1.0, 2.0), &vessel(1.0, 2.0), 10.0);
     let ves = pair.solids().next().unwrap().0;
-    let mv2 = moves_of(&pair, ves, -0.05);
+    let mv2 = moves_by(charts_of(&pair, ves), -0.05);
     bench("offset_charts_together, 1 of 2 vessels", &|| {
         let mut w = pair.clone();
         topo::offset_charts_together(&mut w, &mv2, band(), tol()).expect("builds");
@@ -385,7 +388,7 @@ fn r1_cost() {
         four = beside(&four, &vessel(1.0, 2.0), 10.0 * f64::from(i));
     }
     let ves4 = four.solids().next().unwrap().0;
-    let mv4 = moves_of(&four, ves4, -0.05);
+    let mv4 = moves_by(charts_of(&four, ves4), -0.05);
     bench("offset_charts_together, 1 of 4 vessels", &|| {
         let mut w = four.clone();
         topo::offset_charts_together(&mut w, &mv4, band(), tol()).expect("builds");
@@ -401,7 +404,7 @@ fn r1_cost() {
         );
     }
     let bx4 = fourb.solids().next().unwrap().0;
-    let mvb = moves_of(&fourb, bx4, -0.05);
+    let mvb = moves_by(charts_of(&fourb, bx4), -0.05);
     bench("offset_planes_together, 1 of 4 boxes", &|| {
         let mut w = fourb.clone();
         topo::offset_planes_together(&mut w, &mvb, band(), tol()).expect("builds");

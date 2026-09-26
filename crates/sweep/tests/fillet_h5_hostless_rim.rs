@@ -100,19 +100,6 @@ fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
     vs
 }
 
-fn valence(body: &Body<f64>, v: VertexKey) -> Vec<EdgeKey> {
-    let he = body.get_vertex(v).unwrap().emanating.unwrap();
-    let mut out: Vec<EdgeKey> = body
-        .vertex_orbit(he)
-        .unwrap()
-        .into_iter()
-        .map(|h| body.get_half_edge(h).unwrap().edge)
-        .collect();
-    out.sort_unstable();
-    out.dedup();
-    out
-}
-
 /// Whether an edge is a chart seam: the same SURFACE on both sides.
 fn co_surface(body: &Body<f64>, e: EdgeKey) -> bool {
     let (fa, fb) = faces_of(body, e);
@@ -185,7 +172,7 @@ fn the_plane_hosted_rim_carves_on_either_material_side() {
         );
 
         for v in rim_vertices(body, &arcs) {
-            let inc = valence(body, v);
+            let inc = body.edges_of_vertex(v).unwrap();
             assert_eq!(inc.len(), 3, "{name}: a crossing is trivalent");
             let seams: Vec<EdgeKey> = inc.iter().copied().filter(|e| !arcs.contains(e)).collect();
             assert_eq!(seams.len(), 1, "{name}: one seam meets a crossing");
@@ -331,7 +318,7 @@ fn a_pole_touching_revolve_splits_the_walls_that_do_not_touch_the_axis_too() {
         );
         for v in rim_vertices(&body, &arcs) {
             assert_eq!(
-                valence(&body, v).len(),
+                body.edges_of_vertex(v).unwrap().len(),
                 4,
                 "{name}: a crossing carries a co-surface seam per SIDE"
             );

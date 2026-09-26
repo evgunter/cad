@@ -220,6 +220,17 @@ sweep = { path = "../sweep", features = ["test-support"] }
 # The mounted fixture's `on_pool` (an explicit-width pool for the
 # evaluator's thread-count rows) names rayon directly. The workspace pin.
 rayon = { workspace = true }
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests, the same edge `sweep`, `profile` and `editor-core`
+# carry — `src/test_support.rs` is then one home for the unit-test
+# modules and `tests/` alike. A dev-dependency is in no consumer's build
+# graph, so no shipped build (native, `app` or wasm32) enables it.
+viewer = { path = ".", features = ["test-support"] }
+# `editor-core` and `bvh` again, with `test-support` ON: the pick suites
+# aim their rays through `editor_core::test_support` and
+# `bvh::test_support`. Dev-only, like the `profile` and `sweep` entries.
+editor-core = { path = "../editor-core", features = ["test-support"] }
+bvh = { path = "../bvh", features = ["test-support"] }
 
 # --- the colourblind check's oracle (tests/theme.rs) ---
 #
@@ -267,6 +278,11 @@ pollster = "1.0.1"
 
 
 [features]
+# Test fixtures (`src/test_support.rs`). A test-only feature: only this
+# crate's self dev-dependency turns it on, and
+# `scripts/gates/test-features-dev-only.sh` refuses any manifest that
+# wires it onto a non-dev edge.
+test-support = []
 # The eframe application: windowing, the docked chrome, and the wgpu
 # viewport. Everything else in this crate — camera state, the typed
 # camera operations, the input mapping, and the scene extraction — is

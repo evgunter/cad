@@ -12,51 +12,12 @@
 
 #![allow(clippy::expect_used, clippy::panic, clippy::unwrap_used)]
 
-use bvh::{Aabb, Bvh, Ray};
+use bvh::Ray;
 use editor_core::resolve::ray_triangle;
-use editor_core::{DocEdit, Expr, ProfileDoc, RecipeNodeId, SlotId, unparse};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Vec3};
 use viewer::pickindex::PickIndex;
-use viewer::session::{DocSession, SessionOp};
 
-use crate::common;
-use crate::common::corpus_index;
-use crate::corpus;
-
-fn bump_op(c: &corpus::CorpusDoc) -> Option<SessionOp> {
-    let DocEdit::SetParam { node, slot, expr } = c.bump.clone() else {
-        return None;
-    };
-    Some(SessionOp::SetSlotExpression {
-        node,
-        slot,
-        text: unparse(&expr),
-    })
-}
-
-fn ring_bump(doc: &ProfileDoc) -> SessionOp {
-    let env = doc.param_env::<f64>();
-    for &node in doc.order().iter().rev() {
-        let (slot, expr): (SlotId, Expr) = match doc.node(node).expect("a node") {
-            editor_core::Node::Extrude { distance, .. } => {
-                let value = editor_core::eval(distance, &env).expect("a literal distance");
-                (SlotId::Distance, common::len(value * 1.03125))
-            }
-            editor_core::Node::Revolve { angle, .. } => {
-                let value = editor_core::eval(angle, &env).expect("a literal angle");
-                (SlotId::RevolveAngle, common::ang(value * 0.96875))
-            }
-            _ => continue,
-        };
-        let _: RecipeNodeId = node;
-        return SessionOp::SetSlotExpression {
-            node,
-            slot,
-            text: unparse(&expr),
-        };
-    }
-    panic!("no extrude or revolve in the ring")
-}
+use crate::common::corpus_pick::{FlatReference, over_every_landing, tie_rays_for, wide_aim};
 
 /// `main`'s exact test, restated verbatim from
 /// `git show e97a13fdb:crates/editor-core/src/resolve/pick.rs`: the
@@ -116,167 +77,87 @@ struct Contingency {
     aim_lost_examples: Vec<String>,
 }
 
-struct FlatPart {
-    tree: Bvh,
-    corners: Vec<[Point3<f64>; 3]>,
-}
-
-fn flatten(index: &PickIndex) -> Vec<FlatPart> {
-    index
-        .parts()
-        .iter()
-        .map(|part| {
-            let mesh = part.mesh();
-            let mut corners = Vec::new();
-            let mut boxes = Vec::new();
-            for p in &mesh.patches {
-                for tri in &p.triangles {
-                    let c = tri.map(|i| mesh.positions[i as usize]);
-                    boxes.push(Aabb::from_points(c).expect("three points box"));
-                    corners.push(c);
-                }
+/// The nearest `t` each acceptance answers over every candidate box the
+/// ray meets: `(main's, the landed door's)`. ONE candidate set feeds
+/// both, which is what makes the two comparable ray by ray.
+fn nearest_both(reference: &FlatReference, ray: &Ray) -> (Option<f64>, Option<f64>) {
+    let mut best_landed: Option<f64> = None;
+    let mut best_main: Option<f64> = None;
+    for flat in &reference.parts {
+        for cand in flat.tree.ray(ray) {
+            let tri = &flat.corners[cand.item];
+            if let Some(span) = ray_triangle(ray, tri)
+                && best_landed.is_none_or(|b| span.t < b)
+            {
+                best_landed = Some(span.t);
             }
-            FlatPart {
-                tree: Bvh::build(&boxes),
-                corners,
+            if let Some(t) = main_ray_triangle(ray, tri)
+                && best_main.is_none_or(|b| t < b)
+            {
+                best_main = Some(t);
             }
-        })
-        .collect()
+        }
+    }
+    (best_main, best_landed)
 }
 
 fn sweep(name: &str, step: &str, index: &PickIndex, c: &mut Contingency) {
-    let parts = flatten(index);
-    let mut ext = 0.0f64;
-    for part in index.parts() {
-        for p in &part.mesh().positions {
-            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
+    let reference = FlatReference::of(index);
+    for aim in wide_aim(index) {
+        let (v, dir, reach) = (aim.at, aim.dir, aim.reach);
+        c.rays += 1;
+        let ray = aim.ray();
+        let (best_main, best_landed) = nearest_both(&reference, &ray);
+        let aimed = |t: Option<f64>| t.is_some_and(|t| (t - reach).abs() < 1e-9);
+        let (am, al) = (aimed(best_main), aimed(best_landed));
+        c.aimed_main += usize::from(am);
+        c.aimed_landed += usize::from(al);
+        c.aim_lost += usize::from(am && !al);
+        c.aim_gained += usize::from(al && !am);
+        if am && !al && c.aim_lost_examples.len() < 8 {
+            c.aim_lost_examples.push(format!(
+                "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: main \
+                 {best_main:?} landed {best_landed:?}"
+            ));
         }
-    }
-    let reaches = [1.48, 3.0, 4.0 * ext.max(1e-3)];
-    let dirs = [
-        Vec3::new(1.0, 0.0, 0.0),
-        Vec3::new(-1.0, 0.0, 0.0),
-        Vec3::new(0.0, 1.0, 0.0),
-        Vec3::new(0.0, -1.0, 0.0),
-        Vec3::new(0.0, 0.0, 1.0),
-        Vec3::new(0.0, 0.0, -1.0),
-    ];
-    for part in index.parts() {
-        let positions = &part.mesh().positions;
-        let stride = positions.len().div_ceil(1500).max(1);
-        for v in positions.iter().step_by(stride) {
-            for dir in dirs {
-                for reach in reaches {
-                    c.rays += 1;
-                    let ray = Ray {
-                        origin: *v - dir * reach,
-                        dir,
-                    };
-                    let mut best_landed: Option<f64> = None;
-                    let mut best_main: Option<f64> = None;
-                    for flat in &parts {
-                        for cand in flat.tree.ray(&ray) {
-                            let tri = &flat.corners[cand.item];
-                            if let Some(span) = ray_triangle(&ray, tri)
-                                && best_landed.is_none_or(|b| span.t < b)
-                            {
-                                best_landed = Some(span.t);
-                            }
-                            if let Some(t) = main_ray_triangle(&ray, tri)
-                                && best_main.is_none_or(|b| t < b)
-                            {
-                                best_main = Some(t);
-                            }
-                        }
-                    }
-                    let aimed = |t: Option<f64>| t.is_some_and(|t| (t - reach).abs() < 1e-9);
-                    let (am, al) = (aimed(best_main), aimed(best_landed));
-                    c.aimed_main += usize::from(am);
-                    c.aimed_landed += usize::from(al);
-                    c.aim_lost += usize::from(am && !al);
-                    c.aim_gained += usize::from(al && !am);
-                    if am && !al && c.aim_lost_examples.len() < 8 {
-                        c.aim_lost_examples.push(format!(
-                            "{name}/{step}: AIM LOST {dir:?} through {v:?} reach {reach}: main \
-                             {best_main:?} landed {best_landed:?}"
-                        ));
-                    }
-                    match (best_main, best_landed) {
-                        (Some(_), None) => {
-                            c.lost_entirely += 1;
-                            if c.examples.len() < 12 {
-                                c.examples.push(format!(
-                                    "{name}/{step}: LOST {dir:?} through {v:?} reach {reach}: \
-                                     main {:?} landed none",
-                                    best_main
-                                ));
-                            }
-                        }
-                        (Some(m), Some(l)) if m.to_bits() != l.to_bits() => {
-                            c.moved += 1;
-                            if l > m {
-                                c.moved_farther += 1;
-                            }
-                            let rel = ((l - m) / m.abs().max(f64::MIN_POSITIVE)).abs();
-                            c.widest_relative_move = c.widest_relative_move.max(rel);
-                            if rel > 1e-9 {
-                                c.moved_materially += 1;
-                            }
-                            if rel > 1e-9 && c.examples.len() < 12 {
-                                c.examples.push(format!(
-                                    "{name}/{step}: MOVED {dir:?} through {v:?} reach {reach}: \
-                                     main {m} landed {l}"
-                                ));
-                            }
-                        }
-                        (None, Some(_)) => c.gained_impossible += 1,
-                        _ => {}
-                    }
+        match (best_main, best_landed) {
+            (Some(_), None) => {
+                c.lost_entirely += 1;
+                if c.examples.len() < 12 {
+                    c.examples.push(format!(
+                        "{name}/{step}: LOST {dir:?} through {v:?} reach {reach}: \
+                         main {:?} landed none",
+                        best_main
+                    ));
                 }
             }
+            (Some(m), Some(l)) if m.to_bits() != l.to_bits() => {
+                c.moved += 1;
+                if l > m {
+                    c.moved_farther += 1;
+                }
+                let rel = ((l - m) / m.abs().max(f64::MIN_POSITIVE)).abs();
+                c.widest_relative_move = c.widest_relative_move.max(rel);
+                if rel > 1e-9 {
+                    c.moved_materially += 1;
+                }
+                if rel > 1e-9 && c.examples.len() < 12 {
+                    c.examples.push(format!(
+                        "{name}/{step}: MOVED {dir:?} through {v:?} reach {reach}: \
+                         main {m} landed {l}"
+                    ));
+                }
+            }
+            (None, Some(_)) => c.gained_impossible += 1,
+            _ => {}
         }
     }
 }
 
 #[test]
 fn what_the_inform_half_costs_and_buys_over_the_wide_aim() {
-    let tol = Tol::witness();
     let mut c = Contingency::default();
-    {
-        let text = common::gallery_ring_at(tol);
-        let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-        let doc = loaded.snapshot;
-        let bump = ring_bump(&doc);
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        sweep("gallery_ring", "open", &corpus_index(&session), &mut c);
-        let outcome = session.perform(bump);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-        sweep(
-            "gallery_ring",
-            "the first edit",
-            &corpus_index(&session),
-            &mut c,
-        );
-    }
-    for doc in corpus::documents() {
-        let Some(bump) = bump_op(&doc) else {
-            continue;
-        };
-        let mut session = DocSession::inline(doc.doc.clone(), tol);
-        session.pump();
-        if session.evaluation().is_none() {
-            continue;
-        }
-        sweep(doc.name, "open", &corpus_index(&session), &mut c);
-        let outcome = session.perform(bump);
-        if outcome.refusal.is_some() {
-            continue;
-        }
-        session.pump();
-        sweep(doc.name, "the first edit", &corpus_index(&session), &mut c);
-    }
+    over_every_landing(|name, step, index, _| sweep(name, step, index, &mut c));
     println!("# pick2-r1 contingency (wide aim): {c:#?}");
     assert_eq!(
         c.gained_impossible, 0,
@@ -301,77 +182,11 @@ struct TieAim {
     examples: Vec<String>,
 }
 
-fn tie_rays_for(index: &PickIndex) -> Vec<(Ray, f64)> {
-    let mut ext = 0.0f64;
-    let mut targets = Vec::new();
-    for part in index.parts() {
-        let mesh = part.mesh();
-        for p in &mesh.positions {
-            ext = ext.max(p.x.abs()).max(p.y.abs()).max(p.z.abs());
-        }
-        let stride = mesh.boundaries.len().div_ceil(40).max(1);
-        for boundary in mesh.boundaries.iter().step_by(stride) {
-            let pts: Vec<Point3<f64>> = boundary
-                .points
-                .iter()
-                .map(|&i| mesh.positions[i as usize])
-                .collect();
-            if let Some(&first) = pts.first() {
-                targets.push(first);
-            }
-            if let [a, b, ..] = pts[..] {
-                targets.push(Point3::new(
-                    (a.x + b.x) * 0.5,
-                    (a.y + b.y) * 0.5,
-                    (a.z + b.z) * 0.5,
-                ));
-            }
-        }
-    }
-    let reach = 4.0 * ext.max(1e-3);
-    let mut rays = Vec::new();
-    for at in targets {
-        for dir in [
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(-1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, -1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-            Vec3::new(0.0, 0.0, -1.0),
-        ] {
-            rays.push((
-                Ray {
-                    origin: at - dir * reach,
-                    dir,
-                },
-                reach,
-            ));
-        }
-    }
-    rays
-}
-
 fn tie_sweep(name: &str, step: &str, index: &PickIndex, a: &mut TieAim) {
-    let parts = flatten(index);
+    let reference = FlatReference::of(index);
     for (ray, reach) in tie_rays_for(index) {
         a.rays += 1;
-        let mut best_landed: Option<f64> = None;
-        let mut best_main: Option<f64> = None;
-        for flat in &parts {
-            for cand in flat.tree.ray(&ray) {
-                let tri = &flat.corners[cand.item];
-                if let Some(span) = ray_triangle(&ray, tri)
-                    && best_landed.is_none_or(|b| span.t < b)
-                {
-                    best_landed = Some(span.t);
-                }
-                if let Some(t) = main_ray_triangle(&ray, tri)
-                    && best_main.is_none_or(|b| t < b)
-                {
-                    best_main = Some(t);
-                }
-            }
-        }
+        let (best_main, best_landed) = nearest_both(&reference, &ray);
         let beyond = |t: Option<f64>| !t.is_some_and(|t| t <= reach + 1e-9);
         let (bm, bl) = (beyond(best_main), beyond(best_landed));
         a.beyond_or_miss_main += usize::from(bm);
@@ -394,43 +209,8 @@ fn tie_sweep(name: &str, step: &str, index: &PickIndex, a: &mut TieAim) {
 
 #[test]
 fn the_tie_break_aims_unchanged_count_is_not_an_unchanged_set() {
-    let tol = Tol::witness();
     let mut a = TieAim::default();
-    {
-        let text = common::gallery_ring_at(tol);
-        let loaded = pncad::document::load(&text, tol).expect("the gallery ring loads");
-        let doc = loaded.snapshot;
-        let bump = ring_bump(&doc);
-        let mut session = DocSession::inline(doc, tol);
-        session.pump();
-        tie_sweep("gallery_ring", "open", &corpus_index(&session), &mut a);
-        let outcome = session.perform(bump);
-        assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
-        session.pump();
-        tie_sweep(
-            "gallery_ring",
-            "the first edit",
-            &corpus_index(&session),
-            &mut a,
-        );
-    }
-    for doc in corpus::documents() {
-        let Some(bump) = bump_op(&doc) else {
-            continue;
-        };
-        let mut session = DocSession::inline(doc.doc.clone(), tol);
-        session.pump();
-        if session.evaluation().is_none() {
-            continue;
-        }
-        tie_sweep(doc.name, "open", &corpus_index(&session), &mut a);
-        let outcome = session.perform(bump);
-        if outcome.refusal.is_some() {
-            continue;
-        }
-        session.pump();
-        tie_sweep(doc.name, "the first edit", &corpus_index(&session), &mut a);
-    }
+    over_every_landing(|name, step, index, _| tie_sweep(name, step, index, &mut a));
     println!("# pick2-r1 tie-break aim: {a:#?}");
     // The claim the probe was written to make: the amendment's
     // `149 -> 149` is the same SET, not two counts that happen to

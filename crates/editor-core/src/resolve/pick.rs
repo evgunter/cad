@@ -2349,6 +2349,8 @@ mod tests {
     use test_utils::fuzz;
     use topo::Body;
 
+    use crate::test_support::{aimed, det_and_conditioning, down_from, near_tangent};
+
     use super::{
         MeshPick, MeshPickError, PickMemo, PickTable, TSpan, crossing, ray_triangle,
         retract_to_simplex,
@@ -2432,25 +2434,6 @@ mod tests {
     // The rows below came in as review probes (branches
     // `review/pick-r1`, `review/pick-r2`); each now asserts the fixed
     // behaviour.
-
-    /// A ray through `target` at parameter `reach`, so the expected
-    /// hit is `t = reach` at `target`.
-    fn ray_through(target: Point3<f64>, dir: Vec3<f64>, reach: f64) -> Ray {
-        Ray {
-            origin: target - dir * reach,
-            dir,
-        }
-    }
-
-    /// `|det| / (|e1|·|e2|·|d|)` — up to a constant the sine of the
-    /// angle between the ray and the plane: the conditioning of the
-    /// exact test on this pair.
-    fn conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> f64 {
-        let e1: Vec3<f64> = tri[1] - tri[0];
-        let e2: Vec3<f64> = tri[2] - tri[0];
-        let det = e1.dot(ray.dir.cross(e2));
-        det.abs() / (e1.norm() * e2.norm() * ray.dir.norm())
-    }
 
     /// The hit a well-conditioned interior crossing owes: accepted,
     /// at `reach` to the test's own accuracy (`~u / conditioning`
@@ -2617,32 +2600,6 @@ mod tests {
         assert_eq!(ray_triangle(&in_plane, &tri), None);
     }
 
-    /// A near-tangent crossing whose determinant is certified at
-    /// `k / 6` of its own bound, over a triangle of area `0.5` that
-    /// is not degenerate: `ζ = 2⁻²⁰` and `ξ = k` ULP of it,
-    /// `e1 = (1, 0, ζ + ξ)`, `e2 = (0, 1, 0)`, `d = (1, 1, ζ)`, so
-    /// `p = (−ζ, 0, 1)` and `det = ξ` exactly. The origin is placed a
-    /// unit away and one unit off-axis, which makes `u = v = 0.5` and
-    /// `u + v = 1` exactly at every `k` — all three INSIDE the closed
-    /// range, so what happens to the candidate is INFORM's doing
-    /// alone. The bounds are `9/(k − 6)`, `15/(k − 6)` and their sum,
-    /// so `k` is the dial that moves the intervals without moving the
-    /// values.
-    fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
-        let zeta = 2f64.powi(-20);
-        let xi = k * zeta * f64::EPSILON;
-        let tri = [
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(1.0, 0.0, zeta + xi),
-            Point3::new(0.0, 1.0, 0.0),
-        ];
-        let ray = Ray {
-            origin: Point3::new(-1.0, -1.0, 0.5 * xi - zeta),
-            dir: Vec3::new(1.0, 1.0, zeta),
-        };
-        (ray, tri)
-    }
-
     /// **A candidate whose barycentrics carry no information is
     /// refused, though every one of them is inside the closed range.**
     /// At `k = 8` the [`near_tangent`] fixture computes
@@ -2793,10 +2750,7 @@ mod tests {
         let e1: Vec3<f64> = tri[1] - tri[0];
         let e2: Vec3<f64> = tri[2] - tri[0];
         let target = tri[0] + e1 * 0.25 + e2 * 0.125;
-        let ray = Ray {
-            origin: target - dir,
-            dir,
-        };
+        let ray = aimed(target, dir, 1.0);
         let [(u, err_u), (v, err_v), (sum, err_sum)] = crossing(&ray, &tri)
             .expect("a certified determinant")
             .barycentrics;
@@ -2874,10 +2828,7 @@ mod tests {
         let b = Point3::new(1.0, 0.0, zeta + xi);
         let c = Point3::new(0.0, 1.0, 0.0);
         let dir = Vec3::new(1.0, 1.0, zeta);
-        let ray = Ray {
-            origin: b - dir,
-            dir,
-        };
+        let ray = aimed(b, dir, 1.0);
         let abc = [a, b, c];
         let bca = [b, c, a];
         let det_abc = crossing(&ray, &abc).expect("certified").det;
@@ -2917,10 +2868,7 @@ mod tests {
             ("b", [a, b8, c], b8),
             ("c", [a, b8, c], c),
         ] {
-            let ray = Ray {
-                origin: corner - dir,
-                dir,
-            };
+            let ray = aimed(corner, dir, 1.0);
             assert!(crossing(&ray, &tri).is_some());
             assert_eq!(
                 ray_triangle(&ray, &tri),
@@ -2955,8 +2903,8 @@ mod tests {
             let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
             let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-6.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "general position");
@@ -2994,8 +2942,8 @@ mod tests {
             let inplane = e1 * rng.range(-1.0, 1.0) + e2 * rng.range(-1.0, 1.0);
             let dir: Vec3<f64> = inplane + e1.cross(e2) * 10f64.powf(rng.range(-8.0, -2.0));
             let reach = rng.range(0.5, 4.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "axis-planar");
@@ -3032,8 +2980,8 @@ mod tests {
             let theta = rng.range(0.0, std::f64::consts::TAU);
             let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
             let reach = rng.range(0.5, 3.0);
-            let ray = ray_through(target, dir, reach);
-            if conditioning(&ray, &tri) < 1e-7 {
+            let ray = aimed(target, dir, reach);
+            if det_and_conditioning(&ray, &tri).1 < 1e-7 {
                 continue;
             }
             assert_interior_hit(&ray, &tri, reach, "fan cap");
@@ -3070,7 +3018,7 @@ mod tests {
             let theta = rng.range(0.0, std::f64::consts::TAU);
             let dir = Vec3::new(theta.cos(), theta.sin(), -slope);
             let reach = rng.range(0.5, 3.0);
-            let ray = ray_through(target, dir, reach);
+            let ray = aimed(target, dir, reach);
             let mut best: Option<f64> = None;
             for cand in index.candidates(&ray) {
                 let (tri, _) = index.triangle(&cand).expect("a built candidate");
@@ -3175,10 +3123,7 @@ mod tests {
             [shared[0], shared[1], Point3::new(0.5, -1.0, 0.0)],
         ];
         let midpoint = Point3::new(0.5, 0.0, 0.0);
-        let ray = Ray {
-            origin: Point3::new(midpoint.x, midpoint.y, 2.0),
-            dir: Vec3::new(0.0, 0.0, -1.0),
-        };
+        let ray = down_from(midpoint.x, midpoint.y, 2.0);
         let spans: Vec<TSpan> = tris
             .iter()
             .map(|tri| ray_triangle(&ray, tri).expect("the graze is a hit for both triangles"))

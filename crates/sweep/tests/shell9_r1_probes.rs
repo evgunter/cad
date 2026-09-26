@@ -22,7 +22,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
-use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
 use super::verbs_shell::{hollow_box, two_void_box, vessel};
 
@@ -134,7 +134,7 @@ fn dump_rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {
         n += 1;
-        let face = face_of_he(body, he);
+        let face = body.face_of_half_edge(he).unwrap();
         let kind = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))

@@ -84,6 +84,15 @@ pub mod tools;
 pub mod tree;
 mod vocab;
 
+// Test fixtures, one home for the unit-test modules and `tests/`: the
+// gate is this crate's `test-support` feature, which only its own
+// self dev-dependency turns on. `doc(hidden)` because the rustdoc gate
+// runs `--all-features`, which would otherwise publish a module whose
+// docs say it is not API.
+#[cfg(any(test, feature = "test-support"))]
+#[doc(hidden)]
+pub mod test_support;
+
 #[cfg(feature = "app")]
 pub mod app;
 #[cfg(feature = "app")]

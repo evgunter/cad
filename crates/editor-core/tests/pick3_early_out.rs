@@ -26,14 +26,17 @@
 
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
+    "crates/editor-core/src/test_support.rs",
     "crates/bvh/src/",
     "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use bvh::{Aabb, Ray};
 use editor_core::resolve::{TSpan, crossing, ray_triangle};
+use editor_core::test_support::{down_from, near_tangent};
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickHit, PickTarget,
     ProfileDoc, RecipeNodeId, ValuePayload, pick_face,
@@ -231,17 +234,14 @@ fn corner_tangent(k: f64, scale: f64, at: f64) -> [Point3<f64>; 3] {
 #[test]
 fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
     let zeta = 2f64.powi(-20);
-    let ray = Ray {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 1.0, zeta),
-    };
+    let skew = ray([0.0, 0.0, 0.0], [1.0, 1.0, zeta]);
     let tris = [
         corner_tangent(154.0, 1.0, 4.0),
         corner_tangent(238.0, 1.0, 4.5),
     ];
-    let wide = span_of(&ray, &tris[0], "the wide candidate");
-    let narrow = span_of(&ray, &tris[1], "the narrow candidate");
-    let entry_narrow = entry(&ray, &tris[1]);
+    let wide = span_of(&skew, &tris[0], "the wide candidate");
+    let narrow = span_of(&skew, &tris[1], "the narrow candidate");
+    let entry_narrow = entry(&skew, &tris[1]);
     // The premises, so the row cannot pass on a fixture that drifted.
     assert!(
         wide.t_hi < entry_narrow,
@@ -261,7 +261,7 @@ fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
     );
 
     let door = Door::new("pick3_early_out_r1");
-    let hits = door.tied(&[&tris], &[0], &ray);
+    let hits = door.tied(&[&tris], &[0], &skew);
     assert_eq!(
         hits.iter().map(|h| h.t).collect::<Vec<_>>(),
         vec![wide.t, narrow.t],
@@ -280,25 +280,7 @@ fn the_early_out_keeps_a_candidate_whose_interval_reaches_below_its_box() {
 // `pick3-r2`'s fixture: the same gap, and the order of the targets.
 // ---------------------------------------------------------------
 
-/// `pick.rs`'s `near_tangent` fixture: a determinant certified at
-/// `k / 6` of its own bound, `u = v = 0.5` exactly, `t = 1.5`.
-/// Authored by review lane `pick3-r2`.
-fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
-    let zeta = 2f64.powi(-20);
-    let xi = k * zeta * f64::EPSILON;
-    let tri = [
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, zeta + xi),
-        Point3::new(0.0, 1.0, 0.0),
-    ];
-    let ray = Ray {
-        origin: Point3::new(-1.0, -1.0, 0.5 * xi - zeta),
-        dir: Vec3::new(1.0, 1.0, zeta),
-    };
-    (ray, tri)
-}
-
-/// The same shape at `k`, scaled by `lambda` and placed so `ray` meets
+/// [`near_tangent`]'s shape at `k`, scaled by `lambda` and placed so `ray` meets
 /// it at `u = v = 0.5` at parameter `t_a`.
 fn near_tangent_copy(k: f64, lambda: f64, t_a: f64, ray: &Ray) -> [Point3<f64>; 3] {
     let zeta = 2f64.powi(-20);
@@ -505,10 +487,7 @@ fn equal_widths_refuse_with_both_faces() {
         Point3::new(5.0, 1.0, 1.0),
         Point3::new(1.0, 5.0, 1.0),
     ];
-    let ray = Ray {
-        origin: Point3::new(2.0, 2.0, 3.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    };
+    let ray = down_from(2.0, 2.0, 3.0);
     let span = span_of(&ray, &tri, "the interior hit");
     let door = Door::new("pick3_equal_widths");
     let one = door.ask_from(&[&[tri]], &[0], &ray);
@@ -576,10 +555,7 @@ fn a_ray_down_a_shared_edge_refuses_with_both_faces() {
     let above = [shared[0], shared[1], Point3::new(0.5, 1.0, 0.0)];
     let below = [shared[0], shared[1], Point3::new(0.5, -1.0, 0.0)];
     let midpoint = Point3::new(0.5, 0.0, 0.0);
-    let ray = Ray {
-        origin: Point3::new(midpoint.x, midpoint.y, 2.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    };
+    let ray = down_from(midpoint.x, midpoint.y, 2.0);
     let spans = [
         span_of(&ray, &above, "the triangle above the edge"),
         span_of(&ray, &below, "the triangle below it"),
@@ -670,10 +646,7 @@ fn several_triangles_of_one_face_answer_that_face() {
         [corners[0], corners[2], corners[3]],
     ];
     let midpoint = Point3::new(0.5, 0.5, 0.0);
-    let ray = Ray {
-        origin: Point3::new(midpoint.x, midpoint.y, 3.0),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    };
+    let ray = down_from(midpoint.x, midpoint.y, 3.0);
     let spans = [
         span_of(&ray, &halves[0], "the first half"),
         span_of(&ray, &halves[1], "the second half"),

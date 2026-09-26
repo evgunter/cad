@@ -8,7 +8,7 @@
 #![allow(dead_code, clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Affine3, Point3, Tol, Vec3};
-use topo::{Body, EdgeKey, FaceKey, ShellKey, SolidKey, SurfaceKey, VertexKey};
+use topo::{Body, EdgeKey, FaceKey, ShellKey, SolidKey, VertexKey};
 
 pub(crate) fn tol() -> Tol {
     Tol::witness()
@@ -63,24 +63,6 @@ pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
     body.faces_of_solid(solid).expect("the solid resolves")
 }
 
-/// The chart groups of `solid`: faces by surface key, in arena order.
-pub(crate) fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
-}
-
-pub(crate) fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
 /// Every vertex point of `body`, in arena order.
 pub(crate) fn points(body: &Body<f64>) -> Vec<(VertexKey, Point3<f64>)> {
     body.vertices()
@@ -115,7 +97,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         ));
     }
     for (k, e) in body.edges() {
-        if !mine(face_of_he(body, e.he_plus)) {
+        if !mine(body.face_of_half_edge(e.he_plus).unwrap()) {
             continue;
         }
         let c = body

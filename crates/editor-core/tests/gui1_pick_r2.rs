@@ -39,12 +39,13 @@ test_utils::gated_to![
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickTarget, ProfileDoc,
     Ray, RecipeNodeId, ValuePayload, pick_face,
 };
 use fixture::{insert, len, on_frame};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point3, Tol};
 use mesh::Mesh;
 use test_utils::{fuzz, vacuity::Exposure};
 use topo::Body;
@@ -59,13 +60,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
 }
 
 /// A `w × w × h` box with its lower corner at `(ox, oy, 0)`, as one

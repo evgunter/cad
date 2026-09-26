@@ -12,7 +12,9 @@
 //! module-level attributes), and its own `mod <helper>;` lines — a
 //! `#[path]` module's child modules resolve against the DIRECTORY
 //! CONTAINING the path file, i.e. `tests/`, exactly as when each file was
-//! its own crate root.
+//! its own crate root. The fixtures the suites share are the crate's own
+//! `bvh::test_support`, on for these tests through the self
+//! dev-dependency.
 //!
 //! WHY ONE BINARY: on the CI runner (2 vCPU) the per-binary codegen+link
 //! constant dominated the workspace build job — the suites are small, so

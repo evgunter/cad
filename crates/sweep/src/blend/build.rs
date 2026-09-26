@@ -62,9 +62,7 @@
 use geom::Surface;
 use geom_brep::OutwardNormal;
 use geom_core::{Band, Bounds, Decide, Real, Vec3};
-use topo::{
-    Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey, VertexKey,
-};
+use topo::{Body, EdgeKey, EntityId, FaceKey, HalfEdgeKey, LoopBoundary, ShellKey, SolidKey};
 
 use super::admit::{CornerFaces, CornerLinks};
 use super::battery::{BlendRequest, Link, run_battery};
@@ -213,6 +211,17 @@ fn nonpositive_size_gate<T: Bounds>(size: T) -> Result<(), BlendError> {
     }
 }
 
+/// A vertex door's answer ([`Body::edges_of_vertex`],
+/// [`Body::faces_of_vertex`]) at a vertex this module reached as the
+/// end of a link or a rim crossing — so edges DO meet it, and an empty
+/// answer means it holds no emanating half-edge: a corrupt body, not a
+/// valence. Folded into the door's own refusal (`None`) so every
+/// caller refuses it as the walk that does not close, never as a
+/// geometric configuration with a recourse attached.
+pub(super) fn fan_at<K>(door: Option<Vec<K>>) -> Option<Vec<K>> {
+    door.filter(|fan| !fan.is_empty())
+}
+
 /// A face's boundary cycle (outer loop, cycle order).
 pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec<HalfEdgeKey>> {
     let f = body.get_face(face)?;
@@ -220,19 +229,6 @@ pub(super) fn face_cycle<T: Decide>(body: &Body<T>, face: FaceKey) -> Option<Vec
         return None;
     };
     body.loop_cycle(first)
-}
-
-/// The distinct faces around a vertex, in orbit order.
-pub(super) fn vertex_faces<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<FaceKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut faces = Vec::new();
-    for h in body.vertex_orbit(he)? {
-        let f = body.get_loop(body.get_half_edge(h)?.parent_loop)?.face;
-        if !faces.contains(&f) {
-            faces.push(f);
-        }
-    }
-    Some(faces)
 }
 
 /// The octant's chart pick at one trivalent corner. The criterion:
@@ -438,6 +434,15 @@ mod tests {
     use super::super::admit::{AdmittedOpen, CornerFaces, CornerLinks};
     use super::super::battery::{Chain, ChainClosure, Convexity, Link};
     use crate::test_support::{L, all_links, cube};
+
+    /// An empty fan is the corruption refusal; a stale key's `None`
+    /// stays one; a live fan passes through untouched.
+    #[test]
+    fn an_empty_fan_refuses_like_a_broken_orbit() {
+        assert_eq!(super::fan_at::<u8>(Some(vec![])), None);
+        assert_eq!(super::fan_at::<u8>(None), None);
+        assert_eq!(super::fan_at(Some(vec![3u8, 1])), Some(vec![3, 1]));
+    }
 
     /// One open chain per link, so the door has something to admit.
     fn open_chain(link: Link<f64>) -> Chain<f64> {
