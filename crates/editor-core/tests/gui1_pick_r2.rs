@@ -35,6 +35,7 @@ test_utils::gated_to![
     "crates/mesh/src/",
     "crates/geom-core/src/linalg/",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;

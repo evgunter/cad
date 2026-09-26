@@ -8,7 +8,6 @@
 //! only in display units are the same expression.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{len, scl};
 use editor_core::{Dimension, DimensionError, Expr, parse_expr};
 
 fn no_params() -> std::collections::BTreeMap<editor_core::ParamName, Dimension> {
@@ -70,7 +69,7 @@ fn twenty_five_mm_round_trips_value_and_unit() {
 /// difference still shows through all three.
 #[test]
 fn display_units_never_enter_expression_identity() {
-    let plain = len(0.025);
+    let plain = Expr::literal(0.025, Dimension::Length).unwrap();
     let with_mm = parse_expr("25 mm", &no_params()).unwrap();
     let with_cm = parse_expr("2.5 cm", &no_params()).unwrap();
     // Same canonical bits, three different display units (none/mm/cm):
@@ -86,7 +85,7 @@ fn display_units_never_enter_expression_identity() {
     assert_eq!(bits(&plain), bits(&with_mm));
     assert_eq!(bits(&with_mm), bits(&with_cm));
     // Direction two: a real value difference is NOT hidden.
-    let other = len(0.026);
+    let other = Expr::literal(0.026, Dimension::Length).unwrap();
     assert_ne!(plain, other);
     assert!(!plain.bit_eq(&other));
     assert_ne!(bits(&plain), bits(&other));
@@ -148,14 +147,14 @@ fn wire_door_refuses_unknown_units_and_writes_every_one() {
 
     // A canonically-authored literal names the canonical row, and says
     // so on the wire.
-    let plain = len(0.025);
+    let plain = Expr::literal(0.025, Dimension::Length).unwrap();
     let json = serde_json::to_string(&plain).unwrap();
     assert!(json.contains(r#""unit":"m""#), "canonical is named: {json}");
     let back: Expr = serde_json::from_str(&json).unwrap();
     assert_eq!(back.display_unit().map(|u| u.symbol()), Some("m"));
 
     // Including the dimensionless one, whose symbol is empty.
-    let scalar = scl(0.5);
+    let scalar = Expr::literal(0.5, Dimension::Scalar).unwrap();
     let json = serde_json::to_string(&scalar).unwrap();
     assert!(
         json.contains(r#""unit":"""#),

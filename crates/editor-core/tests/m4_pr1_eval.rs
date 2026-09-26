@@ -18,6 +18,8 @@ test_utils::gated_to![
     "crates/geom-core/src/real.rs",
     "crates/geom-core/src/interval.rs",
     "crates/quantity/src/",
+    "crates/editor-core/src/test_support.rs",
+    "crates/editor-core/tests/fixture/",
 ];
 
 use crate::fixture::{ang, len, scl};
