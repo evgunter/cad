@@ -319,3 +319,14 @@ The census soundness hole is filed on LIB as
 last compiled head had only a partial hosted run and the edits touch
 intra-doc links. So it gets its own local battery, queued behind
 3264's, before it merges.
+
+**PR 3143's fix pass** is pushed on `b74fa946f`. It was run by a fresh
+Opus lane from the adjudicated union. All ten items are in:
+`look_through_merges` is renamed `look_through_fold`, `fold_descent` is
+guarded by `face_descends_from`, the redundant `union` field is dropped,
+and the mutants are killed. The P0 is filed on EMIT's slate as
+`a-legal-union-refuses-a-fold-minted-contact-verdict-in-some-member-orders`.
+One hosted red was a semantic merge conflict, the `NOT_CARRIED` length
+in `pncad/tests/all.rs`, fixed in the merge. **Local battery queue**,
+serial, from the orchestrator's session: 3264 (running), then 3259, then
+3143. The DR row rides 3143 as its last commit, after its battery.
