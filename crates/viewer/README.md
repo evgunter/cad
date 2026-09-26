@@ -982,12 +982,10 @@ typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
 chrome adds is its own subject. A refusal outranks them, and the ones
-nothing will ever say again (`frame::Retold::Never` — every
-`Withdrawal`, a tool's survival drop, and the maintenance rows no
-evaluation reports) ride beside it on the same line rather than under
-it. Every door that makes a `frame::Message` answers `Retold` itself,
-since `Message::new` has no default; `frame_status`'s `# The ranking`
-states the rule and sorts every kind.
+nothing will ever say again (`frame::Retold::Never`) ride beside it on
+the same line rather than under it. `frame_status`'s `# The ranking`
+states that rule once; which notices it admits is answered by each
+door that makes one, since `Message::new` has no default.
 
 **The line is composed at two levels and they are two marks.**
 `frame::NOTICE_SEPARATOR` goes between two of a frame's notices;

@@ -213,6 +213,7 @@ pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<
     Node::Profile(ProfileProgram {
         plane,
         loops: vec![rectangle_loop(origin, w, h)],
+        ids: Vec::new(),
     })
 }
 

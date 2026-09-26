@@ -1,7 +1,7 @@
 ---
 id: a-refusal-and-a-loss-from-one-fault-say-it-twice
 kind: issue
-title: A refusal and a loss caused by one fault render that fault twice on one line
+title: A refusal and a withdrawal caused by one fault render that fault twice on one line
 status: open
 opened: 2026-09-25
 priority: P3

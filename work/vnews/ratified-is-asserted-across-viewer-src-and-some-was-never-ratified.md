@@ -341,7 +341,7 @@ The claims:
 
 | member | claim | verdict | evidence |
 |---|---|---|---|
-| `a-tree-rows-message-line-picks-its-affordance-by-hand:26` | `frame::Affordance::{Read, Opens}` is *"the ratified value"* | **FALSE** | backed by the README and `frame.rs:1271`, which is itself FALSE |
+| `a-tree-rows-message-line-picks-its-affordance-by-hand:26` | `frame::Affordance::{Read, Opens}` is *"the ratified value"* | **FALSE** | backed by the README and `frame.rs:1271`, which is itself FALSE. Corrected in the row itself on 2026-09-25, when it closed |
 | `outstanding-and-progress-…:46` | a bare `bool` *"which the README ratifies"* | **FALSE** | the README is the implementation record. The same row's §No Ev gate (`:98-104`) already says so, and this sentence contradicts it |
 | `outstanding-and-progress-…:103` | the README sentence is the only ratification cited; no Ev gate | TRUE | Right in substance. Note that `GUI-DESIGN.md:229-231` does mention `frame::progress`, but that paragraph is agent text (`2622d14fa`, moved by `e9824abf3`), so the row's conclusion stands |
 | `is-instance-collapses-absent-and-wrong-kind:110` (closed) | `Standing`'s ratified rule: a vanished reference is a state | TRUE | GUI-PLAN GUI-2 survival, as at `select.rs:268` |

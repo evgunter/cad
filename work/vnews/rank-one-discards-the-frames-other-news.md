@@ -184,27 +184,27 @@ section states the same finding from its side.
 **The rule, a property of the message:** a rank-2 notice rides beside
 a refusal when dropping it means nothing will ever say it
 (`frame::Retold::Never`). Its news is said again when a surface the
-reader reads in words keeps carrying it (a tree row's fault), or when
-repeating the act that raised it raises it again (a refusal, a
-declined pick); a symptom — a seat drawn empty, a part at its mated
-pose — is not the news. Whether the state could be had back by undo
-is not the test: that helps only a reader who knows to undo, which is
-the dropped sentence. `Message::new` takes the answer as an argument
-with no default, so every door answers it; the rule and its sort are
-stated once, in `frame_status`'s `# The ranking`.
+reader reads in words keeps carrying it, or when repeating the act that
+raised it raises it again; a symptom is not the news. Whether the state
+could be had back by undo is not the test: that helps only a reader who
+knows to undo, which is the dropped sentence. **The burden is on
+`Again`**: a door answers it only when it can show the retelling from
+what it holds, because a needless `Never` costs one sentence and a
+wrong `Again` loses the news for good. The rule is stated once, in
+`frame_status`'s `# The ranking`; which notices it admits is answered
+per arm by the doors that make them (`Message::new` has no default),
+and nowhere else.
 
-- **Rides beside a refusal**: every `Withdrawal` (superseded free
-  move, dropped hide, killed drag); a tool's survival drop
-  (`frame::tool_notice`'s lost-pick arms); the maintenance rows
-  `OrphanedDeclare`, `Rebound` and `StrandedAppearance` (the last
-  because the viewer draws no `AppearanceLoss`).
-- **Stays under it**: a `Strand` (its carrier's tree row fails on every
-  run); a declined pick and a panel refusal; every typed refusal,
-  including one that arrives as a notice (`frame::refusal_message`);
-  the id pass's disagreement.
+The review's decisive case: a `Strand` on a `Declare` carrier. A
+declaration evaluates to its payload without resolving its names, so
+no row ever fails on the strand; a poisoned carrier's row names the
+ancestor. The maintenance door cannot know the carrier's fate, so a
+strand answers `Never` whatever its carrier
+(`edit_maintenance.rs`, `a_strand_on_a_declaration_rides_beside_a_refusal`).
 
 `app::perform_batch` did not change. The sites that turn a tool event
 into a notice (`ViewerApp::sync_scene`, `ViewerApp::ui`,
 `pane::create`'s all-edges door) go through `frame::tool_notice`.
 
-Residue filed: `a-refusal-and-a-loss-from-one-fault-say-it-twice`.
+Residue filed: `a-refusal-and-a-loss-from-one-fault-say-it-twice`
+(its id keeps the word the first draft used; its title does not).

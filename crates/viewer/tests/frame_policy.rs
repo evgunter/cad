@@ -108,12 +108,24 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
 /// second necessary rather than decorative.
 #[test]
 fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
+    use viewer::blend::{BlendEvent, BlendTarget};
+    use viewer::tools::ToolNotice;
+
     let declined = [SessionOp::Select(Selection::None)];
-    let notice = frame::Message::new(
-        frame::Subject::Document,
-        "blend tool: the held edges are on feature 3 body 0",
-        frame::Retold::Again,
-    );
+    // Both notices through the door the frame loop uses, so each
+    // carries the answer its event arm gives rather than a second
+    // spelling of it.
+    let target = BlendTarget {
+        node: RecipeNodeId(3),
+        body: 0,
+    };
+    let notice = frame::tool_notice(&ToolNotice::Blend(BlendEvent::OtherTarget {
+        held: target,
+        picked: BlendTarget {
+            node: RecipeNodeId(5),
+            body: 0,
+        },
+    }));
 
     // The batch policy alone: the frame acted, nothing refused, so the
     // line is cleared. This is the seam.
@@ -162,11 +174,10 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // `status` from each in turn keeps the last and loses the rest,
     // which is the keep-last defect the batch policy already exists to
     // stop for refusals.
-    let second = frame::Message::new(
-        frame::Subject::Document,
-        "blend tool: an edit removed 6 of the picked edges",
-        frame::Retold::Again,
-    );
+    let second = frame::tool_notice(&ToolNotice::Blend(BlendEvent::TargetLost {
+        target,
+        edges: 6,
+    }));
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
     let StatusUpdate::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
@@ -3085,9 +3096,10 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // the mate that just landed has made unmovable, so it refuses. The
     // refusal is about an op that did nothing, and the same drag says
     // it again; nothing will ever again say that the mate took the
-    // placement. Both are on the line, the refusal first. The text is written out, so a rule that
-    // drops the loss, or reorders the two, cannot pass by comparing the
-    // line with another rendering of itself.
+    // placement. Both are on the line, the refusal first. The text is
+    // written out, so a rule that drops the supersession, or reorders
+    // the two, cannot pass by comparing the line with another
+    // rendering of itself.
     let drag = SessionOp::BeginFreeMove {
         instance: bench.post_b,
     };
@@ -3182,6 +3194,97 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         line.text(),
         "nothing to undo \u{2022} revolve tool: the profile pick (node 4) is no longer in the \
          document; the tool dropped it"
+    );
+}
+
+/// **Every typed refusal door says whether anything will say it
+/// again**, read off each door, then driven through the ranking beside
+/// a batch refusal: the ones the same act says again stay under it,
+/// and the store's, which nothing is sure to write again, rides.
+#[test]
+fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
+    let camera = Camera::framing(&scene::plate_bounds(), 16.0 / 9.0).expect("a plate frames");
+    let StatusUpdate::Show(fold) = frame::fold_status(&viewer::camera::Folded {
+        camera,
+        applied: Vec::new(),
+        refused: Some((
+            CameraOp::Dolly { factor: 0.0 },
+            viewer::camera::CameraOpError::NonPositiveDolly { factor: 0.0 },
+        )),
+    }) else {
+        panic!("a refused fold is news");
+    };
+    let delta = DisplayTolerance::new(0.0).expect_err("zero is not a δ");
+    let store = viewer::prefs::StoreError {
+        doing: "write the preferences",
+        because: "the disk is full".to_owned(),
+    };
+    let cases = [
+        ("a refused camera move", fold, frame::Retold::Again),
+        (
+            "a pick the camera could not un-project",
+            frame::pick_refusal(&pickindex::PickError::Camera(
+                viewer::camera::CameraError::NotFinite {
+                    what: "x",
+                    value: f64::NAN,
+                },
+            )),
+            frame::Retold::Again,
+        ),
+        (
+            "a pick against an index still building",
+            frame::unindexed_refusal(&pickcache::NotIndexed::Building),
+            frame::Retold::Again,
+        ),
+        (
+            "a δ the display refused",
+            frame::delta_refusal(&delta),
+            frame::Retold::Again,
+        ),
+        (
+            "a δ field holding something that is not a number",
+            frame::delta_not_a_number("2,5", &"2,5".parse::<f64>().expect_err("not a number")),
+            frame::Retold::Again,
+        ),
+        (
+            "the picking paths disagreeing",
+            idpass::Disagreement {
+                from_gpu: None,
+                from_ray: Vec::new(),
+            }
+            .notice(),
+            frame::Retold::Again,
+        ),
+        (
+            "a refusal among the notices",
+            frame::refusal_message(&Refusal::NothingToDo {
+                direction: Step::Redo,
+            }),
+            frame::Retold::Again,
+        ),
+        (
+            "a preferences store that could not write",
+            frame::store_refusal(&store),
+            frame::Retold::Never,
+        ),
+    ];
+    for (what, message, retold) in &cases {
+        assert_eq!(message.retold(), *retold, "{what}");
+    }
+
+    let notices: Vec<frame::Message> = cases.into_iter().map(|(_, message, _)| message).collect();
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} preferences: could not write the preferences (the disk is \
+         full)"
     );
 }
 

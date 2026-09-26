@@ -421,6 +421,14 @@ pub struct Message {
 /// no drag is in flight each show THAT something is so, never that an
 /// edit made it so or why.
 ///
+/// **The burden is on [`Retold::Again`].** A door answers `Again` only
+/// when it can show the retelling from what it holds — the act it
+/// answers, or a surface that always carries the news — and `Never`
+/// wherever it cannot. The two mistakes are not symmetric: a `Never`
+/// that was not needed puts one sentence beside a refusal, and an
+/// `Again` that was wrong loses the news for good, which is the defect
+/// this type exists to stop.
+///
 /// **Decided by the door that makes the message, and never by
 /// default.** [`Message::new`] takes it as an argument, so every
 /// producer — in this module, the panes, the app or the id pass —
@@ -524,9 +532,10 @@ impl Message {
 /// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
 /// its own subject, so one recurring event can retire the joined
 /// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
-/// refusal with the frame's losses, else the frame's notices, else the
-/// batch's own verdict — and no rank reads a subject. A line that printed its own routing
-/// would be saying to the user what the chrome says to itself.
+/// refusal with the notices nothing will say again, else the frame's
+/// notices, else the batch's own verdict — and no rank reads a
+/// subject. A line that printed its own routing would be saying to
+/// the user what the chrome says to itself.
 ///
 /// `retold` is the same decision for the converse reason: it RANKS —
 /// it is what lets a notice ride beside a refusal — and it is about
@@ -750,40 +759,13 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 ///
 /// It is a property of the MESSAGE, answered where the message is made
 /// ([`Message::new`] has no default), not of the pair: the ranking
-/// reads it without asking what refused. Every kind that reaches rank
-/// 2, sorted by it:
-///
-/// **Rides beside a refusal ([`Retold::Never`]):**
-///
-/// - every [`Withdrawal`] — a superseded free move, a dropped hide, a
-///   killed drag. The picture shows the part at its mated pose, the
-///   geometry drawn again, the part no longer following the hand, and
-///   a later drag refuses that no drag is in flight: all symptoms.
-///   Nothing says that the edit took a placement, a hide or a drag, or
-///   which fault took it.
-/// - a tool's **survival drop** ([`tool_notice`]'s lost-pick arms).
-///   The panel draws the seat empty and a commit refuses that it is,
-///   which is the symptom; nothing says the pick was held and which
-///   edit left it naming nothing.
-/// - a **maintenance** row that is the only report of what the edit
-///   did ([`maintenance_notice`]): an **orphaned declaration**, which
-///   evaluates cleanly and is by its own contract "a node nothing will
-///   mention again"; a **rebound** name, which evaluates correctly and
-///   exists "so a name never re-denotes silently"; and a **stranded
-///   appearance key**, whose `AppearanceLoss` evaluation reports to the
-///   API and this viewer draws nowhere.
-///
-/// **Stays under a refusal ([`Retold::Again`]):**
-///
-/// - a **stranded payload name** — the carrier's evaluation fails on
-///   it (`NodeGone` or `Vanished`) on every run, and its tree row says
-///   so in the fault's own words for as long as the strand stands.
-/// - a pick a tool **declined** and a panel's own refusal
-///   ([`tool_notice`]'s other arms, [`tool_news`]) — the same pick or
-///   click says it again.
-/// - a [`Refusal`] that arrives as a notice ([`refusal_message`]), and
-///   the pick, index, δ, store and fold refusals and the id pass's
-///   disagreement — repeating the act, or the hover, says it again.
+/// reads it without asking what refused. **Which kinds ride is not
+/// listed here**, on purpose: each door that makes a notice answers
+/// for its own arms, where a new arm is a compile error until its
+/// author answers, and gives its reasons there — [`Withdrawal::notice`],
+/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// every typed refusal door with its own one-line reason. A census here
+/// would be a second copy that nothing checks against the first.
 ///
 /// **The refusal comes first** although the notices beside it can
 /// matter more. The join is reading order, not a second ranking — both
@@ -1198,12 +1180,14 @@ impl<'a> Withdrawal<'a> {
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
     ///
-    ///
     /// **Every kind answers [`Retold`] for itself**, so a fourth kind
     /// is a compile error here rather than inheriting its siblings'
-    /// answer. All three are [`Retold::Never`] today, each for its own
-    /// symptom ([`frame_status`] names them): nothing but this sentence
-    /// says that an edit took the placement, the hide or the drag.
+    /// answer. All three are [`Retold::Never`] today, each over its own
+    /// symptom — the part drawn at its mated pose; the geometry drawn
+    /// again, or the instance gone; the part no longer following the
+    /// hand, and a later drag refused as having none in flight. None of
+    /// those says that an edit took the placement, the hide or the drag,
+    /// or which fault took it; only this sentence does.
     pub fn notice(&self) -> Message {
         let retold = match self.kind {
             WithdrawalKind::Superseded => Retold::Never,
@@ -1264,11 +1248,8 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// between notices is the one no sentence can carry ([`Message::new`]).
 ///
 /// **Every arm DM7 makes the door report is worded**: a stranded
-/// payload name, a stranded appearance key, a declaration left with no
-/// consumer, and a name rewritten in place. A rebound is a repair the
-/// door made rather than a loss it left, and it is worded all the
-/// same: a name that moved without a word is exactly what the report
-/// exists to end.
+/// payload name, a stranded appearance key, and a declaration left
+/// with no consumer.
 ///
 /// **A cluster act is not**: it re-keys the mate graph's placement
 /// registry — a gauge instance and a frame, bookkeeping the chrome
@@ -1276,24 +1257,30 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// what the picture draws. It still rides [`OpOutcome::maintenance`],
 /// where a reader of the API sees it.
 ///
-/// **Each worded arm answers [`Retold`] for itself**, by whether
-/// anything in this viewer will say it again ([`frame_status`] sorts
-/// them). A strand's carrier fails to evaluate on every run and its
-/// tree row says why, so a strand may sit under a refusal. The other
-/// three are the only report there will be: an orphaned declaration
-/// and a rebound name evaluate cleanly by design, and a stranded
-/// appearance key's loss is reported to the API and drawn nowhere
-/// here.
+/// **Each worded arm answers [`Retold`] for itself**, and all three
+/// answer [`Retold::Never`]: none can show a retelling.
 ///
-/// The match names every arm, so a sixth is a compile error here
+/// - An orphaned declaration evaluates to its own payload and refuses
+///   nothing, and its row is by contract what speaks "instead of
+///   leaving the author a node nothing will mention again".
+/// - A stranded appearance key's `AppearanceLoss` is evaluation's
+///   report to the API, and nothing in this viewer draws it.
+/// - A stranded payload name is retold only where its CARRIER fails on
+///   it, and this door cannot know that it will. A `Declare` carrier
+///   evaluates to its own payload without resolving its names, so its
+///   row stays `Ok`; any carrier poisoned by an upstream failure has a
+///   row that names the ancestor, not the strand; and the carrier's
+///   kind and its evaluation are not in the row. Where the retelling
+///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
+///
+/// The match names every arm, so a fifth is a compile error here
 /// rather than a row that reaches the outcome and is never worded —
 /// or is worded and silently given its siblings' answer.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
     let retold = match row {
-        Maintenance::Strand { .. } => Retold::Again,
+        Maintenance::Strand { .. } => Retold::Never,
         Maintenance::StrandedAppearance { .. } => Retold::Never,
         Maintenance::OrphanedDeclare { .. } => Retold::Never,
-        Maintenance::Rebound { .. } => Retold::Never,
         Maintenance::Cluster(_) => return None,
     };
     Some(Message::new(Subject::Document, row.to_string(), retold))
@@ -1759,11 +1746,14 @@ pub fn delta_not_a_number(typed: &str, error: &core::num::ParseFloatError) -> Me
 /// **What a preferences store that could not be written says** —
 /// [`Subject::Preferences`], retired by the next write of that file.
 ///
-/// [`Retold::Again`]: the preferences are still held, and the next
-/// write — which ordinary acts make, opening a file among them — says
-/// it again while the store still refuses.
+/// [`Retold::Never`]: nothing is sure to write again. A write happens
+/// only when a preference CHANGES — `ViewerApp::remember_dir` returns
+/// early for the directory it already holds, and the theme writes only
+/// on a new choice — so repeating the Open or Save As that failed to
+/// write never says it again, and a later launch that reads the old
+/// file cleanly never says the change was not kept.
 pub fn store_refusal(error: &StoreError) -> Message {
-    Message::new(Subject::Preferences, error.to_string(), Retold::Again)
+    Message::new(Subject::Preferences, error.to_string(), Retold::Never)
 }
 
 /// **What the preferences file had to say at startup**, and `None`
@@ -1811,9 +1801,12 @@ pub fn store_refusal(error: &StoreError) -> Message {
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
     let notices: Vec<Message> = notices
         .iter()
-        // Never ranked — it is the field's initial value — and the
-        // file says it again at the next launch.
-        .map(|text| Message::new(Subject::Preferences, text.as_str(), Retold::Again))
+        // Never ranked — it is the field's initial value, set before any
+        // frame — so the answer decides nothing today. It is `Never`
+        // because nothing is sure to say it again: these are the file's
+        // complaints and the launch directory's, and neither is
+        // promised at the next launch.
+        .map(|text| Message::new(Subject::Preferences, text.as_str(), Retold::Never))
         .collect();
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }

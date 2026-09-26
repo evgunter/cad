@@ -1,109 +1,12 @@
 //! Blinded review R2 probes for M9-2 PR-1's chart-region predicate.
 //! Adversarial only — nothing here ships; the module is `cfg(test)`.
 
+use super::tests::{band, face_of, pt, rect, sheet, uv, xy_plane, xy_plane_rotated};
 use super::*;
-use crate::euler::{FaceSurface, MefSite, MevSite};
+use crate::euler::FaceSurface;
 use crate::source::GeomSource;
-use geom_brep::{EdgeCurveSpec, Pcurve};
-use geom_core::Tol;
+use geom_brep::Pcurve;
 use geom_core::{Point3, Vec3};
-
-fn band() -> Band {
-    Band::new(1e-9, 1e-8).unwrap()
-}
-fn pt(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-fn rect(x0: f64, y0: f64, x1: f64, y1: f64) -> Vec<Point2<f64>> {
-    vec![pt(x0, y0), pt(x1, y0), pt(x1, y1), pt(x0, y1)]
-}
-fn face_of(outer: Vec<Point2<f64>>, rings: &[Vec<Point2<f64>>]) -> ScaledFace<f64> {
-    let (a2, p) = loop_measures(&outer);
-    assert!(a2 > 0.0, "probe polygons are CCW");
-    ScaledFace {
-        outer,
-        outer_2a: a2,
-        outer_p: p,
-        rings: rings
-            .iter()
-            .map(|r| {
-                let (a2, p) = loop_measures(r);
-                (a2.abs(), p)
-            })
-            .collect(),
-    }
-}
-fn xy_plane() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_x(),
-    }
-}
-/// Same plane LOCUS, a different chart frame (u_ref rotated 90°).
-fn xy_plane_rotated() -> Surface<f64> {
-    Surface::Plane {
-        origin: Point3::origin(),
-        normal: Vec3::unit_z(),
-        u_ref: Vec3::unit_y(),
-    }
-}
-fn sheet(
-    body: &mut Body<f64>,
-    x0: f64,
-    y0: f64,
-    x1: f64,
-    y1: f64,
-    surface: FaceSurface<f64>,
-    tol: Tol,
-) -> FaceKey {
-    let c = |x: f64, y: f64| Point3::new(x, y, 0.0);
-    let (a, b, cc, d) = (c(x0, y0), c(x1, y0), c(x1, y1), c(x0, y1));
-    let seed = body.mvfs(a).unwrap();
-    let e_ab = body
-        .mev_line(
-            MevSite::Lone {
-                r#loop: seed.r#loop,
-            },
-            b,
-            tol,
-        )
-        .unwrap();
-    let e_bc = body
-        .mev_line(
-            MevSite::Fan {
-                he1: e_ab.he_minus,
-                he2: e_ab.he_minus,
-            },
-            cc,
-            tol,
-        )
-        .unwrap();
-    let e_cd = body
-        .mev_line(
-            MevSite::Fan {
-                he1: e_bc.he_minus,
-                he2: e_bc.he_minus,
-            },
-            d,
-            tol,
-        )
-        .unwrap();
-    let he_dc = body
-        .find_half_edge(seed.face, e_cd.vertex, e_bc.vertex)
-        .unwrap();
-    body.mef(
-        MefSite::Chords {
-            he1: he_dc,
-            he2: e_ab.he_plus,
-        },
-        EdgeCurveSpec::line_between(d, a),
-        surface,
-        tol,
-    )
-    .unwrap()
-    .face
-}
 
 // ---------------------------------------------------------------
 // CLAIM 1 — the structural inventory gate
@@ -172,19 +75,10 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
 
 #[test]
 fn probe_same_locus_different_chart_frame_never_certifies() {
-    let tol = Tol::witness();
     // Two bodies, the SAME plane locus, different chart frames
     // (u_ref x vs y). No sources: must diverge.
     let mut ba = Body::<f64>::new();
-    let fa = sheet(
-        &mut ba,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New(xy_plane()),
-        tol,
-    );
+    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
     let mut bb = Body::<f64>::new();
     let fb = sheet(
         &mut bb,
@@ -193,7 +87,6 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
         2.0,
         2.0,
         FaceSurface::New(xy_plane_rotated()),
-        tol,
     );
     match chart_region_overlap(&ba, fa, &bb, fb, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
@@ -202,15 +95,7 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
     // Even the BIT-IDENTICAL surface across two sourceless bodies
     // diverges — the structural rung is the whole test.
     let mut bc = Body::<f64>::new();
-    let fc = sheet(
-        &mut bc,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New(xy_plane()),
-        tol,
-    );
+    let fc = sheet(&mut bc, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
     match chart_region_overlap(&ba, fa, &bc, fc, band()) {
         Err(ChartRegionError::ChartDivergence { .. }) => {}
         other => panic!("sourceless cross-body must diverge, got {other:?}"),
@@ -222,17 +107,8 @@ fn probe_same_locus_different_chart_frame_never_certifies() {
 /// happen; the module trusts N6 rather than re-checking the bits.
 #[test]
 fn probe_forged_source_on_divergent_charts() {
-    let tol = Tol::witness();
     let mut ba = Body::<f64>::new();
-    let fa = sheet(
-        &mut ba,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New(xy_plane()),
-        tol,
-    );
+    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
     let ka = ba.get_face(fa).unwrap().surface;
     ba.set_surface_source(ka, GeomSource::minted(7, 0)).unwrap();
     let mut bb = Body::<f64>::new();
@@ -243,7 +119,6 @@ fn probe_forged_source_on_divergent_charts() {
         2.0,
         2.0,
         FaceSurface::New(xy_plane_rotated()),
-        tol,
     );
     let kb = bb.get_face(fb).unwrap().surface;
     bb.set_surface_source(kb, GeomSource::minted(7, 0)).unwrap();
@@ -258,17 +133,8 @@ fn probe_forged_source_on_divergent_charts() {
 
 #[test]
 fn probe_reverted_and_placed_sources_diverge() {
-    let tol = Tol::witness();
     let mut ba = Body::<f64>::new();
-    let fa = sheet(
-        &mut ba,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New(xy_plane()),
-        tol,
-    );
+    let fa = sheet(&mut ba, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
     let ka = ba.get_face(fa).unwrap().surface;
     let src = GeomSource::minted(3, 1);
     ba.set_surface_source(ka, src.clone()).unwrap();
@@ -279,15 +145,7 @@ fn probe_reverted_and_placed_sources_diverge() {
         ("other-index", GeomSource::minted(3, 2)),
     ] {
         let mut bb = Body::<f64>::new();
-        let fb = sheet(
-            &mut bb,
-            0.0,
-            0.0,
-            2.0,
-            2.0,
-            FaceSurface::New(xy_plane()),
-            tol,
-        );
+        let fb = sheet(&mut bb, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
         let kb = bb.get_face(fb).unwrap().surface;
         bb.set_surface_source(kb, other).unwrap();
         match chart_region_overlap(&ba, fa, &bb, fb, band()) {
@@ -560,19 +418,10 @@ fn probe_bit_identical_fast_path_is_rotation_stable() {
 
 #[test]
 fn probe_replay_determinism() {
-    let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let f1 = sheet(
-        &mut body,
-        0.0,
-        0.0,
-        2.0,
-        2.0,
-        FaceSurface::New(xy_plane()),
-        tol,
-    );
+    let f1 = sheet(&mut body, 0.0, 0.0, 2.0, 2.0, FaceSurface::New(xy_plane()));
     let key = body.get_face(f1).unwrap().surface;
-    let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key), tol);
+    let f2 = sheet(&mut body, 1.0, 1.0, 3.0, 3.0, FaceSurface::Shared(key));
     let first = chart_region_overlap(&body, f1, &body, f2, band()).unwrap();
     for _ in 0..64 {
         assert_eq!(
@@ -599,33 +448,29 @@ fn probe_seam_straddle_and_exact_full_wrap() {
         radius: 2.0,
         u_ref: Vec3::unit_x(),
     };
-    let uv = |o: Vec<Point2<f64>>| FaceUv {
-        outer: o,
-        rings: vec![],
-    };
     let tau = std::f64::consts::TAU;
     // Same branch: fine.
-    let a = uv(rect(0.1, 0.0, 1.0, 1.0));
-    let b = uv(rect(0.5, 0.0, 1.5, 1.0));
+    let a = uv(rect(0.1, 0.0, 1.0, 1.0), vec![]);
+    let b = uv(rect(0.5, 0.0, 1.5, 1.0), vec![]);
     assert!(seam_gate(&cyl, &a, &b, band()).is_ok());
     // τ apart: different pinned branches.
-    let c = uv(rect(0.1 + tau, 0.0, 1.0 + tau, 1.0));
+    let c = uv(rect(0.1 + tau, 0.0, 1.0 + tau, 1.0), vec![]);
     assert!(matches!(
         seam_gate(&cyl, &a, &c, band()),
         Err(ChartRegionError::SeamBranch)
     ));
     // EXACT full wrap: span is exactly τ ⇒ the Zero outcome passes.
-    let w = uv(rect(0.0, 0.0, tau, 1.0));
+    let w = uv(rect(0.0, 0.0, tau, 1.0), vec![]);
     assert!(seam_gate(&cyl, &w, &w, band()).is_ok());
     // A hair over τ, well outside the band at r = 2: refuses.
-    let over = uv(rect(0.0, 0.0, tau + 1e-6, 1.0));
+    let over = uv(rect(0.0, 0.0, tau + 1e-6, 1.0), vec![]);
     assert!(matches!(
         seam_gate(&cyl, &over, &over, band()),
         Err(ChartRegionError::SeamBranch)
     ));
     // A hair over τ but INSIDE the band (3e-9 rad × 2 m = 6e-9 m):
     // three-outcome honesty says this must not silently pass.
-    let inband = uv(rect(0.0, 0.0, tau + 3e-9, 1.0));
+    let inband = uv(rect(0.0, 0.0, tau + 3e-9, 1.0), vec![]);
     let got = seam_gate(&cyl, &inband, &inband, band());
     println!("in-band seam excess => {got:?}");
     assert!(matches!(got, Err(ChartRegionError::Escalated(_))));

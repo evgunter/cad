@@ -129,6 +129,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
     let seg_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![seg_loop],
+        ids: Vec::new(),
     }));
     let thickness = Expr::div(plen("chord_half"), scl(4.0)).expect("Length / Scalar");
     let seg = r.insert(Node::Extrude {
@@ -142,6 +143,7 @@ pub(crate) fn segment_boss(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, R
             centre: [len(0.0), bore_centre_y],
             radius: plen("bore_r"),
         }],
+        ids: Vec::new(),
     }));
     let bore = r.insert(Node::Extrude {
         profile: bore_profile,

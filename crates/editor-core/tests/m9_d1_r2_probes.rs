@@ -11,7 +11,7 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
-    ProfileVertexRef, ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
+    ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
 use fixture::{ang, insert, len, table};
 use geom_core::Tol;
@@ -30,7 +30,14 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
 fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeNodeId) {
     let doc = ProfileDoc::empty_derived("m9_d1_r2_probes", Tol::witness());
     let (doc, plane) = insert(doc, fixture::xy_frame());
-    let (doc, p) = insert(doc, Node::Profile(ProfileProgram { plane, loops }));
+    let (doc, p) = insert(
+        doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops,
+            ids: Vec::new(),
+        }),
+    );
     let (doc, axis) = insert(
         doc,
         // The axis, in the frame's own coordinates: the profile's v is
@@ -72,10 +79,7 @@ fn negative_angle_wedge_of_an_all_on_axis_loop_names_both_poles() {
         assert!(
             t.lookup(&fixture::pole(
                 rev,
-                ProfileVertexRef {
-                    loop_index: 0,
-                    vertex: v
-                }
+                crate::fixture::vpiece(&doc, rev, 0, v as usize)
             ))
             .is_some(),
             "pole {v} unnamed"
@@ -106,10 +110,7 @@ fn partial_revolve_with_hole_and_axis_run_names_totally_both_signs() {
             assert!(
                 t.lookup(&fixture::pole(
                     rev,
-                    ProfileVertexRef {
-                        loop_index: 0,
-                        vertex: v
-                    }
+                    crate::fixture::vpiece(&doc, rev, 0, v as usize)
                 ))
                 .is_some(),
                 "theta {theta}: outer pole {v} unnamed"
@@ -119,10 +120,7 @@ fn partial_revolve_with_hole_and_axis_run_names_totally_both_signs() {
             assert!(
                 t.lookup(&fixture::pole(
                     rev,
-                    ProfileVertexRef {
-                        loop_index: 1,
-                        vertex: v
-                    }
+                    crate::fixture::vpiece(&doc, rev, 1, v as usize)
                 ))
                 .is_none(),
                 "theta {theta}: hole vertex {v} must not be a pole"
