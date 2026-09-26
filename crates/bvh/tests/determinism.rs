@@ -17,21 +17,12 @@ test_utils::gated_to![
     "crates/bvh/src/",
     "crates/geom-core/src/linalg/",
     "crates/geom-core/src/real.rs",
+    "crates/bvh/tests/common/",
 ];
 
+use crate::common::boxed;
 use bvh::{Aabb, Bvh};
 use proptest::prelude::*;
-
-fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
-    Aabb {
-        min_x: min[0],
-        min_y: min[1],
-        min_z: min[2],
-        max_x: max[0],
-        max_y: max[1],
-        max_z: max[2],
-    }
-}
 
 /// The idealized candidate set: brute-force filter, input order.
 fn brute(boxes: &[Aabb], query: &Aabb) -> Vec<usize> {

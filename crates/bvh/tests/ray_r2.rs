@@ -25,8 +25,13 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/"];
+test_utils::gated_to![
+    "crates/bvh/src/",
+    "crates/geom-core/src/linalg/",
+    "crates/bvh/tests/common/",
+];
 
+use crate::common::{boxed, ray};
 use bvh::{Aabb, Bvh, Ray};
 use geom_core::{Point3, Vec3};
 use test_utils::{fuzz, vacuity::Exposure};
@@ -110,7 +115,7 @@ fn exact_hit_interval(o: [i64; 3], d: [i64; 3], lo: [i64; 3], hi: [i64; 3]) -> O
     }
 }
 
-fn boxed(lo: [i64; 3], hi: [i64; 3]) -> Aabb {
+fn box_of(lo: [i64; 3], hi: [i64; 3]) -> Aabb {
     Aabb {
         min_x: lo[0] as f64,
         min_y: lo[1] as f64,
@@ -172,7 +177,7 @@ fn candidates_are_a_superset_of_the_exact_integer_truth() {
             lo.push(l);
             hi.push(h);
         }
-        let boxes: Vec<Aabb> = (0..n).map(|i| boxed(lo[i], hi[i])).collect();
+        let boxes: Vec<Aabb> = (0..n).map(|i| box_of(lo[i], hi[i])).collect();
         let tree = Bvh::build(&boxes);
 
         let o = [
@@ -422,10 +427,7 @@ fn interleaved_ties_come_back_in_ascending_index_order() {
     };
     let boxes: Vec<Aabb> = (0..200).map(near).collect();
     let tree = Bvh::build(&boxes);
-    let out = tree.ray(&Ray {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    });
+    let out = tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
     assert_eq!(out.len(), 200, "every box is on the ray");
     let nearer: Vec<usize> = out.iter().take(100).map(|c| c.item).collect();
     let farther: Vec<usize> = out.iter().skip(100).map(|c| c.item).collect();
@@ -451,22 +453,9 @@ fn interleaved_ties_come_back_in_ascending_index_order() {
 fn identical_boxes_come_back_in_ascending_index_order() {
     // 64 copies of one box: every t_enter ties exactly, so the ONLY
     // thing that can order the answer is the index tie-break.
-    let boxes = vec![
-        Aabb {
-            min_x: 1.0,
-            min_y: -1.0,
-            min_z: -1.0,
-            max_x: 2.0,
-            max_y: 1.0,
-            max_z: 1.0,
-        };
-        64
-    ];
+    let boxes = vec![boxed([1.0, -1.0, -1.0], [2.0, 1.0, 1.0]); 64];
     let tree = Bvh::build(&boxes);
-    let out = tree.ray(&Ray {
-        origin: Point3::new(0.0, 0.0, 0.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    });
+    let out = tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0]));
     let items: Vec<usize> = out.iter().map(|c| c.item).collect();
     assert_eq!(items, (0..64).collect::<Vec<_>>(), "ties ascend by index");
     let first = out[0].t_enter;
@@ -482,20 +471,10 @@ fn identical_boxes_come_back_in_ascending_index_order() {
 /// matches it.)
 #[test]
 fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
-    let unit = Aabb {
-        min_x: 0.0,
-        min_y: 0.0,
-        min_z: 0.0,
-        max_x: 1.0,
-        max_y: 1.0,
-        max_z: 1.0,
-    };
+    let unit = boxed([0.0, 0.0, 0.0], [1.0, 1.0, 1.0]);
     let tree = Bvh::build(&[unit]);
     // In the z = 1 face plane, travelling +x, entering at x = 0.
-    let in_face = Ray {
-        origin: Point3::new(-3.0, 0.5, 1.0),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    };
+    let in_face = ray([-3.0, 0.5, 1.0], [1.0, 0.0, 0.0]);
     let out = tree.ray(&in_face);
     assert_eq!(out.len(), 1, "a ray in a face plane still meets the box");
     assert!(
@@ -504,10 +483,7 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
         out[0].t_enter
     );
     // Along the edge x = 1, z = 1, travelling +y.
-    let along_edge = Ray {
-        origin: Point3::new(1.0, -3.0, 1.0),
-        dir: Vec3::new(0.0, 1.0, 0.0),
-    };
+    let along_edge = ray([1.0, -3.0, 1.0], [0.0, 1.0, 0.0]);
     let out = tree.ray(&along_edge);
     assert_eq!(out.len(), 1, "a ray along an edge still meets the box");
     assert!(
@@ -516,10 +492,7 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
         out[0].t_enter
     );
     // Grazing a single corner.
-    let corner = Ray {
-        origin: Point3::new(1.0, 1.0, -3.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    };
+    let corner = ray([1.0, 1.0, -3.0], [0.0, 0.0, 1.0]);
     assert_eq!(tree.ray(&corner).len(), 1, "a corner graze is a candidate");
 }
 
@@ -532,28 +505,9 @@ fn rays_in_a_face_plane_and_along_an_edge_stay_candidates() {
 #[test]
 fn empty_inputs_answer_empty() {
     let tree = Bvh::build(&[]);
-    assert!(
-        tree.ray(&Ray {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(1.0, 0.0, 0.0),
-        })
-        .is_empty()
-    );
-    let tree = Bvh::build(&[Aabb {
-        min_x: 10.0,
-        min_y: 10.0,
-        min_z: 10.0,
-        max_x: 11.0,
-        max_y: 11.0,
-        max_z: 11.0,
-    }]);
-    assert!(
-        tree.ray(&Ray {
-            origin: Point3::new(0.0, 0.0, 0.0),
-            dir: Vec3::new(-1.0, 0.0, 0.0),
-        })
-        .is_empty()
-    );
+    assert!(tree.ray(&ray([0.0, 0.0, 0.0], [1.0, 0.0, 0.0])).is_empty());
+    let tree = Bvh::build(&[boxed([10.0, 10.0, 10.0], [11.0, 11.0, 11.0])]);
+    assert!(tree.ray(&ray([0.0, 0.0, 0.0], [-1.0, 0.0, 0.0])).is_empty());
 }
 
 /// **The conservative-superset contract's undocumented precondition.**
@@ -578,19 +532,9 @@ fn empty_inputs_answer_empty() {
 /// pin for the R2 witness.
 #[test]
 fn overflow_in_the_slab_subtraction_drops_a_true_intersection() {
-    let b = Aabb {
-        min_x: -1.7e308,
-        min_y: 0.0,
-        min_z: -1.0,
-        max_x: -1.6e308,
-        max_y: 1e9,
-        max_z: 1.0,
-    };
+    let b = boxed([-1.7e308, 0.0, -1.0], [-1.6e308, 1e9, 1.0]);
     let tree = Bvh::build(&[b]);
-    let r = Ray {
-        origin: Point3::new(1.7e308, 0.0, 0.0),
-        dir: Vec3::new(-1e300, 1.0, 0.0),
-    };
+    let r = ray([1.7e308, 0.0, 0.0], [-1e300, 1.0, 0.0]);
     // The witness point, evaluated without overflowing the product.
     let t = 3.35e8f64;
     let half = -1e300 * (t * 0.5);

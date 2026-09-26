@@ -28,30 +28,17 @@
     clippy::float_cmp
 )]
 
-test_utils::gated_to!["crates/editor-core/src/resolve/", "crates/bvh/src/"];
+test_utils::gated_to![
+    "crates/editor-core/src/resolve/",
+    "crates/bvh/src/",
+    "crates/editor-core/tests/fixture/pick.rs",
+];
 
+use crate::fixture::pick::{aimed, near_tangent};
 use bvh::Ray;
 use editor_core::resolve::{crossing, ray_triangle};
 use geom_core::{Point3, Vec3};
 use num_bigint::BigInt;
-
-/// `pick.rs`'s `near_tangent` fixture: a determinant certified at
-/// `k / 6` of its own bound, `u = v = 0.5` exactly, `t = 1.5`. The
-/// enclosure sweep walks it at every `k`.
-fn near_tangent(k: f64) -> (Ray, [Point3<f64>; 3]) {
-    let zeta = 2f64.powi(-20);
-    let xi = k * zeta * f64::EPSILON;
-    let tri = [
-        Point3::new(0.0, 0.0, 0.0),
-        Point3::new(1.0, 0.0, zeta + xi),
-        Point3::new(0.0, 1.0, 0.0),
-    ];
-    let ray = Ray {
-        origin: Point3::new(-1.0, -1.0, 0.5 * xi - zeta),
-        dir: Vec3::new(1.0, 1.0, zeta),
-    };
-    (ray, tri)
-}
 
 // ---------------------------------------------------------------
 // 2. Exact enclosure.
@@ -360,9 +347,12 @@ fn near_parallel_dir(r: &mut Rng, tri: &[Point3<f64>; 3]) -> Vec3<f64> {
     snapv(inplane + n * (scale * 10f64.powf(r.range(-9.0, -2.0))), 40)
 }
 
-fn aimed(target: Point3<f64>, dir: Vec3<f64>, reach: f64, origin_bits: i32) -> Ray {
+/// [`aimed`] with its origin rounded to the grid `2^-origin_bits`
+/// ([`snap3`]).
+fn aimed_snapped(target: Point3<f64>, dir: Vec3<f64>, reach: f64, origin_bits: i32) -> Ray {
+    let ray = aimed(target, dir, reach);
     Ray {
-        origin: snap3(target - dir * reach, origin_bits),
+        origin: snap3(ray.origin, origin_bits),
         dir,
     }
 }
@@ -402,7 +392,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
             let tri = tri_general(r);
             let target = interior(r, &tri);
             let dir = transversal_dir(r);
-            (aimed(target, dir, r.range(0.5, 8.0), 30), tri)
+            (aimed_snapped(target, dir, r.range(0.5, 8.0), 30), tri)
         }),
     );
     family(
@@ -412,7 +402,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
             let tri = tri_general(r);
             let target = interior(r, &tri);
             let dir = near_parallel_dir(r, &tri);
-            (aimed(target, dir, r.range(0.5, 8.0), 30), tri)
+            (aimed_snapped(target, dir, r.range(0.5, 8.0), 30), tri)
         }),
     );
     family(
@@ -427,7 +417,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
                 near_parallel_dir(r, &tri)
             };
             let reach = 2f64.powf(r.range(10.0, 22.0));
-            (aimed(target, dir, reach, 20), tri)
+            (aimed_snapped(target, dir, reach, 20), tri)
         }),
     );
     family(
@@ -441,7 +431,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
             } else {
                 near_parallel_dir(r, &tri)
             };
-            let ray = aimed(target, dir, r.range(0.5, 8.0), 30);
+            let ray = aimed_snapped(target, dir, r.range(0.5, 8.0), 30);
             let k = if r.unit() < 0.5 { 40 } else { -40 };
             (
                 Ray {
@@ -463,7 +453,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
             } else {
                 near_parallel_dir(r, &tri)
             };
-            (aimed(target, dir, r.range(0.5, 1000.0), 30), tri)
+            (aimed_snapped(target, dir, r.range(0.5, 1000.0), 30), tri)
         }),
     );
     {
@@ -476,10 +466,7 @@ fn the_t_interval_encloses_the_exact_crossing_and_the_clamped_point() {
             for i in 1..8u32 {
                 for j in 1..(8 - i) {
                     let target = tri[0] + e1 * (f64::from(i) / 8.0) + e2 * (f64::from(j) / 8.0);
-                    let ray2 = Ray {
-                        origin: target - ray.dir,
-                        dir: ray.dir,
-                    };
+                    let ray2 = aimed(target, ray.dir, 1.0);
                     check("near_tangent interior", &ray2, &tri, &mut t);
                 }
             }

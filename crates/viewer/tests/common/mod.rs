@@ -32,6 +32,10 @@
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
 
+/// The corpus pick suites' walk: their landings, their single-level
+/// reference and their two aims.
+pub mod corpus_pick;
+
 use bvh::Aabb;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
@@ -725,13 +729,10 @@ pub fn corpus_index(session: &DocSession) -> PickIndex {
     index_of(session, corpus_delta())
 }
 
-/// A ray straight down through `(x, y)` from height `z`.
-pub fn down_from(x: f64, y: f64, z: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, z),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
+/// A ray straight down through `(x, y)` from height `z` —
+/// `crate::fixture::pick`'s, re-exported rather than re-written, as the
+/// mate heads below are: `editor-core`'s pick suites aim the same ray.
+pub use crate::fixture::pick::down_from;
 
 /// [`down_from`] at one metre up — above anything the plate- and
 /// assembly-scale fixtures build. A suite whose fixture reaches higher,
