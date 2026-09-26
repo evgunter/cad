@@ -242,12 +242,10 @@
 //!    five orders of magnitude at the very round the chase stops on.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the SIGN-level bracket
-//!    instead. What is left of the friction is a CONSUMER-side gap and
-//!    the scene meets it below: the refusal that carries no number
-//!    also drops the enclosure, so this probe cannot report the
-//!    bracket it was refused on without reaching two crates down
-//!    (`work/encl`'s
-//!    `budget-refusal-drops-the-enclosure-the-caller-needs`).
+//!    instead. The spout's own probe measures through the same door —
+//!    the certificate tier 3 hands back, continued by `measure` — so
+//!    on that refusal it reports the bracket it was refused on, and
+//!    holds the closed form to it.
 //!
 //!    More budget is not the fix, and that is measured: at
 //!    `QUAD2_RATIONAL_MAX_ROUNDS = 8` the early exit stops firing, so
@@ -2047,23 +2045,24 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // at the very round the chase stops on — so the refusal here is a
     // missing NUMBER and not a missing certificate.
     //
-    // So the scene PROBES rather than asserting through a door that
-    // may not open, and says which it got. What the refused arm CANNOT
-    // say is the part still worth reading: the error carries no
-    // enclosure, so this probe has nothing to report the bracket from
-    // even though the certificate the tier just took holds one
-    // (`work/encl`'s
-    // `budget-refusal-drops-the-enclosure-the-caller-needs`).
+    // So the scene measures THROUGH that certificate: the gate hands
+    // it back, and `measure` continues it to the reporting target. On
+    // the budget refusal, the answer carries the sign-level bracket
+    // the gate decided on, and the probe reports it; any other refusal
+    // is a body with no volume at all, and stays fail-loud.
     //
-    // Where the door DOES open, what is asserted is the bracket: the
-    // straightened frustum lies inside the kernel's own certified
-    // enclosure. That oracle self-calibrates with ε — a looser
-    // tolerance buys a wider bracket and the claim stays exactly as
-    // strong as the certificate — which is what a fixed relative bound
-    // could not do, and what a fixed bound measured at one ε got
-    // wrong when this scene first shipped.
-    let spout_props = pncad::topo::mass_properties(&spout, tol);
-    let spout_reading = match &spout_props {
+    // What is asserted is the bracket either way: the straightened
+    // frustum lies inside the kernel's own certified enclosure — the
+    // reporting-target one where the target is met, the wider
+    // sign-level one where it is not. That oracle self-calibrates with
+    // ε — a looser tolerance buys a wider bracket and the claim stays
+    // exactly as strong as the certificate — which is what a fixed
+    // relative bound could not do, and what a fixed bound measured at
+    // one ε got wrong when this scene first shipped.
+    let spout_measured = pncad::topo::validate_geometric_certificate(&spout, tol)
+        .unwrap_or_else(|e| panic!("the spout's tier 3 refused: {e:?}"))
+        .measure();
+    let spout_reading = match spout_measured {
         Ok(p) => {
             let v_gap = (p.volume - v_spout).abs();
             let a_gap = (p.surface_area - a_spout).abs();
@@ -2098,20 +2097,40 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
                 p.volume, p.volume_pad, p.surface_area, p.area_pad
             )
         }
-        Err(e) => format!(
-            "mass properties REFUSED TYPED at this tolerance — {e:?} — so the closed form \
-             has nothing to be compared against here. These walls are RATIONAL, so they \
-             are QUADRATURE faces whose enclosure is chased to a REPORTING width derived \
-             from eps, and at a tight enough eps that chase is proven unreachable after \
-             round 0. What is missing is a NUMBER and not a certificate: tier 3 admitted \
-             this body at this same eps, because its +V check consumes only the SIGN of \
-             that enclosure and the enclosure excludes zero by about five orders of \
-             magnitude. The tour's own volume ribbon prints that SIGN-level bracket; THIS \
-             probe cannot, because the refusal carries no enclosure to print — \
-             work/encl's budget-refusal-drops-the-enclosure-the-caller-needs. The \
-             straightened frustum's own numbers, which do not depend on eps: \
-             V = {v_spout:.9} m^3, A = {a_spout:.9} m^2"
-        ),
+        Err(pncad::topo::TargetUnreached {
+            bracket: Some(b),
+            refusal,
+        }) => {
+            // The bracket is the SIGN-level one — at 1e-12, ±9 % on
+            // this body — although the continuation that refused held a
+            // far narrower one and dropped it (`work/encl`'s
+            // `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`).
+            let half = 0.5 * (b.volume_hi - b.volume_lo);
+            assert!(
+                b.volume_lo <= v_spout && v_spout <= b.volume_hi,
+                "the straightened frustum's V = {v_spout} lies OUTSIDE the canal's \
+                 sign-level bracket [{}, {}]",
+                b.volume_lo,
+                b.volume_hi
+            );
+            format!(
+                "mass properties REFUSED TYPED at this tolerance — {refusal} — so there is no \
+                 volume NUMBER to compare. These walls are RATIONAL, so they are QUADRATURE \
+                 faces whose enclosure is chased to a REPORTING width derived from eps, and \
+                 at a tight enough eps that chase is proven unreachable after round 0. What \
+                 is missing is a number and not a certificate: tier 3 admitted this body at \
+                 this same eps on the SIGN of the enclosure, and the certificate it handed \
+                 back keeps that bracket through the refusal — V in [{:.9}, {:.9}] m^3, whose \
+                 lower end clears zero by {:.1e} half-widths, and which holds the \
+                 straightened frustum's V = {v_spout:.9}. The frustum's A = {a_spout:.9} m^2 \
+                 has no bracket to sit in here: the certificate's area is the +V check's \
+                 lever, not an enclosure",
+                b.volume_lo,
+                b.volume_hi,
+                b.volume_lo / half,
+            )
+        }
+        Err(unreached) => panic!("the spout's mass properties: {unreached}"),
     };
     let spout_bend_deg = SPOUT_BEND.to_degrees();
 
@@ -2359,10 +2378,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              SIGN of that enclosure, and the enclosure excludes zero by about five orders \
              of magnitude at the very round the chase stops on, so the scene certifies at \
              every eps and the volume ribbon prints the SIGN-level bracket where it has \
-             no number to print. What is left is a consumer-side gap this probe sits in: \
-             the refusal carries no enclosure, so the reading above cannot report the \
-             bracket the tier just certified -- work/encl's \
-             budget-refusal-drops-the-enclosure-the-caller-needs. More budget would not \
+             no number to print. The reading above measures through the certificate the \
+             tier hands back, so where the number is refused it reports that same \
+             bracket and holds the frustum to it. More budget would not \
              buy the number back and that is measured: at one more round the early exit \
              stops firing and the face then runs over half an hour without finishing. An \
              OCTAGONAL authoring had a number at every eps -- straight sides make \
