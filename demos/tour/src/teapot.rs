@@ -2192,6 +2192,10 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             bracket: Some(b),
             refusal,
         }) => {
+            // The bracket is the SIGN-level one — at 1e-12, ±9 % on
+            // this body — although the continuation that refused held a
+            // far narrower one and dropped it (`work/encl`'s
+            // `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`).
             let half = 0.5 * (b.volume_hi - b.volume_lo);
             assert!(
                 b.volume_lo <= v_spout && v_spout <= b.volume_hi,
