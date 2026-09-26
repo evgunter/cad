@@ -235,11 +235,10 @@ fn e2e_prism_dual_lane_matches_f64() {
     let (mut d, _, _) = triangle_prism::<Dual64>();
     common::describe_as_intersections(&mut f, Tol::witness());
     common::describe_as_intersections(&mut d, Tol::witness());
-    // The dual takes the structural half — checks 1-6, 8 and 9, which
-    // is where every certificate compared below is produced. The +V
-    // volume invariant reads an enclosure a dual may not certify and
-    // reads none of these certificates; the f64 row beside it runs the
-    // composed door on the same construction.
+    // The dual takes the `_structural` twin — the whole battery holding
+    // no certified lane, check 7 through the closed form — which is
+    // where every certificate compared below is produced; the f64 row
+    // beside it runs the composed door on the same construction.
     assert_eq!(
         topo::validate_geometric_structural(&d, Tol::witness()),
         Ok(())
