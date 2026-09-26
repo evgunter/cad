@@ -36,17 +36,16 @@ fn rigid_f64() -> Affine3<f64> {
 /// row holds is the two things that are: no door on the walk reports
 /// `ApproxLaneUnsupported` or `ApproxCertification` when the seam
 /// answers, and the surface `transform_rigid` produces carries
-/// `geom_brep::certify_offset_over_at`'s measurement of the mapped
-/// pair, limb for limb by bits — the free function, not the door
-/// re-asked.
+/// `geom_brep::certify_offset_over`'s measurement of the mapped pair
+/// at the run's ε, limb for limb by bits — the free function, not the
+/// door re-asked.
 #[test]
 fn the_f64_seam_answers_every_public_door() {
     let d = 0.05;
     let (body, face) = box_with_approx_cap(d, 1e-9);
-    let Some(Surface::Approx(a)) = body.get_surface(body.get_face(face).unwrap().surface) else {
+    let Some(Surface::Approx(_)) = body.get_surface(body.get_face(face).unwrap().surface) else {
         panic!("the cap wears the approximating surface");
     };
-    let stored = a.tolerance();
 
     let contacts = topo::boolean::ContactRecords::default();
     for (door, r) in [
@@ -83,19 +82,14 @@ fn the_f64_seam_answers_every_public_door() {
     }
 
     let moved = topo::transform_rigid(&body, &rigid_f64(), Tol::witness())
-        .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        .expect("a rigid map of a certified fit re-certifies at the run's ε");
     let Some(Surface::Approx(m)) = moved.get_surface(moved.get_face(face).unwrap().surface) else {
         panic!("the mapped cap is still approximating");
     };
-    assert_eq!(
-        m.tolerance().to_bits(),
-        stored.to_bits(),
-        "the map carries the surface's own claim, not the run's"
-    );
     let spec = m.spec();
     let geom::SurfaceDescription::Offset { base, d: dm } = &spec.description;
     let free =
-        geom_brep::certify_offset_over_at(base, &spec.fit, *dm, spec.window, m.tolerance(), band())
+        geom_brep::certify_offset_over(base, &spec.fit, *dm, spec.window, Tol::witness(), band())
             .expect("`geom-brep`'s certifier measures the mapped pair");
     let got = m.certificate();
     for (name, x, y) in [

@@ -2267,9 +2267,9 @@ mod offset_fit_door_rows {
         crate::fixtures::assert_certificates_agree("the mint door", a, b);
         assert_eq!(a.rounds, b.rounds, "the refinement history moved");
         assert_eq!(
-            through_door.tolerance().to_bits(),
-            free.tolerance().to_bits(),
-            "the door and the free function fit against the same target"
+            format!("{:?}", through_door.fit()),
+            format!("{:?}", free.fit()),
+            "the door and the free function fit against the same target, so their nets agree"
         );
     }
 }

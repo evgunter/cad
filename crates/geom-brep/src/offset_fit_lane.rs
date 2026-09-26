@@ -39,14 +39,11 @@
 //!
 //! # This file is on the shell's offset chain
 //!
-//! [`OffsetFitLane::remap`] and its `f64` body take a
-//! `tolerance: f64`, and the SHELL-TOLERANCE-CHAIN census
+//! All three doors take the run's ε as the [`Tol`] witness and no
+//! `f64` epsilon, and the SHELL-TOLERANCE-CHAIN census
 //! (`crates/topo/tests/shell_tolerance_chain.rs`) carries this file
-//! with those two parameters declared: they are the surface's own
-//! stored claim, the datum the mapped surface must be shown to honour,
-//! and never the run's ε — which travels as [`Tol`] through the other
-//! two doors. A THIRD such parameter, or an `.eps()` read here, reds
-//! that census and has to be said what it is for.
+//! with none declared: an `f64` tolerance parameter or an `.eps()`
+//! read here reds that census and has to be said what it is for.
 
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::{Band, Real, Tol};
@@ -73,7 +70,7 @@ pub struct OffsetFitLane<T: Real> {
         &geom::SurfaceDescription<T>,
         &NurbsSurface<T>,
         geom::ApproxWindow,
-        f64,
+        Tol,
         Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
 }
@@ -97,15 +94,13 @@ impl<T: Real> OffsetFitLane<T> {
     /// tier-3 never-trust posture (O5), one dimension up from
     /// `EdgeCurve::recertify`.
     ///
-    /// **The tolerance is the RUN's, not the surface's.** The edge
-    /// machinery re-certifies every carrier against the run's band and
-    /// never against a stored bound, and the surface claim is the same
-    /// shape: O3 ratifies `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so
-    /// verifying it means measuring against the ε this validation call
-    /// runs at. A surface minted at a loose tolerance validating
-    /// forever afterwards would be the stored bound quietly replacing
-    /// the ratified one. The stored tolerance stays what it always was:
-    /// the MINT's parameter, and the fit door's own gate.
+    /// **The tolerance is the RUN's.** The edge machinery re-certifies
+    /// every carrier against the run's band and never against a stored
+    /// bound, and the surface claim is the same shape: O3 ratifies
+    /// `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so verifying it means
+    /// measuring against the ε this validation call runs at. The
+    /// surface stores no tolerance, so there is no per-surface bound
+    /// that could stand in for the ratified one.
     ///
     /// # Errors
     ///
@@ -155,9 +150,9 @@ impl<T: Real> OffsetFitLane<T> {
     /// other way round — from a surface that already exists, for the
     /// validator that re-derives its claim.)
     ///
-    /// **The classification tolerance is the CALLER's** and so is the
-    /// band: `tolerance` is what the mapped surface will store and
-    /// therefore what it must be shown to honour.
+    /// The classification tolerance is the run's ε and arrives as the
+    /// witness, for [`OffsetFitLane::recertify`]'s reason: the map and
+    /// the validator classify a given surface against the same number.
     ///
     /// # Errors
     ///
@@ -169,32 +164,28 @@ impl<T: Real> OffsetFitLane<T> {
         description: &geom::SurfaceDescription<T>,
         fit: &NurbsSurface<T>,
         window: geom::ApproxWindow,
-        tolerance: f64,
+        tol: Tol,
         band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.remap)(description, fit, window, tolerance, band)
+        (self.remap)(description, fit, window, tol, band)
     }
 }
 
 /// The remap door's `f64` body.
 ///
-/// The window rule and the derivation behind it live in one place, so
-/// this door, the storage mint and the validator's re-derivation cannot
-/// disagree about the same surface. The `_at` form, deliberately: this
-/// door classifies against the tolerance the SURFACE's claim was made
-/// at — a stored datum, not the run's ε — which is what keeps the map
-/// and the validator agreeing about a given surface (`topo::transform`'s
-/// `map_approx` argues it). It is the one production caller of a
-/// numeric-target routine, named at that routine's own door.
+/// The window rule and the derivation behind it live in one place
+/// ([`crate::certify_offset_over`]), so this door, the storage mint and
+/// the validator's re-derivation cannot disagree about the same
+/// surface.
 fn remap_offset_certificate(
     description: &geom::SurfaceDescription<f64>,
     fit: &NurbsSurface<f64>,
     window: geom::ApproxWindow,
-    tolerance: f64,
+    tol: Tol,
     band: Band,
 ) -> Result<geom::OffsetCertificate, OffsetFitError> {
     let geom::SurfaceDescription::Offset { base, d } = description;
-    crate::offset_fit::certify_offset_over_at(base, fit, *d, window, tolerance, band)
+    crate::offset_fit::certify_offset_over(base, fit, *d, window, tol, band)
 }
 
 /// **The door's WIRING, field by field** — the row that says which

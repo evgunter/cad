@@ -185,7 +185,7 @@
 //! [`certify_offset`], [`certify_offset_over`],
 //! [`approx_offset_surface`], [`recertify_approx`]. That is the whole
 //! surface the kernel reaches: [`crate::OffsetFitLane`] calls the last
-//! two, and the mint calls down to the first three. A caller has no
+//! three, and the mint calls down to the first three. A caller has no
 //! number to pass, so two callers cannot fit against two epsilons, and
 //! the value is read once (`precision_target`, private — the doors
 //! are the surface).
@@ -201,11 +201,10 @@
 //! than move it. The suites in `crates/geom-brep/tests/` and
 //! `crates/sweep/tests/` are the whole population.
 //!
-//! **One production caller reaches an `_at` routine**, named at its own
-//! door: the transform door's [`crate::OffsetFitLane::remap`]
-//! classifies a MAPPED pair against the tolerance the surface's own
-//! claim was made at, which is a stored datum and deliberately not the
-//! run's ε. Nothing else does, and
+//! **No production caller reaches an `_at` routine.** An approximating
+//! surface stores no tolerance, so every production classification —
+//! the mint, the validator's re-derivation and the transform door's
+//! remap — is at the run's ε, through the `Tol` form;
 //! `crates/topo/tests/shell_tolerance_chain.rs` holds that as a census.
 //!
 //! # Discipline
@@ -774,8 +773,7 @@ pub use geom::OffsetCertificate;
 // read. The `_at` routines are exempt from the first rule and only
 // from it: taking a chosen target is what they are for, they are
 // `#[doc(hidden)]`, and a separate census holds that no production file
-// outside this crate's transform lane reaches one. Do not move a
-// production door out of this region.
+// reaches one. Do not move a production door out of this region.
 /// **The fit target, and the ONE place the run's ε is read on the
 /// chain that reaches this module** (D4 ¶1's witness rule; D4 ¶2's
 /// ε_precision; the residual O3 ratifies).
@@ -1090,14 +1088,6 @@ pub fn certify_offset_over(
 /// [`certify_offset_over`] against a CHOSEN target rather than the run's
 /// ε — the engine as an instrument (module docs).
 ///
-/// **It has one production caller**, and that is not a leak: the
-/// transform door's remap ([`crate::OffsetFitLane::remap`])
-/// re-derives a MAPPED pair against the tolerance the surface's own
-/// claim was made at, which is the property that keeps the map and the
-/// validator agreeing about a given surface (`topo::transform`'s
-/// `map_approx` states it). That target is a stored datum rather than
-/// the run's ε, so this is the door it must reach.
-///
 /// # Errors
 ///
 /// As [`certify_offset_over`].
@@ -1190,9 +1180,8 @@ pub fn approx_offset_surface_at(
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
         fit,
-        tolerance,
     };
-    let approx = geom::ApproxSurface::certify(spec, |description, fit, window, tolerance| {
+    let approx = geom::ApproxSurface::certify(spec, |description, fit, window| {
         let geom::SurfaceDescription::Offset { base, d } = description;
         certify_offset_over_at(base, fit, *d, window, tolerance, band).map(|cert| {
             OffsetCertificate {
@@ -1209,13 +1198,12 @@ pub fn approx_offset_surface_at(
 
 /// **The re-derivation door** (O5's never-trust posture): re-runs
 /// [`certify_offset`] against an approximating surface's own stored
-/// description and fit, classified against `tolerance`.
+/// description and fit, classified against the run's ε (`tol`).
 ///
-/// The stored certificate is not read, and neither is the stored
-/// tolerance: **the classification tolerance is the CALLER's**, which
-/// is what lets tier 3 verify the ratified claim (O3: the residual is
-/// `≤ ε_precision`) rather than whatever bound the mint happened to
-/// ask for. A fit that has been degraded since it was minted —
+/// The stored certificate is not read: **the classification tolerance
+/// is the run's**, which is what lets tier 3 verify the ratified claim
+/// (O3: the residual is `≤ ε_precision`) at the ε the validation call
+/// runs at. A fit that has been degraded since it was minted —
 /// coarsened, edited, transplanted — fails here with the limb that
 /// caught it; so does one minted loose and re-derived at a tighter ε,
 /// which is D4's blessed consequence of ε-tightening and the edge

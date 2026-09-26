@@ -143,9 +143,8 @@ fn a_degraded_fit_on_a_face_goes_red_at_tier_three() {
             description: geom::SurfaceDescription::Offset { base, d },
             fit: coarsened,
             window: good.window(),
-            tolerance: good.tolerance(),
         },
-        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
+        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(*good.certificate()),
     )
     .unwrap();
 
@@ -274,7 +273,6 @@ fn plant(
     description: geom::SurfaceDescription<f64>,
     fit: NurbsSurface<f64>,
     window: geom::ApproxWindow,
-    tolerance: f64,
     cert: geom::OffsetCertificate,
 ) -> geom::ApproxSurface<f64> {
     geom::ApproxSurface::certify(
@@ -282,17 +280,16 @@ fn plant(
             description,
             fit,
             window,
-            tolerance,
         },
-        |_, _, _, _| Ok::<_, geom_brep::OffsetFitError>(cert),
+        |_, _, _| Ok::<_, geom_brep::OffsetFitError>(cert),
     )
     .unwrap()
 }
 
 /// **The end-to-end row, both signs of `d`: an `Approx`-faced body
 /// moves.** What the map produces is the mapped base description, the
-/// mapped fit, the same `d`, window and tolerance, and a certificate
-/// re-derived on the mapped pair — the stored one is never carried.
+/// mapped fit, the same `d` and window, and a certificate re-derived on
+/// the mapped pair at the run's ε — the stored one is never carried.
 ///
 /// The nets are compared BIT for bit against the same affine map
 /// applied here: nothing in the mapping is an approximation, so a
@@ -322,11 +319,6 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
         let geom::SurfaceDescription::Offset { base: b0, d: d0 } = before.description();
         let geom::SurfaceDescription::Offset { base: b1, d: d1 } = after.description();
         assert_eq!(d1, d0, "d = {d}: the offset distance is a rigid invariant");
-        assert_eq!(
-            after.tolerance(),
-            before.tolerance(),
-            "d = {d}: the tolerance is the claim, carried not re-chosen"
-        );
         assert_eq!(
             after.window(),
             before.window(),
@@ -359,11 +351,11 @@ fn an_approx_faced_body_moves_under_a_rigid_map() {
             c1.on_locus_max,
             c0.on_locus_max
         );
+        let eps = Tol::witness().eps();
         assert!(
-            c1.hull_sup <= after.tolerance(),
-            "d = {d}: the mapped surface must honour the tolerance it stores: {} > {}",
+            c1.hull_sup <= eps,
+            "d = {d}: the mapped surface must honour the run's ε: {} > {eps}",
             c1.hull_sup,
-            after.tolerance()
         );
 
         // The independent check: tier 3 re-derives the mapped
@@ -450,26 +442,26 @@ fn the_props_lanes_verdict_is_the_same_either_side_of_the_map() {
 /// What is pinned instead is the law at the surface, read off the moved
 /// body: the mapped face's description names a mapped base, and a FRESH
 /// fit of that base's offset — the offset door run on the mapped
-/// description alone, with nothing of the original body in it —
-/// certifies at the same tolerance to the same bound. That is
+/// description alone, with nothing of the original body in it, at the
+/// target the cap was fitted at — certifies to the same bound. That is
 /// `M(S + d·n)` and `M(S) + d·n_M` meeting at the body's own face.
 #[test]
 fn the_mapped_face_is_a_certified_fit_of_the_mapped_description() {
+    let target = 1e-9;
     for d in [0.05_f64, -0.05] {
-        let (body, face) = box_with_approx_cap(d, 1e-9);
+        let (body, face) = box_with_approx_cap(d, target);
         let moved = topo::transform_rigid(&body, &rigid(), Tol::witness()).expect("the body moves");
         let after = approx_face_surface(&moved, face);
         let geom::SurfaceDescription::Offset { base, .. } = after.description();
-        let fresh =
-            geom_brep::approx_offset_surface_at(Arc::clone(base), d, after.tolerance(), band())
-                .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
+        let fresh = geom_brep::approx_offset_surface_at(Arc::clone(base), d, target, band())
+            .unwrap_or_else(|e| panic!("d = {d}: the mapped description must still fit: {e}"));
         let Surface::Approx(fresh) = &fresh else {
             panic!("the door mints the variant")
         };
         let (a, b) = (after.certificate(), fresh.certificate());
         // Same frame, same base, same `d`: here the two runs really do
         // measure the same quantities, so both limbs are compared —
-        // and tightly, at a thousandth of the tolerance rather than at
+        // and tightly, at a thousandth of the target rather than at
         // it.
         assert!(
             (a.hull_sup - b.hull_sup).abs() <= 1e-12
@@ -543,7 +535,6 @@ fn a_degraded_fit_does_not_survive_the_map() {
         geom::SurfaceDescription::Offset { base, d },
         coarsened,
         good.window(),
-        good.tolerance(),
         *good.certificate(),
     );
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
@@ -621,20 +612,18 @@ fn bowed() -> NurbsSurface<f64> {
     NurbsSurface::new(kv.clone(), kv, control, vec![1.0; 9]).unwrap()
 }
 
-/// A box wearing a CURVED `Approx` cap, fitted at 1e-6. Its cap's
-/// descriptions are not adjacent — the bowed base has nothing to do
-/// with the box's straight rim — and that is deliberate: this fixture
-/// exists for what the certificate does under a map, and a row that
-/// reads a certificate needs a body that moves, not a body that
-/// validates.
-fn box_with_curved_approx_cap(d: f64) -> (Body<f64>, FaceKey, Surface<f64>) {
-    let honest = geom_brep::approx_offset_surface_at(Arc::new(bowed()), d, 1e-6, band())
-        .expect("the bowed base's offset fits at 1e-6");
-    let mut body = unit_box();
-    let face = common::approx::top_face(&body);
-    body.set_face_surface(face, FaceSurface::New(honest.clone()))
-        .expect("the attach-layer door accepts a live face");
-    (body, face, honest)
+/// The target the curved fixture is fitted and measured at.
+const CURVED_FIT_TARGET: f64 = 1e-6;
+
+/// The bowed base's offset, fitted at [`CURVED_FIT_TARGET`].
+fn curved_approx(d: f64) -> Arc<geom::ApproxSurface<f64>> {
+    let honest =
+        geom_brep::approx_offset_surface_at(Arc::new(bowed()), d, CURVED_FIT_TARGET, band())
+            .expect("the bowed base's offset fits at the curved target");
+    let Surface::Approx(a) = honest else {
+        panic!("the door mints the variant")
+    };
+    a
 }
 
 /// **The hull bound is FRAME-DEPENDENT; the sampled residual is not.**
@@ -652,23 +641,28 @@ fn box_with_curved_approx_cap(d: f64) -> (Body<f64>, FaceKey, Surface<f64>) {
 /// certified `<= tolerance` and non-negative, so on a fixture minted at
 /// 1e-9 the assertion `|Δ| <= 1e-9` holds for any two certified limbs
 /// whatever — a mapped bound five orders above its operand's would have
-/// passed it. That is why this row is minted at 1e-6: the slack it
-/// asserts is a thousandth of the tolerance rather than equal to it.
+/// passed it. That is why this row is fitted at 1e-6: the slack it
+/// asserts is a thousandth of the target rather than equal to it.
+///
+/// The mapped pair is measured directly — each map applied to the base
+/// and the fit by [`geom::NurbsSurface::map_points`], exactly as the
+/// transform door maps them, and the free certifier run at the fixture's
+/// target. The transform door re-derives the same quantities and
+/// classifies them at the run's ε, which a 1e-6 fit does not meet at a
+/// tighter run; the measurement is the subject here, not the door.
 ///
 /// So the row asserts the split rather than the invariance: the sampled
 /// limb survives, the bound is allowed to move and is only required to
-/// stay under the tolerance the surface claims — and the movement is
-/// asserted to be REAL on at least one map, so that a future change
-/// making the bound frame-independent fails here loudly rather than
-/// leaving a stale caveat behind.
+/// stay under the target (the certifier refuses otherwise) — and the
+/// movement is asserted to be REAL on at least one map, so that a future
+/// change making the bound frame-independent fails here loudly rather
+/// than leaving a stale caveat behind.
 #[test]
 fn the_hull_bound_is_frame_dependent_and_the_sampled_residual_is_not() {
     let d = 0.02;
-    let (_, _, honest) = box_with_curved_approx_cap(d);
-    let Surface::Approx(a0) = &honest else {
-        panic!("the door mints the variant")
-    };
+    let a0 = curved_approx(d);
     let c0 = *a0.certificate();
+    let geom::SurfaceDescription::Offset { base, .. } = a0.description();
     let oblique = {
         let mut m = Affine3::rotation_about_axis(
             geom_core::Point3::origin(),
@@ -688,20 +682,18 @@ fn the_hull_bound_is_frame_dependent_and_the_sampled_residual_is_not() {
     ];
     let mut worst_hull = 0.0_f64;
     for (name, map) in maps {
-        let (body, face, _) = box_with_curved_approx_cap(d);
-        let moved = topo::transform_rigid(&body, &map, Tol::witness())
-            .unwrap_or_else(|e| panic!("{name}: the curved-capped box must move: {e}"));
-        let c1 = *approx_face_surface(&moved, face).certificate();
+        let mapped_base = base.map_points(|p| map.transform_point(p));
+        let mapped_fit = a0.fit().map_points(|p| map.transform_point(p));
+        let c1 =
+            geom_brep::certify_offset_at(&mapped_base, &mapped_fit, d, CURVED_FIT_TARGET, band())
+                .unwrap_or_else(|e| {
+                    panic!("{name}: the mapped pair must certify at the target: {e}")
+                });
         assert!(
             (c1.on_locus_max - c0.on_locus_max).abs() <= 1e-12,
             "{name}: the sampled residual is a distance and must survive: {} vs {}",
             c1.on_locus_max,
             c0.on_locus_max
-        );
-        assert!(
-            c1.hull_sup <= 1e-6,
-            "{name}: the mapped surface still honours the tolerance it stores: {}",
-            c1.hull_sup
         );
         worst_hull = worst_hull.max((c1.hull_sup - c0.hull_sup).abs());
     }
@@ -735,7 +727,6 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
         good.description().clone(),
         good.fit().clone(),
         narrowed,
-        good.tolerance(),
         *good.certificate(),
     );
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
@@ -773,17 +764,17 @@ fn a_narrowed_window_refuses_at_the_validator_and_at_the_map() {
     );
 }
 
-/// **The re-derivation classifies against the tolerance the mapped
-/// surface will STORE.** An interior fit control point nudged by 1e-8
-/// — a hundred thousand times smaller than a visible coarsening, and
-/// away from the corners every on-locus sample hits — still refuses,
-/// because the hull limb is a sup over the whole rectangle rather than
-/// over the schedule.
+/// **The re-derivation classifies against the run's ε.** An interior
+/// fit control point nudged by ten times ε — at the default ε a hundred
+/// thousand times smaller than a visible coarsening, and away from the
+/// corners every on-locus sample hits — still refuses, because the hull
+/// limb is a sup over the whole rectangle rather than over the
+/// schedule.
 ///
-/// The row is the guard on the classification tolerance: re-deriving at
-/// anything looser than the stored 1e-9 (the measured excess is
-/// 2.17e-9) lets this surface through while the mapped surface goes on
-/// claiming 1e-9.
+/// The row is the guard on the classification tolerance: the hull
+/// excess a nudge of `10·ε` measures is about `2.17·ε` (2.17e-9 at the
+/// default ε), so re-deriving at anything looser than about twice ε
+/// lets this surface through.
 #[test]
 fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
     let d = 0.05;
@@ -792,7 +783,7 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
     let fit = good.fit();
     let mut control = fit.control().to_vec();
     let mid = control.len() / 2;
-    control[mid] = control[mid] + Vec3::new(0.0, 0.0, 1e-8);
+    control[mid] = control[mid] + Vec3::new(0.0, 0.0, 10.0 * Tol::witness().eps());
     let nudged = NurbsSurface::new(
         fit.knots_u().clone(),
         fit.knots_v().clone(),
@@ -804,13 +795,12 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
         good.description().clone(),
         nudged,
         good.window(),
-        good.tolerance(),
         *good.certificate(),
     );
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
         .unwrap();
     let e = topo::transform_rigid(&body, &rigid(), Tol::witness())
-        .expect_err("a 1e-8 edit is ten times the tolerance the surface claims");
+        .expect_err("an edit of ten times ε does not certify at ε");
     assert!(
         matches!(
             e,
@@ -833,7 +823,8 @@ fn a_micro_edit_of_an_interior_control_point_does_not_survive_the_map() {
 #[test]
 fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     let d = 0.05;
-    let (mut body, face) = box_with_approx_cap(d, 1e-9);
+    let target = 1e-9;
+    let (mut body, face) = box_with_approx_cap(d, target);
     let good = approx_face_surface(&body, face);
     let bogus = geom::OffsetCertificate {
         distance: 42.0,
@@ -849,7 +840,6 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
         good.description().clone(),
         good.fit().clone(),
         good.window(),
-        good.tolerance(),
         bogus,
     );
     body.set_face_surface(face, FaceSurface::New(Surface::Approx(Arc::new(planted))))
@@ -858,7 +848,7 @@ fn a_planted_certificate_is_replaced_by_the_re_derivation_field_by_field() {
     let after = approx_face_surface(&moved, face);
     let c = after.certificate();
     let geom::SurfaceDescription::Offset { base, .. } = after.description();
-    let fresh = geom_brep::certify_offset_at(base, after.fit(), d, 1e-9, band())
+    let fresh = geom_brep::certify_offset_at(base, after.fit(), d, target, band())
         .expect("the mapped pair certifies independently");
     assert_eq!(
         c.distance, d,

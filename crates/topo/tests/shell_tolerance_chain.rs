@@ -140,11 +140,8 @@ const CHAIN: [Stretch; 6] = [
         sentinels: None,
         eps_reads: 0,
         eps_reads_are: "none — the door hands the witness on to the fit engine",
-        f64_tolerance_params: 2,
-        f64_tolerance_params_are: "the remap door's `tolerance` and the same parameter on its \
-                                   `f64` body — the SURFACE's stored claim, which the mapped \
-                                   surface must be shown to honour (`topo::transform`'s \
-                                   `map_approx` argues it), never the run's ε",
+        f64_tolerance_params: 0,
+        f64_tolerance_params_are: "none",
     },
 ];
 
@@ -197,7 +194,7 @@ fn reads_as_a_tolerance(name: &str) -> bool {
 /// is a chosen target (its own docs and the `_at` census below). The
 /// exemption is the name, so renaming a production door to end in `_at`
 /// would walk past this row — and would be caught by the census, which
-/// then has a door in a set it says only the transform lane reaches.
+/// then has a production caller in a set it says has none.
 #[test]
 fn every_f64_tolerance_on_the_shell_chain_is_declared() {
     for stretch in &CHAIN {
@@ -321,21 +318,17 @@ fn the_chain_reads_epsilon_at_one_site() {
     );
 }
 
-/// **The numeric-target instrument has exactly one production caller**,
-/// and it is named.
+/// **The numeric-target instrument has no production caller.**
 ///
 /// `geom-brep`'s `_at` routines take a chosen target and exist so the
 /// fit engine's own suite can measure it. A production file reaching one
 /// is a caller choosing an epsilon, which is the thing the witness rule
-/// removes — except at the offset-fit door's remap, which classifies a
-/// mapped pair against the tolerance the SURFACE's claim was made at (a
-/// stored datum, argued at `topo::transform::map_approx`). That
-/// exception is listed here by ROUTINE and not by file: the file also
-/// wires the recertify and mint limbs, and either of those pointed at
-/// its `_at` twin would be a door choosing an epsilon, so the row has
-/// to be able to tell them apart.
+/// removes; every production classification of an offset fit is at the
+/// run's ε, through the `Tol` doors. The routines' own home is the one
+/// file that names them, because that is where the `Tol` doors
+/// delegate.
 #[test]
-fn only_the_transform_lane_reaches_the_numeric_target_routines() {
+fn no_production_file_reaches_the_numeric_target_routines() {
     const AT_ROUTINES: [&str; 5] = [
         "fit_offset_at(",
         "certify_offset_at(",
@@ -344,22 +337,14 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
         "recertify_approx_at(",
     ];
     // The routines' own home, where the `Tol` doors delegate.
-    const ALLOWED: [&str; 1] = ["crates/geom-brep/src/offset_fit.rs"];
-    // The one ratified exception, narrowed to the ONE routine it
-    // covers: the offset-fit door's remap classifies a mapped pair
-    // against the tolerance the surface's claim was made at. The
-    // exception is that routine, not that file — a door in the same
-    // file wired to any OTHER numeric-target routine is a production
-    // caller choosing an epsilon and reds below.
-    const EXCEPTION_FILE: &str = "crates/geom-brep/src/offset_fit_lane.rs";
-    const EXCEPTION_ROUTINE: &str = "certify_offset_over_at(";
+    const HOME: &str = "crates/geom-brep/src/offset_fit.rs";
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(std::path::Path::parent)
         .expect("the crate sits two levels under the workspace root")
         .join("crates");
     let mut hits: Vec<String> = Vec::new();
-    let mut seen_exception = false;
+    let mut home_seen = false;
     let mut stack = vec![root.clone()];
     let mut scanned = 0_usize;
     while let Some(dir) = stack.pop() {
@@ -384,37 +369,27 @@ fn only_the_transform_lane_reaches_the_numeric_target_routines() {
             if !AT_ROUTINES.iter().any(|r| code.contains(r)) {
                 continue;
             }
-            if shown.ends_with(EXCEPTION_FILE) {
-                if code.contains(EXCEPTION_ROUTINE) {
-                    seen_exception = true;
-                }
-                for other in AT_ROUTINES.iter().filter(|r| **r != EXCEPTION_ROUTINE) {
-                    if code.contains(other) {
-                        hits.push(format!("{shown} reaches {other}"));
-                    }
-                }
-                continue;
-            }
-            if ALLOWED.iter().any(|a| shown.ends_with(a)) {
+            if shown.ends_with(HOME) {
+                home_seen = true;
                 continue;
             }
             hits.push(shown);
         }
     }
-    // A walk that read nothing would pass vacuously.
+    // A walk that read nothing would pass vacuously, and one that never
+    // met the routines' own home is not reading the tree that has them.
     assert!(
         scanned > 100,
         "the production-source walk found only {scanned} files — it is looking in the wrong place"
     );
     assert!(
+        home_seen,
+        "the walk never met `{HOME}` naming a numeric-target routine — the routines moved or were \
+         renamed, and this census is measuring the wrong set"
+    );
+    assert!(
         hits.is_empty(),
         "a production file reaches `geom-brep`'s numeric-target fit routines, which means a \
          caller is choosing an epsilon: {hits:?}"
-    );
-    assert!(
-        seen_exception,
-        "the offset-fit door's remap no longer reaches `certify_offset_over_at` — either it moved \
-         (this census is now measuring the wrong set) or the exception is gone and should be \
-         deleted"
     );
 }

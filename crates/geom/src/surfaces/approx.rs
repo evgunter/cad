@@ -181,9 +181,13 @@ impl<T: Real> SurfaceDescription<T> {
 }
 
 /// The uncertified input to [`ApproxSurface::certify`]: the intent, the
-/// fit that claims to realize it, the window the claim is made over,
-/// and the tolerance it claims. Plain data — the certified product is
-/// [`ApproxSurface`].
+/// fit that claims to realize it, and the window the claim is made
+/// over. Plain data — the certified product is [`ApproxSurface`].
+///
+/// There is no tolerance here: the claim is O3's `≤ ε_precision`, and
+/// ε is the run's (D4 ¶1: one value per run, no per-entity tolerance).
+/// The certifier handed to [`ApproxSurface::certify`] carries the
+/// run's witness itself.
 #[derive(Clone, Debug)]
 pub struct SurfaceSpec<T: Real> {
     /// The intensional description (authoritative).
@@ -193,14 +197,10 @@ pub struct SurfaceSpec<T: Real> {
     /// The `(u, v)` rectangle the claim is made over. Passed to the
     /// certifier, which decides whether it can honour it.
     pub window: ApproxWindow,
-    /// The precision tolerance the claim is against, in metres (D4's
-    /// ε_precision, not ε_input).
-    pub tolerance: f64,
 }
 
-/// A certified approximating surface: description, fit, window,
-/// tolerance and the [`OffsetCertificate`] of the run that bound them
-/// together.
+/// A certified approximating surface: description, fit, window and
+/// the [`OffsetCertificate`] of the run that bound them together.
 ///
 /// Fields are private and the only constructor from uncertified parts
 /// is [`ApproxSurface::certify`], so an uncertified value is
@@ -222,13 +222,17 @@ pub struct ApproxSurface<T: Real> {
     description: SurfaceDescription<T>,
     fit: NurbsSurface<T>,
     window: ApproxWindow,
-    tolerance: f64,
     certificate: OffsetCertificate,
 }
 
 impl<T: Real> ApproxSurface<T> {
     /// **The only door.** Runs `certifier` against the spec's
     /// description and fit, and stores the certificate it returned.
+    ///
+    /// The certifier carries its own classification tolerance — the
+    /// run's `Tol` witness, captured where the closure is written — so
+    /// the surface stores no ε of its own and a re-derivation
+    /// classifies at the ε of the run that performs it.
     ///
     /// The certifier's refusal propagates verbatim — this door neither
     /// interprets it nor works around it, so a capability the
@@ -253,15 +257,13 @@ impl<T: Real> ApproxSurface<T> {
             &SurfaceDescription<T>,
             &NurbsSurface<T>,
             ApproxWindow,
-            f64,
         ) -> Result<OffsetCertificate, E>,
     ) -> Result<Self, E> {
-        let certificate = certifier(&spec.description, &spec.fit, spec.window, spec.tolerance)?;
+        let certificate = certifier(&spec.description, &spec.fit, spec.window)?;
         Ok(Self {
             description: spec.description,
             fit: spec.fit,
             window: spec.window,
-            tolerance: spec.tolerance,
             certificate,
         })
     }
@@ -285,12 +287,6 @@ impl<T: Real> ApproxSurface<T> {
         self.window
     }
 
-    /// The precision tolerance the certificate was classified against,
-    /// in metres — the claim a re-derivation must re-establish.
-    pub fn tolerance(&self) -> f64 {
-        self.tolerance
-    }
-
     /// The construction-time certificate. Provenance: the validator
     /// re-derives rather than reading this (see the type docs).
     pub fn certificate(&self) -> &OffsetCertificate {
@@ -299,7 +295,7 @@ impl<T: Real> ApproxSurface<T> {
 
     /// The same certified surface read at another scalar: the
     /// description and the fit through their own `map_scalar`s, the
-    /// window, tolerance and certificate carried over verbatim.
+    /// window and certificate carried over verbatim.
     ///
     /// **Not a second door, and why `certify`'s work is not redone.**
     /// This type's one invariant is "the certificate was produced by a
@@ -326,7 +322,6 @@ impl<T: Real> ApproxSurface<T> {
             description: self.description.map_scalar(&f),
             fit: self.fit.map_scalar(&f),
             window: self.window,
-            tolerance: self.tolerance,
             certificate: self.certificate,
         }
     }
@@ -338,7 +333,6 @@ impl<T: Real> ApproxSurface<T> {
             description: self.description.clone(),
             fit: self.fit.clone(),
             window: self.window,
-            tolerance: self.tolerance,
         }
     }
 }

@@ -78,7 +78,6 @@ fn the_door_stores_what_it_was_asked_for() {
             "d = {d}: the base travels by Arc"
         );
         assert_eq!(*sd, d);
-        assert_eq!(a.tolerance(), 1e-6);
         assert_eq!(a.certificate().distance, d);
         assert_eq!(a.window(), geom::ApproxWindow::of(&*base));
         assert!(
@@ -277,12 +276,13 @@ fn the_spline_chart_accessor_answers_the_fit() {
 #[test]
 fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     let base = Arc::new(bowed());
-    let honest = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-6, band()).unwrap();
+    let target = 1e-6;
+    let honest = approx_offset_surface_at(Arc::clone(&base), 0.05, target, band()).unwrap();
     let good = approx_of(&honest);
 
     // Coarsen: push one interior control point of the fit a millimetre
     // off. The surface is still a valid spline; it is no longer within
-    // 1e-6 m of the offset locus.
+    // the target of the offset locus.
     let fit = good.fit();
     let mut control = fit.control().to_vec();
     let mid = control.len() / 2;
@@ -303,10 +303,9 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
             },
             fit: coarsened,
             window: good.window(),
-            tolerance: good.tolerance(),
         },
         // A certifier that does not measure — the planted claim.
-        |_, _, _, _| Ok::<_, OffsetFitError>(*good.certificate()),
+        |_, _, _| Ok::<_, OffsetFitError>(*good.certificate()),
     )
     .expect("the injection door stores what the certifier returned");
 
@@ -315,7 +314,7 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
         good.certificate().hull_sup,
         "the stored certificate still claims the honest bound"
     );
-    let e = recertify_approx_at(&planted, good.tolerance(), band())
+    let e = recertify_approx_at(&planted, target, band())
         .expect_err("the re-derivation must refuse the coarsened fit");
     assert!(
         matches!(e, OffsetFitError::Limb { .. }),
@@ -323,20 +322,19 @@ fn a_planted_degraded_fit_goes_red_at_re_derivation() {
     );
 }
 
-/// **The classification tolerance is the CALLER's, not the surface's.**
+/// **The classification tolerance is the CALLER's, not the mint's.**
 /// A surface minted at a loose tolerance re-derives GREEN against that
 /// loose bound and RED against a tighter one — the edge machinery's
-/// exact posture, and the reason tier 3 passes the run's ε rather than
-/// reading the stored field. D4 blesses the consequence: ε-tightening
-/// may escalate, and a mint that no longer meets the ratified
-/// `≤ ε_precision` claim refuses honestly.
+/// exact posture, and the reason tier 3 classifies at the run's ε
+/// whatever target the fit was made at. D4 blesses the consequence:
+/// ε-tightening may escalate, and a mint that no longer meets the
+/// ratified `≤ ε_precision` claim refuses honestly.
 #[test]
 fn the_re_derivation_classifies_against_the_callers_tolerance() {
     let base = Arc::new(bowed());
     // Minted loose: the fit stops as soon as it is inside 1e-3.
     let s = approx_offset_surface_at(Arc::clone(&base), 0.05, 1e-3, band()).unwrap();
     let a = approx_of(&s);
-    assert_eq!(a.tolerance(), 1e-3, "the stored tolerance is the MINT's");
     let loose = recertify_approx_at(a, 1e-3, band()).expect("green at the bound it was minted at");
     assert!(loose.hull_sup <= 1e-3);
     // The same surface, unchanged, at a tighter run epsilon.
@@ -353,8 +351,9 @@ fn the_re_derivation_classifies_against_the_callers_tolerance() {
 /// rectangle and nothing narrower.
 #[test]
 fn a_window_the_certifier_cannot_honour_refuses_typed() {
+    let target = 1e-6;
     let base = Arc::new(bowed());
-    let (fit, _) = geom_brep::offset_fit::fit_offset_at(&base, 0.05, 1e-6, band()).unwrap();
+    let (fit, _) = geom_brep::offset_fit::fit_offset_at(&base, 0.05, target, band()).unwrap();
     let narrow = geom::ApproxWindow {
         u: (0.25, 0.75),
         v: (0.25, 0.75),
@@ -367,14 +366,13 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
             },
             fit,
             window: narrow,
-            tolerance: 1e-6,
         },
-        |description, fit, window, tolerance| {
+        |description, fit, window| {
             let geom::SurfaceDescription::Offset { base, d } = description;
             if window != geom::ApproxWindow::of(base) {
                 return Err(OffsetFitError::WindowUnsupported { window });
             }
-            certify_offset_at(base, fit, *d, tolerance, band())
+            certify_offset_at(base, fit, *d, target, band())
         },
     )
     .expect_err("a sub-window is not a bound this certificate proved");

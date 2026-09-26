@@ -66,8 +66,8 @@
 //! - approximating surfaces: the offset DESCRIPTION's base net and the
 //!   FIT net both by the full affine map (weights and knots are
 //!   invariants of it — [`geom::NurbsSurface::map_points`]), `d`, the
-//!   window and the tolerance unchanged, and the two-limb certificate
-//!   **re-derived** on the mapped pair through the injected fit door
+//!   window unchanged, and the two-limb certificate **re-derived** at
+//!   the run's ε on the mapped pair through the injected fit door
 //!   ([`geom_brep::OffsetFitLane::remap`]) — never the stored one,
 //!   which is a claim about a different geometry. The
 //!   composition law is what makes the mapped pair a pair at all: a
@@ -304,6 +304,7 @@ fn check_rigid<T: Decide>(map: &Affine3<T>, band: Band) -> Result<(), TransformE
 fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy>(
     map: &Affine3<T>,
     s: &Surface<T>,
+    tol: Tol,
     band: Band,
 ) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
@@ -378,6 +379,7 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
         Surface::Approx(ref a) => Surface::Approx(std::sync::Arc::new(map_approx(
             map,
             a,
+            tol,
             band,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
         )?)),
@@ -385,8 +387,8 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 }
 
 /// The mapped approximating surface: mapped description, mapped fit,
-/// same window and tolerance, certificate **re-derived** on the mapped
-/// pair through the scalar's fit lane.
+/// same window, certificate **re-derived** on the mapped pair through
+/// the scalar's fit lane at the run's ε.
 ///
 /// The composition law is what makes the mapped pair a pair: a rigid
 /// map carries unit normals to unit normals, so
@@ -395,15 +397,15 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// surface it describes ([`geom::NurbsSurface::map_points`], whose docs
 /// carry the affine-combination argument). So the mapped fit stands to
 /// the mapped base exactly as the fit stood to the base, at the same
-/// `d` and the same tolerance.
+/// `d`.
 ///
 /// What is NOT carried is the two-limb claim. The stored certificate is
 /// a measurement of a different geometry, and re-running the
 /// measurement is what keeps it honest (D4 ¶2, the same posture the
-/// carriers and witnesses above take). It is re-derived against the
-/// surface's OWN stored tolerance, because that is the claim the mapped
-/// surface will store and therefore the claim it must be shown to
-/// honour; the run's ε is tier 3's to classify against, per call.
+/// carriers and witnesses above take). It is re-derived at the run's ε
+/// (`tol`), the number O3's claim `≤ ε_precision` names and the one
+/// tier 3 classifies against, so the map and the validator agree about
+/// any given surface by construction.
 ///
 /// **The re-derivation is not a formality, and the module docs'
 /// distance-preservation parenthetical does not cover it.** Only one
@@ -415,23 +417,18 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// base fitted at 1e-6, and `curvature_reach` moves further. That is
 /// why the mapped surface may not carry the operand's numbers: they
 /// are the wrong numbers, not merely unverified ones. What the map
-/// preserves is the CLAIM — the mapped pair certifies at the same
-/// tolerance — and re-deriving is what establishes it.
+/// preserves is the CLAIM — the mapped pair certifies at ε — and
+/// re-deriving is what establishes it. A pair whose bound the rotation
+/// pushes past ε refuses here, which is the fail-loud direction.
 ///
 /// `rounds` is the exception, and it is not a limb: it is carried, for
 /// the reason [`geom::OffsetCertificate::rounds`] states once.
 ///
-/// **The band is the RUN's while the tolerance is the SURFACE's**, and
-/// the pair is deliberate rather than an oversight. The band reaches
-/// only the fit door's degeneracy meters (the regularity floor and the
-/// collapse reach); the two limbs are classified against `tolerance`
-/// directly. So a tighter run band can make this door refuse a surface
-/// its mint accepted, which is the fail-loud direction, and the shape
-/// is exactly [`geom_brep::OffsetFitLane::recertify`]'s — the door
-/// tier 3 reaches
-/// per face, which likewise meters at the run's band and classifies at
-/// the caller's tolerance. The map and the validator therefore agree
-/// about any given surface, which is the property that matters.
+/// The band reaches only the fit door's degeneracy meters (the
+/// regularity floor and the collapse reach); the two limbs are
+/// classified against `tol` directly. Both are the run's, exactly as at
+/// [`geom_brep::OffsetFitLane::recertify`], the door tier 3 reaches per
+/// face.
 /// `offset_fit` is the re-derivation door ([`geom_brep::OffsetFitLane`]),
 /// handed in as a parameter; what a `None` means is
 /// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. A caller
@@ -440,6 +437,7 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
+    tol: Tol,
     band: Band,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<geom::ApproxSurface<T>, TransformError> {
@@ -452,24 +450,20 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
         },
         fit: old.fit.map_points(|p| map.transform_point(p)),
         window: old.window,
-        tolerance: old.tolerance,
     };
     let rounds = a.certificate().rounds;
-    geom::ApproxSurface::certify(
-        spec,
-        |description, fit, window, tolerance| match offset_fit {
-            None => Err(TransformError::ApproxLaneUnsupported {
-                lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
+    geom::ApproxSurface::certify(spec, |description, fit, window| match offset_fit {
+        None => Err(TransformError::ApproxLaneUnsupported {
+            lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
+        }),
+        Some(lane) => match lane.remap(description, fit, window, tol, band) {
+            Err(source) => Err(TransformError::ApproxRecertify { source }),
+            Ok(certificate) => Ok(geom::OffsetCertificate {
+                rounds,
+                ..certificate
             }),
-            Some(lane) => match lane.remap(description, fit, window, tolerance, band) {
-                Err(source) => Err(TransformError::ApproxRecertify { source }),
-                Ok(certificate) => Ok(geom::OffsetCertificate {
-                    rounds,
-                    ..certificate
-                }),
-            },
         },
-    )
+    })
 }
 
 fn map_carrier<T: Real>(map: &Affine3<T>, c: &Curve3<T>) -> Result<Curve3<T>, TransformError> {
@@ -618,7 +612,7 @@ pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::prop
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, s, band)?));
+        mapped_surfaces.push((k, map_surface(map, s, tol, band)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -848,6 +842,7 @@ mod tests {
             map_surface(
                 &aside(),
                 &Surface::nurbs_placeholder(),
+                Tol::witness(),
                 Band::linear(Tol::witness()).unwrap()
             ),
             Err(TransformError::NurbsPlaceholder)
@@ -866,8 +861,13 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(&map, &before, Band::linear(Tol::witness()).unwrap())
-            .expect("a described net maps");
+        let after = map_surface(
+            &map,
+            &before,
+            Tol::witness(),
+            Band::linear(Tol::witness()).unwrap(),
+        )
+        .expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -941,9 +941,10 @@ mod offset_fit_door_rows {
     /// across a geometry change.
     #[test]
     fn no_door_refuses_the_mapped_surface_by_name() {
-        let band = Band::linear(Tol::witness()).unwrap();
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), &approx, band, None) {
+        match map_approx(&turned(), &approx, tol, band, None) {
             Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
             other => panic!("the absence must name the lane: {other:?}"),
         }
@@ -960,25 +961,17 @@ mod offset_fit_door_rows {
     /// against its own `remap` would compare the door with itself and
     /// could not see that body re-pointed — at `certify_offset_at`,
     /// say, which drops the window rule. The free door here is the
-    /// `Tol` one, and the two classify against the same number because
-    /// the operand was minted at this run's ε, which the row asserts
-    /// first rather than assuming.
+    /// `Tol` one, at the same witness the map was handed.
     #[test]
     fn the_f64_door_re_derives_the_mapped_pair() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(&map, &approx, band, Some(OffsetFitLane::fit()))
-            .expect("a rigid map of a certified fit re-certifies at the same tolerance");
+        let mapped = map_approx(&map, &approx, tol, band, Some(OffsetFitLane::fit()))
+            .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
         let geom::SurfaceDescription::Offset { base, d } = &spec.description;
-        assert_eq!(
-            spec.tolerance.to_bits(),
-            approx.tolerance().to_bits(),
-            "the map carries the operand's stored tolerance, which is what makes the `Tol` \
-             certifier below the same classification"
-        );
         let reference = geom_brep::certify_offset_over(base, &spec.fit, *d, spec.window, tol, band)
             .expect("`geom-brep`'s certifier measures the mapped pair");
         let got = mapped.certificate();
