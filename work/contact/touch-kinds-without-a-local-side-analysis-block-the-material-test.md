@@ -2,12 +2,13 @@
 id: touch-kinds-without-a-local-side-analysis-block-the-material-test
 kind: issue
 title: VertexVertex, VertexOnEdge, EdgeEdgeOverlap and ConformalPatch touches between two solids block the census's material test because only the vertex-on-face and edge-in-face kinds have a local side analysis
-status: dispatched
+status: closed
 opened: 2026-09-16
 refs: [2767, 750]
 priority: P0
 cost: H
 parent: CONTACT-1
+closed: 2026-09-26
 ---
 
 Filed by the S-BOOL orchestrator at BOOL-4's merge (PR 2767) on
@@ -27,3 +28,17 @@ or corner, or two parts meeting along an edge, therefore cannot
 certify through the material test today. The fix is the wedge
 analysis for each kind, one home, decided under the run band.
 Measured, not acted on; difficulty M.
+
+## Closed
+
+By CONTACT-1 (PR 3253). One local material-cone analysis now decides
+every planar touch kind, for undeclared findings and for declared vv
+and vf records alike. The kinds are vertex–vertex, vertex on edge,
+collinear edge overlap, vertex on face and edge in face.
+
+What it still refuses has a row each on `work/contact/`:
+- a saddle corner no plane separates;
+- the direction-lever gap
+  (`touch-cone-readings-are-levered-directions-not-face-distances`).
+
+A conformal patch is always curved, so it stays `TouchUnreadable`.
