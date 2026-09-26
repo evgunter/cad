@@ -200,3 +200,17 @@ is marked on its row, the gather defers marked rows, and the two halves
 merge into the split's one `Entry::Tied`. A lone `Part` publishes what it
 did before. Tier: single FULL review. The lane filed
 `the-gather-tie-merge-cannot-tell-a-candidate-carried-twice` (P3).
+
+## 2026-09-26 — step-arg roles: the review tier is raised to FULL
+
+PR 3264 (`step-arg-roles-are-spelled-in-three-homes`) is green on
+`4ba44817e`. Every `StepArg` role is declared once, in `loop_roles!`,
+and one text serves both borrows. The unit was dispatched at STYLE tier
+as a unification. **Raised to single FULL review** once it landed:
+resolution was rewritten so a refusal finds its role by pointer
+identity, with `unreachable!` behind it, and nearly every helper was
+deleted. Believing that the resolver's behaviour is unchanged takes
+more than reading the diff. Its new field census caught a via x/y swap
+that 1606 tests had missed. The lane filed EDIT's
+`node-slot-tables-are-spelled-three-times-in-node-rs` (P1) and LIB's
+`polygon-door-refuses-at-point-slots-its-corners-do-not-live-at` (P3).
