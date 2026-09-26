@@ -97,7 +97,7 @@ cross; nothing here claims them unasserted.
 
 The same construction is written about twenty more times outside this
 corpus; filed as
-`work/dup/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+`work/reroute/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
 
 **Fix pass (2026-09-26, PR #3284).** The first version of this fold
 minted a second home beside `mate2_common`'s `three_arc` and
@@ -108,7 +108,7 @@ radius, z0, height, first)` over `sweep::test_support::extruded` on
 `sketch_at(z0)`. `mate2_common`'s two helpers are gone, and the other
 three-arc cylinders in the `sweep` suites fold onto the pair; the
 residue and the fold list are in
-`work/dup/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
+`work/reroute/the-three-arc-cylinder-is-spelled-per-suite-beyond-the-conic-corpus.md`.
 The door's doc says "any angle" for `first` (it reduces each joint
 mod 360) and names the third pose, `s16_box_soundness::cylinder_apart`,
 a rigid translation of a finished cylinder.

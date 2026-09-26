@@ -104,7 +104,7 @@ rows):
 
 The rest of the class — origin balls, a lamina slid along the axis,
 copies in four other crates — is filed with its hit list as
-`work/dup/the-y-poled-ball-is-still-spelled-per-suite.md`.
+`work/reroute/the-y-poled-ball-is-still-spelled-per-suite.md`.
 
 **Fix pass (2026-09-26, PR #3284).** `m5_pr12_die` and `m6_surgery` each still defined
 the same `ball_poled(r, c, pole)` — the y-ball turned onto any pole,
