@@ -418,13 +418,14 @@ pub fn boolean_op_with<
     // mode is typed, not silent.
     //
     // What is NOT retired is the classes with no seam lane behind them.
-    // `Cone`/`Torus` germ pairs have no join arm at all (PR 9c
+    // `Cone`/`Torus` germ pairs have no join arm for ∖ or ∩ (PR 9c
     // deviation 1 lineage) and NURBS faces have no crossing layer
-    // (deviation 5) — and their downstream failure mode is not a typed
-    // refusal but a SILENT one: with no crossings found the pipeline
-    // falls through to the containment fallback, whose certified
-    // extent scan covers the sphere class only (everything else it
-    // meets refuses typed there — the second door).
+    // (deviation 5). Behind this door the no-crossings fallback is
+    // guarded per class: the sphere is extent-certified, and a cylinder
+    // wall pair or a torus face that may meet the other operand refuses
+    // typed there (`cylinder_extent_gate`, `torus_extent_gate`) — so a
+    // union, which the torus does reach, is never answered by the
+    // vertex probe across a torus face it could not see into.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -1518,6 +1519,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     }
     let pad = boxes::sweep_pad(band);
     cylinder_extent_gate(a, b, pad)?;
+    torus_extent_gate(a, b, pad)?;
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         let mut seen: Vec<SurfaceKey> = Vec::new();
@@ -1927,14 +1929,10 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 ///   the pair up front, on the KIND, and nothing can cover them — the
 ///   certified carrier inventory has no rung for either, so neither can
 ///   survive into a declaration.
-/// - a TORUS partner CAN reach here, and only through a declaration
-///   that covers the pair. The kind roster still refuses it otherwise.
-///   This gate is a cylinder-wall gate and says nothing about a torus
-///   partner either way; what answers a covered torus pair is the
-///   crossing layer's own frontier, typed. The premise this bullet used
-///   to state — that the kind never arrives — stopped being true when
-///   the gate learned to read declarations, and a stale "never reaches
-///   here" is exactly the sentence a later reader would build on.
+/// - a TORUS partner reaches here: the kind is on the union's operand
+///   roster. This gate is a cylinder-wall gate and says nothing about a
+///   torus either way; [`torus_extent_gate`] is the torus's, and it
+///   refuses on reach against every partner kind but the sphere.
 ///
 /// **Reach first, kind second** (the scan's cone/torus arm's rule,
 /// kept): the gate costs nothing to a wall whose certified box cannot
@@ -1973,6 +1971,62 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
                                interior to both faces, which no vertex probe and no edge \
                                event can see, and no exact wall-vs-wall gap test is wired to \
                                rule it out",
+                    });
+                }
+            }
+        }
+    }
+    Ok(())
+}
+
+/// **The torus class's no-crossings posture: a typed refusal on reach,
+/// against EVERY partner kind.**
+///
+/// The cylinder gate's argument, without its exemption. A torus face can
+/// meet ANY partner face in a closed loop interior to both faces: a
+/// plane slab across the outer equator cuts an oval off the tube that
+/// touches no seam, no parallel and no edge of the slab. A torus band's
+/// boundary is parallels and meridians, and a closed section of the tube
+/// need pass through neither, so the plane partner's "a closed section
+/// encircles the wall and meets its seam" argument does not port. The
+/// reduction then sees nothing, the vertex probe finds each shell
+/// outside the other, and the union would be metered as two disjoint
+/// solids.
+///
+/// No certificate exists for the kind (a torus has no `center ± r`
+/// extent to consult, and no exact torus-vs-face gap test is wired), so
+/// the gate refuses on REACH: a torus face whose certified box may meet
+/// a face of the other operand. Boxes are supersets, so a torus clear of
+/// the other body costs nothing — the disjoint-operands fallback stays
+/// open. SPHERE partners are left to the sphere arm below, which refuses
+/// on reach in its own words; this gate must not shadow it.
+fn torus_extent_gate<T: Decide + Bounds>(
+    a: &Body<T>,
+    b: &Body<T>,
+    pad: f64,
+) -> Result<(), BooleanError> {
+    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
+        for (face, fd) in x.faces() {
+            if !matches!(x.get_surface(fd.surface), Some(geom::Surface::Torus { .. })) {
+                continue;
+            }
+            let torus_box = boxes::face_box(x, face, pad)?;
+            for (yf, yfd) in y.faces() {
+                if matches!(
+                    y.get_surface(yfd.surface),
+                    Some(geom::Surface::Sphere { .. })
+                ) {
+                    continue;
+                }
+                if torus_box.overlaps(&boxes::face_box(y, yf, pad)?) {
+                    return Err(BooleanError::FallbackExtentUnsupported {
+                        operand: x_is,
+                        face,
+                        what: "a torus face's certified extent meets a face of the other \
+                               solid and no crossing layer saw an event — a torus can meet \
+                               any face in a closed loop interior to both, which no vertex \
+                               probe and no edge event can see, and no exact torus-vs-face \
+                               gap test is wired to rule it out",
                     });
                 }
             }

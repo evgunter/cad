@@ -727,3 +727,32 @@ fn a_tilted_segment_through_the_tube_is_pierced_on_the_ferrari_arm() {
         "two pierces on each of four edges: {b_on_d:?}"
     );
 }
+
+// -------------------------------------------------------------------
+// A torus face that meets a partner with no crossing events.
+// -------------------------------------------------------------------
+
+/// **A torus poking through a slab face is not an assembly.** The slab
+/// cuts a closed oval off the donut's outer equator that touches no
+/// edge of either body, so the crossing layer sees nothing and the
+/// pipeline falls to the no-crossings fallback, whose vertex probe
+/// would call the two solids side by side. A torus face that may meet
+/// the other operand there refuses typed.
+#[test]
+fn a_torus_poking_through_a_slab_face_is_not_an_assembly() {
+    let d = donut();
+    let slab = bar((-0.8, 0.8), (-0.4, 0.4), (2.45, 3.0));
+    match topo::union(&d, &slab, Tol::witness()) {
+        Err(e) => assert!(
+            matches!(e, BooleanError::FallbackExtentUnsupported { .. }),
+            "the fallback refuses the torus's reach typed: {e:?}"
+        ),
+        Ok(r) => {
+            let b = r.body().expect("non-empty");
+            assert!(
+                !matches!(b.kind, topo::BooleanResultKind::Assembly),
+                "overlapping shells returned as an assembly"
+            );
+        }
+    }
+}

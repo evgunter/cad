@@ -26,8 +26,7 @@
 //! the carrier-identity rung reads the verified `Rest` declaration
 //! before the sampled clearance, whose `±charge` about an identically
 //! zero residual would read definitely negative — and stops at the
-//! uncut-shell vertex probe, where every probed vertex lies on the
-//! other torus's boundary.
+//! no-crossings fallback's torus extent gate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -367,23 +366,23 @@ fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
 /// carrier, so its clearance is zero by that certificate, and the
 /// declared cover takes the endpoint posture.
 ///
-/// What stops the lane now is the uncut-shell vertex probe: no crossing
-/// cuts either torus, and every vertex it probes lies ON the other
-/// torus's boundary, so the probe ends without a verdict and refuses as
-/// `Containment(RayExhausted)` (the payload's name is not its cause —
-/// `work/reach/a-contained-flush-operand-with-every-vertex-on-the-boundary-refuses-as-ray-exhausted`).
-/// The property is the one this row has always held: a coincident
-/// torus pair never reaches a body it cannot justify.
+/// What stops the lane now is the no-crossings fallback's TORUS extent
+/// gate: no crossing cuts either torus, and a torus face whose reach
+/// meets the other operand is exactly the case the vertex probe cannot
+/// decide (every vertex it would probe lies on the other torus), so the
+/// gate refuses typed before the probe runs. The property is the one
+/// this row has always held: a coincident torus pair never reaches a
+/// body it cannot justify.
 #[test]
-fn the_admitted_torus_lane_stops_at_the_uncut_shell_probe() {
+fn the_admitted_torus_lane_stops_at_the_torus_extent_gate() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a coincident torus pair still has no classification verdict");
     assert!(
-        matches!(err, BooleanError::Containment(_)),
+        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
         "the declared coincident pair passes the crossing layer and stops at \
-         the uncut-shell probe: {err:?}"
+         the torus extent gate: {err:?}"
     );
 }
 

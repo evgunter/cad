@@ -149,15 +149,16 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
                 });
             }
         };
-    // The pierced face's own curvature scale at `p` — the lever the
-    // sector side verdicts are charged against (`side_code`'s argument).
-    // A plane reports `f64::MAX`, so its charge is vacuous and the
-    // planar lane's verdicts are unmoved.
+    // The pierced face's smallest radius of curvature — the lever the
+    // sector side verdicts charge their sagitta against (`side_code`'s
+    // argument), so it must bound the tightest bend, not the chart's
+    // scale: on a fat torus those differ. A plane reports `f64::MAX`, so
+    // its charge is vacuous and the planar lane's verdicts are unmoved.
     let pierced_lever = pierced_body
         .get_face(contact.face)
         .and_then(|f| pierced_body.get_surface(f.surface))
         .map_or_else(super::sectors::NO_CURVATURE, |s| {
-            geom_brep::curvature_lever_arm(s, p)
+            geom_brep::min_radius_of_curvature(s, p)
         });
     let sectors = build_sectors(piercing_body, piercing, vertex, band)?;
     let n = sectors.len();

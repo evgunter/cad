@@ -378,9 +378,12 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     // that is every `Tangent` claim. So a `Tangent` pair of a kind this
     // roster refuses never survives to be covered here.
     //
-    // The torus is on the roster, so no torus pair reaches this
-    // predicate at all; the rule now bears on the kinds still off it.
-    // Read the dependency the other way and it is a warning: whoever
+    // A torus pair still reaches this predicate — a cone offender
+    // against a torus face is asked whether that pair is covered — and
+    // it is safe there for the same reason: a `Tangent` claim on it is
+    // refused by `verify_tangent_declaration` before the gate (the
+    // witness lane has no torus arm; the conformal screen contradicts
+    // one-carrier pairs). Read the dependency the other way and it is a warning: whoever
     // teaches the `Tangent` door to ADMIT a curved pair of an off-roster
     // kind must revisit this predicate in the same change, because the
     // class-blindness is load-bearing only while that door refuses.
@@ -1070,9 +1073,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// the C8 gate reopening: C8 protects the claim that an on-carrier EDGE
 /// is cosurface, and the arms below reach the endpoint treatment only
 /// after the certified roots have proved there is no interior crossing
-/// — which, for the `(Zero, Zero)` arm, takes two DISTINCT roots and so
-/// structurally excludes an edge lying on the wall (only rulings do,
-/// and a ruling answers `Constant`). What the door then does is
+/// — which, for the `(Zero, Zero)` arm, takes distinct certified roots
+/// and so structurally excludes an edge lying on the carrier (on a
+/// cylinder only rulings do, and a ruling answers `Constant`; no line
+/// lies on a torus). What the door then does is
 /// point-in-face containment on a chart, which is a trim question and
 /// not a gluing one.
 ///
@@ -1216,7 +1220,7 @@ fn curved_face_arm<T: Decide>(
             // and the harmonic one has no torus form. Reading the
             // certificate first is what lets a coincident pair reach
             // the declared-cover rung at all.
-            let clearance = if on_declared_rest_carrier(x, x_is, edge, y, face, declared, band)? {
+            let clearance = if on_declared_rest_carrier(x, x_is, edge, face, declared) {
                 Ok(Sign::Zero)
             } else {
                 circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
@@ -1455,9 +1459,10 @@ fn curved_face_arm<T: Decide>(
                     // **No incidence with THIS face, certified.** The
                     // span's only contacts with the wall's CARRIER are
                     // this arm's ON endpoint(s): `NoInterior` reports
-                    // two distinct definite roots with none of them
-                    // strictly inside the span AND inside this face's
-                    // trim, and a line meets a cylinder at most twice.
+                    // the certified roots — every root the line has on
+                    // the carrier, two on a cylinder, two or four on a
+                    // torus — with none of them strictly inside the span
+                    // AND inside this face's trim.
                     // A face is a subset of its carrier, so an ON
                     // endpoint the trim places definitely OUT is not
                     // an incidence of this face — the same sentence
@@ -1487,11 +1492,13 @@ fn curved_face_arm<T: Decide>(
         //
         // This is the one arm where the cosurface fence and the ring
         // lane meet, so the separation is STRUCTURAL rather than
-        // numeric: `NoInterior` is reached only through two DISTINCT
-        // definite roots, and a line with two distinct points on a
-        // cylinder is a secant. The only lines that LIE on a wall are
-        // its rulings; a ruling is axis-parallel and answers
-        // `Constant`. So an on-carrier edge cannot reach the endpoint
+        // numeric: `NoInterior` is reached only through a CERTIFIED
+        // root count, whose roots are distinct. A line with two
+        // distinct points on a cylinder is a secant, and the only lines
+        // that LIE on a wall are its rulings, which are axis-parallel
+        // and answer `Constant`; no line lies on a torus at all (a
+        // quartic with a certified finite count is not identically
+        // zero). So an on-carrier edge cannot reach the endpoint
         // treatment here and the undeclared cosurface question keeps
         // its door untouched (CONTACT-DESIGN C2/C4) — as does a
         // tangency, a trim with no verdict, and every other answer.
@@ -1727,64 +1734,27 @@ fn circle_clearance<T: Decide>(
 /// **The carrier-identity rung**: does one of the edge's parent faces
 /// sit on `face`'s carrier by a verified `Rest` declaration?
 ///
-/// `Rest` is the one class that licenses it: the declaration door has
-/// already run the carrier ladder ([`super::rest::carrier_pair_relation`])
-/// on every `Rest` pair and refused each it could not call one carrier,
-/// and the ladder is re-consulted here so the rung stands on its own
-/// certificate rather than on that ordering. An edge bounding a face on
+/// `Rest` is the one class that licenses it, and only where the
+/// declaration door's carrier ladder CALLED the pair one carrier
+/// ([`super::DeclaredPairs::verified_one_carrier`], recorded once at the
+/// door rather than re-derived per event). An edge bounding a face on
 /// that carrier lies on it. `Tangent` licenses nothing of the kind — a
 /// tangent pair shares a locus, not a carrier — and an undeclared pair
 /// is never read as coincident by value (CONTACT-DESIGN C2/C4).
-///
-/// # Errors
-///
-/// [`BooleanError::Escalated`] when the ladder escalates;
-/// [`BooleanError::ClassificationInvariant`] when a `Rest` pair the
-/// door verified is no longer one carrier, which is the door's
-/// contract broken rather than a geometric answer.
 fn on_declared_rest_carrier<T: Decide>(
     x: &Body<T>,
     x_is: Operand,
     edge: &crate::entity::Edge,
-    y: &Body<T>,
     face: FaceKey,
     declared: &super::DeclaredPairs,
-    band: Band,
-) -> Result<bool, BooleanError> {
-    for pf in [
+) -> bool {
+    [
         x.face_of_half_edge(edge.he_plus),
         x.face_of_half_edge(edge.he_minus),
     ]
     .into_iter()
     .flatten()
-    {
-        if !declared.declares_rest(x_is, pf, x_is.other(), face) {
-            continue;
-        }
-        let relation = match x_is {
-            Operand::A => super::rest::carrier_pair_relation(x, pf, y, face, true, band),
-            Operand::B => super::rest::carrier_pair_relation(y, face, x, pf, true, band),
-        };
-        match relation {
-            // A kind outside the ladder's inventory has no identity to
-            // read; the enclosures decide.
-            None => {}
-            Some(Ok(
-                super::carrier_eq::CarrierRelation::SameOriented
-                | super::carrier_eq::CarrierRelation::SameOpposite,
-            )) => return Ok(true),
-            Some(Err(super::carrier_eq::CarrierEqError::Escalated(diag))) => {
-                return Err(BooleanError::Escalated { diag });
-            }
-            Some(Ok(super::carrier_eq::CarrierRelation::Distinct) | Err(_)) => {
-                return Err(BooleanError::ClassificationInvariant {
-                    what: "carrier-identity rung: a Rest pair the declaration door verified \
-                           is no longer one carrier",
-                });
-            }
-        }
-    }
-    Ok(false)
+    .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
 /// What the certified line × wall roots say about ONE edge span.
@@ -1797,11 +1767,13 @@ enum SpanVerdict<T: geom_core::Real> {
         p: Point3<T>,
         at: FaceContainment,
     },
-    /// Two definite roots, none of them STRICTLY INSIDE the span on
-    /// this face: each lies outside the span, sits at one of its ends,
-    /// or falls outside the face's trim. Two distinct roots also
-    /// certify that the line is NOT a ruling of the wall, which is
-    /// what separates a chord from an on-carrier edge. What the
+    /// A certified root set (two on a cylinder, two or four on a
+    /// torus), none of them STRICTLY INSIDE the span on this face: each
+    /// lies outside the span, sits at one of its ends, or lands on the
+    /// carrier outside the face's trim. Distinct certified roots also
+    /// certify that the line does not LIE on the carrier (not a ruling
+    /// of a wall; no line lies on a torus), which is what separates a
+    /// chord from an on-carrier edge. What the
     /// absence of an interior crossing licenses depends on the
     /// endpoints, so the caller decides — an endpoint incidence is
     /// still an event, it is just not an interior one.

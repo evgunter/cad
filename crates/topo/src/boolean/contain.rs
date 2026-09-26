@@ -638,8 +638,10 @@ pub(super) fn point_on_arc<T: Decide>(
 /// parameter-domain trim below from answering about a point that is
 /// not on the chart at all.
 ///
-/// Only then does this ask the interior question, and only a
-/// **cylinder wall of the ISO-BOUNDED class** can answer it:
+/// Only then does this ask the interior question, per chart: the
+/// sphere and torus arms read their own chart windows
+/// ([`sphere_face_containment`], [`torus_face_containment`]), and a
+/// **cylinder wall of the ISO-BOUNDED class** answers it this way:
 ///
 /// - the face carries no rings (a ring is a hole the rectangle below
 ///   does not model, and answering `In` inside one would be wrong);
@@ -655,8 +657,8 @@ pub(super) fn point_on_arc<T: Decide>(
 /// rectangle then misstates the face in BOTH directions, and this door
 /// answers `None` rather than a verdict it cannot stand behind.
 ///
-/// `None` is therefore the honest remainder throughout — a non-cylinder
-/// chart, a chart form the trim cannot express (a ringed face, a
+/// `None` is therefore the honest remainder throughout — a chart with no
+/// arm (cone, NURBS), a chart form the trim cannot express (a ringed face, a
 /// non-iso boundary, or a FULL-PERIOD azimuth window, whose cosine
 /// comparison is an equivalence only under a period), or a margin on a
 /// trim boundary — and the caller keeps its typed frontier door there.

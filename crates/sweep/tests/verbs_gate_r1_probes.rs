@@ -440,15 +440,22 @@ fn a_probe_on_a_tilted_toruss_locus_is_always_examined() {
             // through, and on this relabelled face (its boundary is
             // not on the torus) the crossing layer refuses naming that
             // very face. A probe the box excluded would reduce clean.
+            // At a coarse band the quartic itself may escalate on the
+            // pose, which is the same evidence: only an examined pair
+            // runs the torus root lane.
+            let examined = match &err {
+                BooleanError::CurvedPierceUnsupported {
+                    operand: topo::Operand::A,
+                    face,
+                    ..
+                } => *face == torus_face,
+                BooleanError::Escalated { diag } => diag
+                    .predicate
+                    .is_some_and(|p| p.starts_with("bool_ray_torus")),
+                _ => false,
+            };
             assert!(
-                matches!(
-                    err,
-                    BooleanError::CurvedPierceUnsupported {
-                        operand: topo::Operand::A,
-                        face,
-                        ..
-                    } if face == torus_face
-                ),
+                examined,
                 "azimuth {t:.2}: expected the probe to be examined against the \
                  torus face, got {err:?}"
             );

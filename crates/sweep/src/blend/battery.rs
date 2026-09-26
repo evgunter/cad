@@ -559,7 +559,10 @@ pub fn radius_headroom<T: Decide + Bounds>(
             detail: "a support face's stored surface, for the curvature headroom predicate",
         });
     };
-    let arm = geom_brep::curvature_lever_arm(s, p);
+    // The ball must fit inside the TIGHTEST bend, so the arm is the
+    // smallest radius of curvature, not the chart's scale (they differ
+    // on a fat torus, and a horn or spindle one has no bound at all).
+    let arm = geom_brep::min_radius_of_curvature(s, p);
     // `(1 − r/arm)·r`, written so a plane's unbounded arm saturates
     // at `r` rather than dividing by an infinity.
     let margin = radius - radius.powi(2) / arm;

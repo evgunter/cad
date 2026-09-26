@@ -1212,10 +1212,12 @@ pub(super) fn torus_face_windows<T: Decide>(
     )?;
     let v = window("bool_torus_trim_minor_period", v, minor_radius)?;
     // A face that wraps BOTH coordinates covers the whole chart, and a
-    // face covering the whole chart has every boundary edge shared with
-    // a member of its own group — which the closed scan above did not
-    // find. The two claims cannot both hold, so the face is refused
-    // rather than served on the weaker of them.
+    // face covering the whole chart has no boundary against anything —
+    // no window can be read FROM it, which is why the solid door serves
+    // a closed torus through its group class instead. A walk that
+    // reports both wraps therefore describes no face this reader can
+    // answer for, and the face is refused rather than served as the
+    // whole chart.
     if u.is_none() && v.is_none() {
         return Err(PointInSolidError::PartialTorusFace { face });
     }

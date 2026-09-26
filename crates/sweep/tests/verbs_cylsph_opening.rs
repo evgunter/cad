@@ -294,12 +294,22 @@ fn a_torus_operand_passes_the_pair_gate_and_refuses_at_the_crossing_layer() {
     };
     let err = topo::union(&cyl(1.0, -2.0, 2.0), &torus, Tol::witness())
         .expect_err("the rim circle crosses the tube, with no root lane");
+    // The CYLINDER's rim edge (operand A) crosses the torus face.
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
+            BooleanError::CurvedPierceUnsupported {
+                operand: topo::Operand::A,
+                ..
+            }
         ),
-        "expected the crossing layer's typed refusal, got {err:?}"
+        "expected the circle rung's curved-pierce frontier, got {err:?}"
+    );
+    let msg = format!("{err}");
+    assert!(
+        msg.contains("an edge of the first operand touches or crosses a curved face")
+            && msg.contains("Recourse:"),
+        "the refusal names the crossing and ends on its recourse: {msg}"
     );
 }
 

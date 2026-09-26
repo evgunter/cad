@@ -676,7 +676,7 @@ fn the_k_sample_door_is_not_monotone_and_this_is_the_bound() {
 /// **What a COINCIDENT torus pair reads on the sampled enclosure, and
 /// why the crossing layer does not ask it.** MATE-7a's boundary row
 /// (`sweep/tests/mate7a_torus_rest.rs`'s
-/// `the_admitted_torus_lane_stops_at_the_uncut_shell_probe`) puts two
+/// `the_admitted_torus_lane_stops_at_the_torus_extent_gate`) puts two
 /// identical tori through the declared-Rest lane. Its edges are seam
 /// meridians of the torus they ride, so the residual is identically
 /// zero along them — and the sampled enclosure is therefore

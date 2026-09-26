@@ -178,9 +178,27 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     };
     match surface {
         geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
+        // A horn or spindle torus (`R ≤ r`) is singular ON its surface,
+        // where the tube meets the axis: no arm, as for the cone.
+        geom::Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } if decide(
+            "bool_pierce_normal_ring_torus",
+            Margin::of(*major_radius - *minor_radius),
+            band,
+        )
+        .map_err(NormalAtError::Escalated)?
+            != Sign::Positive =>
+        {
+            Ok(None)
+        }
         geom::Surface::Cylinder { .. }
         | geom::Surface::Sphere { .. }
         | geom::Surface::Torus { .. } => {
+            // The chart's own length scale, which turns `|∇F| − 1` (the
+            // elevation over it) into metres — not a curvature bound.
             let arm = geom_brep::curvature_lever_arm(surface, p);
             let grad = geom_brep::implicit_gradient(surface, p);
             let margin = Margin::levered(grad.norm() - T::one(), arm);
@@ -579,6 +597,39 @@ mod tests {
         assert!(
             face_outward_normal_at(&body, face, Point3::new(0.0, 0.2, 0.0), band()).is_err(),
             "a point on the torus axis has no normal and must refuse"
+        );
+    }
+
+    /// **The on-chart certificate is metered at the tube radius, on a
+    /// fat ring too, and a non-ring torus has no arm.** A point just past
+    /// the escalation width off a fat ring's tube (`R = 0.8`, `r = 0.5`)
+    /// is definitely off the surface; levering its reading by the ring's
+    /// tighter inner bend would shrink it by `(R − r)/r` into the band. A horn torus (`R = r`) is singular
+    /// on its surface and answers `None`, so the pierce lane refuses
+    /// typed naming the kind.
+    #[test]
+    fn a_fat_ring_meters_at_the_tube_and_a_horn_torus_has_no_arm() {
+        let torus = |big_r: f64, r: f64| geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let (body, face) = face_on(torus(0.8, 0.5));
+        // Off the tube by one and a half escalation widths: definite at
+        // the tube's scale, in-band at the inner bend's (`0.3/0.5` of it).
+        let delta = 1.5 * band().escalate();
+        let off = Point3::new(0.8 - 0.5 - delta, 0.0, 0.0);
+        assert!(matches!(
+            face_outward_normal_at(&body, face, off, band()),
+            Err(NormalAtError::OffSurface)
+        ));
+        let (horn, face) = face_on(torus(0.5, 0.5));
+        assert!(
+            face_outward_normal_at(&horn, face, Point3::new(1.0, 0.0, 0.0), band())
+                .unwrap()
+                .is_none()
         );
     }
 }

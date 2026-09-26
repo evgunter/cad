@@ -73,14 +73,3 @@ This is the kernel owner's decision. Possible directions:
   `RayExhausted`.
 
 The first gives the answer. The second only makes the refusal honest.
-
-## A second route in (GERM torus doors, 2026-09-25)
-
-Two IDENTICAL full tori with every wall pair declared `Rest`
-(`crates/sweep/tests/mate7a_torus_rest.rs`,
-`the_admitted_torus_lane_stops_at_the_uncut_shell_probe`) now pass the
-crossing layer, through the circle rung's carrier-identity rung, and
-land here. Tagging both sites showed only `ops.rs` `classify_shells`
-fires. Every vertex of each torus lies on the other's boundary, so the
-vertex probe ends with no verdict and refuses `RayExhausted`. The right
-answer is either torus. Same blind spot, curved operand.
