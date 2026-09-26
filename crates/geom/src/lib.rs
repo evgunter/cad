@@ -57,11 +57,24 @@
 //!   convention, `u_ref ⊥ axis` (⊥ `normal`) by convention.
 //!   Constructors do not renormalize (a hidden normalize would
 //!   silently reparameterize; D6's meters-per-parameter contract is the
-//!   caller's to establish) and evaluators consume the fields as given.
-//!   Tier-3 geometric validation certifies the invariants at rest;
+//!   caller's to establish) and evaluators consume the fields as given;
 //!   violating them yields well-defined garbage (a non-arc-length
 //!   parameterization, an elliptical "circle"), not poison and not a
-//!   panic.
+//!   panic. **At rest, `topo`'s tier-3 check 1 certifies what moves a
+//!   locus a datum can lever**: no direction may be the zero vector,
+//!   and the `axis`/`u_ref` frame of a cylinder, sphere, torus, circle,
+//!   ellipse or spiric must be unit and orthogonal to within the run's
+//!   ε of locus movement at the kind's radius
+//!   ([`Surface::representability_margins`],
+//!   [`Curve3::representability_margins`]). It does NOT certify a
+//!   line's unit `dir` or a plane's unit `normal`/`u_ref` — each spans
+//!   the same locus at any length — nor a plane's `u_ref ⊥ normal` or
+//!   a cone's frame, whose locus movement grows with the face's extent
+//!   rather than with a stored datum. A spline's stored datum is its
+//!   control net, and the same check refuses a net — a face's or an
+//!   edge carrier's — carrying a control point that is not a finite
+//!   number (NaN or `±∞`); its weights and knots are `f64` structure,
+//!   refused non-finite at construction.
 //!
 //! # Totality and poison (geom-core's policy, inherited)
 //!
@@ -130,16 +143,18 @@
 //! enclosure-containment test axes rely on exactly that.
 
 mod azimuth;
+mod convention;
 pub mod curves;
 mod net;
 mod projection_policy;
 mod scalar_lift;
 pub mod surfaces;
 
+pub use convention::{ConventionEnd, ConventionMeasure, RepresentabilityMargin};
 pub use curves::{
-    ComposeError, Curve3, CurveWindow2, CurveWindow3, EllipseInvalid, FIT_REMOVAL_BUDGET, FitError,
-    FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3, ProjectionInconclusive,
-    RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
+    ComposeError, Curve3, CurveDatum, CurveWindow2, CurveWindow3, EllipseInvalid,
+    FIT_REMOVAL_BUDGET, FitError, FitOutcome, NurbsCurve2, NurbsCurve3, Projection2, Projection3,
+    ProjectionInconclusive, RefitSkip, SeamSide, SpiricInvalid, compose_chain, spiric_f_range,
 };
 // The §6.1 policy module is interior — its body is the argument for
 // these four values, not API — but the values themselves are the
@@ -148,8 +163,7 @@ pub use projection_policy::{
     PROJECT_EPS_COSINE, PROJECT_EPS_POINT, PROJECT_MAX_ITERS, PROJECT_SEEDS_PER_SPAN,
 };
 pub use surfaces::{
-    ApproxSurface, ApproxWindow, ConventionEnd, KnotMirrorError, NetState, NurbsSurface,
-    OffsetCertificate, RepresentabilityMargin, Surface, SurfaceDatum, SurfaceDescription,
-    SurfaceJet, SurfaceJet3, SurfaceProjection, SurfaceProjectionInconclusive, SurfaceSpec,
-    SurfaceWindow,
+    ApproxSurface, ApproxWindow, KnotMirrorError, NetState, NurbsSurface, OffsetCertificate,
+    Surface, SurfaceDatum, SurfaceDescription, SurfaceJet, SurfaceJet3, SurfaceProjection,
+    SurfaceProjectionInconclusive, SurfaceSpec, SurfaceWindow,
 };

@@ -838,8 +838,10 @@ pub fn is_underflowed_length<T: Real>(len: T, witness: T) -> bool {
 ///
 /// **Which doors ask it** — hand-kept, like its siblings' rosters:
 ///
-/// - `topo`'s tier-3 check 1, of a stored plane `normal`, where a zero
-///   normal is a datum that describes no locus. It does not DECIDE the
+/// - `topo`'s tier-3 check 1, of every stored direction of an analytic
+///   surface or edge carrier — a plane's `normal`, the `axis` and
+///   `u_ref` of the axisymmetric kinds, a line's `dir` — where a zero
+///   one is a datum that describes no locus. It does not DECIDE the
 ///   length (that is [`decide_unit_direction`](crate::decide_unit_direction)'s
 ///   job, metered and band-relative): a datum is asked whether it is
 ///   the zero vector, not whether it is short.
@@ -1342,10 +1344,14 @@ pub mod bounds_allowlist {
     //! not at the grep.** ONE `lo` call appears in `validate.rs`, and it is
     //! disclosed here rather than left to be discovered: check 1's
     //! [`Bounds::lo`](super::Bounds::lo) of each representability margin an
-    //! analytic surface's conventions state (`geom`'s
+    //! analytic surface's or edge carrier's conventions state (`geom`'s
     //! `Surface::representability_margins` — a cylinder's, sphere's or
     //! torus tube's radius, and a cone half-angle's distance from each end
-    //! of `(0, π/2)`), the representability read. The certified half's own
+    //! of `(0, π/2)` — and `Curve3::representability_margins`, a circle's
+    //! radius, an ellipse's semi-axes and a spiric's tube radius — and,
+    //! for the axisymmetric kinds of both, the frame's unit-ness and
+    //! orthogonality stated as ε-slack margins at the kind's radius), the
+    //! representability read. The certified half's own
     //! bracket read is `props`' certified quadrature, already ratified at
     //! the `props.rs` seam; this one compares a STORED DATUM's margin inside
     //! its convention with zero — a radius that is zero, negative or poison
@@ -1353,9 +1359,11 @@ pub mod bounds_allowlist {
     //! describe one — so the read is about whether the datum lies inside
     //! the convention its variant states and not about where geometry lies,
     //! and the value never crosses into a certificate. It takes no `k_stats` name and
-    //! no band precisely because it meters nothing — the chamfer's
-    //! `NonpositiveSize` precedent — and the geometric question beside it
-    //! (`R - r`) does go through `decide`. `S88`'s named blind spot (a
+    //! no band of its own precisely because it meters nothing — the chamfer's
+    //! `NonpositiveSize` precedent; where a convention is itself stated to
+    //! within the run's ε (the frame's), the ε is inside the margin `geom`
+    //! computes and the read still compares with zero — and the geometric
+    //! question beside it (`R - r`) does go through `decide`. `S88`'s named blind spot (a
     //! bracket read behind a renamed accessor) has no instance here any
     //! more: the accessor is gone and the read is spelled `Bounds::lo`
     //! where a grep sees it. What this entry discloses is a different
