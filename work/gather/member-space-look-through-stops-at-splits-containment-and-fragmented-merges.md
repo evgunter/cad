@@ -2,13 +2,14 @@
 id: member-space-look-through-stops-at-splits-containment-and-fragmented-merges
 kind: unit
 title: A member-space declaration on a face the fold left in pieces, split or inside a fragmented merged row, refuses naming the composition instead of an order-shaped Vanished
-status: review
+status: closed
 opened: 2026-09-07
 refs: [2073, does-n3-retire-loudly-generalise-to-the-folds-other-compositions]
 priority: P0
 cost: H
 branch: gather/member-space-typed-refusals
 pr: 3143
+closed: 2026-09-26
 ---
 
 ## What
