@@ -1487,16 +1487,15 @@ impl OpOutcome {
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
-/// **How it says so is the OTHER precedent**, and the two part company
-/// exactly here: the dialog controls hand
-/// `platform::NO_CHOOSER_BACKEND` — a `&'static str` composed at each
-/// button — to `on_disabled_hover_text`, which is the shape
-/// `work/view/environmental-facts-answer-usable-as-a-bool-with-the-
-/// reason-elsewhere.md` is open about. The one this follows is
-/// [`crate::pane::create`]'s catalogue entry: *carrying the op's own refusal —
-/// read off the entry, not minted here*. So [`CancelDoor::blocked`] is
-/// a [`Refusal`] and not a sentence, and the disabled control's words
-/// are the refused operation's own.
+/// **How it says so is where the two part company.** A dialog that
+/// cannot open has no operation behind it, so its controls read their
+/// words off the environment's own value,
+/// `platform::ChooserBackend::unusable`. A cancel door has an
+/// operation, and follows [`crate::pane::create`]'s catalogue entry:
+/// *carrying the op's own refusal — read off the entry, not minted
+/// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
+/// sentence, and the disabled control's words are the refused
+/// operation's own.
 #[derive(Debug)]
 pub struct CancelDoor {
     /// What the control is called.

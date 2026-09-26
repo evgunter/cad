@@ -1504,10 +1504,10 @@ impl ViewerApp {
             // at all"*. Under a plausibly-present backend a dialog
             // handing back `None` is a genuine cancel, which says
             // nothing.
-            let chooser = self.chooser;
+            let no_chooser = self.chooser.unusable();
             if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Open…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
+                .add_enabled(no_chooser.is_none(), egui::Button::new("Open…"))
+                .on_disabled_hover_text(no_chooser.unwrap_or_default())
                 .clicked()
             {
                 // Unreachable on wasm — `chooser` is `Absent`
@@ -1525,8 +1525,8 @@ impl ViewerApp {
                 }
             }
             if ui
-                .add_enabled(chooser.usable(), egui::Button::new("Save As…"))
-                .on_disabled_hover_text(platform::NO_CHOOSER_BACKEND)
+                .add_enabled(no_chooser.is_none(), egui::Button::new("Save As…"))
+                .on_disabled_hover_text(no_chooser.unwrap_or_default())
                 .clicked()
             {
                 // Unreachable on wasm, for the reason the Open…
@@ -2982,6 +2982,37 @@ mod tests {
                 !shown.contains(&sibling),
                 "the {label} button's reason is about {sibling}: {shown:?}"
             );
+        }
+    }
+
+    /// **A dialog with no backend to open it says why on its own
+    /// control**, in the words the environment's value carries — and a
+    /// dialog that can open says nothing.
+    ///
+    /// Read off the painted frame, because the words a reader sees
+    /// exist nowhere else (`painted_text`): a row over
+    /// `ChooserBackend::unusable` alone holds the value and not that
+    /// the two controls gate on it and show it. Each backend is planted
+    /// on the field the toolbar reads, so this holds whatever the
+    /// test box's `PATH` and session bus are.
+    #[test]
+    fn a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control() {
+        use crate::platform::ChooserBackend;
+        let mut toolbar = Toolbar::open();
+        for backend in [
+            ChooserBackend::ZenityPresent,
+            ChooserBackend::PortalPossible,
+            ChooserBackend::Absent,
+        ] {
+            toolbar.app.chooser = backend;
+            for label in ["Open…", "Save As…"] {
+                assert_eq!(
+                    toolbar.reason_shown_on(label).as_deref(),
+                    backend.unusable(),
+                    "{label} under {backend:?}: disabled exactly when the backend is unusable, \
+                     with its words"
+                );
+            }
         }
     }
 

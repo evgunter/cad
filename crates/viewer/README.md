@@ -778,7 +778,7 @@ neither.
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `PartSelectChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the four enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, the projection form does the same over `select::SplitHalf::ALL` (`split_half_label`), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
 | `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
-| `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`NO_CHOOSER_BACKEND`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
+| `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, `chooser_backend`, `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`), the WSL probe (`running_under_wsl`) and the reason a dialog the environment cannot put up gives for being disabled (`ChooserBackend::unusable`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `Disagreement`, `disagreement`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
 
 ### Two axes: which channel, and what retires it
@@ -870,7 +870,7 @@ splits the two: news to the notices, retirement to the field;
 provenance rule above is why rather than a reachability accident. It is
 probed once at startup and true for the whole run, so it is held state
 a reader consults — and the read is the disabled Open…/Save As…
-control with `platform::NO_CHOOSER_BACKEND` as its
+control with `platform::ChooserBackend::unusable`'s words as its
 `on_disabled_hover_text`. A status route beside it once carried the
 same sentence as a `frame::Message` with `Subject::Document`, i.e. on
 the OUTCOME channel; no click could reach it, because one copy of
@@ -880,21 +880,25 @@ whole-run environmental fact has no correct sentence on a line that
 carries one frame's news, so the arm and its policy are gone and the
 hover text is the whole surface. An empty-handed dialog under a
 plausibly-present backend is a genuine cancel and was always silent.
-**The sweep rule is over the FACT, not over the string.** A rule
-ranging over readers of `platform::NO_CHOOSER_BACKEND` would leave the
-universal above green while a future route built its own `Message` from
-`chooser.usable()` — so the population is *every read of
-`ViewerApp::chooser`, this crate's only value of type
-`platform::ChooserBackend`*: one, `app.rs:1172`, consumed at `:1174` and
-`:1193` as `add_enabled(chooser.usable(), …)` with
-`platform::NO_CHOOSER_BACKEND` as the disabled reason and nowhere else. No
+**The sweep rule is over the FACT, not over the string.** The words
+are the value's own — `platform::ChooserBackend::unusable` answers the
+gate and the reason as one `Option<&'static str>` — so a reader of the
+sentence is a reader of the value; but a future route could still build
+its own `Message` from `chooser.unusable()`, and a rule ranging over
+readers of the sentence would stay green under it. So the population is
+*every read of `ViewerApp::chooser`, this crate's only value of type
+`platform::ChooserBackend`*: one, in `ViewerApp::toolbar_ui`, consumed
+by the Open… and Save As… controls as `add_enabled(no_chooser.is_none(),
+…)` with the `Some`'s words as the disabled reason, and nowhere else. No
 reader builds a `Message`, a `Badge` or a notice from it. What the rule
 cannot see is a route that re-probes the environment instead of reading
-the field — `platform::chooser_backend()` has one caller (`app.rs:688`,
-the constructor), which is the fact that makes the field the whole
-population rather than a sample. **This is the argument's one full
-copy**: `platform::NO_CHOOSER_BACKEND`'s own doc and the toolbar comment
-at the two controls point here rather than restating it.
+the field — `platform::chooser_backend()` has one caller (the
+constructor, `ViewerApp::assemble`), which is the fact that makes the
+field the whole population rather than a sample. **This is the
+argument's one full copy**: `ChooserBackend::unusable`'s own doc and
+the toolbar comment at the two controls point here rather than
+restating it. That a disabled control shows these words is held by
+`app.rs`'s `a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`.
 
 **A store that keeps no preferences is on the toolbar too**, by that
 same rule and with the opposite answer at the control. Whether a
@@ -1657,11 +1661,11 @@ row does not fit a narrow window, so the wrapping is answering
 something, and that it stays inside one.
 
 **How it says so is a different precedent from where it is drawn**, and
-citing one for both is wrong: the dialog controls hand
-`platform::NO_CHOOSER_BACKEND`, a `&'static str` composed at each button,
-to `on_disabled_hover_text` — the shape
-`environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere`
-is open about. A cancel door follows `pane::create`'s catalogue entry
+citing one for both is wrong: a dialog that cannot open has no
+operation behind it, so the dialog controls hand
+`platform::ChooserBackend::unusable` — the environment's own words,
+answered with the gate — to `on_disabled_hover_text`. A cancel door has
+an operation, and follows `pane::create`'s catalogue entry
 instead — *carrying the op's own refusal, read off the entry, not
 minted here* — so `CancelDoor::blocked` is a `Refusal` and the disabled
 control's words are the refused operation's own. **That the two cannot
@@ -1987,15 +1991,16 @@ its shape is not one of these:
 
 - **A composer on the vocabulary type, one home, called by every
   surface that shows the sentence** — `Refusal::affordance`,
-  `::exists_wording`, `::offer_wording` (`session::refuse`).
+  `::exists_wording`, `::offer_wording` (`session::refuse`), and
+  `ChooserBackend::unusable` (`platform`, spent at two
+  `on_disabled_hover_text` calls in `app`).
 - **Composed in the vocabulary's own `Display`, riding the sentence**
   — `Refusal`'s `NoDocumentDirectory` arm, `FaceFrameFault`'s
   `NotOneBody` arm (`session::refuse`).
 - **A named `&'static str` owned by the layer the fact belongs to and
   spent by more than one door** — `refuse::NO_FACE_PICKED` (spent at
-  `FaceFrameFault`'s `NoFace` arm and by `forms`),
-  `platform::NO_CHOOSER_BACKEND` (spent at two `on_disabled_hover_text`
-  calls in `app`), and `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
+  `FaceFrameFault`'s `NoFace` arm and by `forms`), and
+  `editor_core::edit::UNDECLARED_PARAM_RECOURSE`,
   whose home is the crate that owns the fact.
 - **A literal at the chrome site, composed where it is drawn** —
   `pane::create`'s *add a frame datum first*, `pane::profile`'s *its

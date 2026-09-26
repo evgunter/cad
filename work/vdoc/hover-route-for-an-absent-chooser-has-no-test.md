@@ -72,3 +72,18 @@ holds a claim it does not hold is worse than a stated gap (#2148).
 reachable on any machine with no `zenity` and no session bus, and is
 what `chooser_backend()` answers unconditionally on wasm. This is a
 route a user meets, not a latent arm.
+
+## Evidence from `environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere` (2026-09-25)
+
+Shape 2 now exists. `platform::NO_CHOOSER_BACKEND` is gone — the words
+are `platform::ChooserBackend::unusable`'s `Some` — and `app.rs`'s
+`a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`
+plants each backend on `ViewerApp::chooser`, rests the pointer on
+Open… and Save As… in the real toolbar (the `Toolbar` harness beside
+it) and asserts the painted hover equals `backend.unusable()`.
+`frame_policy.rs`'s
+`the_chooser_verdict_is_unusable_only_when_absent_and_says_why_itself`
+checks the three remedies the README promises, now over a runtime
+match arm rather than a const's bytes. What is left for this row is
+shape 1 (the README-list gate), if anyone still wants it; the owner's
+call whether it closes.

@@ -2,11 +2,13 @@
 id: environmental-facts-answer-usable-as-a-bool-with-the-reason-elsewhere
 kind: issue
 title: one environmental fact now says WHY it is unusable and its sibling still answers a bare bool with the reason kept elsewhere
-status: open
+status: closed
 opened: 2026-09-10
 refs: [hover-route-for-an-absent-chooser-has-no-test, 2293]
 priority: P3
 cost: E
+branch: vnews/the-chooser-says-why-it-is-unusable
+closed: 2026-09-25
 ---
 
 Disclosed by the close of
@@ -140,3 +142,64 @@ things it settled, both narrowing rather than widening the population:
 
 Neither touches the row's open decision, which is which of the two
 shapes the fix takes.
+
+## Closed (2026-09-25)
+
+**Shape taken: `ChooserBackend::unusable(self) -> Option<&'static str>`**,
+and `usable` and `platform::NO_CHOOSER_BACKEND` are gone; the sentence
+is the `Absent` arm of an exhaustive match in the method.
+
+Why this shape over *keep the bool and move the const onto the value*:
+
+- **A reason on a usable value has no meaning.** The second shape
+  needs `ZenityPresent.reason()` to answer something, and whatever it
+  answers is either a lie (the sentence, on a working backend) or an
+  `Option` — which is the first shape with a redundant `bool` beside
+  it that can disagree with it.
+- **The gate and the reason become one answer.** The two dialog
+  controls read one local (`no_chooser`): `add_enabled(is_none())`
+  and the `Some`'s words as the disabled hover. No call site can gate
+  on this value and explain with a different one.
+- **Same polarity as the sibling.** `PrefsStore::unusable` and
+  `ChooserBackend::unusable` now ask the same question the same way,
+  which was the row's first complaint.
+- **The row's reason for hesitating does not cut against it.**
+  `Option<&'static str>` is `Copy`, so the one thing the closed
+  vocabulary buys is kept; the payload is `&'static str` rather than
+  a named type because there is one fixed sentence, whereas a store's
+  words are its backing store's own (`prefs::Unusable`'s doc, updated
+  to say so).
+- It is also the operand shape `a-gated-button-with-a-reason-is-spelled-five-ways`
+  proposes for its one door (`blocked: Option<impl Display>`), so that
+  consolidation can take this value unchanged.
+
+User-visible behaviour is unchanged: the same two controls, disabled
+under the same arm, with the same sentence as their hover.
+
+**Held by two rows.** `frame_policy.rs`'s
+`the_chooser_verdict_is_unusable_only_when_absent_and_says_why_itself`
+plants each backend and checks the answer and the reason (and the
+README's three remedies in it). `app.rs`'s
+`a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`
+plants each backend on `ViewerApp::chooser`, hovers Open… and Save As…
+in the real toolbar, and asserts the painted hover equals
+`backend.unusable()` — so it holds the wiring, which is the gap
+`work/vdoc/hover-route-for-an-absent-chooser-has-no-test` names (its
+shape 2); evidence appended there.
+
+**Sweep** (every `platform` value reporting what the environment offers):
+
+| member | disposition |
+|---|---|
+| `ChooserBackend` | fixed here |
+| `Zenity`, `SessionBus` | owe nothing: folded by `chooser_backend_of` into `ChooserBackend`, whose reason names both remedies; no reader sees them |
+| `prefs_path() -> Option<PathBuf>` | owes nothing: its `None` reaches a reader only through `file::FileStore::unusable`, which carries the store's own words |
+| `running_under_wsl() -> bool` | not a member (one state, no unusable arm; settled by the `is_instance` lane above) |
+| `launch_dir() -> Result<PathBuf, io::Error>` | **not named above; found by this sweep**; owes nothing, it carries its `io::Error` and the caller reports it as a startup notice |
+
+Blind spot: the rule ranges over `platform`, and an environment fact
+read elsewhere would escape it. Second pass: `std::env::` and
+toolkit-supplied environment facts across `crates/viewer/src` — the
+only hits outside `platform` are the binary's command-line argument
+(not a facility) and `CreationContext::wgpu_render_state`, whose `None`
+becomes the typed `StartupError::NoWgpuRenderState`. Nothing further.

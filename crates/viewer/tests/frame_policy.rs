@@ -1450,12 +1450,34 @@ fn the_chooser_probe_is_confident_only_with_neither_backend_reading() {
         platform::chooser_backend_of(Zenity::NotOnPath, SessionBus::NotAdvertised),
         ChooserBackend::Absent
     );
-    assert!(ChooserBackend::ZenityPresent.usable());
-    assert!(ChooserBackend::PortalPossible.usable());
-    assert!(
-        !ChooserBackend::Absent.usable(),
-        "the one arm the chrome disables the dialogs over"
+}
+
+#[test]
+fn the_chooser_verdict_is_unusable_only_when_absent_and_says_why_itself() {
+    // The gate and its reason are ONE answer: a control disabled over
+    // this value shows the `Some`'s words, so an arm that answered
+    // `Some` with no dialog missing would disable a working door with
+    // a false reason, and one that answered `None` with none possible
+    // is #1097's dead click.
+    use platform::ChooserBackend;
+    assert_eq!(ChooserBackend::ZenityPresent.unusable(), None);
+    assert_eq!(
+        ChooserBackend::PortalPossible.unusable(),
+        None,
+        "a portal is a hint, and a hint attempts the dialog"
     );
+    let why = ChooserBackend::Absent
+        .unusable()
+        .expect("the one arm the chrome disables the dialogs over");
+    // What the viewer README's Troubleshooting section promises the
+    // disabled controls say: every way out, including the one that
+    // needs no dialog at all.
+    for remedy in ["zenity", "xdg-desktop-portal", "command line"] {
+        assert!(
+            why.contains(remedy),
+            "the reason for no dialog names {remedy}: {why:?}"
+        );
+    }
 }
 
 #[test]

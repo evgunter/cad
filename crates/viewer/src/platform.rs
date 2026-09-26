@@ -25,7 +25,7 @@
 //!
 //! What the readings are FOR is held state, never news: a dialog the
 //! environment cannot put up becomes a disabled control carrying
-//! [`NO_CHOOSER_BACKEND`] as its reason, not a sentence on the status
+//! [`ChooserBackend::unusable`] as its reason, not a sentence on the status
 //! line (`crates/viewer/README.md`, *"A missing file-chooser backend
 //! is not on the line at all"*). The chrome policies that read these
 //! values are [`crate::frame`]'s; deciding them is not this module's
@@ -61,9 +61,42 @@ pub enum ChooserBackend {
 }
 
 impl ChooserBackend {
-    /// Whether attempting a dialog can possibly show one.
-    pub fn usable(self) -> bool {
-        !matches!(self, Self::Absent)
+    /// **Why no dialog can appear here**, and `None` when attempting
+    /// one can possibly show it.
+    ///
+    /// The value that knows the environment is the party that words
+    /// it, as [`crate::prefs::PrefsStore::unusable`] is for a store
+    /// that keeps nothing: a bare `bool` left the only party able to
+    /// say WHY unable to say it, so the sentence a reader saw was
+    /// composed beside the value rather than by it. The gate and the
+    /// reason are one answer — a disabled control is `is_some()` and
+    /// its tooltip is the `Some` — so no call site can gate on this
+    /// value and explain with another. The words are `&'static str`,
+    /// keeping the type `Copy`, because the vocabulary is closed and
+    /// its one unusable arm has one reason; a store's reason is its
+    /// backing store's own text and is not.
+    ///
+    /// The `Some` is **what the disabled dialog controls say**, and
+    /// the only thing that says it: the confident half of the #1097
+    /// finding, with the dialog-free workaround. A missing backend is
+    /// held state, so the disabled control carrying it as its
+    /// `on_disabled_hover_text` is the read and there is no
+    /// status-line route beside it. The argument, its sweep rule and
+    /// Ev's ruling live in `crates/viewer/README.md`, under *"A
+    /// missing file-chooser backend is not on the line at all"*.
+    ///
+    /// A match over every arm rather than a pattern over one, so an
+    /// arm added to the vocabulary is a decision here rather than a
+    /// silent `None`.
+    pub fn unusable(self) -> Option<&'static str> {
+        match self {
+            Self::ZenityPresent | Self::PortalPossible => None,
+            Self::Absent => Some(
+                "no file chooser backend — install zenity or \
+                 xdg-desktop-portal; a document path can also be passed on the \
+                 command line",
+            ),
+        }
     }
 }
 
@@ -276,16 +309,3 @@ pub fn running_under_wsl() -> bool {
 pub fn launch_dir() -> Result<std::path::PathBuf, std::io::Error> {
     std::env::current_dir()
 }
-
-/// **What the disabled dialog controls say**, and the only thing that
-/// says it: the confident half of the #1097 finding, with the
-/// dialog-free workaround.
-///
-/// A missing backend is held state, so the disabled control carrying
-/// this as its `on_disabled_hover_text` is the read and there is no
-/// status-line route beside it. The argument, its sweep rule and Ev's
-/// ruling live in `crates/viewer/README.md`, under *"A missing
-/// file-chooser backend is not on the line at all"*.
-pub const NO_CHOOSER_BACKEND: &str = "no file chooser backend — install zenity or \
-     xdg-desktop-portal; a document path can also be passed on the \
-     command line";
