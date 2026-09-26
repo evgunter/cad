@@ -2246,3 +2246,27 @@ with lane builds beside it.
     must be taken on a fresh merge with main.
 - **step import** is a loud SKIP-as-PASS, because this box has no FreeCAD.
   Hosted is the gate of record for STEP.
+
+## 2026-09-26 — the sixth batch lands (#3302)
+
+Three lanes landed as one PR, gated by one local run: 9 rows closed and
+6 filed (3 on dup's slate). `dup` went from 29/30 to 17.5/30. Two parts
+of the batch are worth keeping:
+
+- **The reviews earned their cost again.** Every lane's first cut left
+  twins in files it had open. That is the recurring shape, now on its
+  eighth consecutive unit. Two findings were more than twins:
+  - Lane a's refusals had drifted on corrupt bodies: a vertex with a
+    fan but no `emanating` was told to try a run-out policy. It was
+    restored through one helper, `fan_at`.
+  - Lane b's `#[path]` mount of a `src/` file into `tests/common` was a
+    third test-support mechanism beside the tree's feature-gated one.
+    The fix pass moved to the existing mechanism, so no design fork was
+    needed. That move then tripped `witness-not-ambient`, because a
+    feature-gated module is library code to that gate. The local gate
+    caught it and no lane had run it; `declared` now receives `tol`.
+- **The gate:** local `ci-local.sh` on `f0ba128cf` with main at
+  `2035ff0b9`. It ran 39 rows: 37 PASS, 2 SKIP. The three eps rows
+  were 9748/9748 each, and the viewer app row 985/985. The mirror fix
+  turned the release-profile row green. Two runs died when the
+  container recycled while the session was idle; method item 29.
