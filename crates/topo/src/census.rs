@@ -2392,9 +2392,9 @@ fn sweep_conformal_patches<T: Decide>(
 ///
 /// A NURBS placeholder has a poison control net: `face_box` folding
 /// it to a poison box is correct there, because poison never prunes.
-/// Folding it here would produce `Some((NaN, NaN))` — neither a claim
-/// nor a refusal, since every margin against it decides NEITHER sign
-/// — so this answers `None`.
+/// Here it answers `None`: this door keeps the postcondition
+/// [`geom_core::CertifiedEnclosure`] states for a certified bracket —
+/// a `Some` never carries a NaN end.
 pub(crate) fn face_reach<T: Decide>(
     body: &Body<T>,
     f: crate::entity::FaceKey,
@@ -2408,9 +2408,9 @@ pub(crate) fn face_reach<T: Decide>(
             if patch.is_placeholder() {
                 // The mvfs placeholder's control net is poison
                 // points, and this fold is `min`/`max`, which
-                // propagate NaN by contract. Folding it would
-                // return `Some((NaN, NaN))` — a box that is
-                // neither a claim nor a refusal: every margin
+                // propagate NaN by contract, so folding it would
+                // hand back the NaN-ended `Some` the doc above
+                // excludes. What that would cost HERE: every margin
                 // taken against it decides NEITHER sign, so the
                 // arm falls out at its in-band refusal having
                 // compared no geometry at all, and the typed

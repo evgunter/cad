@@ -20,7 +20,7 @@ use super::axis::{AxisFrame, LoopClasses, WallClass};
 use super::chain::build_chain;
 use super::surfaces::{revolved_strut_spec, wall_surface};
 use super::upgrade::upgrade_intersection;
-use super::{RevolveError, Revolved, RevolvedKind, SweptSeg, WALL_COSURFACE};
+use super::{RevolveError, RevolvedKind, RevolvedParts, SweptSeg, WALL_COSURFACE};
 use crate::swept::{cap_points, cosurface, face_surface_key, placed_segment_spec, turn_axis};
 use geom_core::Tol;
 
@@ -36,7 +36,7 @@ pub(super) fn build_partial<T: Decide>(
     reverse: bool,
     band: Band,
     tol: Tol,
-) -> Result<Revolved<T>, RevolveError> {
+) -> Result<RevolvedParts<T>, RevolveError> {
     let place = frame.place;
     let rot = Affine3::rotation_about_axis(frame.o3, frame.a3, theta);
     let place_end = rot * place;
@@ -247,7 +247,7 @@ pub(super) fn build_partial<T: Decide>(
         end_mer.push(em.into_iter().flatten().collect());
     }
 
-    Ok(Revolved {
+    Ok(RevolvedParts {
         body,
         solid: seed.solid,
         shell: seed.shell,
