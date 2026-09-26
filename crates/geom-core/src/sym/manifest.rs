@@ -52,6 +52,8 @@
 //! `linalg/vec.rs`'s basis; `linalg/svd.rs`'s Householder (`f64`
 //! only); `geom-brep/src/implicit.rs`'s cone gradient;
 //! `geom-brep/src/props/curved.rs`'s sphere-meridian pole margins;
+//! `geom-brep/src/tangent.rs`'s jet (the orientation sign of the
+//! second surface's normal curvature);
 //! `profile/src/sugar.rs`'s arc-leg fillet trims (two);
 //! `profile/src/path.rs`'s line×line fillet turn side;
 //! `sweep/src/revolve/axis.rs`'s radial extent;
