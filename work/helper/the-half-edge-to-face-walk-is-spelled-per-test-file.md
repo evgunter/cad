@@ -77,3 +77,12 @@ was minted inside a single function, by one author, in one sitting. A
 census that reasons about this class as a per-FILE or per-SUITE
 phenomenon will not predict that, and the fold that prevents it is a
 named local predicate rather than a shared home.
+
+## Three named helpers gone (S-DUP batch 6, 2026-09-26)
+
+`shell7_dump::face_of_he`, `shell7_common::face_of_he` and
+`shell8_common::face_of_he` — plus `shell8_multi_solid::face_of_he_pub`,
+a one-caller wrapper over the last — are deleted, and their twelve
+call sites across eight `sweep/tests` files read
+`Body::face_of_half_edge(..).unwrap()`. The rest of this row's
+population is untouched, so it stays open.

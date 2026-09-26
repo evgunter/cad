@@ -3035,37 +3035,22 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        Dimension, Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId,
-        RefusingReach, SlotId, StepArg, apply,
+        Doc, DocEdit, EditError, Expr, Node, ProfileProgram, RecipeNodeId, RefusingReach, SlotId,
+        StepArg, apply,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
 
-    use super::{OrderFault, accepted_order, author::datum_node};
-    use crate::session::{DatumSpec, ProfileShape};
+    use super::{OrderFault, accepted_order};
+    use crate::session::ProfileShape;
     use crate::sketch::{self, Notation};
+    use crate::test_support::{ang, inserted, len, xy_frame};
 
     /// A document holding a frame and a unit square profile; answers
     /// the document and the profile node.
     fn square() -> (Doc<ProfileProgram>, RecipeNodeId) {
         let tol = Tol::witness();
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
-        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let frame = datum_node(DatumSpec::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        });
-        let doc = Doc::empty_derived("order", tol);
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node: frame },
-            tol,
-            &RefusingReach,
-        )
-        .expect("frame")
-        .doc;
-        let plane = *doc.order().last().expect("the frame");
+        let (doc, plane) = inserted(&Doc::empty_derived("order", tol), xy_frame(), tol);
         let pt = Point2::new;
         let steps = vec![
             Step::At(pt(0.0, 0.0)),
@@ -3083,11 +3068,7 @@ mod tests {
             loops,
             ids: Vec::new(),
         });
-        let doc = apply(&doc, &DocEdit::InsertNode { node }, tol, &RefusingReach)
-            .expect("a square")
-            .doc;
-        let profile = *doc.order().last().expect("the profile");
-        (doc, profile)
+        inserted(&doc, node, tol)
     }
 
     fn corner_x(node: RecipeNodeId, step: u32, expr: Expr) -> DocEdit<ProfileProgram> {
@@ -3113,14 +3094,9 @@ mod tests {
     #[test]
     fn a_write_refused_for_itself_is_refused_not_reordered() {
         let (doc, profile) = square();
-        let angle = Expr::literal(0.5, Dimension::Angle).expect("finite");
         let edits = vec![
-            corner_x(
-                profile,
-                1,
-                Expr::literal(1.5, Dimension::Length).expect("finite"),
-            ),
-            corner_x(profile, 2, angle),
+            corner_x(profile, 1, len(1.5)),
+            corner_x(profile, 2, ang(0.5)),
         ];
         match accepted_order(&doc, edits, Tol::witness(), &RefusingReach) {
             Err(OrderFault::Refused(EditError::SlotDimensionMismatch { .. })) => {}
@@ -3136,7 +3112,6 @@ mod tests {
     fn the_search_finds_the_order_and_returns_its_document() {
         let tol = Tol::witness();
         let (doc, profile) = square();
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
         // Slide the square right by 2: its first corner alone crosses it.
         let edits = vec![
             corner_x(profile, 0, len(2.0)),
@@ -3170,11 +3145,7 @@ mod tests {
     fn a_write_no_order_admits_is_no_order() {
         let (doc, profile) = square();
         // Corner 1 onto corner 0: a zero-length leg, whatever else lands.
-        let edits = vec![corner_x(
-            profile,
-            1,
-            Expr::literal(0.0, Dimension::Length).expect("finite"),
-        )];
+        let edits = vec![corner_x(profile, 1, len(0.0))];
         assert!(matches!(
             accepted_order(&doc, edits, Tol::witness(), &RefusingReach),
             Err(OrderFault::NoOrder(EditError::ProfileProgramRefused { .. }))
