@@ -143,3 +143,14 @@ Each row sums to 530. The door's answer is asserted by `generic_replay`
 at every verb the coverage corpus replays, and by `cert4r1_e2e` and
 `guided_replay` at the fused Center-mode step.
 
+In `editor-core`, the same patch pair was run over the two routed files
+(`cargo nextest run -p editor-core -E
+'test(/^(m10_p_fence|cert3r1_dump)::/)'`, 4 rows). Under `panic!` on
+entry, **4/4 red**, each on the plant's own message. Under the swapped
+`Center` centre, **2/4 red**: `m10_p_fence`'s bit fences at `f64` and at
+`Interval`. The two `cert3r1_dump` rows print and assert nothing, so
+they are reached and unasserted by design; that is filed as
+`work/tint/cert3r1-dump-is-a-print-only-replica-of-the-m10-p-fence.md`.
+Unplanted, both `m10_p_fence` fences pass, which pins the door
+bit-identical to the hand walk it replaced at that fixture.
+
