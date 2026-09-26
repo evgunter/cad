@@ -189,8 +189,8 @@ homed `common::try_replay_at`:
   `generic_replay` row that calls it.
 - Lifting through `|c| T::from_f64(c * 2.0)` (a different answer)
   reds 3: `generic_replay`'s Dual bit-identity, Interval containment
-  and escalation rows. The `cert4r1_e2e` rows stay green, because their
-  one fixture is a Center-mode step whose every scalar is a length, so
-  doubling all of them is a uniform scale, and those rows assert
-  properties a scale preserves.
+  and escalation rows. The `cert4r1_e2e` rows stay green. Their one
+  fixture is a Center-mode step whose every scalar is a length, so
+  doubling all of them is a uniform scale. That is the likely reason,
+  but it was not traced row by row.
 
