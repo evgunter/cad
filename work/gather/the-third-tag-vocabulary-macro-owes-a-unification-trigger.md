@@ -2,12 +2,13 @@
 id: the-third-tag-vocabulary-macro-owes-a-unification-trigger
 kind: unit
 title: target_forms! and arc_modes! are near-copies one meta-level up, and the PR's own not-yet argument names a trigger with no schedule
-status: review
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: D
 branch: gather/tag-vocabulary-trigger
 pr: 3259
+closed: 2026-09-26
 ---
 
 
