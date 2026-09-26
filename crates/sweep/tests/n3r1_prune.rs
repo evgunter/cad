@@ -7,7 +7,7 @@
 use crate::common::operands::{
     nested_box, rim_plate, rounded_plate, three_arc_cylinder, top_rim_plate,
 };
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
 use topo::{Body, BooleanResult, SweepStrategy, SweepTrace, sweep_traces};
@@ -15,7 +15,7 @@ use topo::{Body, BooleanResult, SweepStrategy, SweepTrace, sweep_traces};
 /// The corpus cylinder at `(cx, 0)`, `z in [0, 1]`: this suite poses
 /// it by translating the PROFILE in `x`.
 fn cylinder_at(cx: f64) -> Body<f64> {
-    three_arc_cylinder(cx, 0.0, 1.0, 0.0)
+    three_arc_cylinder(Point2::new(cx, 0.0), 0.5, 0.0, 1.0, 0.0)
 }
 
 fn cylinder() -> Body<f64> {

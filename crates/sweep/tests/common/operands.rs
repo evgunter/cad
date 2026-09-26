@@ -31,10 +31,8 @@
 //! - `super::approx::unit_box`, which is the boolean gate's FACE rule
 //!   fixture and belongs with the surgery vocabulary that reads it.
 
-use geom_core::{Affine3, Decide, Point2, Tol, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::test_support::{block, brick, prism};
-use sweep::{Extrusion, extrude};
+use geom_core::{Decide, Point2, Tol};
+use sweep::test_support::{block, brick, extruded, prism, sketch_at};
 use topo::Body;
 
 /// The 4 x 4 x 1 slab, `z in [0, 1]` — the plainest operand a boolean
@@ -59,37 +57,42 @@ pub fn pellet<T: Decide>() -> Body<T> {
     brick((0.9, 1.1), (1.25, 1.35), (0.3, 0.7), Tol::witness())
 }
 
-/// The conic corpus's three-arc cylinder: radius 0.5 about the
-/// vertical line through `(cx, 0)`, its base at `z0`, `height` tall,
-/// its loop authored from the vertex at `first` degrees (one of 0,
-/// 120, 240). Six vertices, at 0, 120 and 240 degrees on each rim.
+/// **The three-arc cylinder**: [`super::three_arc`] of `radius` about
+/// `centre`, its first joint at `first` degrees, extruded `height` from
+/// a sketch plane lifted to `z0` ([`sweep::test_support::sketch_at`]).
+/// One curved wall cut by three seam struts; six vertices, three on
+/// each rim.
 ///
-/// **The two placements are two knobs, not one**, because the suites
-/// that cut with it pose it two ways: `cx` translates the PROFILE on
-/// the `xy` plane, while `z0` lifts the SKETCH PLANE. The two are not
-/// interchangeable bit for bit — a plane slid in `x` builds a different
-/// body from a profile slid in `x` — so each suite gets the body it
-/// posed by turning its own knob and leaving the other at zero.
-/// `first` changes only which vertex the loop starts from: the same
-/// point set, its rims' edges minted in a different order.
-pub fn three_arc_cylinder(cx: f64, z0: f64, height: f64, first: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = deg.to_radians();
-        Point2::new(cx + 0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![
-        (at(first), b120),
-        (at((first + 120.0) % 360.0), b120),
-        (at((first + 240.0) % 360.0), b120),
-    ]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(height), Tol::witness())
-        .unwrap()
-        .body
+/// **The two placements are two knobs, not one**, because suites pose
+/// it both ways: `centre` slides the PROFILE in the sketch plane (the
+/// conic corpus's `n3r1_prune`, and every boss on a slab), while `z0`
+/// lifts the SKETCH PLANE (`s16_box_soundness`'s raised tool). The two
+/// are not interchangeable bit for bit — a plane slid in `x` builds a
+/// different body from a profile slid in `x` — so a caller turns the
+/// knob its rows were written with. A third pose is not this door's:
+/// `s16_box_soundness::cylinder_apart` moves a finished cylinder by a
+/// rigid translation, which is yet another body from the same point
+/// set.
+pub fn three_arc_cylinder(
+    centre: Point2<f64>,
+    radius: f64,
+    z0: f64,
+    height: f64,
+    first: f64,
+) -> Body<f64> {
+    extruded(
+        sketch_at(z0),
+        vec![super::three_arc(centre, radius, first)],
+        height,
+        Tol::witness(),
+    )
+}
+
+/// A three-arc cylinder standing on [`plate6`]'s midline: radius `r`
+/// about `(cx, 2)`, first joint at 0°, `z in [z0, z0 + h]` — the peg
+/// and bore the M9-3 suites union into and cut from the plate.
+pub fn plate6_cyl(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
+    three_arc_cylinder(Point2::new(cx, 2.0), r, z0, h, 0.0)
 }
 
 /// A small axis-aligned box of half-width `h` centred at `(cx, 0, .)`,

@@ -56,7 +56,7 @@ use crate::common::operands::{
     nested_box, rim_plate, rounded_plate, small_box, three_arc_cylinder, top_rim_plate,
 };
 use geom_core::Tol;
-use geom_core::{Affine3, Vec3};
+use geom_core::{Affine3, Point2, Vec3};
 use std::collections::BTreeSet;
 use sweep::test_support::brick;
 use topo::{
@@ -70,7 +70,7 @@ use topo::{
 /// its six vertices is the inscribed triangular prism,
 /// `x ∈ [−0.25, 0.5]`, `y ∈ [−0.433, 0.433]`.
 fn cylinder(z0: f64, height: f64) -> Body<f64> {
-    three_arc_cylinder(0.0, z0, height, 0.0)
+    three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, z0, height, 0.0)
 }
 
 /// The nested pair as one two-instance arena.
@@ -422,12 +422,12 @@ fn conic_corpus() -> Vec<(String, Body<f64>, Body<f64>)> {
         // reference answers.
         (
             "cylinder from 240° × plate across the rim's x-extreme".to_string(),
-            three_arc_cylinder(0.0, 0.0, 1.0, 240.0),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
             rim_plate(-0.499),
         ),
         (
             "cylinder from 240° × plate across the top rim's x-extreme".to_string(),
-            three_arc_cylinder(0.0, 0.0, 1.0, 240.0),
+            three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, 0.0, 1.0, 240.0),
             top_rim_x_plate(-0.499),
         ),
         (

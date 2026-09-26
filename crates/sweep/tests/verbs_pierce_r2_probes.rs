@@ -11,6 +11,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
 use core::f64::consts::PI;
 
 use geom_core::{Affine3, Point2, Tol, Vec3};
@@ -297,17 +298,7 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
         .unwrap()
         .body;
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(90.0), b120), (at(210.0), b120), (at(330.0), b120)]);
-    let plane = SP::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
-    let boss_profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
-    let boss = extrude(&boss_profile, Extrusion::Distance(1.6), tol)
-        .unwrap()
-        .body;
+    let boss = three_arc_cylinder(p2(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
     let mut body = plate.clone();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();

@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::slab as plate;
+use crate::common::operands::{slab as plate, three_arc_cylinder};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -28,19 +28,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// the plate), extruded 1.2: it pierces the top face transversally
 /// and pokes out to z = 1.6.
 fn boss() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan(); // bulge of a 120° arc
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.2), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(2.0, 2.0), 0.5, 0.4, 1.2, 0.0)
 }
 
 #[test]
@@ -124,19 +112,7 @@ fn the_curved_inventory_is_admitted_and_the_bogus_record_is_stale() {
 fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
     let a = plate();
     // The boss RESTING on the plate: sketched at the plate's top.
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let boss_on_top = extrude(&profile, Extrusion::Distance(0.6), Tol::witness())
-        .unwrap()
-        .body;
+    let boss_on_top = three_arc_cylinder(p2(2.0, 2.0), 0.5, 1.0, 0.6, 0.0);
     let mut body = a.clone();
     topo::graft_disjoint(&mut body, &boss_on_top, Tol::witness()).unwrap();
 
@@ -199,19 +175,7 @@ fn a_touching_curved_assembly_validates_declared_and_refuses_undeclared() {
 /// 60/180/300 degrees (all OFF the cradle's slab so no strut ever
 /// meets a cradle plane's region), sketched at z0, extruded by h.
 fn r1_pin(z0: f64, h: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(60.0), b120), (at(180.0), b120), (at(300.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(2.0, 2.0), 0.5, z0, h, 60.0)
 }
 
 /// The cradle: a slab with a 60-degree concave bite of radius 0.5
