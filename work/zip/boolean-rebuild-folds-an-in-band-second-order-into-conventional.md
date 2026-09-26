@@ -53,3 +53,24 @@ together.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## The same block reads the jet at stations it never gated first-order (ENCL sweep, 2026-09-26)
+
+Found by the sweep of
+`work/encl/must-carry-over-edge-reads-a-transverse-edge-as-under-determined.md`,
+which gave `geom_brep::must_carry_over_edge` a per-station first-order gate.
+`crates/topo/src/boolean/ops.rs` classifies the dihedral once, at the
+witness (`geom_brep::classify_dihedral(surf1, surf2, witness, …)`), and its
+`Smooth` arm then reads `geom_brep::tangent_jet` at every interior station of
+the `jet_determinate` block with no first-order reading there. A seam whose
+dihedral varies along it (smooth at the witness, a corner at a station) reaches
+the jet at a transverse station, where the jet's transverse direction
+`n̂₁ × τ̂` lies in `surf1`'s tangent plane only, so `κ_rel` — and the
+determinate/conventional answer — depends on which surface is `surf1`.
+Measured on the rule's own fixture (a plane crossing a cylinder at a right
+angle along a circle): `κ_rel = 1/r` with the plane first, `0` with the
+cylinder first. Not measured through a boolean; unlike the extrude strut and
+the revolve latitude join, a boolean seam has no ruling or symmetry that holds
+its dihedral constant, so the witness does not stand for the stations.
+Routing this block through `geom_brep::must_carry_over_edge` settles this
+defect too (a transverse station answers `MustCarryVerdict::Transverse`).

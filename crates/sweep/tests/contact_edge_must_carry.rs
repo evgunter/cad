@@ -4,12 +4,14 @@
 //! `geom_brep::must_carry_over_edge` is the one home of the rule that
 //! decides what description a definitely-smooth join carries: the jet
 //! certificate's lane gate, the certification schedule's interior
-//! stations, a three-way typed answer. A blend's contact edge — the
-//! band's tangent contact with its support, and the corner ball's with
-//! its band — is such a join, and `attach_contact` routes its
-//! intrinsic arm through the rule: jet-determinate stores
-//! `TangentIntersection`, under-determined stores the conventional
-//! chart image, in-band refuses typed at the blend door.
+//! stations, each gated first-order before it is read second-order,
+//! and a typed verdict. A blend's contact edge — the band's tangent
+//! contact with its support, and the corner ball's with its band — is
+//! such a join, and `attach_contact` routes its intrinsic arm through
+//! the rule: jet-determinate stores `TangentIntersection`,
+//! under-determined stores the conventional chart image, in-band
+//! refuses typed at the blend door, and a transverse station refuses
+//! `BlendError::SurgeryInvariant` (the smooth premise refuted).
 //!
 //! # The closed form, and where it collapses
 //!
