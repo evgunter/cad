@@ -22,6 +22,7 @@ pub(crate) mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
+    use crate::common::operands::m5_boss;
     use geom::Surface;
     use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
     use profile::{
@@ -67,30 +68,6 @@ pub(crate) mod certified {
         )
     }
 
-    /// The three-arc cylindrical boss at (1.2, 1.7), sketched at `z0`.
-    fn boss(z0: f64, len: f64) -> Body<Interval> {
-        let theta = 2.0 * PI / 3.0;
-        let bulge = iv((theta / 4.0).tan());
-        let at = |i: usize| {
-            let th = theta * i as f64;
-            p2(1.2 + R * th.cos(), 1.7 + R * th.sin())
-        };
-        // Three equal 120° arcs: every vertex leaves with the same
-        // bulge, the third one closing the circle.
-        let lp = bulge_loop::<Interval>(vec![(at(0), bulge), (at(1), bulge), (at(2), bulge)]);
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
-            iv(0.0),
-            iv(0.0),
-            iv(z0),
-        )));
-        let vp = Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
-        extrude(&vp, Extrusion::Distance(iv(len)), Tol::witness())
-            .unwrap()
-            .body
-    }
-
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
     /// wall — S11's `sense: false` arc wall at the certified scalar.
     fn notched() -> Body<Interval> {
@@ -132,7 +109,7 @@ pub(crate) mod certified {
     /// sphere or cylinder chart would show up immediately here).
     #[test]
     fn interval_curved_revert_is_bitwise() {
-        for body in [boss(0.0, 1.0), notched()] {
+        for body in [m5_boss(3, 0.0, 1.0), notched()] {
             let original = format!("{body:?}");
             let rev = body.revert().unwrap();
             assert_eq!(
@@ -165,7 +142,7 @@ pub(crate) mod certified {
     #[test]
     fn interval_curved_subtract_and_intersect_decide_definitely() {
         let a = plate();
-        let b = boss(0.3, 1.0);
+        let b = m5_boss(3, 0.3, 1.0);
         let cut =
             topo::subtract(&a, &b, Tol::witness()).expect("curved subtract decides at Interval");
         let cut = &cut.body().expect("a body").body;
@@ -326,7 +303,7 @@ pub(crate) mod certified {
             );
             // The cylinder class is unaffected by the arc-chain width
             // and still decides at this scalar.
-            assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
+            assert!(topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok());
             return;
         }
         let cut = cut.expect("S13: the sphere class decides");
@@ -351,6 +328,6 @@ pub(crate) mod certified {
         );
         // And the cylinder class still decides at this scalar (S13
         // opens a class, it does not trade one away).
-        assert!(topo::subtract(&plate(), &boss(0.3, 1.0), Tol::witness()).is_ok());
+        assert!(topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok());
     }
 }

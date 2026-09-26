@@ -32,6 +32,7 @@
 //!   fixture and belongs with the surgery vocabulary that reads it.
 
 use geom_core::{Decide, Point2, Tol};
+use profile::test_support::bulge_loop;
 use sweep::test_support::{block, brick, extruded, prism, sketch_at};
 use topo::Body;
 
@@ -86,6 +87,37 @@ pub fn three_arc_cylinder(
         height,
         Tol::witness(),
     )
+}
+
+/// **The M5 boss**: a cylinder of radius 0.35 about `centre`, its
+/// circle authored as `n` equal arcs indexed in RADIANS (joint `i` at
+/// `2π·i/n`), extruded `len` from a sketch plane lifted to `z0`, at any
+/// scalar the extrusion takes. Not [`three_arc_cylinder`] at `n = 3`:
+/// that door places its joints through `to_radians` from degrees, and
+/// the two spellings are different bits.
+pub fn n_arc_boss<T: Decide>(centre: Point2<f64>, n: usize, z0: f64, len: f64) -> Body<T> {
+    let theta = 2.0 * core::f64::consts::PI / n as f64;
+    let bulge = T::from_f64((theta / 4.0).tan());
+    let at = |i: usize| {
+        let th = theta * i as f64;
+        Point2::new(
+            T::from_f64(centre.x + 0.35 * th.cos()),
+            T::from_f64(centre.y + 0.35 * th.sin()),
+        )
+    };
+    extruded(
+        sketch_at(T::from_f64(z0)),
+        vec![bulge_loop((0..n).map(|i| (at(i), bulge)).collect())],
+        T::from_f64(len),
+        Tol::witness(),
+    )
+}
+
+/// [`n_arc_boss`] at `(1.2, 1.7)`: the boss the M5 curved-op suites
+/// (`m5_s12_curved_ops`, its interval twin, and the PR 9 boss review)
+/// cut from and union onto their 3 × 3 plate.
+pub fn m5_boss<T: Decide>(n: usize, z0: f64, len: f64) -> Body<T> {
+    n_arc_boss(Point2::new(1.2, 1.7), n, z0, len)
 }
 
 /// A three-arc cylinder standing on [`plate6`]'s midline: radius `r`
