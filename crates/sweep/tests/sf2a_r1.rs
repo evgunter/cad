@@ -254,13 +254,9 @@ fn r1c_chamfered_cube_is_a_valence_four_planar_corner() {
     );
     // The valence census: distinct planes at each vertex.
     let mut hist: std::collections::BTreeMap<usize, usize> = std::collections::BTreeMap::new();
-    for (vk, v) in chamfered.vertices() {
-        let Some(em) = v.emanating else { continue };
-        let orbit = chamfered.vertex_orbit(em).expect("orbit");
+    for (vk, _) in chamfered.vertices() {
         let mut ns: Vec<Vec3<f64>> = Vec::new();
-        for he in orbit {
-            let lk = chamfered.get_half_edge(he).unwrap().parent_loop;
-            let fk = chamfered.get_loop(lk).unwrap().face;
+        for fk in chamfered.faces_of_vertex(vk).expect("orbit") {
             let f = chamfered.get_face(fk).unwrap();
             if let Some(geom::Surface::Plane { normal, .. }) = chamfered.get_surface(f.surface)
                 && !ns.iter().any(|n| (*n - *normal).norm() < 1e-12)

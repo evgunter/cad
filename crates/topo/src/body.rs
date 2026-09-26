@@ -52,6 +52,23 @@
 //! body lineages is the documented hazard here, and the accessors cannot
 //! catch it. The flip side of this same coin is load-bearing — see the
 //! [`Body`] docs on lineage-scoped keys.
+//!
+//! **What a foreign key costs depends on what the door does with it.**
+//! A foreign key that lands on a live slot passes the resolution, and
+//! from there:
+//!
+//! - **A door that reads the key's own slot** — an arena lookup, or a
+//!   side table kept parallel to an arena (provenance, origins, pcurves,
+//!   null-face marks) — hands back one wrong entity's row.
+//! - **A door that chains lookups** carries the foreign key onward
+//!   instead of stopping it. Each later hop reads a native key from the
+//!   wrong entity and resolves cleanly, so the answer is well-formed and
+//!   about the wrong entity: the owner, mate or end vertex THAT entity
+//!   names.
+//! - **A door that answers a collection** — the members a key owns, or
+//!   the cycle or orbit a walk from it closes — hands back another
+//!   entity's whole collection, which the caller goes on to treat as its
+//!   own.
 
 use geom::Surface;
 use geom_brep::{EdgeCurve, EdgeDescription, PcurveCache};
@@ -108,7 +125,7 @@ pub(crate) enum Walk {
 /// # Lineage-scoped keys (one coin, two faces)
 ///
 /// A key's identity is meaningful only within the lineage of the body that
-/// minted it (see the [module docs](self) on stale-vs-foreign keys): a key
+/// minted it (see [stale vs. foreign keys](self#key-validity-stale-vs-foreign)): a key
 /// crossing into an *unrelated* body is the documented hazard, silently
 /// resolvable to an arbitrary entity. The very same property is
 /// load-bearing in the other direction. Two bodies built from an identical
@@ -557,18 +574,21 @@ impl<T: Real> Body<T> {
     /// an import, a hand-built description, a kernel-derived one and a
     /// CLEARED one whose re-stamp never ran; [`Body::surface_origin`]
     /// is the total read that separates them.
+    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn surface_source(&self, key: SurfaceKey) -> Option<&GeomSource> {
         self.surface_origins.get(key)?.source()
     }
 
     /// The recipe source of a curve description ([`Body::surface_source`]),
-    /// with the same caveat on `None` ([`Body::curve_origin`]).
+    /// with the same caveat on `None` ([`Body::curve_origin`]);
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn curve_source(&self, key: CurveKey) -> Option<&GeomSource> {
         self.curve_origins.get(key)?.source()
     }
 
     /// The recipe source of a point ([`Body::surface_source`]), with the
-    /// same caveat on `None` ([`Body::point_origin`]).
+    /// same caveat on `None` ([`Body::point_origin`]);
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn point_source(&self, key: PointKey) -> Option<&GeomSource> {
         self.point_origins.get(key)?.source()
     }
@@ -580,6 +600,7 @@ impl<T: Real> Body<T> {
     /// failing to resolve, the same answer [`Body::get_face`] and every
     /// other lookup on this type gives a stale key. A live description
     /// always has an origin, and that is the point of the door.
+    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// # Panics
     ///
@@ -600,7 +621,7 @@ impl<T: Real> Body<T> {
     }
 
     /// Where the curve description at `key` came from
-    /// ([`Body::surface_origin`]).
+    /// ([`Body::surface_origin`]); [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// # Panics
     ///
@@ -617,7 +638,8 @@ impl<T: Real> Body<T> {
         }))
     }
 
-    /// Where the point at `key` came from ([`Body::surface_origin`]).
+    /// Where the point at `key` came from ([`Body::surface_origin`]);
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// # Panics
     ///
@@ -716,6 +738,7 @@ impl<T: Real> Body<T> {
     /// body answers `None` everywhere. Absence NEVER certifies
     /// anything — it routes the general rung
     /// ([`crate::param_source::field_source_evidence`]).
+    /// [A foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn surface_field_source(
         &self,
         key: SurfaceKey,
@@ -850,28 +873,26 @@ impl<T: Real> Body<T> {
 
     // ------------------------------------------------------------------
     // Lookup. Total: a stale key yields `None`, never a panic. A foreign
-    // key is NOT caught — it may resolve to an arbitrary entity (see the
-    // module docs on stale-vs-foreign keys).
+    // key is not caught; what it costs is the module docs' `Key validity`
+    // section.
     // ------------------------------------------------------------------
 
-    /// The solid at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The solid at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_solid(&self, key: SolidKey) -> Option<&Solid> {
         self.solids.get(key)
     }
 
-    /// The shell at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The shell at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_shell(&self, key: ShellKey) -> Option<&Shell> {
         self.shells.get(key)
     }
 
     /// The solid owning `face` — through its shell's back-pointer — or
     /// `None` where the face or its shell does not resolve. A foreign
-    /// key is not caught (see the [module docs](self)), and this door
-    /// composes TWO lookups, so a foreign face key does not stop at
-    /// the first hop: it resolves to whatever face the arena's slot
-    /// holds and answers about the shell THAT face names.
+    /// face key is not stopped at the first hop: this door
+    /// [chains lookups](self#key-validity-stale-vs-foreign).
     ///
     /// **`None` is the only refusal this door can make**, and it is a
     /// `&self` read, so three shapes of caller keep a hand-written
@@ -901,11 +922,8 @@ impl<T: Real> Body<T> {
 
     /// The faces of `solid`, in slot-index order (deterministic per D9
     /// — the order [`Body::faces`] yields), or `None` where the solid
-    /// key does not resolve. A foreign key is not caught (see the
-    /// [module docs](self)), and here that costs more than at a
-    /// single-entity lookup: a foreign `SolidKey` landing on a live
-    /// slot passes the resolution and this door hands back **another
-    /// solid's face list** as though it were the caller's.
+    /// key does not resolve. Given a foreign `SolidKey` on a live slot,
+    /// it [answers another solid's face list](self#key-validity-stale-vs-foreign).
     ///
     /// [`Body::solid_of_face`]'s inverse, and
     /// [`crate::query::all_faces`] restricted to one solid. It selects
@@ -940,12 +958,9 @@ impl<T: Real> Body<T> {
     }
 
     /// The shells of `solid`, **in the order the solid lists them**,
-    /// or `None` where the solid key does not resolve. A foreign key
-    /// is not caught, and the consequence
-    /// [`Body::faces_of_solid`] spells out for a `SolidKey` — a
-    /// foreign key landing on a live slot passes the resolution and
-    /// the caller is handed another solid's entities — holds here
-    /// identically, for the shells.
+    /// or `None` where the solid key does not resolve. The list is a
+    /// collection the key owns, so
+    /// [a foreign `SolidKey` returns another solid's shells](self#key-validity-stale-vs-foreign).
     ///
     /// This is a read of the STORED ownership list — [`Solid::shells`]
     /// itself — so it borrows rather than building: no caller pays an
@@ -980,25 +995,24 @@ impl<T: Real> Body<T> {
 
     /// The face owning `he`'s loop — through the half-edge's
     /// [`HalfEdge::parent_loop`] back-pointer and that loop's
-    /// [`Loop::face`] — or `None` where either key is stale. A foreign
-    /// key is not caught (see the [module docs](self)), and this door
-    /// composes TWO lookups, so a foreign half-edge key does not stop
-    /// at the first hop: it resolves to whatever half-edge the arena's
-    /// slot holds and answers about the loop THAT half-edge names.
+    /// [`Loop::face`] — or `None` where either key is stale. Both hops
+    /// are lookups, so
+    /// [a foreign half-edge key passes through them](self#key-validity-stale-vs-foreign)
+    /// rather than being caught.
     ///
     /// **`None` is the only refusal this door can make**, so a caller
-    /// whose own refusal distinguishes the hops — naming which key
-    /// went stale — keeps its own walk: collapsing it here would
-    /// replace a refusal that identifies an entity with one that does
-    /// not. That is a population, not an exception.
+    /// whose own refusal names which key went stale — the half-edge's,
+    /// or the loop it points at — keeps its own walk: collapsing it here
+    /// would replace a refusal that identifies an entity with one that
+    /// does not.
     #[must_use]
     pub fn face_of_half_edge(&self, he: HalfEdgeKey) -> Option<FaceKey> {
         self.get_loop(self.get_half_edge(he)?.parent_loop)
             .map(|l| l.face)
     }
 
-    /// The face at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The face at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_face(&self, key: FaceKey) -> Option<&Face> {
         self.faces.get(key)
     }
@@ -1022,7 +1036,8 @@ impl<T: Real> Body<T> {
     /// chart normal?". Tier-3 validation is *expected to refuse* such a
     /// body; that refusal is one of the acceptance rows.
     ///
-    /// Returns `None` iff `face` is stale.
+    /// Returns `None` if `face` is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     #[doc(hidden)]
     #[must_use]
     pub fn flipped_face_sense_for_tests(&self, face: FaceKey) -> Option<Self> {
@@ -1044,7 +1059,8 @@ impl<T: Real> Body<T> {
     /// No constructor, operator or validator produces or accepts this
     /// body; it exists only to be refused.
     ///
-    /// Returns `None` iff `entity` is stale.
+    /// Returns `None` if `entity` is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     #[cfg(feature = "sweep-testing")]
     #[doc(hidden)]
     #[must_use]
@@ -1062,61 +1078,62 @@ impl<T: Real> Body<T> {
         removed.then_some(out)
     }
 
-    /// The loop at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The loop at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// (`get_loop`, like all lookups here, keeps the `get_` prefix partly
     /// for uniformity and partly because `loop` is a Rust keyword.)
     pub fn get_loop(&self, key: LoopKey) -> Option<&Loop> {
         self.loops.get(key)
     }
 
-    /// The half-edge at `key`, or `None` if the key is stale (a foreign
-    /// key is not caught — see the [module docs](self)).
+    /// The half-edge at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_half_edge(&self, key: HalfEdgeKey) -> Option<&HalfEdge> {
         self.half_edges.get(key)
     }
 
-    /// The edge at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The edge at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_edge(&self, key: EdgeKey) -> Option<&Edge> {
         self.edges.get(key)
     }
 
     /// The D5 birth record of a live edge (M4 PR 3: the naming layer
     /// reads `SplitEdge` parentage from here — birth data, never
-    /// inspection). `None` iff the key is stale.
+    /// inspection). `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn edge_provenance_of(&self, key: EdgeKey) -> Option<&Provenance> {
         self.edge_provenance.get(key)
     }
 
     /// The D5 birth record of a live vertex (see
-    /// [`Body::edge_provenance_of`]).
+    /// [`Body::edge_provenance_of`]); [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn vertex_provenance_of(&self, key: VertexKey) -> Option<&Provenance> {
         self.vertex_provenance.get(key)
     }
 
     /// The D5 birth record of a live face (see
-    /// [`Body::edge_provenance_of`]).
+    /// [`Body::edge_provenance_of`]); [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn face_provenance_of(&self, key: FaceKey) -> Option<&Provenance> {
         self.face_provenance.get(key)
     }
 
-    /// The vertex at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The vertex at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_vertex(&self, key: VertexKey) -> Option<&Vertex> {
         self.vertices.get(key)
     }
 
-    /// The point at `key`, or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// The point at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_point(&self, key: PointKey) -> Option<&Point3<T>> {
         self.points.get(key)
     }
 
     /// The curve-arena entry at `key` — a certified carrier or M3
-    /// null-edge scaffolding ([`CurveGeom`], the arena's element type
-    /// since M3 PR 1) — or `None` if the key is stale (a foreign key is
-    /// not caught — see the [module docs](self)).
+    /// null-edge scaffolding ([`CurveGeom`], the arena's element type)
+    /// — or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     ///
     /// There is deliberately **no** accessor that silently narrows to a
     /// certified [`EdgeCurve`]: consumers that need a real carrier
@@ -1126,14 +1143,14 @@ impl<T: Real> Body<T> {
         self.curves.get(key)
     }
 
-    /// The surface geometry at `key`, or `None` if the key is stale (a
-    /// foreign key is not caught — see the [module docs](self)).
+    /// The surface geometry at `key`, or `None` if the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn get_surface(&self, key: SurfaceKey) -> Option<&Surface<T>> {
         self.surfaces.get(key)
     }
 
     /// The D5 provenance of a topology entity, or `None` if the key is
-    /// stale (a foreign key is not caught — see the [module docs](self)).
+    /// stale; [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     /// Always `Some` for a live entity: the builder API
     /// records provenance at every insertion, so an entity without
     /// provenance is unrepresentable.
@@ -1163,6 +1180,8 @@ impl<T: Real> Body<T> {
     /// bijection — the validator reports it as its own error). On a
     /// *corrupt* body the returned key is whatever the edge's other slot
     /// holds and may itself be stale; callers resolve it like any key.
+    /// A foreign `he` is not caught, and the edge hop
+    /// [carries it onward](self#key-validity-stale-vs-foreign) to another half-edge's mate.
     pub fn mate(&self, he: HalfEdgeKey) -> Option<HalfEdgeKey> {
         let half_edge = self.half_edges.get(he)?;
         let edge = self.edges.get(half_edge.edge)?;
@@ -1177,7 +1196,8 @@ impl<T: Real> Body<T> {
 
     /// The end vertex of `he`, derived as `start(next(he))` — end
     /// vertices are never stored (see [`HalfEdge`]). `None` if `he` or
-    /// its `next` is stale.
+    /// its `next` is stale; a foreign `he`
+    /// [passes through both hops](self#key-validity-stale-vs-foreign) uncaught.
     pub fn half_edge_end(&self, he: HalfEdgeKey) -> Option<VertexKey> {
         let half_edge = self.half_edges.get(he)?;
         let next = self.half_edges.get(half_edge.next)?;
@@ -1189,7 +1209,8 @@ impl<T: Real> Body<T> {
     /// **Bounded** (D9): the walk caps at the half-edge arena length and
     /// returns `None` if the cycle fails to close within the bound, if a
     /// link is stale, or if `he` itself is stale — it never spins on a
-    /// corrupted body.
+    /// corrupted body. A foreign `he` on a live slot
+    /// [walks another loop's cycle](self#key-validity-stale-vs-foreign) and returns it whole.
     pub fn loop_cycle(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.loop_walk(he) {
             Walk::Closed(members) => Some(members),
@@ -1211,12 +1232,85 @@ impl<T: Real> Body<T> {
     /// stale keys, a broken mate (corrupt edge ↔ half-edge bijection), or
     /// non-closure within the bound. On a *valid* body the orbit always
     /// closes and visits exactly the half-edges starting at the vertex
-    /// (the validator's manifoldness check).
+    /// (the validator's manifoldness check). A foreign `he` on a live
+    /// slot [walks another vertex's orbit](self#key-validity-stale-vs-foreign).
     pub fn vertex_orbit(&self, he: HalfEdgeKey) -> Option<Vec<HalfEdgeKey>> {
         match self.orbit_walk(he) {
             Walk::Closed(members) => Some(members),
             Walk::Broken | Walk::Overrun => None,
         }
+    }
+
+    /// The edges meeting `vertex`, each ONCE — or `None` where the
+    /// vertex key is stale or its orbit does not walk
+    /// ([`Body::vertex_orbit`]'s `None`). A foreign key on a live slot
+    /// [answers another vertex's edges](self#key-validity-stale-vs-foreign).
+    ///
+    /// **The order is the orbit's, and it is part of the answer**: the
+    /// walk starts at the vertex's stored [`Vertex::emanating`] and goes
+    /// clockwise ([`Body::vertex_orbit`]), and each edge sits where the
+    /// walk FIRST reaches it. An edge both of whose half-edges start
+    /// here — a closed edge whose one vertex is this one — is reached
+    /// twice and listed once. A caller that wants a set sorts; the
+    /// orbit order cannot be recovered from a sorted list, so the door
+    /// does not sort for it.
+    ///
+    /// **The empty list and the refusal are different answers**, as at
+    /// [`Body::faces_of_solid`]: a vertex with no emanating half-edge
+    /// (the lone vertex `mvfs` leaves) meets no edge, which is a body
+    /// state, and a stale key or a broken orbit is not.
+    ///
+    /// **`None` is the only refusal this door can make**, so a caller
+    /// whose refusal names WHICH hop failed keeps its own walk
+    /// ([`Body::face_of_half_edge`] states the rule).
+    #[must_use]
+    pub fn edges_of_vertex(&self, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
+        self.orbit_projection(vertex, |he| self.get_half_edge(he).map(|h| h.edge))
+    }
+
+    /// The faces around `vertex`, each ONCE, in the order the orbit
+    /// first reaches them — [`Body::edges_of_vertex`]'s walk projected
+    /// through [`Body::face_of_half_edge`] instead of onto the edge. A
+    /// foreign key on a live slot
+    /// [answers another vertex's faces](self#key-validity-stale-vs-foreign).
+    ///
+    /// The order, and the empty list for a vertex with no emanating
+    /// half-edge, are the edge door's. **The refusals are the edge
+    /// door's two and a THIRD**: `None` also where a half-edge of the
+    /// orbit names a loop that does not resolve — the edge door reads
+    /// no loop and answers there, so on such a body the two doors
+    /// disagree about whether the vertex can be read at all.
+    ///
+    /// A face can be reached more than once: a strut leaves one face on
+    /// both sides of an edge at the vertex, and so does a seam meridian
+    /// on a face that closes around its own chart. It is listed at its
+    /// first reach. A caller that wants the distinct SURFACES reads each
+    /// face's [`Face::surface`] and dedups that — two faces can wear one
+    /// chart, so the surface count is not this list's length.
+    #[must_use]
+    pub fn faces_of_vertex(&self, vertex: VertexKey) -> Option<Vec<FaceKey>> {
+        self.orbit_projection(vertex, |he| self.face_of_half_edge(he))
+    }
+
+    /// The engine of the two vertex doors: `project` over the vertex's
+    /// orbit, each value kept at its first appearance; `None` on a
+    /// stale vertex, a broken orbit, or a projection that refuses.
+    fn orbit_projection<K: PartialEq>(
+        &self,
+        vertex: VertexKey,
+        project: impl Fn(HalfEdgeKey) -> Option<K>,
+    ) -> Option<Vec<K>> {
+        let Some(first) = self.get_vertex(vertex)?.emanating else {
+            return Some(Vec::new());
+        };
+        let mut out: Vec<K> = Vec::new();
+        for he in self.vertex_orbit(first)? {
+            let k = project(he)?;
+            if !out.contains(&k) {
+                out.push(k);
+            }
+        }
+        Some(out)
     }
 
     /// Bounded loop-cycle walk with the three-way outcome the validator
@@ -1335,7 +1429,8 @@ impl<T: Real> Body<T> {
 
     /// The stored pcurve cache of `half_edge`, or `None` when the
     /// half-edge stores none (derive it on demand through
-    /// [`crate::pcurves::pcurve_of`]).
+    /// [`crate::pcurves::pcurve_of`]) or the key is stale;
+    /// [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn pcurve(&self, half_edge: HalfEdgeKey) -> Option<&PcurveCache<T>> {
         self.pcurves.get(half_edge)
     }
@@ -1379,7 +1474,7 @@ impl<T: Real> Body<T> {
     }
 
     /// The F9 null-face annotation of `face`, or `None` if the face is
-    /// not marked (or the key is stale).
+    /// not marked (or the key is stale); [a foreign key is not caught](self#key-validity-stale-vs-foreign).
     pub fn null_face_pair(&self, face: FaceKey) -> Option<&NullFacePair> {
         self.null_faces.get(face)
     }
@@ -1403,7 +1498,7 @@ mod tests {
     use super::*;
     use crate::EntityId;
     use crate::ReplaceFaceError;
-    use crate::fixtures::{mvfs_state, pillow, prov, refile_shells};
+    use crate::fixtures::{mvfs_state, ops_strut_cube, pillow, prov, refile_shells};
     use geom_core::Tol;
 
     fn origin() -> Point3<f64> {
@@ -1864,6 +1959,71 @@ mod tests {
             assert_eq!(t.body.get_half_edge(he).unwrap().start, t.vertices[0]);
         }
         assert_eq!(t.body.vertex_orbit(HalfEdgeKey::default()), None);
+    }
+
+    /// The vertex doors answer the orbit's projection, each entity once
+    /// at its FIRST reach, in orbit order — pinned against the orbit
+    /// itself rather than against a sorted set, so a door that sorted,
+    /// kept a repeat, or started elsewhere in the fan reds here. The
+    /// strut's root is the vertex where a face repeats: the top face
+    /// lies on both sides of the strut.
+    #[test]
+    fn the_vertex_doors_project_the_orbit_once_each_in_orbit_order() {
+        let s = ops_strut_cube(Tol::witness());
+        let body = &s.body;
+        fn first_reach<K: PartialEq>(raw: Vec<K>) -> Vec<K> {
+            let mut out = Vec::new();
+            for k in raw {
+                if !out.contains(&k) {
+                    out.push(k);
+                }
+            }
+            out
+        }
+        let root = body.get_half_edge(s.strut.he_plus).unwrap().start;
+        let tip = body.get_half_edge(s.strut.he_minus).unwrap().start;
+        for (v, edges, faces) in [(root, 4, 3), (tip, 1, 1)] {
+            let orbit = body
+                .vertex_orbit(body.get_vertex(v).unwrap().emanating.unwrap())
+                .unwrap();
+            let raw_edges: Vec<EdgeKey> = orbit
+                .iter()
+                .map(|h| body.get_half_edge(*h).unwrap().edge)
+                .collect();
+            let raw_faces: Vec<FaceKey> = orbit
+                .iter()
+                .map(|h| body.face_of_half_edge(*h).unwrap())
+                .collect();
+            let got_edges = body.edges_of_vertex(v).unwrap();
+            let got_faces = body.faces_of_vertex(v).unwrap();
+            assert_eq!(got_edges, first_reach(raw_edges));
+            assert_eq!(got_faces, first_reach(raw_faces.clone()));
+            assert_eq!((got_edges.len(), got_faces.len()), (edges, faces));
+            if v == root {
+                assert_eq!(raw_faces.len(), 4, "the root's orbit reaches a face twice");
+            }
+        }
+
+        // A lone vertex meets nothing, and says so rather than refusing.
+        let lone = mvfs_state();
+        assert_eq!(lone.body.edges_of_vertex(lone.vertex), Some(vec![]));
+        assert_eq!(lone.body.faces_of_vertex(lone.vertex), Some(vec![]));
+
+        // A stale vertex, a broken orbit, and a face projection that
+        // does not resolve each refuse — the last only on the face door.
+        assert_eq!(body.edges_of_vertex(VertexKey::default()), None);
+        assert_eq!(body.faces_of_vertex(VertexKey::default()), None);
+        let mut broken = s.body.clone();
+        broken.get_half_edge_mut(s.strut.he_minus).unwrap().next = HalfEdgeKey::default();
+        assert_eq!(broken.edges_of_vertex(root), None);
+        assert_eq!(broken.faces_of_vertex(root), None);
+        let mut orphan = s.body.clone();
+        orphan
+            .get_half_edge_mut(s.strut.he_plus)
+            .unwrap()
+            .parent_loop = LoopKey::default();
+        assert!(orphan.edges_of_vertex(root).is_some());
+        assert_eq!(orphan.faces_of_vertex(root), None);
     }
 
     #[test]

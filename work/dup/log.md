@@ -2202,3 +2202,47 @@ slate is all P4 but one P1 and one P3). Recommendation, put to Ev in
 chat: cut the population rows (the ones that are "route the rest of a
 class onto a door that already exists") into their own program, which
 lands under budget, and let S-DUP keep the rows that still need a door.
+
+## 2026-09-26 — S-REROUTE is cut, and the sixth batch goes out as one PR
+
+Ev approved splits of this kind without asking first ("yes you can do such splits without
+asking"). #3298 moved seven route-the-rest rows by `git mv` into the new
+`work/reroute/` program (11.5/30, ready), and `dup` now reads 29/30.
+The cut is on the kind seam, stated in `work/reroute/plan.md`.
+
+The sixth batch is three lanes on disjoint crates. It lands as one
+combined PR gated on a local run with `[skip ci]` (Ev, 2026-09-26):
+
+| lane | rows | fence |
+|---|---|---|
+| a | edges at a vertex (P1 D); a solid's charts as a move set (P4 D) | sweep |
+| b | corpus pick walks; viewer/src literal doors; cross-crate pick rays (P4 D ×3) | viewer, bvh + editor-core pick helpers |
+| c | the stale-vs-foreign key clause (P4 D); the Step-program map door (P4 D) | topo/src Body doors, profile, editor-core Step walks |
+
+These rows are held back, and why:
+- The two P4 H/D cross-crate populations (`Expr::literal` in 63 files,
+  per-component point lifts) touch every fence, so they go after this batch.
+- Two rows need Ev: the policy-memory citation and the fixture routing rule.
+- The error-arm row needs a designer pass before its `[ev]` PR.
+- The PR 17 attribution row touches the attribution sentence the orchestrator is
+  told to leave alone.
+
+### The full local matrix, measured end to end (#3284's merge ref)
+
+This is the first complete local run: 39 rows, about 7.5 hours on 4 cores
+with lane builds beside it.
+- **Test matrix:** all three eps rows ran 8192/8192, and the viewer app row
+  978/978.
+- **Other passes:** doc-tests, rustdoc, wasm, k-lint, tess-budget and python.
+- **Two FAILs, neither the tree's:**
+  - *corrupt input (release profile).* The local half had rotted away from
+    hosted. It lacked `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, so the
+    release-only row never compiled, and it lacked the `review_d18` filter.
+    The parity reader passed both. The batch-6 PR fixes the row and adds the
+    variable to the reader's `SEMANTIC_ENV`, which a plant confirms. The
+    filter half is filed to `mirror`.
+  - *sheet drift.* A render re-baseline landed on main after the ref was
+    cut, and the local output is byte-identical to main's. A gating run
+    must be taken on a fresh merge with main.
+- **step import** is a loud SKIP-as-PASS, because this box has no FreeCAD.
+  Hosted is the gate of record for STEP.
