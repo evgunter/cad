@@ -1,0 +1,4 @@
+fork: the-apothems-sign-is-a-value-read (DECIDE)
+dispatched: 2026-09-26
+byte: 13
+mapping: A=fable B=opus
