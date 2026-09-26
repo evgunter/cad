@@ -1870,6 +1870,130 @@ transition_table! {
     }
 }
 
+impl<T: Real> Step<T> {
+    /// **The same recorded step, read at another scalar**: every scalar
+    /// the author wrote goes through `f`, and every structural field —
+    /// a target's form, an arc's winding and side, a split count — is
+    /// carried verbatim.
+    ///
+    /// Named by `geom`'s `scalar_lift` convention, as
+    /// [`ProfileLoop::map_scalar`] is: `map_scalar` on a type with
+    /// structure to carry, [`Point2::map`] at the leaves. It is a
+    /// structural map and performs no arithmetic, so it is exact
+    /// wherever `f` is — `U::from_f64` embeds a recorded `f64` program
+    /// at a lane scalar for [`replay`] to run there.
+    ///
+    /// `f` reaches lengths, angles and bulges alike, so this is a
+    /// change of SCALAR, never of geometry: a similarity scale, which
+    /// moves lengths and leaves angles and bulges, is not spelled with
+    /// it.
+    ///
+    /// Exhaustive over the step vocabulary, the arc-spec modes and the
+    /// target forms, with no wildcard arm, so a variant any of the three
+    /// gains fails to compile here rather than falling through.
+    #[must_use]
+    pub fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> Step<U> {
+        match self {
+            Step::At(p) => Step::At(p.map(&f)),
+            Step::Angle(theta) => Step::Angle(f(theta)),
+            Step::Toward { dx, dy } => Step::Toward {
+                dx: f(dx),
+                dy: f(dy),
+            },
+            Step::Tangent => Step::Tangent,
+            Step::Cusp => Step::Cusp,
+            Step::Turn(delta) => Step::Turn(f(delta)),
+            Step::Line(len) => Step::Line(f(len)),
+            Step::LineTo(t) => Step::LineTo(t.map_scalar(&f)),
+            Step::ContinueTo(t) => Step::ContinueTo(t.map_scalar(&f)),
+            Step::ArcTo(spec) => Step::ArcTo(spec.map_scalar(&f)),
+            Step::TangentArcTo(t) => Step::TangentArcTo(t.map_scalar(&f)),
+            Step::Fillet { radius } => Step::Fillet { radius: f(radius) },
+            Step::FilletArc { radius, spec } => Step::FilletArc {
+                radius: f(radius),
+                spec: spec.map_scalar(&f),
+            },
+            Step::ArcFillet { spec, radius } => Step::ArcFillet {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+            },
+            Step::ArcFilletArc {
+                spec,
+                radius,
+                spec2,
+            } => Step::ArcFilletArc {
+                spec: spec.map_scalar(&f),
+                radius: f(radius),
+                spec2: spec2.map_scalar(&f),
+            },
+            Step::FarEndTo(p) => Step::FarEndTo(p.map(&f)),
+            Step::CloseTo => Step::CloseTo,
+            Step::Circle { centre, radius } => Step::Circle {
+                centre: centre.map(&f),
+                radius: f(radius),
+            },
+            Step::CircleSplit {
+                centre,
+                radius,
+                n,
+                phase,
+            } => Step::CircleSplit {
+                centre: centre.map(&f),
+                radius: f(radius),
+                n,
+                phase: f(phase),
+            },
+        }
+    }
+}
+
+impl<T: Real> Target<T> {
+    /// The same target at another scalar — [`Step::map_scalar`]'s rung
+    /// for the target a verb or an arc spec carries. The form is
+    /// structural and travels unchanged.
+    pub(crate) fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> Target<U> {
+        match self {
+            Target::Point(p) => Target::Point(p.map(f)),
+            Target::Start => Target::Start,
+            Target::StartArriving => Target::StartArriving,
+        }
+    }
+}
+
+impl<T: Real> ArcData<T> {
+    /// The same arc spec at another scalar — [`Step::map_scalar`]'s
+    /// rung for the spec an arc verb carries. The mode, winding and
+    /// side are structural and travel unchanged.
+    pub(crate) fn map_scalar<U: Real>(self, f: impl Fn(T) -> U) -> ArcData<U> {
+        match self {
+            ArcData::Radius { r, side } => ArcData::Radius { r: f(r), side },
+            ArcData::Bulge { target, b } => ArcData::Bulge {
+                target: target.map_scalar(&f),
+                b: f(b),
+            },
+            ArcData::Via { q, target } => ArcData::Via {
+                q: q.map(&f),
+                target: target.map_scalar(&f),
+            },
+            ArcData::Center { c, winding, target } => ArcData::Center {
+                c: c.map(&f),
+                winding,
+                target: target.map_scalar(&f),
+            },
+            ArcData::Sweep { r, side, angle } => ArcData::Sweep {
+                r: f(r),
+                side,
+                angle: f(angle),
+            },
+            ArcData::ArcLen { r, side, len } => ArcData::ArcLen {
+                r: f(r),
+                side,
+                len: f(len),
+            },
+        }
+    }
+}
+
 /// A closing verb's result: the lowered loop AND the program that
 /// produced it.
 ///

@@ -16,108 +16,11 @@
 use crate::common;
 
 use common::tol;
-use geom_core::{Point2, Real};
-use profile::{ArcData, ArcSweep, Center, Open, ProfileLoop, ReplayError, Step, Target, replay};
+use geom_core::Point2;
+use profile::{ArcSweep, Center, Open, ProfileLoop, ReplayError, Step, replay};
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
-}
-
-fn embed_step<T: Real>(step: &Step<f64>) -> Step<T> {
-    fn pt<T: Real>(p: Point2<f64>) -> Point2<T> {
-        p.map(T::from_f64)
-    }
-    fn tgt<T: Real>(t: Target<f64>) -> Target<T> {
-        match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        }
-    }
-    fn spec<T: Real>(s: ArcData<f64>) -> ArcData<T> {
-        match s {
-            ArcData::Radius { r, side } => ArcData::Radius {
-                r: T::from_f64(r),
-                side,
-            },
-            ArcData::Bulge { target, b } => ArcData::Bulge {
-                target: tgt(target),
-                b: T::from_f64(b),
-            },
-            ArcData::Via { q, target } => ArcData::Via {
-                q: pt(q),
-                target: tgt(target),
-            },
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            ArcData::Sweep { r, side, angle } => ArcData::Sweep {
-                r: T::from_f64(r),
-                side,
-                angle: T::from_f64(angle),
-            },
-            ArcData::ArcLen { r, side, len } => ArcData::ArcLen {
-                r: T::from_f64(r),
-                side,
-                len: T::from_f64(len),
-            },
-        }
-    }
-    match *step {
-        Step::At(p) => Step::At(pt(p)),
-        Step::Angle(theta) => Step::Angle(T::from_f64(theta)),
-        Step::Toward { dx, dy } => Step::Toward {
-            dx: T::from_f64(dx),
-            dy: T::from_f64(dy),
-        },
-        Step::Tangent => Step::Tangent,
-        Step::Cusp => Step::Cusp,
-        Step::Turn(delta) => Step::Turn(T::from_f64(delta)),
-        Step::Line(len) => Step::Line(T::from_f64(len)),
-        Step::LineTo(t) => Step::LineTo(tgt(t)),
-        Step::ContinueTo(t) => Step::ContinueTo(tgt(t)),
-        Step::ArcTo(s) => Step::ArcTo(spec(s)),
-        Step::TangentArcTo(t) => Step::TangentArcTo(tgt(t)),
-        Step::Fillet { radius } => Step::Fillet {
-            radius: T::from_f64(radius),
-        },
-        Step::FilletArc { radius, spec: s } => Step::FilletArc {
-            radius: T::from_f64(radius),
-            spec: spec(s),
-        },
-        Step::ArcFillet { spec: s, radius } => Step::ArcFillet {
-            spec: spec(s),
-            radius: T::from_f64(radius),
-        },
-        Step::ArcFilletArc {
-            spec: s,
-            radius,
-            spec2,
-        } => Step::ArcFilletArc {
-            spec: spec(s),
-            radius: T::from_f64(radius),
-            spec2: spec(spec2),
-        },
-        Step::FarEndTo(p) => Step::FarEndTo(pt(p)),
-        Step::CloseTo => Step::CloseTo,
-        Step::Circle { centre, radius } => Step::Circle {
-            centre: pt(centre),
-            radius: T::from_f64(radius),
-        },
-        Step::CircleSplit {
-            centre,
-            radius,
-            n,
-            phase,
-        } => Step::CircleSplit {
-            centre: pt(centre),
-            radius: T::from_f64(radius),
-            n,
-            phase: T::from_f64(phase),
-        },
-    }
 }
 
 /// My own fused tangency: 3-4-5 carriers, fillet radius 2/5.
@@ -144,7 +47,7 @@ fn my_eye() -> Vec<Step<f64>> {
 fn try_replay_at<T: profile::ArcCarrierScalar>(
     program: &[Step<f64>],
 ) -> Result<ProfileLoop<T>, ReplayError<T>> {
-    let embedded: Vec<Step<T>> = program.iter().map(embed_step).collect();
+    let embedded: Vec<Step<T>> = program.iter().map(|s| s.map_scalar(T::from_f64)).collect();
     replay(&embedded, tol())
 }
 
