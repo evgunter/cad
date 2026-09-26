@@ -699,3 +699,24 @@ a Sym registrant on a measured document; a lane is root-causing it on
 `encl/batch-split-loop-mustcarry`, which now reduces to main + 3295. The
 batch gate was stopped. Disk: `line-tables-only` plus no incremental
 kept its target at about 8 GB mid-matrix, against 20+ GB before.
+
+## 3295's red: diagnosed; the hypothesis was refuted (2026-09-26)
+
+(ENCL orchestrator) The failure was not a registrant: `registered`
+held on every document. The per-station `classify_dihedral` added in
+3295 asks one more decision (`dihedral_wedge`) at each of 7 interior
+stations. That comes to 16 gated edges on the pad (112 decisions: 28
+theorems and 84 numeric), 8 on the link and 4 on the bracket, the last
+two all numeric. Every one of the 28 calls reads `JetDeterminate` with
+or without the gate, so the built documents are unchanged, and the
+copysign census still stands. Fix: the gating pin
+`m10_9_pins_interval` pad `symbolic_zero` 854 → 882, with the measured
+cause beside it.
+
+Two ignored evidence rows were already red on main (`8ee3daf171`)
+before this batch, and the drift is unattributed. The lane had
+re-taken them, and the orchestrator reversed that part: the rows' own
+message calls drift "a finding, not a table to refresh", and absorbing
+it would erase what SYM bisects. Only the gate's own delta is applied,
+and the drift stays red (it does not gate). Filed on SYM:
+`ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
