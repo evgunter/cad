@@ -117,16 +117,24 @@
 # runs, so a narrowing can only ever make hosted gate LESS than this half,
 # never more, and there is nothing here for a request to buy.
 #
-# NOT MIRRORED, deliberately (2026-08-04): ci.yml's build jobs set
-# RUSTFLAGS=-C link-arg=-fuse-ld=mold and CARGO_PROFILE_{DEV,TEST}_DEBUG=
-# line-tables-only. Those are hosted-runner throughput knobs — they cut
-# the cost of the 261 test-binary links, they do not change which targets
-# compile or which tests run, so the local gate proves the same thing
-# without them. Mirroring them here would be actively wrong: it would
-# change local developer defaults (a system `mold`, and thinner local
-# debuginfo than a debugging session wants), and gate.sh unsets RUSTFLAGS
-# on purpose to keep its warm target/ from re-fingerprinting. See the
-# LINK/DEBUGINFO note at the top of ci.yml for the measurement.
+# DEBUGINFO IS line-tables-only HERE TOO (Ev, 2026-09-26). ci.yml's build
+# jobs set CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only, and this script
+# now sets the same two below, as defaults a caller may override. A full
+# local run on a cloud box peaked at 27 GB of target/ with full DWARF,
+# enough to fill the disk mid-gate. Line tables keep file:line in a failing
+# test's backtrace, which is what a local gate needs; full DWARF buys only an
+# interactive debugger, and a debugging session sets its own profile.
+#
+# STILL NOT MIRRORED, deliberately: ci.yml's CARGO_PROFILE_TEST_STRIP=
+# debuginfo (it exists for the hosted artifact quota, and here it would
+# take the line numbers out of a red test's backtrace) and the retired mold
+# link flag (a system `mold` is not a local prerequisite). Neither changes
+# which targets compile or which tests run. CARGO_INCREMENTAL is left to
+# the caller: `CARGO_INCREMENTAL=0` shrinks target/ further (the
+# incremental caches ran to about 7 GB of that 27), at the cost of warm
+# rebuilds. gate.sh unsets RUSTFLAGS on purpose to keep its warm target/
+# from re-fingerprinting. See the LINK/DEBUGINFO note at the top of ci.yml
+# for the measurement.
 #
 # ALSO NOT MIRRORED (2026-08-12): those jobs set
 # CARGO_PROFILE_{DEV,TEST}_OPT_LEVEL — 2 then, and 1 since 2026-08-25.
@@ -153,6 +161,10 @@
 # see its header for the caching guidance and RUSTFLAGS hazard).
 set -u
 cd "$(dirname "$0")/.."
+
+# Debuginfo as hosted CI builds it (see the header). Defaults, not overrides.
+export CARGO_PROFILE_DEV_DEBUG="${CARGO_PROFILE_DEV_DEBUG:-line-tables-only}"
+export CARGO_PROFILE_TEST_DEBUG="${CARGO_PROFILE_TEST_DEBUG:-line-tables-only}"
 
 # HOSTED CI IS THE GATE. This whole-matrix entry point refuses without an
 # explicit certification that hosted CI is unavailable. See
