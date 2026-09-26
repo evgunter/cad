@@ -7,6 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::{m5_boss, n_arc_boss};
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -33,25 +34,6 @@ fn plate() -> Body<f64> {
         .validate(Tol::witness())
         .unwrap();
     extrude(&profile, Extrusion::Distance(0.8), Tol::witness())
-        .unwrap()
-        .body
-}
-
-/// My boss: r = 0.35 at (1.2, 1.7), authored as `n` equal arcs,
-/// sketched at z0, extruded by len.
-fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
-    let theta = 2.0 * std::f64::consts::PI / n as f64;
-    let bulge = (theta / 4.0).tan();
-    let at = |i: usize| {
-        let th = theta * i as f64;
-        p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin())
-    };
-    let lp = bulge_loop((0..n).map(|i| (at(i), bulge)).collect());
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(len), Tol::witness())
         .unwrap()
         .body
 }
@@ -110,7 +92,7 @@ fn audit(body: &Body<f64>, expect_vol: f64, expect_seam_arcs: usize, seam_z: f64
 
 #[test]
 fn my_boss_union_all_the_way_down() {
-    let out = topo::union(&plate(), &boss(3, 0.3, 1.0), Tol::witness()).expect("union");
+    let out = topo::union(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).expect("union");
     let body = &out.body().expect("a body").body;
     let expect = 3.0 * 3.0 * 0.8 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     audit(body, expect, 3, 0.8);
@@ -127,14 +109,14 @@ fn my_boss_subtract_makes_a_blind_hole_honestly() {
     // flips from a refusal pin to the construction row it always wanted
     // to be, audited exactly like the union twin above: exact
     // closed-form volume, tier 3, intrinsic seam arcs, pcurve coverage.
-    let out = topo::subtract(&plate(), &boss(3, 0.3, 1.0), Tol::witness())
+    let out = topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness())
         .expect("curved subtract is live");
     let body = &out.body().expect("a body").body;
     // The pocket runs from z = 0.3 to the top face at z = 0.8.
     let expect = 3.0 * 3.0 * 0.8 - std::f64::consts::PI * 0.35 * 0.35 * 0.5;
     audit(body, expect, 3, 0.8);
     // Intersect takes the same live lane, and the pair is additive.
-    let met = topo::intersect(&plate(), &boss(3, 0.3, 1.0), Tol::witness())
+    let met = topo::intersect(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness())
         .expect("curved intersect is live");
     let met_body = &met.body().expect("a body").body;
     let met_vol = topo::mass_properties(met_body, Tol::witness())
@@ -165,7 +147,7 @@ fn the_two_arc_boss_refuses_typed_not_silently() {
     // of on-locus membership (both complementary arcs share one
     // locus). Same audit as the 3-arc row: exact volume, tier 3,
     // seam arcs, pcurves.
-    let out = topo::union(&plate(), &boss(2, 0.3, 1.0), Tol::witness())
+    let out = topo::union(&plate(), &m5_boss(2, 0.3, 1.0), Tol::witness())
         .expect("the 2-arc authoring unions live since the fix pass");
     let body = &out.body().expect("a body").body;
     let expect = 3.0 * 3.0 * 0.8 + std::f64::consts::PI * 0.35 * 0.35 * 0.5;
@@ -177,7 +159,7 @@ fn a_second_curved_boolean_chains_on_the_first_result() {
     // Zip stage attack: the first union's result (same-key wedge
     // walls, minted seam arcs, curved pcurves) is itself an operand.
     // A planar-boolean-only pipeline never saw such an operand.
-    let first = topo::union(&plate(), &boss(3, 0.3, 1.3), Tol::witness())
+    let first = topo::union(&plate(), &m5_boss(3, 0.3, 1.3), Tol::witness())
         .expect("first union")
         .body()
         .expect("body")
@@ -319,20 +301,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     // centered on the plate's edge): the crossing layer meets a
     // curved face away from any shared boundary — the typed frontier
     // door (CurvedPierceUnsupported), never a wrong body.
-    let theta = 2.0 * std::f64::consts::PI / 3.0;
-    let bulge = (theta / 4.0).tan();
-    let at = |i: usize| {
-        let th = theta * i as f64;
-        p2(0.0 + 0.35 * th.cos(), 1.5 + 0.35 * th.sin())
-    };
-    let lp = bulge_loop((0..3).map(|i| (at(i), bulge)).collect());
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let boss_over = extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let boss_over = n_arc_boss(p2(0.0, 1.5), 3, 0.3, 1.0);
     match topo::union(&plate(), &boss_over, Tol::witness()) {
         // This fixture reaches `CurvedSectorSideUnsupported` today, so
         // no text is asserted here; the pierce refusal's sentence is

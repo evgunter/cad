@@ -3175,7 +3175,7 @@ fn a_carrier_loops_record_is_checked_at_the_same_doors_a_chains_is() {
 ///
 /// `profile::ArcData::carries_radius` decides whether an emitted arc
 /// records a `Carrier`/`Carrier2` address at all; `editor-core`'s
-/// `spec_slots` decides whether the same spec holds a
+/// `spec_roles` decides whether the same spec holds a
 /// `CarrierRadius`/`CarrierRadius2` argument for that address to be
 /// read against. They are two total matches over one six-mode
 /// vocabulary deciding one fact, in two crates, and the only thing
@@ -3261,7 +3261,7 @@ fn every_arc_mode_carries_a_radius_in_both_vocabularies_or_in_neither() {
         }
 
         // `editor-core`'s side, read through the public argument
-        // enumerator rather than a second copy of `spec_slots`.
+        // enumerator rather than a second copy of `spec_roles`.
         assert_eq!(
             LoopProgram::Chain(vec![ProgramStep::ArcTo(spec.clone())])
                 .step_args()
