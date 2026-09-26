@@ -841,6 +841,7 @@ mod tests {
                 loops: vec![
                     LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)]).unwrap(),
                 ],
+                ids: Vec::new(),
             }),
         );
         let (mut doc, body) = ins(

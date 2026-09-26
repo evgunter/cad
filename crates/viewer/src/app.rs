@@ -198,11 +198,11 @@ pub(crate) fn chrome(color: Rgba8) -> egui::Color32 {
 
 /// `text` in the weight or colour its [`frame::Tone`] asks for.
 ///
-/// **The one place the tone-to-chrome mapping is made.** Its two
-/// readers are the toolbar's badge family ([`draw_badge`]) and the
-/// feature tree's row badge, which reads the same tone off
-/// [`crate::tree::RowStatus::tone`] — two families, one rule, so what
-/// `Advisory` looks like is changed here or nowhere.
+/// **The one place the tone-to-chrome mapping is made**: anything drawn
+/// in a [`frame::Tone`] is drawn through this, directly or through
+/// `widgets::message_toned`, so what `Advisory` looks like is changed
+/// here or nowhere. Its callers are whatever `rg 'toned\('` lists; they
+/// are not listed here, because a list is what falls behind.
 ///
 /// [`crate::theme::Theme::unresolved`]'s contract is that the colour is
 /// REDUNDANT — everything wearing it says its own words — so this
@@ -3162,5 +3162,86 @@ mod tests {
             door,
             "the context's light style spells {WITNESS} its own way"
         );
+    }
+}
+
+/// **What the properties pane says about a selection that no longer
+/// denotes**, read off a whole headless frame of the real app — so the
+/// pane's own gates and deletions are held, not only the free function
+/// that draws the verdict (`pane::properties::verdict_tests`).
+#[cfg(test)]
+mod properties_pane_tests {
+    // Panicking is a test's failure mechanism (workspace lint note).
+    #![allow(clippy::expect_used)]
+
+    use eframe::egui;
+    use pncad::document::{ParamName, RecipeNodeId};
+
+    use super::ViewerApp;
+    use crate::session::{Selection, SessionOp};
+
+    /// Every text the app painted on the second of two frames with
+    /// `selection` made, in paint order.
+    fn painted_with(selection: Selection) -> Vec<String> {
+        let ctx = egui::Context::default();
+        let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
+            .expect("startup that needs no graphics device");
+        app.perform_batch(vec![SessionOp::Select(selection)]);
+        let mut frame = eframe::Frame::_new_kittest();
+        let mut texts = Vec::new();
+        for _ in 0..2 {
+            let input = egui::RawInput {
+                screen_rect: Some(egui::Rect::from_min_size(
+                    egui::Pos2::ZERO,
+                    egui::vec2(1600.0, 1000.0),
+                )),
+                ..Default::default()
+            };
+            let mut output = ctx.run_ui(input, |ui| {
+                eframe::App::ui(&mut app, ui, &mut frame);
+            });
+            texts = crate::pane::headless::landed_in(&output.shapes)
+                .into_iter()
+                .map(|landed| landed.text)
+                .collect();
+            // Nothing here paints, so the frame's texture delta is
+            // dropped rather than uploaded.
+            output.textures_delta.clear();
+        }
+        texts
+    }
+
+    /// **A deleted node is called deleted, and nothing claims it
+    /// carries no parameters** — it carries nothing because it is not
+    /// there, which the `live()` gate on that line keeps unsaid.
+    #[test]
+    fn a_deleted_node_is_not_said_to_carry_no_parameters() {
+        let painted = painted_with(Selection::Node(RecipeNodeId(999)));
+        assert!(painted.iter().any(|text| text == "deleted"), "{painted:?}");
+        assert!(
+            !painted
+                .iter()
+                .any(|text| text.contains("carries no parameters")),
+            "{painted:?}"
+        );
+    }
+
+    /// **An undeclared parameter is said once**: against the frame with
+    /// nothing selected, the pane gains the verdict line and loses the
+    /// "select a feature" prompt, and nothing else.
+    #[test]
+    fn an_undeclared_parameter_is_said_once_in_the_pane() {
+        let verdict = "parameter nope is no longer declared";
+        let mut with = painted_with(Selection::Param(ParamName("nope".to_owned())));
+        let mut without = painted_with(Selection::None);
+        assert!(
+            without.iter().any(|text| text == "select a feature"),
+            "the properties pane is drawn in this frame: {without:?}"
+        );
+        without.retain(|text| text != "select a feature");
+        without.push(verdict.to_owned());
+        with.sort();
+        without.sort();
+        assert_eq!(with, without);
     }
 }

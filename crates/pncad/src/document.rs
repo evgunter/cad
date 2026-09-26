@@ -74,18 +74,15 @@
 // that applies several edits as one action (a cascade delete) folds
 // their rows into what is true of the document the action ends at, and
 // that rule has one spelling.
-// `LoopProvenance` is a field of `DocEdit::SetProgram` — a caller who
-// cannot spell it cannot author the edit — and `ProvenanceFault` is
-// what `EditError::ProvenanceMalformed` carries, so a consumer matching
-// that arm can name what it caught.
-// `RETIRED_FLOOR` is where `SetProgram` retires a stranded name's
-// locator: a consumer reading a `Strand` row's spelling recognises the
-// retired coordinate by it, and a consumer inventing one cannot pick a
-// coordinate a program might draw.
+// `StepId` is what `DocEdit::SetProgram` keeps a step by — a caller
+// who cannot spell it cannot author the edit — and `StepIdFault` is
+// what `EditError::StepIdsRefused` carries, so a consumer matching that
+// arm can name what it caught. `PiecesFault` is the same for
+// `NodeErrorKind::ProfilePieces` and `ProgramRefusal::Pieces`.
 pub use editor_core::{
     Applied, AttrKind, CarryForwardDoor, Doc, DocEdit, EditError, EditRecord, LoggedEdit,
-    LoopProvenance, Maintenance, MaintenanceNet, MetaVersionError, ProgramRefusal, ProvenanceFault,
-    RETIRED_FLOOR, apply, apply_logged,
+    Maintenance, MaintenanceNet, MetaVersionError, PiecesFault, ProgramRefusal, StepId,
+    StepIdFault, apply, apply_logged,
 };
 // The delete door's companion query: which nodes a delete of one node
 // must take with it, in an order the door accepts. A GUI both states
@@ -409,7 +406,7 @@ pub use editor_core::{
 // `InterfaceCrossing::Mate`.
 pub use editor_core::{
     InlineError, InlineOutcome, InterfaceCrossing, InterfaceRecord, NodeMap, SplitError,
-    SplitOutcome, inline, split,
+    SplitOutcome, StepMap, StepMapDivergence, inline, split,
 };
 
 // The pin-update door. `DocEdit`'s
@@ -468,7 +465,9 @@ pub use topo::ShellClassifyError;
 // The profile description node type and its document alias, plus the
 // refusal of the door that reads a step's profile edges — matchable
 // here because a caller that asked which edges a step became has to be
-// able to say WHY it was not told.
+// able to say WHY it was not told. `CanonicalSegment` is what that door
+// answers in: a canonical position, which is what emission iterates
+// and the pieces (`crate::select::ProfilePieces`) translate.
 //
 // `RecordedNotation` rides with them because a recorded path program is
 // bare `f64`s and a document literal names its notation (D6): it is what
@@ -476,6 +475,7 @@ pub use topo::ShellClassifyError;
 // `LoopProgram::from_recorded_with_notation` so the document reads back
 // what they wrote.
 pub use editor_core::{
-    LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
-    RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError, resolve_loops,
+    CanonicalSegment, LoopProgram, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep,
+    ProgramTarget, RecordedNotation, RecordedProgramError, StepArg, StepSegmentsError,
+    resolve_loops,
 };

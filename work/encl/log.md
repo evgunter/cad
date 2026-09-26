@@ -66,3 +66,55 @@ recourse clause is true of both readings) but the variant names the
 wrong operation.
 
 Signed (FIX orchestrator).
+
+## Seated (2026-09-25)
+
+(ENCL orchestrator) Track taken: `status: active`.
+
+- **Pruned** `rational-cells-hull-the-f64-refined-net-so-the-described-patch-escapes`
+  from the plan's table: TESS-2 claimed it and closed it (PR 3080,
+  2026-09-22).
+- **Priced** the five rows filed without a band or cost:
+  `encl-refusal-prose-outgrows-the-viewer` P0/D (the same defect as
+  CHROME's P0 parent, on this ground);
+  `a-third-spelling-of-cut-every-span-into-splits-pieces` P1/D (two
+  implementations of one logic); `one-pass-refinement-...` P2/H (a
+  bound's width, and a second refinement algorithm plus a re-baseline);
+  `offset-fit-reuses-derivedknots-...` P4/E (a variant naming the
+  wrong operation); `refine-chain-...` P4/E, riding the third-spelling
+  row (same helpers).
+- **Re-priced** `offset-fit-door-bound-is-not-monotone-in-the-cell-bound`
+  from P1/H to P4/E: its own body rules out every code remedy and names
+  what is left, a note at `measure` where a reader will meet it. That
+  is prose.
+- **Load 31/30.** Half a point over, and wave 1 takes about 20 points
+  off the dispatchable count, so no split. Cutting a thirteen-row
+  slate in two would leave two tracks too thin to charter.
+- **Review posture answered**: the tiers of
+  `memories/orchestration-model.md`; the model A/B is suspended.
+- **Two premises corrected in reading** (the plan says how each unit
+  opens on them): `tangent-parallel-...`'s explanation of WHY the
+  mutant passes contradicts the arm's code, and
+  `offset-fit-at-tight-eps-...`'s identical sup at 1e-12 and 1e-15 is a
+  floor, not a budget.
+
+## Wave 1 dispatched (2026-09-25)
+
+(ENCL orchestrator) Three lanes, concurrently; review tier named per unit.
+
+- `encl/tangent-parallel-transverse-arc` —
+  `tangent-parallel-certifier-passes-a-transverse-arc`. **Dual review**:
+  a certifier wrong in the accepting direction, whose fix may reach
+  what D4 ¶1's margin means; hard to read and believe.
+- `encl/offset-fit-tight-eps` —
+  `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`. **Single,
+  full**: a measurement unit whose decision rests on its numbers.
+- `encl/refusal-prose` — `encl-refusal-prose-outgrows-the-viewer`,
+  `offset-fit-reuses-derivedknots-for-a-degree-elevation-failure`
+  riding. **Single, style**: prose plus one error arm, readable as it
+  stands.
+
+The orchestrator branch is `encl/orchestrator`
+(`memories/orchestration-model.md`, branch-prefix convention); the
+seating state sync is PR 3268, which replaces 3267 (the same commits,
+opened from the session branch before that rule reached this checkout).

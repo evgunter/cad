@@ -47,7 +47,7 @@ fn cube_doc() -> (ProfileDoc, RecipeNodeId) {
     (doc, cube)
 }
 
-fn msg_of(doc: &ProfileDoc, node: RecipeNodeId) -> String {
+fn msg_of(doc: &editor_core::ProfileDoc, node: RecipeNodeId) -> String {
     let ev = evaluate::<f64>(
         doc,
         None,
@@ -89,7 +89,7 @@ fn messages(
     let face = editor_core::StableName {
         kind: editor_core::EntityKind::Face,
         node: cube,
-        path: vec![fixture::wall(0)],
+        path: vec![fixture::wall(&doc, cube, 0)],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size.clone(), vec![face]));
     out.push(("kind", msg_of(&d, n)));
@@ -99,17 +99,15 @@ fn messages(
     let ghost = editor_core::StableName {
         kind: editor_core::EntityKind::Edge,
         node: cube,
-        path: vec![fixture::wall(7)],
+        path: vec![editor_core::RoleSeg::Lateral(fixture::no_piece())],
     };
     let (d, n) = fixture::insert(doc, blend(cube, size, vec![ghost]));
     out.push(("resolve", msg_of(&d, n)));
 
     // (d) the op itself refusing: a size far too large for the cube.
     let (doc, cube) = cube_doc();
-    let (d, n) = fixture::insert(
-        doc,
-        blend(cube, fixture::len(0.9), fixture::prism_edges(cube, 4)),
-    );
+    let named = blend(cube, fixture::len(0.9), fixture::prism_edges(&doc, cube, 4));
+    let (d, n) = fixture::insert(doc, named);
     out.push(("op", msg_of(&d, n)));
     out
 }

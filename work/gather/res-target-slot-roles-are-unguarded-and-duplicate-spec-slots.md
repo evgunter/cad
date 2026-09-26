@@ -2,10 +2,12 @@
 id: res-target-slot-roles-are-unguarded-and-duplicate-spec-slots
 kind: issue
 title: res_target's StepArg roles are a second spelling of spec_slots' role assignment and nothing tests them - the Target2 twins can be dropped with 1324 tests green
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: E
+closed: 2026-09-24
+pr: 3141
 ---
 
 
@@ -55,3 +57,25 @@ This is a Q1 hit — two spellings of one rule with only one home tested
 already has and derive both roles from it, which would make the two
 spellings one. That is probably the fix, but the row's first obligation
 is a test that can see the disagreement at all.
+
+## Closed
+
+PR 3141. The test comes first, as the row asks.
+`switch_program_vocabulary::every_enumerated_slot_is_where_its_refusal_reports`
+walks every slot the corpus enumerates. For each one it swaps that slot's
+expression for a reference to a parameter nothing binds, and asserts that
+`ProfileProgram::resolve` refuses at that same slot. That ties the
+resolver's role for every argument (targets, vias, centres, radii,
+sweeps, arc lengths) to the enumeration, not only the target roles. The
+row's own mutation, where the second spec's target is always resolved at
+`TargetX`/`TargetY`, was re-run against it. The test went red on all eight
+arrival-target slots (steps 20, 21, 32 and 33).
+
+The Q7 half is done too. `res_target` takes `second: bool` in place of two
+positional roles. `target_slots`, `target2_slots`, `res_target` and both accessor macros
+(through `target_coord`) now all read one assignment,
+`target_roles(second)` in `crates/editor-core/src/program.rs`, so the
+target pair is spelled once. Every other role is still spelled three
+times, in the resolvers, the enumeration and the accessor macros. The new
+test is what holds them together, and the residue is filed as
+`step-arg-roles-are-spelled-in-three-homes`.

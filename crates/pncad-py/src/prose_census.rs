@@ -1698,26 +1698,15 @@ fn local_binding_span(
 /// The count is part of the key. Without it a Display impl rendering
 /// one binding at several sites collapses to one row, and repairing
 /// some of them leaves the guard green over the rest.
-const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[
-    (
-        "crates/editor-core/src/eval/mod.rs",
-        "NodeErrorKind",
-        "slot",
-        2,
-        "`SlotId::Profile` is a struct variant, and `SlotId::label` is \
-         the prose spelling this site does not use — WIRE's, filed at \
-         work/wire/node-error-kind-renders-the-slot-id-through-debug.md",
-    ),
-    (
-        "crates/topo/src/boolean/voids.rs",
-        "VoidInsertError",
-        "e",
-        1,
-        "`RevertError` carries struct variants. Found BY this census;\
-         reachability into `typed_err` not traced, so severity is undecided and\
-         the site is disclosed rather than claimed",
-    ),
-];
+const KNOWN_BRACED: &[(&str, &str, &str, usize, &str)] = &[(
+    "crates/topo/src/boolean/voids.rs",
+    "VoidInsertError",
+    "e",
+    1,
+    "`RevertError` carries struct variants. Found BY this census; \
+     reachability into `typed_err` not traced, so severity is undecided and \
+     the site is disclosed rather than claimed",
+)];
 
 /// The blind spot, written down WITH ITS REASON.
 ///

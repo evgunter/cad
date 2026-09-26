@@ -58,10 +58,14 @@ spells what the author made by the id it was minted with, and what the kernel
 made by the verdicts that decided it. Nodes already follow this rule, and so do
 union members (`FromMember`, DM4). Profile pieces follow it as well:
 
-- **The id.** Every step of a profile program carries a `StepId` in the recipe.
-  It is minted from the document's monotone counter when the step is authored,
-  by `InsertNode` or `SetProgram`. Like a `RecipeNodeId`, it is never
-  positional and never reused, and it is unique across the whole document.
+- **The id.** Every step of a profile program carries a `StepId` in the recipe
+  (`ProfileProgram::ids`). It is minted from the document's monotone step
+  counter when the step is authored, by `InsertNode` or `SetProgram`. Like a
+  `RecipeNodeId`, it is never positional and never reused, and it is unique
+  across the whole document; the load door checks all three. A name may
+  spell only a step the document has minted: the doors that write a name
+  (`InsertNode`, `Rebind`, `SetAppearance`, `SetAppearanceMeta`) refuse one
+  at or beyond the counter, and so does the load door.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,
@@ -84,10 +88,17 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
   A fillet's pieces belong to the step that authors its radius (the replay's
   `RadiusEmission.step`), not to the later step whose arrival resolves the
   corner.
-- **The locator.** `ProfileEdgeRef { step, role }` names the piece that role
-  of that step drew. `ProfileVertexRef { step, role }` names the vertex where
-  that piece starts, in authored order: a loop's vertex `k` is where its piece
-  `k` starts. A locator holds no loop index and no segment index.
+- **The locator.** `ProfileEdgeRef::Piece { step, role }` names the piece that
+  role of that step drew. `ProfileVertexRef::Piece { step, role }` names the
+  vertex where that piece starts, in authored order: a loop's vertex `k` is
+  where its piece `k` starts. A locator holds no loop index and no segment
+  index.
+- **A kernel-built section.** A section a kernel door builds rather than an
+  author — a tube's circle and a hollow tube's bore — has no authored step. It
+  is named structurally under the node that builds it:
+  `ProfileEdgeRef::Section { circle, role }`, the circle `Outer` or `Bore` and
+  the role `Piece(k)`. The node kind fixes the section's shape, as it fixes an
+  extrude's two caps, so nothing can renumber it.
 - **What cannot move it.** None of these changes what a locator denotes:
   - a value edit;
   - a change in which loop is the outer one, or in which way a loop runs;
@@ -115,12 +126,15 @@ union members (`FromMember`, DM4). Profile pieces follow it as well:
     Because the id is never minted again, no later program can draw it.
 - **The canonical numbering is not a name.** It is still the order in which
   the emitters, the loft's correspondence and the viewer's per-segment marks
-  iterate (V3, DM8). When the name table is published, the naming anchor maps
-  each canonical segment to the step and role that drew it.
+  iterate (V3, DM8). When a profile's value is built, the naming anchor
+  (`eval/anchor.rs`, `ProfilePieces`) pairs each canonical segment and vertex
+  with the step and role that drew it, read off the replay record's
+  per-segment piece (`profile::ReplayStructure::pieces`), and the sweep
+  emitters name what they iterate by it.
 - **Loft walls.** A loft pairs canonical segment `k` of every section into one
-  wall (DM8). The wall's role-path segment holds one locator per section,
-  naming the pieces that pairing joined, and so does a seam edge between two
-  walls: one vertex locator per section. A cap and its rims and vertices
+  wall (DM8). The wall's role-path segment (`LoftWall`) holds one locator per
+  section, naming the pieces that pairing joined, and so does a seam edge
+  between two walls (`LoftSeam`): one vertex locator per section. A cap and its rims and vertices
   belong to one section, and are named by that section's own locators. If a
   value edit changes which pieces pair, the old wall's name vanishes. It
   does not follow `k` to the new pairing.

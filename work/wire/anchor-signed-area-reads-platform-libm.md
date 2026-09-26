@@ -21,3 +21,10 @@ Found by PATHS `canonical-segment-type-in-profile`, which could not route the θ
 through the stored sweep (libm) without moving these bits, and left it on std.
 `work/paths/store-constructed-carriers.md` deletes this hand copy; whichever lands
 first should read the stored carrier and sweep through `Real`.
+
+## EMIT note (2026-09-25)
+
+EMIT's PR 3223 deletes `signed_area`, `replay_naming` and `naming_of`,
+along with the anchor code this row cites. A profile's names no longer
+depend on its loops' signed areas. Whether this row is closed is WIRE's
+call.

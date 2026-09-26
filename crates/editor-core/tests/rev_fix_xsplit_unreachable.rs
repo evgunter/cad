@@ -95,7 +95,7 @@ struct Sweep {
 /// asserts the AQ8 invariant on each accepted one: an interface record
 /// is always empty, and any remainder mate whose ends straddle the cut
 /// is NOT an A12 edge.
-fn sweep_every_cut(doc: &ProfileDoc, label: &str) -> Sweep {
+fn sweep_every_cut(doc: &editor_core::ProfileDoc, label: &str) -> Sweep {
     let ids: Vec<RecipeNodeId> = doc.order().to_vec();
     assert!(ids.len() <= 12, "2^n: keep the recipe small");
     // A mate is an EDGE iff BOTH its heads resolve to members — which
