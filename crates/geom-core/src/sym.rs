@@ -583,8 +583,9 @@
 //! sharing is free, and two builds of the same expression memoize the
 //! same normal form. The hash-consing table is per-leaf-replay
 //! ([`with_session`]), holds nothing across leaves, and is dropped with
-//! the leaf; so are the early and door memos, the registry and the
-//! parameter brackets.
+//! the leaf; so are the early and door memos, the per-node
+//! reduction's memo (`reduce_per_node`), the registry and the parameter
+//! brackets.
 //!
 //! **The PLAIN memo is the exception, and it is per DRIVE when a drive
 //! installs one** ([`DriveMemo`], [`with_session_memo`] and
@@ -774,7 +775,9 @@
 //! the walk-ledger row pins.
 //!
 //! On the plate the same storage share sits inside `reduce_steps` —
-//! rules A/B per node, 51 % of the replay — and the freeze population
+//! rules A/B per node, the largest share of the replay when it was
+//! taken, before the per-node reduction was memoised per session
+//! (`reduce_per_node`) — and the freeze population
 //! is what the budget note in `editor-core`'s `SymbolicDials` says it
 //! is: 1,312 freezes over the three walks (1,044 in the plain walk),
 //! **1,032 on DEGREE** with the kids already at total degree 40–117 in
@@ -2299,6 +2302,26 @@ struct Session {
     /// TWICE before this memo (R2's Q7). Keyed by the argument form's
     /// digest, per session like every other memo here.
     trig_closed: IndetMap<Option<Rc<trig::Closed>>>,
+    /// **The per-node reduction's answers, by input form**
+    /// ([`reduce_per_node`]): each bucket, under the input's digest,
+    /// holds the forms reduced with that digest, compared WHOLE, beside
+    /// the rules and the ring bound each was reduced under and what the
+    /// reduction answered — a refusal included. Capped at
+    /// [`REDUCTION_FORMS`] entries (`reductions_held`).
+    ///
+    /// **Why the whole form and not the digest, where `trig_closed`
+    /// above keys on the digest alone**: a wrong hit here hands a walk
+    /// another form's reduction, which is a wrong FORM and a decision
+    /// built on it; the compare costs one pass over a form the
+    /// reduction would otherwise walk several times, and a hit saves
+    /// the reduction. `trig_closed` keys what the walk itself builds in
+    /// a handful of places; bringing it to the same standard is not
+    /// this memo's to do.
+    reductions: IndetMap<Vec<Reduction>>,
+    reductions_held: usize,
+    /// How many asks an entry answered — read by this module's rows.
+    #[cfg(test)]
+    reduction_hits: u64,
     counts: SymCounts,
     /// **The drive's shared plain memo** ([`DriveMemo`]), when a drive
     /// installed one ([`with_session_memo`]). The plain walk consults
@@ -2327,6 +2350,37 @@ struct Session {
     /// while a drive memo is installed; empty otherwise.
     plain_tainted: IdSet,
 }
+
+/// One memoized per-node reduction ([`Session::reductions`]).
+struct Reduction {
+    input: Arc<Form>,
+    rules: SymRules,
+    bits: u64,
+    /// The ids the reduction looked up in the atom table and did not
+    /// find ([`algebra::reduce_noting`]), sorted — the entry answers
+    /// only while every one of them is still absent.
+    absent: Box<[u128]>,
+    out: Option<Arc<Form>>,
+}
+
+/// **The per-node reduction memo's cap** ([`Session::reductions`]):
+/// past this many entries a session stops inserting, and a reduction
+/// it would have kept is computed on every ask, as it was before the
+/// memo. The memo is a pure cache — an entry answers exactly what the
+/// reduction would build ([`reduce_per_node`]) — so the cap moves no
+/// form and no decision, only the time a leaf past it takes.
+///
+/// **Measured**, the most entries one whole-box leaf's session holds
+/// (`profile::SymProfile::reduction_memo`, release leaf instrument):
+/// R2's rounded pad 2,161 at `1e2·ε` and 4,217 with the kept-atom
+/// ladder; R2's link 1,270 and 2,376 at `1e1·ε`; R2's bracket 575 and
+/// 1,289. An entry is kept only for a form carrying a squared atom, at
+/// most one per distinct form per rule set and ring bound, and a form
+/// the walk reduces is under `EARLY_AB_TERMS` terms. The cap sits more
+/// than ten times above the pad with its ladder, so no measured
+/// document reaches it, and one that does degrades into the time the
+/// reduction cost before the memo, not into memory.
+const REDUCTION_FORMS: usize = 50_000;
 
 /// **One retry attempt's two memos** — the early walk's and the door
 /// walk's, under that attempt's rules and ring bound.
@@ -2396,6 +2450,10 @@ impl Session {
             atoms: IndetMap::default(),
             registry: IdMap::default(),
             trig_closed: IndetMap::default(),
+            reductions: IndetMap::default(),
+            reductions_held: 0,
+            #[cfg(test)]
+            reduction_hits: 0,
             counts: SymCounts::default(),
             memo,
             plain_built: Vec::new(),
@@ -2636,6 +2694,7 @@ fn with_session_in<R>(
     if let Some(s) = &sess {
         profile::session_done(s.nodes.len(), s.atoms.len());
         profile::retry_memos(&s.retries.iter().map(RetryMemo::len).collect::<Vec<_>>());
+        profile::reduction_memo(s.reductions_held);
     }
     if let Some(s) = &sess {
         publish_to_memo(s);
@@ -3310,11 +3369,17 @@ fn form_in(
             ];
             #[cfg(feature = "sym-profile-testing")]
             profile::clear_note();
+            #[cfg(feature = "sym-profile-testing")]
+            let t0 = profile::clock();
             let combined = combine(&node, kids, sess, early);
             // The per-node A/B reduction (`SymRules::early_ab`),
             // bounded in steps and in the size of the form it is asked
             // over, falling back to the un-reduced form when it does
             // not fit.
+            // From here the form is SHARED (`Arc`), so that a form the
+            // reduction's memo and rule E hand back unchanged is one
+            // allocation in the walk memo and the reduction memo alike.
+            let combined = combined.map(Arc::new);
             let combined = if early && sess.rules.early_ab {
                 combined.map(|f| {
                     if f.num.terms().len() + f.den.terms().len() > EARLY_AB_TERMS {
@@ -3322,10 +3387,22 @@ fn form_in(
                     }
                     #[cfg(feature = "sym-profile-testing")]
                     let t0 = profile::clock();
-                    let reduced =
-                        algebra::reduce_steps(&f, sess.rules, budget, &sess.atoms, EARLY_STEPS);
+                    let reduced = reduce_per_node(sess, &f);
                     #[cfg(feature = "sym-profile-testing")]
-                    profile::reduce_done(t0);
+                    if t0.is_some() {
+                        let outcome = match &reduced {
+                            Some(g) if !within(budget, g) => "refused",
+                            None => "refused",
+                            Some(g) if **g == *f => "unchanged",
+                            Some(_) => "reduced",
+                        };
+                        profile::reduce_outcome(
+                            t0,
+                            f.digest(),
+                            outcome,
+                            even_powers(&f, &sess.atoms),
+                        );
+                    }
                     reduced
                         .filter(|g| within(budget, g))
                         // The gate has ONE home: `algebra::apply`
@@ -3367,7 +3444,7 @@ fn form_in(
             // SHRINK a form in terms and degree, so one it cancels may
             // fit where the raw one would have frozen.
             let combined = if early && sess.rules.common_factor {
-                combined.map(|f| quotient::cancel(&f))
+                combined.map(quotient::cancel_shared)
             } else {
                 combined
             };
@@ -3376,8 +3453,10 @@ fn form_in(
             profile::record_node(
                 node.op,
                 profile::Walk::of(early, registry),
+                id.bits(),
                 kids,
-                made.as_ref(),
+                made.as_deref(),
+                t0,
             );
             made
         };
@@ -3390,7 +3469,7 @@ fn form_in(
         }
         let froze = made.is_none();
         let f = match made {
-            Some(p) => Arc::new(p),
+            Some(p) => p,
             None => frozen(sess, id),
         };
         note(sess, id, froze, !taint);
@@ -3420,6 +3499,108 @@ fn mint_atom(sess: &mut Session, id: u128, early: bool, info: impl FnOnce() -> A
     sess.atoms.entry(id).or_insert_with(info);
     if !early && sess.memo.is_some() {
         sess.plain_atoms.push(id);
+    }
+}
+
+/// **The per-node reduction, memoized per session on its input form** —
+/// [`algebra::reduce_steps`] at [`EARLY_STEPS`], answered from
+/// [`Session::reductions`] when this session has already reduced the
+/// same form under the same rules and ring bound.
+///
+/// **The memo answers what the reduction would build, bit for bit, by
+/// construction.** The reduction reads its input form, the rules, the
+/// budget, the step cap, the ring bound (`rational::coeff_bound`) and
+/// the session's atom table, which it only LOOKS UP, at the ids a form
+/// carries to a power past one ([`algebra::squared`]). The budget and
+/// the step cap are fixed for the session; the rules and the ring bound
+/// are in the key, because a retry attempt runs its walks under its
+/// own. A record that is in the table never changes: `mint_atom` and
+/// the drive memo's seeding only insert an id that is absent, under a
+/// key that is a hash of the op, the payload and the argument's digest.
+/// A lookup that FOUND NOTHING can change — an atom minted since — so
+/// the entry keeps every id the reduction looked up and missed
+/// ([`algebra::reduce_noting`]), and answers only while all of them are
+/// still absent; a stale entry is dropped and the reduction run again.
+/// Nothing about which indeterminates those are (a parameter, `π`, an
+/// opaque, a frozen node's own id, rule B's `cos` twin) enters the
+/// argument.
+///
+/// **Keyed on the form, not on its digest**: the digest picks the
+/// bucket, and a hit needs the whole form equal (`Form`'s equality: the
+/// canonical terms, the poison flag and the gate), so a collision costs
+/// a miss and never an answer.
+///
+/// **A form none of whose squared ids is in the atom table is its own
+/// reduction** — `find_square` finds nothing in it, so the reduction
+/// answers the form unchanged — and is answered so without a lookup
+/// and without an entry, the same `Arc` back.
+fn reduce_per_node(sess: &mut Session, f: &Arc<Form>) -> Option<Arc<Form>> {
+    #[cfg(feature = "sym-profile-testing")]
+    profile::reduce_begin();
+    if !algebra::squared(f).any(|id| sess.atoms.contains_key(&id)) {
+        return Some(Arc::clone(f));
+    }
+    let (rules, bits) = (sess.rules, rational::coeff_bound());
+    let key = f.digest();
+    if let Some(bucket) = sess.reductions.get_mut(&key)
+        && let Some(at) = bucket
+            .iter()
+            .position(|r| r.rules == rules && r.bits == bits && *r.input == **f)
+    {
+        let atoms = &sess.atoms;
+        if bucket[at].absent.iter().all(|id| !atoms.contains_key(id)) {
+            #[cfg(feature = "sym-profile-testing")]
+            profile::reduce_hit();
+            #[cfg(test)]
+            {
+                sess.reduction_hits += 1;
+            }
+            return bucket[at].out.clone();
+        }
+        bucket.swap_remove(at);
+        sess.reductions_held -= 1;
+    }
+    let mut absent = Vec::new();
+    let out = algebra::reduce_noting(f, rules, sess.budget, &sess.atoms, EARLY_STEPS, &mut absent)
+        .map(|g| if g == **f { Arc::clone(f) } else { Arc::new(g) });
+    if sess.reductions_held < REDUCTION_FORMS {
+        absent.sort_unstable();
+        absent.dedup();
+        sess.reductions.entry(key).or_default().push(Reduction {
+            input: Arc::clone(f),
+            rules,
+            bits,
+            absent: absent.into_boxed_slice(),
+            out: out.clone(),
+        });
+        sess.reductions_held += 1;
+    }
+    out
+}
+
+/// Which atom kinds `f` carries to an even power — what rules A/B and
+/// rule G's companion `|X|² = X²` could substitute — as the cost
+/// profile's label for a per-node reduction.
+#[cfg(feature = "sym-profile-testing")]
+fn even_powers(f: &Form, atoms: &IndetMap<AtomInfo>) -> &'static str {
+    let (mut sqrt, mut abs, mut sin) = (false, false, false);
+    for id in algebra::squared(f) {
+        match atoms.get(&id).map(|a| a.op) {
+            Some(SymOp::Sqrt) => sqrt = true,
+            Some(SymOp::Abs) => abs = true,
+            Some(SymOp::Sin) => sin = true,
+            _ => {}
+        }
+    }
+    match (sqrt, abs, sin) {
+        (false, false, false) => "no even power",
+        (true, false, false) => "sqrt",
+        (false, true, false) => "abs",
+        (false, false, true) => "sin",
+        (true, true, false) => "sqrt+abs",
+        (true, false, true) => "sqrt+sin",
+        (false, true, true) => "abs+sin",
+        (true, true, true) => "sqrt+abs+sin",
     }
 }
 
@@ -6232,5 +6413,209 @@ mod tests {
             ]
         });
         assert_eq!(rows, ["numeric"; 2]);
+    }
+    /// A session with `s = sqrt(x + 1)` minted, and the form `s² + s`
+    /// over it, which rule A takes to `x + 1 + s`.
+    fn sqrt_session() -> (Session, u128, Arc<Form>) {
+        let mut sess = Session::new(budget(), SymRules::shipped(), SymRetry::none(), None);
+        let (s, arg) = sqrt_atom();
+        mint_sqrt(&mut sess, s, &arg);
+        (sess, s, s_squared_plus_s(s))
+    }
+
+    fn sqrt_atom() -> (u128, Form) {
+        let x = Form::poly(Poly::indet(indet_param(1)));
+        let arg = x.add(&Form::poly(Poly::one()), budget()).unwrap();
+        (indet_atom(SymOp::Sqrt.tag(), 0, &[arg.digest()]), arg)
+    }
+
+    fn mint_sqrt(sess: &mut Session, s: u128, arg: &Form) {
+        mint_atom(sess, s, true, || AtomInfo {
+            op: SymOp::Sqrt,
+            payload: 0,
+            args: [Some(Arc::new(arg.clone())), None, None],
+        });
+    }
+
+    fn s_squared_plus_s(s: u128) -> Arc<Form> {
+        let mut p = Poly::zero();
+        p.insert(vec![(s, 2)], Rat::one()).unwrap();
+        p.insert(vec![(s, 1)], Rat::one()).unwrap();
+        Arc::new(Form::poly(p))
+    }
+
+    /// The reduction itself, under the session's rules at the ring
+    /// bound in force.
+    fn direct(sess: &Session, f: &Form) -> Option<Form> {
+        algebra::reduce_steps(f, sess.rules, sess.budget, &sess.atoms, EARLY_STEPS)
+    }
+
+    /// The memo's answer, and whether an ENTRY answered it.
+    fn ask(sess: &mut Session, f: &Arc<Form>) -> (Option<Form>, bool) {
+        let hits = sess.reduction_hits;
+        let out = reduce_per_node(sess, f);
+        (out.map(Arc::unwrap_or_clone), sess.reduction_hits > hits)
+    }
+
+    /// **The reduction memo answers what the reduction builds**: a form
+    /// carrying a `sqrt` atom squared is reduced once and answered by
+    /// its entry the second time, both answers the reduction's own.
+    /// Another rule set or another ring bound is another key, and a
+    /// form none of whose squared ids is in the atom table is its own
+    /// answer, the same allocation, with no entry.
+    #[test]
+    fn the_reduction_memo_answers_what_the_reduction_builds() {
+        let (mut sess, s, f) = sqrt_session();
+        let want = direct(&sess, &f);
+        assert_ne!(want.as_ref(), Some(&*f), "the square is substituted");
+        assert_eq!(ask(&mut sess, &f), (want.clone(), false));
+        assert_eq!(
+            ask(&mut sess, &f),
+            (want.clone(), true),
+            "the second ask is the entry's"
+        );
+
+        let wide = rational::with_coeff_bound(512, || ask(&mut sess, &f));
+        assert_eq!(
+            wide,
+            (want.clone(), false),
+            "another ring bound is another key"
+        );
+        sess.rules = SymRules::without_the_algebra();
+        assert_eq!(
+            ask(&mut sess, &f),
+            (Some((*f).clone()), false),
+            "another rule set is another key, and without rule A nothing is substituted"
+        );
+        assert_eq!(sess.reductions[&f.digest()].len(), 3);
+
+        sess.rules = SymRules::shipped();
+        let linear = Arc::new(Form::poly(Poly::indet(s)));
+        let out = reduce_per_node(&mut sess, &linear).unwrap();
+        assert!(
+            Arc::ptr_eq(&out, &linear),
+            "its own answer, the same allocation"
+        );
+        assert!(!sess.reductions.contains_key(&linear.digest()));
+    }
+
+    /// **The whole form is in the key**: an entry planted in `f`'s
+    /// digest bucket for ANOTHER input, under the same rules and ring
+    /// bound, with an answer the reduction would never give, is a miss.
+    /// Reds with the whole-form compare dropped from the key.
+    #[test]
+    fn a_bucket_mate_with_another_input_is_a_miss() {
+        let (mut sess, s, f) = sqrt_session();
+        let want = direct(&sess, &f);
+        sess.reductions
+            .entry(f.digest())
+            .or_default()
+            .push(Reduction {
+                input: Arc::new(Form::poly(Poly::indet(s))),
+                rules: sess.rules,
+                bits: rational::coeff_bound(),
+                absent: Box::new([]),
+                out: None,
+            });
+        sess.reductions_held += 1;
+        assert_eq!(
+            ask(&mut sess, &f),
+            (want, false),
+            "a bucket-mate is not this form"
+        );
+    }
+
+    /// **Every ladder attempt is its own key**: the kept-atom ladder's
+    /// two masks over the shipped set, and a ring retry, each miss the
+    /// first attempt's entry and answer the reduction under THAT
+    /// attempt's rules and ring. Reds with the rules or the ring bound
+    /// dropped from the key.
+    #[test]
+    fn every_ladder_attempt_is_its_own_key() {
+        let (mut sess, _, f) = sqrt_session();
+        let first = sess.rules;
+        assert!(!ask(&mut sess, &f).1);
+        let retry = SymRetry {
+            bits: Some(512),
+            ..SymRetry::kept_atom()
+        };
+        for (_, rules, bits) in retry.attempts(first) {
+            sess.rules = rules;
+            let want = rational::with_coeff_bound(bits, || direct(&sess, &f));
+            let got = rational::with_coeff_bound(bits, || ask(&mut sess, &f));
+            assert_eq!(got, (want, false), "attempt {rules:?} at {bits}");
+        }
+        sess.rules = first;
+        assert!(
+            ask(&mut sess, &f).1,
+            "the first attempt's entry still answers"
+        );
+    }
+
+    /// **The gate is in the key**: a gated and an ungated form with the
+    /// same terms are two entries, and each answer carries its own gate.
+    /// Reds with the gate taken out of the key (the bucket digest and
+    /// the compare both: the digest alone already separates them).
+    #[test]
+    fn the_gate_is_in_the_key() {
+        let (mut sess, _, f) = sqrt_session();
+        let g = Arc::new(Form {
+            gated: true,
+            ..(*f).clone()
+        });
+        let (a, _) = ask(&mut sess, &f);
+        let (b, hit) = ask(&mut sess, &g);
+        assert!(!hit);
+        assert!(!a.unwrap().gated);
+        assert!(b.unwrap().gated);
+    }
+
+    /// **An atom minted after a reduction is a miss**: `s²` is reduced
+    /// while `s` is not yet in the atom table (nothing to substitute),
+    /// then `s` is minted. The entry noted `s` as a lookup that found
+    /// nothing, so it no longer answers, and the reduction runs again
+    /// and substitutes. Reds with the entry's absent-set check dropped.
+    #[test]
+    fn an_atom_minted_after_a_reduction_is_a_miss() {
+        let mut sess = Session::new(budget(), SymRules::shipped(), SymRetry::none(), None);
+        let (s, arg) = sqrt_atom();
+        let f = s_squared_plus_s(s);
+        // An unrelated `cos` atom in the table, squared beside `s`: the
+        // memo keeps an entry only for a form one of whose squared ids
+        // IS in the table, and rule B never substitutes a `cos`.
+        let other = indet_atom(SymOp::Cos.tag(), 0, &[Form::poly(Poly::one()).digest()]);
+        mint_atom(&mut sess, other, true, || AtomInfo {
+            op: SymOp::Cos,
+            payload: 0,
+            args: [Some(Arc::new(Form::poly(Poly::one()))), None, None],
+        });
+        let mut p = f.num.clone();
+        p.insert(vec![(other, 2)], Rat::one()).unwrap();
+        let f = Arc::new(Form::poly(p));
+        let before = direct(&sess, &f);
+        assert_eq!(
+            before.as_ref(),
+            Some(&*f),
+            "no record of `s`, nothing substituted"
+        );
+        assert_eq!(ask(&mut sess, &f), (before.clone(), false));
+        assert_eq!(ask(&mut sess, &f), (before, true));
+        mint_sqrt(&mut sess, s, &arg);
+        let after = direct(&sess, &f);
+        assert_ne!(
+            after.as_ref(),
+            Some(&*f),
+            "with `s` minted the square is substituted"
+        );
+        assert_eq!(
+            ask(&mut sess, &f),
+            (after, false),
+            "the stale entry does not answer"
+        );
+        assert_eq!(
+            sess.reductions[&f.digest()].len(),
+            1,
+            "it was replaced, not kept"
+        );
     }
 }
