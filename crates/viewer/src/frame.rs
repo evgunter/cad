@@ -219,16 +219,20 @@ use pncad::document::{
 };
 use pncad::select::{HitTestError, NodePickError};
 
+use crate::blend::BlendEvent;
 use crate::camera::CameraError;
 use crate::camera::Folded;
 use crate::display::{AdmissionFault, PruneReport, Withdrawn};
 use crate::idpass::IdStep;
+use crate::matetool::MateToolEvent;
 use crate::pickcache::NotIndexed;
 use crate::pickindex::{PickError, PickIndexError};
 use crate::prefs::{StoreError, Unusable};
 use crate::scene::FittedDelta;
 use crate::scene::SceneError;
+use crate::seats::SeatEvent;
 use crate::session::{AtRestBadge, OpOutcome, Outstanding, Refusal, SessionOp};
+use crate::tools::ToolNotice;
 use crate::vocab::{partial_mirror, vocabulary};
 
 /// **What something the chrome shows is ABOUT** — carried by a
@@ -374,16 +378,20 @@ partial_mirror! {
     ],
 }
 
-/// **One frame's news**: what it is about, and its own words.
+/// **One frame's news**: what it is about, its own words, and whether
+/// anything will say it again.
 ///
 /// The text is composed by whoever raised it, from the typed value
 /// that failed — nothing here writes prose about someone else's
-/// failure. What this type adds is the half a `String` could not
-/// carry: which recurring event makes the sentence the wrong answer.
-/// **The fields are private and [`Message::new`] is the only door**,
-/// for [`Badge`]'s reason: a struct literal is a second way to build
-/// one, and a value whose whole point is that a decision was made in
-/// one place must not have a spelling that skips it.
+/// failure. What this type adds is the two halves a `String` could not
+/// carry: which recurring event makes the sentence the wrong answer
+/// ([`Subject`]), and whether this line is the only telling it will get
+/// ([`Retold`]). **The fields are private and [`Message::new`] is the
+/// only public door**, for [`Badge`]'s reason: a struct literal is a
+/// second way to build one, and a value whose whole point is that a
+/// decision was made in one place must not have a spelling that skips
+/// it. (The one other door, [`Message::joined`], is private and builds
+/// from `Message`s the public door made.)
 ///
 /// **A message's text carries no [`NOTICE_MARK`], and that is what
 /// makes a joined line readable.** [`frame_status`] puts several
@@ -398,11 +406,52 @@ partial_mirror! {
 pub struct Message {
     subject: Subject,
     text: String,
+    retold: Retold,
+}
+
+/// **Whether anything will say this notice's news again** — the one
+/// property [`frame_status`]'s rank 1 reads.
+///
+/// A notice's NEWS is what happened and why. It is said again when a
+/// surface the reader reads in words keeps carrying it — a tree row's
+/// fault, which evaluation raises on every run — or when the reader's
+/// own repeat of the act that raised it raises it again, as a refusal
+/// or a declined pick does. **A symptom is not the news**: a seat
+/// drawn empty, a part drawn at its mated pose, a later refusal that
+/// no drag is in flight each show THAT something is so, never that an
+/// edit made it so or why.
+///
+/// **The burden is on [`Retold::Again`].** A door answers `Again` only
+/// when it can show the retelling from what it holds — the act it
+/// answers, or a surface that always carries the news — and `Never`
+/// wherever it cannot. The two mistakes are not symmetric: a `Never`
+/// that was not needed puts one sentence beside a refusal, and an
+/// `Again` that was wrong loses the news for good, which is the defect
+/// this type exists to stop.
+///
+/// **Decided by the door that makes the message, and never by
+/// default.** [`Message::new`] takes it as an argument, so every
+/// producer — in this module, the panes, the app or the id pass —
+/// answers the question at the site that knows what its message is
+/// about, and the ranking reads the answer without asking what refused
+/// beside it. A rule over PAIRS would need a table of which refusal may
+/// hide which notice, and nothing states what would fill it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Retold {
+    /// **Something says it again**, so a refusal may stand in front of
+    /// it: dropping it from one frame's line loses nothing the reader
+    /// will not meet again.
+    Again,
+    /// **Dropping it means nothing will ever say it.** This frame's
+    /// line is the only telling, so a refusal in the same frame does
+    /// not take its place ([`frame_status`]).
+    Never,
 }
 
 impl Message {
     /// A message about `subject`, in `text`'s own words — with any
-    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark.
+    /// [`NOTICE_MARK`] in them rewritten to the within-a-notice mark —
+    /// and whether anything will say it again.
     ///
     /// **Rewritten rather than refused.** A door that panicked would
     /// be reachable from the keyboard: [`delta_not_a_number`] echoes
@@ -411,10 +460,17 @@ impl Message {
     /// mark is asking for a list mark one level in — it is inside a
     /// notice, which is what [`LIST_SEPARATOR`] is for — so the
     /// rewrite says what the author meant at the level they are at.
-    pub fn new(subject: Subject, text: impl Into<String>) -> Self {
+    ///
+    /// **`retold` has no default.** A default is a decision nobody
+    /// made, and the one this door would make — [`Retold::Again`] —
+    /// is the under-admission [`frame_status`]'s rank 1 exists to
+    /// stop: a producer added later would drop its news beside a
+    /// refusal without ever being asked whether it could.
+    pub fn new(subject: Subject, text: impl Into<String>, retold: Retold) -> Self {
         Self {
             subject,
             text: text.into().replace(NOTICE_MARK, LIST_SEPARATOR.trim()),
+            retold,
         }
     }
 
@@ -435,8 +491,11 @@ impl Message {
     ///
     /// The caller decides the subject, because what a joined line is
     /// ABOUT is a separate question with its own rule
-    /// ([`joined_subject`]).
+    /// ([`joined_subject`]). Its [`Retold`] is [`Retold::Never`] when
+    /// any notice on it is: the field is total, and `Again` would be
+    /// false of a line carrying a once-only telling.
     fn joined(subject: Subject, notices: &[Message]) -> Self {
+        let never = notices.iter().any(|notice| notice.retold == Retold::Never);
         Self {
             subject,
             text: notices
@@ -444,6 +503,7 @@ impl Message {
                 .map(Message::text)
                 .collect::<Vec<_>>()
                 .join(NOTICE_SEPARATOR),
+            retold: if never { Retold::Never } else { Retold::Again },
         }
     }
 
@@ -456,6 +516,11 @@ impl Message {
     pub fn text(&self) -> &str {
         &self.text
     }
+
+    /// Whether anything will say its news again.
+    pub fn retold(&self) -> Retold {
+        self.retold
+    }
 }
 
 /// **The message's own words, and only those.**
@@ -467,12 +532,21 @@ impl Message {
 /// ([`StatusUpdate::Expire`]) and what a joined rank-2 line takes as
 /// its own subject, so one recurring event can retire the joined
 /// sentence. It does not RANK: [`frame_status`] ranks by SOURCE — a
-/// refusal, else the frame's notices, else the batch's own verdict —
-/// and no rank reads a subject. A line that printed its own routing
-/// would be saying to the user what the chrome says to itself.
+/// refusal with the notices nothing will say again, else the frame's
+/// notices, else the batch's own verdict — and no rank reads a
+/// subject. A line that printed its own routing would be saying to
+/// the user what the chrome says to itself.
+///
+/// `retold` is the same decision for the converse reason: it RANKS —
+/// it is what lets a notice ride beside a refusal — and it is about
+/// the line's future, which the line has no words for.
 impl core::fmt::Display for Message {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let Self { subject: _, text } = self;
+        let Self {
+            subject: _,
+            text,
+            retold: _,
+        } = self;
         f.write_str(text)
     }
 }
@@ -618,8 +692,14 @@ pub fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> StatusUpdat
 /// refusal a drag of that value gets from the session's gesture door —
 /// goes onto the frame's notices through this same door, so the two
 /// routes say one sentence rather than two spellings of it.
+///
+/// [`Retold::Again`] by either route: a refusal is the answer to an act
+/// that did nothing, and the same act says it again. So a refusal that
+/// arrives as a NOTICE stays under a batch refusal in the same frame
+/// ([`frame_status`]'s rank 1), as a second refusal of one frame does
+/// under [`Refusal::preferred`].
 pub fn refusal_message(refusal: &Refusal) -> Message {
-    Message::new(Subject::Document, refusal.to_string())
+    Message::new(Subject::Document, refusal.to_string(), Retold::Again)
 }
 
 /// **The status line after a whole FRAME**: what the open tool said
@@ -643,8 +723,11 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 ///
 /// # The ranking
 ///
-/// 1. A **refusal** wins, alone. It is the answer to the action the
-///    user asked the DOCUMENT for, and it is the louder of the two.
+/// 1. A **refusal** wins, and beside it ride only the notices nothing
+///    will say again: after the refusal, joined with
+///    [`NOTICE_SEPARATOR`] in the order they happened, come the
+///    frame's notices whose [`Message::retold`] is [`Retold::Never`],
+///    and every other notice is dropped.
 /// 2. Else **every notice the frame produced**, in the order they
 ///    happened, joined with [`NOTICE_SEPARATOR`] — the same boundary
 ///    the preferences path writes between its own startup notices
@@ -660,6 +743,35 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// still its own typed value's own rendering, which is what the error
 /// micro-decision asks. Nothing here writes prose about someone else's
 /// failure.
+///
+/// # What rides beside a refusal: news nothing will say again
+///
+/// Two sentences about different things are worse than one about the
+/// louder, so rank 1 drops what it can afford to — and what it can
+/// afford to drop is exactly the news the reader will meet again.
+/// **The rule: a notice rides beside a refusal when dropping it means
+/// nothing will ever say it** ([`Retold`] says what counts as saying
+/// it again: a surface that keeps carrying the news in words, or the
+/// reader's own repeat of the act that raised it — and never a
+/// symptom). Whether the state it reports could be had back is not the
+/// test: an undo that would return it helps only a reader who knows to
+/// undo, and that knowledge is the sentence being dropped.
+///
+/// It is a property of the MESSAGE, answered where the message is made
+/// ([`Message::new`] has no default), not of the pair: the ranking
+/// reads it without asking what refused. **Which kinds ride is not
+/// listed here**, on purpose: each door that makes a notice answers
+/// for its own arms, where a new arm is a compile error until its
+/// author answers, and gives its reasons there — [`Withdrawal::notice`],
+/// [`maintenance_notice`], [`tool_notice`], [`refusal_message`], and
+/// every typed refusal door with its own one-line reason. A census here
+/// would be a second copy that nothing checks against the first.
+///
+/// **The refusal comes first** although the notices beside it can
+/// matter more. The join is reading order, not a second ranking — both
+/// are on the line — and the refusal is the answer to the act the user
+/// just made, which is what they are reading the line for; what else
+/// the frame did follows it.
 ///
 /// # The join is invertible, and that is the whole rule
 ///
@@ -698,7 +810,17 @@ pub fn frame_status(
     refusal: Option<&Refusal>,
 ) -> StatusUpdate {
     match batch_status(ops, refusal) {
-        refused @ StatusUpdate::Show(_) => refused,
+        StatusUpdate::Show(refused) => {
+            let line: Vec<Message> = core::iter::once(refused)
+                .chain(
+                    notices
+                        .iter()
+                        .filter(|notice| notice.retold() == Retold::Never)
+                        .cloned(),
+                )
+                .collect();
+            StatusUpdate::Show(Message::joined(joined_subject(&line), &line))
+        }
         verdict if notices.is_empty() => verdict,
         _ => StatusUpdate::Show(Message::joined(joined_subject(notices), notices)),
     }
@@ -872,9 +994,13 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// that withdraws is an edit the document accepted, so the same
 /// frame's batch verdict is [`StatusUpdate::Clear`].
 ///
-/// A refusal in the same frame outranks it and it is then not shown,
-/// which rank 1 already says. The two cannot come from one operation:
-/// a refused op returns before the prune that fills the report.
+/// **A refusal in the same frame does not hide it.** Nothing else will
+/// ever say what the edit took or why — the picture shows only what is
+/// left — so it is [`Retold::Never`] and rides beside the refusal,
+/// which is rank 1's rule for exactly this. The two cannot come from
+/// one operation (a refused op returns before the prune that fills the
+/// report), but they come from one frame whenever a panel's edit lands
+/// and a gesture op behind it refuses.
 ///
 /// # The cause is the fault's own sentence
 ///
@@ -1053,8 +1179,22 @@ impl<'a> Withdrawal<'a> {
     }
 
     /// This withdrawal as a notice for [`frame_status`]'s rank 2.
+    ///
+    /// **Every kind answers [`Retold`] for itself**, so a fourth kind
+    /// is a compile error here rather than inheriting its siblings'
+    /// answer. All three are [`Retold::Never`] today, each over its own
+    /// symptom — the part drawn at its mated pose; the geometry drawn
+    /// again, or the instance gone; the part no longer following the
+    /// hand, and a later drag refused as having none in flight. None of
+    /// those says that an edit took the placement, the hide or the drag,
+    /// or which fault took it; only this sentence does.
     pub fn notice(&self) -> Message {
-        Message::new(Subject::Document, self.to_string())
+        let retold = match self.kind {
+            WithdrawalKind::Superseded => Retold::Never,
+            WithdrawalKind::DroppedHide => Retold::Never,
+            WithdrawalKind::KilledGesture => Retold::Never,
+        };
+        Message::new(Subject::Document, self.to_string(), retold)
     }
 }
 
@@ -1079,8 +1219,8 @@ impl<'a> Withdrawal<'a> {
 /// [`OpOutcome`] is E0027 here and its author decides whether the
 /// line says it. The four this does not word are not news the line
 /// owes: `committed` and `previewed` are the act itself, `minted` is
-/// an id a form reads back, and `refusal` is ranked above every
-/// notice by [`frame_status`] on its own.
+/// an id a form reads back, and `refusal` is ranked by [`frame_status`]
+/// on its own, ahead of these.
 pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '_ {
     let OpOutcome {
         committed: _,
@@ -1117,17 +1257,33 @@ pub fn outcome_notices(outcome: &OpOutcome) -> impl Iterator<Item = Message> + '
 /// what the picture draws. It still rides [`OpOutcome::maintenance`],
 /// where a reader of the API sees it.
 ///
+/// **Each worded arm answers [`Retold`] for itself**, and all three
+/// answer [`Retold::Never`]: none can show a retelling.
+///
+/// - An orphaned declaration evaluates to its own payload and refuses
+///   nothing, and its row is by contract what speaks "instead of
+///   leaving the author a node nothing will mention again".
+/// - A stranded appearance key's `AppearanceLoss` is evaluation's
+///   report to the API, and nothing in this viewer draws it.
+/// - A stranded payload name is retold only where its CARRIER fails on
+///   it, and this door cannot know that it will. A `Declare` carrier
+///   evaluates to its own payload without resolving its names, so its
+///   row stays `Ok`; any carrier poisoned by an upstream failure has a
+///   row that names the ancestor, not the strand; and the carrier's
+///   kind and its evaluation are not in the row. Where the retelling
+///   cannot be shown, the answer is `Never` ([`Retold`]'s burden).
+///
 /// The match names every arm, so a fifth is a compile error here
-/// rather than a row that reaches the outcome and is never worded.
+/// rather than a row that reaches the outcome and is never worded —
+/// or is worded and silently given its siblings' answer.
 pub fn maintenance_notice(row: &Maintenance) -> Option<Message> {
-    match row {
-        Maintenance::Strand { .. }
-        | Maintenance::StrandedAppearance { .. }
-        | Maintenance::OrphanedDeclare { .. } => {
-            Some(Message::new(Subject::Document, row.to_string()))
-        }
-        Maintenance::Cluster(_) => None,
-    }
+    let retold = match row {
+        Maintenance::Strand { .. } => Retold::Never,
+        Maintenance::StrandedAppearance { .. } => Retold::Never,
+        Maintenance::OrphanedDeclare { .. } => Retold::Never,
+        Maintenance::Cluster(_) => return None,
+    };
+    Some(Message::new(Subject::Document, row.to_string(), retold))
 }
 
 /// **Destructured rather than field-read**, so a field added to
@@ -1232,9 +1388,11 @@ impl core::fmt::Display for Withdrawal<'_> {
 /// without the thing that provoked it.
 pub fn fold_status(folded: &Folded) -> StatusUpdate {
     match &folded.refused {
+        // The same move says it again.
         Some((op, error)) => StatusUpdate::Show(Message::new(
             Subject::Camera,
             format!("camera: {error} (from {op})"),
+            Retold::Again,
         )),
         None => StatusUpdate::Expire(Subject::Camera),
     }
@@ -1551,8 +1709,10 @@ impl SeamSubject for NotIndexed {
 /// hover text already says, and it would undo half of #1843 — which
 /// asked for the indicator AND a pick path that distinguishes "not
 /// indexed yet" from "nothing under the cursor".
+///
+/// [`Retold::Again`]: the same click says it again until the build lands.
 pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
-    Message::new(NotIndexed::SUBJECT, refusal.to_string())
+    Message::new(NotIndexed::SUBJECT, refusal.to_string(), Retold::Again)
 }
 
 /// **What a δ the display refused says** — [`Subject::Display`], the
@@ -1560,8 +1720,10 @@ pub fn unindexed_refusal(refusal: &NotIndexed) -> Message {
 ///
 /// The error's own words, whole: [`SceneError`] states the condition a
 /// δ has to meet, and no prefix here says it a second way.
+///
+/// [`Retold::Again`]: the same δ says it again.
 pub fn delta_refusal(error: &SceneError) -> Message {
-    Message::new(SceneError::SUBJECT, error.to_string())
+    Message::new(SceneError::SUBJECT, error.to_string(), Retold::Again)
 }
 
 /// **What a δ field holding something that is not a number says.**
@@ -1571,17 +1733,27 @@ pub fn delta_refusal(error: &SceneError) -> Message {
 /// this one is not type-pinned because the text never reached
 /// [`crate::scene::DisplayTolerance`] — the parser's words are what
 /// there is.
+///
+/// [`Retold::Again`]: the same text says it again.
 pub fn delta_not_a_number(typed: &str, error: &core::num::ParseFloatError) -> Message {
     Message::new(
         SCENE_SEAM,
         format!("display δ: {typed:?} is not a number ({error})"),
+        Retold::Again,
     )
 }
 
 /// **What a preferences store that could not be written says** —
 /// [`Subject::Preferences`], retired by the next write of that file.
+///
+/// [`Retold::Never`]: nothing is sure to write again. A write happens
+/// only when a preference CHANGES — `ViewerApp::remember_dir` returns
+/// early for the directory it already holds, and the theme writes only
+/// on a new choice — so repeating the Open or Save As that failed to
+/// write never says it again, and a later launch that reads the old
+/// file cleanly never says the change was not kept.
 pub fn store_refusal(error: &StoreError) -> Message {
-    Message::new(Subject::Preferences, error.to_string())
+    Message::new(Subject::Preferences, error.to_string(), Retold::Never)
 }
 
 /// **What the preferences file had to say at startup**, and `None`
@@ -1629,7 +1801,12 @@ pub fn store_refusal(error: &StoreError) -> Message {
 pub fn startup_notices(notices: &[String]) -> Option<Message> {
     let notices: Vec<Message> = notices
         .iter()
-        .map(|text| Message::new(Subject::Preferences, text.as_str()))
+        // Never ranked — it is the field's initial value, set before any
+        // frame — so the answer decides nothing today. It is `Never`
+        // because nothing is sure to say it again: these are the file's
+        // complaints and the launch directory's, and neither is
+        // promised at the next launch.
+        .map(|text| Message::new(Subject::Preferences, text.as_str(), Retold::Never))
         .collect();
     (!notices.is_empty()).then(|| Message::joined(Subject::Preferences, &notices))
 }
@@ -1703,9 +1880,11 @@ pub fn containing_dir(path: &Path) -> Option<&Path> {
 /// node, then the role path — for the same reason and with the same
 /// shape. Every other arm is the typed refusal's own words,
 /// unaltered.
+///
+/// [`Retold::Again`]: the same click says it again.
 pub fn pick_refusal(error: &PickError) -> Message {
     let PickError::HitTest(HitTestError::Ambiguous { hits }) = error else {
-        return Message::new(Subject::Document, error.to_string());
+        return Message::new(Subject::Document, error.to_string(), Retold::Again);
     };
     let tied: Vec<String> = hits
         .iter()
@@ -1719,17 +1898,60 @@ pub fn pick_refusal(error: &PickError) -> Message {
             tied.len(),
             tied.join(", ")
         ),
+        Retold::Again,
     )
 }
 
-/// **What a tool has to say** — an authoring panel's refusal, a
-/// survival drop, a pick a tool declined. [`Subject::Document`],
-/// retired the way that subject says.
+/// **What a tool did on its own** — a survival drop or a declined pick
+/// ([`ToolNotice`]) — as a notice, [`Subject::Document`] like
+/// [`tool_news`], in the words [`ToolNotice`]'s own `Display` gives it.
+///
+/// **The one door a tool event reaches the line through**, because the
+/// event's arm is what says whether anything will say it again, and a
+/// door that took the rendered text could not read it.
+///
+/// A **survival drop** is a pick the tool HELD, taken because an
+/// accepted edit left it naming nothing. The panel draws the seat empty
+/// from then on and a commit refuses that it is — the symptom, never
+/// that a pick was held and what took it — so it is [`Retold::Never`]
+/// and rides beside a refusal ([`frame_status`]). A **declined pick**
+/// took nothing: the held picks are untouched and the same pick says
+/// the same sentence again, so it is [`Retold::Again`].
+///
+/// Every arm of every tool's event vocabulary is named, each with its
+/// own answer, so an event added to one is a compile error here and its
+/// author decides which side it is on.
+pub fn tool_notice(notice: &ToolNotice) -> Message {
+    let retold = match notice {
+        ToolNotice::Mate(MateToolEvent::PickLost { .. }) => Retold::Never,
+        ToolNotice::Seated {
+            event: SeatEvent::PickLost { .. },
+            ..
+        } => Retold::Never,
+        ToolNotice::Blend(BlendEvent::TargetLost { .. }) => Retold::Never,
+        ToolNotice::Blend(BlendEvent::EdgesLost { .. }) => Retold::Never,
+        ToolNotice::Blend(BlendEvent::OtherTarget { .. }) => Retold::Again,
+        ToolNotice::Blend(BlendEvent::NoEdgesOnTarget { .. }) => Retold::Again,
+    };
+    Message::new(Subject::Document, notice.to_string(), retold)
+}
+
+/// **What a tool has to say** that is not one of its own events — an
+/// authoring panel's refusal, or a sentence formatted at the site.
+/// [`Subject::Document`], retired the way that subject says. A tool's
+/// own events go through [`tool_notice`] instead, whose arms answer
+/// [`Retold`] from the event.
+///
+/// **The caller answers [`Retold`]**, because a door that takes text
+/// cannot read from it whether anything will say it again, and a
+/// default here would be [`Message::new`]'s missing default one door
+/// out. A panel's refusal is [`Retold::Again`] — the same click says
+/// it again — and every site today is one.
 ///
 /// **A door a type does not pin**, like [`startup_notices`], because
 /// its call sites hand it text — rendered through
-/// [`crate::tools::ToolKind::says`], [`crate::tools::ToolNotice`] and
-/// the typed forms vocabulary, or formatted at the site. What it buys
+/// [`crate::tools::ToolKind::says`] and the typed forms vocabulary, or
+/// formatted at the site. What it buys
 /// is that every site shares one decision: changing the subject here
 /// changes it at all of them, and a row can see it.
 ///
@@ -1739,8 +1961,8 @@ pub fn pick_refusal(error: &PickError) -> Message {
 /// a row could count them by that grep, as `frame_policy.rs` counts
 /// `ViewerApp::store`'s reads, but it would go red at every new site,
 /// and nothing about a new site is wrong.
-pub fn tool_news(text: impl Into<String>) -> Message {
-    Message::new(Subject::Document, text)
+pub fn tool_news(text: impl Into<String>, retold: Retold) -> Message {
+    Message::new(Subject::Document, text, retold)
 }
 
 /// **What the chrome badges about the A5 at-rest verdict**, and `None`
@@ -2452,7 +2674,7 @@ mod tests {
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
-        let elsewhere = Message::new(Subject::Document, "someone else's news");
+        let elsewhere = Message::new(Subject::Document, "someone else's news", Retold::Again);
         let mut status = Some(elsewhere.clone());
         apply(&mut status, fold_status(&folded));
         assert_eq!(
@@ -2507,7 +2729,11 @@ mod tests {
             (Subject::Display, Subject::Display, false),
             (Subject::Preferences, Subject::Document, true),
         ] {
-            let mut status = Some(Message::new(held, "the sentence on the line"));
+            let mut status = Some(Message::new(
+                held,
+                "the sentence on the line",
+                Retold::Again,
+            ));
             apply(&mut status, StatusUpdate::Expire(event));
             assert_eq!(
                 status.is_some(),
@@ -2523,7 +2749,7 @@ mod tests {
         // outstanding answer still describes this cursor, so what the
         // cursor said is still about the cursor the user is pointing
         // with.
-        let disagreement = Message::new(Subject::Cursor, "picking paths disagree");
+        let disagreement = Message::new(Subject::Cursor, "picking paths disagree", Retold::Again);
         let mut status = Some(disagreement.clone());
         apply(&mut status, cursor_status(IdStep::Hold));
         assert_eq!(status, Some(disagreement));
@@ -2532,7 +2758,11 @@ mod tests {
         // leaving the pane — where the id log voids the outstanding
         // question rather than asking a new one.
         for event in [IdStep::Ask { serial: 7 }, IdStep::Void] {
-            let mut status = Some(Message::new(Subject::Cursor, "picking paths disagree"));
+            let mut status = Some(Message::new(
+                Subject::Cursor,
+                "picking paths disagree",
+                Retold::Again,
+            ));
             apply(&mut status, cursor_status(event));
             assert_eq!(status, None, "{event:?} is a cursor event");
         }
@@ -2557,15 +2787,23 @@ mod tests {
     /// contract and not an accident of how a `Vec` happens to grow.
     #[test]
     fn deliver_sends_news_to_the_notices_and_retirements_to_the_field() {
-        let held = Message::new(Subject::Camera, "camera: refused a moment ago");
-        let earlier = Message::new(Subject::Document, "extrude: refused earlier this frame");
+        let held = Message::new(
+            Subject::Camera,
+            "camera: refused a moment ago",
+            Retold::Again,
+        );
+        let earlier = Message::new(
+            Subject::Document,
+            "extrude: refused earlier this frame",
+            Retold::Again,
+        );
 
         // News. The field is left alone — the ranking has not run yet,
         // and writing it here is the defect: this frame's accepted
         // batch would clear it before the toolbar painted it.
         let mut notices = vec![earlier.clone()];
         let mut status = Some(held.clone());
-        let news = Message::new(Subject::Camera, "camera: dolly refused");
+        let news = Message::new(Subject::Camera, "camera: dolly refused", Retold::Again);
         deliver(&mut notices, &mut status, StatusUpdate::Show(news.clone()));
         assert_eq!(
             notices,
@@ -2593,7 +2831,11 @@ mod tests {
         // same reason — it takes something away, and the thing it
         // takes away is the whole line whatever the line was about.
         let mut notices = Vec::new();
-        let mut status = Some(Message::new(Subject::Document, "someone else's news"));
+        let mut status = Some(Message::new(
+            Subject::Document,
+            "someone else's news",
+            Retold::Again,
+        ));
         deliver(&mut notices, &mut status, StatusUpdate::Clear);
         assert!(notices.is_empty(), "a Clear adds nothing to the frame");
         assert_eq!(status, None, "and sweeps the line whatever it held");
@@ -2607,6 +2849,7 @@ mod tests {
         let mut notices = vec![Message::new(
             Subject::Document,
             "news from earlier this frame",
+            Retold::Again,
         )];
         let mut status = Some(held.clone());
         let before = notices.clone();
@@ -2663,7 +2906,7 @@ mod tests {
 
         // `apply`'s contract, asserted through the nearest producer to
         // hand rather than a live composition — see the doc above.
-        let mut status = Some(Message::new(Subject::Document, "older news"));
+        let mut status = Some(Message::new(Subject::Document, "older news", Retold::Again));
         apply(&mut status, fold_status(&folded));
         assert_eq!(status, Some(message));
     }
@@ -2813,11 +3056,11 @@ mod tests {
         // `Keep` is a decision, not the absence of one — the whole
         // reason every policy here answers in this vocabulary instead
         // of assigning the field.
-        let held = Message::new(Subject::Document, "held");
+        let held = Message::new(Subject::Document, "held", Retold::Again);
         let mut status = Some(held.clone());
         apply(&mut status, StatusUpdate::Keep);
         assert_eq!(status, Some(held));
-        let news = Message::new(Subject::Camera, "news");
+        let news = Message::new(Subject::Camera, "news", Retold::Again);
         apply(&mut status, StatusUpdate::Show(news.clone()));
         assert_eq!(status, Some(news));
         // `Clear` is the broad one, and deliberately: an act the
@@ -2969,7 +3212,7 @@ mod tests {
             Withdrawal::superseded(&[constrained(7, &[9])])
                 .expect("news")
                 .notice(),
-            Message::new(Subject::Document, notice.clone()),
+            Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
         let StatusUpdate::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
             panic!("two withdrawals are news");

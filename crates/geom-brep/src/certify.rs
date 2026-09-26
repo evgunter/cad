@@ -739,6 +739,14 @@ pub struct EdgeCurve<T: Real> {
 }
 
 impl<T: Decide> EdgeCurve<T> {
+    /// The carrier point at the middle of the certified parameter
+    /// interval — a point ON the edge, interior to it, whatever the
+    /// carrier kind (a curved edge's chord midpoint is not on it).
+    pub fn mid_point(&self) -> Point3<T> {
+        self.carrier
+            .eval(self.param_start + (self.param_end - self.param_start) * T::from_f64(0.5))
+    }
+
     /// Certifies `spec` against the edge's endpoint points and the
     /// owning body's surfaces, returning the certified carrier.
     ///

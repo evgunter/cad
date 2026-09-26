@@ -532,7 +532,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let counts: Vec<usize> = three.body.solids().map(|(_, s)| s.shells.len()).collect();
     assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 1, "{counts:?}");
     assert_eq!(
-        three.body.get_solid(opened_solid).unwrap().shells.len(),
+        three.body.shells_of_solid(opened_solid).unwrap().len(),
         1,
         "the designated ceiling's wall is the cup"
     );

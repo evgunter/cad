@@ -1338,32 +1338,7 @@ macro_rules! nurbs_curve {
                 // bound is assembled from, which is what buys a
                 // POSITIVE answer on steep weight ratios where the
                 // one-span assembly is dominated by `sup‖C − c‖·sup|w′|`.
-                let mut add = Vec::new();
-                for span in self.knots.first_span()..=self.knots.last_span() {
-                    // A plain emptiness filter: this loop builds knot
-                    // VALUES and constructs no window, so there is no
-                    // span validation here to fuse with (the shape
-                    // `mesh`'s `rational_split_points` shares).
-                    if !self.knots.span_is_nonempty(span) {
-                        continue;
-                    }
-                    let (Some(&lo), Some(&hi)) =
-                        (self.knots.knots().get(span), self.knots.knots().get(span + 1))
-                    else {
-                        return poison;
-                    };
-                    for k in 1..RATIONAL_METER_SPLITS {
-                        #[allow(clippy::cast_precision_loss)]
-                        let f = k as f64 / RATIONAL_METER_SPLITS as f64;
-                        let u = lo + (hi - lo) * f;
-                        // Skip a split point that floating point has
-                        // collapsed onto a span end — refinement is a
-                        // tightening, never a correctness condition.
-                        if u > lo && u < hi {
-                            add.push(u);
-                        }
-                    }
-                }
+                let add = spline::algebra::equal_split_points(&self.knots, RATIONAL_METER_SPLITS);
                 let Ok(refined) = self.refine_knots(&add) else {
                     return poison;
                 };

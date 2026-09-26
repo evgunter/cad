@@ -702,12 +702,14 @@ bare `_`, with the argument in the doc above the impl rather than at
 the arm — because the subject ROUTES the message: it is what retires
 it (`frame::StatusUpdate::Expire`) and what a joined rank-2 line takes
 as its own subject. It does not RANK; `frame::frame_status` ranks by
-SOURCE. A line that printed its own routing would say to the user what
-the chrome says to itself. `frame::outcome_notices` binds four of
-`OpOutcome`'s six fields to `_`: the committed and previewed edits are
-the act itself, the minted ids are what a form reads back, and the
-refusal is ranked above every notice by `frame::frame_status` on its
-own.
+SOURCE, and beside a refusal by `frame::Retold`, which the same impl
+binds to `_` because it is about the line's future, which the line has
+no words for. A line that printed its own routing would say to the
+user what the chrome says to itself. `frame::outcome_notices` binds
+four of `OpOutcome`'s six fields to `_`: the committed and previewed
+edits are the act itself, the minted ids are what a form reads back,
+and the refusal is ranked by `frame::frame_status` on its own, ahead
+of the notices.
 
 **A `match` is exhaustive over VARIANTS, not over a variant's FIELDS.**
 The six `Display`s above are the struct half of a population of 41
@@ -979,7 +981,11 @@ stranded or rewritten in place, a declaration left unconsumed) — are
 typed values with `Display`, joined into rank
 2 by `frame_status` with one separator. None of them composes prose
 about another value's failure: the failure renders itself, and what the
-chrome adds is its own subject.
+chrome adds is its own subject. A refusal outranks them, and the ones
+nothing will ever say again (`frame::Retold::Never`) ride beside it on
+the same line rather than under it. `frame_status`'s `# The ranking`
+states that rule once; which notices it admits is answered by each
+door that makes one, since `Message::new` has no default.
 
 **The line is composed at two levels and they are two marks.**
 `frame::NOTICE_SEPARATOR` goes between two of a frame's notices;

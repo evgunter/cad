@@ -197,6 +197,30 @@ pub fn arc_section(s: f64) -> Section {
     ])]
 }
 
+/// **The three-arc circle**: radius `radius` about `centre`, as three
+/// 120° arcs whose first joint sits at `first` degrees (any angle; the
+/// suites use 0, 60, 90 and 120-degree steps of them). Each joint's
+/// angle is reduced mod 360 before it is evaluated, so a start of 240
+/// puts its joints at 240, 0 and 120 — never at 360, whose `sin` is
+/// not zero in `f64`.
+///
+/// One loop for the crate's three-arc cylinders, collars and pegs: a
+/// cylinder built from it is one curved surface cut by three seam
+/// struts, which is the shape the MATE-2 rows and the conic corpus
+/// both depend on.
+pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f64> {
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th: f64 = (deg % 360.0).to_radians();
+        Point2::new(centre.x + radius * th.cos(), centre.y + radius * th.sin())
+    };
+    bulge_loop(vec![
+        (at(first), b120),
+        (at(first + 120.0), b120),
+        (at(first + 240.0), b120),
+    ])
+}
+
 /// **Runs `run` on a pool of exactly `threads` threads**, and answers
 /// its value.
 ///
