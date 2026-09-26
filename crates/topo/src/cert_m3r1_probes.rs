@@ -18,11 +18,7 @@
 //! The cube this drives, its two construction steps and the chord-line
 //! and Newell-plane specs under them are [`crate::test_support_fixtures`]'s
 //! — the crate's shared Euler-op fixture family, named by path because
-//! this module is in-crate. Nothing box-shaped is built here. It is not
-//! the crate's only Euler-op box sequence:
-//! `crate::splitting::reassembly::quad_prism` is a second one under
-//! `src/`, filed on S-DUP's
-//! `work/dup/the-cube-sequence-is-written-five-times-and-twice-inside-src.md`.
+//! this module is in-crate. Nothing box-shaped is built here.
 #![allow(
     clippy::unwrap_used,
     clippy::expect_used,
