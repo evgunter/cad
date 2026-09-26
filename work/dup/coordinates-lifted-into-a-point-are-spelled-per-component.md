@@ -68,7 +68,7 @@ Out of this row: the `f64` constructors that lift nothing
 (`fn p2(x, y) -> Point2<f64> { Point2::new(x, y) }` and its kin),
 which are `f64-point-aliases-are-copied-beside-their-binarys-home`.
 
-## What was folded (PR #PRNUM, 2026-09-26)
+## What was folded (PR #3304, 2026-09-26)
 
 - **The `SCHEDULE` tables.** There were never five tables: the five
   production lifts read two consts, `splitting::containment::SCHEDULE`

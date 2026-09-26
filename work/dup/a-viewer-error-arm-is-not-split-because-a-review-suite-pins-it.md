@@ -8,6 +8,7 @@ priority: P4
 cost: E
 closed: 2026-09-26
 branch: dup/b7-a
+pr: 3304
 ---
 
 
@@ -163,7 +164,7 @@ constructions and one prose assertion, `datum_draw`'s viewport row;
 in `src/`, `datums::datum_view`'s doc and guard and
 `pane/viewport.rs`'s datum-overlay comment.
 
-## Closed (2026-09-26, PR #PRNUM)
+## Closed (2026-09-26, PR #3304)
 
 Ruled by the S-DUP orchestrator: the arm stays one, the withdrawn
 reading goes, and the API does not change. The review-suite sentence
