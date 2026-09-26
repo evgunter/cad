@@ -235,20 +235,7 @@ pub(crate) fn swept_segments<T: Real>(
             let s = &segs[j];
             (s, s.start, s.end, j, j)
         };
-        let kind = match s.kind {
-            profile::SegmentKind::Line => SweptKind::Line,
-            profile::SegmentKind::Arc {
-                center,
-                radius,
-                sweep,
-                turn,
-            } => SweptKind::Arc {
-                center,
-                radius,
-                sweep: if reverse { T::zero() - sweep } else { sweep },
-                turn: if reverse { turn.flip() } else { turn },
-            },
-        };
+        let kind = swept_kind(s.kind, reverse);
         out.push(SweptSeg {
             a,
             b,
@@ -272,31 +259,35 @@ pub(crate) fn sketch_segment<T: Real, S: SweptChord<T>>(seg: &S) -> SketchSegmen
     sketch_segment_of(seg.a(), seg.b(), seg.kind())
 }
 
-/// A CANONICAL profile segment as a `geom-brep` sketch segment — the
-/// same field-for-field mapping as [`sketch_segment`], for the readers
-/// that consume a validated segment outside any swept traversal (the
-/// revolve axis classification, the loft's walls).
-pub(crate) fn canonical_sketch_segment<T: Real>(
-    s: &profile::ValidatedSegment<T>,
-) -> SketchSegment<T> {
-    match s.kind {
-        profile::SegmentKind::Line => SketchSegment::Line {
-            a: s.start,
-            b: s.end,
-        },
+/// A canonical segment's carrier class in a traversal: carried
+/// through, with the sweep negated and the turn flipped when the
+/// traversal runs the segment backwards (the profile crate's reversal
+/// involution). The one home of that mapping.
+fn swept_kind<T: Real>(kind: profile::SegmentKind<T>, reverse: bool) -> SweptKind<T> {
+    match kind {
+        profile::SegmentKind::Line => SweptKind::Line,
         profile::SegmentKind::Arc {
             center,
             radius,
             sweep,
-            ..
-        } => SketchSegment::Arc {
-            a: s.start,
-            b: s.end,
-            centre: center,
+            turn,
+        } => SweptKind::Arc {
+            center,
             radius,
-            sweep,
+            sweep: if reverse { T::zero() - sweep } else { sweep },
+            turn: if reverse { turn.flip() } else { turn },
         },
     }
+}
+
+/// A CANONICAL profile segment, traversed forward, as a `geom-brep`
+/// sketch segment — [`sketch_segment`]'s mapping, for the loft's walls
+/// (`skin::vertex_segment`), which read a validated segment outside
+/// any swept traversal.
+pub(crate) fn canonical_sketch_segment<T: Real>(
+    s: &profile::ValidatedSegment<T>,
+) -> SketchSegment<T> {
+    sketch_segment_of(s.start, s.end, swept_kind(s.kind, false))
 }
 
 fn sketch_segment_of<T: Real>(a: Point2<T>, b: Point2<T>, kind: SweptKind<T>) -> SketchSegment<T> {
