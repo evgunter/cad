@@ -139,3 +139,11 @@ closure, which is a sibling of STACK's forgeable-certificate row, so the
 evidence was appended there. A rotation's `hull_sup` drift may refuse
 `ApproxRecertify` on a face that only just certifies at ε; that was
 forwarded to the tight-ε lane.
+
+## Dispatched: `encl/retire-approx-tolerance` (2026-09-26)
+
+(ENCL orchestrator) `approx-surface-tolerance-is-now-always-the-runs-eps`.
+**Single review, style**: the final state is decided and written in the
+row, the production behaviour is bit-identical by construction, and the
+change can be read and believed. Wave-1 PRs are open: 3269 (refusal
+prose), 3270 (tangent-parallel), 3272 (tight ε).
