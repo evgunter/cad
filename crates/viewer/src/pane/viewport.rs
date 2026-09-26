@@ -1747,6 +1747,7 @@ mod tests {
                     "picking paths disagree at the cursor: id buffer id {id}, \
                      which no patch of this picture draws, ray nothing"
                 ),
+                frame::Retold::Again,
             )),
         );
     }
