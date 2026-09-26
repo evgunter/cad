@@ -499,3 +499,21 @@ Dispatched as wave 4:
   stored under, and one surface order currently stores the wrong one.
   The lane stops at a report if the fix belongs to the caller's routing
   or needs a ruling on what `UnderDetermined` means.
+
+## Container restart (2026-09-26)
+
+(ENCL orchestrator) The container restarted while waves 3 and 4 were
+mid-work, and none of the three lanes had pushed. Their worktrees
+survived, so the orchestrator committed and pushed each one's
+uncommitted state as a WIP commit:
+- `encl/offset-fit-loop-faces` `40f6c29f6c` (8 files);
+- `encl/equal-split-points-home` `a1e2757985` (5 files, one of them
+  outside the row's named sites);
+- `encl/must-carry-first-order-gate` `916832ee3d`, which is probe
+  instrumentation plus the 3270 mutant, not a fix.
+
+Each lane was re-dispatched to resume from its WIP, read it critically,
+and commit and push after each step. The must-carry lane uses the probe
+as its instrument and reverts it before its first real commit.
+Review tiers are unchanged. The stale gate worktree and targets are
+cleaned.
