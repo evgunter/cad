@@ -1105,6 +1105,7 @@ fn a_unit_bearing_text_sets_the_value_and_the_notation_as_one_undo() {
             "auth2-written",
             &name,
             DocParam::written_length(WrittenLength::in_unit(20.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1154,6 +1155,7 @@ fn text_that_says_what_the_declaration_already_says_is_not_an_edit() {
             "auth2-noop",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1200,6 +1202,7 @@ fn an_expression_typed_into_a_parameter_is_refused_with_a_sentence() {
             "auth2-expression",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1248,6 +1251,7 @@ fn an_unknown_unit_carries_the_parsers_own_wording() {
             "auth2-unknown-unit",
             &name,
             DocParam::written_length(WrittenLength::in_unit(50.0, MM)),
+            tol,
         ),
         tol,
     );
@@ -1284,6 +1288,7 @@ fn a_wrong_dimension_unit_refuses_the_whole_action() {
             "auth2-mismatch",
             &name,
             DocParam::continuous(pncad::document::Dimension::Angle, 1.0),
+            tol,
         ),
         tol,
     );
@@ -1322,6 +1327,7 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
             "auth2-picker",
             &name,
             DocParam::continuous(pncad::document::Dimension::Length, 0.05),
+            tol,
         ),
         tol,
     );
@@ -1342,7 +1348,12 @@ fn the_parameter_unit_picker_leaves_the_value_where_it_was() {
     // this one guessing.
     let holes = ParamName::new("holes");
     let mut counted = DocSession::inline(
-        common::declared("auth2-picker-count", &holes, DocParam::Count { value: 6 }),
+        common::declared(
+            "auth2-picker-count",
+            &holes,
+            DocParam::Count { value: 6 },
+            tol,
+        ),
         tol,
     );
     let refusal = counted
@@ -1373,7 +1384,12 @@ fn a_count_refuses_a_unit_bearing_value_in_the_values_words() {
     let tol = Tol::witness();
     let holes = ParamName::new("holes");
     let mut session = DocSession::inline(
-        common::declared("auth2-count-text", &holes, DocParam::Count { value: 6 }),
+        common::declared(
+            "auth2-count-text",
+            &holes,
+            DocParam::Count { value: 6 },
+            tol,
+        ),
         tol,
     );
     let before = session.history().len();

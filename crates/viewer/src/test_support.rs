@@ -205,8 +205,7 @@ pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
 /// binary cannot share an identity. No oracle: it is the spelling of
 /// `Doc::empty_derived` plus one `SetDocParam`, and what each row
 /// asserts is about the `value` it handed in.
-pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
-    let tol = Tol::witness();
+pub fn declared(label: &str, name: &ParamName, value: DocParam, tol: Tol) -> Doc<ProfileProgram> {
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
     edited(
         &doc,

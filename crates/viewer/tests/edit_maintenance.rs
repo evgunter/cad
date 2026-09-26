@@ -534,6 +534,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
         "maint-param-strand",
         &hole_r,
         DocParam::continuous(Dimension::Length, 0.3),
+        tol,
     );
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {

@@ -3453,6 +3453,7 @@ mod value_field_tests {
                 label,
                 &ParamName::new("base_r"),
                 DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
+                tol,
             );
             let (doc, profile) = framed_square(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
