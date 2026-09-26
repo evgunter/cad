@@ -89,8 +89,10 @@ nothing hands the tier `sign(1 − b²)`.
   comparison.
 - **If only the narrowed read reaches the six,** stop after Phase 1
   and report. The read is a new answer the tier gives on the box, and
-  whether it ships is Ev's call. The orchestrator takes the table to
-  Ev as an `[ev]` PR. The dial may land OFF as the Phase 1 record.
+  whether it ships is Ev's call. The orchestrator has the fork weighed
+  by two designers (`docs/prompts/designer.md`, the procedure in
+  `memories/orchestration-model.md`), then takes it to Ev as an `[ev]`
+  PR carrying the table. The dial may land OFF as the Phase 1 record.
 - **If neither reaches them,** the unit closes at Phase 1 and the item
   records why.
 
@@ -131,8 +133,9 @@ nothing hands the tier `sign(1 − b²)`.
 
 **Set by Phase 1, recorded in `work/decide/log.md` at spec time.**
 - The structural route: a single FULL review, as DECIDE-5.
-- A Phase 1 stop: the `[ev]` PR carries the table, and the dial's code
-  gets a single FULL review before it lands off.
+- A Phase 1 stop: the designers weigh the fork, the `[ev]` PR carries
+  the table, and the dial's code gets a single FULL review before it
+  lands off.
 
 Claims to falsify:
 1. the structural look's answer (a decision that exists, or not);

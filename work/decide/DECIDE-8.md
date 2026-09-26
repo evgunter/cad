@@ -21,7 +21,7 @@ Phase 1 looks first for a decision upstream that already separates a
 minor arc from a major one. It also measures the item's narrowed read
 behind a dial shipped off. If the sign is decided upstream, the sweep
 states it the way route B states the turn. If only the read reaches the
-six, the unit stops and the table goes to Ev.
+six, the unit stops: two designers weigh the fork, and it goes to Ev.
 
 Spec: `docs/DECIDE-8-SPEC.md`. Opus implementer. Review tier: set by
 Phase 1 (`work/decide/log.md`, 2026-09-26).

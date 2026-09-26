@@ -673,10 +673,10 @@ document loses decisions: six on the parameter bulge documents.
 **Review tier: set by Phase 1.**
 - If the sign is decided upstream and the sweep states it as route B
   states the turn: a single FULL review, as DECIDE-5 had.
-- If only a new read on the box reaches the six: the unit stops, and
-  the table goes to Ev as an `[ev]` PR, since whether the tier answers
-  on the box there is Ev's call (#3186 rejected rule C's dial as it
-  stands).
+- If only a new read on the box reaches the six: the unit stops. Two
+  designers weigh the fork (`docs/prompts/designer.md`), and it goes
+  to Ev as an `[ev]` PR, since whether the tier answers on the box
+  there is Ev's call (#3186 rejected rule C's dial as it stands).
 
 Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
 `props/sign-hull` at DECIDE-7's merge.
