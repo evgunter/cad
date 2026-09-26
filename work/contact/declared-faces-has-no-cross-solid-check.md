@@ -1,13 +1,12 @@
 ---
 id: declared-faces-has-no-cross-solid-check
 kind: issue
-title: Declared.faces has no cross-solid check, so a contact record naming two faces of the SAME solid would back events within it
+title: An intra-solid PATCH record is admitted into the census's backing index with no reading of its own (curve records are the designed cusp channel; patches have no such role)
 status: open
 opened: 2026-09-16
 refs: [750]
 priority: P3
-cost: E
-rides_with: CONTACT-1
+cost: D
 ---
 
 The adjacent observation from issue 750, filed at BOOL-4's spec time
@@ -43,3 +42,12 @@ one solid overlapping over an area) has no such reading; whether the
 check should be patches-only, or should instead keep intra-solid pairs
 out of the census's backing index while leaving the 3′ channel alone,
 is a design question for this item's next dispatch.
+
+## Re-homed at CONTACT-1's close (2026-09-26)
+
+No longer rides CONTACT-1. The premise as first filed is false: a
+same-solid curve record is the designed 3′ cusp declaration. What
+remains is the patches question above. Should `Declared::index` refuse
+intra-solid patch records, or keep intra-solid pairs out of the
+backing index and leave the 3′ channel alone? That is a design
+question, so the row is costed `D`.
