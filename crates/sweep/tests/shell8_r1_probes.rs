@@ -18,15 +18,8 @@ use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside_raw, charts_of, deep_dump, faces_of, solid_of, tol, volume};
+use crate::shell8_common::{beside, charts_of, deep_dump, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{hollow_box, v, vessel};
-
-/// `other` placed `dx` along `+x` beside `body`, WITHOUT the validity
-/// assertion `shell8_common::beside` makes: these probes build some
-/// operands on purpose that tier 3 would not bless.
-fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
-    beside_raw(body, other, Vec3::new(dx, 0.0, 0.0)).0
-}
 
 // ---------------------------------------------------------------------
 // Claim 1 — the AXIAL door, scoped
