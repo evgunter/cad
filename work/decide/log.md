@@ -680,3 +680,37 @@ document loses decisions: six on the parameter bulge documents.
 
 Spec `docs/DECIDE-8-SPEC.md`. Branch `decide/8-apothem-sign` from
 `props/sign-hull` at DECIDE-7's merge.
+
+## 2026-09-26 — DECIDE-8 stops at Phase 1; the fork is weighed by two designers and goes to Ev as #3283
+
+**What Phase 1 found** (draft #3282, head `cbcf445ae`): nothing upstream
+decides the apothem's sign. The six are asked in the profile's pair pass,
+before the sweep, so no sweep-side spelling reaches them. The measured
+read, `signed_root_last` behind a dial shipped off:
+- takes the six, plus 28 on the bracket;
+- re-labels nothing;
+- misses the `0.4` parameter pair;
+- costs +39% on the bracket's leaf.
+
+**The designers.** One Opus and one Fable designer, concurrent and blind,
+with the same problem statement (`docs/DESIGN-FORK-PROTOCOL.md` at
+`bb10a4cdd`; the blinding byte is on `analysis/design-fork/the-apothems-sign`).
+Both rejected the framing, the same way: the six are the pair pass
+recomputing an adjacent pair's shared vertex as a root. Both recommend
+that `pair_contacts` take the shared vertices, and that the read not
+ship. They split only on landing the dial off. No reconciliation round.
+
+**Put to Ev as `[ev]` #3283.** It files:
+- the PATHS row `an-adjacent-pairs-shared-vertex-is-recomputed-as-a-root`;
+- `the-brackets-fillet-decisions-owe-a-structural-look` (P3);
+- the design-fork log's row 2.
+
+The orchestrator leans on the dial with B: close #3282 unmerged.
+
+**Figures (harness).**
+
+| lane | tokens | time |
+| --- | --- | --- |
+| implementer | 322k | 48 min |
+| designer (Opus) | 122k | 3 min |
+| designer (Fable) | 165k | 9 min |
