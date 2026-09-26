@@ -337,3 +337,30 @@ Filed:
 render through `Shell/Face/Fit/*`, the route that can raise them.
 Builds were paused for disk, so the local gate is this head's first
 full run. Gate queue: 3272 (running) → 3275 → 3274 → 3269.
+
+## PR 3270 dual review adjudicated (2026-09-26)
+
+(ENCL orchestrator) R1 and R2, both on `5412915be6`: APPROVE-WITH-FIXES
+each, with no MAJOR from either. Both confirmed the cause by a red
+mutant, and both independently argued that the new form is strictly
+safer (acceptance changes only within sin θ ≲ 2ε/r, where old and new
+agree to rounding).
+
+- **Bilateral**: the manifest census claim (R2 measured it false on the
+  link and the bracket; R1 flagged it at risk); the `k1`/`k2`
+  asymmetric spellings (R2 measured the lost exact zero on identical
+  surfaces); the overclaiming "normal curvature" comment; the
+  order-dependent surgery comment; the reversed-order misnamed cause,
+  pinned as spec and missing from the filed row; and the stale
+  `sectors.rs` citation.
+- **Unilateral**:
+  - R1: σ₂ is unpinned, demonstrated by a surviving mutant;
+    representation-dependent pins in the row.
+  - R2: no near-band-edge row.
+
+All taken into one fix pass. The union's tally for the dual-review log
+is recorded when that row rides the PR (no unilateral MAJOR, so the
+tally is 0). Disk: one identical note went to both reviewers, so it is
+not a method difference. Environment: `mesa-vulkan-drivers` (lavapipe)
+was installed for the viewer's GPU row, which fails by design with no
+adapter; the first local runs had died on it.
