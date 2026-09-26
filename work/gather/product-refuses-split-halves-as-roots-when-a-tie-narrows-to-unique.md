@@ -2,13 +2,14 @@
 id: product-refuses-split-halves-as-roots-when-a-tie-narrows-to-unique
 kind: unit
 title: product falsely refuses Naming when the two halves of one split are taken as two Part roots over an N2 tie the plane separates
-status: review
+status: closed
 opened: 2026-09-24
 priority: P0
 cost: H
 refs: [product-refuses-naming-when-one-instance-is-placed-under-two-roots]
 branch: gather/split-halves-tie-merge
 pr: 3256
+closed: 2026-09-26
 ---
 
 Found by PR 3142's review (MAJOR 1), filed by the GATHER two-roots lane.
@@ -78,3 +79,13 @@ product table, row for row (`gather_placed_under_two_roots`,
 `split_halves_as_roots_over_a_one_{one,two}_tie_gather_one_tie`).
 `a_separated_piece_merges_through_a_transform_and_a_second_split`
 covers the other verbatim edges.
+
+## Closed (2026-09-26)
+
+Merged as PR 3256. Tier: single FULL review. The fix pass is on the same
+PR. It pins over-marking: three overlapping-split shapes still refuse,
+and each goes red under the mark-everything mutant. The mark has one
+home, in `Upstream::piece`. Residue filed as its own rows:
+`the-gather-tie-merge-cannot-tell-a-candidate-carried-twice` (P3), and
+REACH's `split-through-the-u-cutter-pockets-inverts-section-loop-roles`
+(P0).
