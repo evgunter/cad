@@ -2,12 +2,13 @@
 id: offset-fit-budget-face-speaks-for-a-round-whose-bound-rose
 kind: issue
 title: offset_fit: BudgetExhausted says the bound is still converging on a round whose bound rose, and carries the last round's bound rather than the best one reached
-status: review
+status: closed
 opened: 2026-09-25
 priority: P3
 cost: E
 branch: encl/offset-fit-loop-faces
 pr: 3294
+closed: 2026-09-26
 ---
 
 

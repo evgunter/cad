@@ -684,3 +684,18 @@ Also taken:
 K-REPORT: the population growth of `dihedral_arm`/`dihedral_wedge` is a
 distribution change to READ, not to re-derive, per the `demo_flush_*`
 precedent. The batch's local gate runs k-lint and is that read.
+
+## 3292 and 3294 merged individually; the batch reduces to 3295 (2026-09-26)
+
+(ENCL orchestrator) Hosted CI went fully green on 3292 (`c569ae153d`)
+and 3294 (`062a8a091b`). Both PRs share no non-tracker file, and each
+merges cleanly over main, so both are merged: their CI was already
+spent, and holding them behind 3295 bought nothing. The rows they carry
+are closed. 3295's final head `62d912e77a` is red on hosted, at ε 1e-6
+and at the default ε, and on the batch's local gate: one test,
+`editor-core` `m10_9_pins_interval::m10_9_no_registrant_lies_on_any_measured_document`.
+The hypothesis is that the new per-station `classify_dihedral` reaches
+a Sym registrant on a measured document; a lane is root-causing it on
+`encl/batch-split-loop-mustcarry`, which now reduces to main + 3295. The
+batch gate was stopped. Disk: `line-tables-only` plus no incremental
+kept its target at about 8 GB mid-matrix, against 20+ GB before.

@@ -2,12 +2,13 @@
 id: a-third-spelling-of-cut-every-span-into-splits-pieces
 kind: issue
 title: A third spelling of "cut every nonempty span into splits pieces", and the concept's home is below both crates
-status: review
+status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
 branch: encl/equal-split-points-home
 pr: 3292
+closed: 2026-09-26
 ---
 
 

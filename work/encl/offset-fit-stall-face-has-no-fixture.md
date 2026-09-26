@@ -2,13 +2,14 @@
 id: offset-fit-stall-face-has-no-fixture
 kind: issue
 title: offset_fit's RefinementStalled face has no fixture at any door, so the verdict-before-budget ordering is unpinned
-status: review
+status: closed
 opened: 2026-09-12
 priority: P3
 cost: E
 branch: encl/offset-fit-loop-faces
 rides_with: offset-fit-budget-face-speaks-for-a-round-whose-bound-rose
 pr: 3294
+closed: 2026-09-26
 ---
 
 
