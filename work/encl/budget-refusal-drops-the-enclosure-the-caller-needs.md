@@ -2,11 +2,12 @@
 id: budget-refusal-drops-the-enclosure-the-caller-needs
 kind: issue
 title: a budget refusal from refine_to_target drops the enclosure, so a consumer pattern-matches two crates down to get it back
-status: dispatched
+status: review
 opened: 2026-09-12
 priority: P3
 cost: E
 branch: encl/small-rows-h11-teapot
+pr: 3275
 ---
 
 

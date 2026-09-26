@@ -209,3 +209,18 @@ Per the guard's own text, beside a queued hosted run this is an early
 answer, and merging on it before the hosted run lands is the owner's
 call. The user made that call for this sitting. First head: PR 3272's
 fix pass, `08c31a49`.
+
+## PR 3275 (H11, teapot bracket): orchestrator's read (2026-09-26)
+
+(ENCL orchestrator) Read in full: approve. H11 points `face_reach` and
+`extremal_angle_interval` at `CertifiedEnclosure`'s home and keeps each
+site's own argument. The `chart_region` sites are rightly left alone,
+since they read `Bounds`, not the certified door. The teapot probe
+measures through `validate_geometric_certificate(..).measure()`, stays
+fail-loud on every refusal but the budget one, and holds the frustum
+inside the bracket. Rows it filed: two on PROPS (`brk-has-no-certified-door`,
+`certified-door-suite-does-not-sweep-sym`) and one here
+(`measure-budget-bracket-is-the-sign-level-one-not-the-continuations`,
+priced at the state sync after 3275 merges). Queued for the local gate
+behind 3272. A loose end, recorded rather than taken: building
+`demos/tour` on main rewrites its `Cargo.lock` (`rayon` moves).
