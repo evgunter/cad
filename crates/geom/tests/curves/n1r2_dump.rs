@@ -11,7 +11,7 @@ use crate::curves::n1r2_fixtures;
 use std::io::Write;
 
 use geom::NurbsCurve3;
-use geom_core::{Dual, Dual64, Point3};
+use geom_core::{Dual, Dual64};
 use n1r2_fixtures::{curves3, params};
 
 #[test]
@@ -22,17 +22,7 @@ fn n1r2_dump_curve_evaluators() {
     let mut out = std::fs::File::create(path).unwrap();
     let mut n = 0usize;
     for (name, c) in curves3() {
-        let ctrl = c
-            .control()
-            .iter()
-            .map(|p| {
-                Point3::new(
-                    Dual::constant(p.x),
-                    Dual::constant(p.y),
-                    Dual::constant(p.z),
-                )
-            })
-            .collect();
+        let ctrl = c.control().iter().map(|p| p.map(Dual::constant)).collect();
         let cd: NurbsCurve3<Dual64> =
             NurbsCurve3::new(c.knots().clone(), ctrl, c.weights().to_vec()).unwrap();
         let kv = c.knots();
