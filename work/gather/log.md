@@ -351,3 +351,11 @@ test rows, the finished clippy rows' `debug/examples` was deleted
 (back to 7.8 GB). Only one battery at a time, lane targets deleted
 between runs, and the worktree's `target/` removed before the next
 battery starts.
+
+**Build slots are dropped** (Ev, in chat, 2026-09-26: *"if the build
+slots aren't useful you can stop using them. they were calibrated to a
+different machine"*). The battery held every slot for hours, so lane
+builds queued behind it. GATHER's lanes now run cargo directly. Disk is
+the constraint that remains: incremental off, no build below 5 GB free,
+and targets deleted after use. `ci-local.sh` still takes its slots
+internally, but nothing else waits on them.
