@@ -109,9 +109,13 @@
 //! over every contact edge at the description pass (`attach_contact`,
 //! through [`geom_brep::must_carry_over_edge`]):
 //! **`tangent_second_order`** at the certification schedule's seven
-//! interior stations — jet-determinate stores the intrinsic tangency,
-//! under-determined the conventional chart image, in-band refuses
-//! [`BlendError::Escalated`] at the link. Everything else in this
+//! interior stations, each first gated by the first-order wedge
+//! (`dihedral_wedge` behind its `dihedral_arm`) —
+//! jet-determinate stores the intrinsic tangency, under-determined the
+//! conventional chart image, in-band refuses [`BlendError::Escalated`]
+//! at the link, and a transverse station refuses
+//! [`BlendError::SurgeryInvariant`]: the routing sends every contact
+//! whose surfaces cross at an angle to the plain intersection instead. Everything else in this
 //! module is structural: cycle walks, key equality, stored senses.
 //!
 //! # Out of scope, refused typed
@@ -4018,9 +4022,8 @@ fn attach_contact<T: Decide + Bounds>(
     let is_seam = matches!(carrier, ContactCarrier::SeamArc { .. });
     let transverse = matches!(
         carrier,
-        ContactCarrier::Chord
+        ContactCarrier::Chord | ContactCarrier::TransverseArc { .. }
     );
-    let probe_arc = matches!(carrier, ContactCarrier::TransverseArc { .. });
     let (curve, t0, t1) = match carrier {
         ContactCarrier::TrimLine | ContactCarrier::Chord => {
             let len = p0.distance(p1);
@@ -4076,13 +4079,10 @@ fn attach_contact<T: Decide + Bounds>(
         // the locus that the geometry does not have. The description
         // is chosen for what the geometry IS, not for what a later
         // gate would catch. Routed through the tangent branch below
-        // instead, a cut-off arc is caught only in one surface order:
-        // with the cap as `s1` the must-carry rule reads it
-        // jet-determinate and the certificate refuses the tangent
-        // description at `TangentParallel`; with the band as `s1` the
-        // rule reads it under-determined and the conventional chart
-        // image is stored and passes tier 3
-        // (`work/encl/must-carry-over-edge-reads-a-transverse-edge-as-under-determined.md`).
+        // instead, a cut-off arc reads `Transverse` at the must-carry
+        // rule's first-order gate in either surface order, and that
+        // branch refuses it as the surgery contradicting its own
+        // routing.
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {
@@ -4106,24 +4106,7 @@ fn attach_contact<T: Decide + Bounds>(
                 ));
             };
             let extent = edge_extent(&curve, t0, t1, p0.distance(p1));
-            let v = must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band);
-            if probe_arc {
-                let vs = must_carry_over_edge(surf2, surf1, &curve, t0, t1, extent, band);
-                let kinds = (geom_brep::SurfaceKind::of(surf1), geom_brep::SurfaceKind::of(surf2));
-                let mut st = String::new();
-                for i in 1..geom_brep::CERT_SAMPLES - 1 {
-                    let t = geom_brep::sample_param(t0, t1, i);
-                    let (p, tau) = curve.ders1(t);
-                    let a = geom_brep::tangent_second_order(surf1, surf2, p, tau, extent, band);
-                    let b = geom_brep::tangent_second_order(surf2, surf1, p, tau, extent, band);
-                    let d = geom_brep::classify_dihedral(surf1, surf2, p, extent, band);
-                    st += &format!(" [i{} sin={:?} k12={:?} k21={:?} arm={:?} dih={:?}]", i, a.jet.sin_theta, a.jet.kappa_rel, b.jet.kappa_rel, a.arm, d);
-                }
-                eprintln!("PROBE edge={:?} kinds={:?} fixture_order={:?} swapped={:?}{}", edge, kinds, v, vs, st);
-                if std::env::var("PROBE_SWAP").is_ok() { vs } else { v }
-            } else {
-                v
-            }
+            must_carry_over_edge(surf1, surf2, &curve, t0, t1, extent, band)
         };
         match verdict {
             MustCarryVerdict::JetDeterminate => {
@@ -4159,6 +4142,21 @@ fn attach_contact<T: Decide + Bounds>(
                 return Err(BlendError::Escalated {
                     site: BlendSite::Link { edge: link },
                     source,
+                });
+            }
+            // A station reads the join a corner: this branch's premise
+            // — a definitely-smooth join — is refuted by the geometry.
+            // The carrier kind routed the edge here, and every kind
+            // whose surfaces cross at an angle is routed to the
+            // transverse branch above, so reaching this arm is the
+            // surgery contradicting its own routing, announced rather
+            // than repaired by storing a description the routing did
+            // not choose.
+            MustCarryVerdict::Transverse => {
+                return Err(BlendError::SurgeryInvariant {
+                    at: EntityId::Edge(edge),
+                    detail: "a contact edge routed as a smooth join reads definitely \
+                             transverse at a certification station",
                 });
             }
         }

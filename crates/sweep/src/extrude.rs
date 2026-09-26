@@ -35,7 +35,8 @@
 //!    edge ([`geom_brep::must_carry_over_edge`] — the lane gate and
 //!    the certification schedule's interior stations, in its one home:
 //!    jet-determinate ⇒ `TangentIntersection`, under-determined ⇒ an
-//!    image in the previous wall's chart, in-band ⇒ the typed sliver),
+//!    image in the previous wall's chart, in-band ⇒ the typed sliver,
+//!    a transverse station ⇒ `Intersection` as at a transverse midpoint),
 //!    Indeterminate is a typed sliver error.
 //! 5. **Top cap.** The seed face's surface (the honest `Nurbs`
 //!    placeholder since `mvfs`) is replaced by the translated loop's
@@ -954,22 +955,23 @@ fn sweep_loop<T: Decide>(
                 key: topo::GeomRef::Surface(k_next),
             })?;
         let mid = qs[j] + w * T::from_f64(0.5);
+        // The corner's description: the plain intersection locus.
+        let corner = || EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: k_prev,
+                s2: k_next,
+                witness: mid,
+            },
+            carrier: strut_carrier(qs[j], w),
+            param_start: T::zero(),
+            param_end: w_norm,
+        };
         match classify_dihedral(&s_prev, &s_next, mid, w_norm, band) {
             Ok(DihedralClass::Transverse) => {
                 // The prefer-intrinsic upgrade: mint-time Intersection
                 // was impossible (the side surfaces did not exist);
                 // re-describe through the certified setter.
-                let spec = EdgeCurveSpec {
-                    description: EdgeDescriptionSpec::Intersection {
-                        s1: k_prev,
-                        s2: k_next,
-                        witness: mid,
-                    },
-                    carrier: strut_carrier(qs[j], w),
-                    param_start: T::zero(),
-                    param_end: w_norm,
-                };
-                body.set_edge_curve(struts[j].edge, spec, tol)?;
+                body.set_edge_curve(struts[j].edge, corner(), tol)?;
             }
             Ok(DihedralClass::Smooth) => {
                 // OQ7's must-carry, applied at construction over the
@@ -981,7 +983,7 @@ fn sweep_loop<T: Decide>(
                 // `Intersection`. Under-determined keeps the
                 // conventional description BY THE PREDICATE; in-band
                 // escalates as the same typed sliver (F6). The gate,
-                // the stations and the three-way policy are the
+                // the stations and the verdict policy are the
                 // rule's, not this arm's
                 // ([`geom_brep::must_carry_over_edge`]).
                 let carrier = strut_carrier(qs[j], w);
@@ -1064,6 +1066,18 @@ fn sweep_loop<T: Decide>(
                             vertex_index: segs[j].chord.canonical_vertex,
                             source,
                         });
+                    }
+                    // A station reads the join a corner. Both walls'
+                    // normals are constant along the ruling the strut
+                    // is, so a station cannot disagree with the
+                    // midpoint on a sound pair of walls; if one does,
+                    // the edge takes the corner's description and its
+                    // certification is what says whether it is a
+                    // corner along its whole length — never the
+                    // conventional form, which the rule no longer
+                    // vouches for.
+                    geom_brep::MustCarryVerdict::Transverse => {
+                        body.set_edge_curve(struts[j].edge, corner(), tol)?;
                     }
                 }
             }
