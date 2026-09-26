@@ -400,9 +400,10 @@ pub fn rational_split_points(kv: &KnotVector) -> Vec<f64> {
 
 /// The interior split points that cut every nonempty span of a knot
 /// vector into `splits` equal pieces — the schedule [`refine_chain`]
-/// and the rational lanes refine by. Homed below this crate, beside the
-/// refinement it feeds, so `geom-core`'s own callers reach the same
-/// rule; the name here is the one this lane's consumers read.
+/// and the rational lanes refine by, under the name this crate's
+/// consumers read. The rule, sliver skip included, is
+/// [`geom_core::spline::algebra::equal_split_points`]', beside the
+/// refinement it feeds, where `geom-core` and `geom` reach it too.
 pub use geom_core::spline::algebra::equal_split_points as split_points;
 
 /// A coefficient net as certification enclosures — the shared tensor assembly,
