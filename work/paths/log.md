@@ -293,18 +293,20 @@ Rulings, sent to the lane:
 
 Review stays dual, dispatched once these settle.
 
-## 2026-09-26 — the merge gate moves local while hosted CI queues
+## 2026-09-26 — local CI while hosted CI queues
 
-Ev (in chat): hosted CI is queueing badly, so running CI locally is
-fine. From here, until Ev says hosted is back:
-- **The gate.** Every PATHS push and merge is gated on
-  `local-scripts/ci-local.sh --full`. That script is the ci.yml mirror,
-  and its parity is checked by `check-ci-mirror-parity.py`. It takes
-  the machine's build slot itself.
-- **Hosted CI.** Its conclusion is read when it arrives. A hosted red
-  that arrives after merge is fixed forward on main at once.
-- **Implementer and fix-pass briefs** run `ci-local.sh --full` before
-  pushing, and report its summary block. They do not wait on hosted.
-
-#3254's current head already has a green hosted run (36195442188). Its
-dual review is in flight on 8c275c72.
+Ev (in chat, then #3276's `local-scripts/hosted-ci-guard.sh`): when the
+hosted queue is deeper than a local run is long, a local whole-matrix
+run is allowed. How PATHS uses it:
+- **The command:**
+  `CAD_LOCAL_CI_OVERRIDE=i-certify-this-run-should-not-be-hosted local-scripts/ci-local.sh --full`.
+- **Only on an otherwise idle box.** It takes every build slot, so it
+  never runs beside a reviewer's or implementer's build.
+- **What it answers.** Beside a queued hosted run it is an early answer,
+  and hosted is still the gate. It is the gate itself only while hosted
+  is down. Merging on the early answer before hosted lands is the owner's
+  call. PATHS makes that call per PR, in this log. A hosted red that lands
+  after such a merge is fixed forward on main at once.
+- **Implementer and fix-pass briefs** run the scoped local battery before
+  pushing (`memories/local-battery-scope.md`). They run the override run
+  only when the box is idle and a hosted queue stands in the way.
