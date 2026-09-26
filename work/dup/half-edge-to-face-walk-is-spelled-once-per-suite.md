@@ -2,11 +2,13 @@
 id: half-edge-to-face-walk-is-spelled-once-per-suite
 kind: issue
 title: The half-edge → loop → face walk is spelled once per file across topo, sweep and their suites
-status: open
+status: closed
 opened: 2026-09-19
 refs: [blend-spells-the-half-edge-to-face-walk-five-times, the-half-edge-to-face-walk-is-spelled-per-test-file, names-emit-keeps-an-unguarded-two-refusal-walk, chords-spells-the-half-edge-to-face-walk-twice, step-lanes-spell-the-half-edge-to-face-walk, demos-tour-spells-the-half-edge-to-face-walk-three-times, solid-of-face-has-eleven-hand-written-walks-outside-it]
 priority: P4
 cost: E
+closed: 2026-09-26
+pr: 3284
 ---
 
 
@@ -330,3 +332,64 @@ instruments support:
   the hops**, 6 deferred with the surface-hop decision. The fold is
   24 of 46, and the 22 that remain are each named above with a
   reason.
+
+## Closed (2026-09-26, PR #3284)
+
+**`topo` has the door** — `Body::face_of_half_edge` — so no door was
+added for the walk. The row's own residue was the six
+"foldable, NOT this unit" sites that carry one more hop; they now read
+the door and then take their own hop with their own refusal:
+`boolean/ops.rs` (~:947, `.surface`, `Option`), `pcurves.rs`
+`half_edge_surface_key` (~:583, uniform `Corrupt`), `validate.rs`
+`edge_adjacent_faces` (~:6917, arena-direct `?`) and the component
+walk (~:7738, `Face::shell`), `splitting/finish.rs` (~:429, nullary
+`corrupt`). `pcurves.rs` `half_edge_surface` was the key twin's walk
+spelled again with a `get_surface` on the end; it now calls
+`half_edge_surface_key`. One site no census here had named folds with
+them: `pcurves.rs` `mate_surface` (~:557), a two-hop read of an
+already-resolved half-edge, `Option`-uniform.
+
+**The surface hop gets no door.** A `Body::surface_of_half_edge` would
+be one line, but it would compose three lookups under one `None`,
+which is exactly the refusal-posture question this row's kept table is
+about, and the four sites that take the hop refuse three different
+ways (`Option`, `PcurveMintError::Corrupt`, a `corrupt()` closure);
+`validate` needs the face key as well. Folding the two-hop walk onto
+the existing door leaves each of them one door call and one lookup of
+its own.
+
+**Re-measured after the fold** with the type-directed probe
+(`#[deprecated]` on `HalfEdge::parent_loop` and `Loop::face`,
+`cargo check -p topo --all-targets`, spans paired within ±3 lines,
+`(file, line)` deduped; restored byte-exact after). `topo/src` pairs:
+the door itself; the kept table's distinguishing-refusal sites
+(`attach`, `boolean/rest`, `chord_join` ×2, `merge_faces`, `movefac`,
+`query`, `seqgen` ×3, `shell`); `review_m1_pr4` (loop keys compared,
+a non-member); and field WRITES in test code (`euler_kill` ×2,
+`validate` ~:8448) and an `euler_ring` loop comparison. Then every
+unpaired `parent_loop` read in `topo/src` (141) read at its line: none
+reaches a face under a uniform refusal except the kept sites whose two
+hops sit more than three lines apart (`boolean/join`, `boolean/rest`
+×2, `chord_join` ×2, `sector_face`, `splitting/join`). **No foldable
+site remains in `topo/src`.** Blind spot, as before: a macro-assembled
+walk, and feature-gated code (the probe ran default features).
+
+**Plants** (`face_of_half_edge` with `#[track_caller]`, acting only
+at the six folded call lines; whole `topo` crate, 1467 rows):
+
+| plant | reds | per site |
+| --- | --- | --- |
+| panic at `validate` ~:7738 (with the rest) | 979 / 1467 | it runs inside every validation, so it masks the others |
+| panic at `ops` ~:947, `pcurves` ~:557, ~:585, `finish` ~:429 | 135 / 1467 | 103, 8, 3, 21 |
+| panic at `validate` ~:6917 | 227 / 1467 | 227 |
+| the MATE's face answered at all six | 891 / 1467 | — |
+
+Three rows printed the plant and passed in the first run: the
+`probe_support::try_wall_sheet` stand-downs and
+`r2_diag_mintable_tilts`, whose `catch_unwind` is the design (they
+build a cylinder sheet whose mint reaches the validator).
+
+The other buckets of this class remain on the rows filed in PR #2857
+(`helper`, `strut`, `emit`, `chord`, `export`, `issues`); none was in
+this unit. `Body::face_of_half_edge`'s rustdoc points here for the
+kept population, which the table above still is.
