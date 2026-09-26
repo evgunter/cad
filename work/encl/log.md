@@ -247,3 +247,18 @@ runs (36205811400, 36205787727, 36200787863, 36199270920, 36198824013)
 were listed to the user instead. A PR merges once its review is
 adjudicated and `local-scripts/ci-local.sh` is green on its head merged
 with main. The hosted run is not waited on.
+
+## Disk ran out; the first local gate was void (2026-09-26)
+
+(ENCL orchestrator) The session's disk allowance filled while the gate
+ran beside four lane build directories: tolerance 5.9 GB, prose 7.0 GB,
+tangent 4.5 GB, gate 7.8 GB. The first 3272 run hit ENOSPC in several
+rows, so it was stopped and discarded. Finished lanes' targets were
+freed, the gate's `incremental/` dropped, and the run restarted on
+`08c31a49` merged with current main. Two mistakes of mine, recorded so
+they are not repeated: the earlier estimate of "359 MB per lane" was
+read off a lane that had barely built, and the first completion watcher
+`pgrep`'d a pattern its own command line contained, so it could never
+have fired. The watcher now waits on the script's PID. Standing rule
+for the rest of this sitting: a lane deletes its target when it
+reports, and the orchestrator checks `df` before each gate run.

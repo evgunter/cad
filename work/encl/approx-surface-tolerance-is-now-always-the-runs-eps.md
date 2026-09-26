@@ -2,11 +2,12 @@
 id: approx-surface-tolerance-is-now-always-the-runs-eps
 kind: unit
 title: SurfaceSpec.tolerance is now always the run's eps on every production path; map_approx reads it as if it were the surface's own
-status: dispatched
+status: review
 opened: 2026-09-05
 priority: P1
 cost: D
 branch: encl/retire-approx-tolerance
+pr: 3274
 ---
 
 **Owner: whoever owns `crates/geom/src/surfaces/approx.rs` and
