@@ -311,3 +311,11 @@ deleted, and it was restarted with incremental off. The
 `viewer gpu::tests::every_pass_builds_on_a_real_device` row failed in
 that first run, and this container has no GPU. The restarted run shows
 whether that is the only red and whether it is environmental.
+
+**PR 3259's fix pass** is pushed on `e0a099d40`. All five items are fixed.
+The census soundness hole is filed on LIB as
+`prose-census-judges-an-unrelated-type-when-the-meant-one-is-unindexed`
+(P3). The pass touches only rustdoc, comments and markdown, but its
+last compiled head had only a partial hosted run and the edits touch
+intra-doc links. So it gets its own local battery, queued behind
+3264's, before it merges.
