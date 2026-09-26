@@ -399,3 +399,17 @@ measures through the certificate. Priced:
 `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`
 P3/D (a consumer-facing bracket that is wider than the one the kernel
 held). The local gate moved to 3274 (`c4f5d26cdc`).
+
+## Local gating paused; merging on hosted green (2026-09-26)
+
+(ENCL orchestrator) The full local matrix did not fit this session's
+disk allowance (~38 GB, of which the base system and toolchains take
+about 10). Even without incremental caches, the gate's target reached
+about 20 GB, and each new head rebuilt beside the old artifacts. Hosted
+CI meanwhile drained: 3272 and 3275 each went green about 1.5 h after
+their push. The gate's target is deleted and local gating is paused.
+3274 (`c4f5d26cdc`), 3269 (`df81aaf175`) and 3270 (`e69f42c5d8`) each
+have a hosted run on their current head and merge on its green. A
+side-effect worth knowing: running the gate rewrites five out-of-
+workspace `Cargo.lock` files, which then block a `git merge` in that
+worktree.
