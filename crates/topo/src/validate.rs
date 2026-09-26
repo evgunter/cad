@@ -5,14 +5,13 @@
 //! import are gated through), and [`ValidationError`].
 //!
 //! Each certifying tier has a **certificate form** beside it —
-//! [`validate_geometric_certificate`], its `_declared` twin, and
-//! [`validate_pseudomanifold_certificate`] — which runs the same pass
+//! [`validate_geometric_certificate`] and
+//! [`validate_pseudomanifold_certificate`], each with its `_structural`
+//! twin (the door roster below counts them) — which runs the same pass
 //! and returns the [`crate::SignCertificate`] check 7 decided on instead
-//! of dropping it; [`validate_pseudomanifold_certificate_structural`] is
-//! the same form holding no lane, whose check 7 is the closed form's.
-//! Every tier-3 door that MAKES check 7 makes it the same way
-//! (`plus_v_by_sign`, through the lane it holds —
-//! [`validate_geometric_structural`] makes none): one walk per SOLID, check
+//! of dropping it; a `_structural` form holds no lane, and its check 7
+//! is the closed form's. Every tier-3 door makes check 7 the same way
+//! (`plus_v_by_sign`, through the lane it holds): one walk per SOLID, check
 //! 7's subject, each stopped at the round where that solid's sign is
 //! certain, assembled into one body certificate over the face arena —
 //! one read of each face, whatever the solid count. A caller that wants
@@ -180,27 +179,78 @@
 //!
 //! **The tier is two functions.** Eight of its nine checks are answerable
 //! by any deciding scalar; the ninth — the +V global orientation
-//! invariant — reads a volume enclosure, and deciding its sign is an act
-//! of certification rather than a measurement. So
-//! [`validate_geometric_structural`] runs the eight and
-//! [`validate_geometric`] is that call followed by the certified one,
-//! carrying the union of their bounds — a scalar without certification
-//! rights takes the structural door, and cannot write the composed call
-//! at all.
+//! invariant — reads a volume enclosure, and deciding its sign through
+//! the certified quadrature is an act of certification rather than a
+//! measurement. So [`validate_geometric`] is a private structural phase
+//! (checks 1–6, 8 and 9) followed by the certified check 7, carrying the
+//! union of their bounds — a scalar without certification rights cannot
+//! write the composed call at all.
 //!
-//! **The structural half never judges orientation, at ANY scalar.** That
-//! is the consequence to carry away, and it is stronger than "a dual
-//! cannot certify": check 7's closed form computes a signed volume at
-//! every scalar with a zero pad, so the pre-split door handed a dual a
-//! real `+V` verdict on any planar body. The split moves the whole
-//! check — both derivations — behind the certified bound, because the
-//! sign is decided in exactly one place or the half that is supposed to
-//! carry no certification arm grows one back. **An inverted body
-//! therefore passes the structural half by design**, and a caller that
-//! wants the sign at a non-certifying scalar goes to the `_structural`
-//! passes, which make check 7 through the closed form:
-//! [`validate_pseudomanifold_structural`], [`contact_marks_structural`],
-//! [`crate::mass_properties_structural`].
+//! **Its `_structural` twin holds no certified lane, and still makes
+//! check 7.** [`validate_geometric_structural`] runs the whole battery at
+//! every scalar with a bracket and makes check 7 where every door makes
+//! it (`plus_v_by_sign`), with no lane — the closed form, which computes
+//! a signed volume at any scalar with a zero pad and refuses typed
+//! ([`ValidationError::VolumeUncomputable`]) on a face that needed the
+//! quadrature. So an inverted planar body is refused `NegativeVolume` by
+//! both doors, at `f64` and at a dual alike; what the twin gives up is
+//! the quadrature's REACH, never the verdict on a body the closed form
+//! computes. That is what `_structural` means at every door that carries
+//! it — the door holding no certified lane, check 7 made through the
+//! closed form — and the roster below is where the doors are counted.
+//!
+//! # The door roster
+//!
+//! Every public at-rest door is one of three passes × a set of forms.
+//! A form is a suffix, and the suffixes compose in one order —
+//! `_certificate`, then `_declared`, then `_structural`:
+//!
+//! - **`_certificate`** returns the [`crate::SignCertificate`] check 7
+//!   decided on instead of `()`.
+//! - **`_declared`** takes the body's declared contacts as an argument
+//!   (check 4's material arm reads them).
+//! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
+//!   through the closed form, no plane × NURBS lane at check 2, and at
+//!   tier 3′ no chart-region door in the census. Every door without it
+//!   has a twin with it. At tier 3 the twin also GATES check 7
+//!   differently: it runs the battery in one call, so check 7 waits on
+//!   checks 1–6 only, where the composed door's `?` makes it wait on the
+//!   whole structural phase, checks 8 and 9 included — the gate the
+//!   tier-3′ and marks passes have always had.
+//!
+//! The table between the `door-roster` markers IS the roster — the one
+//! spelling of it. The census `door_roster_is_the_exported_set` derives
+//! the door set from its cells (a cell `✓ + _structural` is the column's
+//! door and its twin, `—` is a hole with its reason below) and holds it
+//! against the file's `pub fn`s and the crate root's re-exports, failing
+//! on a door either side lacks.
+//!
+//! <!-- door-roster:begin -->
+//! | pass | plain | `_certificate` | `_declared` | `_certificate_declared` |
+//! |---|---|---|---|---|
+//! | `validate_geometric` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` |
+//! | `validate_pseudomanifold` | ✓ + `_structural` | ✓ + `_structural` | — (a) | — (a) |
+//! | `contact_marks` | ✓ + `_structural` | — (b) | ✓ + `_structural` | — (b) |
+//! <!-- door-roster:end -->
+//!
+//! (a) The tier-3′ pass takes its declarations as the body's
+//! [`crate::boolean::ContactRecords`] — the `contacts` argument every
+//! form already has — and reads only their CURVE records into check 4,
+//! deliberately not the `Rest` patch records: a conformal declaration
+//! asserts the wrong class for a curve locus. A `_declared` form taking
+//! `DeclaredContact`s would be a second spelling of that argument and a
+//! channel for exactly the class the pass refuses to read.
+//! (b) The marks pass's product is the marks channel; the certificate
+//! its check 7 decides on has no consumer there, and the two passes
+//! that return one are the doors a caller wanting it takes. No
+//! `contact_marks*` door has a production caller at all today — its
+//! callers are this crate's tests and probes.
+//!
+//! [`validate`] and [`validate_closed`] (tiers 1 and 2) take no form:
+//! they certify nothing and read no declaration. The measurement doors
+//! with the same `_structural` meaning ([`crate::mass_properties_structural`],
+//! [`crate::classify_shells_structural`]) live in `props`, outside this
+//! roster.
 //!
 //! **What check 7 costs, and what it cannot refuse.** Deciding a sign
 //! is cheaper than measuring a volume, and the tier pays only the
@@ -240,12 +290,11 @@
 //! setup across windows is `work/perf/`'s
 //! `quadrature-setup-is-re-derived-per-round-window`.
 //!
-//! **Tier 3′ is not this**, and the difference is visible from
-//! outside: [`validate_pseudomanifold`] and [`contact_marks`] run
-//! their check 7 through the certified quadrature at the reporting
-//! target (their `_structural` twins through the closed form alone),
-//! so a body tier 3 admits on a definite sign can still be refused
-//! there on quadrature budget.
+//! **Tier 3′ pays the same**: [`validate_pseudomanifold`] and
+//! [`contact_marks`] make check 7 through `plus_v_by_sign` too, with the
+//! certified quadrature at SIGN level (their `_structural` twins through
+//! the closed form alone), so a body one tier admits on a definite sign
+//! the other does not refuse on quadrature budget at the same lane.
 //!
 //! # All failures, not the first
 //!
@@ -3299,41 +3348,33 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// # The two halves, and why the entry carries both bounds
 ///
 /// Tier 3 is a battery of nine checks, eight of which any deciding
-/// scalar can answer and one of which — check 7, the +V invariant — is
-/// an act of CERTIFICATION: it reads a certified volume enclosure. So
-/// the battery is written as two functions and this one is their
-/// composition:
+/// scalar can answer and one of which — check 7, the +V invariant — is,
+/// through the certified quadrature, an act of CERTIFICATION. So this
+/// entry is two private functions composed:
 ///
-/// - [`validate_geometric_structural`] runs checks 1–6, 8 and 9 at
-///   every [`crate::AtRestPolicy`] scalar. It is a meaningful validator
-///   on its own and it is the door a scalar without certification
-///   rights uses.
-/// - `validate_geometric_certified` runs check 7, bounded on the
-///   quantity it actually needs.
+/// - a structural phase running checks 1–6, 8 and 9 (with check 2's
+///   certified plane × NURBS lane), at every [`crate::AtRestPolicy`]
+///   scalar;
+/// - `validate_geometric_certified`, check 7 through
+///   [`crate::QuadLane::certified`], bounded on the quantity it
+///   actually needs.
 ///
-/// This entry is `structural(…)?` then certified, so its bound is the
-/// UNION and the `?` is the sequencing fact: check 7 used to run behind
-/// an `if errors.is_empty()` in the middle of the battery, a rule the
-/// file stated about itself rather than enforced. The composition
-/// enforces it, and widens it in the same direction — a body that fails
-/// any structural check never reaches the volume claim, where before
-/// only checks 1–6 gated it.
+/// The entry is `structural(…)?` then certified, so its bound is the
+/// UNION and the `?` is the sequencing fact: a body that fails any
+/// structural check never reaches the volume claim — checks 8 and 9
+/// included, where the one-call battery the other doors run gates check
+/// 7 on checks 1–6 only.
 ///
 /// **A scalar that may not certify cannot write this call**, which is
 /// the point rather than a side effect: it is not refused here, there
-/// is no arm and no diagnostic. **What such a scalar loses at THIS door
-/// is the +V verdict itself, not merely a refusal it used to receive**:
-/// check 7's closed-form derivation computes at any scalar, so before
-/// the split a dual asking this door about a planar body got a real
-/// orientation sign. It gets neither now, because the sign is decided in
-/// one place and that place is the certified half. A dual body still
-/// validates — through [`validate_geometric_structural`], which is where
-/// every certificate a dual build compares bitwise against its `f64`
-/// twin is produced — and the orientation verdict is still available to
-/// it through [`validate_pseudomanifold_structural`],
-/// [`contact_marks_structural`] and [`crate::mass_properties_structural`],
-/// the passes that hold no quadrature lane and make check 7 through the
-/// closed form. The structural half is open to it:
+/// is no arm and no diagnostic. What such a scalar takes instead is
+/// [`validate_geometric_structural`], the same battery holding no
+/// certified lane: its check 7 is made through the closed form, so a
+/// dual asking it about a planar body gets a real orientation sign,
+/// and a face that needed the quadrature is refused typed rather than
+/// passed. It is also where every certificate a dual build compares
+/// bitwise against its `f64` twin is produced. The twin is open to a
+/// dual:
 ///
 /// ```
 /// use geom_core::{Dual64, Tol};
@@ -3432,99 +3473,136 @@ pub fn validate_geometric_certificate<
     validate_geometric_certificate_declared(body, &[], tol)
 }
 
-/// **Tier 3 without its one certifying check** — checks 1–6, 8 and 9,
-/// at every [`crate::AtRestPolicy`] scalar with a bracket
-/// ([`validate_geometric`]'s two halves; the bound is the policy trait
-/// rather than bare `Decide` because check 1 reads the offset-fit seam
-/// off it and check 2's carrier lane rides as its supertrait, and
-/// `Bounds` because check 1 reads a stored datum's bracket end).
+/// **[`validate_geometric`] holding no certified lane** — the whole
+/// nine-check battery at every [`crate::AtRestPolicy`] scalar with a
+/// bracket, a [`Dual`](geom_core::Dual) included (the bound is the
+/// policy trait rather than bare `Decide` because check 1 reads the
+/// offset-fit seam off it and check 2's carrier lane rides as its
+/// supertrait, and `Bounds` because check 1 reads a stored datum's
+/// bracket end).
 ///
-/// What a caller gives up by taking this door instead of the composed
-/// one is named, not implied: the **+V global orientation invariant**
-/// (check 7) does not run, so **this pass says nothing about whether the
-/// body's volume is positive, and an inverted body passes it — by
-/// design, at every scalar.** It is LESS INFORMATION about a body, not a
-/// weaker body: every check it does run is the same check, in the same
-/// order, reporting the same errors.
+/// Two things this door does not do, each a statement about the DOOR
+/// and never about the scalar it is called at — the `f64` caller gets
+/// exactly what the dual caller gets. **Check 7 runs through the closed
+/// form alone** (`plus_v_by_sign` with no lane, the one place every
+/// door makes it): on a body the closed form computes, the verdict is
+/// [`validate_geometric`]'s — an inverted planar body is refused
+/// [`ValidationError::NegativeVolume`] here too — and a face that
+/// needed the quadrature is refused typed
+/// ([`ValidationError::VolumeUncomputable`]) rather than passed
+/// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×
+/// described-NURBS `Intersection`): that class re-derives only through
+/// the certified plane × NURBS lane, which this door does not hold.
 ///
-/// **Read that as a statement about the DOOR, not about certification
-/// rights.** Check 7 has two derivations — the certified quadrature, and
-/// a closed form that computes at any scalar with a zero pad — and the
-/// split moves the whole check, both derivations, into the certified
-/// half. So this door is silent about orientation on a planar body at
-/// `f64` exactly as it is at a dual. The alternative, a `Decide`-only
-/// closed-form arm living here, is refused deliberately: it would put a
-/// certification arm back inside the half whose whole property is having
-/// none, which is the mixed-pass shape this split exists to leave
-/// behind.
-///
-/// **Where the sign still lives**, so nothing is lost by accident: the
-/// `_structural` passes hold no quadrature lane and still make check 7,
-/// through the closed form. A caller that wants the orientation verdict
-/// at a scalar this door's composed sibling excludes asks
-/// [`validate_pseudomanifold_structural`], [`contact_marks_structural`]
-/// or [`crate::mass_properties_structural`] — all three answer at a
-/// dual, and on a closed-form body all three still say `NegativeVolume`.
-/// `topo/tests/geometric_cube.rs`'s
-/// `the_structural_half_does_not_judge_orientation_at_any_scalar` is the
-/// three verdicts side by side.
-///
-/// **So the `_structural` suffix means two things across the six doors
-/// that carry it**, and a caller reads which at the door: here (and at
-/// [`validate_geometric_structural_declared`]) check 7 is NOT MADE —
-/// `Ok` on a body whose volume the closed form cannot compute — while
-/// at [`validate_pseudomanifold_structural`], [`contact_marks_structural`],
-/// [`crate::mass_properties_structural`] and
-/// [`crate::classify_shells_structural`] it is made through the closed
-/// form and refuses typed (`VolumeUncomputable`) on the same body. One
-/// suffix, two shapes; the row that asks whether they should be one is
-/// `work/atrest/structural-suffix-means-two-things-across-the-six-doors.md`.
+/// Its check 7 is gated the way the one-call battery gates it — on
+/// checks 1–6 — where the composed door gates on the whole structural
+/// phase.
 ///
 /// # Errors
 ///
-/// As [`validate_geometric`], less [`ValidationError::NegativeVolume`]
-/// and [`ValidationError::VolumeUncomputable`].
+/// As [`validate_geometric`], less the check-2 verdicts on M7-8 edges
+/// and plus the closed form's typed refusal at check 7.
 pub fn validate_geometric_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     tol: Tol,
 ) -> Result<(), Vec<ValidationError>> {
-    validate_geometric_structural_declared(body, &[], tol)
+    validate_geometric_certificate_structural(body, tol).map(|_| ())
 }
 
-/// [`validate_geometric_structural`] with the body's declared contacts
-/// in hand — [`validate_geometric_declared`]'s structural half.
+/// [`validate_geometric_certificate`] holding no certified lane —
+/// [`validate_geometric_structural`]'s certificate form, the
+/// [`crate::SignCertificate`] its closed-form check 7 decided on. It
+/// holds no lane, so its continuation is the closed form's own
+/// measurement — [`crate::mass_properties_structural`] on the same body,
+/// pads `0` (`topo/tests/geometric_cube.rs`'s
+/// `the_structural_certificate_continues_to_the_closed_form` pins it).
 ///
 /// # Errors
 ///
 /// As [`validate_geometric_structural`].
-pub fn validate_geometric_structural_declared<
+pub fn validate_geometric_certificate_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
-    declarations: &[DeclaredContact],
     tol: Tol,
-) -> Result<(), Vec<ValidationError>> {
-    structural_declared_via(body, declarations, tol, None)
+) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
+    validate_geometric_certificate_declared_structural(body, &[], tol)
 }
 
-/// [`validate_geometric_structural_declared`] with check 2's plane ×
-/// NURBS lane taken as an argument — the shared body of the structural
-/// half and of the composed entry's first phase.
+/// [`validate_geometric_structural`] with the body's declared contacts
+/// in hand — [`validate_geometric_declared`]'s `_structural` twin.
 ///
-/// Private, and for the same reason
-/// [`validate_geometric_certified`] is: the two public doors differ in
-/// exactly what they are entitled to claim, and letting a caller pick
-/// the argument would let it claim more than its bound allows.
-fn structural_declared_via<
+/// # Errors
+///
+/// As [`validate_geometric_structural`].
+pub fn validate_geometric_declared_structural<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &Body<T>,
     declarations: &[DeclaredContact],
     tol: Tol,
-    nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
 ) -> Result<(), Vec<ValidationError>> {
+    validate_geometric_certificate_declared_structural(body, declarations, tol).map(|_| ())
+}
+
+/// [`validate_geometric_certificate_declared`]'s `_structural` twin —
+/// the one body of the four structural geometric doors.
+///
+/// # Errors
+///
+/// As [`validate_geometric_declared_structural`].
+pub fn validate_geometric_certificate_declared_structural<
+    'b,
+    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
+    body: &'b Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
+    structural_declared_via(body, declarations, tol, StructuralPhase::NoLane)
+        .map(certificate_of_a_clean_verdict)
+}
+
+/// **Which of the two callers is running the structural battery** — the
+/// one argument that decides both of the battery's injected derivations
+/// together, because they are only ever right as a pair.
+#[derive(Clone, Copy)]
+enum StructuralPhase<'l, T: geom_core::Decide> {
+    /// The `_structural` doors: no lane at all — check 2 without the
+    /// plane × NURBS lane, check 7 MADE through the closed form.
+    NoLane,
+    /// The composed [`validate_geometric`]'s first phase: check 2 through
+    /// the certified plane × NURBS lane it hands in, and check 7 NOT
+    /// made, because the composed door makes it next through the
+    /// certified quadrature.
+    BeforeCertifiedCheck7(geom_brep::NurbsLane<'l, T>),
+}
+
+/// The tier-3 battery for one [`StructuralPhase`] — the shared body of
+/// the `_structural` doors and of the composed entry's structural phase.
+///
+/// Private, and for the same reason
+/// [`validate_geometric_certified`] is: the public doors differ in
+/// exactly what they are entitled to claim, and letting a caller pick
+/// the phase would let it claim more than its bound allows.
+///
+/// `Ok` carries check 7's certificate — `Some` exactly when the phase
+/// made it ([`certificate_of_a_clean_verdict`]'s invariant).
+fn structural_declared_via<
+    'b,
+    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
+>(
+    body: &'b Body<T>,
+    declarations: &[DeclaredContact],
+    tol: Tol,
+    phase: StructuralPhase<'_, T>,
+) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
+    let (nurbs_lane, plus_v) = match phase {
+        StructuralPhase::NoLane => (None, PlusVCheck::Through(None)),
+        StructuralPhase::BeforeCertifiedCheck7(lane) => (Some(lane), PlusVCheck::NotMade),
+    };
     // Coarse gate: structural tiers first, verbatim.
     validate_closed(body)?;
 
@@ -3533,20 +3611,18 @@ fn structural_declared_via<
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
     let mut marks = slotmap::SecondaryMap::new();
-    // No certificate: this door does not make check 7, and `None` says
-    // exactly that rather than an empty verdict standing in for one.
-    let (errors, _) = tier3_local_checks_marked(
+    let (errors, certificate) = tier3_local_checks_marked(
         body,
         declarations,
         band,
         &mut marks,
         tol,
-        PlusVCheck::NotMade,
+        plus_v,
         nurbs_lane,
         <T as crate::props::AtRestPolicy>::offset_fit_lane(),
     );
     if errors.is_empty() {
-        Ok(())
+        Ok(certificate)
     } else {
         Err(errors)
     }
@@ -3576,9 +3652,9 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
 /// that solid's enclosure's sign stops being in doubt, and the body
 /// certificate those walks assemble to.
 ///
-/// Every door that makes check 7 makes it here — [`validate_geometric`]
-/// with [`crate::QuadLane::certified`], the tier-3′ battery with
-/// whatever lane its door holds — so no body is admitted by one tier-3
+/// Every door makes check 7 here — [`validate_geometric`]
+/// with [`crate::QuadLane::certified`], the battery with
+/// whatever lane its door holds (none, at a `_structural` door) — so no body is admitted by one tier-3
 /// door and refused by another on check 7 at the same LANE. Doors that
 /// hold DIFFERENT lanes can still disagree, and that is the lanes
 /// differing rather than the check: at `f64`, [`validate_geometric`]
@@ -3760,8 +3836,9 @@ pub fn validate_geometric_declared<
 /// caller takes the certified half without the structural one, so no
 /// body is blessed by a volume claim while its geometry went
 /// unchecked. Returning the certificate does not move that seam — the
-/// structural half still runs first and still short-circuits, and it
-/// makes no certificate of its own to return.
+/// structural phase still runs first and still short-circuits, and it
+/// runs without check 7, so it makes no certificate of its own to
+/// return.
 ///
 /// # Errors
 ///
@@ -3774,7 +3851,7 @@ pub fn validate_geometric_certificate_declared<
     declarations: &[DeclaredContact],
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    // The structural half runs WITH check 2's plane x NURBS lane
+    // The structural phase runs WITH check 2's plane x NURBS lane
     // injected, which is what keeps this composed door re-deriving the
     // M7-8 certificate class at rest; the public structural door,
     // whose bound cannot name the lane, runs without it.
@@ -3782,7 +3859,7 @@ pub fn validate_geometric_certificate_declared<
         body,
         declarations,
         tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
+        StructuralPhase::BeforeCertifiedCheck7(&geom_brep::plane_nurbs_limbs::<T>),
     )?;
     validate_geometric_certified(body, tol)
 }
@@ -4118,8 +4195,14 @@ pub(crate) fn material_arm_error(
 /// certification right. Its `Err` is the battery's vector and differs
 /// from the composed door's in one stated way: its check 7 is gated on
 /// checks 1-6 only, where the composed door gates on the whole
-/// structural half. [`contact_marks_structural`] is the same pass
+/// structural phase. [`contact_marks_structural`] is the same pass
 /// holding neither lane, at every scalar with a bracket.
+///
+/// **No `_certificate` form**, and that is a roster decision rather
+/// than a hole: this pass's product is the marks channel, the check-7
+/// certificate has no consumer here, and a caller that wants it takes
+/// [`validate_geometric_certificate`] or
+/// [`validate_pseudomanifold_certificate`].
 ///
 /// # Errors
 ///
@@ -4237,12 +4320,14 @@ fn contact_marks_declared_via<
 /// one check of the battery that CERTIFIES is a parameter rather than a
 /// dispatch, so a caller that names it says which derivation it meant.
 ///
-/// [`PlusVCheck::NotMade`] is [`validate_geometric_structural`]'s answer
-/// and is not a refusal — the battery run without a check that caller
-/// does not make, which returns no certificate. Every other door makes
-/// check 7 through [`plus_v_by_sign`] with the lane it holds, so the
-/// battery and [`validate_geometric`] decide the same question the same
-/// way and differ only in which lane they could name.
+/// [`PlusVCheck::NotMade`] is the composed [`validate_geometric`]'s
+/// structural phase, and is not a refusal — that phase runs the battery
+/// without check 7 because the composed door makes it next, through the
+/// certified quadrature, and it returns no certificate. Every public
+/// door's battery makes check 7 through [`plus_v_by_sign`] with the
+/// lane it holds, so the battery and [`validate_geometric`] decide the
+/// same question the same way and differ only in which lane they could
+/// name.
 #[derive(Clone, Copy)]
 pub(crate) enum PlusVCheck<T: geom_core::Decide> {
     /// Check 7 is not made.
@@ -6689,6 +6774,11 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// none of the three lanes this door holds (the plane × NURBS lane, the
 /// quadrature lane and the chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
+///
+/// **No `_declared` form**: `contacts` IS this pass's declarations —
+/// its curve records are read as check 4's `Tangent` declarations — so
+/// a `_declared` form would be a second spelling of an argument every
+/// form of this door already takes.
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
@@ -6731,11 +6821,6 @@ pub fn validate_pseudomanifold<
 /// reports backed is reported here as
 /// [`ValidationError::UndeclaredContact`], with the declaration in
 /// hand. The declaration is not found wrong; it is not read.
-///
-/// Note the suffix's other meaning one door over:
-/// [`validate_geometric_structural`] does not make check 7 at all (`Ok`
-/// on the body this door refuses with `VolumeUncomputable`); the two
-/// shapes are stated side by side at that door.
 ///
 /// # Errors
 ///
@@ -11508,5 +11593,230 @@ mod offset_fit_door_rows {
         let free = geom_brep::recertify_approx(&approx, tol, band)
             .expect("the free function agrees that it re-certifies");
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
+    }
+}
+
+/// The door roster, checked against the source: the module doc's table
+/// between the `door-roster` markers is the set of at-rest doors, and a
+/// door this file defines or the crate root re-exports that the table
+/// lacks — or a door the table names that neither side has — fails here.
+///
+/// It reads source text, so it refuses loudly on the shapes it cannot
+/// parse rather than reading past them: a `pub use validate::` group
+/// with a nested `{…}` or an `as` alias, a table cell that is neither
+/// `✓ + `_structural``, `✓` nor `— (…)`. A top-level `pub fn` is read
+/// through its qualifiers (`const`, `async`, `unsafe`, `extern "…"`).
+/// What it cannot see at all: a door defined outside this file
+/// (`props`' measurement doors, or a future submodule), a door spelled
+/// by a macro, a `pub fn` not at column 0 (a nested module's, or one
+/// whose name sits on a later line than `fn`), a re-export further out
+/// (the `pncad` prelude, `pncad-py`), and a door whose name kept its
+/// shape while its meaning moved — the behaviour rows own that class.
+#[cfg(test)]
+#[allow(clippy::expect_used, clippy::panic)]
+mod door_roster {
+    use std::collections::BTreeSet;
+    use test_utils::source::{code_only, comments_only, sentinel_region};
+
+    const SOURCE: &str = include_str!("validate.rs");
+    const LIB: &str = include_str!("lib.rs");
+    /// The tier-1 and tier-2 validators: public, and outside the matrix
+    /// because they take no form (the module doc says why).
+    const FORMLESS: [&str; 2] = ["validate", "validate_closed"];
+    const STEMS: [&str; 3] = [
+        "validate_geometric",
+        "validate_pseudomanifold",
+        "contact_marks",
+    ];
+    /// The suffixes, in the one order they compose in.
+    const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
+
+    fn backticked(cell: &str) -> &str {
+        cell.strip_prefix('`')
+            .and_then(|c| c.strip_suffix('`'))
+            .unwrap_or_else(|| panic!("a roster name is backticked: {cell:?}"))
+    }
+
+    /// The roster, DERIVED from the module doc's table — read from the
+    /// PROSE view between the two markers, so the table is found only
+    /// where a reader of the rendered doc finds it. The header row names
+    /// each column's suffix (`plain` is none); each body row names a pass,
+    /// and each cell says which of that column's doors exist.
+    fn roster() -> Vec<String> {
+        let prose = comments_only(SOURCE);
+        let region = sentinel_region(
+            &prose,
+            "validate.rs's door roster",
+            "<!-- door-roster:begin -->",
+            "<!-- door-roster:end -->",
+        );
+        let rows: Vec<Vec<&str>> = prose[region]
+            .lines()
+            .map(str::trim)
+            .filter(|line| !line.is_empty() && *line != "//!")
+            .map(|line| {
+                let row = line
+                    .strip_prefix("//! |")
+                    .and_then(|r| r.strip_suffix('|'))
+                    .unwrap_or_else(|| panic!("a roster line is a table row: {line:?}"));
+                row.split('|').map(str::trim).collect()
+            })
+            .collect();
+        let (header, body) = rows
+            .split_first()
+            .expect("the roster table has a header row");
+        assert!(
+            body.first()
+                .is_some_and(|r| r.iter().all(|c| c.chars().all(|ch| ch == '-'))),
+            "the roster table's second row is its `|---|` rule"
+        );
+        let suffixes: Vec<&str> = header[1..]
+            .iter()
+            .map(|c| if *c == "plain" { "" } else { backticked(c) })
+            .collect();
+        let mut doors = Vec::new();
+        for row in &body[1..] {
+            assert_eq!(
+                row.len(),
+                header.len(),
+                "a roster row has every column: {row:?}"
+            );
+            let pass = backticked(row[0]);
+            for (cell, suffix) in row[1..].iter().zip(&suffixes) {
+                let door = format!("{pass}{suffix}");
+                match *cell {
+                    "✓ + `_structural`" => {
+                        doors.push(door.clone());
+                        doors.push(format!("{door}_structural"));
+                    }
+                    "✓" => doors.push(door),
+                    hole if hole.starts_with("— (") => {}
+                    other => panic!("{door}: a roster cell reads {other:?}"),
+                }
+            }
+        }
+        doors
+    }
+
+    /// Every top-level `pub fn` this file defines, less the formless two,
+    /// read from the CODE view (a `pub fn` in a comment or a literal is
+    /// not a door), through its qualifiers.
+    fn defined() -> BTreeSet<String> {
+        code_only(SOURCE)
+            .lines()
+            .filter_map(|line| line.strip_prefix("pub "))
+            .filter_map(|rest| {
+                let at = rest.find("fn ")?;
+                let qualifiers = &rest[..at];
+                let known = qualifiers.split_whitespace().all(|q| {
+                    matches!(q, "const" | "async" | "unsafe" | "extern")
+                        || (q.starts_with('"') && q.ends_with('"'))
+                });
+                known.then_some(&rest[at + "fn ".len()..])
+            })
+            .map(|rest| {
+                let end = rest
+                    .find(|c: char| !(c.is_ascii_alphanumeric() || c == '_'))
+                    .unwrap_or(rest.len());
+                rest[..end].to_owned()
+            })
+            .filter(|name| !FORMLESS.contains(&name.as_str()))
+            .collect()
+    }
+
+    /// Every function the crate root re-exports from this module, less
+    /// the formless two — every `pub use validate::…;` statement, a group
+    /// or a single path, refusing the two shapes it would misread.
+    fn exported() -> BTreeSet<String> {
+        let code = code_only(LIB);
+        let open = "pub use validate::";
+        let mut names = BTreeSet::new();
+        let mut from = 0;
+        while let Some(at) = code[from..].find(open) {
+            let start = from + at + open.len();
+            let end = start
+                + code[start..]
+                    .find(';')
+                    .expect("a `pub use` statement ends in `;`");
+            let path = code[start..end].trim();
+            let list = match path.strip_prefix('{').and_then(|p| p.strip_suffix('}')) {
+                Some(group) => {
+                    assert!(
+                        !group.contains('{'),
+                        "a nested group in `pub use validate::{{…}}` — the census reads one level"
+                    );
+                    group
+                }
+                None => path,
+            };
+            for item in list.split(',').map(str::trim).filter(|i| !i.is_empty()) {
+                assert!(
+                    !item.contains(" as "),
+                    "an aliased re-export `{item}` — the census cannot name the door it exports"
+                );
+                let name = item.rsplit("::").next().unwrap_or(item);
+                if name.starts_with(|c: char| c.is_ascii_lowercase()) && !FORMLESS.contains(&name) {
+                    names.insert(name.to_owned());
+                }
+            }
+            from = end;
+        }
+        assert!(
+            !names.is_empty(),
+            "the crate root re-exports the validators"
+        );
+        names
+    }
+
+    #[test]
+    fn door_roster_is_the_exported_set() {
+        let listed = roster();
+        let roster: BTreeSet<String> = listed.iter().cloned().collect();
+        assert_eq!(
+            roster.len(),
+            listed.len(),
+            "a door listed twice: {listed:?}"
+        );
+        let defined = defined();
+        assert_eq!(
+            defined.difference(&roster).collect::<Vec<_>>(),
+            Vec::<&String>::new(),
+            "a public door this file defines that the roster lacks"
+        );
+        assert_eq!(
+            roster.difference(&defined).collect::<Vec<_>>(),
+            Vec::<&String>::new(),
+            "a roster door this file does not define"
+        );
+        let exported = exported();
+        assert_eq!(
+            exported.symmetric_difference(&roster).collect::<Vec<_>>(),
+            Vec::<&String>::new(),
+            "the crate root's re-exports and the roster disagree"
+        );
+    }
+
+    /// Every door is a stem and its suffixes in their one order, and
+    /// every door holding a certified lane has its `_structural` twin
+    /// (H5 ruling 3) — so a hole in the matrix is a stated roster
+    /// decision, never a spelling drift.
+    #[test]
+    fn every_door_is_a_stem_and_ordered_suffixes_with_its_structural_twin() {
+        let roster: BTreeSet<String> = roster().into_iter().collect();
+        for door in &roster {
+            let stem = STEMS
+                .iter()
+                .find(|stem| door.starts_with(**stem))
+                .unwrap_or_else(|| panic!("{door} begins with none of the three passes"));
+            let mut rest = &door[stem.len()..];
+            for suffix in SUFFIXES {
+                rest = rest.strip_prefix(suffix).unwrap_or(rest);
+            }
+            assert_eq!(rest, "", "{door}: suffixes out of order or unknown");
+            if !door.ends_with("_structural") {
+                let twin = format!("{door}_structural");
+                assert!(roster.contains(&twin), "{door} has no {twin}");
+            }
+        }
     }
 }

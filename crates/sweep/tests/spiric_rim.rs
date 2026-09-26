@@ -128,7 +128,7 @@ fn hollow_moves<T: geom_core::Real>(body: &Body<T>, t: T) -> Vec<topo::ChartMove
 /// The sectioned vessel's cavity through the axial door — the body
 /// `shell` builds and stops on at tier 3, taken BEFORE tier 3 so its
 /// carriers can be read.
-fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
+pub(crate) fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
     let quarter = vessel_quarter();
     let mut cavity = quarter.clone();
     let band = Band::linear(tol()).expect("band");
@@ -332,7 +332,17 @@ fn the_minted_rim_survives_a_rigid_re_pose() {
         Vec3::new(1.0, 0.0, 0.0),
         0.7,
     );
-    assert_eq!(topo::validate_geometric_structural(&cavity, tol()), Ok(()));
+    // The cavity is sound short of check 7, which it reaches and cannot
+    // pass at any door (the vessel row below): the `_structural` door's
+    // only finding is the closed form's typed refusal there.
+    let verdict = topo::validate_geometric_structural(&cavity, tol());
+    assert!(
+        matches!(&verdict, Err(errs) if !errs.is_empty() && errs.iter().all(|e| matches!(
+            e,
+            topo::ValidationError::VolumeUncomputable { .. }
+        ))),
+        "the cavity fails nothing but check 7: {verdict:?}"
+    );
     let posed_after = transform_rigid(&cavity, &map, tol()).expect("the cavity re-poses");
     let posed_first = transform_rigid(&quarter, &map, tol()).expect("the operand re-poses");
     let mut offset_after = posed_first.clone();

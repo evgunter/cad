@@ -2771,6 +2771,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
             PointInSolidError::PartialTorusFace { face },
         ),
         (
+            "EdgeCarrierUnsupported",
+            PointInSolidError::EdgeCarrierUnsupported { face },
+        ),
+        (
             "NoSuchSolid",
             PointInSolidError::NoSuchSolid {
                 solid: topo::SolidKey::default(),
