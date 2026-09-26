@@ -648,8 +648,8 @@ pub(super) fn point_on_arc<T: Decide>(
 ///   parallel to the axis — an azimuth iso-line);
 /// - the rims sit on exactly two levels.
 ///
-/// That is the iso half of the ray lane's class
-/// ([`super::solid_contain::wall_planes`], asked here rather than
+/// That is the rectangle class of the ray lane's
+/// ([`super::solid_contain::wall_outline`], asked here rather than
 /// restated), and it is what makes the chart trim EXACT: every ruling
 /// through the window crosses the boundary once on each level, so the
 /// face is exactly the rectangle `[az] × [h]` its boundary pins
@@ -716,13 +716,6 @@ pub fn curved_face_containment<T: Decide>(
         Ok(Sign::Positive | Sign::Negative) => return Ok(Some(FaceContainment::Out)),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    // The ray lane's class predicate, asked of the same face: this door
-    // serves its rectangle half only.
-    match super::solid_contain::wall_planes(body, face, origin, axis, radius, band) {
-        Ok(Some(w)) if w.iso => {}
-        Ok(_) => return Ok(None),
-        Err(e) => return Err(solid_err(e)),
-    }
     let (az, h) = match super::solid_contain::cylinder_chart_trim(body, face, origin, axis, band) {
         Ok(t) => t,
         // A window this face cannot express is the honest remainder,
@@ -749,7 +742,13 @@ pub fn curved_face_containment<T: Decide>(
         Ok(Sign::Zero | Sign::Negative) => return Ok(None),
         Err(diag) => return Err(ContainError::Escalated(diag)),
     }
-    let outline = super::solid_contain::WallOutline::Rectangle { h };
+    // The ray lane's class predicate, asked of the same face: this door
+    // serves its rectangle class only.
+    let outline = super::solid_contain::wall_outline(body, face, origin, axis, radius, az, h, band)
+        .map_err(solid_err)?;
+    if !matches!(outline, super::solid_contain::WallOutline::Rectangle { .. }) {
+        return Ok(None);
+    }
     match super::solid_contain::point_on_wall_in_face(
         face, origin, axis, radius, u_ref, az, &outline, q, band,
     ) {

@@ -1386,16 +1386,14 @@ pub(crate) fn face_azimuth_window<T: Decide>(
     face: FaceKey,
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
-    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
-    let crate::entity::LoopBoundary::Cycle { first } = body
-        .get_loop(outer)
-        .ok_or_else(|| corrupt_loop(outer))?
-        .boundary
-    else {
-        return Ok(None);
-    };
-    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
-    run_azimuth_window(body, surface, face, &halves, band)
+    Ok(
+        face_azimuth_images(body, surface, face, band)?.and_then(|images| {
+            images
+                .into_iter()
+                .map(|image| image.range)
+                .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi)))
+        }),
+    )
 }
 
 /// The boolean PLANAR-side chord of a curved germ pair (M5 PR 9): the
@@ -1743,8 +1741,66 @@ fn run_azimuth_window<T: Decide>(
     halves: &[HalfEdgeKey],
     band: Band,
 ) -> Result<Option<(T, T)>, SplitJoinError> {
+    Ok(run_azimuth_images(body, surface, face, halves, band)?
+        .into_iter()
+        .map(|image| image.range)
+        .reduce(|(a, b), (lo, hi)| (a.min(lo), b.max(hi))))
+}
+
+/// One boundary half-edge's chart azimuth image, on the branch the
+/// run walk pinned: the azimuth where the walk ENTERS it and where it
+/// EXITS it (the half-edge's own start and end), and the hull
+/// [`run_azimuth_window`] folds.
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct AzimuthImage<T: geom_core::Real> {
+    /// The half-edge.
+    pub(crate) he: HalfEdgeKey,
+    /// The azimuth at its start vertex.
+    pub(crate) entry: T,
+    /// The azimuth at its end vertex.
+    pub(crate) exit: T,
+    /// Its azimuth extent (padded by the image's harmonic amplitude).
+    pub(crate) range: (T, T),
+}
+
+/// Every charted half-edge of `face`'s outer loop, in loop order, with
+/// its azimuth image on the branch the walk pins — the same walk
+/// [`face_azimuth_window`] hulls, so each image's entry and exit sit on
+/// the window's own branch. `None` for a loop that is not a cycle.
+///
+/// # Errors
+///
+/// As [`face_azimuth_window`].
+pub(crate) fn face_azimuth_images<T: Decide>(
+    body: &Body<T>,
+    surface: &geom::Surface<T>,
+    face: FaceKey,
+    band: Band,
+) -> Result<Option<Vec<AzimuthImage<T>>>, SplitJoinError> {
+    let outer = body.get_face(face).ok_or_else(|| corrupt_face(face))?.outer;
+    let crate::entity::LoopBoundary::Cycle { first } = body
+        .get_loop(outer)
+        .ok_or_else(|| corrupt_loop(outer))?
+        .boundary
+    else {
+        return Ok(None);
+    };
+    let halves = body.loop_cycle(first).ok_or_else(|| corrupt_he(first))?;
+    run_azimuth_images(body, surface, face, &halves, band).map(Some)
+}
+
+/// The run walk behind [`run_azimuth_window`] and
+/// [`face_azimuth_images`]: each charted half-edge's image, its branch
+/// pinned to the previous edge's exit.
+fn run_azimuth_images<T: Decide>(
+    body: &Body<T>,
+    surface: &geom::Surface<T>,
+    face: FaceKey,
+    halves: &[HalfEdgeKey],
+    band: Band,
+) -> Result<Vec<AzimuthImage<T>>, SplitJoinError> {
     let tau = T::tau();
-    let mut acc: Option<(T, T)> = None;
+    let mut images = Vec::new();
     let mut prev_exit: Option<T> = None;
     for &he in halves {
         let he_data = body.get_half_edge(he).ok_or_else(|| corrupt_he(he))?;
@@ -1869,13 +1925,16 @@ fn run_azimuth_window<T: Decide>(
                        a closed-form azimuth, and the fitted-chord join lane is not \
                        written",
             })?;
-        acc = Some(match acc {
-            None => (lo, hi),
-            Some((a, b)) => (a.min(lo), b.max(hi)),
+        let exit = pcurve.eval(exit_t).x;
+        images.push(AzimuthImage {
+            he,
+            entry: pcurve.eval(entry_t).x,
+            exit,
+            range: (lo, hi),
         });
-        prev_exit = Some(pcurve.eval(exit_t).x);
+        prev_exit = Some(exit);
     }
-    Ok(acc)
+    Ok(images)
 }
 
 /// The halves of the loop cycle strictly between `from` (exclusive)

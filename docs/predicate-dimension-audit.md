@@ -417,6 +417,13 @@ which is what actually moves the number.
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel / side_code | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified) | m | OK |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_section_seat | off-axis distance; `minor − r`; `major·|n̂·â| − r`; the major axis's minor-direction component × `(major − minor)`, the displacement a rotation in the plane causes | m | OK |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_piece_span | azimuth extent × radius | m | OK |
+| boolean/solid_contain.rs (`rim_levels`) | bool_wall_rim_level | offset of one rim plane from another along the axis | m | OK |
+| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_trim (piece side) | perpendicular distance from a unit-normal plane | m | OK |
+| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_junction | cos and sin of the angle between two unit radial directions × radius | m | OK |
+| boolean/solid_contain.rs (`wall_hit_outside_reach`) | bool_wall_outline_reach | distance to the ball's centre − its radius | m | OK |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
 | boolean/solid_contain.rs:691 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |

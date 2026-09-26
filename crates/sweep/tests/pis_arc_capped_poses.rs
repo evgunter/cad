@@ -768,6 +768,7 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut wrong = Vec::new();
+    let (mut answered, mut at_infinity) = (0usize, 0usize);
     for above in [true, false] {
         let half = cut_cylinder(above);
         for (pose, map) in poses() {
@@ -790,10 +791,17 @@ fn the_cut_cylinder_reads_its_truth() {
                             SolidContainment::Out
                         };
                         match point_in_solid(&posed, map.transform_point(p), band, tol()) {
-                            Ok(got) if got != want => {
-                                wrong.push(format!("above = {above} | {pose} | {p:?}: {got:?}"));
+                            Ok(got) => {
+                                answered += 1;
+                                if got != want {
+                                    wrong
+                                        .push(format!("above = {above} | {pose} | {p:?}: {got:?}"));
+                                }
                             }
-                            _ => {}
+                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
+                            Err(e) => {
+                                wrong.push(format!("above = {above} | {pose} | {p:?}: {e:?}"))
+                            }
                         }
                     }
                 }
@@ -801,6 +809,14 @@ fn the_cut_cylinder_reads_its_truth() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    // The only refusal is the at-infinity side (a ray that crosses
+    // nothing, whose side the props lane cannot give for this wall), and
+    // it cannot be most of the grid: a wall read would have to be
+    // refused for that.
+    assert!(
+        answered > at_infinity,
+        "answered {answered}, at-infinity refusals {at_infinity}"
+    );
 }
 
 /// **A point ON the wall but below the section is not on the upper
@@ -908,4 +924,231 @@ fn iso_bounded_walls_answer_through_their_rectangle() {
         }
         assert!(answered > 0, "{name}: no probe answered");
     }
+}
+
+/// One cutting plane of a tilted-cut fixture: a point on it and its
+/// normal; the kept side is where `(p − point)·normal` is negative.
+#[derive(Clone, Copy)]
+struct Cut {
+    point: Point3<f64>,
+    normal: Vec3<f64>,
+}
+
+impl Cut {
+    fn tilted(z: f64, about_y: f64) -> Self {
+        Cut {
+            point: Point3::new(0.0, 0.0, z),
+            normal: Vec3::new(about_y.sin(), 0.0, about_y.cos()),
+        }
+    }
+
+    fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
+        Cut {
+            point: Point3::new(point[0], point[1], point[2]),
+            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+        }
+    }
+
+    fn flip(self) -> Self {
+        Cut {
+            point: self.point,
+            normal: self.normal * -1.0,
+        }
+    }
+
+    fn elevation(&self, p: Point3<f64>) -> f64 {
+        (p - self.point).dot(self.normal)
+    }
+}
+
+/// The unit cylinder of height 2.5 cut down to the side of every plane
+/// in `cuts` below it, through the split door.
+fn cut_by(cuts: &[Cut]) -> Body<f64> {
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    let mut body = prism(vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)], 2.5, tol());
+    for cut in cuts {
+        let result = split(
+            &body,
+            &SplitPlane {
+                origin: cut.point,
+                normal: cut.normal,
+            },
+            tol(),
+        )
+        .expect("the cut splits");
+        let SplitPart::Body(kept) = result.below else {
+            panic!("material below every cut");
+        };
+        body = kept;
+    }
+    body
+}
+
+/// A tilted-cut fixture and its closed form.
+struct CutCase {
+    name: &'static str,
+    body: Body<f64>,
+    /// `Some(inside)` for a probe clear of the boundary, `None` near it.
+    truth: Box<dyn Fn(Point3<f64>) -> Option<bool>>,
+}
+
+/// Inside the unit cylinder of height 2.5, clear of its wall and caps
+/// by the probe margin.
+fn in_cylinder(p: Point3<f64>) -> Option<bool> {
+    let r2 = p.x * p.x + p.y * p.y;
+    if (r2 - 1.0).abs() < 0.05 || p.z.abs() < 0.05 || (p.z - 2.5).abs() < 0.05 {
+        return None;
+    }
+    Some(r2 < 1.0 && p.z > 0.0 && p.z < 2.5)
+}
+
+/// Below every cut, clear of each plane.
+fn below_all(cuts: &[Cut], p: Point3<f64>) -> Option<bool> {
+    let mut inside = true;
+    for cut in cuts {
+        let e = cut.elevation(p);
+        if e.abs() < 0.05 {
+            return None;
+        }
+        inside &= e < 0.0;
+    }
+    Some(inside)
+}
+
+fn tilted_cut_cases() -> Vec<CutCase> {
+    let region = |cuts: Vec<Cut>| -> Box<dyn Fn(Point3<f64>) -> Option<bool>> {
+        Box::new(move |p| Some(in_cylinder(p)? && below_all(&cuts, p)?))
+    };
+    let mut cases = Vec::new();
+    let mut add = |name: &'static str, cuts: Vec<Cut>| {
+        cases.push(CutCase {
+            name,
+            body: cut_by(&cuts),
+            truth: region(cuts),
+        });
+    };
+    // One cut through the axis, each side: the pinned witness's shape.
+    add("cut 0.3 (below)", vec![Cut::tilted(1.25, 0.3)]);
+    add("cut 0.3 (above)", vec![Cut::tilted(1.25, 0.3).flip()]);
+    // A cut running out through the top cap: the wall's top chain is
+    // rim, section, rim.
+    add(
+        "corner clip",
+        vec![Cut::at([0.6, 0.0, 2.5], [0.6f64.sin(), 0.0, 0.6f64.cos()])],
+    );
+    add(
+        "corner clip (the chip)",
+        vec![Cut::at([0.6, 0.0, 2.5], [0.6f64.sin(), 0.0, 0.6f64.cos()]).flip()],
+    );
+    // Steep through the centre: the section runs out through both caps.
+    add("tilt 0.9 (below)", vec![Cut::tilted(1.25, 0.9)]);
+    add("tilt 0.9 (above)", vec![Cut::tilted(1.25, 0.9).flip()]);
+    // Between two parallel steep cuts.
+    add(
+        "slab at tilt 1.0",
+        vec![Cut::tilted(1.65, 1.0), Cut::tilted(0.85, 1.0).flip()],
+    );
+    // Below two cuts meeting in a ridge over the axis: a convex roof.
+    add(
+        "wedge",
+        vec![
+            Cut::at([0.0, 0.0, 2.0], [0.4f64.sin(), 0.0, 0.4f64.cos()]),
+            Cut::at([0.0, 0.0, 2.0], [-(0.4f64.sin()), 0.0, 0.4f64.cos()]),
+        ],
+    );
+    // Between two cuts tilted opposite ways about `x`, crossing on the
+    // seam line: each wall face is a lens of two section arcs.
+    add(
+        "lens",
+        vec![
+            Cut::at([0.0, 0.0, 1.25], [0.0, 0.3f64.sin(), 0.3f64.cos()]).flip(),
+            Cut::at([0.0, 0.0, 1.25], [0.0, -(0.3f64.sin()), 0.3f64.cos()]),
+        ],
+    );
+    // Through the subtract door: the cut cylinder (below the cut) minus a
+    // box inside it. Its walls keep the tilted section.
+    let cut = Cut::tilted(1.25, 0.3);
+    let pocket: Body<f64> = brick((-0.3, 0.1), (-0.3, 0.1), (0.3, 0.7), tol());
+    match topo::subtract(&cut_by(&[cut]), &pocket, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => cases.push(CutCase {
+            name: "cut 0.3 minus a box (subtract)",
+            body: b.body,
+            truth: Box::new(move |p| {
+                let clear =
+                    |v: f64, lo: f64, hi: f64| (v - lo).abs() >= 0.05 && (v - hi).abs() >= 0.05;
+                if !(clear(p.x, -0.3, 0.1) && clear(p.y, -0.3, 0.1) && clear(p.z, 0.3, 0.7)) {
+                    return None;
+                }
+                let in_box =
+                    p.x > -0.3 && p.x < 0.1 && p.y > -0.3 && p.y < 0.1 && p.z > 0.3 && p.z < 0.7;
+                Some(in_cylinder(p)? && below_all(&[cut], p)? && !in_box)
+            }),
+        }),
+        other => panic!("the pocket subtracts: {:?}", other.err()),
+    }
+    cases
+}
+
+/// **Every tilted-cut wall reads its truth, and its outline is read,
+/// not refused.** Each fixture's wall faces are bounded by rims, seam
+/// meridians and planar sections in the combinations the split and
+/// subtract doors mint: a cut through the axis, one running out through
+/// a cap, a steep one through both caps, a slab, a convex roof and a
+/// lens. Every answer is the truth, no probe refuses on a
+/// wall's outline, and the only refusal allowed is the at-infinity side
+/// the props lane owns.
+#[test]
+fn every_tilted_cut_wall_reads_its_truth() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let mut problems = Vec::new();
+    for case in tilted_cut_cases() {
+        let (mut answered, mut wrong) = (0usize, 0usize);
+        let mut refused: std::collections::BTreeMap<String, usize> = Default::default();
+        for (pose, map) in poses() {
+            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            for i in 0..5 {
+                for j in 0..5 {
+                    for k in 0..5 {
+                        let f =
+                            |n: usize, lo: f64, hi: f64| lo + (hi - lo) * (n as f64 + 0.5) / 5.0;
+                        let p = Point3::new(f(i, -1.0, 1.0), f(j, -1.0, 1.0), f(k, 0.0, 2.5));
+                        let Some(inside) = (case.truth)(p) else {
+                            continue;
+                        };
+                        let want = if inside {
+                            SolidContainment::In
+                        } else {
+                            SolidContainment::Out
+                        };
+                        match point_in_solid(&posed, map.transform_point(p), band, tol()) {
+                            Ok(got) => {
+                                answered += 1;
+                                if got != want {
+                                    wrong += 1;
+                                    problems
+                                        .push(format!("{} | {pose} | {p:?}: {got:?}", case.name));
+                                }
+                            }
+                            Err(e) => {
+                                let kind = format!("{e:?}");
+                                let kind = kind.split([' ', '{', '(']).next().unwrap_or("");
+                                *refused.entry(kind.to_string()).or_default() += 1;
+                                if kind != "VolumeUncertified" {
+                                    problems.push(format!("{} | {pose} | {p:?}: {e:?}", case.name));
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "MEASURE {}: answered {answered}, wrong {wrong}, refused {refused:?}",
+            case.name
+        );
+        if answered == 0 {
+            problems.push(format!("{}: no probe answered", case.name));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }
