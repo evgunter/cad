@@ -1,11 +1,13 @@
 //! The refinement loop's four faces, pinned from outside the module
 //! over a corpus rather than one instance each: every refusal the
 //! corpus reaches keeps its face's own payload invariants — the two
-//! faces that carry a bound carry a finite one, the cap face never
-//! fires on the round budget's last round (the budget test precedes
-//! the marking), `rounds` never exceeds the budget, a not-finite face
-//! carries the last finite bound or none — and every message names the
-//! lever its face's doc claims.
+//! faces that carry a bound carry a finite one, every face that carries
+//! a bound also carries the smallest any round reached, no larger than
+//! its last and on a grid no finer, the cap face never fires on the
+//! round budget's last round (the budget test precedes the marking),
+//! `rounds` never exceeds the budget, a not-finite face carries the
+//! smallest finite bound or none — and every message names the lever
+//! its face's doc claims.
 //!
 //! The corpus is 2 bases x 7 deltas x 5 tolerances, and each (base, δ)
 //! column is its own `#[test]`: `fit_offset_at` is seconds per cell, so
@@ -34,12 +36,16 @@
 //! - **A bound that GREW reds here.** The cell bound is monotone on a
 //!   fixed grid, but the door's is not monotone in it — a tightening
 //!   reorders the refinement marking, and a different schedule is a
-//!   different fitted surface
-//!   (`work/props/offset-fit-door-bound-is-not-monotone-in-the-cell-bound`).
+//!   different fitted surface (`offset_fit`'s `measure`, where the
+//!   marking's cut is taken).
 //!   So "every bound only goes down" is not available as an argument
 //!   and the corpus has to be measured. The digits are pinned at
 //!   `1e-3` relative: tight enough to red on the 1.8% the one grown
 //!   request moved by, loose enough not to chase an ulp.
+//!
+//! The budget face is pinned by its reading too: `budget` when the last
+//! round was still falling, `budget-rose` when it was the first not
+//! to, since those are two different sentences to the caller.
 //!
 //! Re-baselining a row here is the ordinary answer when a bound
 //! moves; what the table forbids is moving one silently.
@@ -56,6 +62,29 @@ use crate::shared::tol::band;
 
 /// The tolerances every column sweeps.
 const TOLS: [f64; 5] = [1e-15, 1e-12, 1e-9, 1e-6, 1e-3];
+
+/// The best bound a face carries against the last one it carries:
+/// finite, above the tolerance (a request at it would otherwise have
+/// certified on the round that reached it), no larger than the last,
+/// and reached on a grid no finer.
+fn best_is_the_smallest(
+    at: &str,
+    achieved: f64,
+    grid: (usize, usize),
+    tolerance: f64,
+    best: f64,
+    best_grid: (usize, usize),
+) {
+    assert!(
+        best.is_finite() && best > tolerance && best <= achieved,
+        "{at}: the best bound {best:e} is not the smallest of a run ending on {achieved:e} \
+         against {tolerance:e}"
+    );
+    assert!(
+        best_grid.0 <= grid.0 && best_grid.1 <= grid.1,
+        "{at}: the best bound's grid {best_grid:?} is finer than the last {grid:?}"
+    );
+}
 
 /// The refusal faces one column reached, one counter each.
 #[derive(Default)]
@@ -99,8 +128,13 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 achieved,
                 tolerance,
+                still_falling,
+                best,
+                best_grid,
             }) => {
                 seen.budget += 1;
+                let at = format!("{name} d={d} t={t}");
+                best_is_the_smallest(&at, achieved, grid, tolerance, best, best_grid);
                 assert_eq!(budget, OFFSET_FIT_BUDGET, "{name} d={d} t={t}");
                 assert!(
                     achieved.is_finite(),
@@ -111,7 +145,11 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                     grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
                     "{name} d={d} t={t}: grid past the cap"
                 );
-                ("budget", achieved)
+                if still_falling {
+                    ("budget", achieved)
+                } else {
+                    ("budget-rose", achieved)
+                }
             }
             Err(OffsetFitError::SampleCapReached {
                 cap,
@@ -119,8 +157,12 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 achieved,
                 tolerance,
+                best,
+                best_grid,
             }) => {
                 seen.cap += 1;
+                let at = format!("{name} d={d} t={t}");
+                best_is_the_smallest(&at, achieved, grid, tolerance, best, best_grid);
                 assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP, "{name} d={d} t={t}");
                 assert!(
                     achieved.is_finite(),
@@ -145,7 +187,7 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 grid,
                 d: dd,
                 tolerance,
-                last_finite,
+                best_finite,
             }) => {
                 assert_eq!(dd, d, "{name} d={d} t={t}");
                 assert_eq!(tolerance, t, "{name} d={d} t={t}");
@@ -157,7 +199,7 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                     grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP,
                     "{name} d={d} t={t}"
                 );
-                match last_finite {
+                match best_finite {
                     None => {
                         seen.not_finite_none += 1;
                         ("not-finite", f64::NAN)
@@ -174,9 +216,16 @@ fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) 
                 }
             }
             Err(OffsetFitError::RefinementStalled {
-                rounds, achieved, ..
+                rounds,
+                grid,
+                achieved,
+                tolerance,
+                best,
+                best_grid,
             }) => {
                 seen.stalled += 1;
+                let at = format!("{name} d={d} t={t}");
+                best_is_the_smallest(&at, achieved, grid, tolerance, best, best_grid);
                 assert!(
                     (rounds as usize) <= OFFSET_FIT_BUDGET,
                     "{name} d={d} t={t}: rounds past the budget"
@@ -498,29 +547,46 @@ fn bumpy_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
 
 /// Each message names what stopped the loop and the repair the face's
 /// doc claims, and no other: the budget and the cap are told apart by
-/// what they name, and the two not-finite cases send the caller to two
-/// different repairs.
+/// what they name, the budget's two readings say which one it was, the
+/// repair is sized to the best bound rather than the last, and the two
+/// not-finite cases send the caller to two different repairs.
 #[test]
 fn each_faces_message_names_its_lever() {
-    let b = OffsetFitError::BudgetExhausted {
-        budget: OFFSET_FIT_BUDGET,
-        grid: (9, 9),
-        achieved: 1e-3,
-        tolerance: 1e-9,
+    let budget = |still_falling| {
+        OffsetFitError::BudgetExhausted {
+            budget: OFFSET_FIT_BUDGET,
+            grid: (9, 9),
+            achieved: 2e-3,
+            tolerance: 1e-9,
+            still_falling,
+            best: 1e-3,
+            best_grid: (7, 9),
+        }
+        .to_string()
+    };
+    let (falling, rose) = (budget(true), budget(false));
+    for b in [&falling, &rose] {
+        assert!(
+            b.contains(&format!("all {OFFSET_FIT_BUDGET} refinement rounds")),
+            "{b}"
+        );
+        assert!(!b.contains("samples"), "{b}");
+        assert!(b.contains("loosen the tolerance to 0.001 m"), "{b}");
+        assert!(!b.contains("0.002"), "the last bound is named: {b}");
     }
-    .to_string();
+    assert!(falling.contains("while still improving"), "{falling}");
     assert!(
-        b.contains(&format!("all {OFFSET_FIT_BUDGET} refinement rounds")),
-        "{b}"
+        !rose.contains("improving,") && rose.contains("did not improve on the one before"),
+        "{rose}"
     );
-    assert!(!b.contains("samples"), "{b}");
-    assert!(b.contains("loosen the tolerance to 0.001 m"), "{b}");
     let c = OffsetFitError::SampleCapReached {
         cap: OFFSET_FIT_SAMPLE_CAP,
         rounds: 5,
         grid: (41, 40),
-        achieved: 1e-3,
+        achieved: 2e-3,
         tolerance: 1e-9,
+        best: 1e-3,
+        best_grid: (33, 40),
     }
     .to_string();
     assert!(
@@ -531,12 +597,13 @@ fn each_faces_message_names_its_lever() {
     );
     assert!(!c.contains("rounds"), "{c}");
     assert!(c.contains("loosen the tolerance to 0.001 m"), "{c}");
+    assert!(!c.contains("0.002"), "the last bound is named: {c}");
     let n = OffsetFitError::BoundNotFinite {
         rounds: 4,
         grid: (25, 17),
         d: 1e-7,
         tolerance: 1e-3,
-        last_finite: None,
+        best_finite: None,
     }
     .to_string();
     assert!(n.contains("offset distance of 0.0000001 m"), "{n}");
@@ -555,7 +622,7 @@ fn each_faces_message_names_its_lever() {
         grid: (25, 17),
         d: 1e-7,
         tolerance: 1e-3,
-        last_finite: Some(3.2e-4),
+        best_finite: Some(3.2e-4),
     }
     .to_string();
     assert!(

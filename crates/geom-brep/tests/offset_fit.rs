@@ -511,17 +511,26 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
             grid,
             achieved,
             tolerance,
+            best,
+            best_grid,
         }) => {
             assert_eq!(cap, OFFSET_FIT_SAMPLE_CAP);
             assert_eq!(rounds, 5, "five of the six rounds ran before the cap");
             assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
             assert!(achieved.is_finite() && achieved > tolerance);
+            assert!(
+                best > tolerance && best <= achieved,
+                "the best bound {best:e} is not the smallest of a run ending on {achieved:e}"
+            );
+            assert!(best_grid.0 <= grid.0 && best_grid.1 <= grid.1);
             let e = OffsetFitError::SampleCapReached {
                 cap,
                 rounds,
                 grid,
                 achieved,
                 tolerance,
+                best,
+                best_grid,
             };
             let msg = e.to_string();
             assert!(
@@ -533,8 +542,8 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
                 "the message points at the round budget: {msg}"
             );
             assert!(
-                msg.contains(&format!("loosen the tolerance to {achieved} m")),
-                "the repair is not sized to the bound reached: {msg}"
+                msg.contains(&format!("loosen the tolerance to {best} m")),
+                "the repair is not sized to the best bound reached: {msg}"
             );
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
@@ -550,11 +559,15 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 /// caller to the wrong knob.
 ///
 /// The bumpy patch at `d = 1e-4` is that shape at an unreachable
-/// `1e-15`: it exhausts the budget carrying `1.070770e-8`, a finite
-/// bound above the tolerance. `RefinementStalled` is reached by no
-/// fixture in this suite's corpus (module docs, "Reachability"), and
-/// `budget_faces`'s census is the standing count of which faces the
-/// corpus does reach.
+/// `1e-15`: it exhausts the budget on a round whose bound ROSE. The
+/// other side of the ordering — a second non-improving round wearing
+/// the stall's face — is
+/// `the_second_non_improving_round_is_the_stalls_face`.
+///
+/// **What the face says on a round that rose.** Not "still improving",
+/// and not the last round's bound as the number to size against:
+/// `still_falling` is false, and `best` is round 5's bound, the
+/// smallest any round reached, which is what the recourse names.
 ///
 /// **The row asserts that the last round really did not improve**,
 /// because the name says so and a schedule change could otherwise
@@ -590,27 +603,32 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
 #[test]
 fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     let base = bumpy_patch();
-    let achieved = match fit_offset_at(&base, 1e-4, 1e-15, band()) {
+    let refusal = fit_offset_at(&base, 1e-4, 1e-15, band());
+    let (achieved, still_falling, best, best_grid) = match &refusal {
         Err(OffsetFitError::BudgetExhausted {
             budget,
             grid,
             achieved,
             tolerance,
+            still_falling,
+            best,
+            best_grid,
         }) => {
-            assert_eq!(budget, OFFSET_FIT_BUDGET);
+            assert_eq!(*budget, OFFSET_FIT_BUDGET);
             assert!(achieved.is_finite() && achieved > tolerance);
             assert!(
                 (achieved - 8.3524739e-9).abs() < achieved * 1e-5,
                 "the budget face carries {achieved:e}"
             );
-            eprintln!("budget face: grid={grid:?} achieved={achieved:.7e}");
-            achieved
+            eprintln!("budget face: grid={grid:?} achieved={achieved:.7e} best={best:.7e}");
+            (*achieved, *still_falling, *best, *best_grid)
         }
         other => panic!("the budget's last round did not wear the budget's face: {other:?}"),
     };
+    let msg = refusal.err().map(|e| e.to_string()).unwrap_or_default();
     // The round the budget face stepped off, read back through the
     // door. `1e-8` is met by round 5 and by no round before it.
-    let (_, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
+    let (prev_fit, prev) = fit_offset_at(&base, 1e-4, 1e-8, band())
         .unwrap_or_else(|e| panic!("the round before the budget face refused: {e}"));
     assert!(
         prev.rounds == 5 && (prev.hull_sup - 6.0173058e-9).abs() < prev.hull_sup * 1e-5,
@@ -634,11 +652,28 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
     // second past a both-directions marking, is the stall's admission
     // set, and this is not it.
     //
-    // The ordering this row does NOT pin: the stall verdict is taken
-    // before the budget test, and round 6's verdict is
-    // `BothDirections` rather than `Refuse`, so swapping the two
-    // blocks yields the budget face either way. Filed as
-    // `work/props/offset-fit-stall-face-has-no-fixture`.
+    // The face's own account of that round. Rounds 0 to 4 sit above
+    // `1e-8` and round 6 above round 5, so round 5's bound is the
+    // smallest any round reached, and the payload carries it exactly,
+    // on the grid round 5's fit was interpolated on.
+    assert!(
+        !still_falling,
+        "the face says a round that rose was still falling"
+    );
+    assert_eq!(
+        best, prev.hull_sup,
+        "the face's best bound is not the smallest the run reached"
+    );
+    assert_eq!(best_grid, prev_fit.control_counts(), "the best bound's grid");
+    assert!(
+        !msg.contains("still improving"),
+        "the message says a round that rose was improving: {msg}"
+    );
+    assert!(
+        msg.contains(&format!("loosen the tolerance to {best} m or more"))
+            && !msg.contains(&format!("{achieved} m")),
+        "the repair is not sized to the best bound reached: {msg}"
+    );
 }
 
 /// **What the floor on `‖E‖` reaches on a non-analytic base.** The
@@ -701,21 +736,21 @@ fn a_bound_that_never_became_finite_refuses_with_no_number() {
                 grid,
                 d: dd,
                 tolerance,
-                last_finite,
+                best_finite,
             }) => {
                 assert_eq!(rounds, 4, "d = {d}: four rounds ran before the cap");
                 assert!(grid.0 <= OFFSET_FIT_SAMPLE_CAP && grid.1 <= OFFSET_FIT_SAMPLE_CAP);
                 assert_eq!(dd, d);
                 assert!(
-                    last_finite.is_none(),
-                    "d = {d}: a round reached a finite bound: {last_finite:?}"
+                    best_finite.is_none(),
+                    "d = {d}: a round reached a finite bound: {best_finite:?}"
                 );
                 let msg = OffsetFitError::BoundNotFinite {
                     rounds,
                     grid,
                     d: dd,
                     tolerance,
-                    last_finite,
+                    best_finite,
                 }
                 .to_string();
                 // The type cannot print an `inf` here — the face has no
@@ -895,7 +930,7 @@ fn a_zero_or_non_finite_request_refuses_at_the_door() {
 /// 1e7        1.7168e-5   1.0056x
 /// 1e8        1.8223e-5   1.0674x
 /// 1e9        4.6979e-5   2.751x
-/// 1e10       refused: BoundNotFinite, last_finite None — no grid reached one
+/// 1e10       refused: BoundNotFinite, best_finite None — no grid reached one
 /// ```
 ///
 /// So the band is asserted where the claim is meaningful — out to
@@ -986,10 +1021,10 @@ fn a_patch_far_from_the_origin_certifies_as_well_as_one_at_it() {
         Err(OffsetFitError::BoundNotFinite {
             rounds,
             grid,
-            last_finite,
+            best_finite,
             ..
         }) => {
-            assert!(last_finite.is_none(), "a grid reached {last_finite:?}");
+            assert!(best_finite.is_none(), "a grid reached {best_finite:?}");
             eprintln!(
                 "recentred shift=1e10: refused typed, never finite after {rounds} rounds on {grid:?}"
             );
@@ -1040,65 +1075,119 @@ fn refinement_follows_the_anisotropy_on_a_thin_patch() {
     );
 }
 
-/// **`RefinementStalled`'s payload and its message**, pinned from
-/// outside the crate.
+/// A bilinear SADDLE: the wall between the edge `(0,0)–(2,0)` of a
+/// 2 m square at `z = 0` and the same edge of that square turned
+/// `theta` about its centre at `z = 1`, `u` running up the wall. It is
+/// the first spline wall of `sweep`'s `twisted_loft(theta)` test body,
+/// rebuilt here as the net that loft produces, and the fit loop reaches
+/// the same outcome on it to the digit (`RefinementStalled` on
+/// `(16, 12)` at `1.2915e-11` for `theta = 0.3`, `d = 5e-10`).
+fn saddle_wall(theta: f64) -> NurbsSurface<f64> {
+    let (s, c) = theta.sin_cos();
+    let turned = |x: f64, y: f64| {
+        let (dx, dy) = (x - 1.0, y - 1.0);
+        Point3::new(1.0 + c * dx - s * dy, 1.0 + s * dx + c * dy, 1.0)
+    };
+    let control = vec![
+        Point3::new(0.0, 0.0, 0.0),
+        turned(0.0, 0.0),
+        Point3::new(2.0, 0.0, 0.0),
+        turned(2.0, 0.0),
+    ];
+    NurbsSurface::new(kv1(), kv1(), control, vec![1.0; 4]).unwrap()
+}
+
+/// **`RefinementStalled` through the door, and the loop's ordering.**
+/// The stall guard refuses a round whose grid came from the
+/// both-directions step and whose bound did not fall; the loop takes
+/// that verdict BEFORE the round-budget test, so a stall on the
+/// budget's last round wears the stall's face, not the budget's.
+/// `a_single_non_improving_round_is_the_budgets_face_not_the_stalls`
+/// is the other side: one non-improving round is the budget's.
 ///
-/// The refusal is not drivable through `fit_offset`'s door by any
-/// fixture two review lanes and this unit could build — see
-/// `stall_verdict`'s recorded reachability verdict for why that is a
-/// property of the predicate's shape rather than of the fixtures. So
-/// what a consumer can actually see of this variant — its four
-/// fields, and the sentence `Display` writes — is pinned HERE,
-/// through the public type, rather than left to a fixture that does
-/// not exist. Without this row the variant's `Display` arm and every
-/// field but `achieved` are unexecuted outside the crate.
+/// The saddle wall at a target of `1e-14`, which it cannot reach:
+///
+/// ```text
+/// d = ±5e-10   stalls on round 4
+/// d =  1e-6    stalls on round 6 = OFFSET_FIT_BUDGET — the ordering
+/// ```
+///
+/// At `d = 1e-6`, a loop that tested the budget first would refuse
+/// `BudgetExhausted` on the same round, so this request is the witness
+/// that the verdict comes first.
+///
+/// Each refusal's `best` is read back through the door: the schedule
+/// does not read the tolerance, so a request AT `best` certifies on the
+/// round that reached it, with exactly that bound on exactly that grid.
+/// That is what makes `best` the number the recourse names.
+///
+/// **If a request here certifies, re-find the fixture; do not delete
+/// the row.** These stalls ride on the Bézier decomposition's insertion
+/// width, which grows with the grid; PROPS has a convex insertion form
+/// in view that narrows it, under which the `5e-10` request measured
+/// certifying on round 3. A certificate here most likely means that
+/// landed. The hunt that found these swept `theta` over 0.05–1.2 and
+/// `d` over 1e-11–1e-2 at a target of 1e-17 on this saddle, and most
+/// requests below `d ~ 1e-6` stalled; sweep again, and pin a request
+/// that stalls on `OFFSET_FIT_BUDGET`'s round.
 #[test]
-fn the_stall_refusal_carries_its_grid_rounds_and_bound() {
-    let e = OffsetFitError::RefinementStalled {
-        rounds: 3,
-        grid: (11, 7),
-        achieved: 4.25e-4,
-        tolerance: 1e-6,
-    };
-    let OffsetFitError::RefinementStalled {
-        rounds,
-        grid,
-        achieved,
-        tolerance,
-    } = &e
-    else {
-        panic!("the variant did not match its own shape");
-    };
-    assert_eq!(*rounds, 3);
-    assert_eq!(*grid, (11, 7));
-    assert!((*achieved - 4.25e-4).abs() < f64::EPSILON);
-    assert!((*tolerance - 1e-6).abs() < f64::EPSILON);
-    let msg = e.to_string();
-    // The message must say WHICH refusal this is — a caller that
-    // cannot tell a stall from budget exhaustion cannot tell "more
-    // budget will help" from "it will not". The grid and the round
-    // count ride in the payload, pinned above; the sentence carries
-    // the numbers that decided it and the repair.
-    assert!(msg.contains("stopped improving"), "{msg}");
-    assert!(
-        msg.contains("certified error of 0.000425 m against a tolerance of 0.000001 m"),
-        "the deciding numbers are not in the message: {msg}"
-    );
-    assert!(
-        msg.contains("both directions"),
-        "the message does not say what was tried: {msg}"
-    );
-    assert!(
-        msg.contains("Recourse: loosen the tolerance to 0.000425 m or more"),
-        "the repair is not sized to the bound reached: {msg}"
-    );
-    // And it is a DIFFERENT sentence from budget exhaustion's.
-    let budget = OffsetFitError::BudgetExhausted {
-        budget: OFFSET_FIT_BUDGET,
-        grid: (11, 7),
-        achieved: 4.25e-4,
-        tolerance: 1e-6,
-    };
-    assert_ne!(msg, budget.to_string());
-    eprintln!("stall refusal reads: {msg}");
+fn the_second_non_improving_round_is_the_stalls_face() {
+    let base = saddle_wall(0.3);
+    let target = 1e-14;
+    let last_round = u32::try_from(OFFSET_FIT_BUDGET).unwrap();
+    for (d, want_rounds) in [(5e-10, 4u32), (-5e-10, 4), (1e-6, last_round)] {
+        let (rounds, achieved, best, best_grid, msg) = match fit_offset_at(&base, d, target, band())
+        {
+            Err(
+                ref e @ OffsetFitError::RefinementStalled {
+                    rounds,
+                    grid,
+                    achieved,
+                    tolerance,
+                    best,
+                    best_grid,
+                },
+            ) => {
+                assert_eq!(tolerance, target);
+                eprintln!(
+                    "saddle d={d:e}: stalled on round {rounds}, grid {grid:?}, bound \
+                     {achieved:.4e}, best {best:.4e} on {best_grid:?}"
+                );
+                (rounds, achieved, best, best_grid, e.to_string())
+            }
+            Ok((_, cert)) => panic!(
+                "saddle d={d:e}: certified at {:e} on round {} — the stall this row pins is \
+                 gone. Re-find a request that stalls (this row's doc says how) rather than \
+                 deleting the row",
+                cert.hull_sup, cert.rounds
+            ),
+            Err(other) => panic!("saddle d={d:e}: expected the stall's face, got {other:?}"),
+        };
+        assert_eq!(
+            rounds, want_rounds,
+            "saddle d={d:e}: the stall moved rounds (the 1e-6 request witnesses the ordering \
+             only while it stalls on the budget's last round)"
+        );
+        assert!(
+            best > target && best < achieved,
+            "saddle d={d:e}: the last bound {achieved:e} is not above the best {best:e}, so \
+             the row no longer shows the recourse naming the best rather than the last"
+        );
+        // The recourse is `best`, and it certifies.
+        let (fit, cert) = fit_offset_at(&base, d, best, band()).unwrap_or_else(|e| {
+            panic!("saddle d={d:e}: a request at the best bound {best:e} refused: {e}")
+        });
+        assert_eq!(cert.hull_sup, best, "saddle d={d:e}: the best bound read back");
+        assert_eq!(fit.control_counts(), best_grid, "saddle d={d:e}: its grid");
+        assert!(cert.rounds < rounds, "saddle d={d:e}");
+        assert!(
+            msg.contains("stopped improving") && msg.contains("both directions"),
+            "saddle d={d:e}: the message does not say what was tried: {msg}"
+        );
+        assert!(
+            msg.contains(&format!("loosen the tolerance to {best} m or more"))
+                && !msg.contains(&format!("{achieved} m")),
+            "saddle d={d:e}: the repair is not sized to the best bound reached: {msg}"
+        );
+    }
 }

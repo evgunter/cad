@@ -35,9 +35,9 @@ use crate::common::approx::{band, nurbs_walls, twisted_loft};
 const THICKNESS: f64 = 0.05;
 
 /// A saddle wall's **budget-limited** reach at `|d| =` [`THICKNESS`]:
-/// the sup bound the fit loop reaches on its last round under the
-/// shipped round budget and sample cap, where it refuses
-/// `BudgetExhausted` on a 27×17 grid. Measured on this fixture at
+/// the smallest sup bound the fit loop reaches under the shipped round
+/// budget and sample cap — its last round's, since the bound is still
+/// falling there — where it refuses `BudgetExhausted` on a 27×17 grid. Measured on this fixture at
 /// 4.1427e-9 at both signs of `d` (every wall agrees to 5 digits); the
 /// loop certifies at 1e-6 in 3 rounds (sup bound 4.28e-7).
 ///
@@ -49,7 +49,7 @@ const THICKNESS: f64 = 0.05;
 const SADDLE_FIT_REACH: f64 = 4.1427e-9;
 
 /// The relative band around [`SADDLE_FIT_REACH`] inside which a
-/// refusal's achieved bound counts as the same reach: wide enough for
+/// refusal's best bound counts as the same reach: wide enough for
 /// the last-digit drift an unrelated rounding change produces (the
 /// four walls and both signs spread by 1e-5 relative), narrow enough
 /// that any real change in how far the loop reaches reds.
@@ -134,15 +134,18 @@ fn a_saddle_walls_offset_at_shell_thickness_reaches_its_measured_bound() {
                     eps < lo,
                     "d = {d}: the fit refused at ε = {eps:e}, where it certifies today: {error}"
                 );
-                let achieved = match error {
-                    OffsetFitError::BudgetExhausted { achieved, .. }
-                    | OffsetFitError::SampleCapReached { achieved, .. }
-                    | OffsetFitError::RefinementStalled { achieved, .. } => achieved,
+                // The reach is the smallest bound any round reached: the
+                // schedule does not read ε, so the loop certifies exactly
+                // when ε is at least that.
+                let best = match error {
+                    OffsetFitError::BudgetExhausted { best, .. }
+                    | OffsetFitError::SampleCapReached { best, .. }
+                    | OffsetFitError::RefinementStalled { best, .. } => best,
                     other => panic!("d = {d}: expected a refinement refusal, got {other}"),
                 };
                 assert!(
-                    (lo..=hi).contains(&achieved),
-                    "d = {d}: achieved {achieved:e}, outside the measured reach \
+                    (lo..=hi).contains(&best),
+                    "d = {d}: best bound {best:e}, outside the measured reach \
                      {SADDLE_FIT_REACH:e} ± {REACH_BAND} — the loop's reach moved; \
                      re-baseline"
                 );

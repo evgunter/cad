@@ -390,6 +390,9 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            still_falling: false,
+            best: 2e-6,
+            best_grid: (48, 64),
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -397,26 +400,30 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: 2e-6,
+            best_grid: (48, 64),
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 0.1,
             tolerance: 1e-6,
-            last_finite: Some(3e-6),
+            best_finite: Some(3e-6),
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 1e-8,
             tolerance: 1e-6,
-            last_finite: None,
+            best_finite: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: 2e-6,
+            best_grid: (48, 64),
         },
         OffsetFitError::WindowUnsupported {
             window: geom::ApproxWindow {

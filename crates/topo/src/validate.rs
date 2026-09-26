@@ -2200,11 +2200,11 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
         }
         O::RefinementStalled { .. }
         | O::BoundNotFinite {
-            last_finite: Some(_),
+            best_finite: Some(_),
             ..
         } => (DRIFT, "Recourse: loosen the tolerance"),
         O::BoundNotFinite {
-            last_finite: None, ..
+            best_finite: None, ..
         } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
