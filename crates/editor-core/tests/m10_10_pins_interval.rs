@@ -94,6 +94,10 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
         "on top of the early walk, A0 and the door: {s:?}"
     );
     assert!(
+        !s.signed_root_last,
+        "rule C's fold asked last is measured behind its dial, not shipped: {s:?}"
+    );
+    assert!(
         !s.signed_root,
         "rule C's own fold at `sqrt`/`abs` stays dial-off: it is inert at the shipped ring \
          width and costs ~2x. The decision read is the value read that DOES ship, at the \
@@ -160,6 +164,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             root_magnitude: false,
             root_quotient: false,
             decision_read: false,
+            signed_root_last: false,
             registered: true,
         },
         "`without_the_algebra` is M10-9's tier: A0 and the early walk and the door, and \
@@ -182,6 +187,7 @@ fn m10_10_the_shipped_set_carries_the_algebra() {
             root_magnitude: true,
             root_quotient: true,
             decision_read: true,
+            signed_root_last: false,
             registered: true,
         },
         "`shipped` is `without_the_algebra` with the eleven algebra dials on, and nothing else"

@@ -1671,6 +1671,36 @@ pub struct SymRules {
     /// a read that runs before an atom is minted re-labels as a read
     /// anything the atom would have cancelled against. Needs `early`.
     pub decision_read: bool,
+    /// **Rule C's fold, asked LAST** — the narrowed read: a decision
+    /// every rung of the ladder declined, the retry attempts included,
+    /// is asked once more, of a walk of its own in which rule C's fold
+    /// ([`signed::fold`]) runs at each `sqrt`/`abs` node and at rule G's
+    /// magnitude step `sqrt(R²) = |R|`. Nothing else rule C's dial
+    /// carries is in it: rule G's side-condition read (`root`'s source
+    /// 4) stays behind [`Self::signed_root`].
+    ///
+    /// **What the ordering buys.** Rule C in the early walk
+    /// ([`Self::signed_root`]) folds an atom BEFORE the value-free rungs
+    /// and the door are asked, so a decision they would have reached as
+    /// a theorem or through a registration is reached as a read instead,
+    /// and a gated door form does not discharge at all. Asked after all
+    /// of them, the fold can take a decision only out of
+    /// [`SymCounts::numeric`]: the plain, early, top and door rungs have
+    /// each answered wherever they can, so no `symbolic_zero` or
+    /// `registered` answer is re-labelled `sign_gated` and no door is
+    /// lost. A zero it reaches holds at every point of the BOX, as rule
+    /// C's does, and is counted `sign_gated`.
+    ///
+    /// **Where it is asked**: the decision path only
+    /// (`discharge_retried`), never the contradiction assertion on a
+    /// definite margin, which asks the first attempt alone for the cost
+    /// reason that keeps the retry ladder off it; and only in a session
+    /// that recorded a parameter bracket, because the fold reads nothing
+    /// else. Where [`Self::signed_root`] is on, the early walk already
+    /// IS this walk, so the rung is not asked. Its forms are memoized in
+    /// a table of their own and never read into another walk's. Needs
+    /// `early`.
+    pub signed_root_last: bool,
     /// **The REGISTERED-IDENTITY DOOR** (M10-9, ERROR-DESIGN E12's
     /// provenance reserve): the early walk consults the session's
     /// registry ([`Sym::register_equal`]), so a node a constructor
@@ -1706,6 +1736,7 @@ impl SymRules {
             root_magnitude: true,
             root_quotient: true,
             decision_read: true,
+            signed_root_last: true,
             registered: true,
         }
     }
@@ -1754,6 +1785,7 @@ impl SymRules {
             root_magnitude: true,
             root_quotient: true,
             decision_read: true,
+            signed_root_last: false,
             registered: true,
         }
     }
@@ -1777,6 +1809,7 @@ impl SymRules {
             root_magnitude: false,
             root_quotient: false,
             decision_read: false,
+            signed_root_last: false,
             registered: false,
         }
     }
@@ -1971,6 +2004,7 @@ impl SymRules {
             root_magnitude: self.root_magnitude && mask.root_magnitude,
             root_quotient: self.root_quotient && mask.root_quotient,
             decision_read: self.decision_read && mask.decision_read,
+            signed_root_last: self.signed_root_last && mask.signed_root_last,
             registered: self.registered && mask.registered,
         }
     }
@@ -2281,6 +2315,17 @@ struct Session {
     /// registry is empty — so a document with no registrants (all of
     /// straight geometry) pays nothing and serializes M10-8's bytes.
     forms_door: IdMap<Arc<Form>>,
+    /// **The LAST rung's forms** ([`SymRules::signed_root_last`]): the
+    /// early walk again with rule C's fold on, a FOURTH memo, asked of
+    /// a decision only after every other rung and every retry attempt
+    /// declined it. Never read into another walk's table: a form here
+    /// is equal to the expression over the box, not identically.
+    forms_sign_read: IdMap<Arc<Form>>,
+    /// **Whether the walk running is the last rung's** — the one fact
+    /// `combine` and rule G's magnitude step read to fold as rule C
+    /// does there while [`SymRules::signed_root`] stays off. Set and
+    /// restored by the walk's scope, never by hand.
+    reading: bool,
     /// The `f64` bracket of each document parameter this leaf was
     /// evaluated over, by the parameter's indeterminate id — recorded
     /// by [`Sym::param_over`], read by rule C, by the decision read and
@@ -2427,6 +2472,14 @@ impl RetryMemo {
 const RETRY_FORMS: usize = 200_000;
 
 impl Session {
+    /// **Whether rule C's fold runs in the walk in hand**: the dial, or
+    /// the last rung's walk ([`SymRules::signed_root_last`]). The one
+    /// spelling `combine` and rule G's magnitude step read, so the two
+    /// sites cannot part on it.
+    fn folds_signed_root(&self) -> bool {
+        self.rules.signed_root || self.reading
+    }
+
     /// **The one place a session is built** — every field of it, in one
     /// literal, so a field added here cannot leave a second literal
     /// somewhere else half-initialised (the `trig` test module kept one,
@@ -2446,6 +2499,8 @@ impl Session {
             forms: IdMap::default(),
             forms_early: IdMap::default(),
             forms_door: IdMap::default(),
+            forms_sign_read: IdMap::default(),
+            reading: false,
             params: IndetMap::default(),
             atoms: IndetMap::default(),
             registry: IdMap::default(),
@@ -2852,8 +2907,9 @@ fn combine(node: &SymNode, kids: [&Form; 3], sess: &mut Session, early: bool) ->
     // to lose theorems to coefficient freezes at the ring's bound:
     // `SymRules::const_fold`).
     let a0 = sess.rules.const_fold && (early || !sess.rules.early);
-    // Rule C applies in the EARLY walk only (`SymRules::signed_root`).
-    let c = early && sess.rules.signed_root;
+    // Rule C applies in the EARLY walk only (`SymRules::signed_root`),
+    // and in the last rung's (`SymRules::signed_root_last`).
+    let c = early && sess.folds_signed_root();
     // Rule F, the manifest sign, likewise (`SymRules::manifest_sign`).
     let f_sign = early && sess.rules.manifest_sign;
     // Rule G, the canonical root, likewise (`SymRules::canonical_root`).
@@ -3657,6 +3713,9 @@ enum WalkKind {
     Early,
     /// The early walk with the registry applied.
     Door,
+    /// The early walk with rule C's fold on, asked last
+    /// ([`SymRules::signed_root_last`]).
+    SignRead,
 }
 
 /// **Which memo a walk reads and fills**: the first attempt's three,
@@ -3666,6 +3725,7 @@ enum MemoSlot {
     Plain,
     Early,
     Door,
+    SignRead,
     RetryEarly(usize),
     RetryDoor(usize),
 }
@@ -3673,9 +3733,11 @@ enum MemoSlot {
 impl MemoSlot {
     /// The memo `kind` fills at `attempt`. The plain walk has only the
     /// first attempt's: the plain rung is never retried ([`SymRetry`]).
+    /// Nor is the last rung, which is asked once, after every attempt.
     fn of(kind: WalkKind, attempt: u8) -> Self {
         match (kind, usize::from(attempt).checked_sub(1)) {
             (WalkKind::Plain, _) => Self::Plain,
+            (WalkKind::SignRead, _) => Self::SignRead,
             (WalkKind::Early, None) => Self::Early,
             (WalkKind::Door, None) => Self::Door,
             (WalkKind::Early, Some(k)) => Self::RetryEarly(k),
@@ -3696,6 +3758,7 @@ impl Session {
             MemoSlot::Plain => &mut self.forms,
             MemoSlot::Early => &mut self.forms_early,
             MemoSlot::Door => &mut self.forms_door,
+            MemoSlot::SignRead => &mut self.forms_sign_read,
             MemoSlot::RetryEarly(k) => {
                 retry(&mut self.retries, k);
                 &mut self.retries[k].early
@@ -3723,13 +3786,19 @@ struct WalkScope<'s> {
     slot: MemoSlot,
     memo: IdMap<Arc<Form>>,
     kept: SymRules,
+    kept_reading: bool,
     #[cfg(feature = "sym-profile-testing")]
     outer: u8,
+    #[cfg(feature = "sym-profile-testing")]
+    outer_reading: bool,
 }
 
 impl Drop for WalkScope<'_> {
     fn drop(&mut self) {
         self.sess.rules = self.kept;
+        self.sess.reading = self.kept_reading;
+        #[cfg(feature = "sym-profile-testing")]
+        profile::set_reading(self.outer_reading);
         let memo = core::mem::take(&mut self.memo);
         *self.sess.memo_slot(self.slot) = memo;
         #[cfg(feature = "sym-profile-testing")]
@@ -3770,19 +3839,28 @@ fn walk(
     } else {
         core::mem::replace(&mut sess.rules, rules)
     };
+    let reading = kind == WalkKind::SignRead;
+    let kept_reading = core::mem::replace(&mut sess.reading, reading);
     #[cfg(feature = "sym-profile-testing")]
-    let (t0, outer) = (profile::clock(), profile::set_attempt(attempt));
+    let (t0, outer, outer_reading) = (
+        profile::clock(),
+        profile::set_attempt(attempt),
+        profile::set_reading(reading),
+    );
     let mut scope = WalkScope {
         sess,
         slot,
         memo,
         kept,
+        kept_reading,
         #[cfg(feature = "sym-profile-testing")]
         outer,
+        #[cfg(feature = "sym-profile-testing")]
+        outer_reading,
     };
     let (early, registry) = match kind {
         WalkKind::Plain => (false, false),
-        WalkKind::Early => (true, false),
+        WalkKind::Early | WalkKind::SignRead => (true, false),
         WalkKind::Door => (true, true),
     };
     let WalkScope { sess, memo, .. } = &mut scope;
@@ -3797,6 +3875,7 @@ fn walk(
             WalkKind::Plain => profile::Walk::Plain,
             WalkKind::Early => profile::Walk::Early,
             WalkKind::Door => profile::Walk::Door,
+            WalkKind::SignRead => profile::Walk::SignRead,
         },
         t0,
     );
@@ -3824,6 +3903,8 @@ pub enum Rung {
     Top,
     /// The registered-identity DOOR.
     Door,
+    /// Rule C's fold, asked last ([`SymRules::signed_root_last`]).
+    SignRead,
 }
 
 /// How the symbolic tier discharged a decision.
@@ -3971,7 +4052,10 @@ fn discharge_in(id: SymId, retries: bool) -> Option<(Discharge, u8)> {
 
 /// **The ladder**: the plain rung once, then the rungs of the first
 /// attempt, then — only into their silence — each retry's rungs in
-/// [`SymRetry::attempts`]'s order.
+/// [`SymRetry::attempts`]'s order, and last, into the silence of all of
+/// them, the narrowed read ([`SymRules::signed_root_last`]). `retries`
+/// is the decision path's flag: the assertion path asks the first
+/// attempt alone.
 fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Rung, u8)> {
     // **THE PLAIN RUNG, and the first attempt's alone.** A plain
     // theorem is the strongest claim the tier makes; re-asking it under
@@ -4004,6 +4088,30 @@ fn ladder(sess: &mut Session, id: SymId, retries: bool) -> Option<(Discharge, Ru
         if let Some((d, rung)) = rungs(sess, id, &plain, attempt, (rules, bits)) {
             sess.counts.retried += 1;
             return Some((d, rung, attempt));
+        }
+    }
+    // **THE LAST RUNG** (`SymRules::signed_root_last`): rule C's fold,
+    // asked only into the silence of every rung and every attempt
+    // above, so it can take a decision out of `numeric` and out of
+    // nothing else. Not asked where the early walk already folds
+    // (`signed_root`: the walk would be the early one again), nor in a
+    // session with no bracket to read.
+    if first.0.early
+        && first.0.signed_root_last
+        && !first.0.signed_root
+        && !sess.params.is_empty()
+    {
+        let r = walk(sess, id, WalkKind::SignRead, 0, first);
+        if r.is_zero() {
+            return Some((
+                if r.gated {
+                    Discharge::SignGated
+                } else {
+                    Discharge::Theorem
+                },
+                Rung::SignRead,
+                0,
+            ));
         }
     }
     None
@@ -5549,8 +5657,11 @@ mod tests {
         // `SymRules::shipped`'s docs).
         let (_, counts) = with_session_rules(
             budget(),
+            // The last rung shut too: it is rule C's fold asked later,
+            // and `the_last_read_*` hold it on its own.
             SymRules {
                 signed_root: false,
+                signed_root_last: false,
                 ..SymRules::all()
             },
             || {
@@ -5582,6 +5693,119 @@ mod tests {
             "x − x is the zero form: {counts:?}"
         );
         assert_eq!(counts.sign_gated, 0);
+    }
+
+    /// The shipped set with the last rung on — the narrowed read, and
+    /// nothing else moved.
+    fn shipped_with_the_last_read() -> SymRules {
+        SymRules {
+            signed_root_last: true,
+            ..SymRules::shipped()
+        }
+    }
+
+    /// **The last rung takes what only a certified sign reaches**, and
+    /// counts it `sign_gated`: `|r| − r` and `sqrt(r²) − r` over a
+    /// bracket of `r` strictly positive (rule C's own pair, one power
+    /// below rule A). The shipped set leaves both numeric — rule G keys
+    /// `sqrt(r²)` as the atom `|r|` and nothing value-free folds it —
+    /// and the last rung folds that atom at rule G's magnitude step
+    /// and at the `abs` node.
+    #[test]
+    fn the_last_read_takes_a_signed_root_the_ladder_left_numeric() {
+        let run = |rules| {
+            with_session_rules(budget(), rules, || {
+                let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
+                (
+                    decides_zero(r.abs() - r),
+                    decides_zero((r * r).sqrt() - r),
+                )
+            })
+        };
+        let (out, shipped) = run(SymRules::shipped());
+        assert_eq!(out, (true, true), "numerically zero at the point");
+        assert_eq!(
+            (shipped.sign_gated, shipped.numeric),
+            (0, 2),
+            "the shipped ladder leaves both numeric: {shipped:?}"
+        );
+        let (out, last) = run(shipped_with_the_last_read());
+        assert_eq!(out, (true, true));
+        assert_eq!(
+            (last.symbolic_zero, last.sign_gated, last.numeric),
+            (0, 2, 0),
+            "the last rung takes both, gated: {last:?}"
+        );
+    }
+
+    /// **The last rung re-labels no theorem**, where rule C in the
+    /// early walk does. `sqrt(r²) − |r|` is a THEOREM of rule G (the
+    /// root is keyed as the atom the `abs` node mints); with rule C on
+    /// ([`SymRules::all`]) both atoms fold before rule G is asked and
+    /// the same decision is counted `sign_gated`. With the fold asked
+    /// last it stays `symbolic_zero`: the early rung answered first.
+    #[test]
+    fn the_last_read_relabels_no_theorem_that_rule_c_relabels() {
+        let run = |rules| {
+            with_session_rules(budget(), rules, || {
+                let r = p_over("r", 1.25e-3, 1.0e-3, 2.0e-3);
+                decides_zero((r * r).sqrt() - r.abs())
+            })
+        };
+        let (zero, route_a) = run(SymRules::all());
+        assert!(zero);
+        assert_eq!(
+            (route_a.symbolic_zero, route_a.sign_gated),
+            (0, 1),
+            "rule C in the early walk reads what rule G proves: {route_a:?}"
+        );
+        let (zero, last) = run(shipped_with_the_last_read());
+        assert!(zero);
+        assert_eq!(
+            (last.symbolic_zero, last.sign_gated),
+            (1, 0),
+            "asked last, the read never reaches a decision the early rung answered: {last:?}"
+        );
+    }
+
+    /// **The last rung reads a CERTIFIED sign or nothing**: a bracket
+    /// that straddles zero, a zero endpoint, and a parameter with no
+    /// bracket all leave the decision numeric, and a root spelled with the wrong
+    /// sign is not made zero.
+    #[test]
+    fn the_last_read_never_folds_without_a_certified_sign() {
+        for (lo, hi) in [(-1.0e-3, 2.0e-3), (0.0, 2.0e-3)] {
+            let (_, counts) = with_session_rules(budget(), shipped_with_the_last_read(), || {
+                let r = p_over("r", 1.25e-3, lo, hi);
+                decides_zero((r * r).sqrt() - r)
+            });
+            assert_eq!(
+                (counts.sign_gated, counts.numeric),
+                (0, 1),
+                "[{lo}, {hi}] is not strictly signed: {counts:?}"
+            );
+        }
+        let (_, counts) = with_session_rules(budget(), shipped_with_the_last_read(), || {
+            decides_zero((p("r", 1.25e-3) * p("r", 1.25e-3)).sqrt() - p("r", 1.25e-3))
+        });
+        assert_eq!(
+            (counts.sign_gated, counts.numeric),
+            (0, 1),
+            "no bracket, no read: {counts:?}"
+        );
+        let (out, counts) = with_session_rules(budget(), shipped_with_the_last_read(), || {
+            let r = p_over("r", -1.25e-3, -2.0e-3, -1.0e-3);
+            (
+                decides_zero((r * r).sqrt() + r),
+                decides_zero((r * r).sqrt() - r),
+            )
+        });
+        assert_eq!(out, (true, false), "|r| = −r under a negative bracket");
+        assert_eq!(
+            (counts.sign_gated, counts.numeric),
+            (1, 1),
+            "the negated root folds; the wrong sign stays the numeric channel's: {counts:?}"
+        );
     }
 
     /// **The candidate shape the plate's ceiling has**: `sqrt(X) − R`

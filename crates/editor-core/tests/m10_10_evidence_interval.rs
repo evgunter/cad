@@ -401,6 +401,14 @@ fn rules_named(name: &str) -> SymRules {
         // DECIDE-4's differential: the shipped set with rule G's exact
         // quotient shut, which is SYM-9's tier bit for bit.
         "no_q" => SymRules::without_root_quotient(),
+        // The narrowed read: the shipped set with rule C's fold asked
+        // LAST, behind every rung and every retry attempt
+        // (`SymRules::signed_root_last`). `all` is route A, rule C in
+        // the early walk.
+        "last_read" => SymRules {
+            signed_root_last: true,
+            ..SymRules::shipped()
+        },
         // The kept-atom ladder's FIRST attempt on the shipped set as a
         // rule set of its own (`SymRetry::kept_atom`'s rule-G mask, which
         // a session intersects with its own rules: rule G and its
@@ -442,7 +450,7 @@ fn rules_named(name: &str) -> SymRules {
         },
         other => panic!(
             "unknown rule set {other:?}: shipped | none | all | shut | off | no_e | no_f \
-             | no_reads | no_q | d_only | ab_only | top_only | d_top_only"
+             | no_reads | no_q | last_read | d_only | ab_only | top_only | d_top_only"
         ),
     }
 }

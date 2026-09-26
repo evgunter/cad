@@ -25,7 +25,8 @@
 //!    atom — so `sqrt(p) = s · sqrt(f) · sqrt(p')`;
 //! 3. `sqrt(R²) = |R|` where the primitive part is a perfect square
 //!    ([`signed::poly_sqrt`]), read by rule F ([`manifest::fold_abs`]),
-//!    by rule C ([`signed::fold`], gated, under its own dial) or as the
+//!    by rule C ([`signed::fold`], gated, under its own dial and in the
+//!    last rung's walk, [`super::SymRules::signed_root_last`]) or as the
 //!    `Abs` ATOM — which is the same indeterminate an `abs` node over
 //!    the same form mints.
 //!
@@ -62,7 +63,8 @@
 //!    on the negated denominator.
 //! 4. **A certified read** — [`signed`]'s bracket over the leaf's box
 //!    says `D > 0`. This reads a VALUE, so it is rule C's shape and
-//!    rides rule C's dial ([`super::SymRules::signed_root`]); the form
+//!    rides rule C's dial ([`super::SymRules::signed_root`]) and not
+//!    the last rung's, which folds atoms and nothing else; the form
 //!    it returns is `gated` and the discharge it reaches is counted
 //!    `sign_gated`, not a theorem.
 //!
@@ -361,7 +363,7 @@ fn magnitude_of_root(r: Poly, sess: &mut Session) -> Option<Form> {
     if let Some(m) = m {
         return Some(m);
     }
-    if sess.rules.signed_root
+    if sess.folds_signed_root()
         && let Some(g) = signed::fold(SymOp::Abs, &f, &sess.params, sess.budget)
     {
         return Some(g);
