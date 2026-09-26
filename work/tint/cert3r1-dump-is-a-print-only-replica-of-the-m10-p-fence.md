@@ -44,8 +44,9 @@ is S-DUP's half.
 --all` names `fbf0bb6a5` as the commit that wrote it.
 
 **The class is wider than this file, and it was not read.** A second
-pass ran over every tracked file with no path argument, at
-`2aa02d339`:
+pass ran over every tracked file with no path argument. Its numbers
+are taken at the merge base `032999ff2` (`git grep … 032999ff2` and
+`git ls-tree -r 032999ff2`) and are the same at the branch head:
 
 - `git grep -n -i 'never pushed\|local-only' -- '*.rs'` finds five more
   review harnesses that call themselves never pushed and are in the

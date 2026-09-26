@@ -96,24 +96,49 @@ In `src`, nothing is a member. `editor-core/src/eval/mod.rs`'s two
 **It is one construction.** Each of the six embeds sends every scalar
 field through one function (`T::from_f64`, or `Interval::from_f64`) and
 carries every structural field (target form, winding, side, split
-count) verbatim. The five partial copies differ only in COVERAGE: they
-`panic!` or `unreachable!` on variants their fixture does not record.
+count) verbatim. Two of the six were exhaustive (`cert4r1_e2e`'s and
+`generic_replay`'s `embed_step`). The other four differ only in
+COVERAGE: they `panic!` or `unreachable!` on variants their fixture does
+not record. (The row's "other five" counted `scaled` as well; see
+below.)
 So the door is `profile::Step::map_scalar`
 (`crates/profile/src/path/program.rs`, after the transition table). It
-is exhaustive over the verbs, the arc modes and the target forms, with
-no wildcard arm, and `Point2::map` sits at the leaves. Its two rungs,
-`Target::map_scalar` and `ArcData::map_scalar`, are `pub(crate)`,
-because nothing outside the ladder lifts a bare target or spec.
+takes `&self`, like every other `map_scalar` in `profile` and `geom`.
+It is exhaustive over the verbs, the arc modes and the target forms,
+with no wildcard arm (a code comment says so; the rustdoc does not),
+and `Point2::map` sits at the leaves. Its two rungs,
+`Target::map_scalar` and `ArcData::map_scalar`, also take `&self` and
+are `pub(crate)`, because nothing outside the ladder lifts a bare
+target or spec.
 
 **Routed through it — all six embeds:** `cert4r1_e2e.rs` and
 `generic_replay.rs` (`embed_step`), `guided_replay.rs` (`embed`),
 `review_fillet_stored_tangency_r1_probes.rs` (`pt`/`tgt`/`spec`/`embed`,
 two call sites), and `editor-core/tests/{cert3r1_dump,m10_p_fence}.rs`
-(the `embed` closure). The five partial copies are now total: a
+(the `embed` closure). The four partial copies are now total: a
 fixture that records another verb embeds rather than panics. The
 plants below show which rows read the door, and none of them relied on
 those panics. The exhaustiveness argument `generic_replay`'s
 `embed_step` made for itself now belongs to the door.
+
+**Folded with it: `try_replay_at`.** It was byte-identical in
+`cert4r1_e2e.rs` and `generic_replay.rs`, which share one test binary,
+and it is now `profile/tests/common/mod.rs`'s, imported by both.
+
+**Not given a door: the lift of a whole program.** At the head it is
+six sites: `common::try_replay_at`, `guided_replay.rs`, the r1 probes
+×2, and `editor-core/tests/{cert3r1_dump,m10_p_fence}.rs`. Each is
+`program.iter().map(|s| s.map_scalar(f)).collect()`. That is one
+iterator adaptor over the door, not a construction, so a second door
+would only rename it.
+
+**Filed, not folded:** the two `editor-core` files also build a
+byte-identical `programs` fixture list. That is
+`work/dup/the-arc-carrier-fence-fixture-is-written-twice-in-editor-core-tests.md`,
+which waits on the tint row that may retire `cert3r1_dump`.
+`m10_p_fence.rs`'s claim that the file *"travels to a pre-lift tree"*
+was made false by routing it through the new door. It now says that on
+a tree older than `Step::map_scalar` the embed is written out by hand.
 
 **Divergent member, kept: `generic_replay.rs`'s `scaled`.** The row
 said the door would serve it as `map_scalar(|c| c * s)`. It would not.
@@ -123,7 +148,8 @@ two agree only on the fixture `scaled` sees (a Center-mode
 `ArcFilletArc`, all lengths), and routing it through the door would
 silently mis-scale the first Bulge, Sweep or `Angle` step a later
 fixture adds. It keeps its walk, and its refusal of the variants it has
-not sorted. Its doc now says why, and the door's rustdoc says that a
+not sorted. Its `pt` (`generic_replay.rs`, ~:348,
+`Point2::new(p.x * s, p.y * s)`) is a scale, not a lift. Its doc now says why, and the door's rustdoc says that a
 scale is not spelled with it.
 
 **Plants** (profile: `cargo nextest run -p profile --no-fail-fast`,
