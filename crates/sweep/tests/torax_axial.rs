@@ -1101,3 +1101,61 @@ fn torax_the_outward_lune_offsets_through_the_same_arms() {
     }
     assert_eq!((lines, rims), (1, 2), "one meeting line, two rim circles");
 }
+
+/// **The re-authored sketch arcs stay consistent** (#3254's review).
+/// The axial door re-authors a meridian arc's pushforward between the
+/// corners its solve put it at, about the moved circle's centre, with
+/// the moved circle's radius (`topo::offset_axial`'s `reauthor`). That is
+/// consistent only while both corners sit at that radius from the
+/// centre: `eval` turns `a` about the centre and never reads `b` or the
+/// radius, so a corner off the circle would put `eval(1)` off `b` and
+/// the stored radius off `|a − centre|`. Measured on the offset corpora
+/// (127 re-authored arcs at `f64`): both distances and the radius agree
+/// to 3.5e-16 relative. This row holds it on the two torus fixtures, to
+/// 8 ulps.
+#[test]
+fn torax_re_authored_arcs_put_both_corners_on_the_moved_circle() {
+    let mut seen = 0;
+    for (what, body) in [
+        ("the torus barrel", torus_barrel()),
+        ("the teapot's torus belly", torus_belly()),
+    ] {
+        let out = hollowed(what, &body);
+        for (_, edge) in out.edges() {
+            let Some(curve) = out.get_curve_geom(edge.curve).and_then(|g| g.certified()) else {
+                continue;
+            };
+            let mapped = match (curve.description(), curve.authority()) {
+                (geom_brep::EdgeDescription::Scaffold(m), _) => *m,
+                (_, geom_brep::EdgeAuthority::Declared(m)) => m,
+                _ => continue,
+            };
+            let geom_brep::MappedCurve::PlacedSegment {
+                segment:
+                    geom_brep::SketchSegment::Arc {
+                        a,
+                        b,
+                        centre,
+                        radius,
+                        ..
+                    },
+                ..
+            } = mapped
+            else {
+                continue;
+            };
+            seen += 1;
+            let tol = 8.0 * f64::EPSILON * radius;
+            let (da, db) = (a.distance(centre), b.distance(centre));
+            assert!(
+                (da - radius).abs() <= tol && (db - radius).abs() <= tol,
+                "{what}: a re-authored arc's corners sit at {da:e} and {db:e} from its \
+                 centre, against its radius {radius:e}"
+            );
+        }
+    }
+    assert!(
+        seen > 0,
+        "FIXTURE: no re-authored sketch arc reached the row"
+    );
+}
