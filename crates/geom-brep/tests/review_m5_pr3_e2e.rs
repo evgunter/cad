@@ -94,13 +94,7 @@ fn f9_enum_arm_nurbs_circle_locus() {
     let ctrl_d = n64
         .control()
         .iter()
-        .map(|p| {
-            Point3::new(
-                Dual64::constant(p.x),
-                Dual64::constant(p.y),
-                Dual64::constant(p.z),
-            )
-        })
+        .map(|p| p.map(Dual64::constant))
         .collect();
     let nd = geom::NurbsCurve3::new(n64.knots().clone(), ctrl_d, n64.weights().to_vec()).unwrap();
     let cd: Curve3<Dual64> = Curve3::Nurbs(Arc::new(nd));
