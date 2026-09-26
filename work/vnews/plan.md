@@ -466,33 +466,21 @@ the unit lands on — not a register.
 
 ## Review posture
 
-**Inherited from VIEW unchanged (Ev, in-chat, 2026-09-04, reaffirmed
-2026-09-04 evening; `docs/MODEL-AB-LOG.md`'s roster line).** No A/B
-duals, no row in `docs/MODEL-AB-LOG.md`; the band stays claimed and
-empty. The default is a style review against
-`docs/prompts/reviewer-style-lane.md`, with a correctness arm added
-only where a unit's failure mode is a confident wrong answer rather
-than a refusal, and the dispatch says which it chose and why.
+**The review tiers are `memories/orchestration-model.md`'s** (Ev,
+2026-09-19, dual tier 2026-09-23), and this program applies them as
+written rather than restating them here: orchestrator's read for a
+mechanical change; a single Opus review, style or full, as the default;
+a **dual** Opus review for logic that is especially tricky or a design
+decision that is broad or hard to reverse, recorded as a row per
+`docs/DUAL-REVIEW-PROTOCOL.md`. The dispatch names the tier and its
+reason, and `log.md` or the item file records it.
 
-**A third tier, from protocol v7 (Ev, in-chat, 2026-09-19;
-`docs/MODEL-AB-LOG.md`, the v7 entry, item 2).** v7 triages units into
-and out of the A/B protocol, and its out-of-protocol half states a tier
-below the style review that this program's posture predates and does
-not mention: **a mechanical change, where neither correctness nor style
-is meaningfully at risk, merges on green CI and the orchestrator's own
-read — no review lane, no row.** v7's out-of-protocol clause governs
-every unit that is not triaged in, and under the posture above no unit
-here is ever triaged in, so the tier is available on this slate.
-
-Nothing else about the posture moves. v7's triage question — is the
-logic especially tricky, or is this an architectural decision whose
-impact is broad or hard to reverse — is the question this program
-answers with a **correctness arm** rather than with a dual, because
-Ev's posture ruling is the more specific instruction and is not
-withdrawn by v7. So the three tiers here are: orchestrator's read;
-style review; style review plus a correctness arm. **The dispatch says
-which tier and why, and the reason is recorded in `log.md`** (v7 item
-5), so an un-reviewed unit is auditable rather than invisible.
+This replaces a posture inherited from VIEW that ran "no A/B duals" and
+leaned on the model A/B protocol's v7 tiers. That experiment was
+suspended on 2026-09-23, and the dual tier that replaced its purpose is
+a different thing — two Opus reviewers measuring concordance, not an
+Opus/Fable contrast — so the old "no duals" ruling does not reach it.
+The band 5200–5299 stays claimed and empty in `docs/MODEL-AB-LOG.md`.
 
 ## Exit shape
 
