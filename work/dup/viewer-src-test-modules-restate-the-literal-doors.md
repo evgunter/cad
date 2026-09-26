@@ -132,7 +132,19 @@ Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
   `widgets.rs`'s five private doors, and the xy frame in all four
   files. `drafts.rs`'s `SetParam` fold and `session.rs`'s refusal
   premise and replay are not inserts and stay.
-PLANTS_PLACEHOLDER
+- **Plants**, through the feature path (copy/restore harness, tree
+  clean against HEAD after each; `--features app`, 978 rows, unless
+  noted): a `panic!` in `inserted` reds 321 — every unit row that
+  authors through it (`session` 3, `drafts` 4, `pane::profile` 1,
+  `widgets::value_field_tests` 5) and 308 integration rows; one in
+  `try_edited` reds 331, the same 13 unit rows and 318 integration
+  rows; doubling `len` reds 66 integration rows and no unit row, so
+  the unit rows are reached and do not measure a length. `framed_square`
+  at twice the side reds nothing; its `panic!` control reds 122,
+  `widgets`' 5 among them — reached, and no row measures the side.
+  `plate_delta` coarsened 100x reds one row (`edge_pick`, default
+  features, 806); its `panic!` control reds 77, `marks`' one `plate()`
+  row among them.
 - **Also folded, once the home could name `viewer` types**:
   `marks.rs`'s `delta()` is `test_support::plate_delta`, and
   `widgets.rs`'s `Row::extrude_distance` is `declared` +

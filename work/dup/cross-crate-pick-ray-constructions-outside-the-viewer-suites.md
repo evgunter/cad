@@ -149,4 +149,12 @@ Folded by the S-DUP lane `dup/b6-b`, 2026-09-26, cut from
 - **Residue rows**: both filed by this unit's first pass are closed in
   the same PR — the mechanism already existed, so neither was a design
   question.
-PLANTS3_PLACEHOLDER
+- **Plants** (copy/restore harness, tree clean against HEAD after each;
+  `editor-core` scoped to the pick suites and `resolve::pick`, 61
+  rows; `viewer` 806; `bvh` 57): a `panic!` in `aimed` reds 10 `viewer`
+  rows and 8 `editor-core` rows, six of them `resolve::pick` unit rows;
+  `det_and_conditioning` answering 1 reds 1 and 2 (one a unit row);
+  `near_tangent` at `k + 64` reds 6 (three unit rows, three in
+  `pick3_early_out`); `boxed` with its x bounds swapped reds 18 of
+  `bvh`'s 57; `ray` with x negated reds 13 in `bvh`, 6 in `viewer`
+  (the level rays) and 17 in `editor-core`.
