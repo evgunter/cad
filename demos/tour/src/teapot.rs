@@ -271,41 +271,11 @@
 //!    certified enclosure. That oracle self-calibrates with ε, and the
 //!    scene PROBES rather than asserting through a door that may not
 //!    open.
-//! 6. **The lid's roll takes ONE kernel call and TWO document
-//!    requests, and the difference is the NAME emitter.**
-//!    `fillet_edges` rolls all three rims in one request. The same
-//!    three rims through `Node::Fillet` refuse `Naming(Duplicate)`,
-//!    and the duplicate says which: the flange's rim and the dome's
-//!    foot are the two ends of ONE meridian segment (the flange cone),
-//!    so both of their bands slit THAT segment's seam meridian, and
-//!    `RoleSeg::BandSlit` names a slit by *the source edge whose
-//!    severed piece became it*. Two slits, one source name.
-//!
-//!    **The shape is "two bands slitting one meridian", not "two
-//!    adjacent rims"**, and this lid is where the difference shows: a
-//!    band slits exactly one of its two supports' seams, so the rims
-//!    at vertices 1 and 2 collide while `{2, 3}` and `{3, 4}` —
-//!    adjacent pairs both — compose in one request. Adjacency is
-//!    necessary and not sufficient. `tests/teapot_document.rs` is that
-//!    table, executed, beside the equality the split owes: the two
-//!    requests build the kernel's one-request body, same census, same
-//!    three bands bit for bit, same mass — and a different face ORDER,
-//!    which is the whole of what the conversion moved.
-//!
-//!    The scene therefore asks TWICE — the flange's rim, then the
-//!    dome's foot and the knob's top against the carried names — which
-//!    is what a user would have to do. The one-request refusal is
-//!    ATTEMPTED live in [`per_rim_answers`] and pinned there, so the
-//!    day the vocabulary grows the discriminator this wants — one on
-//!    `BandSlit` saying WHICH band slit the edge, the way `BandTrim`
-//!    already carries its `RimSupport` — the scene goes red and says
-//!    to go back to one request and re-cut the tess-budget baseline
-//!    back with it.
 //!
 //! # What this scene deliberately does NOT do
 //!
 //! No kernel change, no route widened, no gate softened. Every one of
-//! the six findings above is a live probe or an executed table, and
+//! the five findings above is a live probe or an executed table, and
 //! each carries the sentence that retires it.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
@@ -326,7 +296,7 @@ use pncad::prelude::{
 };
 use pncad::profile::ArcSweep;
 use pncad::select::{
-    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, carried, edge_name,
+    ProfileEdgeRef, ProfilePieces, ProfileVertexRef, band, band_pi, band_rim, edge_name,
     face_carrier_kind, face_frame, meridian_vertex, select, vertex_position,
 };
 use pncad::topo::readback::euler_counts;
@@ -409,9 +379,7 @@ const Y_TOP: f64 = LID_BASE + 18.0 / 256.0;
 /// rims closed edges. See the module docs' finding 3.
 const R_VENT: f64 = 1.0 / 256.0;
 /// The roll, one radius for all three of the lid's rims — per
-/// REQUEST rather than per edge, which is what lets the two requests
-/// the naming gap forces (the module docs' sixth finding) be one
-/// parameter.
+/// REQUEST rather than per edge, and the lid rolls in one request.
 const ROLL: f64 = 2.0 / 256.0;
 
 // ---------------------------------------------------------------------
@@ -808,8 +776,7 @@ struct Recipe {
     cup: RecipeNodeId,
     /// The lid before its rims roll.
     plain_lid: RecipeNodeId,
-    /// The lid with its three rims rolled — in TWO fillet requests at
-    /// one radius, for the reason the sixth finding gives.
+    /// The lid with its three rims rolled in ONE fillet request.
     lid: RecipeNodeId,
     /// The spout about its OWN axis — the node whose bands name the
     /// root annulus the placement is measured on.
@@ -937,10 +904,10 @@ fn build_doc(tol: Tol) -> Recipe {
 
     // ---- the lid ----
     let plain_lid = revolved(&mut doc, plane, axis, lid_meridian(), tol);
-    // THREE rims, THREE DIFFERENT coaxial arms. The radius
-    // is per REQUEST, not per edge, and each later rim's seam-piece
-    // identities are re-read against the partially-carved body, so the
-    // convenient spelling is the door's grain.
+    // THREE rims, THREE DIFFERENT coaxial arms, in ONE request. The
+    // radius is per REQUEST, not per edge, and each later rim's
+    // seam-piece identities are re-read against the partially-carved
+    // body, so the convenient spelling is the door's grain.
     //
     // Each rim is ONE name because the lid's profile is ANNULAR: it
     // touches the axis nowhere, so the full revolve mints one whole
@@ -948,34 +915,14 @@ fn build_doc(tol: Tol) -> Recipe {
     // the pot's axis-touching profile mints half-walls and a `Band` /
     // `BandPi` pair.
     //
-    // GAP (the module docs' sixth finding): the KERNEL door rolls all
-    // three rims in one request and the document layer cannot NAME
-    // that output. The flange's rim and the dome's foot stand at the
-    // two ends of the flange cone, so both bands slit THAT segment's
-    // seam meridian, and `RoleSeg::BandSlit` carries only the source
-    // edge it severed — two slits, one name, `Naming(Duplicate)`. The
-    // test is which meridian a band slits, not whether two rims are
-    // adjacent: `{2, 3}` and `{3, 4}` are adjacent and compose in one
-    // request (`tests/teapot_document.rs`). So the roll is TWO
-    // requests at one radius, which is what a user would have to
-    // write; the second names its rims as the first carried them
-    // through, since a survivor is `FromTarget` of the name it had.
+    // The flange's rim and the dome's foot stand at the two ends of the
+    // flange cone, so both bands slit and cross THAT segment's seam
+    // meridian; their names tell the two apart by the band that made
+    // each (`tests/teapot_document.rs`).
     let rims = LID_RIMS.map(|(v, ..)| band_rim(plain_lid, vertex_at(&doc, plain_lid, v, tol)));
-    let first = insert(
-        &mut doc,
-        Node::fillet(plain_lid, len(ROLL), vec![rims[0].clone()]),
-        tol,
-    );
     let lid = insert(
         &mut doc,
-        Node::fillet(
-            first,
-            len(ROLL),
-            vec![
-                carried(first, rims[1].clone()),
-                carried(first, rims[2].clone()),
-            ],
-        ),
+        Node::fillet(plain_lid, len(ROLL), rims.to_vec()),
         tol,
     );
 
@@ -1136,24 +1083,10 @@ fn faces_where(ev: &Evaluation<f64>, node: RecipeNodeId, seg: SegPat) -> Vec<Sta
     )
 }
 
-/// **Every band face `node`'s lid carries** — the ones its own blend
-/// minted, and the ones an earlier blend minted and this one carried
-/// through. Two patterns because a survivor is `FromTarget` of the
-/// name it had: the roll below is TWO requests, so one of its three
-/// bands is a carried name and the other two are mints.
+/// **Every band face `node`'s blend minted** — the lid rolls in one
+/// request, so each of its bands is that request's own mint.
 fn band_faces(ev: &Evaluation<f64>, node: RecipeNodeId) -> Vec<StableName> {
-    let faces = NamePat::of_kind(EntityKind::Face);
-    select(
-        ev,
-        node,
-        &Selector::any_of([
-            faces.clone().seg(SegPat::tag(SegTag::BandFace)),
-            faces.seg(
-                SegPat::tag(SegTag::FromTarget)
-                    .of([NamePat::any().seg(SegPat::tag(SegTag::BandFace))]),
-            ),
-        ]),
-    )
+    faces_where(ev, node, SegPat::tag(SegTag::BandFace))
 }
 
 /// **A named rim's own circle, read back OFF THE EDGE THE NAME
@@ -1375,7 +1308,7 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
         .iter()
         .map(|&(v, ..)| band_rim(lid, vertex_at(&doc, lid, v, tol)))
         .collect();
-    let mut asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
+    let asked: Vec<(&'static str, RecipeNodeId)> = LID_RIMS
         .iter()
         .zip(&rims)
         .map(|(&(_, _, _, what), rim)| {
@@ -1389,33 +1322,12 @@ fn per_rim_answers(tol: Tol) -> Vec<(&'static str, String)> {
             )
         })
         .collect();
-    // And the fourth question, which is the sixth finding ATTEMPTED
-    // rather than described: all three rims in ONE request.
-    let together = insert(&mut doc, Node::fillet(lid, len(ROLL), rims), tol);
-    asked.push(("all three in ONE request", together));
     let ev = evaluate::<f64>(
         &doc,
         None,
         &CancelToken::new(),
         &EvalOptions::default(),
         tol,
-    );
-    // The refusal is PINNED, not merely printed: it is the shape the
-    // scene's two-request grain exists for, and the day the naming
-    // vocabulary grows the discriminator this asks for, this row goes
-    // red and says what to do about it.
-    let refusal = describe(&ev, together);
-    assert!(
-        refusal.starts_with("Naming(Duplicate")
-            && refusal.contains("BandSlit")
-            && refusal.contains(&format!("Meridian(Seam, {:?})", edge_at(&doc, lid, 1, tol))),
-        "the one-request roll of all three rims refuses because the flange's rim and the \
-         dome's foot slit ONE seam meridian and a `BandSlit` carries only the edge it \
-         severed. It answered {refusal} instead. If it COMPOSED, the vocabulary grew the \
-         discriminator: put the three rims back in one `Node::fillet`, delete this \
-         probe and the sixth finding, and re-cut the tess-budget baseline BACK — the \
-         lid's three `teapotlid` rows permute their triangle counts with the request \
-         count. `tests/teapot_document.rs` is the table behind this one refusal"
     );
     asked
         .into_iter()
@@ -1787,10 +1699,7 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     //
     // The radius is per REQUEST rather than per edge, as `bud`
     // establishes, and #935 re-reads each later rim's seam-piece
-    // identities against the partially-carved body — which is what
-    // makes the two requests the naming gap forces (the module docs'
-    // sixth finding) the same body the one-request kernel door
-    // builds.
+    // identities against the partially-carved body.
     let rolled = body_at(&ev, r.lid);
     assert_eq!(
         (
@@ -2403,15 +2312,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              lives on this tour. 6/12/6 sharp — an ANNULAR profile mints one FULL wall \
              per segment where the pot's axis-touching profile mints half-walls — and \
              9/18/9 rolled, three annulus bands each carrying the same (+1, +2, +1). \
-             THREE closed latitude rims roll, in TWO requests where the kernel door \
-             takes one — the flange's rim, then the dome's foot and the knob's top — \
-             because the flange's rim and the dome's foot are the two ends of ONE \
-             meridian segment, both bands slit THAT segment's seam, and a `BandSlit` is \
-             named by the source edge it severed, so one request cannot NAME its own \
-             output. The test is the shared MERIDIAN and not adjacency: the adjacent \
-             pairs at the knob compose in one request, and `tests/teapot_document.rs` \
-             tabulates which do and pins the two spellings' bodies equal — same census, \
-             the same three bands bit for bit, the same mass, a different face order. \
+             THREE closed latitude rims roll in ONE request. The flange's rim and the \
+             dome's foot are the two ends of ONE meridian segment, so both bands slit \
+             and cross THAT segment's seam, and their names tell the two apart by the \
+             band that made each; `tests/teapot_document.rs` holds every rim pair to \
+             one request and the body to the kernel door's — same census, the same \
+             three bands bit for bit, the same mass, the same face order. \
              Their supports are three \
              DIFFERENT coaxial arms: the flange's rim is cone x plane(perp), the dome's \
              foot is SPHERE x CONE — the arm no plane-supported scene reaches — and the \
