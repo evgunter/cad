@@ -967,6 +967,25 @@ mod tests {
         (kv, w, x)
     }
 
+    /// The equal-split schedule skips the empty span, restarts its grid
+    /// at every knot, and drops every point of a one-ulp span, where
+    /// each `lo + (hi − lo)·k/n` rounds onto an end.
+    #[test]
+    fn equal_split_points_cuts_nonempty_spans_and_skips_slivers() {
+        let tiny = f64::from_bits(1.0f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, tiny, 2.0, 2.0, 2.0], 2)
+            .unwrap();
+        let got = equal_split_points(&kv, 4);
+        let tail: Vec<f64> = (1..4)
+            .map(|k| tiny + (2.0 - tiny) * (f64::from(k) / 4.0))
+            .collect();
+        let mut want = vec![0.125, 0.25, 0.375, 0.625, 0.75, 0.875];
+        want.extend(tail);
+        assert_eq!(got, want);
+        assert!(equal_split_points(&kv, 1).is_empty());
+        assert!(equal_split_points(&kv, 0).is_empty());
+    }
+
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
         let mut cur = x.to_vec();
         for plan in plans {
