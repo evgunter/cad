@@ -2226,3 +2226,23 @@ These rows are held back, and why:
 - The error-arm row needs a designer pass before its `[ev]` PR.
 - The PR 17 attribution row touches the attribution sentence the orchestrator is
   told to leave alone.
+
+### The full local matrix, measured end to end (#3284's merge ref)
+
+This is the first complete local run: 39 rows, about 7.5 hours on 4 cores
+with lane builds beside it.
+- **Test matrix:** all three eps rows ran 8192/8192, and the viewer app row
+  978/978.
+- **Other passes:** doc-tests, rustdoc, wasm, k-lint, tess-budget and python.
+- **Two FAILs, neither the tree's:**
+  - *corrupt input (release profile).* The local half had rotted away from
+    hosted. It lacked `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, so the
+    release-only row never compiled, and it lacked the `review_d18` filter.
+    The parity reader passed both. The batch-6 PR fixes the row and adds the
+    variable to the reader's `SEMANTIC_ENV`, which a plant confirms. The
+    filter half is filed to `mirror`.
+  - *sheet drift.* A render re-baseline landed on main after the ref was
+    cut, and the local output is byte-identical to main's. A gating run
+    must be taken on a fresh merge with main.
+- **step import** is a loud SKIP-as-PASS, because this box has no FreeCAD.
+  Hosted is the gate of record for STEP.
