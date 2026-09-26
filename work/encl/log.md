@@ -287,3 +287,20 @@ two unfailable entries; a compiler-derived roster where cheap; and
 Shell-route rows for the loop arms. Filed, not fixed: the
 kernel-defect / repair-vocabulary class (no shared home), and
 `refusal::problems` missing a LOST repair (on CHROME's slate).
+
+## PR 3274 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) Style review on `c616be3c6`: APPROVE-WITH-FIXES, no
+MAJOR, and the final state matches the Decided spec. **The fix minted a
+copy of what it closed**: with the stored `f64` gone, `recertify` and
+`remap` are one operation in two packagings, and the `rounds` override
+is spelled twice. Taken, with one body. Also taken: the stale
+"stored datum" census prose; the module doc's "no production caller"
+narrowed to what the census checks; `map_approx`'s "preserves the
+CLAIM" paragraph stating the rotation refusal plainly, pointing at
+`a-rotation-can-refuse-an-approx-face-that-certifies-near-eps`; two
+spellings of the run's ε at the certify seam; the duplicated frame row;
+an unfailable `hull_sup <= eps`; three spellings of the fixture target;
+the census's `home_seen` per routine; a rename; and bit comparison
+instead of a Debug string. Filed: `(tol, band)` travel as a redundant
+pair (the class, on this slate).
