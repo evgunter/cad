@@ -200,26 +200,6 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
             .collect()
     }
 
-    /// The sketch plane at the lane scalar (VQ8 keeps the plane out of the
-    /// parameter layer, so it lifts as constants).
-    fn interval_plane(
-        plane: &profile::SketchPlane<f64>,
-    ) -> profile::SketchPlane<geom_core::Interval> {
-        use geom_core::{Affine3, Interval, Mat3, Vec3};
-        let a = &plane.placement;
-        let v = |w: Vec3<f64>| {
-            Vec3::new(
-                Interval::from_f64(w.x),
-                Interval::from_f64(w.y),
-                Interval::from_f64(w.z),
-            )
-        };
-        profile::SketchPlane::new(Affine3::from_parts(
-            Mat3::from_cols(v(a.linear.c0), v(a.linear.c1), v(a.linear.c2)),
-            v(a.translation),
-        ))
-    }
-
     let doc = plate();
     let Some(Node::Profile(program)) = doc.doc.node(profile_node_of(&doc)) else {
         panic!("the plate's profile node is a profile node")
@@ -269,7 +249,9 @@ fn a_wide_interval_binding_aborts_typed_rather_than_certifying() {
     let (_, canonical) = profile::Profile::new(plane, nominal_loops(&nominal))
         .validate_recording(Tol::witness())
         .expect("the nominal validates and records");
-    let err = profile::Profile::new(interval_plane(&plane), loops)
+    // The sketch plane at the lane scalar lifts as constants: VQ8 keeps
+    // the plane out of the parameter layer.
+    let err = profile::Profile::new(plane.map(Interval::from_f64), loops)
         .validate_guided(Tol::witness(), &canonical)
         .expect_err("a hole radius spanning four orders of magnitude cannot certify");
     // The FAMILY, not the fact that some string came back. This wall is
