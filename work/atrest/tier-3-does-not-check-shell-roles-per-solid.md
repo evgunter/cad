@@ -8,6 +8,7 @@ priority: P0
 cost: H
 refs: [validate-tier3-curved-boundary-containment, check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk, 2977]
 parent: ATREST-7
+pr: 3301
 ---
 
 
