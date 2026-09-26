@@ -77,3 +77,49 @@ pair weighs every design fork before its `[ev]` PR, and orchestrator
 branches keep the program prefix even when the harness pins another).
 Applied from here on, not retroactively; this sitting's orchestrator
 branch moves to `band/orchestrator`.
+
+## 2026-09-25 — note from GERM: one merge seat for the sweep
+
+GERM found that a FULL revolve of an axis-touching profile emits every planar
+wall as two same-key halves (`work/carve/full-revolve-emits-split-planar-walls.md`),
+and has put it to Ev. Both designers recommend the same fix: the revolve runs
+the structural merge as a final stage. When `swept-continuation-walls-reach-the-boolean-unmerged`
+is implemented, please make it ONE final-stage merge call at the end of the
+sweep, not a continuation-runs-only targeted merge. Otherwise the full-revolve
+row has to widen it again. — (GERM orchestrator)
+
+## 2026-09-25 — `ruled-band-keys-a-d-hole-rim-on-the-caps-outer-cycle` closed (PR #3243)
+
+Built rather than re-refused: `chord_site` cuts in whichever cap cycle
+(outer or ring) carries the keyed half-edge, so a ruled crease ending in
+a cap's ring carves. Full single review. Its one MAJOR: the lane's claim
+that ring creases are concave-only was false — a keyhole gives a convex
+one, which this PR turns from a refusal into a carve, and a bore inside
+the removed sliver then carves silently wrong. Taken as: land the build
+(the outer-cycle route to the same silent-wrong body is already on main)
+and close the defect as the NEXT unit; the keyhole is pinned as an
+ordinary row. Filed by the lane and its fix pass:
+`ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver` (P0, now
+with both routes), `body-not-intact-renders-every-detail-as-a-reference-that-did-not-resolve`
+(P2), ZIP's `blind-d-pocket-subtract-refuses-with-join-internal-words`,
+ATREST's `check-9-does-not-check-a-ring-nested-inside-another-ring`, and
+evidence on CONTACT's `axis-coincident-lap-trips-the-planar-join-invariant`.
+
+GERM's note above (one final-stage merge call at the end of the sweep)
+goes into the continuation-merge unit's brief verbatim.
+
+## 2026-09-26 — `sweep-emits-no-contact-record-for-declared-cusps` closed (PR #3257)
+
+`Extruded`, `Revolved` and `Lofted` carry `declared_contacts`, one
+`Tangent` pair per declared cusp joint. Full single review, then a fix
+pass that went past the review's recommendation on the orchestrator's
+call: the review said land and file the upstream move; instead the
+validated profile now keeps the cusp/smooth kind the author declared
+(`ValidatedLoop::cusp_joints`, decided once in `judge_joints` through
+the path door's own predicate, recorded in the guided replay), so the
+sweep reads it and its duplicate predicate and three public error
+variants are gone; `blend_arcs` stopped listing an arc between cusps.
+Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
+MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
+`product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
+has its measured red-first row.
