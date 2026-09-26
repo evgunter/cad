@@ -310,3 +310,26 @@ run is allowed. How PATHS uses it:
 - **Implementer and fix-pass briefs** run the scoped local battery before
   pushing (`memories/local-battery-scope.md`). They run the override run
   only when the box is idle and a hosted queue stands in the way.
+
+## 2026-09-26 — unit 2's dual review in; fix pass dispatched
+
+Both reviews of #3254 on 8c275c72 came back APPROVE-WITH-FIXES, with
+no MAJOR.
+- **R1** executed its checks: the recut containment was confirmed
+  independently at 60 digits, and the apex was checked for both turns.
+- **R2** was interrupted twice by forced hand-backs during builds, so
+  its review is inspection-only. The pair probably does not count as
+  fair (method divergence by interruption). The blinded coder is
+  judging that.
+
+The fix pass is given the union. Its main item is the Interval apex
+width: the carrier-built apex takes the centre's radius-scale width,
+3.6e-12 at b = 1e-4. It is to be measured base against head on R2's
+grid, and a chord-scale form that reads Δθ is to be tried. The rest:
+- correct the disclosure table from the tree;
+- re-word C6 from "not possible" to "not chosen" (a blend is
+  bit-exact; filed);
+- sweep the stale `atan|b|` premises;
+- inventory the new hand copies on unit 5;
+- document the redundant fields;
+- measure `offset_axial::reauthor`.
