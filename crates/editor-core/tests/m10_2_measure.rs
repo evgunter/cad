@@ -43,7 +43,7 @@ fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
     )
 }
 
-fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
+fn push(doc: &editor_core::ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(doc, edit, Tol::witness(), &editor_core::RefusingReach)
         .unwrap_or_else(|e| panic!("edit refused: {e}"))
         .doc
@@ -52,7 +52,7 @@ fn push(doc: &ProfileDoc, edit: &DocEdit<ProfileProgram>) -> ProfileDoc {
 /// Inserts a node and returns the document beside the minted id — the
 /// [`push`] shape for a node whose id the caller needs, which a frame
 /// datum's is: every profile drawn on it names it.
-fn mint(doc: &ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
+fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDoc, RecipeNodeId) {
     let applied = apply(
         doc,
         &DocEdit::InsertNode { node },
@@ -120,6 +120,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
             node: Node::Profile(ProfileProgram {
                 plane: xy,
                 loops: vec![outer],
+                ids: Vec::new(),
             }),
         },
     );
@@ -145,6 +146,7 @@ fn plate() -> (ProfileDoc, RecipeNodeId, [RecipeNodeId; 2]) {
                         centre: [len(cx), len(0.0)],
                         radius: Expr::param(ParamName::new(HOLE_R), Dimension::Length),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -246,6 +248,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
                 node: Node::Profile(ProfileProgram {
                     plane,
                     loops: vec![square()],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -299,6 +302,7 @@ fn coaxial_pair(bore_r: f64, pin_r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNod
                         centre: [len(0.0), len(0.0)],
                         radius: len(r),
                     }],
+                    ids: Vec::new(),
                 }),
             },
         );
@@ -808,6 +812,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
                     centre: [len(0.0), len(0.0)],
                     radius: len(0.2),
                 }],
+                ids: Vec::new(),
             }),
         },
     );
@@ -867,6 +872,7 @@ fn a_measure_at_a_transform_reads_the_placed_carrier() {
                     ProgramStep::LineTo(ProgramTarget::Point([len(0.0), len(1.0)])),
                     ProgramStep::LineTo(ProgramTarget::Start),
                 ])],
+                ids: Vec::new(),
             }),
         },
     );

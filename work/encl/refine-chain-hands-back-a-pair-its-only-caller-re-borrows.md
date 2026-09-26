@@ -4,6 +4,9 @@ kind: issue
 title: refine_chain hands back a (KnotVector, plans) pair its only caller immediately re-borrows
 status: open
 opened: 2026-09-22
+priority: P4
+cost: E
+rides_with: a-third-spelling-of-cut-every-span-into-splits-pieces
 ---
 
 

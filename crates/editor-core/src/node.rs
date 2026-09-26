@@ -62,6 +62,16 @@ macro_rules! name_free_node {
 )]
 pub struct RecipeNodeId(pub u64);
 
+/// **A profile program step's identity** (`names/README.md`, "N1, the
+/// profile pieces"): minted from the document's monotone step counter
+/// when the step is authored — by `InsertNode` or `SetProgram` — never
+/// reused, never positional, and unique across the document. A
+/// profile piece's name spells it ([`crate::names::ProfileEdgeRef`]).
+#[derive(
+    Debug, Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, serde::Serialize, serde::Deserialize,
+)]
+pub struct StepId(pub u64);
+
 pub use crate::names::{EntityKind, FaceName, RoleSeg, StableName};
 
 /// A coordinate axis, naming vector components in slot identities
@@ -3541,58 +3551,6 @@ impl<P> Node<P> {
             name_free_node!() => {}
         }
         hits
-    }
-
-    /// **The profile whose canonical coordinates this node's own
-    /// profile locators are spelled in** — the node whose `ProfileEdgeRef`s
-    /// and `ProfileVertexRef`s a `SetProgram` on that profile has to
-    /// remap — or `None` for a node whose names carry no locator of
-    /// its own.
-    ///
-    /// A sweep's table is spelled in the canonical numbering of the
-    /// profile it sweeps (DM8): every `Lateral`, `RimEdge`, `Band`,
-    /// `Pole` and their siblings that the extrude or revolve at this
-    /// node mints names a segment or vertex of THAT profile. A loft's
-    /// table names canonical segment `k` of every section at once, so
-    /// it follows one section's reshaping, its FIRST's: a reshaping of
-    /// a later section moves none of its locators
-    /// (`work/emit/a-lofts-names-follow-only-its-first-sections-reshaping.md`).
-    /// A sweep's frontier publishes no table today; the
-    /// answer is the profile it would anchor to, which is the same
-    /// lowering as the extrude's, and costs nothing while no name
-    /// exists to remap. Everything else mints locator-free names of
-    /// its own and CARRIES upstream ones inside `NameRef`s, whose
-    /// locators are their minting node's — reached by descending the
-    /// name, not by asking here.
-    ///
-    /// Exhaustive with no wildcard arm: a node kind that begins to
-    /// sweep a profile has to say so here or stop compiling.
-    pub fn anchoring_profile(&self) -> Option<RecipeNodeId> {
-        match self {
-            Node::Extrude { profile, .. }
-            | Node::Revolve { profile, .. }
-            | Node::Sweep { profile, .. } => Some(*profile),
-            Node::Loft { profiles, .. } => profiles.first().copied(),
-            Node::Datum(_)
-            | Node::Profile(_)
-            | Node::Tube { .. }
-            | Node::HollowTube { .. }
-            | Node::Fillet { .. }
-            | Node::Chamfer { .. }
-            | Node::Shell { .. }
-            | Node::Split { .. }
-            | Node::Boolean { .. }
-            | Node::Union { .. }
-            | Node::Transform { .. }
-            | Node::Pattern { .. }
-            | Node::Part { .. }
-            | Node::PlacedUnion { .. }
-            | Node::Declare { .. }
-            | Node::InstantiatePart { .. }
-            | Node::Mate { .. }
-            | Node::Measure { .. }
-            | Node::Assertion { .. } => None,
-        }
     }
 
     /// The node ids [`Node::payload_names`] reaches: the heads whose

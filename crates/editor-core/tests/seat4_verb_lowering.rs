@@ -80,12 +80,13 @@ fn both_blends() -> BothBlends {
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![square],
+        ids: Vec::new(),
     }));
     let cube = r.insert(Node::Extrude {
         profile,
         distance: len(L),
     });
-    let edges: Vec<StableName> = prism_edges(cube, 4);
+    let edges: Vec<StableName> = prism_edges(&r.doc, cube, 4);
     let filleted = r.insert(Node::fillet(cube, len(R), edges.clone()));
     let chamfered = r.insert(Node::chamfer(cube, len(D), edges));
     BothBlends {
@@ -205,8 +206,8 @@ fn both_blends_evaluate_in_one_document() {
 #[test]
 fn the_blend_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("die_fillet", 0x0514_022b_3d04_f5c7_u64),
-        ("die_chamfer", 0x131a_d58c_f63c_4589),
+        ("die_fillet", 0x073e_9e1c_437e_868b_u64),
+        ("die_chamfer", 0x40dc_fc06_ddb4_595d),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -289,9 +290,9 @@ fn a_boolean_document_round_trips_byte_identical() {
 #[test]
 fn the_boolean_documents_evaluate_to_their_committed_digests() {
     for (name, want) in [
-        ("crossing_slots", 0x75b5_a599_f62f_bee0_u64),
-        ("heat_sink", 0x4ba6_9485_51b0_1e91),
-        ("kiss_carry", 0x56f8_69db_87a8_065a),
+        ("crossing_slots", 0xf470_9f84_7704_ae91_u64),
+        ("heat_sink", 0x6c5d_70cd_4433_36a7),
+        ("kiss_carry", 0xd50a_9072_2042_b77a),
     ] {
         let doc = corpus::documents()
             .into_iter()
@@ -345,6 +346,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pa = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![square(0.0)],
+        ids: Vec::new(),
     }));
     let a = r.insert(Node::Extrude {
         profile: pa,
@@ -361,6 +363,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let pb = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![square(3.0)],
+        ids: Vec::new(),
     }));
     let b = r.insert(Node::Extrude {
         profile: pb,
@@ -385,7 +388,7 @@ fn an_empty_boolean_evaluates_to_its_committed_digest() {
     let got = digest(&ev);
     println!("seat5 empty_intersect: {got:#018x}");
     assert_eq!(
-        got, 0xef2f_77c3_6271_e2eb,
+        got, 0xfb37_ae41_85d4_4899,
         "the empty-boolean evaluation moved — value token, bodies or name tables"
     );
 }

@@ -962,3 +962,44 @@ Measured, the rule:
 
 Refusing would have refused 134 of 248 fused orders.
 `union-face-names-follow-fold-order` becomes the build.
+
+## 2026-09-25 — profile pieces are named by minted step ids (PR 3223)
+
+N1's rule is built, as Ev ruled it on #3193 and #3202:
+- every profile step carries a `StepId`, minted from the document's
+  step counter and never reused;
+- a profile locator is `{ step, role }`;
+- a tube's sections are named structurally, as `Section { Outer | Bore }`;
+- a loft wall or seam holds one locator per section.
+
+The positional rename machinery is deleted: `LoopProvenance`, the
+`SegmentMap` rewrite, `RETIRED_FLOOR`, `reanchor_report` and the
+signed-area anchor. The wire format breaks, and the goldens are
+re-baselined.
+
+Nothing renumbers any more:
+- the held name in `asm_parent_held_names` survives a pin update;
+- EDIT's zero-fit chain keeps its names;
+- a dropped step's names vanish, with a DM7 report.
+
+Review found one alias (B1): a fillet claimed the next step's tangent
+arc as its run out, so dropping that step moved a paint silently. It is
+fixed, with the run out tied to its arrival carrier. The implementer
+was lost to a container restart mid-unit, and a second lane finished
+the fix pass.
+
+Closed:
+- `a-child-documents-rebind-leaves-the-parents-held-names-in-the-old-numbering`
+  (P0);
+- `a-value-edits-last-published-numbering-is-not-recipe-state`;
+- `the-value-edit-numbering-check-costs-a-replay-per-swept-profile`.
+
+Notes left on:
+- EDIT's zero-fit and stranded-names rows;
+- WIRE's two signed-area rows, which are now moot.
+
+Filed:
+- P3 `a-fillets-run-out-rides-by-segment-kind-only`;
+- P2 `sibling-branches-mint-one-step-id-for-different-steps` (via the
+  PR);
+- the Python handles remainder, `python-spells-a-piece-by-its-authoring-calls-step-handle`.
