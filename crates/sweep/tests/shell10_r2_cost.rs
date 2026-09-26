@@ -10,10 +10,10 @@ use std::time::Instant;
 
 use geom_core::{Tol, Vec3};
 use sweep::test_support::block;
-use topo::SolidKey;
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside, cap, charts_of, tol};
+use crate::common::charts::{charts_of, moves_by};
+use crate::shell8_common::{beside, cap, tol};
 use crate::verbs_shell::{hollow_box, outer_and_void, vessel};
 
 fn median_ms(label: &str, mut f: impl FnMut()) {
@@ -33,13 +33,6 @@ fn median_ms(label: &str, mut f: impl FnMut()) {
         "[r2-10 cost] {label}: median {:.4} ms/call, runs {runs:.4?}",
         runs[1]
     );
-}
-
-fn moves_of(body: &topo::Body<f64>, solid: SolidKey, d: f64) -> Vec<topo::ChartMove<f64>> {
-    charts_of(body, solid)
-        .into_iter()
-        .map(|faces| topo::ChartMove { faces, distance: d })
-        .collect()
 }
 
 #[test]
@@ -69,7 +62,7 @@ fn r2_cost_rows() {
         }
         topo::mint_pcurves(&mut body, tol()).unwrap();
         let first = body.solids().next().unwrap().0;
-        let moves = moves_of(&body, first, -0.05);
+        let moves = moves_by(charts_of(&body, first), -0.05);
         median_ms(&format!("offset_charts_together, 1 of {n} vessels"), || {
             let mut work = body.clone();
             topo::offset_charts_together(&mut work, &moves, band(), tol()).unwrap();
@@ -85,7 +78,7 @@ fn r2_cost_rows() {
             );
         }
         let first = body.solids().next().unwrap().0;
-        let moves = moves_of(&body, first, -0.05);
+        let moves = moves_by(charts_of(&body, first), -0.05);
         median_ms(&format!("offset_planes_together, 1 of {n} boxes"), || {
             let mut work = body.clone();
             topo::offset_planes_together(&mut work, &moves, band(), tol()).unwrap();

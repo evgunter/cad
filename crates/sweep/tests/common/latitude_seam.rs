@@ -21,9 +21,9 @@
 //! **Deliberately not absorbed**, and the whole of it:
 //!
 //! - `shell7_common`'s profile vocabulary (`polyline`, `revolved`,
-//!   `hollow_moves`, `tol`, `point`), which this module reaches
-//!   through `crate::shell7_common` rather than copying — that tree
-//!   is the SHELL-7 suites' own and is not a `common::` module;
+//!   `tol`, `point`), which this module reaches through
+//!   `crate::shell7_common` rather than copying — that tree is the
+//!   SHELL-7 suites' own and is not a `common::` module;
 //! - `shell9_r1_probes::multi_arc_sphere` and its `two_arc_sphere`
 //!   — the reviewer's own derivation of the same body from a bulge
 //!   computed off the arc's geometry, kept apart under
@@ -37,7 +37,8 @@ use geom_brep::{CertifyError, EdgeCurve, Pcurve};
 use sweep::Revolution;
 use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
-use crate::shell7_common::{hollow_moves, p2, point, polyline, revolved, tol};
+use super::charts::hollow_moves;
+use crate::shell7_common::{p2, point, polyline, revolved, tol};
 
 /// The drum's radius.
 pub const DRUM_R: f64 = 1.0;
