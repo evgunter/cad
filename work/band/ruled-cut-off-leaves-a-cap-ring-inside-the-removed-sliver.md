@@ -2,10 +2,13 @@
 id: ruled-cut-off-leaves-a-cap-ring-inside-the-removed-sliver
 kind: issue
 title: blend: the ruled cut-off leaves a cap ring that lies in the removed sliver on the cap, and tier 3 accepts the body
-status: open
+status: closed
 opened: 2026-09-25
 priority: P0
 cost: D
+closed: 2026-09-26
+pr: 3271
+branch: band/cap-ring-in-sliver
 ---
 
 
