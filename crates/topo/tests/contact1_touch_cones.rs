@@ -273,17 +273,13 @@ fn a_tilted_block_touching_a_corner_clears_declared_or_not() {
     );
 }
 
-/// **A sliver corner is read at each edge's own length.** A
-/// parallelepiped rests a corner on the wall `x = 1` with a 3 cm edge
-/// off the wall and a 0.8 m edge leaving it at an elevation `e` just
-/// past the run band's escalation threshold. Every boundary ray is
-/// decided at its own edge's length, so the long edge reads `e` —
-/// definitely off the wall, on the concavity's side — and the corner is
-/// a rest: the pair carries no placement finding. (Levered at the
-/// corner's shortest edge instead, the same edge would read
-/// `e · 0.03 / 0.8`, inside the band, and the corner would refuse; the
-/// same lever reads a DIPPING edge as on the wall, which is the reason
-/// it is not used — `census::tests::a_long_ray_dipping_into_the_other_is_never_a_rest`.)
+/// **A sliver corner is read at its faces' levers.** A parallelepiped
+/// rests a corner on the wall `x = 1` with a 3 cm edge off the wall and
+/// a 0.8 m edge leaving it at an elevation `e` just past the run band's
+/// escalation threshold. Every reading is levered at the face it stands
+/// for (`census.rs`, `touch_lever`), so the long edge's faces read `e`
+/// or more — definitely off the wall, on the concavity's side — and the
+/// corner is a rest: the pair carries no placement finding.
 #[test]
 fn a_sliver_corner_clears_on_its_long_edge_s_own_reading() {
     let band = Band::linear(Tol::witness()).unwrap();

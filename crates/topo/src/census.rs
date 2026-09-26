@@ -2815,12 +2815,9 @@ pub(crate) enum Undecided {
     /// Arm 2: a touch at a saddle corner that neither of the
     /// analysis's tests certifies.
     TouchUnanalysed,
-    /// Arm 2: a touch where one solid's faces fold onto each other.
+    /// Arm 2: a touch whose readings of one solid's faces contradict
+    /// each other.
     TouchDegenerate,
-    /// Arm 2: a touch at a vertex where two fans of one solid meet.
-    TouchSplitFan,
-    /// Arm 2: a touch whose surrounding topology did not walk.
-    TouchUnwalkable,
     /// Arm 2: a touch at a corner whose edge length is not a number.
     TouchChordScale,
     /// Arm 2: a declared face-pair record backing sideless events.
@@ -2859,8 +2856,6 @@ impl Undecided {
                 | Self::TouchUnreadable
                 | Self::TouchUnanalysed
                 | Self::TouchDegenerate
-                | Self::TouchSplitFan
-                | Self::TouchUnwalkable
                 | Self::TouchChordScale
         )
     }
@@ -2928,20 +2923,10 @@ impl Undecided {
                  otherwise move them until their bounding boxes no longer overlap"
             }
             Self::TouchDegenerate => {
-                "they touch where two faces of one fold onto each other, and the check \
-                 cannot yet tell whether they overlap there. There is no way through yet \
-                 for this shape; otherwise move them until their bounding boxes no longer \
-                 overlap"
-            }
-            Self::TouchSplitFan => {
-                "they touch at a corner where two parts of the same solid meet, and the \
-                 check cannot yet read such a corner. There is no way through yet for \
-                 this shape; otherwise move them until their bounding boxes no longer \
-                 overlap"
-            }
-            Self::TouchUnwalkable => {
-                "the faces around where they touch could not be walked. There is no way \
-                 through: this is a kernel defect or a damaged file; report it"
+                "they touch where the check's readings of one's faces contradict each \
+                 other (as two faces folded onto each other do), so it cannot tell whether \
+                 they overlap there. There is no way through yet for this shape; otherwise \
+                 move them until their bounding boxes no longer overlap"
             }
             Self::TouchChordScale => {
                 "they touch at a corner with an edge too long or too short to measure. \
@@ -3011,18 +2996,43 @@ impl Undecided {
 // ---- The local material cone of a touch: arm 2's clear, condition 3.
 
 /// K name: a direction's side of a candidate plane, or a face normal's
-/// alignment with it — a dot of two unit vectors levered at the arm of
-/// the ray (its own edge's length) or of the piece being read.
+/// alignment with it (unit vectors), levered by [`touch_lever`]'s rule.
 const TOUCH_SIDE: &str = "census_touch_side";
 /// K name: an edge ray's dihedral — the next piece's far bound against
-/// the previous face's outward normal, levered at that bound's own arm.
+/// the previous face's outward normal — levered by [`touch_lever`]'s
+/// rule.
 const TOUCH_DIHEDRAL: &str = "census_touch_dihedral";
-/// K name: whether two directions span a plane — the norm of their
-/// cross product (unit vectors), levered at the shorter of their arms.
+/// K name: whether a candidate spans a plane — the norm of a cross
+/// product of unit vectors — levered by [`touch_lever`]'s rule.
 const TOUCH_SPAN: &str = "census_touch_span";
-/// K name: a fan piece is under 180° — the sine of its sweep about its
-/// face's outward normal, levered at the shorter of its two bounds.
-const TOUCH_PIECE: &str = "census_touch_piece";
+
+/// **The one lever rule of the touch analysis.** Every sign the
+/// analysis decides is a dimensionless reading of unit directions — a
+/// ray's side of a plane, a face normal's alignment with one, a
+/// dihedral, a tilt — standing for a FACE: a boundary ray and a sector
+/// bisector for the faces they bound, a face normal and a dihedral's
+/// far bound for their own face, a half-space's normal for its face. A
+/// face is planar, so a tilt of the reading moves the face's far points
+/// by the tilt times the face's extent, not by the length of whichever
+/// chord happens to name the direction. Every reading is therefore
+/// levered (`Margin::levered`) at the lever of the face it stands for:
+/// the distance from the touch point `p` to that face's farthest
+/// boundary vertex, the value this function returns — and where a
+/// reading stands for more than one face, at the largest of their
+/// levers. A tilt that moves a face's farthest vertex off the plane by
+/// more than the band therefore never reads zero.
+///
+/// `None` when the face is outside the planar snapshot or has no
+/// boundary vertex with a position — a body the census's tier-1
+/// precondition does not admit.
+fn touch_lever<T: Real>(geo: &Geo<T>, face: FaceKey, p: Point3<T>) -> Option<T> {
+    planar_face(geo, face)?
+        .boundary
+        .iter()
+        .filter_map(|q| geo.vmap.get(q))
+        .map(|&q| (q - p).norm())
+        .reduce(|a, b| a.max(b))
+}
 
 /// What the local analysis of one touch between two solids decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -3039,17 +3049,16 @@ enum TouchVerdict {
     Unreadable,
     /// A saddle corner neither test certifies.
     Unanalysed,
-    /// Decided signs that no cone the analysis reads can produce: a
-    /// face folded onto its neighbour (a slit), read on the plane.
+    /// Decided readings of one cone's faces that contradict each other
+    /// on a candidate plane (two faces folded onto each other give
+    /// them).
     Degenerate,
-    /// A vertex where more than one fan of the same solid meets.
-    SplitFan,
-    /// The topology around the touch did not walk (a missing orbit,
-    /// `emanating`, position or sector face, or a fan piece of 180° or
-    /// more where the construction admits none).
-    Unwalkable,
     /// An edge at the corner is too long or too short to be a number.
     ChordScale,
+    /// The topology around the touch did not walk. The census runs only
+    /// on bodies tier 1 admits (orbit closure, no split orbit, every
+    /// key resolving), so this is a kernel defect.
+    Corrupt,
 }
 
 impl TouchVerdict {
@@ -3062,9 +3071,8 @@ impl TouchVerdict {
             Self::Unreadable => Some(Undecided::TouchUnreadable),
             Self::Unanalysed => Some(Undecided::TouchUnanalysed),
             Self::Degenerate => Some(Undecided::TouchDegenerate),
-            Self::SplitFan => Some(Undecided::TouchSplitFan),
-            Self::Unwalkable => Some(Undecided::TouchUnwalkable),
             Self::ChordScale => Some(Undecided::TouchChordScale),
+            Self::Corrupt => Some(Undecided::CorruptInstance),
         }
     }
 }
@@ -3110,6 +3118,17 @@ impl TouchSite {
 
     /// The analysis's verdict on the site ([`touch_verdict`]).
     fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
+        let at_vertex = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
+        let at_edge = |e: EdgeKey| {
+            geo.edges
+                .iter()
+                .find(|d| d.key == e)
+                .map(|d| d.p0)
+                .ok_or(TouchVerdict::Unreadable)
+        };
+        let half = |f: FaceKey, p: Result<Point3<T>, TouchVerdict>| {
+            p.and_then(|p| Cone::half(body, geo, f, p))
+        };
         let (a, b) = match self {
             Self::VertexVertex(a, b) => (
                 Cone::vertex(body, geo, a, band),
@@ -3123,10 +3142,8 @@ impl TouchSite {
                 Cone::wedge(body, geo, a, band),
                 Cone::wedge(body, geo, b, band),
             ),
-            Self::VertexOnFace(v, f) => {
-                (Cone::vertex(body, geo, v, band), Cone::half(body, geo, f))
-            }
-            Self::EdgeInFace(e, f) => (Cone::wedge(body, geo, e, band), Cone::half(body, geo, f)),
+            Self::VertexOnFace(v, f) => (Cone::vertex(body, geo, v, band), half(f, at_vertex(v))),
+            Self::EdgeInFace(e, f) => (Cone::wedge(body, geo, e, band), half(f, at_edge(e))),
         };
         touch_verdict(a, b, band)
     }
@@ -3168,18 +3185,18 @@ enum ConeKind<T: Real> {
     /// `p` inside a planar face: the half-space behind its outward
     /// normal.
     Half(Vec3<T>),
-    /// `p` at a vertex or inside an edge: the COMPLETE boundary as a
+    /// `p` at a vertex or inside an edge: the complete boundary as a
     /// cyclic chain of unit rays. Piece `k` is the planar sector swept
     /// counterclockwise about its face's outward normal `normals[k]`
-    /// from `rays[k + 1]` to `rays[k]`, and is under 180° — both held
-    /// by [`Cone::fan`], which refuses a chain that breaks either.
-    /// `arms[k]` is ray `k`'s own lever (metres): its edge's length, or
-    /// its sector's arm for a subdivision ray.
+    /// from `rays[k + 1]` to `rays[k]`, under 180° (the vertex's
+    /// sectors are subdivided by `sector_shape` where they are not;
+    /// the wedge's four pieces are right angles by construction), and
+    /// `levers[k]` is its face's [`touch_lever`].
     Fan {
         rays: Vec<Vec3<T>>,
-        arms: Vec<T>,
         kinds: Vec<RayKind>,
         normals: Vec<Vec3<T>>,
+        levers: Vec<T>,
     },
 }
 
@@ -3188,11 +3205,8 @@ enum ConeKind<T: Real> {
 struct Cone<T: Real> {
     kind: ConeKind<T>,
     shape: ConeShape,
-    /// The LONGEST arm the cone was read from (metres); `None` for a
-    /// half-space, which has none. It levers the one question about the
-    /// pair as a whole — whether a candidate plane IS a half-space's
-    /// face plane — at the farthest reach a tilt could move a point.
-    reach: Option<T>,
+    /// The farthest [`touch_lever`] among the cone's faces.
+    lever: T,
     /// A dihedral the shape class depends on was in band.
     in_band: bool,
 }
@@ -3207,19 +3221,19 @@ enum Within {
     /// A saddle cone strictly on one side of the plane: which side its
     /// material takes is not read here.
     Unanalysed,
-    /// Decided signs no cone of this reading produces (a slit).
+    /// Decided readings that contradict each other (a folded face).
     Degenerate,
 }
 
-/// A dimensionless sign levered at `arm` (metres) under the run band;
-/// `None` in band.
-fn touch_sign<T: Decide>(name: &'static str, x: T, arm: T, band: Band) -> Option<Sign> {
-    decide(name, Margin::levered(x, arm), band).ok()
+/// A dimensionless sign levered at `lever` (metres, [`touch_lever`]'s
+/// rule) under the run band; `None` in band.
+fn touch_sign<T: Decide>(name: &'static str, x: T, lever: T, band: Band) -> Option<Sign> {
+    decide(name, Margin::levered(x, lever), band).ok()
 }
 
 impl<T: Decide> Cone<T> {
-    /// The cone of a planar face's interior.
-    fn half(body: &Body<T>, geo: &Geo<T>, f: FaceKey) -> Result<Self, TouchVerdict> {
+    /// The cone of a planar face's interior at `p`.
+    fn half(body: &Body<T>, geo: &Geo<T>, f: FaceKey, p: Point3<T>) -> Result<Self, TouchVerdict> {
         if planar_face(geo, f).is_none() {
             return Err(TouchVerdict::Unreadable);
         }
@@ -3227,64 +3241,73 @@ impl<T: Decide> Cone<T> {
         Ok(Self {
             kind: ConeKind::Half(m.vec()),
             shape: ConeShape::Flat,
-            reach: None,
+            lever: touch_lever(geo, f, p).ok_or(TouchVerdict::Corrupt)?,
             in_band: false,
         })
     }
 
-    /// A fan cone, its two invariants enforced: the chain is as long in
-    /// every column, and every piece sweeps under 180° counterclockwise
-    /// from `rays[k + 1]` to `rays[k]` about `normals[k]`, decided at
-    /// the shorter of its two bounds' arms. A piece in band refuses in
-    /// band; one decided otherwise is a chain this reading does not
-    /// admit, and refuses as unwalkable.
+    /// A fan cone from its chain: each edge ray's dihedral is decided
+    /// here — the next piece's far bound against the previous piece's
+    /// outward normal, behind it for a convex edge and in front for a
+    /// reflex one, levered at the far piece's face lever — and the
+    /// shape class follows from them. `subdivided` says some sector was
+    /// 180° or more, which makes the cone a saddle.
     fn fan(
         rays: Vec<Vec3<T>>,
-        arms: Vec<T>,
-        kinds: Vec<RayKind>,
+        mut kinds: Vec<RayKind>,
         normals: Vec<Vec3<T>>,
-        shape: ConeShape,
-        in_band: bool,
+        levers: Vec<T>,
+        subdivided: bool,
         band: Band,
-    ) -> Result<Self, TouchVerdict> {
+    ) -> Self {
         let n = rays.len();
-        if n < 2 || arms.len() != n || kinds.len() != n || normals.len() != n {
-            return Err(TouchVerdict::Unwalkable);
-        }
+        let (mut convex, mut reflex, mut in_band) = (false, false, false);
         for k in 0..n {
-            let next = (k + 1) % n;
-            let sweep = rays[next].cross(rays[k]).dot(normals[k]);
-            match touch_sign(TOUCH_PIECE, sweep, arms[k].min(arms[next]), band) {
-                Some(Sign::Positive) => {}
-                Some(_) => return Err(TouchVerdict::Unwalkable),
-                None => return Err(TouchVerdict::InBand),
+            if let RayKind::Edge(_) = kinds[k] {
+                let prev = normals[(k + n - 1) % n];
+                let far = (k + 1) % n;
+                let s = touch_sign(TOUCH_DIHEDRAL, prev.dot(rays[far]), levers[k], band);
+                match s {
+                    Some(Sign::Negative) => convex = true,
+                    Some(Sign::Positive) => reflex = true,
+                    Some(Sign::Zero) => {}
+                    None => in_band = true,
+                }
+                kinds[k] = RayKind::Edge(s);
             }
         }
-        let reach = arms.iter().copied().reduce(|a, b| a.max(b));
-        Ok(Self {
+        let shape = if subdivided || in_band {
+            ConeShape::Saddle
+        } else {
+            match (convex, reflex) {
+                (false, false) => ConeShape::Flat,
+                (true, false) => ConeShape::Convex,
+                (false, true) => ConeShape::CoConvex,
+                (true, true) => ConeShape::Saddle,
+            }
+        };
+        let lever = levers.iter().copied().fold(T::zero(), |a, b| a.max(b));
+        Self {
             kind: ConeKind::Fan {
                 rays,
-                arms,
                 kinds,
                 normals,
+                levers,
             },
             shape,
-            reach,
+            lever,
             in_band,
-        })
+        }
     }
 
     /// The dihedral wedge at an interior point of a line edge between
-    /// two planar faces. Its rays are the edge both ways, `d` and `−d`
-    /// — the wedge contains the whole edge line, so both are boundary
-    /// rays and both carry the edge's dihedral — and each face's
-    /// in-face direction off it (`m × t` for that face's half-edge
-    /// direction `t`: the face interior is on the left). The edge rays
-    /// are levered at the edge's length; an in-face ray, which has no
-    /// length of its own, at its face's farthest reach off the edge
-    /// line — the face's farthest point reads the ray's side at that
-    /// distance, so the longest reach is the one that cannot call a
-    /// tilted face flat.
+    /// two planar faces, read from the edge's start `p0`. Its rays are
+    /// the edge both ways, `d` and `−d` — the wedge contains the whole
+    /// edge line, so both are boundary rays and both carry the edge's
+    /// dihedral — and each face's in-face direction off it (`m × t` for
+    /// that face's half-edge direction `t`: the face interior is on the
+    /// left). The chain runs `d, w−, −d, w+`, the vertex fans'
+    /// orientation.
     fn wedge(body: &Body<T>, geo: &Geo<T>, e: EdgeKey, band: Band) -> Result<Self, TouchVerdict> {
         let edge = geo
             .edges
@@ -3299,44 +3322,24 @@ impl<T: Decide> Cone<T> {
                 .map(|m| m.vec())
                 .ok_or(TouchVerdict::Unreadable)
         };
+        let lever = |f: FaceKey| touch_lever(geo, f, edge.p0).ok_or(TouchVerdict::Corrupt);
         let (mp, mm) = (normal(edge.f_plus)?, normal(edge.f_minus)?);
+        let (rp, rm) = (lever(edge.f_plus)?, lever(edge.f_minus)?);
         let d = edge.dir;
         let (wp, wm) = (mp.cross(d), mm.cross(-d));
-        // A face's farthest boundary vertex off the edge line; the
-        // edge's own length where the face offers none farther.
-        let reach = |f: FaceKey| -> T {
-            planar_face(geo, f)
-                .into_iter()
-                .flat_map(|face| face.boundary.iter())
-                .filter_map(|q| geo.vmap.get(q))
-                .map(|&q| {
-                    let off = q - edge.p0;
-                    (off - d * off.dot(d)).norm()
-                })
-                .fold(edge.len, |a, b| a.max(b))
-        };
-        let (rp, rm) = (reach(edge.f_plus), reach(edge.f_minus));
-        let dihedral = touch_sign(TOUCH_DIHEDRAL, mp.dot(wm), rm, band);
-        let shape = match dihedral {
-            Some(Sign::Negative) => ConeShape::Convex,
-            Some(Sign::Positive) => ConeShape::CoConvex,
-            Some(Sign::Zero) => ConeShape::Flat,
-            None => ConeShape::Saddle,
-        };
-        Self::fan(
+        Ok(Self::fan(
             vec![d, wm, -d, wp],
-            vec![edge.len, rm, edge.len, rp],
             vec![
-                RayKind::Edge(dihedral),
+                RayKind::Edge(None),
                 RayKind::InFace,
-                RayKind::Edge(dihedral),
+                RayKind::Edge(None),
                 RayKind::InFace,
             ],
             vec![mm, mm, mp, mp],
-            shape,
-            dihedral.is_none(),
+            vec![rm, rm, rp, rp],
+            false,
             band,
-        )
+        ))
     }
 
     /// The cone at a vertex, from its orbit: each sector a corner of a
@@ -3357,99 +3360,60 @@ impl<T: Decide> Cone<T> {
         {
             return Err(TouchVerdict::Unreadable);
         }
+        // Tier 1 (the census's precondition) holds that the orbit from
+        // `emanating` closes and visits every half-edge leaving the
+        // vertex; a body where it does not is corrupt.
         let orbit = body
             .get_vertex(v)
             .and_then(|d| d.emanating)
             .and_then(|he| body.vertex_orbit(he))
             .filter(|o| !o.is_empty())
-            .ok_or(TouchVerdict::Unwalkable)?;
-        // One fan: a vertex where two fans of the same solid meet has
-        // half-edges the orbit from `emanating` does not visit.
-        let leaving = body.half_edges.iter().filter(|(_, h)| h.start == v).count();
-        if leaving != orbit.len() {
-            return Err(TouchVerdict::SplitFan);
-        }
-        let base = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Unwalkable)?;
+            .ok_or(TouchVerdict::Corrupt)?;
+        let base = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?;
         let chord = |he: HalfEdgeKey| -> Result<Vec3<T>, TouchVerdict> {
-            let edge = body.get_half_edge(he).ok_or(TouchVerdict::Unwalkable)?.edge;
+            let edge = body.get_half_edge(he).ok_or(TouchVerdict::Corrupt)?.edge;
             if !edge_is_line(body, edge) {
                 return Err(TouchVerdict::Unreadable);
             }
-            let end = body.half_edge_end(he).ok_or(TouchVerdict::Unwalkable)?;
-            let p = geo
-                .vmap
-                .get(&end)
-                .copied()
-                .ok_or(TouchVerdict::Unwalkable)?;
+            let end = body.half_edge_end(he).ok_or(TouchVerdict::Corrupt)?;
+            let p = geo.vmap.get(&end).copied().ok_or(TouchVerdict::Corrupt)?;
             Ok(p - base)
         };
-        let (mut rays, mut arms, mut kinds, mut normals) =
+        let (mut rays, mut kinds, mut normals, mut levers) =
             (Vec::new(), Vec::new(), Vec::new(), Vec::new());
         let mut subdivided = false;
         for (i, &he) in orbit.iter().enumerate() {
             let next = orbit[(i + 1) % orbit.len()];
             let sector = resolve(body, v, he).map_err(|e| match e {
                 SectorFaceError::Unsupported { .. } => TouchVerdict::Unreadable,
-                SectorFaceError::Corrupt(_) => TouchVerdict::Unwalkable,
+                SectorFaceError::Corrupt(_) => TouchVerdict::Corrupt,
             })?;
             if sector.carrier != SectorCarrier::Plane {
                 return Err(TouchVerdict::Unreadable);
             }
             let m = sector.normal.vec();
-            let own = chord(he)?;
-            let shape = sector_shape(own, chord(next)?, sector.normal, he == next, band).map_err(
-                |fault| match fault {
+            let lever = touch_lever(geo, sector.face, base).ok_or(TouchVerdict::Corrupt)?;
+            let shape = sector_shape(chord(he)?, chord(next)?, sector.normal, he == next, band)
+                .map_err(|fault| match fault {
                     SectorFault::Rung(_) => TouchVerdict::InBand,
                     SectorFault::NonFiniteChord | SectorFault::UnderflowedChord => {
                         TouchVerdict::ChordScale
                     }
-                },
-            )?;
-            // The sector runs from this orbit chord to the next one;
-            // its dihedral is filled in below, once every piece is in.
+                })?;
+            // The sector runs from this orbit chord to the next one.
             rays.push(shape.unit_own);
-            arms.push(own.norm());
             kinds.push(RayKind::Edge(None));
             normals.push(m);
+            levers.push(lever);
             if let Some(b) = shape.bisector {
                 subdivided = true;
                 rays.push(b);
-                arms.push(shape.arm);
                 kinds.push(RayKind::InFace);
                 normals.push(m);
+                levers.push(lever);
             }
         }
-        // Each edge ray's dihedral: the next piece's far bound (inside
-        // its face, off the ray) against the previous piece's outward
-        // normal — behind it for a convex edge, in front for a reflex —
-        // levered at that bound's own arm.
-        let n = rays.len();
-        let (mut convex, mut reflex, mut in_band) = (false, false, false);
-        for k in 0..n {
-            if let RayKind::Edge(_) = kinds[k] {
-                let prev = normals[(k + n - 1) % n];
-                let far = (k + 1) % n;
-                let s = touch_sign(TOUCH_DIHEDRAL, prev.dot(rays[far]), arms[far], band);
-                match s {
-                    Some(Sign::Negative) => convex = true,
-                    Some(Sign::Positive) => reflex = true,
-                    Some(Sign::Zero) => {}
-                    None => in_band = true,
-                }
-                kinds[k] = RayKind::Edge(s);
-            }
-        }
-        let shape = if subdivided || in_band {
-            ConeShape::Saddle
-        } else {
-            match (convex, reflex) {
-                (false, false) => ConeShape::Flat,
-                (true, false) => ConeShape::Convex,
-                (false, true) => ConeShape::CoConvex,
-                (true, true) => ConeShape::Saddle,
-            }
-        };
-        Self::fan(rays, arms, kinds, normals, shape, in_band, band)
+        Ok(Self::fan(rays, kinds, normals, levers, subdivided, band))
     }
 
     /// The outward normals of the faces at `p`.
@@ -3460,43 +3424,43 @@ impl<T: Decide> Cone<T> {
         }
     }
 
-    /// The boundary rays with their own arms (none for a half-space).
+    /// The boundary rays, each with the lever it is levered at: the
+    /// farther of its two pieces' face levers (none for a half-space).
     fn rays(&self) -> Vec<(Vec3<T>, T)> {
         match &self.kind {
             ConeKind::Half(_) => Vec::new(),
-            ConeKind::Fan { rays, arms, .. } => {
-                rays.iter().copied().zip(arms.iter().copied()).collect()
+            ConeKind::Fan { rays, levers, .. } => {
+                let n = rays.len();
+                (0..n)
+                    .map(|k| (rays[k], levers[k].max(levers[(k + n - 1) % n])))
+                    .collect()
             }
         }
     }
 
     /// Does the cone lie in the closed half-space `{d : n·d ≥ 0}`?
     ///
-    /// A half-space cone does exactly when its outward normal is `−n`,
-    /// decided at `reach` — the longest arm of the pair, so a candidate
-    /// plane tilted off the face plane by more than the band over the
-    /// other cone's longest edge is not taken for it. A fan does exactly when (a) every
-    /// boundary ray lies in the half-space — each decided at its OWN
-    /// arm, so a ray reads on the plane only when its far point does —
-    /// then the open complement meets no boundary and, being
-    /// connected, lies wholly inside the material or wholly outside
-    /// it; and (b) it lies outside. (b) is read at a boundary ray ON
-    /// the plane, where the local picture is a face (its outward
-    /// normal against `n`) or a dihedral (the two faces' normals,
-    /// joined by the edge's convexity), each normal decided at its
-    /// piece's arm. With no ray on the plane the boundary lies strictly
-    /// on one side, and (b) is the shape class: a convex cone is
-    /// inside, a co-convex one is not, and a saddle is not decided
-    /// here. Decided readings no complete fan of pieces under 180° can
-    /// give — a face normal on the plane at a ray on it, or two rays
-    /// on it disagreeing — are a folded face, [`Within::Degenerate`].
-    fn within(&self, n: Vec3<T>, reach: T, band: Band) -> Within {
-        let side = |v: Vec3<T>, arm: T| touch_sign(TOUCH_SIDE, n.dot(v), arm, band);
-        let (rays, arms, kinds, normals) = match &self.kind {
+    /// A half-space cone does exactly when its outward normal is `−n`.
+    /// A fan does exactly when (a) every boundary ray lies in the
+    /// half-space — then the open complement meets no boundary and,
+    /// being connected, lies wholly inside the material or wholly
+    /// outside it — and (b) it lies outside. (b) is read at a boundary
+    /// ray ON the plane, where the local picture is a face (its
+    /// outward normal against `n`) or a dihedral (the two faces'
+    /// normals, joined by the edge's convexity). With no ray on the
+    /// plane the boundary lies strictly on one side, and (b) is the
+    /// shape class: a convex cone is inside, a co-convex one is not,
+    /// and a saddle is not decided here. Readings that settle nothing
+    /// though decided — a face normal on the plane at a ray on it, or
+    /// two rays on it disagreeing — are [`Within::Degenerate`]. Every
+    /// sign is levered by [`touch_lever`]'s rule.
+    fn within(&self, n: Vec3<T>, band: Band) -> Within {
+        let side = |v: Vec3<T>, lever: T| touch_sign(TOUCH_SIDE, n.dot(v), lever, band);
+        let (kinds, normals, levers) = match &self.kind {
             ConeKind::Half(m) => {
-                return match side(*m, reach) {
+                return match side(*m, self.lever) {
                     Some(Sign::Negative) => {
-                        match touch_sign(TOUCH_SPAN, n.cross(*m).norm(), reach, band) {
+                        match touch_sign(TOUCH_SPAN, n.cross(*m).norm(), self.lever, band) {
                             Some(Sign::Zero) => Within::Yes,
                             Some(_) => Within::No,
                             None => Within::InBand,
@@ -3507,16 +3471,16 @@ impl<T: Decide> Cone<T> {
                 };
             }
             ConeKind::Fan {
-                rays,
-                arms,
                 kinds,
                 normals,
-            } => (rays, arms, kinds, normals),
+                levers,
+                ..
+            } => (kinds, normals, levers),
         };
         let mut on_plane = Vec::new();
         let mut in_band = false;
-        for (k, (&r, &arm)) in rays.iter().zip(arms).enumerate() {
-            match side(r, arm) {
+        for (k, (r, lever)) in self.rays().into_iter().enumerate() {
+            match side(r, lever) {
                 Some(Sign::Negative) => return Within::No,
                 Some(Sign::Zero) => on_plane.push(k),
                 Some(Sign::Positive) => {}
@@ -3526,9 +3490,8 @@ impl<T: Decide> Cone<T> {
         if in_band {
             return Within::InBand;
         }
-        let len = rays.len();
-        let piece_arm = |k: usize| arms[k].min(arms[(k + 1) % len]);
-        let face = |k: usize| side(normals[k], piece_arm(k));
+        let len = normals.len();
+        let face = |k: usize| side(normals[k], levers[k]);
         // Whether the open complement is outside the material, read at
         // on-plane ray `k`: `Ok(verdict)`, or `Err(true)` for a sign in
         // band and `Err(false)` for decided signs that settle nothing.
@@ -3597,7 +3560,7 @@ impl<T: Decide> Cone<T> {
 ///
 /// A touch is admitted as a rest only if the two cones have DISJOINT
 /// INTERIORS; anything else, including an answer the analysis cannot
-/// reach, is not a rest. Two tests certify it:
+/// lever, is not a rest. Two tests certify it:
 ///
 /// 1. **A separating plane through `p`**: `a` in one closed half-space
 ///    and `b` in the other ([`Cone::within`] both ways). The candidate
@@ -3616,12 +3579,9 @@ impl<T: Decide> Cone<T> {
 /// face sector of 180° or more) certifies through either test when one
 /// applies; when none does the answer is [`TouchVerdict::Unanalysed`],
 /// never a crossing and never a rest. Every sign is decided under the
-/// run band: a boundary ray at its own arm, a face normal at its
-/// piece's, a candidate built from two rays at the shorter of theirs,
-/// and whether a candidate is a half-space's face plane at the longest
-/// arm of the pair. Any sign in band that the
-/// search reached without a rest is [`TouchVerdict::InBand`]; any
-/// folded-face reading, [`TouchVerdict::Degenerate`].
+/// run band by [`touch_lever`]'s rule. Any sign in band that the search
+/// reached without a rest is [`TouchVerdict::InBand`]; any
+/// contradictory reading, [`TouchVerdict::Degenerate`].
 fn touch_verdict<T: Decide>(
     a: Result<Cone<T>, TouchVerdict>,
     b: Result<Cone<T>, TouchVerdict>,
@@ -3630,12 +3590,6 @@ fn touch_verdict<T: Decide>(
     let (a, b) = match (a, b) {
         (Ok(a), Ok(b)) => (a, b),
         (Err(v), _) | (_, Err(v)) => return v,
-    };
-    let Some(arm) = (match (a.reach, b.reach) {
-        (Some(x), Some(y)) => Some(x.max(y)),
-        (x, y) => x.or(y),
-    }) else {
-        return TouchVerdict::Unanalysed;
     };
     let in_band = core::cell::Cell::new(a.in_band || b.in_band);
     let unanalysed = core::cell::Cell::new(false);
@@ -3648,10 +3602,10 @@ fn touch_verdict<T: Decide>(
     };
     let separates = |n: Vec3<T>| -> bool {
         for s in [n, -n] {
-            let wa = a.within(s, arm, band);
+            let wa = a.within(s, band);
             note(wa);
             if wa == Within::Yes {
-                let wb = b.within(-s, arm, band);
+                let wb = b.within(-s, band);
                 note(wb);
                 if wb == Within::Yes {
                     return true;
@@ -3670,7 +3624,7 @@ fn touch_verdict<T: Decide>(
         if matches!(y.shape, ConeShape::CoConvex | ConeShape::Flat) {
             let mut all = true;
             for &m in y.normals() {
-                let w = x.within(m, arm, band);
+                let w = x.within(m, band);
                 note(w);
                 all &= w == Within::Yes;
             }
@@ -3679,11 +3633,13 @@ fn touch_verdict<T: Decide>(
             }
         }
     }
+    // A candidate spanned by two rays: whether they span one is read at
+    // the farther of the two rays' levers.
     let rays: Vec<(Vec3<T>, T)> = a.rays().into_iter().chain(b.rays()).collect();
-    for (i, &(r, ra)) in rays.iter().enumerate() {
-        for &(s, sa) in &rays[i + 1..] {
+    for (i, &(r, rr)) in rays.iter().enumerate() {
+        for &(s, sr) in &rays[i + 1..] {
             let c = r.cross(s);
-            match touch_sign(TOUCH_SPAN, c.norm(), ra.min(sa), band) {
+            match touch_sign(TOUCH_SPAN, c.norm(), rr.max(sr), band) {
                 Some(Sign::Positive) => {
                     if separates(c.normalize()) {
                         return TouchVerdict::Rest;
@@ -6612,5 +6568,408 @@ mod tests {
             .collect();
         assert!(!vf.is_empty(), "{vf:?}");
         assert!(vf.iter().all(|&v| v == TouchVerdict::InBand), "{vf:?}");
+    }
+
+    // ---- The lever rule, pinned per lever (each row goes red if its
+    // lever is read at a chord instead of its face's lever), and the
+    // cost direction (ordinary rests stay rests).
+
+    /// A prism over `profile`, `z` its extrusion, through `map`, into
+    /// `body` (a new solid).
+    fn mapped_prism(
+        body: &mut Body<f64>,
+        profile: &[(f64, f64)],
+        z: (f64, f64),
+        map: impl Fn(f64, f64, f64) -> Point3<f64>,
+    ) {
+        use crate::test_support_fixtures::{FaceGeometry, describe_as_intersections, prism_ops};
+        prism_ops(
+            body,
+            profile,
+            z,
+            map,
+            FaceGeometry::Certified,
+            Tol::witness(),
+        );
+        describe_as_intersections(body, Tol::witness());
+    }
+
+    /// `part` over a floor slab `[-1, 2]² × [-1, 0]`.
+    fn on_floor(part: impl Fn(&mut Body<f64>)) -> Body<f64> {
+        let mut body = Body::<f64>::new();
+        let square = [(-1.0, -1.0), (2.0, -1.0), (2.0, 2.0), (-1.0, 2.0)];
+        mapped_prism(&mut body, &square, (-1.0, 0.0), |x, y, z| {
+            Point3::new(x, y, z)
+        });
+        let mut other = Body::<f64>::new();
+        part(&mut other);
+        crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+        body
+    }
+
+    fn sites(body: &Body<f64>) -> Vec<(TouchSite, TouchVerdict)> {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).unwrap();
+        let geo = snapshot(body);
+        census_and_certify(body, &ContactRecords::default(), band, tol, None)
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::UndeclaredContact { contact, .. } => TouchSite::of(contact),
+                _ => None,
+            })
+            .map(|site| (site, site.verdict(body, &geo, band)))
+            .collect()
+    }
+
+    /// **A sector bisector is levered at its face** (the delta review's
+    /// P1). An L-plate, 0.8 m square less a 3 cm notch, rests its
+    /// reflex notch vertex on the floor; its bottom face is sheared so
+    /// the far corner, about 1.09 m from the notch, dips below the floor
+    /// by 2 to 24 times the zero threshold. The notch's chords are 3 cm,
+    /// and read at those the dip is a fraction of the band — "on the
+    /// floor". Read at the bottom face's lever it is not, and no touch
+    /// reads as a rest.
+    #[test]
+    fn a_bisector_is_levered_at_its_face() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (s, n) = (0.8, 0.03);
+        let prof = [
+            (0.0, 0.0),
+            (s, 0.0),
+            (s, s - n),
+            (s - n, s - n),
+            (s - n, s),
+            (0.0, s),
+        ];
+        let v = s - n;
+        for times in [2.0, 5.0, 13.0, 24.0] {
+            let phi = times * band.zero() / 1.09;
+            let body = on_floor(|b| {
+                mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                    let t = phi * ((x - v) + (y - v)) / 2f64.sqrt();
+                    Point3::new(x, y, z + t)
+                })
+            });
+            let got = sites(&body);
+            assert!(!got.is_empty(), "{times}");
+            assert!(
+                got.iter().all(|&(_, t)| t != TouchVerdict::Rest),
+                "{times}× zero: {got:?}"
+            );
+        }
+    }
+
+    /// **A convex corner's rays are levered at their faces** (the delta
+    /// review's P5). A plate's 90° tip, 3 cm chords, rests on the floor;
+    /// the plate runs 1 m back and its bottom dips toward the back by
+    /// 5 to 24 times the zero threshold. No touch reads as a rest.
+    #[test]
+    fn a_convex_corner_is_levered_at_its_faces() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let prof = [
+            (1.0, 0.5),
+            (0.97, 0.53),
+            (0.0, 1.0),
+            (0.0, 0.0),
+            (0.97, 0.47),
+        ];
+        for times in [5.0, 13.0, 24.0] {
+            let phi = times * band.zero();
+            let body = on_floor(|b| {
+                mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                    Point3::new(x, y, z + phi * (x - 1.0))
+                })
+            });
+            let got = sites(&body);
+            assert!(!got.is_empty(), "{times}");
+            assert!(
+                got.iter().all(|&(_, t)| t != TouchVerdict::Rest),
+                "{times}× zero: {got:?}"
+            );
+        }
+    }
+
+    /// **A wedge's in-face ray is levered at its face.** A plate's 3 cm
+    /// front edge lies in the floor; the plate runs 1 m back and its
+    /// bottom dips toward the back by 13 and 24 times the zero
+    /// threshold. Read at the edge's 3 cm the bottom face's in-face ray
+    /// is on the floor; read at the face's lever it dips, and the
+    /// edge-in-face touch is not a rest.
+    #[test]
+    fn a_wedge_in_face_ray_is_levered_at_its_face() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let prof = [(1.0, 0.485), (1.0, 0.515), (0.0, 1.0), (0.0, 0.0)];
+        for times in [13.0, 24.0] {
+            let phi = times * band.zero();
+            let body = on_floor(|b| {
+                mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                    Point3::new(x, y, z + phi * (x - 1.0))
+                })
+            });
+            let got = sites(&body);
+            let edges: Vec<TouchVerdict> = got
+                .iter()
+                .filter(|(s, _)| matches!(s, TouchSite::EdgeInFace(..)))
+                .map(|&(_, t)| t)
+                .collect();
+            assert!(!edges.is_empty(), "{times}: {got:?}");
+            assert!(
+                edges.iter().all(|&t| t != TouchVerdict::Rest),
+                "{times}× zero: {edges:?}"
+            );
+        }
+    }
+
+    /// A shallow pit's apex: three rays rising `h` over unit length at
+    /// 120° apart, their faces' outward normals pointing up (material
+    /// below the pit's surface), every face levered at 1 m.
+    fn shallow_pit(h: f64, band: Band) -> Cone<f64> {
+        let ray = |deg: f64| {
+            let t = deg.to_radians();
+            Vec3::new(t.cos(), t.sin(), h).normalize()
+        };
+        let rays = vec![ray(0.0), ray(240.0), ray(120.0)];
+        let normals: Vec<Vec3<f64>> = (0..3)
+            .map(|k| rays[(k + 1) % 3].cross(rays[k]).normalize())
+            .collect();
+        Cone::fan(
+            rays,
+            vec![RayKind::Edge(None); 3],
+            normals,
+            vec![1.0; 3],
+            false,
+            band,
+        )
+    }
+
+    /// **A dihedral is levered at its far face.** The apex of a shallow
+    /// pit — every edge barely reflex, the complement a thin convex cone
+    /// — touching a floor whose material is below it: the pit's material
+    /// is below its surface too, so the two overlap, and the answer is a
+    /// crossing. Read with the dihedrals levered short, the edges read
+    /// flat, the pit reads as a half-space lying on the floor, and the
+    /// touch reads as a rest.
+    #[test]
+    fn a_dihedral_is_levered_at_its_face() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let pit = shallow_pit(400.0 * band.zero(), band);
+        assert_eq!(pit.shape, ConeShape::CoConvex);
+        let floor = Cone {
+            kind: ConeKind::Half(Vec3::new(0.0, 0.0, 1.0)),
+            shape: ConeShape::Flat,
+            lever: 1.0,
+            in_band: false,
+        };
+        assert_eq!(
+            touch_verdict(Ok(pit), Ok(floor), band),
+            TouchVerdict::Crossing
+        );
+    }
+
+    /// **Decided readings that contradict each other refuse as such.** A
+    /// slit — two faces lying on each other in the plane `x = 0`, the
+    /// edge along `y` — read against the plane `z = 0`: its edge rays lie
+    /// on the plane and its faces' normals lie in it, so nothing settles
+    /// which side the material takes, and the reading is degenerate, not
+    /// in band.
+    #[test]
+    fn a_slit_reads_degenerate() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (x, y, z) = (
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        );
+        let slit = Cone::fan(
+            vec![y, z, -y, z],
+            vec![
+                RayKind::Edge(None),
+                RayKind::InFace,
+                RayKind::Edge(None),
+                RayKind::InFace,
+            ],
+            vec![x, x, -x, -x],
+            vec![1.0; 4],
+            false,
+            band,
+        );
+        assert_eq!(slit.within(z, band), Within::Degenerate);
+        assert_eq!(
+            TouchVerdict::Degenerate.refusal(),
+            Some(Undecided::TouchDegenerate)
+        );
+    }
+
+    /// **A corner whose edges are not numbers refuses on scale.** A
+    /// brick shrunk to 1e-170 m (its chords underflow) and one blown up
+    /// to 1e200 m (they overflow): the corner's cone refuses as
+    /// [`TouchVerdict::ChordScale`], the rescale recourse.
+    #[test]
+    fn a_corner_out_of_scale_refuses_on_scale() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        for scale in [1e-170, 1e200] {
+            let mut body = crate::test_support_fixtures::brick::<f64>(
+                (0.0, 1.0),
+                (0.0, 1.0),
+                (0.0, 1.0),
+                Tol::witness(),
+            );
+            for p in body.points.values_mut() {
+                *p = Point3::new(p.x * scale, p.y * scale, p.z * scale);
+            }
+            let geo = snapshot(&body);
+            let (v, _) = body.vertices.iter().next().unwrap();
+            assert!(
+                matches!(
+                    Cone::vertex(&body, &geo, v, band),
+                    Err(TouchVerdict::ChordScale)
+                ),
+                "{scale}"
+            );
+        }
+    }
+
+    fn rot(axis: [f64; 3], ang: f64) -> impl Fn([f64; 3]) -> [f64; 3] + Copy {
+        let n = (axis[0] * axis[0] + axis[1] * axis[1] + axis[2] * axis[2]).sqrt();
+        let k = [axis[0] / n, axis[1] / n, axis[2] / n];
+        let (c, s) = (ang.cos(), ang.sin());
+        move |v: [f64; 3]| {
+            let kv = k[0] * v[0] + k[1] * v[1] + k[2] * v[2];
+            let cr = [
+                k[1] * v[2] - k[2] * v[1],
+                k[2] * v[0] - k[0] * v[2],
+                k[0] * v[1] - k[1] * v[0],
+            ];
+            [
+                v[0] * c + cr[0] * s + k[0] * kv * (1.0 - c),
+                v[1] * c + cr[1] * s + k[1] * kv * (1.0 - c),
+                v[2] * c + cr[2] * s + k[2] * kv * (1.0 - c),
+            ]
+        }
+    }
+
+    type Pose = (Vec<(f64, f64)>, (f64, f64), fn(f64, f64, f64) -> [f64; 3]);
+
+    /// **Ordinary rests stay rests under the strict levers** (the delta
+    /// review's battery — the cost direction). Each pose, under the
+    /// identity and two generic rotations, reads a rest at every touch
+    /// site and carries no finding but the undeclared touches.
+    #[test]
+    fn ordinary_rests_stay_rests_under_the_face_levers() {
+        const L: [(f64, f64); 6] = [
+            (0.0, 0.0),
+            (3.0, 0.0),
+            (3.0, 1.0),
+            (1.0, 1.0),
+            (1.0, 3.0),
+            (0.0, 3.0),
+        ];
+        let sq = vec![(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let bracket: Pose = (L.to_vec(), (0.0, 1.0), |x, y, z| [x, y, z]);
+        let cases: Vec<(&str, Pose, Pose)> = vec![
+            (
+                "block standing on the wall",
+                bracket.clone(),
+                (sq.clone(), (0.0, 1.0), |u, v, w| {
+                    [1.0 + 1.5 * u, 1.2 + 1.8 * v, w]
+                }),
+            ),
+            (
+                "block seated in the inner corner",
+                bracket.clone(),
+                (sq.clone(), (0.2, 0.8), |u, v, w| [1.0 + u, 1.0 + v, w]),
+            ),
+            (
+                "box edge on a box face",
+                (sq.clone(), (-1.0, 0.0), |x, y, z| {
+                    [4.0 * x - 2.0, 4.0 * y - 2.0, z]
+                }),
+                (sq.clone(), (0.0, 1.0), |u, v, w| {
+                    let s2 = 0.5f64.sqrt();
+                    [(u - v) * s2 * 0.5, 0.5 - w * 0.5, (u + v) * s2 * 0.5]
+                }),
+            ),
+            (
+                "tilted cube corner on a cube corner",
+                (sq.clone(), (-1.0, 0.0), |x, y, z| [x, y, z]),
+                (sq.clone(), (0.0, 1.0), |u, v, w| {
+                    let s = core::f64::consts::FRAC_1_SQRT_2;
+                    let a = [s, -s, 0.0];
+                    let b = [
+                        0.408_248_290_463_863,
+                        0.408_248_290_463_863,
+                        -0.816_496_580_927_726,
+                    ];
+                    let c = [0.577_350_269_189_625_8; 3];
+                    let d = [u * 0.3, v * 0.3, w * 0.3];
+                    [
+                        1.0 + d[0] * a[0] + d[1] * a[1] + d[2] * a[2],
+                        1.0 + d[0] * b[0] + d[1] * b[1] + d[2] * b[2],
+                        d[0] * c[0] + d[1] * c[1] + d[2] * c[2],
+                    ]
+                }),
+            ),
+            (
+                "2.6 m rod on the bracket top",
+                bracket.clone(),
+                (sq.clone(), (0.0, 0.01), |u, v, w| {
+                    [0.2 + 2.6 * u, 0.4 + 0.01 * v, 1.0 + w]
+                }),
+            ),
+            (
+                "1.9 m rod in the inner corner",
+                bracket.clone(),
+                (sq.clone(), (0.0, 1.0), |u, v, w| {
+                    [1.0 + 1.9 * u, 1.0 + 0.01 * v, 0.3 + 0.01 * w]
+                }),
+            ),
+            (
+                "1 mm plate on the leg top",
+                bracket.clone(),
+                (sq.clone(), (0.0, 1.0), |u, v, w| {
+                    [0.1 + 0.8 * u, 1.1 + 1.8 * v, 1.0 + 0.001 * w]
+                }),
+            ),
+        ];
+        for (name, a, b) in &cases {
+            for (axis, ang) in [
+                ([0.0, 0.0, 1.0], 0.0),
+                ([1.0, 2.0, 3.0], 0.7),
+                ([-0.3, 1.0, 0.2], 2.1),
+            ] {
+                let r = rot(axis, ang);
+                let mut body = Body::<f64>::new();
+                let (pa, za, ma) = a.clone();
+                mapped_prism(&mut body, &pa, za, move |x, y, z| {
+                    let q = r(ma(x, y, z));
+                    Point3::new(q[0], q[1], q[2])
+                });
+                let mut other = Body::<f64>::new();
+                let (pb, zb, mb) = b.clone();
+                mapped_prism(&mut other, &pb, zb, move |x, y, z| {
+                    let q = r(mb(x, y, z));
+                    Point3::new(q[0], q[1], q[2])
+                });
+                crate::instance::graft_disjoint(&mut body, &other, Tol::witness()).unwrap();
+                let got = sites(&body);
+                assert!(!got.is_empty(), "{name} @ {ang}");
+                assert!(
+                    got.iter().all(|&(_, t)| t == TouchVerdict::Rest),
+                    "{name} @ {ang}: {got:?}"
+                );
+                let others: Vec<String> = crate::validate_pseudomanifold(
+                    &body,
+                    &ContactRecords::default(),
+                    Tol::witness(),
+                )
+                .err()
+                .unwrap_or_default()
+                .iter()
+                .filter(|e| !matches!(e, ValidationError::UndeclaredContact { .. }))
+                .map(|e| format!("{e:?}"))
+                .collect();
+                assert!(others.is_empty(), "{name} @ {ang}: {others:?}");
+            }
+        }
     }
 }
