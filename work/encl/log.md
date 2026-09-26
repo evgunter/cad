@@ -163,3 +163,15 @@ only once that fix lands. No NURBS-walled lofted body shells at all
 dispatched on frozen head `d1e0dbc85`. When 3272 merges, the P0 row
 parks on PROPS' row. Filed from its measurements:
 `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps` (P3).
+
+## Dispatched: `encl/small-rows-h11-teapot` (2026-09-26)
+
+(ENCL orchestrator) `H11` plus the teapot step of
+`budget-refusal-drops-the-enclosure-the-caller-needs`. **Orchestrator's
+read**: doc links, a deleted derivation, and a demo switched to an
+existing door; neither correctness nor style is meaningfully at risk.
+The three offset-fit loop rows (`offset-fit-stall-face-has-no-fixture`,
+`offset-fit-budget-face-speaks-for-a-round-whose-bound-rose`,
+`offset-fit-door-bound-is-not-monotone-in-the-cell-bound`) wait for PR
+3269, which rewords the same refusal arms. Hosted CI, not local disk,
+is the bottleneck (about 22 runs queued), so lanes overlap their CI waits.
