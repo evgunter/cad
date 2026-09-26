@@ -51,18 +51,16 @@ pub(crate) fn volume(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, tol()).expect("props").volume
 }
 
-/// The solid a face belongs to.
+/// The solid a face belongs to ([`Body::solid_of_face`], which every
+/// face of these suites' bodies has).
 pub(crate) fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
+    body.solid_of_face(face)
+        .expect("every face has an owning solid")
 }
 
-/// Every face of `solid`, in arena order.
+/// Every face of `solid`, in arena order ([`Body::faces_of_solid`]).
 pub(crate) fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
+    body.faces_of_solid(solid).expect("the solid resolves")
 }
 
 /// The chart groups of `solid`: faces by surface key, in arena order.
