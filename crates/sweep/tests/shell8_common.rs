@@ -102,10 +102,13 @@ pub(crate) fn bits(p: &Point3<f64>) -> (u64, u64, u64) {
 /// not asked about — a vertex-point comparison alone would miss a
 /// re-authored edge description whose geometry is unchanged.
 pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
+    let owners = topo::SolidOwners::of(body);
+    let mine = |face: FaceKey| owners.face(face).expect("every face has an owning solid") == solid;
     let mut out: Vec<String> = Vec::new();
-    let mine = faces_of(body, solid);
-    for &f in &mine {
-        let d = body.get_face(f).unwrap();
+    for (f, d) in body.faces() {
+        if !mine(f) {
+            continue;
+        }
         out.push(format!(
             "face sense={} rings={} surface={:?}",
             d.sense,
@@ -114,7 +117,7 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
         ));
     }
     for (k, e) in body.edges() {
-        if !mine.contains(&face_of_he(body, e.he_plus)) {
+        if !mine(face_of_he(body, e.he_plus)) {
             continue;
         }
         let c = body
@@ -128,7 +131,6 @@ pub(crate) fn deep_dump(body: &Body<f64>, solid: SolidKey) -> Vec<String> {
             c.description()
         ));
     }
-    let owners = topo::SolidOwners::of(body);
     for (k, vx) in body.vertices() {
         if owners.vertex(k).expect("every vertex has an owning solid") != solid {
             continue;

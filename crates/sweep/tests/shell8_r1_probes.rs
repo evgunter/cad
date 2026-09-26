@@ -18,48 +18,14 @@ use sweep::test_support::{block, brick};
 use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::deep_dump;
+use crate::shell8_common::{beside_raw, charts_of, deep_dump, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{hollow_box, v, vessel};
 
-fn tol() -> Tol {
-    Tol::witness()
-}
-
+/// `other` placed `dx` along `+x` beside `body`, WITHOUT the validity
+/// assertion `shell8_common::beside` makes: these probes build some
+/// operands on purpose that tier 3 would not bless.
 fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
-    let mut out = body.clone();
-    let placed =
-        topo::transform_rigid(other, &Affine3::translation(Vec3::new(dx, 0.0, 0.0)), tol())
-            .expect("a rigid map");
-    topo::graft_disjoint(&mut out, &placed, tol()).expect("the placed copy grafts");
-    out
-}
-
-fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).expect("props").volume
-}
-
-fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
-}
-
-fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
-fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
+    beside_raw(body, other, Vec3::new(dx, 0.0, 0.0)).0
 }
 
 // ---------------------------------------------------------------------
