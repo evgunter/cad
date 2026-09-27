@@ -2270,3 +2270,39 @@ of the batch are worth keeping:
   were 9748/9748 each, and the viewer app row 985/985. The mirror fix
   turned the release-profile row green. Two runs died when the
   container recycled while the session was idle; method item 29.
+
+## 2026-09-27 — the seventh batch lands (#3304, #3305)
+
+Hosted CI is healthy again, so batch 7 went back to one PR per lane, gated by a hosted full-matrix run (EPS=all, KLINT_ROW=all).
+
+**#3304 (lane a): point lifts and the viewer error arm.**
+- Topo's two `SCHEDULE` tables are typed as vector constants and lift through `map`, bit-identical.
+- 42 interval point helpers in 22 sweep suites (a population the census instrument could not see behind a local `iv`) and 86 inline constructions are folded onto `sweep/tests/common/interval.rs`.
+- Topo's `identity_map` is now the test-support door. `cube_doors_agree` deliberately keeps its own copy, because a plant shows routing it would blind its guard.
+- The narrowed row moved to `linalg`, and the f64 alias population is filed (185 signatures).
+- The camera.rs arm doc drops the withdrawn cost and now states, per door, what a caller can infer.
+
+**#3305 (lane b): the `Expr::literal` class outside viewer.**
+- 424 calls were dispositioned and 344 folded onto `editor_core::test_support::{len, ang, scl}`.
+- The fix pass folded two adjacent classes the first cut had open in the same files: the point pairs, onto `len2`, and 68 world-xy frames, onto `xy_frame`.
+- viewer now re-exports editor-core's doors.
+- A `super` widening of pncad's use-root guard was reverted in favour of path-qualified calls, so the guard is untouched.
+
+The reviews again found left-behind members in every first cut: ninth and tenth consecutive units. Each fix pass folded more than the findings named.
+
+**Coverage, not duplication (recorded for `tint`/`vacuity`).** These suites reach the new doors but stay green under a wrong value; only a panic control reds them:
+- the sweep `p3` door: 7 suites (`m5_s11`, `m6_tube`, `r2_rim_interval_probes`, `review_m2_pr4_interval`, three `verbs_tubewall*`);
+- editor-core's `len`: 17 suites. `ang`: 18, partly because a rigid rotation is invisible to rotation-invariant rows. `scl`: 12.
+- `len2`: 10, listed in the closed literal row.
+
+They are not filed here; each is a suite asserting less than it builds, which is another program's subject.
+
+**The slate.** `dup` reads 14/30. The rows left are:
+- two on Ev (the policy-memory citation and the sweep routing rule);
+- the PR 17 attribution row, which the orchestrator leaves alone;
+- five that wait on an owner or a design call:
+  - the chart partition (topo);
+  - the arc-carrier fixture (tint's `cert3r1_dump` call);
+  - `plate_index` (viewer's module kinds);
+  - the f64 aliases (a routing choice across 12 programs);
+  - the façade box (a pncad test surface).
