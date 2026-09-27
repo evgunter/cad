@@ -10,15 +10,12 @@
 use core::f64::consts::{FRAC_PI_2, PI, SQRT_2};
 use profile::RawLoop;
 
+use crate::common::interval::{p2, v2};
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Real, Vec2};
+use geom_core::{Bounds, Interval, Point2, Real};
 use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, mass_properties};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn v(x: f64, y: f64, b: f64) -> (Point2<Interval>, Interval) {
     (p2(x, y), Interval::from_f64(b))
@@ -33,7 +30,7 @@ fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
 fn axis_y() -> RevolveAxis<Interval> {
     RevolveAxis {
         origin: p2(0.0, 0.0),
-        dir: Vec2::new(Interval::from_f64(0.0), Interval::from_f64(1.0)),
+        dir: v2(0.0, 1.0),
     }
 }
 

@@ -792,8 +792,9 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
     };
     let lifted = a.map_scalar(Interval::from_f64);
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2, v3};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -824,7 +825,7 @@ fn an_approx_face_refuses_typed_at_a_scalar_with_no_fit_lane() {
 
     let e = topo::transform_rigid(
         &body,
-        &Affine3::translation(geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0))),
+        &Affine3::translation(v3(1.0, 0.0, 0.0)),
         Tol::witness(),
     )
     .expect_err("a scalar with no fit lane cannot move an Approx face");

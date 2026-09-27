@@ -160,8 +160,9 @@ fn the_interval_seam_refuses_at_every_public_door() {
     };
     let lifted = a.map_scalar(Interval::from_f64);
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2, v3};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -214,7 +215,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
 
     match topo::transform_rigid(
         &body,
-        &Affine3::translation(geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0))),
+        &Affine3::translation(v3(1.0, 0.0, 0.0)),
         Tol::witness(),
     ) {
         Err(topo::TransformError::ApproxLaneUnsupported { lane }) => {
@@ -231,8 +232,9 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
