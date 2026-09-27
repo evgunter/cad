@@ -39,13 +39,16 @@
 //!   and is the authority on where the edge is; `cargo tree -e dev -i
 //!   sweep` answers the same question locally.
 //!
-//!   A fixture only earns a place here once a consumer OUTSIDE this
-//!   crate needs it or a second suite inside it does; the narrower
-//!   homes, and the rule that routes between them, are stated in
-//!   `sweep`'s own `tests/common` module. The same rule seats the
-//!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
-//!   and [`walked_chains`] — which are not fixtures but the only way a
-//!   `tests/` crate can observe a `pub(crate)` phase.
+//!   A fixture lives at the narrowest home all of its consumers can
+//!   reach, by the routing rule `sweep`'s own `tests/common` module
+//!   states, and that rule governs. So a fixture lives HERE only when
+//!   a consumer outside this crate needs it, or an in-crate `mod
+//!   tests` does (neither can reach `tests/common`); one that only this
+//!   crate's `tests/` suites share, however many, lives in
+//!   `tests/common`. The crate-PRIVATE seams a suite reads through —
+//!   [`ring_clearance`] and [`walked_chains`] — sit here too: they are
+//!   not fixtures but the only way a `tests/` crate can observe a
+//!   `pub(crate)` phase.
 //!
 //! # The extrusion family
 //!
