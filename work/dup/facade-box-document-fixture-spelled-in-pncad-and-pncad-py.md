@@ -19,6 +19,13 @@ cost: D
   frame, a `[0,s]²` chain on it, one `InsertNode` through `apply` with
   the refusing reach, and square(2) extruded 1.5 — written twice, line
   for line, through `pncad::document`.
+- **And the literal pair under them**: `crates/pncad/tests/all.rs`'s
+  file-level `len` / `scl` and `crates/pncad-py/src/tests.rs`'s — the
+  same `Expr::literal(v, Dimension::{Length, Scalar}).expect(..)` pair,
+  spelled through `pncad::document`, one per crate. They are members of
+  this row: whatever home the fixtures get, the pair goes with them (and
+  if that home is `editor_core::test_support` re-exported, as `viewer`
+  does, the pair is already there).
 - **Why it is a design question and not a fold**: the two are
   different crates' tests and neither can reach the other's. A shared
   home would be a `pncad` test-support surface (a feature-gated

@@ -2,10 +2,13 @@
 id: editor-core-suites-hand-build-the-world-xy-frame
 kind: issue
 title: Thirty-seven hand-built world xy frames in editor-core's suites beside fixture::xy_frame
-status: open
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: D
+closed: 2026-09-27
+branch: dup/b7-b
+pr: 3305
 ---
 
 
@@ -41,11 +44,43 @@ cost: D
 - **Raised by**: the S-DUP lane closing
   `cross-crate-inline-expr-literal-sites-outside-the-viewer-suites`,
   2026-09-26, which folded these frames' literals onto `len`/`scl` and
-  left the frames themselves: a different construction, and 23 more
-  files than that PR could carry.
+  left the frames themselves. That lane took them to be a different
+  construction on 23 more files. In fact every one of those files was
+  already in its diff.
 
 ## Why this sits on S-DUP's slate
 
 One construction spelled 37 times beside its own door is S-DUP's
 charter; `crates/editor-core/tests/` has several claimants and no single
 ground-owner. Any claimant may take it by `git mv`.
+
+## Closed 2026-09-27 — folded in the same PR that filed it
+
+The premise that these frames were too many for that PR was false: all
+23 files were already in its diff. The PR's review pass folded them.
+`xy_frame` and `frame` moved into `editor_core::test_support` beside
+the literals, so `src/mate/member.rs`'s unit tests reach them too;
+`tests/fixture` and `viewer::test_support` re-export them.
+
+- **37 of the 38 longhand world-xy frames** (36 in 22 suites and 1 in
+  `member.rs`) are folded onto `xy_frame()`. `switch_slots` builds its
+  frame as a bare `Datum` in a per-variant roster, not a node, and
+  stays.
+- **The second instrument** was aimed at what this row's could not
+  see: a world frame spelled through the door's own general form. It
+  found **31** `frame([0.0; 3], [1,0,0], [0,1,0])` calls (27 in
+  editor-core, 4 in viewer's `datum_draw`), all folded onto
+  `xy_frame()`.
+- **Wrappers and adapters.**
+  - Two wrappers that became the door under another name are deleted
+    (`m10_2_measure::xy_frame`, `member.rs::frame_datum`).
+  - Four `Recorder` adapters that reused the name `xy_frame` are
+    renamed `insert_xy_frame`.
+  - Four local copies of `frame`, and seven literal non-world frames,
+    route through `frame(..)`.
+- **Kept**: frames with a parameter or computed component, and the
+  production frames in `viewer/src`.
+
+The full census, its blind spots and the plants are in
+`cross-crate-inline-expr-literal-sites-outside-the-viewer-suites`'s
+Closed section.
