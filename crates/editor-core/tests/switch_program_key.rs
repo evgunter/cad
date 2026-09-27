@@ -13,7 +13,7 @@
 //! its frame at node 0 and read the profile at node 1.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::{ang, len, scl};
+use crate::fixture::{ang, len, len2, scl, xy_frame};
 use editor_core::{
     CancelToken, ContentKey, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
     ParamName, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
@@ -60,13 +60,7 @@ fn doc_with(loops: Vec<LoopProgram>) -> ProfileDoc {
 /// two of these documents can only have come from their programs.
 fn with_frame(doc: ProfileDoc) -> ProfileDoc {
     doc.apply(
-        &DocEdit::InsertNode {
-            node: Node::Datum(editor_core::Datum::Frame {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        },
+        &DocEdit::InsertNode { node: xy_frame() },
         Tol::witness(),
         &editor_core::RefusingReach,
     )
@@ -357,18 +351,17 @@ fn display_units_never_enter_the_key() {
 /// coincide: appending a step re-tags the stream.
 #[test]
 fn step_structure_moves_the_key() {
-    let lpt = |x: f64, y: f64| [len(x), len(y)];
     let tri = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let quad = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.0, 2.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     assert_ne!(key_of(&doc_with(vec![tri])), key_of(&doc_with(vec![quad])));

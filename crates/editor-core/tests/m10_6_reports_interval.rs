@@ -62,7 +62,7 @@ fn plate(law: Distribution) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
             distribution: Some(law),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

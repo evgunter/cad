@@ -106,12 +106,12 @@ fn translated(input: RecipeNodeId, dx: Expr, dy: Expr, dz: Expr) -> Node<Profile
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],

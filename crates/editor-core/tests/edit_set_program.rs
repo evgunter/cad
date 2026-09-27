@@ -46,7 +46,7 @@ use editor_core::{
     ProgramTarget, RecipeNodeId, ResolveError, Rgba8, RoleSeg, SlotId, StableName, StepArg, StepId,
     StepIdFault, apply, load, save,
 };
-use fixture::{ang, edge_of, ends, fname, insert, len, minted, point, scl, table, tol};
+use fixture::{ang, edge_of, ends, fname, insert, len, len2, minted, point, scl, table, tol};
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
 
 // ---------------------------------------------------------------- //
@@ -497,9 +497,8 @@ fn a_dropped_step_strands_the_names_on_its_pieces_and_they_never_alias() {
 /// `(2,1)`, so whatever the tail draws first is the first segment after
 /// the arc.
 fn fillet_then(tail: Vec<ProgramStep>) -> LoopProgram {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let head = vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Toward {
             dx: scl(1.0),
             dy: scl(0.0),
@@ -509,7 +508,7 @@ fn fillet_then(tail: Vec<ProgramStep>) -> LoopProgram {
             dx: scl(0.0),
             dy: scl(1.0),
         },
-        ProgramStep::At(pt(2.0, 1.0)),
+        ProgramStep::At(len2([2.0, 1.0])),
     ];
     LoopProgram::Chain(head.into_iter().chain(tail).collect())
 }
@@ -526,9 +525,8 @@ fn fillet_then(tail: Vec<ProgramStep>) -> LoopProgram {
 /// wall.
 #[test]
 fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let arc_after = fillet_then(vec![
-        ProgramStep::TangentArcTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::TangentArcTo(ProgramTarget::Point(len2([0.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, profile, ext) = extruded("run-out-other-carrier", vec![arc_after]);
@@ -558,7 +556,7 @@ fn a_segment_after_a_fillet_on_another_carrier_is_its_own_steps_piece() {
     ];
     let straight_after = fillet_then(vec![
         ProgramStep::Line(len(1.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let applied = accepted(&doc, profile, vec![straight_after], keep);
@@ -827,12 +825,11 @@ fn a_program_naming_an_undeclared_parameter_refuses_the_slot_doors_own_arm() {
 
 /// A unit square, as a chain the rows below reshape.
 fn square_steps() -> Vec<ProgramStep> {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 2.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 2.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]
 }
@@ -1122,9 +1119,8 @@ fn every_step_id_fault_refuses_typed_at_the_load_door() {
 /// fillet have a `Zero` fit and emit nothing, so the loop draws THREE
 /// segments; at `r = 0.3` they emit and it draws FIVE.
 fn filleted_square(r: f64) -> LoopProgram {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Toward {
             dx: scl(1.0),
             dy: scl(0.0),
@@ -1134,8 +1130,8 @@ fn filleted_square(r: f64) -> LoopProgram {
             dx: scl(0.0),
             dy: scl(1.0),
         },
-        ProgramStep::FarEndTo(pt(2.0, 2.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::FarEndTo(len2([2.0, 2.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])
 }
@@ -1330,11 +1326,10 @@ fn an_outer_and_hole_swap_moves_no_name() {
 /// base's name spells its step and denotes the base still.
 #[test]
 fn a_sense_flip_moves_no_name() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let triangle = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, profile, ext) = extruded("value-flip-sense", vec![triangle]);
@@ -1447,9 +1442,8 @@ fn a_zero_fit_piece_vanishes_and_comes_back() {
 /// piece and the fillet's run in denotes nothing.
 #[test]
 fn two_pieces_drawn_as_one_segment_answer_to_the_earlier() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Toward {
             dx: scl(1.0),
             dy: scl(0.0),
@@ -1460,8 +1454,8 @@ fn two_pieces_drawn_as_one_segment_answer_to_the_earlier() {
             dx: scl(0.0),
             dy: scl(1.0),
         },
-        ProgramStep::FarEndTo(pt(2.0, 2.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 2.0))),
+        ProgramStep::FarEndTo(len2([2.0, 2.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 2.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, profile, ext) = extruded("vanish-one-segment", vec![chain]);
@@ -1538,10 +1532,7 @@ fn both_sweeps_of_a_profile_name_by_its_pieces() {
 /// Two squares on parallel frames, lofted; `(doc, sec0, sec1, loft)`.
 fn lofted(label: &str, lower: LoopProgram, upper: LoopProgram) -> (ProfileDoc, [RecipeNodeId; 3]) {
     let doc = ProfileDoc::empty_derived(label, tol());
-    let (doc, p0) = insert(
-        doc,
-        fixture::frame([0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]),
-    );
+    let (doc, p0) = insert(doc, fixture::xy_frame());
     let (doc, sec0) = insert(
         doc,
         Node::Profile(ProfileProgram {

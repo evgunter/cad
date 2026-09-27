@@ -31,7 +31,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, Rgba8, RoleSeg, StableName, WitnessDatum, apply,
     evaluate, load, save,
 };
-use fixture::{ang, desc, len, scl};
+use fixture::{ang, desc, len, len2, scl};
 use geom_core::Tol;
 
 const GOLDEN: &str = include_str!("golden/golden.cad");
@@ -59,7 +59,6 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             .expect("golden edit")
             .doc
     };
-    let lpt = |x: f64, y: f64| [len(x), len(y)];
     doc = push(&doc, &DocEdit::SetTolerance { eps: 1e-9 });
     // v15: `depth` carries a distribution, so the frozen bytes pin the
     // populated `distribution` key rather than only its absence.
@@ -104,13 +103,13 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // bulge — the same 0.25 the retired form stored on vertex 1.
     let mut d = desc(plane, vec![]);
     d.loops = vec![LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(2.0, 0.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(2.0, 1.0)),
+            target: ProgramTarget::Point(len2([2.0, 1.0])),
             b: scl(0.25),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 1.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])];
     doc = push(
@@ -142,18 +141,18 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // bracket's own program form; the arc bulge is now the tangent-arc
     // derivation, the W1 ulp class).
     let bracket = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 1.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(1.5, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 1.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 1.0]))),
         ProgramStep::Tangent,
-        ProgramStep::TangentArcTo(ProgramTarget::Point(lpt(1.0, 1.5))),
+        ProgramStep::TangentArcTo(ProgramTarget::Point(len2([1.0, 1.5]))),
         ProgramStep::Tangent,
         // A declared-tangent straight leg RIDES the inherited
         // direction, so it authors as a LENGTH (`line(1.5)` — the
         // (1, 1.5) → (1, 3) run), not a second target.
         ProgramStep::Line(len(1.5)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 3.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     doc = push(
@@ -170,9 +169,9 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
     // (exact `toward` directors — G1/VQ4).
     let len0 = || len(0.0);
     let fillet_loop = LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(3.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 1.0]))),
         ProgramStep::Toward {
             dx: scl(-1.0),
             dy: scl(0.0),
@@ -182,8 +181,8 @@ fn golden() -> (ProfileDoc, Vec<DocEdit<ProfileProgram>>) {
             dx: scl(0.0),
             dy: scl(1.0),
         },
-        ProgramStep::FarEndTo(lpt(1.0, 3.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(lpt(0.0, 3.0))),
+        ProgramStep::FarEndTo(len2([1.0, 3.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     doc = push(

@@ -40,7 +40,7 @@ use editor_core::{
     RecipeNodeId, SlotId, StableName, evaluate,
 };
 
-use fixture::{Recorder, len, scl, tol};
+use fixture::{Recorder, len, scl, tol, xy_frame};
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -61,11 +61,7 @@ fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
 }
 
 fn frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }))
+    r.insert(xy_frame())
 }
 
 fn declare(r: &mut Recorder, n: &str, value: f64) {

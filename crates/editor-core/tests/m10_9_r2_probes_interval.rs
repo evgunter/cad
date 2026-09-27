@@ -34,7 +34,7 @@ use std::collections::BTreeMap;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
@@ -42,7 +42,7 @@ use editor_core::{
 use geom_core::sym::report::ShapeOutcome;
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::{Recorder, len, scl};
+use crate::fixture::{Recorder, len, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
@@ -118,11 +118,7 @@ pub(crate) fn link(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNod
         },
     );
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
     let neg_w = Expr::neg(plen("half_w"));
     // The chain's own idiom for a tangent arc between two tangent legs:

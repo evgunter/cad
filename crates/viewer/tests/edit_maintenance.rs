@@ -399,11 +399,10 @@ fn a_cascade_reports_nothing_its_own_later_steps_took_back() {
 /// A triangle `(0,0) → (2,0) → (1,1)`, counterclockwise, extruded, with
 /// a frame on each of its first two walls; `(doc, profile, extrude)`.
 fn framed_triangle(label: &str) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let pt = |x: f64, y: f64| [common::len(x), common::len(y)];
     let triangle = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
+        ProgramStep::At(common::len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([1.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, Tol::witness());
@@ -502,11 +501,10 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
         panic!("the fixture's profile")
     };
-    let pt = |x: f64, y: f64| [common::len(x), common::len(y)];
     let loops = vec![LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
+        ProgramStep::At(common::len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([1.0, -1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])];
     let mut session = DocSession::inline(doc, Tol::witness());

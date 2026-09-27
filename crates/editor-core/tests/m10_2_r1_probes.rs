@@ -23,7 +23,7 @@ use editor_core::{
     RecipeNodeId, Selector, SitedRef, SnapshotError, StableName, SurfaceKindSet, ValuePayload,
     apply, evaluate, face_frame, load, save, select_where, vertex_position,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, len, len2, scl};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -412,11 +412,10 @@ fn r1_plane_gap_matches_its_formula_and_rides_the_outer_chart_normal() {
 /// A ball of radius `r` centred `c` up the y-axis: the natural
 /// meridian (bulge-1 semicircle) revolved 2π about y.
 fn ball(doc: &editor_core::ProfileDoc, r: f64, c: f64) -> (ProfileDoc, RecipeNodeId) {
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let meridian = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, c - r)),
+        ProgramStep::At(len2([0.0, c - r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.0, c + r)),
+            target: ProgramTarget::Point(len2([0.0, c + r])),
             b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),

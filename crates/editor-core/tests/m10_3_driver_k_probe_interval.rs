@@ -61,7 +61,7 @@ use editor_core::{
 use geom_core::Tol;
 use geom_core::k_stats::{self, MarginSample, SampleOutcome};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, xy_frame};
 
 /// The fixture: a square extruded by a document-parameter depth, over a
 /// box narrow enough that the driver certifies most of it. Deliberately
@@ -81,11 +81,7 @@ fn slab(nominal: f64, half: f64) -> ProfileDoc {
             }),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0].map(len),
-        u: [1.0, 0.0, 0.0].map(scl),
-        v: [0.0, 1.0, 0.0].map(scl),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![

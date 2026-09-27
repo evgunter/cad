@@ -23,11 +23,11 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    CancelToken, Datum, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram,
-    Node, ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
+    CancelToken, Dimension, Distribution, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node,
+    ParamName, ProfileDoc, ProfileLift, ProfileProgram, ProgramStep, ProgramTarget, UnitSym,
     evaluate,
 };
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
 use geom_core::k_stats::{SampleOutcome, start_recording, take_samples};
 
@@ -52,11 +52,7 @@ fn split_rectangle(half: f64) -> Result<ProfileDoc, String> {
         },
     });
     let w = || Expr::param(ParamName::new("w"), Dimension::Length);
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let pt = |x: Expr, y: Expr| ProgramStep::LineTo(ProgramTarget::Point([x, y]));
     let profile = Node::Profile(ProfileProgram {
         plane,

@@ -610,7 +610,7 @@ fn report_key_tells_two_budgets_apart() {
             hi: 40.0 * eps,
         }),
     );
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -1310,7 +1310,7 @@ fn the_tours_stop_two_assertion_reads_holds_where_the_caption_says_fails() {
     for n in ["hole_a_r", "hole_b_r"] {
         param(&mut r, n, RADIUS, Some(Distribution::Normal { sigma }));
     }
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

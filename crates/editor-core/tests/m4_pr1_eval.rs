@@ -11,7 +11,8 @@
 // on `geom-core`'s two scalar implementations — a change to `real.rs` or
 // `interval.rs` moves what the enclosure row asserts without touching
 // `editor-core/`. `quantity/src/` carries the unit table the erasure is
-// against.
+// against, and `src/test_support.rs` the literal doors the rows write
+// their operands with.
 test_utils::gated_to![
     "crates/editor-core/src/eval/",
     "crates/editor-core/src/expr.rs",
@@ -19,10 +20,9 @@ test_utils::gated_to![
     "crates/geom-core/src/interval.rs",
     "crates/quantity/src/",
     "crates/editor-core/src/test_support.rs",
-    "crates/editor-core/tests/fixture/",
 ];
 
-use crate::fixture::{ang, len, scl};
+use editor_core::test_support::{ang, len, scl};
 use editor_core::{Dimension, EvalError, Expr, ParamEnv, ParamName, ParamValue, eval, eval_count};
 
 fn env_with(name: &str, v: ParamValue<f64>) -> ParamEnv<f64> {

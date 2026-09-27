@@ -33,6 +33,7 @@ test_utils::gated_to![
     "crates/editor-core/tests/m10_3_r1_probes_interval.rs",
     "crates/editor-core/tests/m10_7_plate.rs",
     "crates/editor-core/tests/m10_derived_frame_tilted_interval.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::collections::BTreeSet;

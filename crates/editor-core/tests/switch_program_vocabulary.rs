@@ -116,7 +116,7 @@
 
 use std::collections::BTreeSet;
 
-use crate::fixture::{ang, len, scl};
+use crate::fixture::{ang, len, len2, scl};
 use editor_core::{
     Expr, LoopProgram, ParamEnv, ParamName, ProfilePayload, ProfileProgram, ProgramArcData,
     ProgramStep, ProgramTarget, SlotId, StepArg,
@@ -128,11 +128,8 @@ use profile::{ArcMode, TargetKind, Verb};
 /// here reads the node it points at.
 const SCAFFOLD_PLANE: editor_core::RecipeNodeId = editor_core::RecipeNodeId(0);
 
-fn pt(x: f64, y: f64) -> [Expr; 2] {
-    [len(x), len(y)]
-}
 fn point(x: f64, y: f64) -> ProgramTarget {
-    ProgramTarget::Point(pt(x, y))
+    ProgramTarget::Point(len2([x, y]))
 }
 
 /// One document spec per arc mode — the mode census's witness.
@@ -159,11 +156,11 @@ fn mode_witness(mode: ArcMode) -> ProgramArcData {
             b: scl(0.3),
         },
         ArcMode::Via => ProgramArcData::Via {
-            q: pt(4.5, 0.5),
+            q: len2([4.5, 0.5]),
             target: point(5.0, 1.0),
         },
         ArcMode::Center => ProgramArcData::Center {
-            c: pt(6.0, 1.0),
+            c: len2([6.0, 1.0]),
             winding: profile::ArcSweep::Cw,
             target: ProgramTarget::Start,
         },
@@ -222,7 +219,7 @@ fn target_witness(kind: TargetKind) -> ProgramTarget {
 /// same-mode sweep says nothing about a step whose two specs differ.
 fn chain_steps() -> Vec<ProgramStep> {
     let mut steps = vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Angle(ang(0.25)),
         ProgramStep::Toward {
             dx: scl(1.0),
@@ -293,11 +290,11 @@ fn chain_steps() -> Vec<ProgramStep> {
         // a tag the corpus never carries is a tag the persisted-
         // spelling pin below says nothing about.
         ProgramStep::ArcTo(ProgramArcData::Center {
-            c: pt(6.0, 3.0),
+            c: len2([6.0, 3.0]),
             winding: profile::ArcSweep::Ccw,
             target: point(7.0, 3.0),
         }),
-        ProgramStep::FarEndTo(pt(7.0, 2.0)),
+        ProgramStep::FarEndTo(len2([7.0, 2.0])),
         ProgramStep::CloseTo,
     ]);
     steps

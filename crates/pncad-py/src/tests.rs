@@ -1236,7 +1236,6 @@ fn resolution_status_tags_are_stable() {
         CancelToken, Datum, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram,
         apply, evaluate,
     };
-
     use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
 
     // The indeterminate arms carry a node id and nothing else, so all

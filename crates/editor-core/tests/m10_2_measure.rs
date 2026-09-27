@@ -16,13 +16,12 @@ use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
-    DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply,
-    evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
+    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
+    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply, evaluate,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::Tol;
 
 /// The plate's hole radius, as a document parameter — the thing the
@@ -62,15 +61,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDo
     .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
-}
-
-/// The world xy frame as a node — what a profile is drawn on.
-fn xy_frame() -> Node<ProfileProgram> {
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
 }
 
 /// **The two-hole plate**, authored through the public edit door as a
@@ -233,14 +223,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     for z in [0.0, 1.0 + SLAB_GAP] {
         // A frame PER SLAB: these are two different planes (the second
         // is lifted in z), so they are two frames, not one shared.
-        let (next, plane) = mint(
-            &doc,
-            Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(z)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        );
+        let (next, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         doc = next;
         doc = push(
             &doc,

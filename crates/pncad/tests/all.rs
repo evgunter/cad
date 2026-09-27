@@ -1505,15 +1505,14 @@ fn this_file_reaches_the_kernel_only_through_pncad() {
     let mut violations: Vec<String> = Vec::new();
 
     // Check 1: every `use` STATEMENT's root is the façade, the
-    // standard library, the shared source reader — the one
-    // non-façade crate this file names — or `super`, which names this
-    // file's own items and so no crate at all (a kernel path behind it
-    // is still Check 2's). Read as statements over the literal-blanked
-    // view: see [`use_statement_roots`] for both halves of why.
+    // standard library, or the shared source reader — the one
+    // non-façade root this file names, and no kernel crate. Read as
+    // statements over the literal-blanked view: see
+    // [`use_statement_roots`] for both halves of why.
     for (n, root) in use_statement_roots(&code) {
         if !matches!(
             root.as_str(),
-            "pncad" | "std" | "core" | "alloc" | "test_utils" | "super"
+            "pncad" | "std" | "core" | "alloc" | "test_utils"
         ) {
             violations.push(format!("line {n}: `use {root}` — not the façade"));
         }
@@ -5960,7 +5959,6 @@ fn distributions_author_save_reload_and_analyze_through_the_facade() {
 /// witnesses, and the doors that take or mint the type are reached
 /// without naming a second crate.
 mod unit_vector_witness_through_the_facade {
-    use super::{len, scl};
     use pncad::document::{
         CancelToken, Datum, DatumValue, Doc, DocEdit, EvalOptions, Node, NodeResult,
         ProfileProgram, RecipeNodeId, ValuePayload, evaluate,
@@ -6013,15 +6011,15 @@ mod unit_vector_witness_through_the_facade {
         let (doc, plane) = insert(
             doc,
             Node::Datum(Datum::Plane {
-                origin: [len(1.0), len(2.0), len(3.0)],
-                normal: [scl(0.0), scl(0.0), scl(2.5)],
+                origin: [super::len(1.0), super::len(2.0), super::len(3.0)],
+                normal: [super::scl(0.0), super::scl(0.0), super::scl(2.5)],
             }),
         );
         let (doc, axis) = insert(
             doc,
             Node::Datum(Datum::Axis {
-                origin: [len(0.0), len(0.0), len(0.0)],
-                direction: [scl(3.0), scl(4.0), scl(0.0)],
+                origin: [super::len(0.0), super::len(0.0), super::len(0.0)],
+                direction: [super::scl(3.0), super::scl(4.0), super::scl(0.0)],
             }),
         );
         let DatumValue::Plane { origin, normal } = datum_of(&doc, plane) else {
@@ -6094,7 +6092,6 @@ mod unit_vector_witness_through_the_facade {
 /// at a certifying scalar and refuses TYPED at a dual — at the shell
 /// node alone, with every other node green.
 mod the_hollowed_box_through_the_facade {
-    use super::{len, scl};
     use pncad::document::{
         CancelToken, Datum, DocEdit, EvalOptions, Evaluation, LoopProgram, Node, NodeErrorKind,
         NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RefusingReach, apply, evaluate,
@@ -6122,9 +6119,9 @@ mod the_hollowed_box_through_the_facade {
         let (doc, plane) = insert(
             doc,
             Node::Datum(Datum::Frame {
-                origin: [0.0; 3].map(len),
-                u: [1.0, 0.0, 0.0].map(scl),
-                v: [0.0, 1.0, 0.0].map(scl),
+                origin: [0.0; 3].map(super::len),
+                u: [1.0, 0.0, 0.0].map(super::scl),
+                v: [0.0, 1.0, 0.0].map(super::scl),
             }),
         );
         let square =
@@ -6141,7 +6138,7 @@ mod the_hollowed_box_through_the_facade {
             doc,
             Node::Extrude {
                 profile,
-                distance: len(1.0),
+                distance: super::len(1.0),
             },
         );
         let top = StableName {
@@ -6149,7 +6146,7 @@ mod the_hollowed_box_through_the_facade {
             node: blank,
             path: vec![RoleSeg::Cap(CapEnd::End)],
         };
-        let (doc, cup) = insert(doc, Node::shell(blank, len(0.125), vec![top]));
+        let (doc, cup) = insert(doc, Node::shell(blank, super::len(0.125), vec![top]));
         (doc, cup)
     }
 

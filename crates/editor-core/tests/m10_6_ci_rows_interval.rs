@@ -238,7 +238,7 @@ fn distributed_plate() -> ProfileDoc {
             },
         });
     }
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let plate_p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -389,7 +389,7 @@ fn neck_with(distribution: Distribution) -> (ProfileDoc, RecipeNodeId) {
             distribution: Some(distribution),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -856,7 +856,7 @@ fn the_certifying_filter_moves_the_witness_key_and_the_move_is_goldened() {
 /// reaches every assertion-carrying document in the tree.
 fn plain_distance_doc() -> ProfileDoc {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

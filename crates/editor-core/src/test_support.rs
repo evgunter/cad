@@ -1,15 +1,16 @@
 //! **Test fixtures**, behind the `test-support` feature (on only
-//! through dev-dependency edges): a literal of each dimension, the rays
-//! a pick row aims, the near-tangent candidate the certified test is
+//! through dev-dependency edges): a literal of each dimension, a point
+//! of two lengths, the world xy frame a sketch is drawn on, the rays a
+//! pick row aims, the near-tangent candidate the certified test is
 //! probed with, the door's answer read as a list, and the uncertified
 //! determinant the review rows read the certified one against.
 //!
-//! One home for every reader in this crate and the suites that mount
-//! its test trees: the unit-test modules reach it as
-//! `crate::test_support`, `tests/fixture` re-exports the literals so a
-//! suite reads ONE definition, and `viewer`'s corpus pick suites enable
-//! the feature through their own dev-dependency. The ray from arrays is
-//! `bvh::test_support::ray` — the ray IS `bvh`'s — and not restated.
+//! One home for every reader in this crate and the crates that test
+//! against it: the unit-test modules reach it as `crate::test_support`,
+//! `tests/fixture` re-exports the authoring doors so a suite reads ONE
+//! definition, and `viewer`'s own `test_support` re-exports them in
+//! turn. The ray from arrays is `bvh::test_support::ray` — the ray IS
+//! `bvh`'s — and not restated.
 //!
 //! Whether a door here carries an oracle is asked door by door, in each
 //! door's own docs.
@@ -21,13 +22,11 @@ use bvh::Ray;
 use bvh::test_support::ray;
 use geom_core::{Point3, Vec3};
 
-use crate::{Dimension, Expr, HitTestError, PickHit};
+use crate::{Datum, Dimension, Expr, HitTestError, Node, PickHit, ProfileProgram};
 
 // --- literals -------------------------------------------------------
 
-/// A length literal, in canonical metres. No oracle: a wrong value
-/// builds a different document, and the row that wrote it reds on its
-/// own premise.
+/// A length literal, in canonical metres.
 ///
 /// # Panics
 ///
@@ -37,7 +36,7 @@ pub fn len(metres: f64) -> Expr {
     Expr::literal(metres, Dimension::Length).expect("a finite length")
 }
 
-/// An angle literal, in radians. No oracle, as [`len`].
+/// An angle literal, in radians.
 ///
 /// # Panics
 ///
@@ -47,13 +46,43 @@ pub fn ang(radians: f64) -> Expr {
 }
 
 /// A dimensionless literal — a direction component, a bulge, a ratio.
-/// No oracle, as [`len`].
 ///
 /// # Panics
 ///
 /// If `value` is not finite.
 pub fn scl(value: f64) -> Expr {
     Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
+/// Two length literals — a point in a sketch frame's own coordinates.
+///
+/// # Panics
+///
+/// If either coordinate is not finite.
+pub fn len2(v: [f64; 2]) -> [Expr; 2] {
+    [len(v[0]), len(v[1])]
+}
+
+// --- the frame a sketch is drawn on ---------------------------------
+
+/// The frame datum a profile is drawn on, as a node to insert: an
+/// origin, and the two directions sketch +x and +y point.
+///
+/// # Panics
+///
+/// If a component is not finite.
+pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
+    Node::Datum(Datum::Frame {
+        origin: origin.map(len),
+        u: u.map(scl),
+        v: v.map(scl),
+    })
+}
+
+/// The world xy frame as a node — origin at the world origin, sketch
+/// +x along world +x, sketch +y along world +y.
+pub fn xy_frame() -> Node<ProfileProgram> {
+    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
 // --- the pick door --------------------------------------------------

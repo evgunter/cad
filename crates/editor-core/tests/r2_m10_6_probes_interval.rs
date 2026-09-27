@@ -148,7 +148,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -279,7 +279,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
 /// between the two WALLS is `d − 2r`, written into the geometry.
 fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r_ = Recorder::new();
-    let plane = r_.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
             plane,
@@ -376,7 +376,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
 /// (`y = 0.7`) against the neck's lower wall (`y = 0.8`).
 fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -763,7 +763,7 @@ fn guide(bound: f64) -> Guide {
             distribution: Some(Distribution::Normal { sigma: h / 3.0 }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let square = |r: &mut Recorder| {
         r.insert(Node::Profile(ProfileProgram {
             plane,

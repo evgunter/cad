@@ -52,7 +52,7 @@ use editor_core::{
     SegPat, SegTag, Selector, SlotId, StableName,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, prism_edges, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, len2, prism_edges, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -305,11 +305,10 @@ pub fn document() -> CorpusDoc {
 
 /// The half-disc loop PROGRAM (die_pips' twin).
 fn half_disc_program() -> LoopProgram {
-    let lpt = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
+            target: ProgramTarget::Point(len2([0.0, PIP_R])),
             b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),

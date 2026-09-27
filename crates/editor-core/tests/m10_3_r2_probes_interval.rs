@@ -48,7 +48,7 @@ use editor_core::{
 };
 use geom_core::{Interval, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, len, xy_frame};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -76,11 +76,7 @@ fn slab_with(nominal: f64, dist: Distribution, distance: Expr) -> ProfileDoc {
             distribution: Some(dist),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0].map(len),
-        u: [1.0, 0.0, 0.0].map(scl),
-        v: [0.0, 1.0, 0.0].map(scl),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
@@ -660,11 +656,7 @@ fn a_consumer_drives_a_two_parameter_document_at_four_widths() {
                 },
             });
         }
-        let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [0.0, 0.0, 0.0].map(len),
-            u: [1.0, 0.0, 0.0].map(scl),
-            v: [0.0, 1.0, 0.0].map(scl),
-        }));
+        let xy_frame_1 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: xy_frame_1,
             loops: vec![

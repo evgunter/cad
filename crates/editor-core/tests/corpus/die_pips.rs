@@ -79,7 +79,7 @@ use editor_core::{
     ProgramTarget, SlotId,
 };
 
-use crate::fixture::{ang, axis_in_plane, frame, len, scl, xy_frame};
+use crate::fixture::{ang, axis_in_plane, frame, len, len2, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -181,11 +181,10 @@ pub fn document() -> CorpusDoc {
 /// closed by its on-axis diameter — three steps, both vertices on the
 /// revolve axis.
 pub fn half_disc_program() -> LoopProgram {
-    let lpt = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
-        ProgramStep::At(lpt(0.0, -PIP_R)),
+        ProgramStep::At(len2([0.0, -PIP_R])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(lpt(0.0, PIP_R)),
+            target: ProgramTarget::Point(len2([0.0, PIP_R])),
             b: scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),

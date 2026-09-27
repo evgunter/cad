@@ -30,7 +30,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::fixture::len;
+use crate::fixture::{len, len2};
 use editor_core::{Dimension, Expr, LoopProgram, ParamName, ProgramStep, ProgramTarget};
 
 const CORNERS: [(f64, f64); 4] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)];
@@ -40,7 +40,7 @@ const CORNERS: [(f64, f64); 4] = [(0.0, 0.0), (4.0, 0.0), (4.0, 2.0), (0.0, 2.0)
 #[test]
 fn literal_polygon_is_the_expr_polygon_at_literal_corners() {
     let literal = LoopProgram::polygon(CORNERS).expect("finite corners");
-    let lifted = LoopProgram::polygon_expr(CORNERS.map(|(x, y)| [len(x), len(y)]));
+    let lifted = LoopProgram::polygon_expr(CORNERS.map(|(x, y)| len2([x, y])));
     assert_eq!(literal, lifted);
 }
 

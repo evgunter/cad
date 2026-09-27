@@ -27,14 +27,14 @@ use std::sync::Arc;
 use editor_core::analysis::{AnalysisPolicy, BoxAxis, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, SymbolicDials, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     ProgramStep, ProgramTarget, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     select_where,
 };
 use geom_core::Tol;
 
-use crate::fixture::{Recorder, len, scl};
+use crate::fixture::{Recorder, len, scl, xy_frame};
 
 fn plen(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
@@ -100,11 +100,7 @@ pub(crate) fn bracket(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, Recipe
         );
     }
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
 
     // The L, with a PARAMETRIC fillet at its inner corner — the arc.
     let pt = |x: Expr, y: Expr| ProgramTarget::Point([x, y]);
@@ -471,11 +467,7 @@ fn collinear_walls() -> ProfileDoc {
             }),
         },
     });
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     // The middle vertex of the bottom edge splits ONE straight edge in
     // two: segments 0 and 1 are collinear by construction, whatever `w`
     // does, so `side_planes_cosurface` is a genuine IDENTITY here and
