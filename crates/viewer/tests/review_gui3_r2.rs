@@ -25,7 +25,7 @@
 test_utils::gated_to![
     "crates/viewer/src/",
     "crates/pncad/src/",
-    "crates/viewer/tests/common/"
+    "crates/viewer/tests/common/",
     "crates/viewer/src/test_support.rs",
     "crates/editor-core/src/test_support.rs",
 ];
