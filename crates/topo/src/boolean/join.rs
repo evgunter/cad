@@ -2756,11 +2756,11 @@ mod frame_dispatch_interval_tests {
     }
 
     fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-        Point3::new(iv(x), iv(y), iv(z))
+        crate::test_support::identity_map(x, y, z)
     }
 
     fn v3(x: f64, y: f64, z: f64) -> Vec3<Interval> {
-        Vec3::new(iv(x), iv(y), iv(z))
+        Vec3::new(x, y, z).map(iv)
     }
 
     /// A wall with every datum given explicitly — no `normalize`, no

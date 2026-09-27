@@ -2,10 +2,13 @@
 id: a-viewer-error-arm-is-not-split-because-a-review-suite-pins-it
 kind: issue
 title: camera.rs declines an error-arm split on the ground that a promoted review suite pins the arm — the reading Ev withdrew, in src/
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-09-26
+branch: dup/b7-a
+pr: 3304
 ---
 
 
@@ -160,3 +163,32 @@ Sites naming the arm at the base, by name: `review_gui0_r1`'s two
 constructions and one prose assertion, `datum_draw`'s viewport row;
 in `src/`, `datums::datum_view`'s doc and guard and
 `pane/viewport.rs`'s datum-overlay comment.
+
+## Closed (2026-09-26, PR #3304)
+
+Ruled by the S-DUP orchestrator: the arm stays one, the withdrawn
+reading goes, and the API does not change. The review-suite sentence
+is deleted from `CameraError::UnusableBounds`'s rustdoc.
+
+The re-read above was right that the paragraph it leaves behind named
+the wrong doors, so deleting the sentence alone would have left a
+decline standing on a false description. The paragraph is restated
+from the caller's seat, true of every door that returns the arm: the
+doors that take only a viewport (`Camera::projection_matrix`,
+`Camera::ray_through`, `datums::datum_view`) have one candidate, so
+the door that refused names it; `Camera::framing` and `Camera::fitted`
+take both, and there the aspect the caller passed settles it — the arm
+under a positive aspect is the box (a non-positive aspect is refused
+before or after the box, and is wrong either way). That keeps the
+first half of the old argument ("the framing request names no view")
+and replaces the second with a statement that holds at every door.
+
+No other place in `crates/viewer` states the withdrawn cost about
+this arm: `git grep` for `UnusableBounds`, `UnusableAspect`, `pins`
+and `review suite` / `promoted` over `crates/viewer` returned the
+sentence itself, the test sites that construct or match the arm
+(`error_display.rs`, `datum_draw.rs`, `review_gui0_r1.rs`, none with a
+comment about splitting), and two `Promoted from the review lane`
+provenance notes in `creation_ops.rs` that say nothing about this arm.
+Its blind spot is the one this row already names: a decline phrased
+about one named suite without those words would not match.

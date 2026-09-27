@@ -45,21 +45,14 @@
 
 use geom::Surface;
 use geom_core::tolerance::DEFAULT_EPS;
-use geom_core::{Bounds, Interval, MarginDiag, Point2, Real, Tol, Vec2};
+use geom_core::{Bounds, Interval, MarginDiag, Real, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use test_utils::vacuity::stood_down;
 use topo::{Body, ShellError, ValidationError};
 
 use crate::common::charts::hollow_moves;
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(iv(x), iv(y))
-}
+use crate::common::interval::{iv, p2, v2};
 
 /// The tour's own wall thickness, the one `torax_axial` hollows by.
 const T: f64 = 1.0 / 128.0;
@@ -72,7 +65,7 @@ fn revolved(lp: ProfileLoop<Interval>, turn: Revolution<Interval>) -> Body<Inter
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         turn,
         Tol::witness(),
@@ -278,7 +271,7 @@ fn interval_the_sphere_lune_rim_encloses_its_corners() {
         &profile,
         RevolveAxis {
             origin: p2(0.0, 0.0),
-            dir: Vec2::new(iv(0.0), iv(1.0)),
+            dir: v2(0.0, 1.0),
         },
         Revolution::Partial(iv(core::f64::consts::FRAC_PI_2)),
         tol,
@@ -337,7 +330,7 @@ fn interval_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
         &profile,
         RevolveAxis {
             origin: p2(1.2, 0.0),
-            dir: Vec2::new(iv(0.0), iv(-1.0)),
+            dir: v2(0.0, -1.0),
         },
         Revolution::Partial(iv(-core::f64::consts::FRAC_PI_2)),
         tol,
