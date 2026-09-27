@@ -59,7 +59,7 @@ use editor_core::{
     LoopProgram, Node, ProfileDoc, ProfileProgram, ProgramArcData, ProgramStep, ProgramTarget,
     RecipeNodeId, RoleSeg, StepSegmentsError, ValuePayload, eval::ProfileNaming, evaluate,
 };
-use fixture::{insert, len, on_frame, tol};
+use fixture::{insert, len, len2, on_frame, tol};
 use geom_core::Point2;
 use profile::{CanonicalStructure, ProfileStructure, SketchPlane, Step, Target};
 use topo::{Body, EdgeKey, FaceKey};
@@ -1824,12 +1824,11 @@ fn emitter_of(r: &Records, segment: u32) -> usize {
 /// shifting the segment by one, names a plane here and reds.
 #[test]
 fn a_fillets_radius_reaches_its_arcs_wall() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let radius = len(0.5);
     let filleted = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 1.0))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 1.0]))),
         ProgramStep::Toward {
             dx: fixture::scl(-1.0),
             dy: fixture::scl(0.0),
@@ -1839,8 +1838,8 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
             dx: fixture::scl(0.0),
             dy: fixture::scl(1.0),
         },
-        ProgramStep::FarEndTo(pt(1.0, 3.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 3.0))),
+        ProgramStep::FarEndTo(len2([1.0, 3.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 3.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     assert_eq!(
@@ -1931,12 +1930,11 @@ fn a_fillets_radius_reaches_its_arcs_wall() {
 /// (√2, √2).
 #[test]
 fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let h = 2.0_f64.sqrt();
     let radius = len(0.5);
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 2.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::At(len2([0.0, 2.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
         ProgramStep::Toward {
             dx: fixture::scl(2.0),
             dy: fixture::scl(0.0),
@@ -1944,7 +1942,7 @@ fn an_arrival_steps_fillet_arc_is_answered_and_its_via_arc_is_not() {
         ProgramStep::FilletArc {
             radius: radius.clone(),
             spec: ProgramArcData::Via {
-                q: pt(h, h),
+                q: len2([h, h]),
                 target: ProgramTarget::Start,
             },
         },
@@ -2425,19 +2423,18 @@ fn every_attached_radius_was_keyed_first() {
 /// of its own. The spelling reaches the content key, as every authored
 /// radius does, and no wall carries it.
 fn keyed_but_never_attached() -> ProfileDoc {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let program = LoopProgram::Chain(vec![
         ProgramStep::ArcFilletArc {
             spec: ProgramArcData::Center {
-                c: pt(0.0, 0.0),
+                c: len2([0.0, 0.0]),
                 winding: profile::ArcSweep::Ccw,
-                target: ProgramTarget::Point(pt(5.0, 0.0)),
+                target: ProgramTarget::Point(len2([5.0, 0.0])),
             },
             radius: len(0.5),
             spec2: ProgramArcData::Center {
-                c: pt(0.0, 7.0),
+                c: len2([0.0, 7.0]),
                 winding: profile::ArcSweep::Cw,
-                target: ProgramTarget::Point(pt(0.0, 4.0)),
+                target: ProgramTarget::Point(len2([0.0, 4.0])),
             },
         },
         ProgramStep::ArcFillet {
@@ -2447,7 +2444,7 @@ fn keyed_but_never_attached() -> ProfileDoc {
             },
             radius: len(0.3),
         },
-        ProgramStep::At(pt(-2.0, 2.0)),
+        ProgramStep::At(len2([-2.0, 2.0])),
         ProgramStep::Toward {
             dx: fixture::scl(0.0),
             dy: fixture::scl(-1.0),
@@ -2487,12 +2484,11 @@ fn keyed_but_never_attached() -> ProfileDoc {
 /// binder followed directly by the closer.
 #[test]
 fn a_fillet_cannot_be_a_loops_closing_corner() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let head = |closer: ProgramStep| {
         LoopProgram::Chain(vec![
-            ProgramStep::At(pt(0.0, 0.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 0.0))),
-            ProgramStep::LineTo(ProgramTarget::Point(pt(3.0, 3.0))),
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 0.0]))),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([3.0, 3.0]))),
             ProgramStep::Toward {
                 dx: fixture::scl(-1.0),
                 dy: fixture::scl(0.0),
@@ -2698,11 +2694,10 @@ fn a_one_radius_fused_step_attaches_to_its_fillet_arc() {
 /// walls with the wrong expression and reds here.
 #[test]
 fn a_fused_steps_three_radii_each_reach_their_own_wall() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let side = profile::ArcSide::Left;
     let (carrier, fillet, carrier2) = (len(2.0), len(0.25), len(3.0));
     let program = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Angle(fixture::ang(0.0)),
         ProgramStep::Line(len(4.0)),
         ProgramStep::Tangent,
@@ -2718,7 +2713,7 @@ fn a_fused_steps_three_radii_each_reach_their_own_wall() {
                 side,
             },
         },
-        ProgramStep::At(pt(2.0, 6.0)),
+        ProgramStep::At(len2([2.0, 6.0])),
         ProgramStep::Toward {
             dx: fixture::scl(-1.0),
             dy: fixture::scl(0.0),
@@ -2974,12 +2969,11 @@ fn a_reversed_via_closes_fillet_arc_reaches_its_wall() {
 /// of radius 2 about the origin.
 #[test]
 fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let radius = len(0.5);
     let tp = (2.0_f64.sqrt() * 4.0 / 3.0, 2.0 / 3.0);
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(tp.0, tp.1)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(0.0, 0.0))),
+        ProgramStep::At(len2([tp.0, tp.1])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
         ProgramStep::Toward {
             dx: fixture::scl(2.0),
             dy: fixture::scl(0.0),
@@ -2987,7 +2981,7 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
         ProgramStep::FilletArc {
             radius: radius.clone(),
             spec: ProgramArcData::Center {
-                c: pt(0.0, 0.0),
+                c: len2([0.0, 0.0]),
                 winding: profile::ArcSweep::Ccw,
                 target: ProgramTarget::Start,
             },
@@ -3038,11 +3032,10 @@ fn an_exact_fit_closing_fillet_arc_reaches_its_wall() {
 /// spec's own carrier.
 #[test]
 fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let fillet = len(0.25);
     let carrier = len(3.0);
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
+        ProgramStep::At(len2([0.0, 0.0])),
         ProgramStep::Angle(fixture::ang(0.0)),
         ProgramStep::Line(len(4.0)),
         ProgramStep::FilletArc {
@@ -3052,7 +3045,7 @@ fn a_fillet_arcs_two_radii_each_reach_their_own_wall() {
                 side: profile::ArcSide::Left,
             },
         },
-        ProgramStep::At(pt(2.0, 5.0)),
+        ProgramStep::At(len2([2.0, 5.0])),
         ProgramStep::Toward {
             dx: fixture::scl(-1.0),
             dy: fixture::scl(0.0),

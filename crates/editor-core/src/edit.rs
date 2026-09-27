@@ -3804,6 +3804,7 @@ mod tests {
 
     use super::DocEdit;
     use crate::program::ProfileProgram;
+    use crate::test_support::len;
 
     /// **The mate-graph question is answered by the edit, not by the
     /// arm that happens to remember.**
@@ -3827,14 +3828,7 @@ mod tests {
         let moves: [DocEdit<ProfileProgram>; 4] = [
             DocEdit::InsertNode {
                 node: crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                    ],
+                    position: [len(0.0), len(0.0), len(0.0)],
                 }),
             },
             DocEdit::DeleteNode { id },
@@ -3913,14 +3907,7 @@ mod tests {
         let others: [DocEdit<ProfileProgram>; 3] = [
             DocEdit::InsertNode {
                 node: crate::node::Node::Datum(crate::node::Datum::Point {
-                    position: [
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                        crate::expr::Expr::literal(0.0, crate::expr::Dimension::Length)
-                            .expect("finite"),
-                    ],
+                    position: [len(0.0), len(0.0), len(0.0)],
                 }),
             },
             DocEdit::Rebind {

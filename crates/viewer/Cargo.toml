@@ -281,8 +281,11 @@ pollster = "1.0.1"
 # Test fixtures (`src/test_support.rs`). A test-only feature: only this
 # crate's self dev-dependency turns it on, and
 # `scripts/gates/test-features-dev-only.sh` refuses any manifest that
-# wires it onto a non-dev edge.
-test-support = []
+# wires it onto a non-dev edge. FORWARDS `editor-core/test-support`:
+# the literal and frame doors there are re-exported from this crate's
+# `test_support`, so the feature has to compile wherever it is named,
+# not only where the dev-dependency below happens to unify it in.
+test-support = ["editor-core/test-support"]
 # The eframe application: windowing, the docked chrome, and the wgpu
 # viewport. Everything else in this crate — camera state, the typed
 # camera operations, the input mapping, and the scene extraction — is

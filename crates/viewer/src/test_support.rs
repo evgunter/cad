@@ -20,7 +20,7 @@
 #![allow(clippy::expect_used)]
 
 use pncad::document::{
-    Datum, Dimension, Doc, DocEdit, DocParam, EditError, Expr, LoopProgram, Node, ParamName,
+    Dimension, Doc, DocEdit, DocParam, EditError, Expr, LoopProgram, Node, ParamName,
     ProfileProgram, RecipeNodeId, RefusingReach, apply,
 };
 use pncad::geom_core::Tol;
@@ -29,10 +29,11 @@ use crate::scene::DisplayTolerance;
 
 // --- literals -------------------------------------------------------
 
-/// A length literal.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
-}
+/// A literal of each dimension, and a point of two lengths —
+/// `editor_core::test_support`'s, over the same `Expr` the façade
+/// re-exports, so this crate reads the kernel's fixtures rather than a
+/// second spelling of them.
+pub use editor_core::test_support::{ang, len, len2, scl};
 
 /// A length literal that remembers it was WRITTEN in millimetres —
 /// `len` lowers canonically and carries no notation, which is what a
@@ -40,16 +41,6 @@ pub fn len(metres: f64) -> Expr {
 pub fn len_mm(metres: f64) -> Expr {
     Expr::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
         .expect("a finite length")
-}
-
-/// A dimensionless literal.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// An angle literal.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
 }
 
 /// Three length literals — a datum origin, a translation.
@@ -60,11 +51,6 @@ pub fn len3(v: [f64; 3]) -> [Expr; 3] {
 /// Three dimensionless literals — a normal, a direction, an axis.
 pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
     [scl(v[0]), scl(v[1]), scl(v[2])]
-}
-
-/// Two length literals — a point in a sketch frame's own coordinates.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
-    [len(v[0]), len(v[1])]
 }
 
 /// Two dimensionless literals — a direction in a sketch frame.
@@ -144,19 +130,9 @@ pub fn try_inserted(
 
 // --- the nodes a fixture sketches with ------------------------------
 
-/// A sketch frame node's payload.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(Datum::Frame {
-        origin: len3(origin),
-        u: scl3(u),
-        v: scl3(v),
-    })
-}
-
-/// The world xy frame's payload — the plane these fixtures sketch on.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-}
+/// A sketch frame node, and the world xy frame these fixtures sketch
+/// on — `editor_core::test_support`'s, as the literals above.
+pub use editor_core::test_support::{frame, xy_frame};
 
 /// An axis-aligned rectangular loop, `w` by `h`, its lower-left
 /// corner at `origin` in the plane's own coordinates, counter-clockwise

@@ -112,7 +112,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: fin,
             slot: SlotId::Distance,
-            expr: Expr::literal(0.6875, Dimension::Length).expect("dyadic length literal"),
+            expr: len(0.6875),
         },
         bump_root: fin,
     }

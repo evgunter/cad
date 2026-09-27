@@ -13,7 +13,7 @@ use editor_core::{
     CancelToken, EvalOptions, Evaluation, LoopProgram, Node, ProfileDoc, ProfileProgram,
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, evaluate,
 };
-use fixture::{ang, insert, len, table};
+use fixture::{ang, insert, len2, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -56,11 +56,10 @@ fn revolve_programs(loops: Vec<LoopProgram>, angle: f64) -> (ProfileDoc, RecipeN
 }
 
 fn semicircle(r: f64) -> LoopProgram {
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, -r)),
+        ProgramStep::At(len2([0.0, -r])),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.0, r)),
+            target: ProgramTarget::Point(len2([0.0, r])),
             b: fixture::scl(1.0),
         }),
         ProgramStep::LineTo(ProgramTarget::Start),
@@ -94,12 +93,11 @@ fn negative_angle_wedge_of_an_all_on_axis_loop_names_both_poles() {
 /// must be total with both outer poles named and no hole poles.
 #[test]
 fn partial_revolve_with_hole_and_axis_run_names_totally_both_signs() {
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let hole = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.7, -0.3)),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.3, -0.3))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.3, 0.3))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(0.7, 0.3))),
+        ProgramStep::At(len2([0.7, -0.3])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.3, -0.3]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.3, 0.3]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.7, 0.3]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     for theta in [std::f64::consts::FRAC_PI_2, -std::f64::consts::FRAC_PI_2] {
