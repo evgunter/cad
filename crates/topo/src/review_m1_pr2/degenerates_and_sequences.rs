@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Degenerate sites (with hand E-P ledgers), ring-split mef, and fresh
 //! construction sequences: tetrahedron, triangular prism, two disjoint

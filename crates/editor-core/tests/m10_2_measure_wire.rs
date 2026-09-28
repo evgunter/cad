@@ -15,6 +15,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::UnitSym;
 use editor_core::expr::DimensionError;
 use editor_core::{
@@ -23,10 +24,6 @@ use editor_core::{
     RecipeNodeId, RoleSeg, SitedRef, SnapshotError, StableName, apply, load, save,
 };
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite")
-}
 
 /// Two datum points, so the measure's references name nodes that
 /// EXIST — the insert door checks that, and a wire fixture must pass
@@ -86,7 +83,7 @@ fn every_form() -> ProfileDoc {
         },
     );
     let prim = |p: MeasurePrimitive| MeasureExpr::primitive(p);
-    let scalar = |v: f64| MeasureExpr::value(Expr::literal(v, Dimension::Scalar).expect("finite"));
+    let scalar = |v: f64| MeasureExpr::value(scl(v));
     // distance - gap + min_clearance, halved, floored by a parameter and
     // ceilinged by a literal: every arithmetic arm and every Length
     // primitive at once. `min_clearance` (M10-6) is here for the same
@@ -119,10 +116,10 @@ fn every_form() -> ProfileDoc {
                 scalar(4.0),
             )
             .expect("Length / Scalar"),
-            MeasureExpr::value(Expr::literal(1.0, Dimension::Length).expect("finite")),
+            MeasureExpr::value(len(1.0)),
         )
         .expect("Length min Length"),
-        MeasureExpr::value(Expr::literal(-0.0, Dimension::Length).expect("finite")),
+        MeasureExpr::value(len(-0.0)),
     )
     .expect("Length max Length");
     doc = two_named_nodes(&doc);
@@ -137,7 +134,7 @@ fn every_form() -> ProfileDoc {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: MEASURE,
-                bound: Expr::literal(0.0005, Dimension::Length).expect("finite"),
+                bound: len(0.0005),
                 dir: AssertionDir::AtMost,
             },
         },
@@ -176,7 +173,7 @@ fn angular() -> ProfileDoc {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: MEASURE,
-                bound: Expr::literal(0.5, Dimension::Angle).expect("finite"),
+                bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -337,7 +334,7 @@ fn a_dimension_mismatched_bound_refuses_at_the_edit_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: MEASURE,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -368,7 +365,7 @@ fn an_assertion_over_a_non_measure_refuses() {
             node: Node::Assertion {
                 // An assertion is not a measure.
                 measure: ASSERTION,
-                bound: Expr::literal(0.5, Dimension::Angle).expect("finite"),
+                bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },

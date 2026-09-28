@@ -16,11 +16,21 @@ workspace = true
 # next to their invariants in `geom`.
 geom-core = { path = "../geom-core" }
 
+[features]
+# Test fixtures (`src/test_support.rs`): the array spellings of a box and
+# a ray, shared by this crate's suites and by `editor-core`'s and
+# `viewer`'s pick suites. A test-only feature, on only through
+# dev-dependency edges (`scripts/gates/test-features-dev-only.sh`).
+test-support = []
+
 [dev-dependencies]
 proptest = { workspace = true }
 # The ray sweep's varying seed + effort dial (memories/test-suite-cost):
 # a leaf crate, dev-only, same as every other sweep's harness row.
 test-utils = { path = "../test-utils" }
+# Self dev-dependency: turns `test-support` on for THIS crate's own
+# integration tests. A dev-dependency is in no consumer's build graph.
+bvh = { path = ".", features = ["test-support"] }
 
 # ONE test binary for the whole suite (see tests/all.rs). Each extra test
 # target cost ~1.9 s of codegen+link on the 2-vCPU CI runner.

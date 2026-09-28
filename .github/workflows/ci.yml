@@ -3997,9 +3997,11 @@ jobs:
       # certified leaves and the E5 stackup over them, are compiled and
       # their rows executed here. Their narration is `demo-tour
       # certified`, which `eps_regression` runs here at the default ε
-      # only (the scene walk keeps all three; the pin's header says why)
-      # and which asserts nothing; the scene walk the render and budget
-      # lanes run does not narrate them.
+      # only (the scene walk keeps all three; the pin's header says
+      # why). The tolerance cell asserts its captions' findings inside
+      # that narration, so that run is its only execution here — it has
+      # no separate unit row driving the same study a second time. The
+      # scene walk the render and budget lanes run does not narrate them.
       #
       # NEXTEST, SO THE SUITE'S BINARIES SHARE ONE POOL. `cargo test` runs
       # test binaries one after another, and this suite is a handful of

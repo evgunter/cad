@@ -39,13 +39,16 @@
 //!   and is the authority on where the edge is; `cargo tree -e dev -i
 //!   sweep` answers the same question locally.
 //!
-//!   A fixture only earns a place here once a consumer OUTSIDE this
-//!   crate needs it or a second suite inside it does; the narrower
-//!   homes, and the rule that routes between them, are stated in
-//!   `sweep`'s own `tests/common` module. The same rule seats the
-//!   crate-PRIVATE seams a suite reads through — [`ring_clearance`]
-//!   and [`walked_chains`] — which are not fixtures but the only way a
-//!   `tests/` crate can observe a `pub(crate)` phase.
+//!   A fixture lives at the narrowest home all of its consumers can
+//!   reach, by the routing rule `sweep`'s own `tests/common` module
+//!   states, and that rule governs. So a fixture lives HERE only when
+//!   a consumer outside this crate needs it, or an in-crate `mod
+//!   tests` does (neither can reach `tests/common`); one that only this
+//!   crate's `tests/` suites share, however many, lives in
+//!   `tests/common`. The crate-PRIVATE seams a suite reads through —
+//!   [`ring_clearance`] and [`walked_chains`] — sit here too: they are
+//!   not fixtures but the only way a `tests/` crate can observe a
+//!   `pub(crate)` phase.
 //!
 //! # The extrusion family
 //!
@@ -226,7 +229,7 @@ fn square<T: Decide>(l: f64) -> Vec<(Point2<T>, T)> {
 /// `f64` whatever the lane's arithmetic is.
 pub fn corners<T: Decide>(pts: &[(f64, f64)]) -> Vec<(Point2<T>, T)> {
     pts.iter()
-        .map(|&(x, y)| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero()))
+        .map(|&(x, y)| (Point2::new(x, y).map(T::from_f64), T::zero()))
         .collect()
 }
 
@@ -435,15 +438,8 @@ pub fn waisted(tol: Tol) -> Body<f64> {
 /// exactly representable, so the fixture's enclosures are points at a
 /// certified scalar) through the same doors.
 pub fn waisted_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
-        vec![
-            v(0.0, 0.0),
-            v(1.0, 0.0),
-            v(0.5, 0.5),
-            v(1.0, 1.0),
-            v(0.0, 1.0),
-        ],
+        corners(&[(0.0, 0.0), (1.0, 0.0), (0.5, 0.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
         tol,
     )
@@ -1354,15 +1350,8 @@ pub fn bowl(tol: Tol) -> Body<f64> {
 /// same doors, so the interval twin differs in the scalar and nothing
 /// else.
 pub fn bowl_at<T: Decide + PcurveFittedLane>(tol: Tol) -> Body<T> {
-    let v = |x: f64, y: f64| (Point2::new(T::from_f64(x), T::from_f64(y)), T::zero());
     revolved_about_y_at(
-        vec![
-            v(0.0, 0.0),
-            v(1.5, 0.0),
-            v(1.5, 1.5),
-            v(1.0, 1.0),
-            v(0.0, 1.0),
-        ],
+        corners(&[(0.0, 0.0), (1.5, 0.0), (1.5, 1.5), (1.0, 1.0), (0.0, 1.0)]),
         crate::Revolution::Full,
         tol,
     )

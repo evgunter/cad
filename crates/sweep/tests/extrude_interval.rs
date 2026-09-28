@@ -5,18 +5,15 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::p2;
 use geom::Surface;
 use geom_brep::EdgeDescription;
 use geom_core::Tol;
-use geom_core::{Bounds, Interval, Point2, Real};
+use geom_core::{Bounds, Interval, Real};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{validate, validate_closed, validate_geometric};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 #[test]
 fn interval_l_profile_extrudes_and_passes_all_tiers() {

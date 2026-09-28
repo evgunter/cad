@@ -261,37 +261,18 @@ fn face_pair_refusals(errors: &[ValidationError]) -> Vec<(FaceKey, FaceKey)> {
 }
 
 /// The cylinder's three wall faces, split by whether they hold `v` on
-/// their boundary: `(holding, not_holding)`.
+/// their boundary: `(holding, not_holding)`, each in arena order.
 fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<FaceKey>) {
-    let mut holding = Vec::new();
-    let mut apart = Vec::new();
-    for (f, data) in body.faces() {
-        if !matches!(
-            body.get_surface(data.surface),
-            Some(Surface::Cylinder { .. })
-        ) {
-            continue;
-        }
-        let mut owns = false;
-        for &lk in core::iter::once(&data.outer).chain(&data.rings) {
-            let Some(l) = body.get_loop(lk) else { continue };
-            let topo::LoopBoundary::Cycle { first } = l.boundary else {
-                // A lone-vertex loop has no cycle to walk. Extruded
-                // bodies have none; the skip is a shape requirement of
-                // the walk, not a judgement that an empty loop carries
-                // nothing — the reading that turns a shape
-                // requirement into a silent skip.
-                continue;
-            };
-            for he in body.loop_cycle(first).unwrap() {
-                if body.get_half_edge(he).unwrap().start == v {
-                    owns = true;
-                }
-            }
-        }
-        if owns { holding.push(f) } else { apart.push(f) }
-    }
-    (holding, apart)
+    let around = body.faces_of_vertex(v).expect("the vertex's orbit walks");
+    body.faces()
+        .filter(|(_, data)| {
+            matches!(
+                body.get_surface(data.surface),
+                Some(Surface::Cylinder { .. })
+            )
+        })
+        .map(|(f, _)| f)
+        .partition(|f| around.contains(f))
 }
 
 /// **The containment-deferral regression row.** A three-arc cylinder

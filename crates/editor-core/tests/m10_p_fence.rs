@@ -514,15 +514,17 @@ where
 ///
 /// This fixture is the rocker eye and the vesica lens, built through
 /// the typed surface and replayed at the digest's scalar. It uses no
-/// API the lift introduced (`replay` is pre-lift), so it travels to a
-/// pre-lift tree with the rest of this file. A row that REFUSES is
+/// API the lift introduced (`replay` is pre-lift). Its embedding goes
+/// through `profile::Step::map_scalar`, which is younger than the lift,
+/// so on a tree older than that door the embed is written out
+/// by hand to carry this file across. A row that REFUSES is
 /// digested as its refusal: the eye does not certify at `Interval`
 /// (see `profile`'s `generic_replay` census for why), and "refuses
 /// with this message" is as much a bit of behaviour to hold still as
 /// "returns these coordinates".
 fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&mut Digest, T)) {
     use geom_core::Point2;
-    use profile::{ArcData, ArcSweep, Center, Open, Start, Step, Target};
+    use profile::{ArcSweep, Center, Open, Start, Step};
     let p2 = |x: f64, y: f64| Point2::new(x, y);
     let tip = 0.75_f64.sqrt();
     // (1) the eye: circle x circle carriers crossing AT the entry
@@ -558,38 +560,14 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
             Tol::witness(),
         ),
     ];
-    let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| p.map(T::from_f64);
-        let tgt = |t: Target<f64>| match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        };
-        let spec = |a: ArcData<f64>| match a {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            _ => unreachable!("this fixture authors Center-mode arcs only"),
-        };
-        match *step {
-            Step::ArcFilletArc {
-                spec: a,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(a),
-                radius: T::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            _ => unreachable!("this fixture is one fused step"),
-        }
-    };
     for (i, built) in programs.into_iter().enumerate() {
         d.u64(i as u64);
         let closed = built.expect("the arc-carrier fixture constructs at f64");
-        let steps: Vec<Step<T>> = closed.program.iter().map(embed).collect();
+        let steps: Vec<Step<T>> = closed
+            .program
+            .iter()
+            .map(|s| s.map_scalar(T::from_f64))
+            .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
                 d.text("ok");

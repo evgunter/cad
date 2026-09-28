@@ -159,8 +159,8 @@ impl From<DanglingRef> for crate::euler::EulerOpError {
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum ReadbackError {
     /// A key does not resolve in this body — a stale key, or a key
-    /// from another body's lineage (foreign keys are not caught; see
-    /// the [`Body`] docs).
+    /// from another body's lineage that happens not to land on a live
+    /// slot (see [stale vs. foreign keys](crate::body#key-validity-stale-vs-foreign)).
     Dangling {
         /// Which lookup came back empty.
         what: DanglingRef,
@@ -183,10 +183,8 @@ pub enum ReadbackError {
 // the PROBLEM in read-back's own vocabulary — which lookup came back
 // empty, and what that emptiness means about the model. The two
 // `Dangling` lanes are kept apart in the prose because they are
-// different facts: a topological key that does not resolve is a stale
-// or foreign handle, while a geometry key reached FROM a live entity
-// that does not resolve is a dangling reference inside the body. The
-// keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
+// different facts about the model, which `DanglingRef`'s docs state.
+// The keys render through [`EntityId`]/[`GeomRef`]'s own `Display`, this
 // crate's noun functions, so a read-back refusal reads exactly like
 // the euler-layer stale-key refusal its arms map across to.
 impl core::fmt::Display for ReadbackError {

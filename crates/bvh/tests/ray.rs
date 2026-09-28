@@ -8,29 +8,11 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/"];
+test_utils::gated_to!["crates/bvh/src/", "crates/geom-core/src/linalg/",];
 
+use bvh::test_support::{boxed, ray};
 use bvh::{Aabb, Bvh, Ray, RayCandidate};
-use geom_core::{Point3, Vec3};
 use test_utils::fuzz;
-
-fn boxed(min: [f64; 3], max: [f64; 3]) -> Aabb {
-    Aabb {
-        min_x: min[0],
-        min_y: min[1],
-        min_z: min[2],
-        max_x: max[0],
-        max_y: max[1],
-        max_z: max[2],
-    }
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
-}
 
 fn items(cands: &[RayCandidate]) -> Vec<usize> {
     cands.iter().map(|c| c.item).collect()

@@ -20,7 +20,8 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, SolidKey};
 
 use crate::common::approx::band;
-use crate::shell8_common::{beside, cap, charts_of, deep_dump, tol};
+use crate::common::charts::{charts_of, moves_by};
+use crate::shell8_common::{beside, cap, deep_dump, tol};
 use crate::shell9_rows::rows;
 use crate::verbs_shell::{tube, vessel};
 
@@ -127,13 +128,6 @@ fn shelled(label: &str, body: &Body<f64>, t: f64, open: &[topo::FaceKey]) {
     }
 }
 
-fn moves_of(body: &Body<f64>, solid: SolidKey, d: f64) -> Vec<topo::ChartMove<f64>> {
-    charts_of(body, solid)
-        .into_iter()
-        .map(|faces| topo::ChartMove { faces, distance: d })
-        .collect()
-}
-
 #[test]
 fn shell10_r2_dump_corpus() {
     let y = Vec3::new(0.0, 1.0, 0.0);
@@ -161,12 +155,22 @@ fn shell10_r2_dump_corpus() {
     topo::mint_pcurves(&mut pair, tol()).unwrap();
     let solids: Vec<SolidKey> = pair.solids().map(|(k, _)| k).collect();
     let mut work = pair.clone();
-    topo::offset_charts_together(&mut work, &moves_of(&pair, solids[0], -0.05), band(), tol())
-        .unwrap();
+    topo::offset_charts_together(
+        &mut work,
+        &moves_by(charts_of(&pair, solids[0]), -0.05),
+        band(),
+        tol(),
+    )
+    .unwrap();
     dump("axial door, vessel of vessel+box", &work);
     let mut work = pair.clone();
-    topo::offset_planes_together(&mut work, &moves_of(&pair, solids[1], -0.05), band(), tol())
-        .unwrap();
+    topo::offset_planes_together(
+        &mut work,
+        &moves_by(charts_of(&pair, solids[1]), -0.05),
+        band(),
+        tol(),
+    )
+    .unwrap();
     dump("planar door, box of vessel+box", &work);
 
     let mut four = beside(
@@ -179,12 +183,22 @@ fn shell10_r2_dump_corpus() {
     topo::mint_pcurves(&mut four, tol()).unwrap();
     let solids: Vec<SolidKey> = four.solids().map(|(k, _)| k).collect();
     let mut work = four.clone();
-    topo::offset_charts_together(&mut work, &moves_of(&four, solids[2], -0.05), band(), tol())
-        .unwrap();
+    topo::offset_charts_together(
+        &mut work,
+        &moves_by(charts_of(&four, solids[2]), -0.05),
+        band(),
+        tol(),
+    )
+    .unwrap();
     dump("axial door, tube of four", &work);
     let mut work = four.clone();
-    topo::offset_planes_together(&mut work, &moves_of(&four, solids[3], -0.05), band(), tol())
-        .unwrap();
+    topo::offset_planes_together(
+        &mut work,
+        &moves_by(charts_of(&four, solids[3]), -0.05),
+        band(),
+        tol(),
+    )
+    .unwrap();
     dump("planar door, second box of four", &work);
     shelled("four sealed", &four, 0.05, &[]);
 }

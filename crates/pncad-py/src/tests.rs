@@ -32,6 +32,16 @@ use test_utils::source::{
     type_base,
 };
 
+/// A length literal, in canonical metres, through the façade.
+fn len(metres: f64) -> pncad::document::Expr {
+    pncad::document::Expr::literal(metres, Dimension::Length).expect("a finite length")
+}
+
+/// A dimensionless literal — a direction component — as [`len`].
+fn scl(value: f64) -> pncad::document::Expr {
+    pncad::document::Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
+}
+
 #[test]
 fn dimension_tags_are_stable() {
     assert_eq!(dimension_tag(Dimension::Length), "length");
@@ -1223,10 +1233,9 @@ fn the_evaluation_door_speaks_the_standing_ladder() {
 fn resolution_status_tags_are_stable() {
     use crate::tags::{resolution_status_tag, resolve_error_tag, resolve_indeterminate_tag};
     use pncad::document::{
-        CancelToken, Datum, DocEdit, EvalOptions, Expr, LoopProgram, Node, ProfileDoc,
-        ProfileProgram, apply, evaluate,
+        CancelToken, Datum, DocEdit, EvalOptions, LoopProgram, Node, ProfileDoc, ProfileProgram,
+        apply, evaluate,
     };
-    use pncad::prelude::Dimension;
     use pncad::select::{Resolution, ResolveIndeterminate, RunCtx, all_faces, resolve};
 
     // The indeterminate arms carry a node id and nothing else, so all
@@ -1248,8 +1257,6 @@ fn resolution_status_tags_are_stable() {
 
     let tol = Tol::witness();
     let doc: ProfileDoc = crate::identity::derived("resolution-status-probe", tol);
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
 
     let insert = |doc: &ProfileDoc, node: Node<ProfileProgram>| {
         let applied = apply(
@@ -1743,8 +1750,8 @@ fn expression_evaluation_tags_are_stable() {
 
     // Division by zero: no refusal at the operation, a poisoned value
     // caught at the boundary.
-    let zero = Expr::literal(0.0, Dimension::Scalar).expect("finite");
-    let one = Expr::literal(1.0, Dimension::Length).expect("finite");
+    let zero = scl(0.0);
+    let one = len(1.0);
     let pole = Expr::div(one, zero).expect("a scalar divisor is legal");
     assert_eq!(
         tag(&eval(&pole, &bound).expect_err("the pole refuses at the boundary")),
@@ -1772,9 +1779,8 @@ fn expression_evaluation_tags_are_stable() {
 fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() {
     let tol = Tol::witness();
     use pncad::document::{
-        Datum, DocEdit, Expr, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
+        Datum, DocEdit, LoopProgram, Node, ProfileDoc, ProfileProgram, apply, save,
     };
-    use pncad::prelude::Dimension;
 
     let doc: ProfileDoc = crate::identity::derived("dimension-routing-probe", tol);
     let square = LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
@@ -1784,8 +1790,6 @@ fn the_load_door_reaches_dimension_mismatch_arms_as_a_typed_dimension_refusal() 
     // replacement below now lands on the frame's origin rather than on
     // a profile point. The probe is about the load door's dimension
     // walk, which reaches both alike.
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
     let framed = apply(
         &doc,
         &DocEdit::InsertNode {
@@ -9367,14 +9371,13 @@ fn the_node_kind_vocabulary_matches_its_committed_roster() {
 // calls being asked about. It is `cfg(debug_assertions)`-gated, so
 // these rows are too; every profile this workspace builds keeps it on.
 mod product_memo_rows {
+    use super::{len, scl};
     use crate::product_memo::{self, ProductMemo};
     use pncad::document as d;
     use pncad::tolerance::Tol;
 
     /// The world xy frame, the plane the fixture sketches on.
     fn xy_frame() -> d::Node<d::ProfileProgram> {
-        let len = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
-        let scl = |v: f64| d::Expr::literal(v, d::Dimension::Scalar).expect("a scalar literal");
         d::Node::Datum(d::Datum::Frame {
             origin: [len(0.0), len(0.0), len(0.0)],
             u: [scl(1.0), scl(0.0), scl(0.0)],
@@ -9384,14 +9387,13 @@ mod product_memo_rows {
 
     /// A square `[0,s]²` on `plane`.
     fn square(plane: d::RecipeNodeId, s: f64) -> d::Node<d::ProfileProgram> {
-        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
         d::Node::Profile(d::ProfileProgram {
             plane,
             loops: vec![d::LoopProgram::Chain(vec![
-                d::ProgramStep::At([lit(0.0), lit(0.0)]),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(0.0)])),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(s), lit(s)])),
-                d::ProgramStep::LineTo(d::ProgramTarget::Point([lit(0.0), lit(s)])),
+                d::ProgramStep::At([len(0.0), len(0.0)]),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([len(s), len(0.0)])),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([len(s), len(s)])),
+                d::ProgramStep::LineTo(d::ProgramTarget::Point([len(0.0), len(s)])),
                 d::ProgramStep::LineTo(d::ProgramTarget::Start),
             ])],
             ids: Vec::new(),
@@ -9415,7 +9417,6 @@ mod product_memo_rows {
 
     /// One box: square(2) extruded 1.5, under the id `label` derives.
     fn box_doc(label: &str) -> d::ProfileDoc {
-        let lit = |v: f64| d::Expr::literal(v, d::Dimension::Length).expect("a length literal");
         let doc = d::ProfileDoc::empty_derived(label, Tol::witness());
         let (doc, plane) = insert(doc, xy_frame());
         let (doc, profile) = insert(doc, square(plane, 2.0));
@@ -9423,7 +9424,7 @@ mod product_memo_rows {
             doc,
             d::Node::Extrude {
                 profile,
-                distance: lit(1.5),
+                distance: len(1.5),
             },
         );
         doc

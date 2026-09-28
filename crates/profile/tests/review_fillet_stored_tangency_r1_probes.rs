@@ -491,45 +491,11 @@ fn report_the_recourse_at_a_far_scene() {
 #[test]
 fn report_the_interval_loops_with_the_door_read_suppressed() {
     use common::coverage_corpus;
-    use geom_core::{Interval, Point2, Real};
+    use geom_core::{Interval, Real};
     use profile::{
-        ArcData, ArcSweep, Center, FilletDecision, ReplayStructure, Step, Target, replay,
-        replay_guided, replay_recording,
+        ArcSweep, Center, FilletDecision, ReplayStructure, Step, replay, replay_guided,
+        replay_recording,
     };
-    fn pt(p: Point2<f64>) -> Point2<Interval> {
-        p.map(Interval::from_f64)
-    }
-    fn tgt(t: Target<f64>) -> Target<Interval> {
-        match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        }
-    }
-    fn spec(s: ArcData<f64>) -> ArcData<Interval> {
-        match s {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            other => panic!("unexpected arc spec {other:?}"),
-        }
-    }
-    fn embed(step: &Step<f64>) -> Step<Interval> {
-        match *step {
-            Step::ArcFilletArc {
-                spec: s,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(s),
-                radius: Interval::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            ref other => panic!("unexpected step {other:?}"),
-        }
-    }
 
     // (1) the generic corpus, restricted to the fused ArcFilletArc
     // rows (the relayed row the PR names is one of these).
@@ -537,7 +503,11 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
         if closed.program.len() != 1 || !matches!(closed.program[0], Step::ArcFilletArc { .. }) {
             continue;
         }
-        let embedded: Vec<Step<Interval>> = closed.program.iter().map(embed).collect();
+        let embedded: Vec<Step<Interval>> = closed
+            .program
+            .iter()
+            .map(|s| s.map_scalar(Interval::from_f64))
+            .collect();
         match replay::<Interval>(&embedded, tol()) {
             Err(e) => println!(
                 "R1 h corpus row {i}: replay refused: {}",
@@ -573,7 +543,10 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
         .expect("the lens constructs")
         .program;
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
-    let lifted: Vec<Step<Interval>> = program.iter().map(embed).collect();
+    let lifted: Vec<Step<Interval>> = program
+        .iter()
+        .map(|s| s.map_scalar(Interval::from_f64))
+        .collect();
     let d = &structure.fillets[0];
     let other = ReplayStructure {
         fillets: vec![FilletDecision {

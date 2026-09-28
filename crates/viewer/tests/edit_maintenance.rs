@@ -164,6 +164,124 @@ fn a_delete_that_strands_a_payload_name_reaches_the_line() {
     );
 }
 
+/// **A strand whose carrier evaluates cleanly is said nowhere else**,
+/// which is why `frame::maintenance_notice` cannot answer a strand
+/// `Retold::Again`.
+///
+/// A `Declare` carries its members' names in its payload
+/// (`Node::payload_names`) and evaluates to that payload without
+/// resolving them. Deleting a member strands the declaration's name for
+/// it, and after the delete lands every tree row reads `Ok`: no fault
+/// will ever say the name resolves to nothing. So a refusal in the same
+/// frame must not take the sentence — it rides beside the refusal.
+#[test]
+fn a_strand_on_a_declaration_rides_beside_a_refusal() {
+    use viewer::session::{Refusal, Step};
+
+    let doc: Doc<ProfileProgram> = Doc::empty_derived("maint-declare-strand", Tol::witness());
+    let (doc, _union, declare) = declared_union(&doc);
+    let Some(Node::Declare { .. }) = doc.node(declare) else {
+        panic!("the premise: the carrier is a declaration");
+    };
+    let member = doc
+        .node(declare)
+        .map(|node| node.payload_names())
+        .and_then(|names| names.first().map(|name| name.node))
+        .expect("the declaration names its members");
+
+    let mut session = DocSession::inline(doc, Tol::witness());
+    let delete = SessionOp::DeleteNode { node: member };
+    let outcome = session.perform(delete.clone());
+    assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
+    let strand = outcome
+        .maintenance
+        .iter()
+        .find(|row| matches!(row, Maintenance::Strand { node, .. } if *node == declare))
+        .expect("the delete strands the declaration's name for the member");
+
+    // Nothing else says it: the delete lands and no row fails.
+    session.pump();
+    let (landed, eval) = session.landed_pair().expect("the delete lands");
+    let faults: Vec<String> = viewer::tree::rows(landed, Some(eval))
+        .iter()
+        .filter_map(|row| row.status.message().map(str::to_owned))
+        .collect();
+    assert_eq!(faults, Vec::<String>::new(), "every row evaluates cleanly");
+
+    // So a refusal in the same frame leaves it on the line.
+    let notices: Vec<frame::Message> = frame::outcome_notices(&outcome).collect();
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) =
+        frame::frame_status(&notices, &[delete, SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    let told: Vec<&str> = line.text().split(frame::NOTICE_SEPARATOR).collect();
+    assert_eq!(told.first(), Some(&"nothing to undo"));
+    assert!(
+        told.contains(&strand.to_string().as_str()),
+        "the strand rides beside the refusal: {line}"
+    );
+}
+
+/// **Every worded maintenance row rides beside a refusal**, each by its
+/// own arm: none can show that anything will say it again
+/// (`frame::maintenance_notice` gives each arm's reason).
+#[test]
+fn every_maintenance_row_rides_beside_a_refusal() {
+    use viewer::session::{Refusal, Step};
+
+    let face = |node: u64| StableName {
+        kind: EntityKind::Face,
+        node: RecipeNodeId(node),
+        path: vec![],
+    };
+    let rows = [
+        Maintenance::Strand {
+            node: RecipeNodeId(3),
+            name: face(7),
+        },
+        Maintenance::StrandedAppearance { name: face(8) },
+        Maintenance::OrphanedDeclare {
+            declare: RecipeNodeId(5),
+        },
+    ];
+    let notices: Vec<frame::Message> = rows
+        .iter()
+        .map(|row| frame::maintenance_notice(row).expect("every arm here is worded"))
+        .collect();
+    assert_eq!(
+        notices
+            .iter()
+            .map(frame::Message::retold)
+            .collect::<Vec<_>>(),
+        [frame::Retold::Never; 3],
+        "strand, stranded appearance, orphaned declaration"
+    );
+
+    let refusal = Refusal::NothingToDo {
+        direction: Step::Undo,
+    };
+    let StatusUpdate::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    else {
+        panic!("a refusing frame shows its refusal");
+    };
+    assert_eq!(
+        line.text(),
+        "nothing to undo \u{2022} node 3 carries a face name minted by node 7; this edit removed \
+         what it denoted (its minting node, or the profile segment it named), so the name \
+         resolves to nothing until it is rebound \u{2022} the appearance store holds an \
+         attachment under a face name minted by node 8; this edit removed what it denoted (its \
+         minting node, or the profile segment it named), so the name resolves to nothing until \
+         it is rebound or cleared \u{2022} node 5 declares contacts and this edit deleted the \
+         last node that consumed it, so no node consumes the declaration until a boolean or \
+         union names it again"
+    );
+}
+
 /// **A delete that strands an appearance key reports it** — the
 /// second carrier, with no node of its own.
 #[test]
@@ -281,11 +399,10 @@ fn a_cascade_reports_nothing_its_own_later_steps_took_back() {
 /// A triangle `(0,0) → (2,0) → (1,1)`, counterclockwise, extruded, with
 /// a frame on each of its first two walls; `(doc, profile, extrude)`.
 fn framed_triangle(label: &str) -> (Doc<ProfileProgram>, RecipeNodeId, RecipeNodeId) {
-    let pt = |x: f64, y: f64| [common::len(x), common::len(y)];
     let triangle = LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 1.0))),
+        ProgramStep::At(common::len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([1.0, 1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let doc: Doc<ProfileProgram> = Doc::empty_derived(label, Tol::witness());
@@ -384,11 +501,10 @@ fn a_profile_edit_that_flips_the_sense_reports_nothing() {
     let Some(Node::Profile(base)) = doc.node(profile).cloned() else {
         panic!("the fixture's profile")
     };
-    let pt = |x: f64, y: f64| [common::len(x), common::len(y)];
     let loops = vec![LoopProgram::Chain(vec![
-        ProgramStep::At(pt(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
+        ProgramStep::At(common::len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(common::len2([1.0, -1.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ])];
     let mut session = DocSession::inline(doc, Tol::witness());
@@ -416,6 +532,7 @@ fn a_parameter_edit_through_a_degenerate_hole_reports_nothing() {
         "maint-param-strand",
         &hole_r,
         DocParam::continuous(Dimension::Length, 0.3),
+        tol,
     );
     let square = common::rectangle_loop([0.0, 0.0], 2.0, 2.0);
     let hole = LoopProgram::Circle {
