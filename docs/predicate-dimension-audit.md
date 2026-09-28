@@ -144,8 +144,8 @@ length seam by design: they decide on bare `T` through
 `k_stats::decide_invariant` (no `Margin` minted — not a door, not
 debt), keeping their predicate names and margin values byte-identical
 in the K stream, and a certified violation surfaces as the
-Corrupt-class `ResultVolumeImplausible` ("kernel invariant violated —
-this is a bug", with a report affordance), separated in type and voice
+Corrupt-class `ResultVolumeImplausible` (which ends in the shared
+kernel-defect ending), separated in type and voice
 from every validity refusal. The former `per_boundary` door is renamed
 `over_lever` and re-scoped to the genuine geometric decisions
 (mean-width 2A/P, mean-thickness V/A containment, chart-orientation

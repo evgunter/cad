@@ -94,8 +94,8 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point3, Real,
-    Tol,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    MarginDiag, Point3, Real, Tol,
 };
 
 use crate::body::Body;
@@ -1805,9 +1805,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "kernel invariant violated — this is a bug in the kernel, not in \
-                 your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it"
+                "the Boolean's result broke a bound a correct result's volume always meets \
+                 ({which}: got {got}, bound {bound}), so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}"
             ),
             Self::UnrepresentableResult => write!(
                 f,
