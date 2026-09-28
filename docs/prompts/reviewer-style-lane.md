@@ -174,7 +174,7 @@ neither. That reason goes **at the claim site**, not only in a PR body:
 *"unguardable, and here is why"* is complete where nothing computes with the
 number, and is a deferral owing a schedule where something does. (#651.)
 
-**Check `ci.yml` for a register before accepting an "unguardable"** (#667):
+**Check `ci.yml` and `nightly.yml` for a register before accepting an "unguardable"** (#667):
 there is more than one and two of them gate, so a constant a register
 re-measures is a *scheduled register* row, not an unguarded extraction. Ask
 what it re-takes, not what it once produced — a register generally refreshes

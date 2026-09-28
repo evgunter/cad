@@ -68,8 +68,12 @@ Three properties every fuzzer needs, together:
   its fix.
 - **Counts as multiples of a shared EFFORT dial**, shipped at the smoke
   level every run pays, so a raise is one env var away.
-- **Every fuzzer runs every time at EFFORT = 1, and the marker selects
-  which ones run raised** (Ev, 2026-09-11). Match its named paths
+- **Fuzzers run in the default suite at EFFORT = 1, and the marker
+  selects which ones run raised.** Fuzzers have caught more real bugs
+  in CI than any other row here, so they stay in the per-PR gate while
+  they are cheap; one that costs ≥ 1 s at EFFORT = 1 goes in the slow set
+  like any other test (`.config/nextest.toml`), which runs when its crate
+  is touched and nightly. Match its named paths
   against the diff rather than the crate closure, and raise only on a
   match — so a run that cannot resolve the diff raises nothing. A fuzzer
   whose EFFORT is not keyed to the code it tests is a defect in the
@@ -115,5 +119,5 @@ concentrates savagely — a handful of tests hold most of the test time
 and the long tail is free, so profile before cutting. And per-test CI
 timings are NOT comparable across legs without normalising; legs differ
 enough to manufacture apparent ε-sensitivity. A frequency gate must key
-on *source* changes: the change filter's `all` tier fires on most
-merges, since demos/, .github/ and scripts/ dominate.
+on *source* changes: the change filter's `all` tier fires on any
+.github/ or non-gate scripts/ change.

@@ -52,9 +52,9 @@ not what it says.
 - [Perf measurement lane](perf-measurement-lane.md) — where committed
   timings come from and what may be done with them; reporting, never
   gating (cited by name from nightly.yml and the perf-data READMEs)
-- [FreeCAD render lane](freecad-render-lane.md) — CI renders and
-  re-baselines the lanes; PRs REPORT (neutral, not a failure), main
-  COMMITS; FreeCAD's two failure modes; the per-process budget
+- [FreeCAD render lane](freecad-render-lane.md) — the nightly renders,
+  re-baselines and commits the lanes; PRs do not render; FreeCAD's
+  two failure modes; the per-process budget
 
 ## Kernel rules
 

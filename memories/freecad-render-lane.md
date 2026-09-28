@@ -8,20 +8,19 @@ type: operational
 `freecadcmd`. Frames are **byte-reproducible**: a re-render that
 changes nothing leaves `git status` clean.
 
-## Getting renders: push, merge, pull
+## Getting renders: merge, then the nightly
 
-CI re-baselines its own renders on every lane. **Never hand-commit
-cells.** PRs REPORT, `main` COMMITS: push (the PR run posts a NEUTRAL
-drift check naming the cells), merge (main's run commits them), pull.
+The nightly (`nightly.yml` calling `render.yml`) re-renders every lane
+at main's tip and commits the re-baselined cells to main. **Never
+hand-commit cells.** PRs do not render: merge, and the next nightly
+commits what your change moved; pull after it.
 
-A drift check is **not a failure** — if the render is what you
-intended, it is a pass; do not re-run the job to make it green. Being
-neutral rather than red, it slips past "any failures?" and is caught by
-"is everything success?".
+A re-baseline is **not a failure** — if the render is what you
+intended, it is a pass.
 
-To LOOK at cells before merging, pull the run's artifact with
-`local-scripts/render-hosted.sh --lane <lane>`. Dispatch
-(`--on-demand`, or `render.yml`) only when CI has not covered the tree.
+To LOOK at a branch's cells before merging, render it hosted:
+`local-scripts/render-hosted.sh --on-demand --lane <lane>` (or dispatch
+`render.yml`).
 Expect the PNG lanes to re-baseline when the runner image's mesa bumps;
 that is the lane working.
 

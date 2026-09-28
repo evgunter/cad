@@ -33,7 +33,8 @@ committed baseline `docs/tess-budget-data/`, never here.
 
 **When you gate telemetry behind a feature, budget for its CI row** —
 the default rows then exercise only the inert half, and that row has
-teeth only if it is unconditional. CI runs them in the `k-lint` job.
+teeth only if it is unconditional. The nightly runs them in its
+`k-lint` job; the PR gate's `mesh budget` row runs when mesh is built.
 
 **Where instrument belongs, which a gating rule does not answer.** A
 gating rule answers "does it run in shipped builds?" and is easy to
