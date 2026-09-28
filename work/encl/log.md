@@ -1077,3 +1077,8 @@ class of 65 sites is PRED's row.
 - 2026-09-28 — PR 3348 merged (`95b59b9361`), hosted all green on `10a32dfb5c`. Closed `domain-uniform-refinement-grid-is-spelled-three-times`, and posted seam notes on the program logs.
   - On item 6 of the fix pass, the lane named three pinning rows for the hairline row, not four. That is correct: the review's fourth red row was `bezier_blocks`, which already uses the clearance guard.
   - The residue row `domain-grid-homing-residue` (P4/E) is open.
+- 2026-09-28 — The certify-escalation lane opened PR 3351 (head `3dde3336d1`).
+  - One routing home, `certify::escalation_recourse`, with 45 explicit names and `MissingRecourse`. It is shared with `classify_certify` and its PlaneNurbs arm. The constants are hoisted across pcert, iso and ssi files.
+  - Checks-window text is unchanged for known names. An unknown name now reads "no recourse … recorded" where it used to read EDGE_CLOSE.
+  - Tier raised from style to a single full review. The table's completeness is load-bearing: a missed name regresses a live refusal to "no recourse".
+  - Filed `certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle` (encl), and added evidence to the issues and chrome rows.
