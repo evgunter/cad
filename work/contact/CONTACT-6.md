@@ -5,7 +5,7 @@ title: point_in_solid stops answering a false Out inside a tilted-cut cylinder c
 status: dispatched
 opened: 2026-09-28
 priority: P0
-cost: D
+cost: M
 branch: contact/6-cut-cavity
 ---
 
