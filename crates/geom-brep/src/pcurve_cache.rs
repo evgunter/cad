@@ -5239,10 +5239,10 @@ mod tests {
         else {
             panic!("the closed-form lane stores harmonic images")
         };
-        // δ·r just inside the Zero band at the default ε = 1e-9; the
-        // drift residual r·δ·t peaks at ~0.94e-9 at the last schedule
-        // sample, so the 9-sample limb passes as well.
-        let delta = 0.3e-9 / r;
+        // δ·r = 0.3·ε, inside the run's Zero band; the drift residual
+        // r·δ·t peaks at ~0.94·ε at the last schedule sample, so the
+        // 9-sample limb passes as well.
+        let delta = 0.3 * Tol::witness().eps() / r;
         let drifted = Pcurve::Harmonic {
             p0,
             pa,
@@ -5258,14 +5258,18 @@ mod tests {
             wide_window(),
             band(),
         ) else {
-            // At a tighter ε row the snap does not admit it at all —
-            // also honest, and nothing left to check.
-            return;
+            panic!("a drift of 0.3·ε sits inside the Zero band, so the snap admits it");
         };
         let stored = cache.certificate().envelope;
         let sup = true_sup(&drifted, &cyl, &carrier, 0.0, PI);
+        // The oracle is a distance between two points of magnitude
+        // O(1), so it carries a few ulp of 1 of absolute round-off
+        // whatever the size of the drift; the envelope is compared
+        // against it net of that noise, which is far below the 0.94·ε
+        // drift it has to carry at every ε row.
+        let oracle_noise = 8.0 * f64::EPSILON;
         assert!(
-            stored >= sup,
+            stored >= sup - oracle_noise,
             "stored envelope {stored:e} under-reports the true sup {sup:e}"
         );
         // And it stays O(ε): the slack is the discarded drift, not a
