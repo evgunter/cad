@@ -89,9 +89,8 @@ fn eps() -> f64 {
     Tol::witness().eps()
 }
 
-/// **The M10-3 slab**: the bounded chamber exactly as
-/// `the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment`
-/// builds it — the row S-TCOST bisected the tier's cost on.
+/// **The M10-3 slab**: the bounded chamber at the dimensions S-TCOST
+/// bisected the tier's cost on.
 fn slab() -> ProfileDoc {
     bounded_chamber(60.0 * eps(), 30.0 * eps(), 100.0 * eps())
 }

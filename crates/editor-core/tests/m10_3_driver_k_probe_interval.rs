@@ -41,10 +41,9 @@
 //! deliverable here; the K verdict is not.
 //!
 //! The `probe` feature is needed, and that is inherent: `Probe` is its
-//! scalar. The k-lint gate's probe-gated build row DOES build this
-//! file on every hosted run (`--features probe --no-run`), so
-//! a compile break here reds every PR — the row below also runs
-//! locally and under `local-scripts/ci-local.sh`.
+//! scalar. The nightly's k-lint probe row builds this file
+//! (`--features probe --no-run`), so a compile break here reds the
+//! nightly; the PR gate does not build it.
 #![cfg(feature = "probe")]
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

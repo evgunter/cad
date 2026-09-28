@@ -8,7 +8,7 @@ area: infra
 prefix: mirror/
 tag: (MIRROR orchestrator)
 ab_band: 9900-9999
-paths: [scripts/check-ci-mirror-parity.py, local-scripts/*]
+paths: [local-scripts/*]
 keep_out: [opened by CIW's 2026-09-20 priority-seam cut (Ev, in chat) per work/README.md Track size - CIW measured 67 budget points and was cut into tracks meant to run in PARALLEL (Ev, in chat: for these high priority tracks it is ideal to have several components that can be worked on in parallel), the siblings are CIW BLIND MIRROR and they share their parent's territory by design - shared ground is legitimate by the README's 2026-09-20 rule and what is owed is awareness while a lane is LIVE, so run scripts/work.py territory on your branch and announce the seam in the PR rather than drawing a fence, GUARD owns scripts/gates whole, TCOST owns what the suite costs, BUDGET owns the tessellation instrument, INSTR owns k-lint and the K-report]
 priority: P4
 ---

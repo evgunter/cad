@@ -53,10 +53,10 @@
 //! freeze would have cost it — which is a stronger answer, not a wrong
 //! one, and which depends on whether the publishing leaf ran first. **A
 //! receipt is schedule-independent only while no leaf of the drive
-//! reaches that branch at all**, and none does: `editor-core`'s
-//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`
-//! counts `FreezeCause::Unrecorded` over both documents and pins it at
-//! zero. Both directions are rows in `geom-core`'s `sym_drive_memo`.
+//! reaches that branch at all**, and none does on any drive measured:
+//! the profile's `FreezeCause::Unrecorded` count reads zero over both
+//! documents, a measurement no gating row holds. Both directions are
+//! rows in `geom-core`'s `sym_drive_memo`.
 //!
 //! # A LEAF's NEED, and the one reading that is still the schedule's
 //!
@@ -117,10 +117,9 @@
 //! `sym_drive_memo::a_taint_induced_freeze_under_a_hit_is_read_by_order`
 //! and the residue is
 //! `work/sym/a-taint-induced-freeze-under-a-hit-still-reads-by-order`;
-//! the branch itself is pinned at zero over every drive measured
-//! (`editor-core`'s
-//! `no_leaf_of_a_drive_freezes_a_node_its_session_never_recorded`, five
-//! drives), because a drive mints every node inside its own session.
+//! the branch itself reads zero over every drive measured (the
+//! profile's `FreezeCause::Unrecorded` count, five drives), because a
+//! drive mints every node inside its own session.
 //!
 //! # What it holds, and what it does not
 //!

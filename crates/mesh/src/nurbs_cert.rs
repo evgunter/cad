@@ -2973,7 +2973,7 @@ pub(crate) mod tests {
     /// thousands of hosted runs.
     ///
     /// This row reaches it on every run, and it is an ENUMERATION
-    /// rather than a sweep (`memories/test-suite-cost.md`'s shape
+    /// rather than a sweep (implementer-discipline §8's shape
     /// question): its content is a product of boundary cases — four
     /// weights over a three-decade ladder, across a handful of nets
     /// chosen for the corner geometries that matter — so it is written
