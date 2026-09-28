@@ -182,7 +182,7 @@ use topo::{
 use super::admit::{AdmittedOpen, CornerFaces, CornerLinks, RequestedBoundary};
 use super::arms::EdgeBlend;
 use super::battery::{BatteryVerdict, Chain, ChainClosure, Convexity, Link};
-use super::build::{Blended, face_cycle};
+use super::build::{Blended, face_cycle, fan_at};
 use super::naming::{BlendNaming, RimSide, second_support_is_host};
 use super::open::planar::{BlankPlan, Corner, blank_phase, corner_plan};
 use super::open::ruled::{RuledPlan, ruled_phase};
@@ -586,7 +586,7 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     let mut corners: Vec<Corner<'_, T>> = Vec::new();
     for links in ends {
         let v = links.vertex();
-        let Some(mut incident) = vertex_edges_of(source, v) else {
+        let Some(mut incident) = fan_at(source.edges_of_vertex(v)) else {
             return Err(not_intact(
                 EntityId::Vertex(v),
                 "a chain end's vertex orbit does not walk",
@@ -826,19 +826,6 @@ pub(super) fn blend_surgery<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
 // ------------------------------------------------------------------
 // Plan helpers (read-only).
 // ------------------------------------------------------------------
-
-/// A vertex's incident edges, sorted (the corner front-door check).
-fn vertex_edges_of<T: Decide>(body: &Body<T>, vertex: VertexKey) -> Option<Vec<EdgeKey>> {
-    let he = body.get_vertex(vertex)?.emanating?;
-    let mut edges: Vec<EdgeKey> = body
-        .vertex_orbit(he)?
-        .iter()
-        .filter_map(|h| body.get_half_edge(*h).map(|x| x.edge))
-        .collect();
-    edges.sort_unstable();
-    edges.dedup();
-    Some(edges)
-}
 
 /// Resolve one closed chain onto its two supports, with every
 /// structural precondition of the band replacement checked.
@@ -1352,10 +1339,9 @@ fn resolve_seam_split_rim<'a, T: Decide + Bounds>(
     let mut crossings = Vec::with_capacity(chain.link_count());
     for (i, link) in chain.links().enumerate() {
         let vertex = ends[i].1;
-        let mut incident = vertex_edges_of(body, vertex)
+        let mut incident = fan_at(body.edges_of_vertex(vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let (arcs, seams): (Vec<EdgeKey>, Vec<EdgeKey>) =
             incident.iter().partition(|e| chain_edges.contains(e));
         // One seam per side that HAS one: both under `Seams`, the mate
@@ -1630,10 +1616,9 @@ fn refresh_annulus_seams<T: Decide + Bounds>(
     // recourse, which is honest wherever they could fire.
     let mut live = Vec::with_capacity(ann.crossings.len());
     for c in &ann.crossings {
-        let mut incident = vertex_edges_of(body, c.vertex)
+        let mut incident = fan_at(body.edges_of_vertex(c.vertex))
             .ok_or_else(|| not_intact(EntityId::Vertex(c.vertex), "a rim vertex's edge orbit"))?;
         incident.sort_unstable();
-        incident.dedup();
         let extras: Vec<EdgeKey> = incident
             .into_iter()
             .filter(|e| !chain_edges.contains(e))
@@ -1747,7 +1732,7 @@ fn resolve_annulus<T: Decide + Bounds>(
     // the band's slit is minted from the MATE seam's rim-side piece
     // and the HOST seam's rim-side piece dies with this vertex, so a
     // third incident edge would be left behind by both.
-    let mut incident = vertex_edges_of(body, vertex)
+    let mut incident = fan_at(body.edges_of_vertex(vertex))
         .ok_or_else(|| not_intact(EntityId::Vertex(vertex), "a rim vertex's edge orbit"))?;
     incident.sort_unstable();
     let mut expected = vec![link0.edge, host_seam, mate_seam];
@@ -2732,7 +2717,7 @@ fn rim_phase<T: Decide + Bounds>(
     // SOURCE meridian it came from).
     let mut remnants: Vec<(VertexKey, EdgeKey, EdgeKey)> = Vec::with_capacity(n);
     for &(_, v, e) in &plane_walk {
-        let incident = vertex_edges_of(body, v)
+        let incident = fan_at(body.edges_of_vertex(v))
             .ok_or_else(|| not_intact(EntityId::Vertex(v), "a rim vertex's edge orbit"))?;
         let meridians: Vec<EdgeKey> = incident
             .into_iter()
@@ -4073,12 +4058,15 @@ fn attach_contact<T: Decide + Bounds>(
         // description is the plain intersection locus. Calling it a
         // TANGENT intersection would claim normal-parallelism along
         // the locus that the geometry does not have. The description
-        // is chosen for what the geometry IS, not for what the
-        // certifier would catch: a cut-off arc mis-described as a
-        // tangent intersection of band and cap certifies and passes
-        // tier 3 today (the `TangentParallel` margin `sin θ / |κ_rel|`
-        // admits a 90° crossing —
-        // `work/props/tangent-parallel-certifier-passes-a-transverse-arc.md`).
+        // is chosen for what the geometry IS, not for what a later
+        // gate would catch. Routed through the tangent branch below
+        // instead, a cut-off arc is caught only in one surface order:
+        // with the cap as `s1` the must-carry rule reads it
+        // jet-determinate and the certificate refuses the tangent
+        // description at `TangentParallel`; with the band as `s1` the
+        // rule reads it under-determined and the conventional chart
+        // image is stored and passes tier 3
+        // (`work/encl/must-carry-over-edge-reads-a-transverse-edge-as-under-determined.md`).
         let witness = curve.eval((t0 + t1) * T::from_f64(0.5));
         EdgeDescriptionSpec::Intersection { s1, s2, witness }
     } else {

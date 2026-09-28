@@ -249,12 +249,11 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // carry Intersection at rest), so the compared certificates are the
     // upgraded Intersection re-certifications.
     //
-    // The dual goes through the STRUCTURAL half, which is where every
-    // certificate compared below is produced — checks 1-6, 8 and 9 all
-    // run, and the one check that does not is the +V volume invariant,
-    // which reads an enclosure a dual may not certify and reads no
-    // certificate this row compares. The f64 lane's own composed-door
-    // rows are elsewhere in this file.
+    // The dual goes through the `_structural` door, which is where every
+    // certificate compared below is produced — all nine checks run, check
+    // 7 through the closed form (the cube is planar, so it computes at a
+    // dual with a zero pad), and none of them reads a certified lane. The
+    // f64 lane's own composed-door rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>(Tol::witness());
     let mut d = geometric_cube::<Dual64>(Tol::witness());
@@ -390,66 +389,67 @@ fn totality_no_panics_on_poison_inputs() {
     assert_eq!(validate(&body), Ok(()));
 }
 
-/// **The structural half never judges orientation, at ANY scalar — and
-/// on a closed-form body that is a verdict a dual used to get here.**
+/// **Every `_structural` door judges orientation, at ANY scalar.**
 ///
 /// Check 7 has two derivations: the certified quadrature, which no dual
 /// can reach, and the CLOSED FORM, which computes at every scalar with
-/// `pad = 0`. On a planar body the closed form answers, so the pre-split
-/// `validate_geometric` handed a `Dual64` caller a genuine `+V` SIGN —
-/// not a refusal. The split moves the whole check, both derivations, to
-/// the certified half, so the structural door is silent about
-/// orientation everywhere rather than only where certification was
-/// unavailable. **An inverted body passes it BY DESIGN.**
-///
-/// The recourse is named at the doors and pinned here: the `_structural`
-/// passes hold no quadrature lane and still make check 7 through the
-/// closed form, so a dual caller that wants the sign asks
-/// `validate_pseudomanifold_structural`, `contact_marks_structural` or
-/// `mass_properties_structural`. This row is
-/// the three verdicts side by side, so the disagreement between the
-/// at-rest doors at a dual is a tested fact rather than a surprise.
+/// `pad = 0`. A `_structural` door holds no certified lane and makes
+/// check 7 through the closed form, so on a planar body it hands a
+/// `Dual64` caller a genuine `+V` SIGN — the composed door's verdict,
+/// reached without its bound. This row is every at-rest door's verdict
+/// on one inverted cube side by side, at `f64` and at a dual: one
+/// refusal, `NegativeVolume`, from all of them.
 #[test]
-fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
+fn every_structural_door_judges_orientation_at_any_scalar() {
     use geom_core::Dual64;
     let tol = Tol::witness();
 
-    // f64, the composed door: the sign is decided and the body refused.
+    // f64: the composed door and its `_structural` twin, one verdict.
     let mut f = geometric_cube::<f64>(Tol::witness());
     describe_as_intersections(&mut f.body, Tol::witness());
     let f_inverted = f.body.revert().expect("the cube reverts");
+    let f_negative = Err(vec![topo::ValidationError::NegativeVolume {
+        solid: f_inverted.solids().next().expect("one solid").0,
+    }]);
     assert_eq!(
         validate_geometric(&f_inverted, tol),
-        Err(vec![topo::ValidationError::NegativeVolume {
-            solid: f_inverted.solids().next().expect("one solid").0
-        }]),
+        f_negative,
         "the composed door judges orientation at a certifying scalar"
     );
+    assert_eq!(
+        topo::validate_geometric_structural(&f_inverted, tol),
+        f_negative,
+        "its `_structural` twin reaches the same sign through the closed form"
+    );
 
-    // Dual64, the structural half: SILENT about orientation, and the
-    // same body is otherwise sound, so `Ok` here is the whole finding
-    // rather than a refusal arriving from somewhere else.
+    // Dual64, where the composed door cannot be written: every
+    // `_structural` door still refuses the inverted body, and for the one
+    // reason — the same body is otherwise sound, so the refusal is the
+    // sign and nothing arriving from somewhere else.
     let mut d = geometric_cube::<Dual64>(Tol::witness());
     describe_as_intersections(&mut d.body, Tol::witness());
     let d_inverted = d.body.revert().expect("the cube reverts at a dual");
+    let d_negative = Err(vec![topo::ValidationError::NegativeVolume {
+        solid: d_inverted.solids().next().expect("one solid").0,
+    }]);
     assert_eq!(
         topo::validate_geometric_structural(&d_inverted, tol),
-        Ok(()),
-        "the structural half runs no +V check, so an inverted body passes it"
+        d_negative,
+        "the tier-3 `_structural` door judges orientation at a dual"
     );
-
-    // Dual64, the `_structural` passes H-R3 keeps: the sign is still
-    // available, through the closed form, at the scalar the composed door
-    // excludes.
+    assert_eq!(
+        topo::validate_geometric_certificate_structural(&d_inverted, tol).map(|_| ()),
+        d_negative,
+        "and so does its certificate form"
+    );
     assert_eq!(
         topo::validate_pseudomanifold_structural(&d_inverted, &ContactRecords::default(), tol),
-        Err(vec![topo::ValidationError::NegativeVolume {
-            solid: d_inverted.solids().next().expect("one solid").0
-        }]),
-        "the census pass still judges orientation at a dual"
+        d_negative,
+        "the census pass judges orientation at a dual"
     );
-    assert!(
-        topo::contact_marks_structural(&d_inverted, tol).is_err(),
+    assert_eq!(
+        topo::contact_marks_structural(&d_inverted, tol).map(|_| ()),
+        d_negative,
         "the marks pass refuses the same body for the same reason"
     );
     assert!(
@@ -460,4 +460,44 @@ fn the_structural_half_does_not_judge_orientation_at_any_scalar() {
             < 0.0,
         "and the closed-form volume a dual CAN compute is the negative one"
     );
+}
+
+/// **The `_structural` certificate continues to the closed form's own
+/// measurement, pads `0`** — at `f64` and at a dual, the claim
+/// `validate_geometric_certificate_structural`'s doc makes. It holds no
+/// lane, so what it continues to is `mass_properties_structural` on the
+/// same body, compared through `Debug` (every `f64` round-trips there).
+#[test]
+fn the_structural_certificate_continues_to_the_closed_form() {
+    use geom_core::Dual64;
+    let tol = Tol::witness();
+    let mut f = geometric_cube::<f64>(Tol::witness());
+    describe_as_intersections(&mut f.body, Tol::witness());
+    let continued = topo::validate_geometric_certificate_structural(&f.body, tol)
+        .expect("the cube passes the `_structural` door")
+        .refine_to_target()
+        .expect("a closed-form certificate's continuation cannot refuse");
+    assert_eq!(
+        (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
+        (0, 0),
+        "a closed-form certificate carries pads of 0"
+    );
+    let measured =
+        topo::mass_properties_structural(&f.body, tol).expect("the closed form measures");
+    assert_eq!(format!("{continued:?}"), format!("{measured:?}"));
+
+    let mut d = geometric_cube::<Dual64>(Tol::witness());
+    describe_as_intersections(&mut d.body, Tol::witness());
+    let continued = topo::validate_geometric_certificate_structural(&d.body, tol)
+        .expect("the cube passes the `_structural` door at a dual")
+        .refine_to_target()
+        .expect("a closed-form certificate's continuation cannot refuse at a dual");
+    let measured =
+        topo::mass_properties_structural(&d.body, tol).expect("the closed form measures at a dual");
+    assert_eq!(
+        (continued.volume_pad.to_bits(), continued.area_pad.to_bits()),
+        (0, 0),
+        "and so it does at a dual"
+    );
+    assert_eq!(format!("{continued:?}"), format!("{measured:?}"));
 }

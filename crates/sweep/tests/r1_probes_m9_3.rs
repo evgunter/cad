@@ -7,7 +7,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::plate6;
+use crate::common::operands::{plate6, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
@@ -21,22 +21,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
 
-fn cyl_at(cx: f64, z0: f64, h: f64, r: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(cx + r * th.cos(), 2.0 + r * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
-
 fn body_of(r: BooleanResult<f64>) -> Body<f64> {
     match r {
         BooleanResult::Body(b) => b.body,
@@ -46,14 +30,14 @@ fn body_of(r: BooleanResult<f64>) -> Body<f64> {
 
 fn plate_with_pegs(cx1: f64, cx2: f64, r: f64) -> Body<f64> {
     let p0 = plate6(0.0);
-    let p1 = body_of(topo::union(&p0, &cyl_at(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &cyl_at(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
+    let p1 = body_of(topo::union(&p0, &plate6_cyl(cx1, 0.4, 1.6, r), Tol::witness()).unwrap());
+    body_of(topo::union(&p1, &plate6_cyl(cx2, 0.4, 1.6, r), Tol::witness()).unwrap())
 }
 
 fn plate_with_bores() -> Body<f64> {
     let q0 = plate6(1.0);
-    let q1 = body_of(topo::subtract(&q0, &cyl_at(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &cyl_at(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
+    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
 }
 
 fn walls_at(body: &Body<f64>, cx: f64) -> Vec<topo::FaceKey> {
@@ -279,11 +263,11 @@ fn probe_tangent_on_conformal_walls_contradicts() {
 fn probe_partial_engagement_never_silent() {
     let p = {
         let p0 = plate6(0.0);
-        body_of(topo::union(&p0, &cyl_at(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
+        body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.1, 0.5), Tol::witness()).unwrap())
     };
     let q = {
         let q0 = plate6(1.0);
-        body_of(topo::subtract(&q0, &cyl_at(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
+        body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
     };
     let vp = mass_properties(&p, Tol::witness()).unwrap().volume;
     let vq = mass_properties(&q, Tol::witness()).unwrap().volume;

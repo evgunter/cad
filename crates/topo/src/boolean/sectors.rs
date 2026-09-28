@@ -466,8 +466,11 @@ pub(super) fn tangent_lump<T: Decide>(
 /// sector's carrier lie on along direction `d` from the tie point —
 /// the relative graph-over-the-shared-tangent-plane acceleration
 /// `z″ = −d̂ᵀ(∇²F)d̂ / (∇F·n̂_ref)` differenced across the two
-/// carriers (the jet chain's own denominator-carries-the-sign
-/// construction), classified through the existing second-order
+/// carriers (the implicit-function graph over the plane normal to
+/// `n̂_ref`, whose denominator carries the sign when a carrier's
+/// gradient opposes `n̂_ref`, and which is a graph only where that
+/// denominator is bounded away from zero — the declared tangency's
+/// first-order tie), classified through the existing second-order
 /// trilean (rows `tangent_sector_order2{,_arm}`). `On` is the honest
 /// exact-zero: the direction rides the tangency locus (a curve on
 /// either carrier along it separates at no order this kernel

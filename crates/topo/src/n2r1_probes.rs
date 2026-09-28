@@ -109,11 +109,11 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
     // Adoption note (orchestrator, at the merge with CERT-M2): the
     // battery this probe calls gained a sixth argument in CERT-M2's
     // split — check 7 handed in as a hook. The probe passes the empty
-    // hook, which is exactly `validate_geometric_structural`'s answer
-    // (the battery run without the +V check), so what it measures — check
-    // 1's silence on the masquerade — is unchanged. The public structural
-    // door cannot stand in here: the mvfs fixture fails an earlier tier
-    // there before check 1 is reached.
+    // hook, which is exactly the composed `validate_geometric`'s
+    // structural phase (the battery run without the +V check), so what it
+    // measures — check 1's silence on the masquerade — is unchanged. The
+    // public structural door cannot stand in here: the mvfs fixture fails
+    // an earlier tier there before check 1 is reached.
     let band = Band::new(1e-9, 1e-8).unwrap();
     let tol = geom_core::Tol::witness();
     let run = |s: Surface<f64>| {
@@ -129,8 +129,8 @@ fn probe_class9_tier3_stops_refusing_the_poisoned_face() {
             &mut marks,
             tol,
             crate::validate::PlusVCheck::NotMade,
-            // The structural half's answer for check 2's plane x NURBS
-            // lane as well: this probe measures check 1, and the mvfs
+            // The `_structural` doors' answer for check 2's plane x NURBS
+            // lane: this probe measures check 1, and the mvfs
             // fixture carries no M7-8 edge for the lane to re-derive.
             None,
             // This probe is concrete at `f64`, so it names the offset

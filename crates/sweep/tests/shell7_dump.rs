@@ -20,7 +20,9 @@ use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
-use topo::{Body, FaceKey, VertexKey};
+use topo::Body;
+
+use crate::common::charts::hollow_moves;
 
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
@@ -28,26 +30,6 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
-fn faces_at(body: &Body<f64>, v: VertexKey) -> Vec<FaceKey> {
-    let Some(em) = body.get_vertex(v).unwrap().emanating else {
-        return Vec::new();
-    };
-    let mut out: Vec<FaceKey> = body
-        .vertex_orbit(em)
-        .unwrap()
-        .into_iter()
-        .map(|he| face_of_he(body, he))
-        .collect();
-    out.sort();
-    out.dedup();
-    out
 }
 
 fn dump(label: &str, body: &Body<f64>) {
@@ -70,7 +52,10 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, e) in body.edges() {
-        let (fa, fb) = (face_of_he(body, e.he_plus), face_of_he(body, e.he_minus));
+        let (fa, fb) = (
+            body.face_of_half_edge(e.he_plus).unwrap(),
+            body.face_of_half_edge(e.he_minus).unwrap(),
+        );
         let start = body.get_half_edge(e.he_plus).unwrap().start;
         let end = body.half_edge_end(e.he_plus).unwrap();
         let c = body
@@ -85,7 +70,8 @@ fn dump(label: &str, body: &Body<f64>) {
         );
     }
     for (k, v) in body.vertices() {
-        let faces = faces_at(body, k);
+        let mut faces = body.faces_of_vertex(k).unwrap();
+        faces.sort();
         let mut surfaces: Vec<_> = faces
             .iter()
             .map(|f| body.get_face(*f).unwrap().surface)
@@ -122,27 +108,6 @@ fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
             None
         }
     }
-}
-
-/// Every chart moved inward by `t` through the simultaneous door.
-fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }
 
 fn direct(label: &str, body: &Body<f64>, t: f64) {
@@ -324,7 +289,7 @@ fn split_seam(body: &mut Body<f64>, on_axis: bool) {
     let seam = body
         .edges()
         .find(|(e, data)| {
-            let key = |he| body.get_face(face_of_he(body, he)).unwrap().surface;
+            let key = |he| body.get_face(body.face_of_half_edge(he).unwrap()).unwrap().surface;
             let same = key(data.he_plus) == key(data.he_minus);
             let c = body
                 .get_curve_geom(body.get_edge(*e).unwrap().curve)

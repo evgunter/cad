@@ -75,7 +75,7 @@ pub(super) fn in_plane_frame<T: Decide>(
 ) -> Result<(Vec3<T>, Vec3<T>), Indeterminate> {
     let mut last = None;
     for r in &super::containment::SCHEDULE {
-        let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
+        let r = r.map(T::from_f64);
         let d = r - plane.normal * plane.normal.dot(r);
         match decide(
             "split_join_frame_arm",

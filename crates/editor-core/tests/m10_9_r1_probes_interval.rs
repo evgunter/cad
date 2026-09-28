@@ -17,13 +17,13 @@ use std::time::Instant;
 use editor_core::analysis::{AnalysisPolicy, ParamBox, analyzed_box};
 use editor_core::drive::{DriveConfig, drive};
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
 };
 use geom_core::{SymRules, Tol};
 
-use crate::fixture::Recorder;
+use crate::fixture::{Recorder, ang, len, scl, xy_frame};
 use crate::m10_8_arc_family_interval::replay;
 use crate::m10_8_harness::{ceiling, certifies_whole, dials};
 
@@ -160,8 +160,6 @@ fn r1_the_plate_ceiling_bisected_both_ways() {
 /// radius Uniform (±), all scaled together, so a ceiling is a multiple
 /// of a study a user would ask for.
 pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("finite length");
-    let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite scalar");
     let plen = |n: &str| Expr::param(ParamName::new(n), Dimension::Length);
     let mut r = Recorder::new();
     let declare = |r: &mut Recorder, n: &str, value: f64, distribution: Distribution| {
@@ -201,11 +199,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             sigma: 1.0e-5 * scale,
         },
     );
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let thickness = Expr::div(plen("outer_r"), scl(4.0)).expect("Length / Scalar");
     let disc_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
@@ -225,7 +219,7 @@ pub(crate) fn split_bore_disc(scale: f64, tol: Tol) -> (ProfileDoc, RecipeNodeId
             centre: [plen("offset"), len(0.0)],
             radius: plen("bore_r"),
             n: 5,
-            phase: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+            phase: ang(0.0),
         }],
         ids: Vec::new(),
     }));

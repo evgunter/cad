@@ -8,11 +8,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::three_arc;
 use geom_core::{Point2, Tol, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::blend::battery::{BlendRequest, convexity_at, run_battery};
 use sweep::blend::{BlendError, BlendSite};
-use sweep::test_support::{disc_of_arcs, sketch_from_axes};
+use sweep::test_support::{disc_of_arcs, extruded, sketch_from_axes};
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceSurface};
 
@@ -510,16 +511,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
         let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
-        let b120 = (core::f64::consts::PI / 6.0).tan();
-        let at = |deg: f64| {
-            let th: f64 = deg.to_radians();
-            p2(0.25 * th.cos(), 0.25 * th.sin())
-        };
-        let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-        let profile = Profile::new(plane, vec![lp]).validate(tol()).unwrap();
-        let boss = extrude(&profile, Extrusion::Distance(1.0), tol())
-            .expect("a boss on a tilted plane")
-            .body;
+        let boss = extruded(plane, vec![three_arc(p2(0.0, 0.0), 0.25, 0.0)], 1.0, tol());
         let r = topo::boolean::union(&base, &boss, tol());
         match r {
             Ok(out) => {

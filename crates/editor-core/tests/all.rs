@@ -439,6 +439,8 @@ mod mate6r2_probes;
 mod parallel_node_map_interval;
 #[path = "parallel_node_map_probe.rs"]
 mod parallel_node_map_probe;
+#[path = "per_part_gate_policy.rs"]
+mod per_part_gate_policy;
 #[path = "perf12_census_bvh_diff.rs"]
 mod perf12_census_bvh_diff;
 #[path = "perf12_census_goldens.rs"]
@@ -559,6 +561,9 @@ mod lib_tube_r2_probes;
 
 #[path = "m10_7_r2_probes_interval.rs"]
 mod m10_7_r2_probes_interval;
+
+#[path = "m10_7_r2_drive_schedule_is_deterministic.rs"]
+mod m10_7_r2_drive_schedule_is_deterministic;
 
 #[path = "m10_8_arc_family_interval.rs"]
 mod m10_8_arc_family_interval;

@@ -2,8 +2,9 @@
 id: the-pr-17-promotion-attribution-is-half-checked
 kind: issue
 title: The PR 17 promotion attribution survives in seven headers and only half of it is what Ev asked for
-status: open
+status: closed
 opened: 2026-09-19
+closed: 2026-09-28
 priority: P4
 cost: E
 ---
@@ -80,3 +81,7 @@ recommended it to. The check that catches it is not `git log -S` on the
 sentence (which lands correctly on `e9eeace50`) but reading the cited
 thread and asking which comments are the account's owner speaking.
 
+
+## Closed (2026-09-28): Ev's ruling
+
+Ev ruled to delete it. The *"Promoted per Ev's request (PR #17 thread)"* sentence is gone from all seven headers, and so is the *"These are **independent derivations**"* clause it sat in. That clause was the withdrawn exemption's wording.

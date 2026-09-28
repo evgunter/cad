@@ -1254,8 +1254,7 @@ mod tests {
 
     /// The approximating variant lifts as its payload too — the fit IS
     /// the geometry, so the lifted surface evaluates to the source —
-    /// and the description, window, tolerance and certificate ride
-    /// along verbatim.
+    /// and the description, window and certificate ride along verbatim.
     #[test]
     fn approx_lifts_as_its_payload_with_its_record() {
         let Surface::Nurbs(fit) = arch_sheet_nurbs() else {
@@ -1278,16 +1277,14 @@ mod tests {
             },
             fit: (*fit).clone(),
             window: ApproxWindow::of(&*fit),
-            tolerance: 1e-6,
         };
-        let approx = ApproxSurface::certify(spec, |_, _, _, _| Ok::<_, ()>(certificate)).unwrap();
+        let approx = ApproxSurface::certify(spec, |_, _, _| Ok::<_, ()>(certificate)).unwrap();
         let s = Surface::Approx(Arc::new(approx));
         let sd: Surface<Dual64> = s.map_scalar(Dual::constant);
         let Surface::Approx(lifted) = &sd else {
             panic!("an approximating surface lifted to another variant");
         };
         assert_eq!(lifted.window(), ApproxWindow::of(&*fit));
-        assert_eq!(lifted.tolerance(), 1e-6);
         assert_eq!(lifted.certificate().hull_sup, certificate.hull_sup);
         assert_eq!(lifted.certificate().rounds, certificate.rounds);
         let SurfaceDescription::Offset { d, .. } = lifted.description();

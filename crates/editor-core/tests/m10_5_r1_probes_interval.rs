@@ -35,7 +35,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Interval, Tol, Vec3};
 
-use fixture::{Recorder, ang, len, scl};
+use fixture::{Recorder, ang, len, len2, scl};
 
 /// The analysis box's half-width: the shipped suite's ε/64, for the
 /// shipped suite's reason (module header).
@@ -84,7 +84,7 @@ fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
         input,
         translation: by,
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_angle: ang(0.0),
     }
 }
 
@@ -93,12 +93,12 @@ fn translated(input: RecipeNodeId, by: [Expr; 3]) -> Node<ProfileProgram> {
 /// `ProfileProgram::plane` became a node reference under this branch
 /// (main's move), so every fixture mints the frame first and hands the
 /// profile its id.
-fn xy_frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]))
+fn insert_xy_frame(r: &mut Recorder) -> RecipeNodeId {
+    r.insert(fixture::xy_frame())
 }
 
 fn extruded(r: &mut Recorder, points: &[(f64, f64)], depth: f64) -> RecipeNodeId {
-    let plane = xy_frame(r);
+    let plane = insert_xy_frame(r);
     let p = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::polygon(points.iter().copied()).expect("finite corners")],
@@ -368,20 +368,19 @@ fn an_l_shaped_face_holds_where_it_has_no_material() {
 fn bumped_block() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let p2 = |x: f64, y: f64| [len(x), len(y)];
     let chain = LoopProgram::Chain(vec![
-        ProgramStep::At(p2(0.0, 0.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(2.0, 0.5))),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(1.5, 0.5))),
+        ProgramStep::At(len2([0.0, 0.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([2.0, 0.5]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.5, 0.5]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(p2(0.5, 0.5)),
+            target: ProgramTarget::Point(len2([0.5, 0.5])),
             b: scl(1.0),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.5))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.5]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![chain],
@@ -483,7 +482,7 @@ fn a_block_with_a_rounded_bump_certifies_strictly_positive() {
 fn a_partial_revolve_band_reports_its_phantom_turn() {
     let mut r = Recorder::new();
     declare(&mut r, "place", 0.0);
-    let plane = xy_frame(&mut r);
+    let plane = insert_xy_frame(&mut r);
     let profile = r.insert(Node::Profile(fixture::desc(
         plane,
         vec![vec![(1.0, 0.0), (2.0, 0.0), (2.0, 1.0), (1.0, 1.0)]],

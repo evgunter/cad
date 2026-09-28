@@ -262,3 +262,227 @@ read off a lane that had barely built, and the first completion watcher
 have fired. The watcher now waits on the script's PID. Standing rule
 for the rest of this sitting: a lane deletes its target when it
 reports, and the orchestrator checks `df` before each gate run.
+
+## 3270 in dual review; 3269 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) **PR 3270** (tangent-parallel): final head
+`5412915be6`. Cause: `tangent_jet` divided the Hessian form by
+`∇F₂·n̂₁`, which is 0 at 90°, so `κ_rel` = −inf and the D4 ¶1 lever
+`1/|κ_rel|` = 0 passed any angle. Fixed by normalising by `|∇F₂|`, with
+the sign carried by `copysign`. No margin's definition moved, so nothing
+goes to Ev. **Dual review** dispatched: R1 and R2, both Opus, identical
+briefs on the frozen head, isolated. This is a row for
+`docs/DUAL-REVIEW-LOG.md`, recorded under protocol `c3129311bd`, and it
+rides 3270's PR as its last commit after both reports.
+
+**PR 3269** (refusal prose): style review APPROVE-WITH-FIXES, 2 MINOR,
+2 NOTE, 17 style items. Taken: `Elevation` rendering one repair within
+budget, with a reachable sample and a corrected unreachability argument;
+the stale "lever"/"rounds" prose, swept; `meter_patch`'s invented
+`NormalFloor{0,0,0}` replaced by a structure that cannot invent one;
+the checks window's `classify_offset_fit` recourses made true and
+consistent; the unchanged arms and the `PatchBoundError` notes held to
+the standard's content rules; message-quality items; the reach check's
+two unfailable entries; a compiler-derived roster where cheap; and
+Shell-route rows for the loop arms. Filed, not fixed: the
+kernel-defect / repair-vocabulary class (no shared home), and
+`refusal::problems` missing a LOST repair (on CHROME's slate).
+
+## PR 3274 review adjudicated (2026-09-26)
+
+(ENCL orchestrator) Style review on `c616be3c6`: APPROVE-WITH-FIXES, no
+MAJOR, and the final state matches the Decided spec. **The fix minted a
+copy of what it closed**: with the stored `f64` gone, `recertify` and
+`remap` are one operation in two packagings, and the `rounds` override
+is spelled twice. Taken, with one body. Also taken: the stale
+"stored datum" census prose; the module doc's "no production caller"
+narrowed to what the census checks; `map_approx`'s "preserves the
+CLAIM" paragraph stating the rotation refusal plainly, pointing at
+`a-rotation-can-refuse-an-approx-face-that-certifies-near-eps`; two
+spellings of the run's ε at the certify seam; the duplicated frame row;
+an unfailable `hull_sup <= eps`; three spellings of the fixture target;
+the census's `home_seen` per routine; a rename; and bit comparison
+instead of a Debug string. Filed: `(tol, band)` travel as a redundant
+pair (the class, on this slate).
+
+## PR 3274 fix pass read (2026-09-26)
+
+(ENCL orchestrator) Head `c4f5d26cdc`. Read by the orchestrator, not
+re-reviewed. The structural item landed as asked: `OffsetFitLane` holds
+`mint` and ONE `certify` (`certify_offset_over`, over the
+`(description, fit, window)` triple); `recertify` unpacks the surface
+into it; `remap_offset_certificate` is deleted; the rounds override has
+one spelling (`OffsetCertificate::carrying_rounds`); and the Tol door's
+certifier closes over `Tol` while only the `_at` instrument closes over
+a number. Filed: `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`.
+The lane stopped building when the disk ran short, so the sweep rows and
+the 1e-6 and 1e-12 rows are unverified on this head; the local gate is
+their verification. Gate queue: 3272 (running) → 3275 → 3274.
+
+## PR 3269 fix pass in (2026-09-26)
+
+(ENCL orchestrator) Head `df81aaf175`. Every item was taken except two
+declines, both accepted:
+- `WindowUnsupported` keeps its `{:?}` tuples, because LIB's
+  `prose_census.rs` counts them.
+- The `PatchBound` notes keep their `: repair` form; that is the class
+  the new row carries.
+
+Filed:
+- `kernel-defect-endings-and-repair-labels-have-no-shared-home` (here);
+- `refusal-checker-stays-green-when-a-message-loses-its-recourse` (CHROME).
+
+`PatchBoundError` gained `strum::EnumIter` behind geom-brep's
+`test-support` feature, so its roster is compiler-derived. The loop arms
+render through `Shell/Face/Fit/*`, the route that can raise them.
+Builds were paused for disk, so the local gate is this head's first
+full run. Gate queue: 3272 (running) → 3275 → 3274 → 3269.
+
+## PR 3270 dual review adjudicated (2026-09-26)
+
+(ENCL orchestrator) R1 and R2, both on `5412915be6`: APPROVE-WITH-FIXES
+each, with no MAJOR from either. Both confirmed the cause by a red
+mutant, and both independently argued that the new form is strictly
+safer (acceptance changes only within sin θ ≲ 2ε/r, where old and new
+agree to rounding).
+
+- **Bilateral**: the manifest census claim (R2 measured it false on the
+  link and the bracket; R1 flagged it at risk); the `k1`/`k2`
+  asymmetric spellings (R2 measured the lost exact zero on identical
+  surfaces); the overclaiming "normal curvature" comment; the
+  order-dependent surgery comment; the reversed-order misnamed cause,
+  pinned as spec and missing from the filed row; and the stale
+  `sectors.rs` citation.
+- **Unilateral**:
+  - R1: σ₂ is unpinned, demonstrated by a surviving mutant;
+    representation-dependent pins in the row.
+  - R2: no near-band-edge row.
+
+All taken into one fix pass. The union's tally for the dual-review log
+is recorded when that row rides the PR (no unilateral MAJOR, so the
+tally is 0). Disk: one identical note went to both reviewers, so it is
+not a method difference. Environment: `mesa-vulkan-drivers` (lavapipe)
+was installed for the viewer's GPU row, which fails by design with no
+adapter; the first local runs had died on it.
+
+## PR 3270 fix pass in; DR-6 recorded (2026-09-26)
+
+(ENCL orchestrator) Head `e17527efdb`, then the DR-6 row as its last
+commit (`e69f42c5d8`). Every item was taken, and three mutants were
+proved red: σ₂ dropped; the mixed `k1` spelling; the original bug. The
+surgery probe settled the open question: with the band as s1, all 12
+cut-off arcs read `UnderDetermined` and are stored as conventional
+charts that pass tier 3. That is filed as
+`must-carry-over-edge-reads-a-transverse-edge-as-under-determined`.
+`interval-jet-hulls-...` was widened to cover the f64 reversed order.
+The census was re-taken, and `manifest.rs` claim (1) now says what
+holds. Gate queue: 3272 (running) → 3275 → 3274 → 3269 → 3270.
+
+## PR 3272 merged on hosted green (2026-09-26)
+
+(ENCL orchestrator) Hosted CI finished on `08c31a49` while the local
+run was mid-matrix: every ε row, k-lint, clippy, the render lanes and
+`gate ok` were all green. Merged on that; the local run was stopped.
+`offset-fit-at-tight-eps-...` now **parks** on PROPS'
+`f64-refinement-inside-an-enclosure-has-five-more-sites` (the convex
+insertion form); its budget numbers follow that fix. Priced:
+`offset-fit-budget-face-speaks-for-a-round-whose-bound-rose` P3/E (a
+refusal naming the wrong lever). The local gate moved to 3275
+(`17bae9276b`).
+
+## PR 3275 merged on hosted green (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `17bae9276b` across every row.
+`H11` and `budget-refusal-drops-the-enclosure-the-caller-needs` are
+closed. The latter's last consumer step, the teapot spout probe, now
+measures through the certificate. Priced:
+`measure-budget-bracket-is-the-sign-level-one-not-the-continuations`
+P3/D (a consumer-facing bracket that is wider than the one the kernel
+held). The local gate moved to 3274 (`c4f5d26cdc`).
+
+## Local gating paused; merging on hosted green (2026-09-26)
+
+(ENCL orchestrator) The full local matrix did not fit this session's
+disk allowance (~38 GB, of which the base system and toolchains take
+about 10). Even without incremental caches, the gate's target reached
+about 20 GB, and each new head rebuilt beside the old artifacts. Hosted
+CI meanwhile drained: 3272 and 3275 each went green about 1.5 h after
+their push. The gate's target is deleted and local gating is paused.
+3274 (`c4f5d26cdc`), 3269 (`df81aaf175`) and 3270 (`e69f42c5d8`) each
+have a hosted run on their current head and merge on its green. A
+side-effect worth knowing: running the gate rewrites five out-of-
+workspace `Cargo.lock` files, which then block a `git merge` in that
+worktree.
+
+## PR 3269 merged on hosted green; wave 3 dispatched (2026-09-26)
+
+(ENCL orchestrator) 3269 (`df81aaf175`) was green on every hosted row
+and is merged. `encl-refusal-prose-outgrows-the-viewer` and the
+elevation rider are closed. 3274 was also green on hosted, but it was
+tested against a main without 3269, and the two meet in `offset_fit.rs`,
+`validate.rs` and the `Transform/ApproxRecertify` route. So it gets a
+targeted check on the combined tree (clippy on the five crates;
+geom-brep; topo; editor-core's refusal rows; sweep's offset-fit and
+census rows) before it merges.
+
+**Wave 3**: `encl/offset-fit-loop-faces` carries
+`offset-fit-budget-face-speaks-for-a-round-whose-bound-rose`, with
+`offset-fit-stall-face-has-no-fixture` and
+`offset-fit-door-bound-is-not-monotone-in-the-cell-bound` riding.
+**Single review, style**: a refusal's claim and payload, a fixture and
+a doc note, readable as they stand. Priced:
+`kernel-defect-endings-and-repair-labels-have-no-shared-home` P4/D.
+
+## PR 3270 merged (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `e69f42c5d8`. Main had moved
+under it by then. A `solid_contain.rs` Cardano `copysign` site and
+ATREST's DR-6 landed first, and both conflicted: the Sym manifest's
+claim (1), and the dual-review log. The branch merged main and kept
+both sides. The Cardano paragraph follows this PR's `tangent.rs`
+finding, and this PR's row became **DR-7** (fair pairs 6). The merge
+commit `6bac7db4ef` changed prose only. The combined tree passed
+geom-core's census rows (22/22, including the table-vs-tree row), fmt,
+and clippy on geom-brep and sweep, and it merged on that.
+`tangent-parallel-certifier-passes-a-transverse-arc` is closed.
+Priced:
+- `must-carry-over-edge-reads-a-transverse-edge-as-under-determined`
+  P1/D. In one surface order a transverse edge is stored under the
+  tangent branch's conventional chart: one geometric fact, two
+  descriptions by argument order.
+- `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing` P3/D. It
+  refuses in the safe direction, under the wrong named cause.
+
+## PR 3274 merged (2026-09-26)
+
+(ENCL orchestrator) Hosted CI green on `c4f5d26cdc`, and it merged after
+a targeted run on the tree it actually lands in. That tree was 3274
+merged over main-with-3269, because the two meet in `offset_fit.rs`,
+`validate.rs` and the transform route. Results: clippy on five crates;
+geom-brep 753/753; topo 1470/1470 (which includes the
+`shell_tolerance_chain` census binary); editor-core refusal rows 6/6;
+sweep offset-fit rows 28/28. 3270, merged meanwhile, shares no
+non-doc file with it. `approx-surface-tolerance-is-now-always-the-runs-eps`
+is closed: the stored tolerance is retired and O2 reads as Ev ratified
+it. Priced: `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`
+P3/D.
+
+**Wave 1 and 2 are done**: 3272, 3275, 3269, 3270 and 3274 are all
+merged. In flight: wave 3 (`encl/offset-fit-loop-faces`).
+
+## Wave 4 planned (2026-09-26)
+
+(ENCL orchestrator) Parked on PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites`
+(the convex insertion form):
+- `patch-bound-offset-fit-recentring-origins`. The tight-ε lane measured
+  that the width is multiplied inside the decomposition, before any
+  per-cell centre acts, so recentring is not the lever while the lerp
+  form stands. Measure after.
+- `one-pass-refinement-...`. Its widening tail is the same arithmetic,
+  one level up, so it is measured after too.
+
+Dispatched as wave 4:
+- `a-third-spelling-of-cut-every-span-into-splits-pieces`, with
+  `refine-chain-hands-back-a-pair-its-only-caller-re-borrows` riding
+  (the same helpers).
+- `must-carry-over-edge-reads-a-transverse-edge-as-under-determined`.

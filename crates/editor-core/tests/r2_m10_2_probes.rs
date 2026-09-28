@@ -793,7 +793,7 @@ fn r2_no_op_consumes_a_measure_or_a_verdict() {
                 measure,
                 // A bound the measure VIOLATES: the box diagonal is at
                 // most sqrt(3) < 100.
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -890,7 +890,7 @@ fn r2_a_violated_assertion_is_invisible_to_every_shared_node() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(100.0, Dimension::Length).expect("finite"),
+                bound: len(100.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1126,7 +1126,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1170,7 +1170,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Angle).expect("finite"),
+                bound: ang(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1184,7 +1184,7 @@ fn r2_corrupt_v16_files_refuse_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure: b,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1241,7 +1241,7 @@ fn r2_e2e_ball_in_socket_authored_and_saved() {
             &DocEdit::InsertNode {
                 node: Node::Assertion {
                     measure,
-                    bound: Expr::literal(0.02, Dimension::Length).expect("finite"),
+                    bound: len(0.02),
                     dir: AssertionDir::AtLeast,
                 },
             },
@@ -1318,7 +1318,7 @@ fn r2_a_corrupt_assertion_refuses_at_the_load_door() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.5, Dimension::Length).expect("finite"),
+                bound: len(0.5),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1424,7 +1424,7 @@ fn r2_a_measured_expression_can_report_a_non_finite_quantity() {
             node: Node::Extrude {
                 profile: RecipeNodeId(1),
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).unwrap(),
+                    len(13.0),
                     Expr::param(ParamName::new("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
@@ -1488,7 +1488,7 @@ fn r2_an_assertion_over_a_non_finite_measure() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },

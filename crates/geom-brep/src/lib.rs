@@ -111,9 +111,9 @@ pub use nurbs_iso::{
 };
 pub use offset::{ConeOffset, Nappe, OffsetError, offset_surface};
 pub use offset_fit::{
-    OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface, approx_offset_surface_at,
-    certify_offset, certify_offset_at, certify_offset_over, certify_offset_over_at, fit_offset,
-    fit_offset_at, recertify_approx, recertify_approx_at,
+    BestBound, LastRound, OffsetCertificate, OffsetFitError, OffsetLimb, approx_offset_surface,
+    approx_offset_surface_at, certify_offset, certify_offset_at, certify_offset_over,
+    certify_offset_over_at, fit_offset, fit_offset_at, recertify_approx, recertify_approx_at,
 };
 pub use offset_fit_lane::OffsetFitLane;
 pub use pcurve::{

@@ -2,9 +2,8 @@
 id: one-suite-owns-another-suites-certified-fixture-group
 kind: issue
 title: review_arceval's certified operands are m5_s12's, by cross-suite import rather than a shared home
-status: parked
+status: open
 opened: 2026-09-20
-blocked_on: [two-rules-disagree-on-when-a-fixture-leaves-a-suite]
 priority: P4
 cost: E
 ---
@@ -69,3 +68,7 @@ answers.
 ground. The finding is about where a shared fixture lives, which is
 this program's subject and neither of theirs, and S-DUP claims no
 territory by design (`plan.md`). One row rather than two.
+
+## Unparked (2026-09-27)
+
+Ev ruled that the `tests/common` narrowest-home rule governs (see `two-rules-disagree-on-when-a-fixture-leaves-a-suite`, closed). So the four shared items belong in `crates/sweep/tests/common`, and this row is an ordinary fold.

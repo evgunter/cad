@@ -32,8 +32,7 @@
 //! extrude plus the second union; the kiss chain is reused).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, Expr, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
-    StableName,
+    BooleanOp, CapEnd, DocEdit, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId, StableName,
 };
 
 use crate::fixture;
@@ -142,7 +141,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: c,
             slot: SlotId::Distance,
-            expr: Expr::literal(1.25, Dimension::Length).expect("dyadic length literal"),
+            expr: len(1.25),
         },
         bump_root: c,
     }
