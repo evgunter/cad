@@ -312,7 +312,7 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
                 (0..4)
                     .map(|i| {
                         if i == 1 {
-                            pt(0.0, f64::NEG_INFINITY, 0.0)
+                            Point3::new(0.0, f64::NEG_INFINITY, 0.0)
                         } else {
                             finite_point(i)
                         }
@@ -786,7 +786,7 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         (
             "cylinder, u_ref eps/100 long at r = 1",
             Surface::Cylinder {
-                origin: pt(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 axis: Vec3::unit_z(),
                 radius: 1.0,
                 u_ref: Vec3::new(1.0 + 0.01 * tol.get().eps, 0.0, 0.0),
@@ -795,7 +795,7 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         (
             "plane, normal and u_ref of length 3 (the same plane)",
             Surface::Plane {
-                origin: pt(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 normal: Vec3::new(0.0, 0.0, 3.0),
                 u_ref: Vec3::new(3.0, 0.0, 0.0),
             },
@@ -894,7 +894,7 @@ fn check_1_names_the_carrier_datum_that_describes_no_curve() {
     use geom::CurveDatum as D;
     let tol = Tol::witness();
     let pi = core::f64::consts::PI;
-    let c = pt(0.5, 0.0, 0.0);
+    let c = Point3::new(0.5, 0.0, 0.0);
     let zero = Vec3::new(0.0, 0.0, 0.0);
     let x = Vec3::unit_x();
     let circle = |axis: Vec3<f64>| Curve3::Circle {
@@ -1001,7 +1001,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
     use geom::CurveDatum as D;
     let nan = f64::NAN;
     let inf = f64::INFINITY;
-    let o = pt(0.0, 0.0, 0.0);
+    let o = Point3::new(0.0, 0.0, 0.0);
     let z = Vec3::unit_z();
     let x = Vec3::unit_x();
     let zero = Vec3::new(0.0, 0.0, 0.0);
@@ -1037,7 +1037,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         (
             "line, NaN origin and infinite dir",
             Curve3::Line {
-                origin: pt(nan, 0.0, 0.0),
+                origin: Point3::new(nan, 0.0, 0.0),
                 dir: Vec3::new(inf, 0.0, 0.0),
             },
             Some(V::Poisoned(vec![D::Origin, D::Dir])),
@@ -1050,7 +1050,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
         ),
         (
             "circle, infinite center",
-            circle(pt(0.0, inf, 0.0), z, 1.0, x),
+            circle(Point3::new(0.0, inf, 0.0), z, 1.0, x),
             Some(V::Poisoned(vec![D::Center])),
         ),
         (
@@ -1090,15 +1090,15 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             spiric(0.0, 0.3),
             Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
         ),
-        ("finite NURBS carrier", line_net(pt(1.0, 0.0, 0.0)), None),
+        ("finite NURBS carrier", line_net(Point3::new(1.0, 0.0, 0.0)), None),
         (
             "NURBS carrier, infinite control point",
-            line_net(pt(inf, 0.0, 0.0)),
+            line_net(Point3::new(inf, 0.0, 0.0)),
             Some(V::Poisoned(vec![D::Control])),
         ),
         (
             "NURBS carrier, NaN control point",
-            line_net(pt(0.0, nan, 0.0)),
+            line_net(Point3::new(0.0, nan, 0.0)),
             Some(V::Poisoned(vec![D::Control])),
         ),
     ];
@@ -1121,7 +1121,7 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
 fn line_net(end: Point3<f64>) -> geom::Curve3<f64> {
     let kv = KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1).unwrap();
     geom::Curve3::Nurbs(std::sync::Arc::new(
-        geom::NurbsCurve3::new(kv, vec![pt(0.0, 0.0, 0.0), end], vec![1.0; 2]).unwrap(),
+        geom::NurbsCurve3::new(kv, vec![Point3::new(0.0, 0.0, 0.0), end], vec![1.0; 2]).unwrap(),
     ))
 }
 
@@ -1154,7 +1154,7 @@ fn the_frame_lever_is_the_kinds_radius() {
     let tol = Tol::witness();
     let band = geom_core::Band::linear(tol).unwrap();
     let eps = band.zero();
-    let o = pt(0.0, 0.0, 0.0);
+    let o = Point3::new(0.0, 0.0, 0.0);
     let long = |d: f64| 1.0 + d;
     let cylinder = |r: f64, d: f64| Surface::Cylinder {
         origin: o,
@@ -1277,7 +1277,7 @@ fn the_elliptic_lever_is_the_larger_semi_axis_magnitude() {
         ("negative major, u_ref flipped", -0.5, 0.3, x, 0.5),
     ] {
         let carrier = Curve3::Ellipse {
-            center: pt(0.5, 0.0, 0.0),
+            center: Point3::new(0.5, 0.0, 0.0),
             axis: Vec3::unit_z(),
             major,
             minor,
