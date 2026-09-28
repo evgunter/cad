@@ -21,9 +21,9 @@
 //! **Deliberately not absorbed**, and the whole of it:
 //!
 //! - `shell7_common`'s profile vocabulary (`polyline`, `revolved`,
-//!   `hollow_moves`, `tol`, `point`), which this module reaches
-//!   through `crate::shell7_common` rather than copying — that tree
-//!   is the SHELL-7 suites' own and is not a `common::` module;
+//!   `tol`, `point`), which this module reaches through
+//!   `crate::shell7_common` rather than copying — that tree is the
+//!   SHELL-7 suites' own and is not a `common::` module;
 //! - `shell9_r1_probes::multi_arc_sphere` and its `two_arc_sphere`
 //!   — the reviewer's own derivation of the same body from a bulge
 //!   computed off the arc's geometry, kept apart under
@@ -34,10 +34,12 @@
 
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, Pcurve};
+use geom_core::Point2;
 use sweep::Revolution;
 use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
-use crate::shell7_common::{hollow_moves, p2, point, polyline, revolved, tol};
+use super::charts::hollow_moves;
+use crate::shell7_common::{point, polyline, revolved, tol};
 
 /// The drum's radius.
 pub const DRUM_R: f64 = 1.0;
@@ -71,9 +73,9 @@ pub fn two_arc_sphere() -> Body<f64> {
     let (s, c) = v.sin_cos();
     revolved(
         bulge_loop(vec![
-            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (p2(0.0, r), 0.0),
+            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (Point2::new(0.0, r), 0.0),
         ]),
         Revolution::Full,
     )

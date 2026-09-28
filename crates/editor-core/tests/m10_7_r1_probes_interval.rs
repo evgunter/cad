@@ -14,23 +14,17 @@ use editor_core::drive::{DriveConfig, RefusalReason, SymbolicDials, assertion_at
 use editor_core::report::MassBudget;
 use editor_core::stackup::stackup;
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, EvalOptions, Expr, GeomPred,
     LoopProgram, MeasureExpr, MeasurePrimitive, NamePat, Node, NodeResult, ParamName, ProfileDoc,
     ProfileLift, ProfileProgram, RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym,
     evaluate, select_where,
 };
-use fixture::Recorder;
+use fixture::{Recorder, len, scl, xy_frame};
 use geom_core::Tol;
 
 use crate::m10_3_driver_interval::{slab, sliver_axis};
 use crate::m10_7_plate::plate;
 
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 fn param(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
 }
@@ -399,11 +393,7 @@ fn bracket_with(
     });
     let w = || param("w");
     let div = |a: Expr, k: f64| Expr::div(a, scl(k)).unwrap();
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let half = |k: f64| div(w(), k);
     // The plate: (−w/2, −w/4) .. (w/2, w/4), parametric corners.
     let plate_loop = if literal_plate {

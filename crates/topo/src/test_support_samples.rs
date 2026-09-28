@@ -25,8 +25,9 @@
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
-//! `CertifyError::PlaneNurbs` carry are sampled whole too; the four
-//! `OffsetFitError` wrappers carry one value each.
+//! `CertifyError::PlaneNurbs` carry are sampled whole too, as are
+//! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
+//! other four `OffsetFitError` wrappers carry one value each.
 //!
 //! Where a raise site fills a field with prose — a `what`, a `detail`,
 //! a steer — the sample carries the prose a real run renders, and a
@@ -361,7 +362,8 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
     use geom_brep::offset_meters::MeterError;
-    vec![
+    use geom_brep::patch_bound::PatchBoundError;
+    let mut v = vec![
         OffsetFitError::Meter(MeterError::NormalFloor {
             floor: 1e-9,
             thinness: 1e-3,
@@ -373,7 +375,6 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             kappa: (2.0, 0.5),
         }),
         OffsetFitError::Meter(MeterError::Escalated { source: diag() }),
-        OffsetFitError::PatchBound(geom_brep::patch_bound::PatchBoundError::Crease),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
             lo: 1.0,
@@ -389,6 +390,22 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            last_round: geom_brep::LastRound::Improved,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
+        },
+        OffsetFitError::BudgetExhausted {
+            budget: 4096,
+            grid: (64, 64),
+            achieved: 3e-6,
+            tolerance: 1e-6,
+            last_round: geom_brep::LastRound::DidNotImprove,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::SampleCapReached {
             cap: 4096,
@@ -396,19 +413,37 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::BoundNotFinite {
             rounds: 6,
             grid: (64, 64),
             d: 0.1,
             tolerance: 1e-6,
-            last_finite: Some(3e-6),
+            best: Some(geom_brep::BestBound {
+                bound: 3e-6,
+                grid: (48, 64),
+            }),
+        },
+        OffsetFitError::BoundNotFinite {
+            rounds: 6,
+            grid: (64, 64),
+            d: 1e-8,
+            tolerance: 1e-6,
+            best: None,
         },
         OffsetFitError::RefinementStalled {
             rounds: 6,
             grid: (64, 64),
             achieved: 3e-6,
             tolerance: 1e-6,
+            best: geom_brep::BestBound {
+                bound: 2e-6,
+                grid: (48, 64),
+            },
         },
         OffsetFitError::WindowUnsupported {
             window: geom::ApproxWindow {
@@ -421,7 +456,24 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             bound: 3e-6,
             tolerance: 1e-6,
         },
-    ]
+        OffsetFitError::Limb {
+            limb: OffsetLimb::OnLocus,
+            bound: 3e-6,
+            tolerance: 1e-6,
+        },
+        // The payload the elevation's own `check_weights` produces.
+        OffsetFitError::Elevation(geom_core::spline::KnotAlgebraError::Structure(
+            geom_core::spline::SplineError::NonPositiveWeight {
+                index: 3,
+                weight: 0.0,
+            },
+        )),
+    ];
+    // Every patch-bound note is its own sentence, and the enum is
+    // fieldless, so its compiler-derived roster is the sample list.
+    v.extend(PatchBoundError::iter().map(OffsetFitError::PatchBound));
+    v.extend(band_errors().into_iter().map(OffsetFitError::Band));
+    v
 }
 
 fn census_contacts() -> Vec<CensusContact> {
@@ -675,16 +727,50 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        for end in geom::ConventionEnd::iter() {
-            s.push((
-                label("UnrepresentableSurfaceDatum", &datum),
-                ValidationError::UnrepresentableSurfaceDatum {
-                    face,
-                    kind,
-                    datum,
-                    end,
-                },
-            ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!(
+                        "{}/{measure:?}",
+                        label("UnrepresentableSurfaceDatum", &datum)
+                    ),
+                    ValidationError::UnrepresentableSurfaceDatum {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
+        }
+    }
+
+    // A carrier datum, poisoned or outside its range: every datum, at
+    // each end of the range.
+    for datum in geom::CurveDatum::iter() {
+        let kind = crate::query::CurveKind::Ellipse;
+        s.push((
+            label("PoisonedCurveDatum", &datum),
+            ValidationError::PoisonedCurveDatum { edge, kind, datum },
+        ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
+                    ValidationError::UnrepresentableCurveDatum {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
         }
     }
 
@@ -781,6 +867,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 face,
                 ring: loop_,
                 source,
+            },
+        ));
+    }
+    // Check 10: both rendered magnitudes, the doubled count and the
+    // negative one.
+    for (winding, bounded) in [(1, 2), (0, -1)] {
+        s.push((
+            format!("ShellWinding/{bounded}"),
+            ValidationError::ShellWinding {
+                solid,
+                shell: ShellKey::default(),
+                winding,
+                bounded,
             },
         ));
     }

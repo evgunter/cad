@@ -29,13 +29,9 @@ use profile::{ArcSweep, Center, Open, PathError, ProfileLoop, Start};
 const PI: f64 = core::f64::consts::PI;
 const FRAC_PI_2: f64 = core::f64::consts::FRAC_PI_2;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Point at `angle` on the circle about `center` through radius `r`.
 fn on_circle(center: Point2<f64>, r: f64, angle: f64) -> Point2<f64> {
-    p2(center.x + r * angle.cos(), center.y + r * angle.sin())
+    Point2::new(center.x + r * angle.cos(), center.y + r * angle.sin())
 }
 
 /// Author an arc x arc corner through the lattice door. The corner
@@ -56,8 +52,8 @@ fn author_arc_arc(
     delta_out: f64,
     r: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let c1 = p2(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
-    let c2 = p2(
+    let c1 = Point2::new(corner.x - r_in * a_in.cos(), corner.y - r_in * a_in.sin());
+    let c2 = Point2::new(
         corner.x - r_out * a_out.cos(),
         corner.y - r_out * a_out.sin(),
     );
@@ -89,7 +85,7 @@ fn author_arc_arc(
 /// corner, which is pi/2 here).
 fn row1_bracketed(r: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     author_arc_arc(
-        p2(0.0, 0.0),
+        Point2::new(0.0, 0.0),
         0.0,
         0.2,
         1.0,
@@ -218,7 +214,7 @@ fn p1_row1_radius_bands_and_recourse_gap() {
 #[test]
 fn p2a_enclosing_extremes_still_refuse_typed() {
     // 200x scale ratio, corner at (1e4, -3e3).
-    let c = p2(1.0e4, -3.0e3);
+    let c = Point2::new(1.0e4, -3.0e3);
     let err = author_arc_arc(c, 0.3, 0.01, 1.0, 2.9, 1.7, 2.0, 1.0, 0.9, 10.0)
         .expect_err("r=10 vs R=0.01/2.0 demands the enclosing class");
     // The drawn corner, alone: the envelope is about the crossing the
@@ -227,13 +223,13 @@ fn p2a_enclosing_extremes_still_refuse_typed() {
     assert!(crate::common::is_enclosing(&err), "got {err:?}");
     // Hairline pair: carriers nearly internally tangent (centres
     // 1e-4 apart at matched radii), r far above both.
-    let c2 = p2(0.0, 0.0);
+    let c2 = Point2::new(0.0, 0.0);
     let err2 = author_arc_arc(c2, 0.0, 0.2, 1.0, 2.9, 1.0e-3, 0.2, 1.0, 4.7e-4, 0.7)
         .expect_err("hairline enclosing demand");
     println!("P2a hairline -> {}", tag(&err2));
     // Tiny everything: micron-scale carriers, millimetre radius.
     let err3 = author_arc_arc(
-        p2(0.0, 0.0),
+        Point2::new(0.0, 0.0),
         0.0,
         1.0e-6,
         1.0,
@@ -277,9 +273,9 @@ fn p2b_unbracketed_extremes_never_swallow() {
         (0.2, 0.2001, 0.5),
     ] {
         for &(din, dout) in &[(4.0, 4.0), (3.2, 6.0), (6.0, 6.0), (5.9, 0.2)] {
-            let c = p2(0.3, -0.4);
-            let cin = p2(c.x - rin, c.y);
-            let cout = p2(c.x - rout * FRAC_PI_2.cos(), c.y - rout * FRAC_PI_2.sin());
+            let c = Point2::new(0.3, -0.4);
+            let cin = Point2::new(c.x - rin, c.y);
+            let cout = Point2::new(c.x - rout * FRAC_PI_2.cos(), c.y - rout * FRAC_PI_2.sin());
             match author_arc_arc(c, 0.0, rin, 1.0, din, FRAC_PI_2, rout, 1.0, dout, r) {
                 Ok(lp) => {
                     n_builds += 1;
@@ -310,10 +306,10 @@ fn p2c_line_arc_enclosing_refuses_typed() {
     // Corner far out; incoming straight leg, outgoing tiny ccw carrier
     // crossed by it; sigma*tau = +1 arranged as in the review suite's
     // partner table (line incoming east, arc at angle pi).
-    let c = p2(-2.0e3, 5.0e2);
+    let c = Point2::new(-2.0e3, 5.0e2);
     let r_arc = 0.003;
-    let ca = p2(c.x - r_arc * PI.cos(), c.y - r_arc * PI.sin());
-    let head = p2(c.x - 1.8f64 * 1.0, c.y); // line from the west
+    let ca = Point2::new(c.x - r_arc * PI.cos(), c.y - r_arc * PI.sin());
+    let head = Point2::new(c.x - 1.8f64 * 1.0, c.y); // line from the west
     let next = on_circle(ca, r_arc, PI + 1.0 * 2.9);
     let closed = Open
         .at(head)
@@ -362,17 +358,17 @@ fn p2c_line_arc_enclosing_refuses_typed() {
 /// other crossing. Decode and measure it.
 #[test]
 fn p3_unbracketed_other_crossing_build_decoded() {
-    let corner = p2(0.0, 0.0);
+    let corner = Point2::new(0.0, 0.0);
     let lp = author_arc_arc(corner, 0.0, 0.2, 1.0, 4.0, FRAC_PI_2, 0.2, 1.0, 4.0, 0.5)
         .expect("the PR says this builds");
     let (t1, t2, b) = fillet_arc(&lp, 0.5).expect("an emitted r=0.5 arc");
     let (pf, rf) = circle_from_bulge(t1, t2, b);
-    let cin = p2(-0.2, 0.0);
-    let cout = p2(0.0, -0.2);
+    let cin = Point2::new(-0.2, 0.0);
+    let cout = Point2::new(0.0, -0.2);
     let din = (pf.x - cin.x).hypot(pf.y - cin.y);
     let dout = (pf.x - cout.x).hypot(pf.y - cout.y);
     // Arc midpoint distance from the drawn corner.
-    let mid = p2((t1.x + t2.x) / 2.0, (t1.y + t2.y) / 2.0);
+    let mid = Point2::new((t1.x + t2.x) / 2.0, (t1.y + t2.y) / 2.0);
     let d_corner = mid.x.hypot(mid.y);
     println!(
         "P3 fillet centre=({:.4},{:.4}) r={rf:.4} |P-O_in|={din:.4} |P-O_out|={dout:.4} \
@@ -399,7 +395,7 @@ fn p3_unbracketed_other_crossing_build_decoded() {
 /// not one step.
 #[test]
 fn p6_unequal_carriers_bound_is_two_step() {
-    let c = p2(-0.15, 0.5);
+    let c = Point2::new(-0.15, 0.5);
     let go = |r: f64| author_arc_arc(c, 0.0, 0.4, -1.0, 2.9, -2.4, 0.15, -1.0, 1.0, r);
     let e1 = go(0.9).expect_err("r=0.9 demands the enclosing class");
     println!("P6 r=0.9 -> {}", tag(&e1));

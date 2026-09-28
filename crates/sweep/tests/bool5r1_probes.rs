@@ -16,7 +16,7 @@ use core::f64::consts::{FRAC_PI_2, PI, TAU};
 
 use crate::revolve_common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -27,10 +27,10 @@ use sweep::{Revolution, revolve};
 /// volume is `α·(r·w² + (2/3)·w² − (2/3)·r³)` by Pappus.
 fn dimple(r: f64, w: f64) -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, -r), 0.0),
-        (p2(w, -r - 1.0), 0.0),
-        (p2(w, r + 1.0), 0.0),
-        (p2(0.0, r), -1.0),
+        (Point2::new(0.0, -r), 0.0),
+        (Point2::new(w, -r - 1.0), 0.0),
+        (Point2::new(w, r + 1.0), 0.0),
+        (Point2::new(0.0, r), -1.0),
     ])
 }
 

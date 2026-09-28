@@ -2095,12 +2095,23 @@ pub enum Node<P> {
     /// A declared pair authorizes its contact wherever the fold meets
     /// it, and does not demand that the fold meet it: a pair one of
     /// whose faces another member contained whole before the pair's
-    /// step, so that no row descends from it, is satisfied. A member
-    /// face that survives only in pieces — split by another member, or
-    /// inside a merged row that was later fragmented — is not looked
-    /// through, and a pair naming it resolves only in the orders that
-    /// reach it while it is still a row
-    /// (`work/gather/member-space-look-through-stops-at-splits-containment-and-fragmented-merges.md`).
+    /// step, so that no row descends from it, is satisfied.
+    ///
+    /// Merges are the only consumption looked through, because a merge
+    /// is the only one with a unique successor. A member face that
+    /// survives only in pieces — split by another member, or inside a
+    /// merged row that was later fragmented — has none, and a pair
+    /// naming it at a step after that refuses: `Vanished`, with a
+    /// [`crate::Diagnosis::ConsumedByFold`] saying which of the two it
+    /// was, and no replacement offered, since which fragment the pair
+    /// meant is a geometric question the routing step does not ask.
+    /// Which composition it was is read off the accumulation's rows.
+    /// The pair still resolves in the orders that feed it while the
+    /// face is a row. A face split and then contained whole in every
+    /// piece before the pair's step has no piece left, and its pair is
+    /// satisfied, so the refusal is not monotone in what later members
+    /// cover: a pair on a cap `s` split refuses when a later member
+    /// contains one piece of it, and fuses when one contains both.
     Union {
         /// The member bodies, in fold order (D9: the order is the
         /// list's, and the list is data). Two or more, pairwise

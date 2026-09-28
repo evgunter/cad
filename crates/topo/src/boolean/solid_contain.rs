@@ -1,13 +1,14 @@
 //! Trilean **point-in-solid** containment (F8): the ray design of
-//! profile's 2-D machinery and PR 3's [`point_in_loop`] promoted to
-//! 3-D — the boolean containment fallback for operands whose
-//! boundaries do not intersect (§15.9: "the ONLY place a
-//! point-in-solid test is ever needed").
+//! profile's 2-D machinery and PR 3's [`point_in_loop`](crate::splitting::containment::point_in_loop) promoted to
+//! 3-D. Its consumers: the boolean's containment fallback for operands
+//! whose boundaries do not intersect (the case §15.9 names), the
+//! split-join's role resolution for a region its section cannot place
+//! (`join.rs`), and the census's material test.
 //!
 //! # Method: closest-hit ray test with the fixed schedule
 //!
 //! Cast a ray from `q` along a direction of the fixed schedule — the
-//! same 16-member golden-angle table as [`point_in_loop`], and
+//! same 16-member golden-angle table as [`point_in_loop`](crate::splitting::containment::point_in_loop), and
 //! literally the same const (`SCHEDULE`, read from
 //! `splitting::containment`), used here as space directions
 //! **directly**: this module normalizes the raw triple, where
@@ -15,11 +16,13 @@
 //! near-parallel members. One table, two different sweeps — the
 //! shared const buys the absence of drift between copies, not
 //! agreement on a direction, and determinism is per site (a `const`
-//! swept in a fixed order every run). For each face
-//! (planar — the F5 regime):
+//! swept in a fixed order every run). For each planar face:
 //! intersect the ray with the face plane, test the hit point against
-//! the face's loops (outer minus rings) via [`point_in_loop`], and
-//! keep the **closest** crossing. The verdict reads the material side
+//! the face's loops (outer minus rings) on their edges' own carriers
+//! ([`point_in_carrier_loop`]: the vertex polygon for a loop of lines,
+//! each circle or ellipse arc crossed on its conic otherwise) — and
+//! keep the **closest** crossing; the curved kinds' arms below fold
+//! their roots the same way. The verdict reads the material side
 //! from that crossing's outward normal: `d·n > 0` at the closest hit
 //! ⇒ the ray *exits* material there ⇒ `In`; `d·n < 0` ⇒ `Out`.
 //!
@@ -53,6 +56,9 @@
 //!   skipped, not grazed).
 //! - **`bool_point_in_solid_advance`**: the crossing's advance `t`
 //!   along the ray (Zero ⇒ crossing at `q` — graze, retry).
+//! - The in-face walk's rows are its own module's (`point_in_loop_*`
+//!   for a loop of lines, `point_in_arc_loop_*` for a loop with arcs —
+//!   [`point_in_carrier_loop`] lists them).
 //! - **`bool_point_in_solid_order`**: `t − t_best` (closest-hit
 //!   selection; Zero ⇒ tie ⇒ graze, retry). The winning crossing's
 //!   already-decided `denom` sign is the In/Out verdict — no second
@@ -114,7 +120,9 @@ use geom_core::{Band, COINCIDENCE_RECOURSE, Decide, Indeterminate, Margin, Point
 use crate::body::Body;
 use crate::entity::{FaceKey, LoopBoundary, SolidKey};
 use crate::face_normal::plane_outward_normal;
-use crate::splitting::containment::{LoopContainment, PointInLoopError, SCHEDULE, point_in_loop};
+use crate::splitting::containment::{
+    LoopContainment, PointInLoopError, SCHEDULE, point_in_carrier_loop,
+};
 use crate::validate::decide;
 
 use super::surface_group::{RimExemption, surface_group};
@@ -257,6 +265,22 @@ pub enum PointInSolidError {
         /// The torus face neither class expresses.
         face: FaceKey,
     },
+    /// A ray's hit on a `Plane` face could land inside it, and the face
+    /// is bounded by an edge on a carrier the in-face walk has no
+    /// crossing row for — a spiric (a plane's section of a torus) or a
+    /// spline.
+    ///
+    /// The walk crosses every boundary edge on its own carrier: a line
+    /// where its end vertices straddle the ray, a circle or an ellipse
+    /// at the roots of its quadratic inside the arc's window. For these
+    /// two carriers the only curve on offer is the chord, a different
+    /// curve, so the loop is answered only where no crossing could
+    /// matter — a hit definitely outside a ball holding the whole loop
+    /// is a miss — and refused inside that ball.
+    EdgeCarrierUnsupported {
+        /// The planar face whose outline the walk cannot cross.
+        face: FaceKey,
+    },
     /// [`point_in_solid_of`] was asked about a solid the body does not
     /// hold — an arena claim, like [`Self::CorruptFace`].
     NoSuchSolid {
@@ -322,6 +346,10 @@ impl PointInSolidError {
             | Self::PartialTorusFace { .. } => {
                 "the instance carries a curved face outside the point-in-solid door's \
                  chart classes, so its material cannot be probed"
+            }
+            Self::EdgeCarrierUnsupported { .. } => {
+                "a probe ray from the material witness met a flat face bounded by a \
+                 spline or torus-section edge, whose outline cannot be crossed exactly"
             }
             Self::NoSuchSolid { .. } => "the instance's solid key does not resolve",
             Self::SurfaceSharedOutsideSolid { .. } => {
@@ -410,6 +438,13 @@ impl core::fmt::Display for PointInSolidError {
                  (parallels and meridians), or let its faces together cover the whole \
                  torus"
             ),
+            Self::EdgeCarrierUnsupported { .. } => write!(
+                f,
+                "cannot tell what is inside the solid: a test ray met a flat face \
+                 bounded by a spline or torus-section edge, near enough that the edge \
+                 decides, and that outline cannot be crossed exactly. The solid itself is fine. Recourse: test a \
+                 point farther from that face"
+            ),
             Self::NoSuchSolid { .. } => write!(
                 f,
                 "cannot tell what is inside the solid: the body holds no such solid"
@@ -435,7 +470,7 @@ impl std::error::Error for PointInSolidError {}
 /// whose answer is ray-crossing parity and therefore blind to the
 /// normal's sign either way; threading here is what keeps the door's
 /// CONTRACT honest for the next consumer.
-pub(super) fn face_plane<T: Decide>(
+pub(crate) fn face_plane<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
 ) -> Result<(Point3<T>, Vec3<T>), PointInSolidError> {
@@ -1155,6 +1190,37 @@ pub(super) fn torus_chart_trim<T: Decide>(
     {
         return Ok((None, None, group.representative));
     }
+    let (u, v) = torus_face_windows(body, face, major_radius, minor_radius, band)?;
+    Ok((u, v, face))
+}
+
+/// **One torus face's own chart windows** — the windowed class of
+/// [`torus_chart_trim`], answered for the face whatever group it sits
+/// in. `(major window, minor window)`, each `None` where the face wraps
+/// that coordinate.
+///
+/// The solid door reads it only for a face OUTSIDE a closed group,
+/// because there the group's union is the question and its
+/// representative answers for every member. A face-scoped caller asks
+/// the other question — which chart points does THIS face hold — and a
+/// closed group's member has windows of its own that answer it (the
+/// donut's two faces each wrap the major azimuth and split the minor
+/// angle between them). Every guard below is a property of the face's
+/// own boundary walk, so nothing in it depends on the group.
+///
+/// # Errors
+///
+/// As [`torus_chart_trim`]: [`PointInSolidError::CorruptFace`],
+/// [`PointInSolidError::PartialTorusFace`] for a face whose own windows
+/// the walk cannot pin, [`PointInSolidError::Escalated`].
+#[allow(clippy::type_complexity)] // the two windows of one face
+pub(super) fn torus_face_windows<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(Option<(T, T)>, Option<(T, T)>), PointInSolidError> {
     let Some((u, v)) = torus_chart_windows(body, face, band)? else {
         return Err(PointInSolidError::PartialTorusFace { face });
     };
@@ -1181,14 +1247,16 @@ pub(super) fn torus_chart_trim<T: Decide>(
     )?;
     let v = window("bool_torus_trim_minor_period", v, minor_radius)?;
     // A face that wraps BOTH coordinates covers the whole chart, and a
-    // face covering the whole chart has every boundary edge shared with
-    // a member of its own group — which the closed scan above did not
-    // find. The two claims cannot both hold, so the face is refused
-    // rather than served on the weaker of them.
+    // face covering the whole chart has no boundary against anything —
+    // no window can be read FROM it, which is why the solid door serves
+    // a closed torus through its group class instead. A walk that
+    // reports both wraps therefore describes no face this reader can
+    // answer for, and the face is refused rather than served as the
+    // whole chart.
     if u.is_none() && v.is_none() {
         return Err(PointInSolidError::PartialTorusFace { face });
     }
-    Ok((u, v, face))
+    Ok((u, v))
 }
 
 /// The face's `(major, minor)` chart windows, walked over its outer
@@ -1411,6 +1479,24 @@ fn torus_chart_windows<T: Decide>(
         }
     }
     Ok(acc)
+}
+
+/// **A point's elevation off a ring torus's tube**: `√((ρ − R)² + h²) − r`,
+/// the exact signed distance to the surface (negative inside the tube).
+/// Every door that asks "is this point ON the torus" reads this one
+/// expression, so the solid door, the face door and their rows cannot
+/// disagree about which points lie on the tube.
+pub(super) fn torus_elevation<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    p: Point3<T>,
+) -> T {
+    let w = p - center;
+    let h = w.dot(axis);
+    let rho = (w - axis * h).norm();
+    ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
 /// Is the ON-TORUS point `p` within the torus face's chart trim?
@@ -2251,8 +2337,11 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
 
 /// Is `p` (already in the face's plane) within the face's region —
 /// inside the outer loop and outside every ring? `OnBoundary` from any
-/// loop is reported as `None` (graze).
-pub(super) fn point_in_face<T: Decide>(
+/// loop is reported as `None` (graze). Each loop is read on its edges'
+/// own carriers ([`point_in_carrier_loop`]); a loop the walk can only
+/// answer outside its reach is [`PointInSolidError::EdgeCarrierUnsupported`]
+/// where `p` could land in it.
+pub(crate) fn point_in_face<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     normal: Vec3<T>,
@@ -2270,7 +2359,11 @@ pub(super) fn point_in_face<T: Decide>(
     ) {
         return Ok(Some(false));
     }
-    match point_in_loop(body, f.outer, normal, p, band)? {
+    let region = |lk| -> Result<LoopContainment, PointInSolidError> {
+        point_in_carrier_loop(body, lk, normal, p, band)?
+            .ok_or(PointInSolidError::EdgeCarrierUnsupported { face })
+    };
+    match region(f.outer)? {
         LoopContainment::Out => return Ok(Some(false)),
         LoopContainment::OnBoundary => return Ok(None),
         LoopContainment::In => {}
@@ -2282,7 +2375,7 @@ pub(super) fn point_in_face<T: Decide>(
         ) {
             continue; // a lone ring vertex excludes no area
         }
-        match point_in_loop(body, ring, normal, p, band)? {
+        match region(ring)? {
             LoopContainment::In => return Ok(Some(false)),
             LoopContainment::OnBoundary => return Ok(None),
             LoopContainment::Out => {}
@@ -2369,6 +2462,36 @@ impl SolidFaces {
         let faces = body
             .faces_of_solid(solid)
             .ok_or(PointInSolidError::NoSuchSolid { solid })?;
+        Self::guarded(body, faces)
+    }
+
+    /// One SHELL's faces in face-arena order, guarded as [`Self::of`]
+    /// guards a solid's — selected by the faces' own `shell`
+    /// back-pointers, so the probe reads the material that shell ALONE
+    /// bounds: for a cavity wall, whose faces point into the cavity,
+    /// that is everything outside the cavity (the complement, read
+    /// through the probe's at-infinity side exactly as a reverted
+    /// operand is).
+    ///
+    /// A key the body does not hold selects no face, which the probe
+    /// answers [`PointInSolidError::ZeroVolumeBody`]; a group-read
+    /// surface key shared with a face of ANOTHER SHELL — of this solid
+    /// or of another — refuses [`PointInSolidError::SurfaceSharedOutsideSolid`],
+    /// whose reason holds unchanged at shell grain.
+    pub(crate) fn of_shell<T: Decide>(
+        body: &Body<T>,
+        shell: crate::entity::ShellKey,
+    ) -> Result<Self, PointInSolidError> {
+        let faces = body
+            .faces()
+            .filter(|(_, d)| d.shell == shell)
+            .map(|(k, _)| k)
+            .collect();
+        Self::guarded(body, faces)
+    }
+
+    /// `faces` as a selection, behind the shared-group-key guard.
+    fn guarded<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         // A group-read kind whose surface key is carried on both sides
         // of the selection boundary (the variant's doc). One pass over
         // the arena: every key's first face outside the selection.
@@ -2605,10 +2728,7 @@ fn point_in_faces<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let w = q - center;
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
-                let elev = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
+                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
@@ -2634,7 +2754,7 @@ fn point_in_faces<T: Decide>(
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
-        let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
+        let d = r.map(T::from_f64).normalize();
         if let Some(verdict) = cast_ray(body, faces, q, d, band, tol)? {
             return Ok(verdict);
         }
@@ -2834,29 +2954,132 @@ fn cbrt<T: geom_core::Real>(x: T) -> T {
 /// * three real roots — Viète's trigonometric form, whose `−P/3` is
 ///   positive exactly when three real roots exist, so the square root is
 ///   real by the branch's own premise, and whose `k = 0` member is the
-///   largest;
-/// * one real root — Cardano's, on [`cbrt`].
+///   largest. The caller reaches it only with four real quartic roots,
+///   where the resolvent's roots are squares of real sums, so none is
+///   negative and the largest is at least a third of their sum `−c2`:
+///   removing the shift `c2/3` then adds magnitudes rather than
+///   cancelling them;
+/// * one real root — Cardano's, on [`cbrt`], assembled so that no
+///   cancellation reaches the root's RELATIVE accuracy (below).
+///
+/// # The one-real-root branch keeps the root's relative accuracy
+///
+/// With `x³ + P x + Q` the depressed cubic and `s = c2/3` its shift, the
+/// real root is `z = x − s` with `x = a + b`, where `a³`, `b³` are
+/// Cardano's two radicands `−Q/2 ± √(Q²/4 + P³/27)` and `ab = −P/3`. Two
+/// subtractions in that form can lose every digit, and the resolvent
+/// reaches both:
+///
+/// * **Inside a radicand.** One of the two cancels whenever `P³/27` is
+///   small beside `Q²/4`. Only `|Q|/2 + √(…)`, whose terms are both
+///   non-negative, goes through [`cbrt`], as `A`; its partner's
+///   magnitude comes from `|ab| = |P|/3`, as `B = P/(3A)`, and
+///   `x = −sgn Q·(A − B)`.
+/// * **Against the shift.** When the real root is small beside the other
+///   two, `x` and `s` agree in their leading digits and `x − s` keeps
+///   only their rounding. That is the resolvent of every ray whose odd
+///   coefficient `q̂` is small but decided nonzero (a ray all but
+///   perpendicular to the axis, or passing near the midplane): its real
+///   root is `≈ q̂²/c1`, and `x − s` would multiply the relative error of
+///   `x` by `|s|/z` — a factor the [`cbrt`] magnitude argument does not
+///   cover.
+///
+/// # Where `Q`'s sign goes, and why its zero is harmless
+///
+/// `Q = 0` is not a degenerate pose: it is a codimension-one surface of
+/// GENERIC rays (there the real root is simply `z = −s`), and at the
+/// `Interval` scalar its neighbourhood is where an enclosure of `Q`
+/// straddles zero and `copysign` answers with the hull of both signs.
+/// So the sign is transferred only onto `A − B`, which VANISHES at
+/// `Q = 0` — there `A³ = √(P³/27)`, so `A = √(P/3) = B` — making
+/// `x = (A − B)·sgn(−Q)` continuous across the surface, and its
+/// straddling enclosure `[−|A − B|, |A − B|]` as narrow as `x` itself
+/// (`≈ |Q|/P`). The textbook stable form transfers it onto `√(…)`
+/// instead, which does not vanish there: the radicand straddles zero,
+/// `P/(3A)` becomes the whole line, and the arm escalates a ray it has
+/// every digit for (`r1_the_q_zero_surface_certifies_on_both_sides`). The cylinder and
+/// cone arms' quadratic formula has the same hazard with no such way
+/// out, because the sign there picks WHICH root the formula names:
+/// `work/contact/ray-wall-and-cone-near-root-cancels-over-a-small-lead`.
+///
+/// `A − B` itself cancels when `x` is small beside `A`, which costs an
+/// ABSOLUTE error `≈ ulp·A`, and only for `P > 0`: for `P < 0`, `B < 0`
+/// and `A − B` is a sum of magnitudes. Where `x − s` carries weight
+/// below (`|z| ≥ |w|`), that absolute error is a relative one of the
+/// root: `B > 0` makes `|w|² ≥ ¾(A + B)² ≥ ¾A²`, so `|z| ≥ (√3/2)·A`.
+///
+/// # The shift, by a fraction rather than a blend
+///
+/// The product of the three roots is `−c0`, and the complex pair `w, w̄`
+/// has `|w|² = (x/2 + s)² + ¾(A + B)²` — a sum of squares, whose
+/// `x/2 + s` cancels only when the real root is LARGE (`z ≈ −3s`). So
+/// `−c0/|w|²` is accurate exactly where `d = x − s` is not, and
+/// `z + 2·Re w = −3s` makes at least one of `|z|`, `|w|` as large as
+/// `|s|`. The two are weighted by `τ = d²/(d² + |w|²)`, small precisely
+/// when `z` is, and since `(−c0/|w|²)·|w|² = −c0`,
+///
+/// ```text
+/// τ·d + (1 − τ)·(−c0/|w|²) = (d³ − c0) / (d² + |w|²)
+/// ```
+///
+/// which takes the well-conditioned form without branching on a value
+/// (this scalar cannot) and without an interval weight: spelled as a
+/// blend, `τ`'s enclosure is as wide as `d`'s relative width even at
+/// `τ ≈ 1`, and multiplies `|z|` twice. The denominator is positive,
+/// `|w|² ≥ ¾(A + B)²`.
+///
+/// # What the `Interval` instantiation encloses
+///
+/// Not the root. Every step after [`cbrt`] is a fixed composition, so
+/// the enclosure holds the value this function takes with `cbrt`'s
+/// truncated power `x^{(1−4^{-27})/3}` in place of the cube root — a
+/// bias of relative size `δ ≤ 1.5e-15` in `A` (`cbrt`'s own doc) that no
+/// interval widens to cover. The construction's job is that `δ` reaches
+/// `z` as a RELATIVE error of its own order rather than multiplied by
+/// `|s|/z`: through `d` it moves `x` by `δ·(A + B)`, which the weight
+/// `d²/(d² + |w|²)` scales to at most `δ·|z|/√3`; through `|w|²` it
+/// moves a sum of squares by `≤ 2δ` relative. That is what
+/// `r1_the_near_perpendicular_ray_keeps_its_roots` checks against the
+/// pose's exact roots — a biased enclosure that missed them would fail
+/// it — and at 1e-15 against the 1e-9 width that row allows, the bias is
+/// not what an enclosure's width is made of.
+///
+/// # `P = Q = 0`
+///
+/// There the radicand `|Q|/2 + √(…)` is exactly zero, `A = 0`, and
+/// `B = P/(3A)` is `0/0`: the f64 result is NaN. It is not reached: the
+/// cubic then has a TRIPLE root, i.e. a zero discriminant, which this
+/// branch's caller has decided definitely negative. And if a rounding
+/// ever did produce it, the NaN is loud where it lands: the caller's
+/// `bool_ray_torus_split_lead` reads a NaN margin as `Invalid` and
+/// escalates, rather than returning a plausible root.
 fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: bool) -> T {
     let three = T::from_f64(3.0);
     let two = T::from_f64(2.0);
     let shift = c2 / three;
     let p = c1 - c2.powi(2) / three;
     let q = c2.powi(3) * two / T::from_f64(27.0) - c2 * c1 / three + c0;
-    let x = if three_real {
+    if three_real {
         let scale = (T::zero() - p / three).max(T::zero()).sqrt();
         let arg = (three * q) / (two * p) * (T::zero() - three / p).max(T::zero()).sqrt();
         // The argument is a cosine by construction; clamping is the
         // rounding guard, not a decision (an out-of-range value here
         // would be a rounding artefact of the branch's own premise).
         let arg = arg.max(T::zero() - T::one()).min(T::one());
-        two * scale * (arg.acos() / three).cos()
-    } else {
-        let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
-            .max(T::zero())
-            .sqrt();
-        cbrt(T::zero() - q / two + inner) + cbrt(T::zero() - q / two - inner)
-    };
-    x - shift
+        return two * scale * (arg.acos() / three).cos() - shift;
+    }
+    let inner = (q.powi(2) / T::from_f64(4.0) + p.powi(3) / T::from_f64(27.0))
+        .max(T::zero())
+        .sqrt();
+    // Both terms non-negative: the sum does not cancel, and needs no sign.
+    let big_a = cbrt(q.abs() / two + inner);
+    let big_b = p / (three * big_a);
+    // `A − B` vanishes at `Q = 0`, so its sign transfer is continuous
+    // there (the doc above).
+    let x = (big_a - big_b).copysign(T::zero() - q);
+    let d = x - shift;
+    let pair = (x / two + shift).powi(2) + T::from_f64(0.75) * (big_a + big_b).powi(2);
+    (d.powi(3) - c0) / (d.powi(2) + pair)
 }
 
 /// The certified real roots of the LINE `q + d·t` (with `d` a UNIT
@@ -2913,8 +3136,13 @@ fn cubic_largest_real_root<T: geom_core::Real>(c2: T, c1: T, c0: T, three_real: 
 ///    was chosen.
 /// 3. **`bool_ray_torus_split_lead` non-Positive** — the resolvent's
 ///    largest real root is not positive, which contradicts its own
-///    constant term `−q̂² < 0` on the branch that computed it. A
-///    rounding-scale contradiction: uncertain, graze.
+///    constant term `−q̂² < 0` on the branch that computed it.
+///    Uncertain, graze. It is NOT only a rounding-scale contradiction:
+///    a `q̂` small
+///    enough that the root `≈ q̂²/c1` falls inside the band, but large
+///    enough to clear rung 2, reaches it too — a legitimate root refused
+///    on its size (`work/contact/torus-split-lead-escalates-a-
+///    legitimately-small-resolvent-root.md`).
 /// 4. **`bool_ray_torus_split` Zero** — one of the two quadratic factors
 ///    has a zero discriminant, i.e. a double root, which contradicts the
 ///    definite discriminant of rung 1. Uncertain, graze.
@@ -3065,7 +3293,13 @@ pub(super) fn line_torus_roots<T: Decide>(
     } else {
         // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
         // whose constant term is negative, so its LARGEST real root is
-        // positive and is the well-conditioned choice. The resolvent
+        // positive — the one root whose square root splits the quartic
+        // over the reals. On four real quartic roots the resolvent has
+        // three and the largest is at least a third of their sum; on two
+        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+        // (a ray all but perpendicular to the axis), which is where
+        // `cubic_largest_real_root`'s conditioning has to come from its
+        // own construction rather than from the choice. The resolvent
         // shares the quartic's discriminant, so the branch is the sign
         // already decided above rather than a second decision.
         let z = cubic_largest_real_root(
@@ -3580,11 +3814,17 @@ fn cast_ray<T: Decide>(
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
                     }
-                    let wp = p - center;
-                    let hp = wp.dot(axis);
-                    let rad = wp - axis * hp;
-                    let rho = rad.norm();
-                    let n_chart = (rad / rho * (rho - major_radius) + axis * hp) / minor_radius;
+                    // The tube's chart normal, from the one home it has.
+                    let n_chart = geom_brep::implicit_gradient(
+                        &Surface::Torus {
+                            center,
+                            axis,
+                            major_radius,
+                            minor_radius,
+                            u_ref,
+                        },
+                        p,
+                    );
                     let outward = oriented(
                         decide(
                             "bool_ray_torus_incidence",

@@ -51,9 +51,7 @@ use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, LoopBoundary, ShellError, VertexKey, transform_rigid};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use crate::common::charts::hollow_moves;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -96,7 +94,7 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -201,15 +199,18 @@ fn residual(s: &Surface<f64>, p: Point3<f64>) -> f64 {
 /// bisector — so the wall is a TORUS: `R = 6/64`, `r = 5/64`,
 /// `h_c = 4/64`, a 3-4-5 at each junction with both residuals exactly
 /// zero.
-fn torus_barrel() -> Body<f64> {
-    let c = p2(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (p2(3.0 / 64.0, 0.0), p2(3.0 / 64.0, 8.0 / 64.0));
+pub(crate) fn torus_barrel() -> Body<f64> {
+    let c = Point2::new(6.0 / 64.0, 1.0 / 16.0);
+    let (lo, hi) = (
+        Point2::new(3.0 / 64.0, 0.0),
+        Point2::new(3.0 / 64.0, 8.0 / 64.0),
+    );
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
             (lo, bulge(lo, hi, c)),
             (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -218,16 +219,19 @@ fn torus_barrel() -> Body<f64> {
 /// **The teapot's wall-1 belly.** The pot's own foot and mouth, its
 /// belly bulged about `(7/64, 5/64)` — off the axis, so a TORUS with
 /// `R = 7/64`, `r = 5/64`, `h_c = 5/64`.
-fn torus_belly() -> Body<f64> {
-    let c = p2(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (p2(4.0 / 64.0, 1.0 / 64.0), p2(3.0 / 64.0, 8.0 / 64.0));
+pub(crate) fn torus_belly() -> Body<f64> {
+    let c = Point2::new(7.0 / 64.0, 5.0 / 64.0);
+    let (lo, hi) = (
+        Point2::new(4.0 / 64.0, 1.0 / 64.0),
+        Point2::new(3.0 / 64.0, 8.0 / 64.0),
+    );
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(4.0 / 64.0, 0.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(4.0 / 64.0, 0.0), 0.0),
             (lo, bulge(lo, hi, c)),
             (hi, 0.0),
-            (p2(0.0, 8.0 / 64.0), 0.0),
+            (Point2::new(0.0, 8.0 / 64.0), 0.0),
         ]),
         Revolution::Full,
     )
@@ -410,6 +414,68 @@ fn torax_the_torus_corners_survive_a_rigid_re_pose() {
     }
 }
 
+/// **The re-posed barrel's cavity sits inside its outer wall — as
+/// `point_in_solid` reads it, not only as the vertex bijection above
+/// does.** The hollow's cavity vertices lie strictly inside the
+/// operand, so each reads `In` against the re-posed OPERAND, whose
+/// faces are exactly the hollow's outer shell; and a point in the wall
+/// material between the two top caps reads `In` against the re-posed
+/// HOLLOW, with the cavity's own centre `Out`.
+///
+/// The top-cap rim vertex `(−0.0275, 15/128, 0)` (revolve frame) read
+/// `Out` here: the deciding ray, the schedule's `+y`, leaves the
+/// operand through its top cap, a half-disc bounded by a semicircle
+/// and a diameter through the axis vertex; the planar arm read that
+/// face as the polygon through its three COLLINEAR vertices, whose
+/// area is zero, dropped the crossing, and the ray — crossing nothing
+/// else ahead of it — fell to the at-infinity side. Unposed, the same
+/// sweep's deciding ray is a different schedule member that happens to
+/// cross the torus wall first, which is all the pose changed.
+#[test]
+fn torax_the_re_posed_barrels_cavity_reads_inside_its_outer_wall() {
+    let map = Affine3::rotation_about_axis(
+        Point3::new(0.25, -0.5, 0.125),
+        Vec3::new(1.0, 0.0, 0.0),
+        0.7,
+    );
+    let band = Band::linear(tol()).expect("the witness band");
+    let barrel = torus_barrel();
+    let hollow = hollowed("the torus barrel", &barrel);
+    let operand = transform_rigid(&barrel, &map, tol()).expect("the operand re-poses");
+    let posed = transform_rigid(&hollow, &map, tol()).expect("the hollow re-poses");
+    let on_operand: Vec<Point3<f64>> = operand
+        .vertices()
+        .map(|(_, v)| *operand.get_point(v.point).expect("point"))
+        .collect();
+    let mut cavity = 0;
+    for (_, v) in posed.vertices() {
+        let q = *posed.get_point(v.point).expect("point");
+        if on_operand.iter().any(|p| (*p - q).norm() < 1e-12) {
+            continue;
+        }
+        cavity += 1;
+        let got = topo::point_in_solid(&operand, q, band, tol());
+        assert!(
+            matches!(got, Ok(topo::SolidContainment::In)),
+            "the cavity vertex {q:?} is strictly inside the re-posed operand, got {got:?}"
+        );
+    }
+    assert_eq!(cavity, 6, "the cavity shell's six vertices");
+    // On the axis: between the two top caps (y ∈ (15/128, 1/8)) is wall
+    // material; the cavity's middle is not.
+    for (y, want) in [
+        (31.0 / 256.0, topo::SolidContainment::In),
+        (1.0 / 16.0, topo::SolidContainment::Out),
+    ] {
+        let q = map.transform_point(Point3::new(0.0, y, 0.0));
+        let got = topo::point_in_solid(&posed, q, band, tol());
+        assert!(
+            matches!(got, Ok(v) if v == want),
+            "the re-posed hollow at axial height {y}: want {want:?}, got {got:?}"
+        );
+    }
+}
+
 /// **The operand gate, named — and named as NOT this arm's floor.** A
 /// wall thicker than the tube is refused before any torus arithmetic
 /// happens: `shell`'s `wall_clearance` sees the two planar caps facing
@@ -498,14 +564,17 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     let turn = Revolution::Partial(turn);
     let profile = Profile::new(
         SketchPlane::xy(),
-        vec![bulge_loop(vec![(p2(0.0, -r), 0.0), (p2(0.0, r), -1.0)])],
+        vec![bulge_loop(vec![
+            (Point2::new(0.0, -r), 0.0),
+            (Point2::new(0.0, r), -1.0),
+        ])],
     )
     .validate(tol())
     .expect("the lune's cross-section validates");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -513,28 +582,6 @@ fn lune(r: f64, turn: f64) -> Body<f64> {
     )
     .expect("the lune revolves")
     .body
-}
-
-/// Every chart of `body` moved inward by `t` through the simultaneous
-/// door — the same moves `shell` builds, spelled at the door itself.
-fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }
 
 /// **The klein elbow's rim MINTS, and the elbow stops at its equator
@@ -587,14 +634,17 @@ fn torax_the_klein_elbow_rim_mints_and_its_seam_reauthor_refuses() {
     let elbow = {
         let profile = Profile::new(
             SketchPlane::xy(),
-            vec![bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])],
+            vec![bulge_loop(vec![
+                (Point2::new(-r, 0.0), 1.0),
+                (Point2::new(r, 0.0), 1.0),
+            ])],
         )
         .validate(tol())
         .expect("the elbow's cross-section validates");
         revolve(
             &profile,
             RevolveAxis {
-                origin: p2(1.2, 0.0),
+                origin: Point2::new(1.2, 0.0),
                 dir: Vec2::new(0.0, -1.0),
             },
             Revolution::Partial(-core::f64::consts::FRAC_PI_2),

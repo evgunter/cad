@@ -2762,22 +2762,14 @@ fn junction_check<T: Decide>(
         Ok(Sign::Zero) => {
             let margin = turn * inc.arm;
             // Which refusal class — tangent (dep ≈ incoming) or cusp
-            // (dep ≈ reverse)? A decision, so it goes through the
-            // funnel: the alignment cos φ levered by the same arm. A
-            // Zero here means the arm itself is degenerate (both
-            // components sub-ε) — refused as the tangent class, the
-            // recourse that names moving the geometry.
-            let side = decide(
-                "path_junction_side",
-                Margin::levered(u_in.dot(u_dep), inc.arm),
-                band,
-            );
-            match side {
-                Ok(Sign::Negative) => Err(PathError::JunctionCusp {
+            // (dep ≈ reverse)? `path_junction_side`, in its one home
+            // (validation asks it of every declared joint too).
+            match seg::junction_reverses(u_in, u_dep, inc.arm, band) {
+                Ok(true) => Err(PathError::JunctionCusp {
                     margin,
                     arm: inc.arm,
                 }),
-                Ok(_) => {
+                Ok(false) => {
                     if seam {
                         Err(PathError::SeamTangent { margin })
                     } else {
@@ -2897,16 +2889,11 @@ fn carriers_are_identical<T: Decide>(
     }
 }
 
-/// **An arc leg's lever arm**, in one place: the smaller of its
-/// carrier's radius and its chord.
-///
-/// The radius is what an angular margin displaces over; the chord bounds
-/// it for an arc shorter than its own radius, where the radius would
-/// overstate how far the leg actually reaches. Named because several
-/// sites spell it and three of them are junction LEVERS, where the
-/// choice is a contract rather than an expression.
+/// **An arc leg's lever arm** from its carrier: [`seg::arc_lever`],
+/// the one home of that choice. Three of its callers are junction
+/// LEVERS, where the choice is a contract rather than an expression.
 fn arc_arm<T: Real>(carrier: &ArcData<T>, chord: T) -> T {
-    carrier.radius.min(chord)
+    seg::arc_lever(carrier.radius, chord)
 }
 
 /// The straight leg's EMISSION, shared by the two `line(len)` rows —
@@ -5465,10 +5452,6 @@ mod fillet_stored_form {
     /// The fillet radius every corner below is rounded with.
     const R: f64 = 0.2;
 
-    fn p2(x: f64, y: f64) -> Point2<f64> {
-        Point2::new(x, y)
-    }
-
     /// The arrival leg's carrier. The door's fillet arc is tangent to it
     /// at `t2`, so the carrier's unit tangent there plus the turn sense
     /// reconstructs the centre the door computed — `fillet_arc_carrier`'s
@@ -5662,8 +5645,8 @@ mod fillet_stored_form {
     /// origin, the corner sits at (4, 0), the arrival leaves it at
     /// `theta`, anchored three units along.
     fn line_line(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-        let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-        Open.at(p2(0.0, 0.0))
+        let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+        Open.at(Point2::new(0.0, 0.0))
             .angle(0.0, Tol::witness())?
             .fillet(R, Tol::witness())?
             .at(anchor, Tol::witness())?
@@ -5676,7 +5659,7 @@ mod fillet_stored_form {
     /// The line × arc corner's arrival circle: radius 2, counterclockwise
     /// tangent (cos θ, sin θ) at the corner (4, 0).
     fn line_arc_centre(theta: f64) -> Point2<f64> {
-        p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+        Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
     }
 
     /// A line × arc corner turning by `theta`: the east ray from the
@@ -5685,7 +5668,7 @@ mod fillet_stored_form {
         let c = line_arc_centre(theta);
         let start = c + Vec2::new(2.0 * theta.cos(), 2.0 * theta.sin());
         Open.at(start)
-            .line_to(p2(0.0, 0.0), Tol::witness())?
+            .line_to(Point2::new(0.0, 0.0), Tol::witness())?
             .toward(1.0, 0.0, Tol::witness())?
             .fillet_arc(
                 R,
@@ -5706,15 +5689,15 @@ mod fillet_stored_form {
     fn arc_arc(theta: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
         Open.arc_fillet_arc(
             Center {
-                c: p2(-theta, 0.0),
+                c: Point2::new(-theta, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(2.0 - theta, 0.0),
+                p: Point2::new(2.0 - theta, 0.0),
             },
             R,
             Center {
-                c: p2(theta, 0.0),
+                c: Point2::new(theta, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(theta - 2.0, 0.0),
+                p: Point2::new(theta - 2.0, 0.0),
             },
             Tol::witness(),
         )?

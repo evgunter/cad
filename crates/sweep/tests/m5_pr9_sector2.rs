@@ -25,15 +25,14 @@ use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, SplitReduceError, split};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The PR 5 disc: two half-circle arcs (bulge 1), radius 0.5 —
 /// extrudes to a cylinder whose two wall faces share ONE cylinder
 /// surface, with meridian ruling edges at (±0.5, 0).
 fn cylinder_body() -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -124,11 +123,11 @@ fn filleted_block() -> Body<f64> {
     // (1, 0.75) to (0.75, 1), bulge tan(π/8) (a CCW quarter arc).
     let b = (std::f64::consts::PI / 8.0).tan();
     let mut lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(1.0, 0.75), b),
-        (p2(0.75, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.75), b),
+        (Point2::new(0.75, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     // The tangency is authored, so it is DECLARED (the #101
     // discipline): joints 3 (arc→line) and 2 (line→arc).
@@ -199,7 +198,7 @@ fn the_must_carry_fires_when_the_description_is_conventional() {
     let spec = geom_brep::EdgeCurveSpec {
         description: geom_brep::EdgeDescriptionSpec::Scaffold(
             geom_brep::MappedCurve::ExtrudedPoint {
-                point: p2(origin.x, origin.y),
+                point: Point2::new(origin.x, origin.y),
                 place: geom_core::Affine3::identity(),
                 vec: dir * (t1 - t0),
             },

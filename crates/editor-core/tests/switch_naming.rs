@@ -12,6 +12,7 @@ use std::collections::BTreeSet;
 
 use crate::fixture;
 
+use crate::fixture::len;
 use editor_core::{
     CancelToken, Dimension, DocEdit, DocParam, EvalOptions, Expr, LoopProgram, Node, ParamName,
     ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload,
@@ -31,7 +32,6 @@ const PROFILE: RecipeNodeId = RecipeNodeId(1);
 const BODY: RecipeNodeId = RecipeNodeId(2);
 
 fn param_rect_doc(x0: f64) -> ProfileDoc {
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let x0e = || Expr::param(ParamName::new("x0"), Dimension::Length);
     let doc = ProfileDoc::empty_derived("switch_naming", Tol::witness())
         .apply(
@@ -45,10 +45,10 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         .unwrap()
         .doc;
     let loop_ = LoopProgram::Chain(vec![
-        ProgramStep::At([lit(1.0), lit(0.0)]),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(2.0), lit(0.0)])),
-        ProgramStep::LineTo(ProgramTarget::Point([lit(2.0), lit(1.0)])),
-        ProgramStep::LineTo(ProgramTarget::Point([x0e(), lit(1.0)])),
+        ProgramStep::At([len(1.0), len(0.0)]),
+        ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(0.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([len(2.0), len(1.0)])),
+        ProgramStep::LineTo(ProgramTarget::Point([x0e(), len(1.0)])),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     let (doc, xy) = fixture::insert(doc, fixture::xy_frame());
@@ -70,7 +70,7 @@ fn param_rect_doc(x0: f64) -> ProfileDoc {
         &DocEdit::InsertNode {
             node: Node::Extrude {
                 profile: PROFILE,
-                distance: lit(1.0),
+                distance: len(1.0),
             },
         },
         Tol::witness(),
@@ -200,7 +200,7 @@ fn circle_radius_edit_keeps_names() {
             &DocEdit::InsertNode {
                 node: Node::Extrude {
                     profile: PROFILE,
-                    distance: Expr::literal(1.0, Dimension::Length).unwrap(),
+                    distance: len(1.0),
                 },
             },
             Tol::witness(),
@@ -298,7 +298,6 @@ fn program_vertex_zero_is_the_authored_entry() {
 /// primitive's own lowering.
 #[test]
 fn hole_circle_anchor_recovers_reversal() {
-    let lit = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
     let outer = LoopProgram::polygon([(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]).unwrap();
     let hole = LoopProgram::circle(2.0, 2.0, 0.5).unwrap();
     let (doc, xy) = fixture::insert(
@@ -324,7 +323,7 @@ fn hole_circle_anchor_recovers_reversal() {
             &DocEdit::InsertNode {
                 node: Node::Extrude {
                     profile: PROFILE,
-                    distance: lit(1.0),
+                    distance: len(1.0),
                 },
             },
             Tol::witness(),

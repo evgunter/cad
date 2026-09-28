@@ -426,8 +426,7 @@ fn describe_section_boundary<T: Decide>(
             } else {
                 edge_data.he_plus
             };
-            let other_loop = body.get_half_edge(mate).ok_or_else(corrupt)?.parent_loop;
-            let other_face = body.get_loop(other_loop).ok_or_else(corrupt)?.face;
+            let other_face = body.face_of_half_edge(mate).ok_or_else(corrupt)?;
             let s_other = body.get_face(other_face).ok_or_else(corrupt)?.surface;
             let start = body
                 .get_half_edge(edge_data.he_plus)

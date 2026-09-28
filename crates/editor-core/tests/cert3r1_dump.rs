@@ -59,19 +59,18 @@ where
 /// `m10_p_fence.rs` with prints in place of digest feeds.
 fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str, T)) {
     use geom_core::Point2;
-    use profile::{ArcData, ArcSweep, Center, Open, Start, Step, Target};
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
+    use profile::{ArcSweep, Center, Open, Start, Step};
     let tip = 0.75_f64.sqrt();
     let programs = [
         Open.arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -79,50 +78,26 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         ),
         Open.arc_fillet_arc(
             Center {
-                c: p2(-1.0, 0.0),
+                c: Point2::new(-1.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -3.0_f64.sqrt()),
+                p: Point2::new(0.0, -3.0_f64.sqrt()),
             },
             0.5,
             Center {
-                c: p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
             Tol::witness(),
         ),
     ];
-    let embed = |step: &Step<f64>| -> Step<T> {
-        let pt = |p: Point2<f64>| p.map(T::from_f64);
-        let tgt = |t: Target<f64>| match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        };
-        let spec = |a: ArcData<f64>| match a {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            _ => unreachable!("this fixture authors Center-mode arcs only"),
-        };
-        match *step {
-            Step::ArcFilletArc {
-                spec: a,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(a),
-                radius: T::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            _ => unreachable!("this fixture is one fused step"),
-        }
-    };
     for (i, built) in programs.into_iter().enumerate() {
         let closed = built.expect("the arc-carrier fixture constructs at f64");
-        let steps: Vec<Step<T>> = closed.program.iter().map(embed).collect();
+        let steps: Vec<Step<T>> = closed
+            .program
+            .iter()
+            .map(|s| s.map_scalar(T::from_f64))
+            .collect();
         match profile::replay(&steps, Tol::witness()) {
             Ok(lp) => {
                 println!("RSTRUCT {lane} fixture{i} ok {}", lp.vertices().len());

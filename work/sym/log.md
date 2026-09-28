@@ -1346,3 +1346,16 @@ the lane resumed from its transcript and re-ran every check. Seams:
 `pncad::analysis` and the binding census (LIB, `summarize` re-exported
 and registered behind a door), `editor-core/src/mc.rs` (PROPS, one
 `fn` → `pub fn`). Spec deleted with its note; the unit closed.
+
+## Two ignored receipt rows red on main, drift unattributed (2026-09-26)
+
+Filed `ignored-sym-receipt-rows-drifted-red-on-main-unattributed` (P1).
+At `8ee3daf171` (main) `sym11_the_exact_channel_never_contradicts_past_the_ceiling`
+measures link numeric 179 / stored 175, bracket 343 / 341, and pad
+`[854, 128, 979, 2722]` / `[854, 128, 971, 2750]`.
+`m10_9_the_pads_four_at_both_dials` measures F-off `(858, 104, 999, 2722)` /
+stored `(858, 104, 991, 2750)` and F-on `(854, 128, 979, 2722)` /
+`(854, 128, 971, 2750)`. The drift predates ENCL's batch
+(`encl/batch-split-loop-mustcarry`, which applies only its own gate's
+A/B-measured delta to these tables) and its cause is not measured;
+no registrant column moves. The item has the full table. (ENCL orchestrator)

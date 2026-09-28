@@ -11,10 +11,6 @@ use geom_core::Point2;
 use geom_core::Tol;
 use profile::{ArcSide, ArcSweep, Center, Open, Profile, Radius, SketchPlane, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Recover the circle (center, radius) an emitted chord + bulge pair
 /// actually describes — the independent decoding of the stored form.
 fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, f64) {
@@ -34,15 +30,15 @@ fn circle_from_bulge(t1: Point2<f64>, t2: Point2<f64>, b: f64) -> (Point2<f64>, 
 #[test]
 fn mismatched_radius_continuation() {
     let closed = Open
-        .at(p2(5.05, -1.6))
+        .at(Point2::new(5.05, -1.6))
         .toward(2.1_f64, 0.8, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(7.0, 0.0),
+                c: Point2::new(7.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(8.5, 0.0),
+                p: Point2::new(8.5, 0.0),
             },
             Tol::witness(),
         )
@@ -58,7 +54,7 @@ fn mismatched_radius_continuation() {
             Tol::witness(),
         )
         .expect("a mismatched r names a sound construction")
-        .at(p2(4.05, 1.35), Tol::witness())
+        .at(Point2::new(4.05, 1.35), Tol::witness())
         .unwrap()
         .toward(-4.1, 0.3, Tol::witness())
         .unwrap()
@@ -72,12 +68,13 @@ fn mismatched_radius_continuation() {
     let anchor_idx = lp
         .vertices()
         .iter()
-        .position(|&v| (v - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .position(|&v| (v - Point2::new(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex of the final chain");
     let before = lp.vertices()[anchor_idx - 1];
-    let (run_c, run_r) = circle_from_bulge(before, p2(8.5, 0.0), lp.bulges()[anchor_idx - 1]);
+    let (run_c, run_r) =
+        circle_from_bulge(before, Point2::new(8.5, 0.0), lp.bulges()[anchor_idx - 1]);
     assert!(
-        (run_c - p2(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
+        (run_c - Point2::new(7.0, 0.0)).norm_squared().sqrt() < 1e-9 && (run_r - 1.5).abs() < 1e-9,
         "the arrival's run rides the true carrier; got ({}, {}) r {run_r}",
         run_c.x,
         run_c.y
@@ -86,9 +83,9 @@ fn mismatched_radius_continuation() {
     // DERIVED carrier (7.3, 0) r 1.2, tangent there by construction —
     // a declared joint at the anchor.
     let next = lp.vertices()[anchor_idx + 1];
-    let (dep_c, dep_r) = circle_from_bulge(p2(8.5, 0.0), next, lp.bulges()[anchor_idx]);
+    let (dep_c, dep_r) = circle_from_bulge(Point2::new(8.5, 0.0), next, lp.bulges()[anchor_idx]);
     assert!(
-        (dep_c - p2(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
+        (dep_c - Point2::new(7.3, 0.0)).norm_squared().sqrt() < 1e-9 && (dep_r - 1.2).abs() < 1e-9,
         "the continuation rides the derived carrier; got ({}, {}) r {dep_r}",
         dep_c.x,
         dep_c.y
@@ -111,15 +108,15 @@ fn mismatched_radius_continuation() {
 #[test]
 fn sharp_after_arc_arrival() {
     let closed = Open
-        .at(p2(5.05, -1.6))
+        .at(Point2::new(5.05, -1.6))
         .toward(2.1_f64, 0.8, Tol::witness())
         .unwrap()
         .fillet_arc(
             0.5,
             Center {
-                c: p2(7.0, 0.0),
+                c: Point2::new(7.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(8.5, 0.0),
+                p: Point2::new(8.5, 0.0),
             },
             Tol::witness(),
         )
@@ -137,7 +134,7 @@ fn sharp_after_arc_arrival() {
     let anchor_idx = lp
         .vertices()
         .iter()
-        .position(|&v| (v - p2(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
+        .position(|&v| (v - Point2::new(8.5, 0.0)).norm_squared().sqrt() < 1e-12)
         .expect("the authored anchor is a vertex");
     // The declared set is POPULATED on this same chain — the opening
     // fillet declares its own two joints — so the absence below is a

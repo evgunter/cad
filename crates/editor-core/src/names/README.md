@@ -59,13 +59,28 @@ made by the verdicts that decided it. Nodes already follow this rule, and so do
 union members (`FromMember`, DM4). Profile pieces follow it as well:
 
 - **The id.** Every step of a profile program carries a `StepId` in the recipe
-  (`ProfileProgram::ids`). It is minted from the document's monotone step
-  counter when the step is authored, by `InsertNode` or `SetProgram`. Like a
-  `RecipeNodeId`, it is never positional and never reused, and it is unique
-  across the whole document; the load door checks all three. A name may
-  spell only a step the document has minted: the doors that write a name
-  (`InsertNode`, `Rebind`, `SetAppearance`, `SetAppearanceMeta`) refuse one
-  at or beyond the counter, and so does the load door.
+  (`ProfileProgram::ids`). It is minted when the step is authored, by
+  `InsertNode` or `SetProgram`, from the document's mint chain: a digest
+  the document carries, which each minting edit extends by that edit's
+  canonical bytes. The steps one edit mints take the extended chain's
+  digests, one per step in authored order. So an id is a function of the
+  edit sequence that minted it:
+  - the same sequence of edits from one value mints the same ids (D9);
+  - two documents that branch from one value — an undo followed by a
+    different edit, or two edits applied to one base — mint different ids
+    for their different steps, so a name carried from one branch into the
+    other spells a step that branch never minted and denotes nothing
+    there, rather than another step. A parent's name held across a pin
+    update between two such versions resolves `Vanished`.
+
+  Like a `RecipeNodeId`, a step id is never positional and never reused,
+  and it is unique across the whole document. The document keeps every
+  id it has minted in its mint log, dropped steps' included, and a mint
+  whose digest is already in the log is refused. The load door checks all
+  three. A name may spell only a step the document has minted: the doors
+  that write a name (`InsertNode`, `Rebind`, `SetAppearance`,
+  `SetAppearanceMeta`) refuse one the mint log does not hold, and so does
+  the load door.
 - **The role.** A step draws its pieces from a fixed list of roles, one list
   per verb:
   - every verb that draws one segment has one role, `Leg`: `line`,

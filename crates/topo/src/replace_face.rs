@@ -135,7 +135,9 @@ use std::sync::Arc;
 use geom::{Curve3, NurbsCurve3, NurbsSurface, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec, Nappe, SurfaceKind};
 use geom_core::k_stats::decide;
-use geom_core::{Affine3, Band, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3};
+use geom_core::{
+    Affine3, Band, BandError, Decide, Indeterminate, Margin, Point3, Real, Sign, Tol, Vec3,
+};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopBoundary, VertexKey};
@@ -149,6 +151,17 @@ use crate::validate::{ValidationError, validate_closed};
 /// door's echo convention, one layer up).
 #[derive(Clone, Debug)]
 pub enum ReplaceFaceError<T: Real> {
+    /// The run's tolerance admits no linear band, so no margined
+    /// predicate on the face-replacement doors has a verdict to give.
+    /// [`replace_faces_offset`] derives its band at the door from the
+    /// tolerance witness alone; this is that derivation's refusal. Both
+    /// of `Band::linear`'s arms reach it from a tolerance the run's
+    /// validator admits (an ε within a factor K of `f64::MAX`, or a
+    /// subnormal ε with K near 1).
+    Band {
+        /// The band constructor's typed refusal.
+        error: BandError,
+    },
     /// `face` does not resolve in the body.
     StaleFace {
         /// The unresolvable face.
@@ -502,6 +515,16 @@ pub enum ReplaceFaceError<T: Real> {
 impl<T: Real> core::fmt::Display for ReplaceFaceError<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
+            // The carrier's own repairs (set a positive ε; raise ε or
+            // K) are addressed to a caller choosing a band's
+            // thresholds; a caller here holds a valid tolerance whose
+            // derived band failed anyway, and a less extreme ε forms
+            // a band at any admitted K.
+            Self::Band { .. } => write!(
+                f,
+                "replace_face_offset: the run's tolerance is too extreme for the ambiguity \
+                 band above it to form. Recourse: run at a less extreme tolerance"
+            ),
             Self::StaleFace { face } => {
                 write!(f, "replace_face_offset: {face:?} does not resolve")
             }
@@ -1021,11 +1044,15 @@ struct EdgePlan<T: Real> {
 /// moves along, and the door turns it (`crate::offset_nappe`) before
 /// anything is minted.
 ///
-/// The fit target is the run's ε_precision and reaches the fit door as
-/// the [`Tol`] witness (`geom_brep::approx_offset_surface`); it is
-/// consulted only on the NURBS lane, where the offset is not
-/// closed-form, and the analytic kinds mint exactly without reading a
-/// tolerance at all.
+/// The run's ε arrives as the [`Tol`] witness alone, and the door
+/// derives the run's linear band from it once, so one call classifies
+/// at one ε by construction. The analytic kinds mint in closed form
+/// and read the band only for their margined decisions (the mint's
+/// radius floor and torus ring convention, this door's apex window and
+/// nappe); the NURBS lane hands the witness
+/// to the fit door (`geom_brep::approx_offset_surface`), which fits to
+/// the run's ε_precision and meters at the band it derives from the
+/// same witness. The boundary re-derivation reads the same band.
 ///
 /// The body is **untouched on every `Err`**: the mint, the refusals and
 /// the whole boundary plan are decided read-only, the mutation runs on
@@ -1033,18 +1060,18 @@ struct EdgePlan<T: Real> {
 ///
 /// # Errors
 ///
-/// [`ReplaceFaceError`] — the offset door's own refusals, the fit
-/// door's, the apex-window predicate, the C5 routing boundary, the
+/// [`ReplaceFaceError`] — [`ReplaceFaceError::Band`] when the run's
+/// tolerance forms no linear band, the offset door's own refusals, the
+/// fit door's, the apex-window predicate, the C5 routing boundary, the
 /// carrier lanes' scope, a re-derivation the attach layer's
 /// certification rejects, and a clone that does not validate.
 pub fn replace_face_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     face: FaceKey,
     d: T,
-    band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
-    replace_faces_offset(body, &[face], d, band, tol)
+    replace_faces_offset(body, &[face], d, tol)
 }
 
 /// [`replace_face_offset`] for a CHART: every face carrying one surface
@@ -1073,9 +1100,11 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
     body: &mut Body<T>,
     faces: &[FaceKey],
     d: T,
-    band: Band,
     tol: Tol,
 ) -> Result<(), ReplaceFaceError<T>> {
+    // The one band every decision below classifies at, derived from the
+    // same witness the fit door reads.
+    let band = Band::linear(tol).map_err(|error| ReplaceFaceError::Band { error })?;
     // ---- Decide: the group. ----
     let Some(&face) = faces.first() else {
         return Err(ReplaceFaceError::EmptyGroup);
@@ -1319,10 +1348,9 @@ pub fn replace_faces_offset<T: Decide + crate::props::AtRestPolicy>(
 /// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. `None` is not a
 /// pass — a caller that cannot mint the offset refuses with
 /// [`ReplaceFaceError::ApproxLaneUnsupported`].
-// `band, tol` in that order, matching the public doors above rather
-// than the `tolerance, band` this used to end in: the raw tolerance is
-// gone and the witness takes the trailing position every door on this
-// chain gives it.
+// `band` is the one [`replace_faces_offset`] derived from `tol`: the
+// analytic arm classifies at it, and the fit door re-derives the same
+// band from the witness it is handed.
 fn mint_offset<T: Decide>(
     face: FaceKey,
     old: &Surface<T>,
@@ -1338,7 +1366,7 @@ fn mint_offset<T: Decide>(
         return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(lane) => lane
-                .mint(Arc::clone(base), d, tol, band)
+                .mint(Arc::clone(base), d, tol)
                 .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
@@ -2251,25 +2279,33 @@ mod offset_fit_door_rows {
     #[test]
     fn the_f64_door_mints_the_free_function_s_surface() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
             panic!("the bowed patch's offset fits at the witness tolerance");
         };
-        let Ok(Surface::Approx(free)) = geom_brep::approx_offset_surface(
-            Arc::new(crate::fixtures::bowed_patch()),
-            0.05,
-            tol,
-            band,
-        ) else {
+        let Ok(Surface::Approx(free)) =
+            geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
+        else {
             panic!("the free function mints the same surface");
         };
         let (a, b) = (through_door.certificate(), free.certificate());
         crate::fixtures::assert_certificates_agree("the mint door", a, b);
         assert_eq!(a.rounds, b.rounds, "the refinement history moved");
+        // The fit's whole net, as bits: control points, weights and
+        // both knot vectors.
+        let bits = |n: &geom::NurbsSurface<f64>| -> Vec<u64> {
+            n.control()
+                .iter()
+                .flat_map(|p| [p.x, p.y, p.z])
+                .chain(n.weights().iter().copied())
+                .chain(n.knots_u().knots().iter().copied())
+                .chain(n.knots_v().knots().iter().copied())
+                .map(f64::to_bits)
+                .collect()
+        };
         assert_eq!(
-            through_door.tolerance().to_bits(),
-            free.tolerance().to_bits(),
-            "the door and the free function fit against the same target"
+            bits(through_door.fit()),
+            bits(free.fit()),
+            "the door's fit and the free function's differ in some bit of their nets"
         );
     }
 }

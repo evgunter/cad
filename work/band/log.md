@@ -107,3 +107,33 @@ evidence on CONTACT's `axis-coincident-lap-trips-the-planar-join-invariant`.
 
 GERM's note above (one final-stage merge call at the end of the sweep)
 goes into the continuation-merge unit's brief verbatim.
+
+## 2026-09-26 — `blend-slit-name-collides-when-two-rims-share-a-meridian` closed (PR #3245)
+
+The teapot lid's rims roll in ONE `Node::Fillet`. The kernel record
+(`BlendNaming::slits`, `meridian_splits`) carries the slitting band's
+source edges, and `RoleSeg::BandSlit`/`BandCross` carry that set as a
+discriminator — option (a), because N4 names from birth data alone. The
+item undercounted: `BandCross` collided one row later the same way.
+Full single review, no MAJOR; its fix pass took the reviewer's rows
+(the one that matters: an unrewritten `band` silently retargets a held
+slit name, and nothing else in the suite saw it), made `band` a
+discriminator in `walk_names` rather than a derivation, and gave the
+band identity one home. `annulus-rim-phase-…` gained the note that its
+hand-kept retain is now load-bearing for `BandCut` uniqueness. Filed:
+INSTR's `tess-budget-baseline-names-predate-piece-naming`.
+## 2026-09-26 — `sweep-emits-no-contact-record-for-declared-cusps` closed (PR #3257)
+
+`Extruded`, `Revolved` and `Lofted` carry `declared_contacts`, one
+`Tangent` pair per declared cusp joint. Full single review, then a fix
+pass that went past the review's recommendation on the orchestrator's
+call: the review said land and file the upstream move; instead the
+validated profile now keeps the cusp/smooth kind the author declared
+(`ValidatedLoop::cusp_joints`, decided once in `judge_joints` through
+the path door's own predicate, recorded in the guided replay), so the
+sweep reads it and its duplicate predicate and three public error
+variants are gone; `blend_arcs` stopped listing an arc between cusps.
+Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
+MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
+`product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
+has its measured red-first row.

@@ -220,13 +220,12 @@ const STADIUM_R: f64 = 0.4;
 /// whose fold is `min(∞, r, h)`.
 fn stadium(h: f64) -> Result<Body<f64>, ExtrudeError> {
     let r = STADIUM_R;
-    let p2 = Point2::<f64>::new;
     // A semicircle's bulge is tan(π/4) = 1.
     let lp = bulge_loop(vec![
-        (p2(0.0, -r), 0.0),
-        (p2(2.0, -r), 1.0),
-        (p2(2.0, r), 0.0),
-        (p2(0.0, r), 1.0),
+        (Point2::new(0.0, -r), 0.0),
+        (Point2::new(2.0, -r), 1.0),
+        (Point2::new(2.0, r), 0.0),
+        (Point2::new(0.0, r), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -262,24 +261,23 @@ const LIP_R: f64 = 0.4;
 /// ANGLE, not a radius, is what puts the sagitta in the band.
 fn lipped_ring(chord: f64) -> Result<Body<f64>, RevolveError> {
     let r = LIP_R;
-    let p2 = Point2::<f64>::new;
     // A 45° arc (bulge tan(π/16)) from the outer equator, so its far
     // end meets the top annulus at a CORNER: one smooth join only.
     let bulge = (core::f64::consts::FRAC_PI_4 / 4.0).tan();
     let c = core::f64::consts::FRAC_1_SQRT_2;
     let lp = bulge_loop(vec![
-        (p2(0.2, -0.5), 0.0),
-        (p2(1.0, -0.5), 0.0),
-        (p2(1.0, 0.0), bulge),
-        (p2(1.0 - r + r * c, r * c), 0.0),
-        (p2(0.2, r * c), 0.0),
+        (Point2::new(0.2, -0.5), 0.0),
+        (Point2::new(1.0, -0.5), 0.0),
+        (Point2::new(1.0, 0.0), bulge),
+        (Point2::new(1.0 - r + r * c, r * c), 0.0),
+        (Point2::new(0.2, r * c), 0.0),
     ])
     .with_tangent_joints(vec![2]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a valid lipped ring");
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let theta = 2.0 * (chord / 2.0).asin();

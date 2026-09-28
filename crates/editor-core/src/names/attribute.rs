@@ -122,8 +122,8 @@ fn origin(seg: &RoleSeg) -> SegOrigin<'_> {
         | RoleSeg::BandFace(_)
         | RoleSeg::BandTrim { .. }
         | RoleSeg::BandFoot(_)
-        | RoleSeg::BandCross(_)
-        | RoleSeg::BandSlit(_)
+        | RoleSeg::BandCross { .. }
+        | RoleSeg::BandSlit { .. }
         // A shell's cavity twin, rim and hole rim are new entities the
         // op worked AGAINST a source: the twin is the source's inward
         // offset, not the source, and a rim is the annulus the source

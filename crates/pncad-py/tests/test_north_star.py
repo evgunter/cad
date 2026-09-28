@@ -2501,13 +2501,8 @@ class TestTeapot(unittest.TestCase):
     The oracles are the scene's own closed forms, restated here from
     the same dyadic constants — never a decimal copied out of a run.
 
-    Two things the Rust scene says that this row says differently, and
-    both are the binding's shape rather than a gap. The lid's roll is
-    TWO `Node.fillet` requests where `fillet_edges` takes one: the
-    flange's rim and the dome's foot stand at the two ends of one
-    meridian segment, so both bands slit that segment's seam and the
-    blend name emitter has one name for the two slits (the Rust
-    module's sixth finding). And the two unions arrive as
+    One thing the Rust scene says that this row says differently, and
+    it is the binding's shape rather than a gap: the two unions arrive as
     `EvaluationError` with `kind == "boolean"` carrying the kernel's
     own DISPLAY prose — `pncad-py` never Debug-dumps a payload, so the
     variant name `CurvedPairUnsupported` is not in the text and what
@@ -2852,20 +2847,9 @@ class TestTeapot(unittest.TestCase):
             self.assertAlmostEqual(
                 got[1].meters, station, delta=1e-12, msg=f"rim at vertex {v}"
             )
-        first = doc.insert(Node.fillet(sharp, Expr.length_in(self.ROLL, m), [rims[self.RIMS[0][0]]]))
-        ev = evaluate(doc)
-        carried = ev.select(
-            first,
-            Selector.of(
-                NamePat.of_kind(EntityKind.Edge).seg(
-                    SegPat.tag(SegTag.FromTarget).of(
-                        [NamePat.any().seg(SegPat.tag(SegTag.BandRim))]
-                    )
-                )
-            ),
+        lid = doc.insert(
+            Node.fillet(sharp, Expr.length_in(self.ROLL, m), [rims[v] for v, _, _ in self.RIMS])
         )
-        rest = [carried[self.RIMS[1][0] - 1], carried[self.RIMS[2][0] - 1]]
-        lid = doc.insert(Node.fillet(first, Expr.length_in(self.ROLL, m), rest))
 
         # ---- the spout: built about its own axis, then placed ----
         # The document says a placement in AXIS-ANGLE; the 3-4-5 turn
@@ -2901,7 +2885,7 @@ class TestTeapot(unittest.TestCase):
             )
         )
 
-        # ---- the two joins the operand gate has no arm for ----
+        # ---- the two joins, both refused ----
         joins = [
             doc.insert(Node.boolean(BooleanOp.Union, cup, handle)),
             doc.insert(Node.boolean(BooleanOp.Union, cup, spout)),
@@ -3232,27 +3216,22 @@ class TestTeapot(unittest.TestCase):
         doc = Doc()
         *_rest, joins = self.teapot(doc)
         ev = evaluate(doc)
-        # **TWO DIFFERENT RUNGS of the operand gate, and the second one
-        # moved when the spout became a canal.**
+        # **TWO DIFFERENT DOORS, each of which has moved.**
         handle_join, spout_join = joins
 
-        # handle union vessel: the PAIR rung — a germ pair (torus x
-        # sphere) with no wired arm. Note what it NAMES rather than
-        # what causes it: the gate is pair-scoped and box-conservative,
-        # so it reports the first pair whose boxes MAY meet (the
-        # scene's wall-7 lesson).
+        # handle union vessel: PAST the operand gate, because the
+        # handle's torus is on the union's kind roster — and dead at
+        # the maximal-faces precondition, on the VESSEL, whose full
+        # revolve mints its planar walls split in two.
         self.assertFalse(ev.succeeded(handle_join))
         with self.assertRaises(EvaluationError) as caught:
             ev.value(handle_join)
         refusal = caught.exception
         self.assertEqual(refusal.kind, "boolean")
         text = str(refusal)
-        # The PAIR sentence, whole: it names the torus face and the
-        # sphere face it may meet, in that order, each by its operand.
         self.assertRegex(
             text,
-            r"the (first|second) operand's torus face may meet "
-            r"the (first|second) operand's sphere face",
+            r"the first operand has two neighbouring faces that lie on one surface",
         )
 
         # spout union vessel: PAST the pair rung, because a loft's

@@ -478,9 +478,10 @@ fn round_hook<T: Decide>(
 /// pairs** — [`mass_properties_closed_form`]/[`mass_properties_closed_form_of`]
 /// and [`classify_shells`]/[`classify_shells_of`] each keep a
 /// whole-body wrapper beside the restricted spelling, and this one has
-/// none. That is deliberate: every caller decides per solid, so a
-/// wrapper handing [`crate::query::all_faces`] would be dead code
-/// carrying a whole-body claim nothing exercises.
+/// none. That is deliberate: every caller decides per solid (check 7)
+/// or per shell (check 10's role reads), so a wrapper handing
+/// [`crate::query::all_faces`] would be dead code carrying a whole-body
+/// claim nothing exercises.
 ///
 /// # Errors
 ///
@@ -2773,7 +2774,7 @@ mod at_rest_policy_tests {
     /// the reason is the point: `validate_geometric` cannot be CALLED
     /// at a dual — the composed entry carries the certified half's
     /// bound, so there is no refusal left to observe here. What a dual
-    /// can still do is the structural half, and this row pins that
+    /// can still do is the `_structural` twin, and this row pins that
     /// instead: the seed body's placeholder surface is a check-1
     /// failure, which is structural, so the dual sees the same refusal
     /// the certifying scalars see through the same checks.
@@ -2783,7 +2784,7 @@ mod at_rest_policy_tests {
         let b = refusing_body::<geom_core::Dual64>();
         assert!(
             crate::validate::validate_geometric_structural(&b, tol).is_err(),
-            "the structural half still runs, and still refuses, at a dual"
+            "the `_structural` twin still runs, and still refuses, at a dual"
         );
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),

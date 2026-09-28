@@ -145,7 +145,7 @@ pub fn xform(
         input,
         translation: translation.map(len),
         rotation_axis: axis.map(scl),
-        rotation_angle: Expr::literal(angle, Dimension::Angle).expect("an angle literal"),
+        rotation_angle: ang(angle),
     }
 }
 
@@ -169,15 +169,11 @@ pub fn band() -> geom_core::Band {
     geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
 }
 
-pub fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-pub fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-pub fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
+/// The literal of each dimension, a point of two lengths, and the
+/// frame a sketch is drawn on — `editor_core::test_support`'s, which the
+/// crate's own unit-test modules read too, re-exported so a suite
+/// imports them from here beside the rest of its authoring doors.
+pub use editor_core::test_support::{ang, frame, len, len2, scl, xy_frame};
 
 /// Applies an edit, returning the new doc and any minted id.
 ///
@@ -323,19 +319,6 @@ pub fn insert_mate_with_stranded_head(
     (doc, mate)
 }
 
-/// The frame datum a profile is drawn on, as a node to insert.
-///
-/// The components `desc` used to bake into a `SketchPlane` are the
-/// frame's own slots now, spelled the same way round: an origin and
-/// the two directions sketch +x and +y point.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(editor_core::Datum::Frame {
-        origin: origin.map(len),
-        u: u.map(scl),
-        v: v.map(scl),
-    })
-}
-
 /// **The `SketchPlane` a frame NODE denotes**, read out of a document.
 ///
 /// A test that builds a `profile::Profile` by hand needs the plane the
@@ -464,18 +447,6 @@ impl Swept {
             _ => panic!("the profile node's value carries a profile"),
         }
     }
-}
-
-/// The world xy frame as a node — origin at the world origin, sketch
-/// +x along world +x, sketch +y along world +y.
-///
-/// The `SketchPlane::xy()` constant most of these suites used, spelled
-/// as the node a profile now names. One per document, shared by every
-/// sketch on it: that is what "the same plane" is once the plane is a
-/// node, where the constant left each profile holding its own copy of
-/// identical floats.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
 }
 
 /// A profile program on `plane`, from polygon corner lists
@@ -1368,9 +1339,7 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         | RoleSeg::CornerFace(x)
         | RoleSeg::BandTrim { edge: x, .. }
         | RoleSeg::BandFoot(x)
-        | RoleSeg::BandCross(x)
         | RoleSeg::BandCut(x)
-        | RoleSeg::BandSlit(x)
         | RoleSeg::Inner(x)
         | RoleSeg::Rim(x)
         | RoleSeg::HoleRim { of: x, .. } => vec![x.as_ref()],
@@ -1385,6 +1354,9 @@ fn embedded_names(seg: &RoleSeg) -> Vec<&StableName> {
         }
         | RoleSeg::EndArc { vertex: x, edge: y } => vec![x.as_ref(), y.as_ref()],
         RoleSeg::Merged(v) | RoleSeg::BandFace(v) => v.iter().collect(),
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            std::iter::once(edge.as_ref()).chain(band).collect()
+        }
         RoleSeg::Fragment(Qualifier::SideOf(v)) => v.iter().map(|(p, _)| p).collect(),
         RoleSeg::Fragment(Qualifier::OrderAlong { .. })
         | RoleSeg::OutputBody

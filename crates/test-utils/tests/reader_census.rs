@@ -161,6 +161,10 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/per_part_gate_policy.rs",
+        disposition: Shared, // product.rs's per-part policy consultation, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/refusal_concision_chains.rs",
         disposition: Shared, // blend raise-site details over sweep/src/blend,
                              // code and code-and-literals views
@@ -245,7 +249,9 @@ const LEDGER: &[Entry] = &[
     },
     Entry {
         path: "crates/pncad/tests/all.rs",
-        disposition: Shared, // the facade boundary guards, code and literal views
+        disposition: Shared, // the facade boundary guards, code and literal views; and the
+                             // box-document fixture twin in crates/pncad-py/src/tests.rs,
+                             // raw text between sentinels, compared with its own copy
     },
     Entry {
         path: "crates/profile/tests/all.rs",
@@ -293,6 +299,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/step-import/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/step-import/tests/per_part_gate_policy.rs",
+        disposition: Shared, // lib.rs's per-part policy consultation, code view
     },
     Entry {
         path: "crates/step-import/tests/tier_gate.rs",
@@ -388,6 +398,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/topo/src/surgery.rs",
         disposition: Shared, // `Body`'s surgery-depth field declaration, code view
+    },
+    Entry {
+        path: "crates/topo/src/validate.rs",
+        disposition: Shared, // the at-rest door roster, prose view and code view
     },
     Entry {
         path: "crates/topo/tests/all.rs",

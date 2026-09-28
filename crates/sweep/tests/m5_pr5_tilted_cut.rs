@@ -21,15 +21,14 @@ use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The disc profile: two half-circle arcs (bulge 1), radius 0.5 about
 /// the sketch origin — extrudes to a cylinder of height 1 whose two
 /// wall faces share ONE cylinder surface (the cosurface run).
 fn disc() -> ValidatedProfile<f64> {
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap()
@@ -255,15 +254,13 @@ fn tangent_plane_refuses_typed() {
 mod interval {
     use super::*;
     use geom_core::Tol;
-    use geom_core::{Bounds, Interval, Real};
+    use geom_core::{Bounds, Interval};
 
     #[test]
     fn tilted_cut_at_interval_encloses_zero_residuals() {
-        let iv = <Interval as Real>::from_f64;
-        let lp = bulge_loop(vec![
-            (Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
-            (Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
-        ]);
+        use crate::common::interval::{iv, p2, p3, v3};
+
+        let lp = bulge_loop(vec![(p2(-0.5, 0.0), iv(1.0)), (p2(0.5, 0.0), iv(1.0))]);
         let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
             .validate(Tol::witness())
             .unwrap();
@@ -272,8 +269,8 @@ mod interval {
             .body;
         let phi = 0.3f64;
         let plane = SplitPlane {
-            origin: Point3::new(iv(0.0), iv(0.0), iv(0.5)),
-            normal: Vec3::new(iv(phi.sin()), iv(0.0), iv(phi.cos())),
+            origin: p3(0.0, 0.0, 0.5),
+            normal: v3(phi.sin(), 0.0, phi.cos()),
         };
         let result = split(&body, &plane, Tol::witness()).unwrap();
         let SplitPart::Body(above) = result.above else {
@@ -644,12 +641,10 @@ fn repaired_belly_bodies_mint_certified_pcurves() {
 /// the finite wall.
 #[test]
 fn even_crossing_belly_cut_at_interval() {
-    use geom_core::{Bounds, Interval, Real};
-    let iv = <Interval as Real>::from_f64;
-    let lp = bulge_loop(vec![
-        (Point2::new(iv(-0.5), iv(0.0)), iv(1.0)),
-        (Point2::new(iv(0.5), iv(0.0)), iv(1.0)),
-    ]);
+    use crate::common::interval::{iv, p2, p3};
+    use geom_core::{Bounds, Interval};
+
+    let lp = bulge_loop(vec![(p2(-0.5, 0.0), iv(1.0)), (p2(0.5, 0.0), iv(1.0))]);
     let vp = profile::Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -666,7 +661,7 @@ fn even_crossing_belly_cut_at_interval() {
     // all six section vertices order-distinct.
     let nv = Vec3::new(0.3, 2.0, 1.0).normalize();
     let plane = SplitPlane {
-        origin: Point3::new(iv(0.03), iv(0.11), iv(0.47)),
+        origin: p3(0.03, 0.11, 0.47),
         normal: nv.map(iv),
     };
     // The same §2 assertions the f64 belly row carries, at Interval:

@@ -32,10 +32,6 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_lo
 use sweep::{Extrusion, extrude};
 use topo::{Body, EdgeKey, SurfaceKey};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(loops: Vec<ProfileLoop<f64>>) -> profile::ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -64,7 +60,7 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
             (3.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     )
 }
 
@@ -281,7 +277,10 @@ fn declared_authority_across_the_coplanar_restatement() {
 fn cylindrical_wall_tangent_to_the_section_plane() {
     // A disc of radius 1 centred at (4, 2): its cylindrical wall is
     // tangent to y = 1 along the ruling at x = 4.
-    let disc = bulge_loop(vec![(p2(3.0, 2.0), 1.0), (p2(5.0, 2.0), 1.0)]);
+    let disc = bulge_loop(vec![
+        (Point2::new(3.0, 2.0), 1.0),
+        (Point2::new(5.0, 2.0), 1.0),
+    ]);
     let body = extruded(vec![disc], 1.0);
     let outcome = match topo::split(&body, &plane_y1(), Tol::witness()) {
         Err(e) => format!("refused: {e:?}"),
@@ -304,7 +303,10 @@ fn cylindrical_wall_tangent_to_the_section_plane() {
 
     // And the two-sided version: the same disc raised so the plane
     // genuinely cuts it, with the tangency removed — the control.
-    let disc2 = bulge_loop(vec![(p2(3.0, 1.5), 1.0), (p2(5.0, 1.5), 1.0)]);
+    let disc2 = bulge_loop(vec![
+        (Point2::new(3.0, 1.5), 1.0),
+        (Point2::new(5.0, 1.5), 1.0),
+    ]);
     let body2 = extruded(vec![disc2], 1.0);
     println!(
         "control (transverse cylinder): {:?}",

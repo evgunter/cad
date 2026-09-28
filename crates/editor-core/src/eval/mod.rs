@@ -1342,11 +1342,15 @@ pub enum NodeErrorKind {
     /// a channel that refused.
     ParamSourceAttach(topo::ParamAttachError),
     /// A `Declare` pair failed to resolve through the operands' name
-    /// tables (F5, M4 PR 5) — the N5 typed error VERBATIM: a Declare
-    /// naming a vanished/ambiguous/deleted name refuses loudly; no
-    /// silent drop, no best-effort gluing.
+    /// tables (F5) — the N5 typed error: a Declare naming a
+    /// vanished/ambiguous/deleted name refuses loudly; no silent drop,
+    /// no best-effort gluing. The error's shape is N5's; a `Vanished`
+    /// one's diagnosis may be one of the arms [`crate::resolve::Diagnosis`]
+    /// marks as not N5's, such as a union's fold consuming the name
+    /// ([`crate::resolve::Diagnosis::ConsumedByFold`]).
     DeclareResolve {
-        /// The resolution failure (N5's closed trio).
+        /// The resolution failure: N5's closed trio of shapes, its
+        /// diagnosis not limited to N5's arms.
         error: Box<crate::resolve::ResolveError>,
     },
     /// A declared entity is SITED at a node that is not one of the
@@ -5488,14 +5492,15 @@ fn feed_role_seg(h: &mut KeyHasher, seg: &crate::names::RoleSeg) {
         RoleSeg::BandFoot(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandCross(n) => {
-            feed_stable_name(h, n);
-        }
         RoleSeg::BandCut(n) => {
             feed_stable_name(h, n);
         }
-        RoleSeg::BandSlit(n) => {
-            feed_stable_name(h, n);
+        RoleSeg::BandCross { edge, band } | RoleSeg::BandSlit { edge, band } => {
+            feed_stable_name(h, edge);
+            h.write_u64(band.len() as u64);
+            for n in band {
+                feed_stable_name(h, n);
+            }
         }
         // The n-ary union's member key. BOTH halves feed: two members
         // of one union can be

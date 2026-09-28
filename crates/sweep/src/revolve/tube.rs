@@ -451,7 +451,9 @@ fn build<T: Decide + geom_brep::PcurveFittedLane>(
     // certified pcurves at rest.
     topo::mint_pcurves(&mut out.body, tol)
         .map_err(|e| TubeError::Revolve(RevolveError::Pcurve(e)))?;
-    Ok(out)
+    // A tube circle is two half-circles on one carrier: no cusp joint,
+    // so nothing declared.
+    Ok(out.with_contacts(Vec::new()))
 }
 
 /// The circle of `radius` about `center` as a two-arc swept

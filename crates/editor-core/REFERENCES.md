@@ -272,13 +272,12 @@ So the chain goes, not the link:
   later side as the joining member's. A pair a face of which the fold
   consumed whole before that step is satisfied, not `Vanished`: no row
   of the accumulation descends from the face, because another member
-  contains it, so the contact has nothing left to back. That is DM4's
-  part. What stays
-  `member-space-look-through-stops-at-splits-containment-and-fragmented-merges`'s
-  is a face that survives at its step only in pieces, split by another
-  member or inside a merged row a later step fragmented. Rows do
-  descend from such a face, and which of them carry the contact is
-  that row's question;
+  contains it, so the contact has nothing left to back. A face that
+  survives at its step only in pieces, split by another member or
+  inside a merged row a later step fragmented, is not consumed whole:
+  rows do descend from it, and which of them carry the contact is not
+  decidable from the names, so the pair refuses (**Merges and order**,
+  below);
   a pair whose two sites are ONE member is that member's carried
   contact at its own step; no fold position is recorded anywhere. A
   name not in its site's table refuses typed through the pair
@@ -299,10 +298,23 @@ So the chain goes, not the link:
   performed (the union rewrites it to the flat `Merged` row containing
   it before the shared resolver), so a declaration set whose faces are
   consumed by MERGES fuses in every member order, and one whose face a
-  member contains is satisfied (above). The bound: a face
-  consumed by a split, or by a merge a later step
-  fragmented is not looked through and stays order-shaped
-  (`member-space-look-through-stops-at-splits-containment-and-fragmented-merges`).
+  member contains is satisfied (above). A merge is the one
+  consumption with a unique successor, so it is the one looked
+  through. A face split by a later member, or inside a merged row a
+  later step fragmented, has none, and a pair naming it at a later
+  step refuses while any piece of it survives: `Vanished`, diagnosed
+  `ConsumedByFold` with the composition read off the rows that descend
+  from the face (fragments of it, or fragments of a merged row
+  covering it, each bare or merged again), never by measuring it
+  again. It offers nothing, because which fragment the pair meant is
+  the geometric question the routing step does not ask. A face split
+  and then contained whole in EVERY piece before the pair's step has
+  no piece left, and its pair is satisfied like any face consumed
+  whole. So the outcome is not monotone in what the later members
+  cover: with `a`'s top cap split by `s` and a pair naming that cap
+  fed at `p`'s step, `[a, s, half, p]` refuses the split when `half`
+  contains one piece, while `[a, s, big, p]` fuses when `big` contains
+  both.
   **The refusal names member faces.** A contact is judged between two
   members, so an `UndeclaredContact` finding sites both of its sides at
   member faces, and the caller declares exactly what the refusal
@@ -310,8 +322,9 @@ So the chain goes, not the link:
   (a `Seam` mints edges and vertices, never a face). A fold step never
   meets an undeclared contact, because every contact the fold meets
   was judged pairwise: a certified pair is fed to its step, satisfied
-  because its face was consumed whole, or refused as the vanished name
-  it is at that step. A fold step that refuses a contact anyway is an
+  because its face was consumed whole, or refused at that step, as a
+  vanished name or naming the composition that left it in pieces
+  (above). A fold step that refuses a contact anyway is an
   emission bug, because the fold mints no contact verdict, and a
   contact refusal from it would tell the user to declare a pair the
   judgement already passed. The refusal menu of
@@ -323,7 +336,9 @@ the member-space declaration channel is DOCM-7 (PR 2028), re-sited at
 the members by Ev on EDIT's fourth `[ev]` PR (#2795, 2026-09-17;
 `a-declared-union-has-no-one-pass-authoring-path`), built by the unit
 that row names; the flat
-`Merged` mint, the look-through and its bound are DOCM-8 (PR 2073).
+`Merged` mint and the look-through are DOCM-8 (PR 2073); the typed
+refusal past the merges applies Ev's ruling on PR 2677
+(`does-n3-retire-loudly-generalise-to-the-folds-other-compositions`).
 The contact rule (every pairwise contact is judged before the fold and
 must be declared, a covered contact included; a declared contact is
 satisfied wherever the fold meets it) was ruled by Ev on EMIT's `[ev]`

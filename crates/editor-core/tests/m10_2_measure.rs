@@ -16,13 +16,12 @@ use crate::fixture;
 
 use editor_core::UnitSym;
 use editor_core::{
-    AssertionDir, AssertionVerdict, CancelToken, Datum, Dimension, DocEdit, DocParam,
-    DocParamValue, DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr,
-    MeasurePrimitive, Node, NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram,
-    ProgramStep, ProgramTarget, RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply,
-    evaluate,
+    AssertionDir, AssertionVerdict, CancelToken, Dimension, DocEdit, DocParam, DocParamValue,
+    DocumentId, EvalOptions, Evaluation, Expr, LoopProgram, MeasureExpr, MeasurePrimitive, Node,
+    NodeErrorKind, NodeResult, ParamName, ProfileDoc, ProfileProgram, ProgramStep, ProgramTarget,
+    RecipeNodeId, SitedRef, SlotId, StableName, ValuePayload, apply, evaluate,
 };
-use fixture::{ang, len, scl};
+use fixture::{ang, frame, len, scl, xy_frame};
 use geom_core::Tol;
 
 /// The plate's hole radius, as a document parameter — the thing the
@@ -62,15 +61,6 @@ fn mint(doc: &editor_core::ProfileDoc, node: Node<ProfileProgram>) -> (ProfileDo
     .unwrap_or_else(|e| panic!("edit refused: {e}"));
     let id = applied.record.minted.expect("an insert mints an id");
     (applied.doc, id)
-}
-
-/// The world xy frame as a node — what a profile is drawn on.
-fn xy_frame() -> Node<ProfileProgram> {
-    Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    })
 }
 
 /// **The two-hole plate**, authored through the public edit door as a
@@ -233,14 +223,7 @@ fn two_slabs() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     for z in [0.0, 1.0 + SLAB_GAP] {
         // A frame PER SLAB: these are two different planes (the second
         // is lifted in z), so they are two frames, not one shared.
-        let (next, plane) = mint(
-            &doc,
-            Node::Datum(Datum::Frame {
-                origin: [len(0.0), len(0.0), len(z)],
-                u: [scl(1.0), scl(0.0), scl(0.0)],
-                v: [scl(0.0), scl(1.0), scl(0.0)],
-            }),
-        );
+        let (next, plane) = mint(&doc, frame([0.0, 0.0, z], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
         doc = next;
         doc = push(
             &doc,
@@ -385,7 +368,7 @@ fn plate_with_web() -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+                bound: len(MIN_WEB),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -745,7 +728,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
     );
     // 13 m / s, with s bound to zero.
     let over_zero = MeasureExpr::div(
-        MeasureExpr::value(Expr::literal(13.0, Dimension::Length).expect("finite")),
+        MeasureExpr::value(len(13.0)),
         MeasureExpr::value(Expr::param(ParamName::new("s"), Dimension::Scalar)),
     )
     .expect("Length / Scalar");
@@ -761,7 +744,7 @@ fn a_non_finite_measure_refuses_and_asserts_nothing() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+                bound: len(1.0),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -823,7 +806,7 @@ fn the_same_division_in_a_slot_has_always_refused() {
             node: Node::Extrude {
                 profile: disc,
                 distance: Expr::div(
-                    Expr::literal(13.0, Dimension::Length).expect("finite"),
+                    len(13.0),
                     Expr::param(ParamName::new("s"), Dimension::Scalar),
                 )
                 .expect("Length / Scalar"),
@@ -1140,7 +1123,7 @@ fn an_assertion_over_a_failed_measure_is_poisoned() {
         &DocEdit::InsertNode {
             node: Node::Assertion {
                 measure,
-                bound: Expr::literal(0.1, Dimension::Length).expect("finite"),
+                bound: len(0.1),
                 dir: AssertionDir::AtLeast,
             },
         },
@@ -1175,4 +1158,57 @@ fn the_measurement_nodes_carry_no_slots() {
         );
         assert!(node.expr(SlotId::Distance).is_none());
     }
+}
+
+/// A document whose one root is an extrude of a `.cusp()` lune
+/// evaluates, and the product gate refuses it `UndeclaredCusp`: the
+/// extrude carries the declaration (`Extruded::declared_contacts`) but
+/// the recipe layer drops it and the gate reads none. The red-first row
+/// of `work/gather/product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares.md`,
+/// which flips it to gathering.
+#[test]
+fn a_cusp_extrude_document_refuses_at_the_product_gate() {
+    let (doc, plane) = mint(
+        &ProfileDoc::empty(DocumentId::derive("cusp-extrude-lune"), Tol::witness()),
+        xy_frame(),
+    );
+    let lune = LoopProgram::Chain(vec![
+        ProgramStep::At([len(0.0), len(4.0)]),
+        ProgramStep::Angle(ang(-std::f64::consts::FRAC_PI_2)),
+        ProgramStep::Line(len(2.0)),
+        ProgramStep::Turn(ang(std::f64::consts::FRAC_PI_2)),
+        ProgramStep::TangentArcTo(ProgramTarget::Point([len(0.0), len(0.0)])),
+        ProgramStep::Cusp,
+        ProgramStep::TangentArcTo(ProgramTarget::Start),
+    ]);
+    let (doc, profile) = mint(
+        &doc,
+        Node::Profile(ProfileProgram {
+            plane,
+            loops: vec![lune],
+            ids: Vec::new(),
+        }),
+    );
+    let (doc, ex) = mint(
+        &doc,
+        Node::Extrude {
+            profile,
+            distance: len(1.0),
+        },
+    );
+    let ev = eval(&doc);
+    assert!(
+        matches!(ev.result(ex), Some(NodeResult::Ok(_))),
+        "the cusp extrude evaluates"
+    );
+    // TODAY: refuses at the aggregate gate. The gather item's red-first
+    // row flips this to `Ok`.
+    let err = editor_core::product(&doc, &ev, Tol::witness())
+        .map(|b| b.solids().count())
+        .expect_err("the product gate reads no declarations yet");
+    let rendered = format!("{err:?}");
+    assert!(
+        rendered.starts_with("ProductInvalid") && rendered.contains("UndeclaredCusp"),
+        "{rendered}"
+    );
 }

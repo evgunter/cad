@@ -645,7 +645,7 @@ fn an_interior_column_intersection_mints_a_general_image() {
         panic!("the trimmed face's tessellation lane moved — re-pin this row")
     };
     assert!(
-        note.contains("C⁰ crease"),
+        note.contains("degree 1 with a sharp crease"),
         "tessellation refuses at the crease gate before any trimmed-region site: {note}"
     );
     println!("M8-4 tessellate on the trimmed chart: {note}");
@@ -906,26 +906,15 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         .find(|(_, f)| f.surface == key)
         .expect("the bowed wall has a face");
     let mut off = body.clone();
-    let got = topo::replace_face_offset(
-        &mut off,
-        fk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let got = topo::replace_face_offset(&mut off, fk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
     let (ofk, _) = oracle
         .faces()
         .find(|(_, f)| f.surface == obowed)
         .expect("the oracle's bowed wall has a face");
     let mut ooff = oracle.clone();
-    let orc = topo::replace_face_offset(
-        &mut ooff,
-        ofk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let orc =
+        topo::replace_face_offset(&mut ooff, ofk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     println!("E3 @ eps={eps:e}: offset(General-faced) {got:?}");
     println!("E3 @ eps={eps:e}: offset(oracle bowed)  {orc:?}");
     assert!(

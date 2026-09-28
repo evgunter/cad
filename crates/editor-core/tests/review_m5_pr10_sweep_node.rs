@@ -15,7 +15,7 @@ use crate::fixture;
 use editor_core::{
     CancelToken, EvalOptions, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, evaluate,
 };
-use fixture::{insert, on_frame};
+use fixture::{insert, len, on_frame};
 use geom_core::Tol;
 
 #[test]
@@ -130,11 +130,7 @@ fn review_recipe_doors_precede_the_sweep_frontier() {
     let (d, datum) = insert(
         doc,
         Node::Datum(editor_core::Datum::Point {
-            position: [
-                Expr::literal(0.0, editor_core::Dimension::Length).unwrap(),
-                Expr::literal(0.0, editor_core::Dimension::Length).unwrap(),
-                Expr::literal(0.0, editor_core::Dimension::Length).unwrap(),
-            ],
+            position: [len(0.0), len(0.0), len(0.0)],
         }),
     );
     doc = d;

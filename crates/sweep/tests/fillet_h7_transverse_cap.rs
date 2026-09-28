@@ -45,10 +45,6 @@ use topo::{Body, EdgeKey, FaceKey, VertexKey, mass_properties, validate_geometri
 
 const R: f64 = ROD_FILLET;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -542,7 +538,7 @@ fn a_cut_off_arc_at_the_wrong_radius_or_centre_is_refused_at_the_attachment_gate
 #[test]
 fn the_parallel_cylinder_union_still_refuses_and_a_box_edge_is_still_a_run_out() {
     let cyl = |cx: f64| {
-        let lp = profile::circle(p2(cx, 0.0), 0.5, tol()).unwrap();
+        let lp = profile::circle(Point2::new(cx, 0.0), 0.5, tol()).unwrap();
         let profile = Profile::new(SketchPlane::xy(), vec![lp.into()])
             .validate(tol())
             .unwrap();
@@ -650,10 +646,10 @@ fn the_cap_lever_is_the_links_extent() {
 fn a_curved_end_face_refuses_typed_before_metering() {
     let body = revolved_about_y(
         vec![
-            (p2(0.5, 0.0), 0.0),
-            (p2(1.0, 0.0), 0.0),
-            (p2(1.0, 1.0), 0.3),
-            (p2(0.5, 1.0), 0.0),
+            (Point2::new(0.5, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 1.0), 0.3),
+            (Point2::new(0.5, 1.0), 0.0),
         ],
         sweep::Revolution::Partial(core::f64::consts::FRAC_PI_2),
         tol(),

@@ -1,6 +1,4 @@
-//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16). These are
-//! **independent derivations**. Promoted per Ev's request (PR #17
-//! thread).
+//! Adversarial e2e review artifact for M1 PR 2 (2026-07-16).
 //!
 //! Tier-1-INVALID bodies fed into the operators. The debug-vs-release
 //! expectations are split with `cfg(debug_assertions)` guards, so neither
