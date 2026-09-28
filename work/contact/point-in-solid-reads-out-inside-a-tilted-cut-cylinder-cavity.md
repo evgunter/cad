@@ -2,11 +2,12 @@
 id: point-in-solid-reads-out-inside-a-tilted-cut-cylinder-cavity
 kind: issue
 title: point_in_solid answers a false Out at hundreds of points inside a tilted-cut cylinder cavity (brick minus rod, cut at tilt 1.0), a cause outside the wall arm
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P0
 cost: D
 refs: [CONTACT-3]
+parent: CONTACT-6
 ---
 
 
