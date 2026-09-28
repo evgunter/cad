@@ -220,9 +220,10 @@
 use geom::curves::fit::{FitError, interpolate_columns};
 use geom::surfaces::{NurbsSurface, Surface};
 use geom_core::Bounds;
+use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, Interval, Point3, Tol};
+use geom_core::{Band, BandError, Interval, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -323,10 +324,10 @@ impl OffsetLimb {
 /// The condition is the band, and it is not idle. The door meters read
 /// it before any round, and their winning rung sets the regularity
 /// floor `measure` divides by and the chart speeds the marking
-/// compares. A production caller builds its band from ε
-/// (`Band::linear(tol)`), so a caller that loosens ε to `bound` moves
-/// the band too, the rung can change, and `bound` is then the size to
-/// ask for rather than a guarantee.
+/// compares. The [`Tol`] doors derive their band from the same witness
+/// as their target (`Band::linear(tol)`), so a caller that loosens ε
+/// to `bound` moves the band too, the rung can change, and `bound` is
+/// then the size to ask for rather than a guarantee.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub struct BestBound {
     /// The smallest finite certified sup bound any round reached, in
@@ -665,6 +666,11 @@ pub enum OffsetFitError {
     /// asks for a report and names the weight rather than rendering
     /// the carrier's own repair.
     Elevation(KnotAlgebraError),
+    /// The run's tolerance could not form the linear band the door
+    /// meters classify against (an absurd ε — see `Band::linear`'s
+    /// error docs). Only the [`Tol`] doors derive a band; the `_at`
+    /// instruments take theirs as an argument.
+    Band(BandError),
 }
 
 impl From<MeterError> for OffsetFitError {
@@ -827,6 +833,7 @@ impl core::fmt::Display for OffsetFitError {
                  linear, which a valid surface always allows. There is no way through: \
                  this is a kernel defect; report the face's description"
             ),
+            Self::Band(e) => write!(f, "the offset surface could not be fitted: {e}"),
         }
     }
 }
@@ -927,6 +934,15 @@ fn precision_target(tol: Tol) -> f64 {
     tol.eps()
 }
 
+/// **The band the door meters classify against**, derived from the same
+/// witness as [`precision_target`]: the run's linear band. A door that
+/// took the band as a second argument would let a caller classify the
+/// limbs at one ε and meter the regularity floor and the collapse reach
+/// at another; deriving it here makes the pair one value.
+fn run_band(tol: Tol) -> Result<Band, OffsetFitError> {
+    Band::linear(tol).map_err(OffsetFitError::Band)
+}
+
 /// **The fit door**, at the run's ε_precision: fit the offset of `base`
 /// at signed distance `d` until the measured residual meets the target,
 /// or refuse typed. The docs of the routine it delegates to
@@ -942,9 +958,8 @@ pub fn fit_offset(
     base: &NurbsSurface<f64>,
     d: f64,
     tol: Tol,
-    band: Band,
 ) -> Result<(NurbsSurface<f64>, OffsetCertificate), OffsetFitError> {
-    fit_offset_at(base, d, precision_target(tol), band)
+    fit_offset_at(base, d, precision_target(tol), run_band(tol)?)
 }
 
 /// [`fit_offset`] against a CHOSEN target rather than the run's ε — the
@@ -1143,9 +1158,8 @@ pub fn certify_offset(
     fit: &NurbsSurface<f64>,
     d: f64,
     tol: Tol,
-    band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    certify_offset_at(base, fit, d, precision_target(tol), band)
+    certify_offset_at(base, fit, d, precision_target(tol), run_band(tol)?)
 }
 
 /// [`certify_offset`] against a CHOSEN target rather than the run's ε —
@@ -1224,9 +1238,14 @@ pub fn certify_offset_over(
     fit: &NurbsSurface<f64>,
     window: geom::ApproxWindow,
     tol: Tol,
-    band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    certify_offset_over_at(description, fit, window, precision_target(tol), band)
+    certify_offset_over_at(
+        description,
+        fit,
+        window,
+        precision_target(tol),
+        run_band(tol)?,
+    )
 }
 
 /// [`certify_offset_over`] against a CHOSEN target rather than the run's
@@ -1302,11 +1321,10 @@ pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
     tol: Tol,
-    band: Band,
 ) -> Result<Surface<f64>, OffsetFitError> {
-    let fitted = fit_offset(&base, d, tol, band)?;
+    let fitted = fit_offset(&base, d, tol)?;
     mint(base, d, fitted, |description, fit, window| {
-        certify_offset_over(description, fit, window, tol, band)
+        certify_offset_over(description, fit, window, tol)
     })
 }
 
@@ -1380,15 +1398,8 @@ fn mint(
 pub fn recertify_approx(
     approx: &geom::ApproxSurface<f64>,
     tol: Tol,
-    band: Band,
 ) -> Result<OffsetCertificate, OffsetFitError> {
-    certify_offset_over(
-        approx.description(),
-        approx.fit(),
-        approx.window(),
-        tol,
-        band,
-    )
+    certify_offset_over(approx.description(), approx.fit(), approx.window(), tol)
 }
 
 /// [`recertify_approx`] against a CHOSEN target rather than the run's ε
@@ -1511,28 +1522,25 @@ fn seed_params(base: &NurbsSurface<f64>) -> (Vec<f64>, Vec<f64>) {
     )
 }
 
+/// One direction's seed: every distinct knot value of `kv`, ascending,
+/// with the equal-split interior points
+/// ([`equal_split_points`] at [`OFFSET_FIT_SEED_PER_SPAN`]) between
+/// each pair of neighbours, then bisected up to the
+/// `OFFSET_FIT_DEGREE + 1` parameters an interpolation needs.
+///
+/// Every interior point lies strictly inside its own span, so taking
+/// the points below each knot value in turn places each one between
+/// the two ends of the span it came from.
 fn seed_direction(kv: &KnotVector) -> Vec<f64> {
+    let mut interior = equal_split_points(kv, OFFSET_FIT_SEED_PER_SPAN)
+        .into_iter()
+        .peekable();
     let mut out = Vec::new();
-    let knots = kv.knots();
-    for span in kv.first_span()..=kv.last_span() {
-        let (Some(&lo), Some(&hi)) = (knots.get(span), knots.get(span + 1)) else {
-            continue;
-        };
-        #[allow(clippy::neg_cmp_op_on_partial_ord)]
-        if !(hi > lo) {
-            continue;
+    for (end, _) in kv.knot_runs() {
+        while let Some(t) = interior.next_if(|t| *t < end) {
+            out.push(t);
         }
-        if out.is_empty() {
-            out.push(lo);
-        }
-        for k in 1..OFFSET_FIT_SEED_PER_SPAN {
-            #[allow(clippy::cast_precision_loss)]
-            let t = lo + (hi - lo) * (k as f64 / OFFSET_FIT_SEED_PER_SPAN as f64);
-            if t > lo && t < hi {
-                out.push(t);
-            }
-        }
-        out.push(hi);
+        out.push(end);
     }
     // A degree-`p` interpolation needs `p + 1` parameters; a
     // single-span low-degree direction seeds too few without this.
@@ -2944,6 +2952,7 @@ mod recourse_tests {
     use crate::patch_bound::PatchBoundError;
     use geom::curves::fit::FitError;
     use geom_core::spline::{KnotAlgebraError, SplineError};
+    use geom_core::{BandError, BandField};
 
     /// **The recourse claim for the carrier tier 3 renders whole.**
     /// `ValidationError::ApproxCertification { error }` contributes a
@@ -2951,10 +2960,10 @@ mod recourse_tests {
     /// absent from the message a user reads there.
     ///
     /// **The delegating arms are asserted differently.** `Meter`,
-    /// `PatchBound`, `Fit` and `Structure` forward a carrier that holds
-    /// an enforcement row of its own, so each is asserted TRANSITIVELY:
-    /// the carrier is rendered whole, and its recourse survives into
-    /// the message. `Elevation` does NOT render its carrier: the
+    /// `PatchBound`, `Fit`, `Structure` and `Band` forward a carrier
+    /// that holds an enforcement row of its own, so each is asserted
+    /// TRANSITIVELY: the carrier is rendered whole, and its recourse
+    /// survives into the message. `Elevation` does NOT render its carrier: the
     /// `KnotAlgebraError` a `check_weights` refusal carries is a
     /// `SplineError` whose own repair is addressed to a caller building
     /// a spline, and rendering it would put a second, contradicting
@@ -2983,6 +2992,8 @@ mod recourse_tests {
             "describe",
             "drop",
             "larger magnitude",
+            "set a",
+            "raise",
         ];
         let meter = MeterError::NormalFloor {
             floor: 0.0,
@@ -2995,6 +3006,17 @@ mod recourse_tests {
             index: 0,
             weight: 0.0,
         };
+        // The two `BandError` arms `Band::linear` can return.
+        let bands = [
+            BandError::InvalidValue {
+                field: BandField::Escalate,
+                value: f64::INFINITY,
+            },
+            BandError::Empty {
+                zero: 5e-324,
+                escalate: 5e-324,
+            },
+        ];
         // The payloads the elevation can produce: `check_weights`'
         // refusals on the weights it reads.
         let elevations = [
@@ -3095,15 +3117,18 @@ mod recourse_tests {
             },
             OffsetFitError::Elevation(elevations[0].clone()),
             OffsetFitError::Elevation(elevations[1].clone()),
+            OffsetFitError::Band(bands[0]),
+            OffsetFitError::Band(bands[1]),
         ];
-        // Thirteen variants; `BudgetExhausted` is rendered at both of
+        // Fourteen variants; `BudgetExhausted` is rendered at both of
         // its `LastRound` readings, which are two different
         // sentences, `BoundNotFinite` at both of its `best`
         // cases, which are two different messages sending the caller
         // to two different repairs, `Limb` at both limbs,
         // which the message names in two different words, and
-        // `Elevation` at both weights `check_weights` refuses.
-        assert_eq!(arms.len(), 17, "an arm was added without a row here");
+        // `Elevation` at both weights `check_weights` refuses, and
+        // `Band` at both arms `Band::linear` can return.
+        assert_eq!(arms.len(), 19, "an arm was added without a row here");
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
@@ -3111,13 +3136,15 @@ mod recourse_tests {
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
                 OffsetFitError::Fit(_) => Some(fit.to_string()),
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
+                OffsetFitError::Band(b) => Some(b.to_string()),
                 _ => None,
             };
-            // Four of the carriers hold an enforcement row of their own
+            // Five of the carriers hold an enforcement row of their own
             // (`every_meter_error_arm_names_a_recourse`,
             // `every_patch_bound_error_arm_names_a_recourse`,
             // `every_fit_error_arm_names_a_recourse`,
-            // `every_spline_error_arm_names_a_recourse`), so those arms
+            // `every_spline_error_arm_names_a_recourse`,
+            // `every_band_error_arm_names_a_recourse`), so those arms
             // are asserted TRANSITIVELY: the carrier is rendered whole
             // AND its clause survives into the message a caller reads.
             // The carrier's row is what makes that a statement about

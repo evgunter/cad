@@ -1338,7 +1338,7 @@ fn mint_offset<T: Decide>(
         return match offset_fit {
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(lane) => lane
-                .mint(Arc::clone(base), d, tol, band)
+                .mint(Arc::clone(base), d, tol)
                 .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
@@ -2251,16 +2251,12 @@ mod offset_fit_door_rows {
     #[test]
     fn the_f64_door_mints_the_free_function_s_surface() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
             panic!("the bowed patch's offset fits at the witness tolerance");
         };
-        let Ok(Surface::Approx(free)) = geom_brep::approx_offset_surface(
-            Arc::new(crate::fixtures::bowed_patch()),
-            0.05,
-            tol,
-            band,
-        ) else {
+        let Ok(Surface::Approx(free)) =
+            geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
+        else {
             panic!("the free function mints the same surface");
         };
         let (a, b) = (through_door.certificate(), free.certificate());

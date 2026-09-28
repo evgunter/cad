@@ -87,14 +87,9 @@ fn the_f64_seam_answers_every_public_door() {
         panic!("the mapped cap is still approximating");
     };
     let spec = m.spec();
-    let free = geom_brep::certify_offset_over(
-        &spec.description,
-        &spec.fit,
-        spec.window,
-        Tol::witness(),
-        band(),
-    )
-    .expect("`geom-brep`'s certifier measures the mapped pair");
+    let free =
+        geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, Tol::witness())
+            .expect("`geom-brep`'s certifier measures the mapped pair");
     let got = m.certificate();
     for (name, x, y) in [
         ("distance", got.distance, free.distance),

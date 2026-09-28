@@ -2220,6 +2220,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
         | O::NonFiniteSample { .. }
         | O::WindowUnsupported { .. }
         | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
+        O::Band(b) => (classify_band(b), TOLERANCE),
     }
 }
 
@@ -4627,7 +4628,7 @@ pub(crate) fn tier3_local_checks_marked<
             // door, so this site cannot hand it a number of its own.
             Some(Surface::Approx(approx)) => match offset_fit {
                 Some(lane) => {
-                    if let Err(error) = lane.recertify(approx, tol, band) {
+                    if let Err(error) = lane.recertify(approx, tol) {
                         errors.push(ValidationError::ApproxCertification {
                             face: face_key,
                             error,
@@ -11606,12 +11607,11 @@ mod offset_fit_door_rows {
     #[test]
     fn the_door_is_the_offset_fit_module_bit_for_bit() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
         let door = OffsetFitLane::fit()
-            .recertify(&approx, tol, band)
+            .recertify(&approx, tol)
             .expect("the surface re-certifies at the tolerance it was minted at");
-        let free = geom_brep::recertify_approx(&approx, tol, band)
+        let free = geom_brep::recertify_approx(&approx, tol)
             .expect("the free function agrees that it re-certifies");
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
