@@ -347,3 +347,304 @@ they rely on.
 **An edge ending AT the apex** (a pin's corner on the tip, two cones
 apex to apex) decides `Zero` at the discriminant. It keeps the door,
 typed.
+
+### 2.4 The apex closure: containment on partial cones, and W2 on apex-closed faces
+
+**The mechanism.** `face_azimuth_window` (`chord_join.rs` :1392) walks
+the outer cycle and pins each edge's azimuth branch by nearest-branch
+continuity. At the apex every azimuth maps to one point, so the walk
+takes the branch nearest the one it arrived on.
+
+Take an apex-closed sector `[θ₀, θ₀ + W]`. Its cycle is the rim
+`θ₀ → θ₀ + W`, then a generator in to the apex at `θ₀ + W`, then a
+generator out at `θ₀`. Among the branches `θ₀ + 2πk`, the one nearest
+`θ₀ + W` is:
+
+- `θ₀` when `W < π`;
+- `θ₀ + 2π` when `W > π`.
+
+So any sector wider than π reads as a full period, and
+`bool_cone_trim_period` refuses `PartialConeFace`. The quarter cone
+(`W = π/2`) answers; the 3π/2 revolve refuses. At `W = π` the choice is
+a tie, but the full revolve's two half-bands are the wrapped class and
+never reach it.
+
+**The closure rule.** An apex visit is not a continuity question.
+
+- Lift the non-apex edges by nearest-branch continuity, as today.
+- At the apex vertex, set the jump `J` so that the lifted loop closes.
+
+The face's chart region lies in the half-strip `v ∈ (0, V]`, `u ∈ ℝ`,
+lifted. Its closure meets the line `v = 0`, which is the apex blown up,
+in the segment between the incoming and outgoing azimuths. The lifted
+boundary is a closed curve there, so its net `Δu` is zero:
+**`J = −Σ Δθ(non-apex edges)`, exactly**.
+
+- The window is the hull of the lifted images, and its width is
+  `W = |Σ Δθ|`. For a revolve that is the rim arcs' span, since
+  generators contribute nothing.
+- `bool_cone_trim_period` then puts `W < 2π` in the trimmed class.
+- `W = 2π` is a face that covers every azimuth of its slant window: the
+  full-revolve single face with its seam traversed twice, which
+  `cone_face_trim` already calls `alone`.
+
+**Its preconditions:**
+
+- exactly one apex visit on the outer cycle;
+- no inner loop, since a ringed face stays `Trim(None)` or
+  `PartialConeFace`;
+- the non-apex walk is today's.
+
+A face that visits the apex twice (a bow-tie) keeps refusing.
+
+**Its two consumers:**
+
+- **Containment.** `cone_trimmed_window` serves both the solid door and
+  the face door. It retires `PartialConeFace` for single-apex sectors of
+  any width.
+- **W2 on apex-closed faces.** `ChartCache::describes` (`ops.rs`) is
+  today `chart_boundary(..).is_ok()`, which refuses `SingularChartJoint`
+  at the apex. For a cone face it becomes: `chart_boundary` answers `Ok`,
+  OR the closure lift closes (one apex visit, no ring).
+
+  This is sound. `int F` excludes the apex, which is on `∂F`. `int F`
+  maps homeomorphically onto the interior of the lifted region, which is
+  a bounded region of one sheet of the punctured nappe's universal
+  cover. So every closed curve in `int F` lifts to a closed curve with
+  zero winding, and no essential component lies in `int F`. That is
+  exactly W2's premise.
+
+  Without this, no apex-closed face ever clears by W2 (the preview
+  cone's merged face included), and §2.5's two-component essential rows
+  refuse R-undec whenever a pair has an event.
+
+**Should `chart_boundary` itself learn the closure?** It is the pcurve
+minter's door too, and it refuses `SingularChartJoint` for its own
+reasons. That is Q4. This spec keeps the rule local to the cone trim and
+to `ChartCache`.
+
+### 2.5 The section certificate's cone rows
+
+**Conventions.** The cone is `F`; `swapped()` handles it as `G`.
+Components are listed on the DOUBLE cone.
+
+- A component on the other nappe from the face has a witness the trim
+  places `Trim(Out)`, so W3 clears it. `classify` stays pure on surfaces
+  and never needs the face's nappe.
+- Every witness is a closed-form point of the carrier section.
+- `single` counts components on the double cone.
+- The angular margins take the certificate's pivot and lever
+  (`axis_pose`, `section_cert.rs` :569). The aperture margin takes its
+  own named lever (the certificate spec's Q9).
+
+#### 2.5.1 Cone × plane
+
+The plane is `(p₀, n̂)`. Let `m_A = (A − p₀)·n̂` in metres, and let the
+aperture margin be `μ = |n̂·â| − s`, levered.
+
+| pose | section | parts |
+|---|---|---|
+| `m_A` definite, `μ` Positive | an ellipse, one closed curve on one nappe | one part, `essential_f`, `single: true`, witness the vertex below |
+| `m_A` definite, `μ` Negative | a hyperbola, one branch per nappe | two parts, `unbounded` |
+| `m_A` definite, `μ` Zero | a parabola, or a near one: 1 or 2 components, each unbounded or essential | one part, `essential_f`, no witness, `single: false`. W2 clears it when `F` describes; otherwise R-undec. |
+| `m_A` Zero, `s‖â×n̂‖ − c|â·n̂|` Negative | the apex alone | `none()`: the apex is never in `int F`. It is on `∂F` for an apex-closed face, and every other describable cone face stays off it, because `cone_nappe` escalates a window that straddles the apex. |
+| `m_A` Zero, that margin Positive or Zero | two lines, or one double line, through the apex | one part, `unbounded` |
+| `m_A` undecided | — | `Tangent("section_cone_plane_apex")` |
+
+**Why the ellipse is essential.** When `μ > 0`, the plane's direction
+set misses the cone's asymptotic directions. So the section on each
+nappe is bounded, and a bounded section is met once by each generator of
+its nappe. It is a graph over the azimuth, and it winds once about the
+axis.
+
+**The witness** is a vertex of the major axis. In the meridian plane
+through `A` spanned by `â` and `m̂ = unit(n̂ − (n̂·â)â)` (use the cone's
+`u_ref` when `n̂ ∥ â`), the generator LINE `g = c·â + s·m̂` meets the
+plane at `A + λg`, with `λ = ((p₀ − A)·n̂)/(g·n̂)`. When `μ > 0`,
+`g·n̂ = sin(α + β)` with `cos β = |n̂·â|`, and it is nonzero. That point
+lies on the ellipse, on whichever nappe the ellipse is.
+
+**The item's claim, "the ellipse is always essential on a face with a
+seam": confirmed, with one qualification.** It is essential on every
+cone face.
+
+- It clears by W2 on a face that describes: a frustum band with its
+  seam, and after §2.4 an apex-closed face.
+- It clears by W4 when evented, or by its witness, on a face that does
+  not: a seamless band, or an apex-closed face before §2.4.
+
+It can never be an interior loop. It meets every generator of its nappe,
+and so every generator edge's line, which puts it on `∂F` or outside the
+slant window at that azimuth.
+
+#### 2.5.2 Cone × sphere
+
+The sphere is `(c_s, ρ_s)`. Let `δ = A − c_s`, `k = |δ|² − ρ_s²`,
+`β₀ = c·(â·δ)` and `β₁ = s·|δ_⊥|`, and let `θ₀` be `δ_⊥`'s azimuth. The
+generator line at azimuth `θ` is `A + t·w(θ)`, with
+`w = c·â + s·r̂(θ)`. Positive `t` is the `v > 0` nappe; negative `t` is
+the mirror nappe, at azimuth `θ + π`. It meets the sphere where
+`t² + 2b(θ)t + k = 0`, with `b(θ) = β₀ + β₁cos(θ − θ₀)`. Every margin is
+in metres.
+
+- **`k` Zero** (`section_cone_sphere_apex`): the apex is on the sphere,
+  so R-tan.
+- **`k < 0`**: every generator line has `t₋ < 0 < t₊`. That gives one
+  component per nappe, a graph over `θ`, essential on the cone. Two
+  parts, `essential_f`, with witnesses at `θ₀` for `t₊` and `t₋`, so W3
+  clears the mirror one when `F` does not describe.
+- **`k > 0`**, with `κ = √k`: the two roots share a sign, `sign(−b)`.
+  So nappe `+` needs `b < −κ` and nappe `−` needs `b > κ`. Over
+  `b ∈ [β₀ − β₁, β₀ + β₁]`:
+
+| nappe | whole circle: 2 essential components | an arc: 1 null loop (the hazard) | empty |
+|---|---|---|---|
+| `+` | `β₀ + β₁ < −κ` | `β₀ − β₁ < −κ < β₀ + β₁` | `−κ < β₀ − β₁` |
+| `−` | `β₀ − β₁ > κ` | `β₀ − β₁ < κ < β₀ + β₁` | `β₀ + β₁ < κ` |
+
+  Each bound is a margin, and a Zero bound is R-tan: a generator tangent
+  to the sphere at an arc's end.
+  - The null loop's witness on nappe `+` is at `θ₀ + π`, with
+    `b = β₀ − β₁` and `t = −b + √(b² − k)`.
+  - On nappe `−` it is at `θ₀`, with `b = β₀ + β₁` and
+    `t = −b − √(b² − k) < 0`.
+  - `single` is "the total count is 1".
+  - With `β₁ = 0` (the centre on the axis) there is no arc case, and
+    `θ₀` falls back to `u_ref`.
+
+  Both nappes can carry components at once: a large ball beside the
+  apex.
+
+#### 2.5.3 Cone × coaxial partners
+
+"Coaxial" is `axis_pose`'s reading: the tilt levered and the offset read
+at the pivot.
+
+- **Cylinder `r_c`:** the meridians meet at `h = ±r_c/τ`, which gives
+  two parallels, always. They are essential on both, so
+  `essential_pair(true, true)`.
+- **Cone `(A₂, α₂)`, with `d = (A₂ − A)·â`:** the meridians
+  `ρ = |h|τ₁` and `ρ = |h − d|τ₂` meet at `h = d·τ₂/(τ₁ + τ₂)` (always
+  between the apexes), and at `h = d·τ₂/(τ₂ − τ₁)` when `τ₁ ≠ τ₂`.
+  - `d` Zero: a common apex, where the cones touch only at the apex or
+    coincide. `Tangent`.
+  - Otherwise `essential_pair(true, true)` with `single: false`. The
+    count, 1 or 2, is never needed: every part is essential, so no margin
+    on `τ₁ − τ₂` is needed either.
+- **Torus `(C, R, r)`, with `z = (C − A)·â`:** nappe `±` meets the tube
+  iff `r − |R·c ∓ z·s| > 0`. That is the distance from the tube's centre
+  to the nappe's generator line in the meridian half-plane, and `ρ > 0`
+  on the whole tube since `R > r`.
+  - Any Positive: `essential_pair(true, true)`.
+  - Both Negative: `none()`.
+  - Zero: R-tan.
+
+  This lands in `torus_pair`'s coaxial arm, beside the cylinder's.
+  §2.2's table in the certificate spec claimed it.
+- **A parallel, non-coaxial torus:** R-reach.
+
+#### 2.5.4 Cone × parallel-axis cylinder
+
+The cylinder is at offset `e` with radius `r_c` (`Pose::Parallel`). Its
+ruling at azimuth `θ` is at distance `ρ₀(θ) ∈ [|e − r_c|, e + r_c]` from
+the cone's axis, and meets each nappe once, at `h = ±ρ₀/τ`.
+
+- Decide `section_cone_cylinder_apex` on `e − r_c`. Zero means a ruling
+  runs through the apex: R-tan.
+- Otherwise there are **exactly two components, one per nappe**. Each is
+  a graph over the cylinder's azimuth, so it is essential on the
+  cylinder always. It is essential on the cone iff `r_c > e`, that is,
+  iff the cylinder encloses the cone's axis; the same margin's sign
+  decides.
+- The witnesses sit on the ruling nearest the axis:
+  `ρ₀ = |e − r_c|`, `h = ±ρ₀/τ`.
+
+#### 2.5.5 Cone × parallel-axis cone (U5)
+
+The offset is `e > 0`, the axial offset `d`. At height `h` the two
+parallels are circles in the plane `⊥ â`: centres `0` and `E` with
+`|E| = e`, radii `r₁ = |h|τ₁` and `r₂ = |h − d|τ₂`. They meet iff
+`|r₁ − r₂| ≤ e ≤ r₁ + r₂`.
+
+On each of the three pieces cut by `h = 0` and `h = d`, both radii are
+affine in `h`. So each boundary (`e = r₁ + r₂`, `e = r₁ − r₂`,
+`e = r₂ − r₁`) has at most one root per piece, in closed form. The
+meeting set is a finite union of maximal intervals.
+
+- **A bounded interval is one closed component.** The two symmetric
+  intersection points join at its ends, where the circles are tangent.
+- **An unbounded interval is two unbounded components.** It needs
+  `τ₁ = τ₂`.
+- **The class.** At an end where `e = r₁ + r₂`, the tangency point lies
+  between the axes: angle 0 about each. Where `e = r₂ − r₁` it is at
+  angle π about axis 1 and 0 about axis 2, and symmetrically where
+  `e = r₁ − r₂`. **A component is essential on cone `i` iff its two ends
+  sit at different angles about axis `i`.**
+- **The witness:** one intersection point at the interval's midpoint
+  height.
+- **Degenerate poses:**
+  - an interval reaching `h = 0` needs `e = r₂(0)`, that is, apex 1 on
+    cone 2. Its margin Zero is R-tan, and the same holds at `h = d`;
+  - two interval ends that coincide (the surfaces tangent) are R-tan;
+  - `τ₁ − τ₂` in the band is R-tan, since the bounded/unbounded split is
+    undecided.
+
+Until this row lands, the pair is R-reach.
+
+#### 2.5.6 What stays R-reach
+
+These pairs stay R-reach:
+
+- cone × oblique cylinder (the preview's bite, P1 and P2);
+- cone × tilted cone;
+- cone × non-coaxial torus;
+- a cone against a NURBS or `Approx` face.
+
+The ruling reduction makes the first two tractable (the certificate
+spec's §2.7 and Q5, filed as
+`cone-pairs-in-general-pose-have-no-section-arm`). It is not a unit
+here.
+
+#### 2.5.7 The degenerate poses, collected
+
+| pose | row | answer |
+|---|---|---|
+| apex on the partner | plane: `m_A` Zero; sphere: `k` Zero; parallel cylinder: `e = r_c`; parallel cone: an interval end at an apex level; coaxial cone: `d` Zero | plane: the lines or the point, as in the table (never an interior loop). Every other row: R-tan. |
+| axis through the partner | plane containing the axis: through the apex, so two lines, unbounded; sphere centred on the axis: `β₁ = 0`, parallels; cylinder: coaxial | the rows above |
+| a tangent generator | plane: `m_A` Zero, the double line, unbounded; sphere: an arc-bound margin Zero | W1, or R-tan |
+| a tangency elsewhere | any margin Zero | R-tan |
+
+### 2.6 The no-crossings arm
+
+`SectionPath::Fallback` already scopes cone pairs, so §2.5's rows serve
+the no-crossings path unchanged. There `evented = false`, W4 never fires,
+and a lone component decides by its witness: `In` both is R-loop, `Out`
+is W3.
+
+**One change: sphere × cone moves from the scan to the pass.**
+
+- `SectionPath::scope` (`ops.rs` :765) excludes a sphere pair on the
+  Fallback path only when the partner is not a cone.
+- `sphere_extent_scan`'s cone arm (`ops.rs` :2274) `continue`s past a
+  cone face.
+
+This is sound. The scan's contract is "certified disjoint, an escape
+(re-cut), or refused". A cone face is never an escape plane (the re-cut
+rotates about plane normals), so the pair's only question is
+disjointness. On the no-crossings path, "every component cleared" IS
+disjointness. With no event, L1 leaves `γ ∩ F ∩ G ∈ {∅, γ ⊂ int F ∩
+int G}`, and each of W1, W2 and W3 excludes the second.
+
+The torus has the same shape, and it is Q5.
+
+### 2.7 The cone box (optional, U0)
+
+`ConeSlab` (`boxes.rs` :1515) boxes the full ring at every height of the
+face's axial window. `clip_to_boundary`'s argument holds on a cone
+verbatim: azimuth is a chart coordinate with no interior extremum, and
+the apex's footprint is an axis point that the boundary contains. The
+rule's own docs (`boxes.rs` :1215–1228) defer it to "the cone lane".
+
+A tighter box sends fewer pairs to the certificate: P8's quarter cone is
+boxed today as a whole frustum. The change moves box-derived baselines;
+re-baseline, and say what moved.
