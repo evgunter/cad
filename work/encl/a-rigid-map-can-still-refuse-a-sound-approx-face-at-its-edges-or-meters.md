@@ -2,11 +2,12 @@
 id: a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters
 kind: issue
 title: a rigid map can still refuse a sound Approx face: a meter that goes in-band in the new frame, or an edge that rode the fit net a re-fit replaced
-status: open
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: M
 design: true
+blocked_on: [shell-refuses-every-lofted-body-at-a-wall-seam-carrier]
 ---
 
 

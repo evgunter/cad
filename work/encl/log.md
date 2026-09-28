@@ -1033,3 +1033,6 @@ class of 65 sites is PRED's row.
     - `file:line` citations in the rows;
     - a CHROME checker note on the lowercase marker and on "no way through yet".
   - Kept as is: the A/B operand naming (outside this unit).
+- 2026-09-28 — Sequencing decisions (no Ev needed; both recommended):
+  - Parked `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters` on SHELL's `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`. The row is latent: no body the tree can move carries a curved `Approx` face with edges, and lofted bodies are refused earlier at their seam carriers. A two-designer fork now would weigh a problem no caller reaches. It runs when that row lands and a lofted body can be moved. Alternative considered: run the designers now. Not taken, because the cost is spent on an unreachable case and the answer may depend on how SHELL resolves the seam carriers.
+  - Dispatched `domain-uniform-refinement-grid-is-spelled-three-times` (P4) on `encl/domain-uniform-grid`, Opus, style review. The sites are PROPS/SSI/NURBS/Q territory, so seam notes follow at merge.

@@ -2,7 +2,7 @@
 id: domain-uniform-refinement-grid-is-spelled-three-times
 kind: issue
 title: A domain-uniform refinement grid that skips stated knots is spelled by hand three times
-status: open
+status: dispatched
 opened: 2026-09-28
 priority: P4
 cost: E
