@@ -13,10 +13,6 @@ use profile::{Profile, ProfileLoop, SketchPlane, ValidatedProfile, test_support:
 use sweep::{Extrusion, extrude};
 use topo::{Body, ValidationError, validate_closed, validate_geometric};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -27,23 +23,23 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// plus lines - gives cap rims carrying Arc sketch segments.
 fn d_profile() -> ValidatedProfile<f64> {
     validated(vec![bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
         // 90-degree arc
-        (p2(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(1.0, 0.0), (core::f64::consts::PI / 8.0).tan()),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ])])
 }
 
 /// The all-line L profile (prism: every face a plane).
 fn l_profile() -> ValidatedProfile<f64> {
     validated(vec![ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ])])
 }
 
@@ -65,8 +61,8 @@ fn arc_bulge_restriction_formula_derived_independently() {
     use geom_brep::SketchSegment;
     let bulge = (core::f64::consts::PI / 8.0).tan(); // 90-degree arc
     let seg = SketchSegment::Arc {
-        a: p2(1.0, 0.0),
-        b: p2(1.0, 1.0),
+        a: Point2::new(1.0, 0.0),
+        b: Point2::new(1.0, 1.0),
         bulge,
     };
     let (s0, s1) = (0.3_f64, 0.85_f64);

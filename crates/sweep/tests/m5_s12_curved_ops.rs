@@ -55,10 +55,6 @@ use topo::{Body, BooleanDeclarations};
 // Fixtures and helpers.
 // ---------------------------------------------------------------------
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Volume slack: derived from the RESOLVED band, never a literal, so
 /// each ε lane compares at its own scale (floor at the f64 lane's
 /// historical 1e-9).
@@ -74,7 +70,7 @@ fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     bulge_loop(
         [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
             .into_iter()
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     )
 }
@@ -96,12 +92,12 @@ const R: f64 = 0.35;
 /// the operand that makes the mixed-sense split reachable.
 fn notched() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(3.0, 0.0), 0.0),
-        (p2(3.0, 1.0), -1.0),
-        (p2(3.0, 2.0), 0.0),
-        (p2(3.0, 3.0), 0.0),
-        (p2(0.0, 3.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(3.0, 0.0), 0.0),
+        (Point2::new(3.0, 1.0), -1.0),
+        (Point2::new(3.0, 2.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(0.0, 3.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -354,7 +350,7 @@ fn a_boolean_that_splits_a_reversed_wall_inherits_the_parent_bit() {
     let sq = bulge_loop(
         [(2.0, 0.5), (4.0, 0.5), (4.0, 2.5), (2.0, 2.5)]
             .into_iter()
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));

@@ -34,13 +34,6 @@ use topo::{Body, EdgeKey, validate, validate_closed};
 /// The fillet radius, meters.
 const R: f64 = 0.25;
 
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// **MEASUREMENT 1 — the concave arm rests the ball in the void.**
 ///
 /// A concave trihedron's outward normals point away from the material,
@@ -59,16 +52,25 @@ fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
 #[test]
 fn the_concave_arm_rests_the_ball_in_the_void_at_depth_r() {
     let r = 0.15;
-    let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    let ball = corner_ball(
+        [Point3::new(0.0, 0.0, 0.0); 3],
+        normals,
+        r,
+        Convexity::Concave,
+    );
     assert!(
-        (ball.center - p(r, r, r)).norm() < 1e-15,
+        (ball.center - Point3::new(r, r, r)).norm() < 1e-15,
         "the concave rest is at (r, r, r), got {:?}",
         ball.center
     );
     assert!((ball.independence - 1.0).abs() < 1e-15);
     for n in normals {
-        let depth = (ball.center - p(0.0, 0.0, 0.0)).dot(n);
+        let depth = (ball.center - Point3::new(0.0, 0.0, 0.0)).dot(n);
         assert!(
             (depth - r).abs() < 1e-15,
             "distance r on the VOID side of every wall, got {depth}"
@@ -86,8 +88,12 @@ fn the_concave_arm_rests_the_ball_in_the_void_at_depth_r() {
 #[test]
 fn the_concave_rest_holds_at_an_oblique_trihedron() {
     let r = 0.2;
-    let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.6, 0.0, 0.8)];
-    let verts = [p(0.0, 0.0, 0.0); 3];
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.6, 0.0, 0.8),
+    ];
+    let verts = [Point3::new(0.0, 0.0, 0.0); 3];
     let concave = corner_ball(verts, normals, r, Convexity::Concave);
     for (i, n) in normals.iter().enumerate() {
         let depth = (concave.center - verts[i]).dot(*n);
@@ -117,17 +123,26 @@ fn the_concave_rest_holds_at_an_oblique_trihedron() {
 #[test]
 fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
     let r = 0.15;
-    let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
-    let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, Convexity::Concave);
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
+    let ball = corner_ball(
+        [Point3::new(0.0, 0.0, 0.0); 3],
+        normals,
+        r,
+        Convexity::Concave,
+    );
     for n in normals {
         let convex_formula = ball.center + n * r;
-        let off = (convex_formula - p(0.0, 0.0, 0.0)).dot(n);
+        let off = (convex_formula - Point3::new(0.0, 0.0, 0.0)).dot(n);
         assert!(
             (off - 2.0 * r).abs() < 1e-15,
             "the convex-signed foot floats 2r into the void, got {off}"
         );
         let concave_foot = ball.center - n * r;
-        let on = (concave_foot - p(0.0, 0.0, 0.0)).dot(n);
+        let on = (concave_foot - Point3::new(0.0, 0.0, 0.0)).dot(n);
         assert!(
             on.abs() < 1e-15,
             "the mirrored sign is the tangency point, got {on}"
@@ -149,10 +164,14 @@ fn the_convex_feet_formula_is_two_r_off_the_wall_under_the_concave_rest() {
 #[test]
 fn the_stored_chart_pole_aims_at_each_sides_own_patch_centre() {
     let r = 0.15;
-    let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.0, 0.0, 1.0)];
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.0, 0.0, 1.0),
+    ];
     let mean = (normals[0] + normals[1] + normals[2]).normalize();
     for (convex, patch_centre) in [(Convexity::Convex, mean), (Convexity::Concave, -mean)] {
-        let ball = corner_ball([p(0.0, 0.0, 0.0); 3], normals, r, convex);
+        let ball = corner_ball([Point3::new(0.0, 0.0, 0.0); 3], normals, r, convex);
         let Surface::Sphere { axis, .. } = ball.surface else {
             panic!("the corner ball's surface is a sphere");
         };
@@ -306,7 +325,7 @@ fn every_minted_fillet_face_faces_its_own_void() {
     let body = vented_cavity();
     let out =
         fillet_edges(&body, &cavity_edges(&body), R, Tol::witness()).expect("the cavity fillets");
-    let centre = p(2.0, 2.0, 2.0);
+    let centre = Point3::new(2.0, 2.0, 2.0);
     for face in out.blend_faces.iter().chain(out.corner_faces.iter()) {
         for (at, n) in outward_at_boundary(&out.body, *face) {
             let reach = (centre - at).dot(n);
@@ -322,7 +341,7 @@ fn every_minted_fillet_face_faces_its_own_void() {
     let cube_edges: Vec<EdgeKey> = cube_body.edges().map(|(k, _)| k).collect();
     let cut = fillet_edges(&cube_body, &cube_edges, R, Tol::witness())
         .expect("a cube's twelve edges fillet");
-    let cube_centre = p(1.0, 1.0, 1.0);
+    let cube_centre = Point3::new(1.0, 1.0, 1.0);
     for face in cut.blend_faces.iter().chain(cut.corner_faces.iter()) {
         for (at, n) in outward_at_boundary(&cut.body, *face) {
             let reach = (cube_centre - at).dot(n);

@@ -228,6 +228,7 @@ fn fold_replace_face_error<T: Real>(
     use BracketEnd::{Infimum, Supremum};
     use ReplaceFaceError as R;
     match error {
+        R::Band { error } => R::Band { error },
         R::StaleFace { face } => R::StaleFace { face },
         R::Corrupt => R::Corrupt,
         R::Offset { face, error } => R::Offset {

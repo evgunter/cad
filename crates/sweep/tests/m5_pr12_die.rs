@@ -14,7 +14,7 @@
 use core::f64::consts::PI;
 
 use geom_core::Tol;
-use geom_core::{Point2, Vec3};
+use geom_core::Vec3;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{ball_poled, cube};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
@@ -30,10 +30,6 @@ const PIP_R: f64 = 0.09;
 const PIP_H: f64 = 0.05;
 /// Pip spacing from the face centre, meters.
 const PIP_D: f64 = 0.22;
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// The blank: the cube with every edge filleted.
 fn blank() -> Body<f64> {
