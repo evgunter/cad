@@ -2,64 +2,41 @@
 
 certified enclosures: what a certificate claims, and what it is worth
 
-## The slate
+## Where the slate stands
 
-| pri | item | cost | title |
-|---|---|---|---|
-| P0 | `tangent-parallel-certifier-passes-a-transverse-arc` | H | certify: TangentParallel admits a 90-degree crossing described as a tangent intersection |
-| P0 | `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` | H | at eps 1e-12 the offset fit refuses every curved NURBS chart, and the mint's cost at the default eps is unmeasured on a body |
-| P0 | `encl-refusal-prose-outgrows-the-viewer` | D | the offset meter and offset fit refusals are too long for the viewer |
-| P1 | `approx-surface-tolerance-is-now-always-the-runs-eps` | D | SurfaceSpec.tolerance is always the run's eps; map_approx reads it as the surface's own |
-| P1 | `patch-bound-offset-fit-recentring-origins` | D | patch_bound and offset_fit recentre the same nets against different origins |
-| P1 | `a-third-spelling-of-cut-every-span-into-splits-pieces` | D | a third spelling of "cut every span into splits pieces"; the concept's home is below both crates |
-| P2 | `one-pass-refinement-would-cut-the-rational-bounds-widening-tail` | H | one-pass (Oslo) refinement would cut the rational bound's widening tail |
-| P3 | `H11` | E | point the re-derived NaN-end postcondition sites at CertifiedEnclosure's home |
-| P3 | `budget-refusal-drops-the-enclosure-the-caller-needs` | E | the teapot probe is the one consumer left without a bracket |
-| P3 | `offset-fit-stall-face-has-no-fixture` | E | RefinementStalled has no fixture at any door |
-| P4 | `offset-fit-door-bound-is-not-monotone-in-the-cell-bound` | E | the door bound is not monotone in the cell bound; the note belongs at `measure` |
-| P4 | `offset-fit-reuses-derivedknots-for-a-degree-elevation-failure` | E | a failed degree elevation reports as DerivedKnots |
-| P4 | `refine-chain-hands-back-a-pair-its-only-caller-re-borrows` | E | rides with the third-spelling row (both edit `patch_bound`'s refinement helpers) |
+Every row the program could act on without another program has been worked.
+Those rows have landed through a series of merged PRs, which the log names one
+by one. What is left falls into three groups.
 
-## Order
+**Waiting on PROPS' `f64-refinement-inside-an-enclosure-has-five-more-sites`.**
+The fix is the convex form of `insert_once_ring` in
+`crates/geom-core/src/spline/compose.rs`. ENCL does not take that site; it
+belongs to PROPS, and PROPS has been told on its log twice.
 
-**Wave 1, concurrently** — the three P0 rows, each on its own lane:
+| pri | item | why it waits |
+|---|---|---|
+| P0 | `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart` | the certified bound's floor is that site's insertion width |
+| P1 | `patch-bound-offset-fit-recentring-origins` | measured once the insertion width is gone |
+| P2 | `one-pass-refinement-would-cut-the-rational-bounds-widening-tail` | the same enclosure-width family |
+| P3 | `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` | the frame-dependent width is the same insertion width (measured: the convex form alone gives 0 of 93 refusals) |
 
-- `tangent-parallel-certifier-passes-a-transverse-arc`. The row's
-  explanation does not survive a reading of the tree: the arm meters
-  `Margin::levered_inv(sin θ, |κ_rel|)` = `sin θ · r` against ε, the
-  D4 ¶1 threshold, which refuses `sin θ = 1` at any `r` above ε. So the
-  unit opens by reproducing the mutant and measuring what the arm
-  actually reads at the arc's samples; the fix follows the cause. If the
-  cause is the arm computing something other than D4 ¶1 says, the fix
-  lands here; if D4 ¶1 itself admits the crossing, the margin's
-  definition is a ratified decision and goes to Ev as an `[ev]` PR.
-- `offset-fit-at-tight-eps-refuses-every-curved-nurbs-chart`. The
-  identical `3.27e-10` at targets 1e-12 and 1e-15 reads as a FLOOR, not
-  a budget: measure where the certified bound's floor comes from before
-  touching any budget number, and take part 2's body-level cost
-  measurement.
-- `encl-refusal-prose-outgrows-the-viewer`, with
-  `offset-fit-reuses-derivedknots-for-a-degree-elevation-failure`
-  riding (both reword `OffsetFitError`'s arms).
+When that fix lands, the P0 is taken first. It re-measures the offset fit's
+tight-ε floor and its budget numbers.
 
-**Wave 2**: the small rows as one lane (`H11`,
-`offset-fit-stall-face-has-no-fixture`,
-`offset-fit-door-bound-is-not-monotone-in-the-cell-bound`,
-`budget-refusal-drops-the-enclosure-the-caller-needs`); then
-`a-third-spelling-of-cut-every-span-into-splits-pieces` with its
-rider, and `patch-bound-offset-fit-recentring-origins` (a measurement).
+**Waiting on SHELL's `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`.**
 
-**On Ev**: `approx-surface-tolerance-is-now-always-the-runs-eps` —
-the field is named in the ratified O2 clause
-(`crates/geom-brep/README.md`), so whether it retires is a design
-choice; it goes to Ev as an `[ev]` PR with a recommendation.
+| pri | item | why it waits |
+|---|---|---|
+| P3 | `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters` | latent until a body with a curved `Approx` face and edges can be moved. It is a design fork, weighed by two designers once it is reachable. |
 
-**Last**: `one-pass-refinement-would-cut-the-rational-bounds-widening-tail`
-(P2, nothing unsound; it moves every `f64` refined net's last bits).
+**Open and in flight.**
+
+| pri | item | state |
+|---|---|---|
+| P3 | `certify-escalation-renders-the-coincidence-menu-unlabelled` | a lane is running (style review) |
+| P4 | `domain-grid-homing-residue` | open. It is the residue left by the grid homing, and it is taken if the track has room. |
 
 ## Review posture
 
-The review tiers of `memories/orchestration-model.md`, all lanes Opus.
-The model A/B this plan used to inherit (protocol v7) is suspended, so
-there is no triage question left to answer. The tier is named per unit
-in `log.md` at dispatch.
+The review tiers are those of `memories/orchestration-model.md`, and every lane
+runs on Opus. The log names the tier for each unit at dispatch.

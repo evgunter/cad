@@ -58,11 +58,11 @@ labels the repair of every carrier the offset fit reaches
 input (`OffsetFitError::Fit`, `Structure`) it renders a kernel finding
 instead of the carrier's repair. It ends every kernel-defect refusal there in `geom_core::KERNEL_DEFECT_ENDING`
 (or `KERNEL_OR_FILE_DEFECT_ENDING`), which carries the marker. On the
-feature-tree rows `offset_fit_routes` renders, one arm still counts
-zero, `Meter/Escalated` (filed:
-`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`);
+feature-tree rows `offset_fit_routes` renders,
 `every_offset_fit_refusal_ends_exactly_once` in
-`refusal_concision_chains.rs` holds the rest at exactly one. The
+`refusal_concision_chains.rs` holds every arm at exactly one, including
+`Meter/Escalated` at each ending it routes to
+(`offset-meter-escalation-renders-the-coincidence-menu-unlabelled`). The
 kernel-bug tags that still count zero elsewhere are filed on their
 owners' slates (see that unit's PR).
 
