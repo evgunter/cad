@@ -841,13 +841,20 @@ fn guide(bound: f64) -> Guide {
 fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let g = guide(2.0 - 1.0e-11);
     let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    // On rayon: at 1e-12 this drive refines far enough to hold its `test`
-    // leg for six minutes serially (365 s on the hosted run of
-    // evgunter/cad PR 3318), and the schedule moves no verdict
+    // A capped drive on rayon. At the default and 1e-6 rows the box
+    // certifies whole and unsplit, so neither dial moves anything. At
+    // 1e-12 the drive refines to the default 65,536-leaf budget (882
+    // certified, 64,654 refused) and held its `test` leg for six minutes
+    // serially (365 s on the hosted run of evgunter/cad PR 3318). Every
+    // assertion below needs certified leaves, not many of them: at 4,096
+    // it still certifies 164. The schedule moves no verdict
     // (`DriveConfig::parallel`; `m10_7_r2_drive_schedule_is_deterministic`
-    // pins it). The cache seam below keys on this same config.
+    // pins it). Measured locally at 1e-12, debug: 4,096 leaves took
+    // 307 s serial and 88 s on rayon. The cache seam below keys on this
+    // same config.
     let drive_cfg = DriveConfig {
         parallel: true,
+        max_leaves: 4096,
         ..numeric_lane()
     };
     let verdict = drive(&g.doc, &analyzed, &drive_cfg, Tol::witness()).expect("the nominal builds");
