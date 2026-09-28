@@ -59,8 +59,8 @@ feature gates is the instrument — `Mode`, `arm`, `take`, the
 thread-local, and the recording the lane does between them.
 
 The default `cargo test` therefore exercises the inert half; the armed
-half has its own CI row (`cargo test -p mesh --features budget`),
-mirrored in `local-scripts/ci-local.sh`. That row also carries the
+half has its own CI row (`cargo test -p mesh --features budget`).
+That row also carries the
 per-triangle certificate falsifier
 (`probe_review::z1_per_triangle_certificate_falsification`), which
 drives the deviation pass at 12 samples per edge and asserts on

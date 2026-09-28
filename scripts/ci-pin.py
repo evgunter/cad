@@ -40,19 +40,9 @@ refusal goes to stderr and exits 2, so `set -euo pipefail` plus
 `test -n` guard each site used to carry is now this script's job and does not
 need restating at the call site.
 
-THE OTHER POPULATION IS THE COPIES THAT RESTATE A PIN'S VALUE, and reading is
-not what closes those. `local-scripts/ci-local.sh` names `0.9.140` in its
-prereq note, in its `nextest_check()` error text and in a comment, and
-`local-scripts/gate.sh` names sccache `0.16.0` — text a human is meant to read
-and paste on a box whose tooling is broken, which is exactly where a
-`$(scripts/ci-pin.py ...)` substitution would be one more thing to get wrong.
-So those stay literals and are RECONCILED instead:
-`scripts/check-ci-mirror-parity.py`'s pin-literal claim derives every version
-literal in the local half's TRACKED files and reds when one names no pin this
-file sets, or when a line naming a pinned tool carries the wrong one. That
-check reads the block through `read_pins` below, which is why this reader
-enumerates as well as answering — a check about restated values cannot start
-from a hand-written roster of pin names without being one more copy itself.
+`read_pins` below enumerates the whole block as well as answering for one
+name: a check about restated values cannot start from a hand-written roster
+of pin names without being one more copy itself. No CI job calls it.
 
 It is worth knowing how that population was missed: the sweep that produced
 this script looked for the READING IDIOM and for `_VERSION` names, and a bare
@@ -192,8 +182,7 @@ def read_pins(text: str, path: str) -> dict[str, str]:
     `read_pin` answers "what is NAME"; this answers "what does this workflow
     pin at all", which is the question a check about RESTATED VALUES has to ask
     — it cannot start from a hand-written roster of names without becoming one
-    more copy to fall behind the block. `scripts/check-ci-mirror-parity.py`'s
-    pin-literal claim is the caller.
+    more copy to fall behind the block.
 
     Each name found is resolved BY `read_pin`, so every refusal that reader
     carries — a name set twice in the file, a scalar it will not guess at —

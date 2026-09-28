@@ -80,13 +80,8 @@ say() { echo "==> $*"; }
 # install, the closing `git status` and the usage text. A lane is one
 # row, and there is no second list for a new lane to fall behind.
 #
-# A ROSTER, NOT A COUNT, and the roster itself is checked. A count goes
-# stale the next time a lane is added and nothing reds when it does; so
-# does a roster. `scripts/check-render-lane-parity.py` reads this table
-# out of this file (`--print-lane-table`), reads the lanes, artifact
-# names and committed directories out of render.yml, and reds when the
-# two disagree. It runs in ci.yml's `mirror` job, the one hosted job that
-# does not delete `local-scripts/`.
+# A ROSTER, NOT A COUNT. A count goes stale the next time a lane is
+# added. Nothing checks this table against render.yml.
 LANE_TABLE="
 kernel  renders-kernel  demos/renders
 freecad renders-freecad demos/renders-freecad
@@ -100,8 +95,7 @@ gui     renders-gui     demos/renders-gui
 # list: it is not the roster but a PROPERTY of a lane — byte-reproducible
 # off-box, so a pulled file may be compared to the committed one at all.
 # render.yml states that property in prose, per lane, and declares it
-# nowhere a reader can key on, so check-render-lane-parity.py cannot hold
-# this list to anything and does not pretend to
+# nowhere a reader can key on
 # (`work/ciw/verify-lane-set-is-a-property-nothing-declares`). What it
 # costs if it goes stale is bounded and visible: a lane missing here is a
 # lane `--verify` silently does not prove, and `--verify` says how many
@@ -149,39 +143,6 @@ lane_install_roster() {
         [ -z "$l" ] || printf '  %-7s -> %s/\n' "$l" "$d"
     done <<<"$LANE_TABLE"
 }
-print_lane_table() {
-    local l c
-    for l in $(lane_names); do
-        printf 'lane %s %s %s\n' "$l" "$(artifact_for "$l")" "$(dir_for "$l")"
-    done
-    printf 'jobs-re %s\n' "$RENDER_JOBS_RE"
-    # THE TWO DERIVED LISTS THE ROWS ABOVE DO NOT REACH, and they are the
-    # two that decide behaviour: what `all` expands to (the download's
-    # population — four of six lanes, silently, is what this file shipped)
-    # and what `--lane` accepts (the refusal's). Printed by RUNNING them:
-    # `lanes-all` is `lanes_of all` itself, and each `accepts` row is
-    # `lane_accepted`'s own answer for one candidate, the impossible
-    # candidate included. So the guard holds what the run does, not a
-    # second spelling of it.
-    printf 'lanes-all %s\n' "$(lanes_of all)"
-    for c in $(lane_names) all __no_such_lane__; do
-        if lane_accepted "$c"; then
-            printf 'accepts %s yes\n' "$c"
-        else
-            printf 'accepts %s no\n' "$c"
-        fi
-    done
-}
-
-# `--print-lane-table` is the one mode that answers without a checkout,
-# and it is answered here, before the `cd` below needs a repository:
-# check-render-lane-parity.py's mutants run this file against scratch
-# trees of their own, so the guard's selftest can hold a mutated table
-# against a mutated workflow without either being a git tree.
-PRINT_TABLE_ONLY=0
-for _arg in "$@"; do
-    [ "$_arg" != --print-lane-table ] || PRINT_TABLE_ONLY=1
-done
 
 WORKFLOW=render.yml
 CI_WORKFLOW=ci.yml
@@ -211,8 +172,6 @@ ON_DEMAND=0
 # Getting it wrong is not cosmetic: an unlisted lane job is one the poll
 # neither waits for nor reports, so a run can be declared settled while
 # that lane is still drawing and its artifact is not there yet.
-# check-render-lane-parity.py reds if a job that uploads a lane artifact
-# is not matched here, and if this matches a job that uploads none.
 RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\)|viewer gui montage)$'
 REF=""
 SCENE_TIMEOUT=""
@@ -230,7 +189,6 @@ VERIFY=0
 POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
-if [ "$PRINT_TABLE_ONLY" = 1 ]; then print_lane_table; exit 0; fi
 cd "$(git rev-parse --show-toplevel)"
 
 usage() {
@@ -253,10 +211,6 @@ usage: local-scripts/render-hosted.sh [options]
   --budget-min <n>                      give up polling after n minutes
                                         (default: $POLL_BUDGET_MIN, printed from
                                         the variable so it cannot drift)
-  --print-lane-table                    the lane roster this file works from,
-                                        one line per lane; what
-                                        scripts/check-render-lane-parity.py
-                                        holds against render.yml
   -h, --help
 
 Artifacts land at their committed paths:
@@ -274,7 +228,6 @@ while [ $# -gt 0 ]; do
         --budget-min) POLL_BUDGET_MIN="${2:?--budget-min needs a value}"; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
         --verify) VERIFY=1; shift ;;
-        --print-lane-table) shift ;;  # answered above, before the checkout
         -h|--help) usage; exit 0 ;;
         *) usage >&2; die "unknown argument: $1" ;;
     esac

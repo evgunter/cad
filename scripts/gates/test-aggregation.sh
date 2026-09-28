@@ -29,15 +29,13 @@
 # `scripts/`: `scripts/gates/` is not a naming convention, it is the set
 # of checks under `lib.sh`'s two-mode contract — pointable at a fixture
 # root, with a `--selftest` that must pass a clean one and fire on a
-# planted one — and it is the set both halves of CI run without a
-# hand-written list (`gate-roster.sh` for the hosted half, the loop over
-# this directory for the local one). This check meets that contract: its
-# subject is `cargo metadata`, so its fixture root is a miniature
-# dependency-free workspace rather than a source tree, which resolves
-# offline in milliseconds. Living here is what buys it a `--selftest`
-# that has been shown to fire, a roster gate that fails if `ci.yml` stops
-# wiring it, and a local half that reaches it through the directory loop
-# rather than through a row hand-synced against this one.
+# planted one — and it is the set ci.yml's `lint` job runs by looping
+# over this directory, without a hand-written list. This check meets that
+# contract: its subject is `cargo metadata`, so its fixture root is a
+# miniature dependency-free workspace rather than a source tree, which
+# resolves offline in milliseconds. Living here is what buys it a
+# `--selftest` that has been shown to fire and a CI run with no row to
+# keep in sync.
 #
 # Adding a suite: put the file in `tests/` and add its `#[path]` line to
 # that crate's `tests/all.rs`. Never add a second `[[test]]`.

@@ -345,10 +345,8 @@ guard's header gives.
 
 The rule is structural, not sniffed: there is no `GITHUB_ACTIONS` check
 in the guard. The sanctioned automated callers — `render.yml`'s render
-jobs, which declare the hosted sentence, and `ci-local.sh`'s
-`uv_sheet_drift`, which declares the local one because it genuinely is a
-local pass — each set their sentence **in the file, at the step that
-renders**, where a reviewer sees it. A sniffed exemption would be
+jobs, which declare the hosted sentence — set it **in the file, at the
+step that renders**, where a reviewer sees it. A sniffed exemption would be
 invisible at the call site and would grow silently with every new runner
 and local CI emulator.
 
@@ -420,9 +418,8 @@ Three layers keep a matplotlib frame out of a committed path:
   matplotlib-authored frame (`Software: Matplotlib …`) in a committed
   path fails loud, naming the file. Both `render.sh` lanes run it after
   the stamp strip and **before** composing the montage, so a sheet is
-  never composed from an uncertified cell set; it is also an always-run
-  row in `local-scripts/ci-local.sh` and a step in ci.yml's `discipline`
-  job (stdlib only — no venv, no FreeCAD). The wild lane runs under the
+  never composed from an uncertified cell set (stdlib only — no venv, no
+  FreeCAD). The wild lane runs under the
   same guard with INVERTED per-lane rules: there matplotlib is the
   primary renderer, and cells must carry the wild lane's own `Author`
   stamp.
@@ -641,13 +638,9 @@ Consequences worth stating:
   pinned-container work described in render.yml. This lane draws no 3-D,
   so its sheet is byte-reproducible anywhere. Hosted CI nonetheless does
   not fail on it: `render.yml`'s uv lane re-baselines the committed sheet
-  and reports the difference as a neutral check, so the hosted `uv sheet
-  drift (demos)` row was retired in 2026-08. What survives is
-  `ci-local.sh`'s `sheet drift (demos: uv + mc)`, which regenerates this
-  sheet and the MC lane's from ONE tour run and diffs both, and DOES
-  fail — because a developer box cannot re-baseline itself, and there
-  being told is the whole point. A failure there is
-  either an uncommitted regeneration or a D9 determinism finding.
+  and reports the difference as a neutral check; no row fails on it. A
+  difference is either an uncommitted regeneration or a D9 determinism
+  finding.
 * **Nothing is refused.** Unlike the tessellator's trim walk, this one
   accepts every pcurve form and falls back to `topo::pcurve_of`'s
   derive-on-demand, because a face the tessellator refuses is exactly the
@@ -818,9 +811,7 @@ carries its own scale bar — rather than only stated in the caption.
   (`mc::DEFAULT_SEED`) and printed on the sheet, so a change is an
   intended study change or a determinism finding, never noise.
   `render.yml` re-baselines the lane and reports neutral, exactly as it
-  does for uv; `ci-local.sh`'s `sheet drift (demos: uv + mc)` row fails
-  on a developer box, where being told is the point. One tour run gates
-  both sheets.
+  does for uv.
 
 ### `renders-mc/chain-density.svg` — the four-link chain
 

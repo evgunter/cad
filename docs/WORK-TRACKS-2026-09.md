@@ -99,7 +99,7 @@ file and `crates/geom-core/src/*` reaches `linalg/`):
 - **LIB** `crates/pncad/*`, `crates/pncad-py/*`, three design docs.
   Open-ended; its census B-family slate completed today.
 - **S-TCOST** `crates/*/tests/*`, `crates/test-utils/*`,
-  `scripts/{ci-filter.py,slowest-tests.py,base-test-listing.sh}`.
+  `scripts/ci-filter.py`.
   Open-ended, census-driven, very live.
 - **M10** at exit; **S-MATE** at exit; **PERF** a register with no
   units.
@@ -857,7 +857,7 @@ direction rather than by the S-TCOST orchestrator**, which is not how
   answer, distributed by fence.
 - **Track J's ground stays a seam.** CIW's opening took most of it
   (`.github/workflows/`, `local-scripts/`) without claiming the letter,
-  so `scripts/doc-gate.sh`, `gate-roster.sh`, `probe-suite-census.sh`
+  so `scripts/doc-gate.sh`, `probe-suite-census.sh`
   and root `[workspace.lints]` are still "unowned, not finished".
   `rustdoc-d-warnings-breakages-outside-the-doc-gate` lands exactly
   there and went to CIW because `doc-gate.sh` is in CIW's `paths`.
