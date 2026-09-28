@@ -1175,3 +1175,5 @@ class of 65 sites is PRED's row.
   - One stated split: whether the coarse-but-correct text names the last resort.
   - Row 6 recommendation half is committed on the `[ev]` branch. The mapping is on `analysis/design-fork/encl-adoption-eps-in`.
   - Filing held until Ev answers: the EXCH row for the D7 rebuild stage, and the ENCL follow-through.
+- 2026-09-28 — Dispatched `offset-meters-follow-the-d4-recourse-ruling` (P3/M) on `encl/offset-meters-d4-recourse`, following 3351's pattern. Opus, full review.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` opened on `adoption-certification-has-no-eps-in-lever`. The question: what lever a band-decided certification refusal names at STEP adoption, since the ladder certifies at the kernel ε, not ε_in; plus `TierInvalid`'s reading and an undecided approximation at adoption. Blinding byte is on `analysis/design-fork/encl-adoption-eps-in` (protocol `bb10a4cdd4`). Two designers dispatched concurrently with the same problem statement.
