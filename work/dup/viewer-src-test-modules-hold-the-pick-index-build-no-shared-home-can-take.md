@@ -2,8 +2,9 @@
 id: viewer-src-test-modules-hold-the-pick-index-build-no-shared-home-can-take
 kind: issue
 title: pane/viewport.rs's test module restates index_of, which names DocSession and so cannot live in the vocabulary test_support
-status: open
+status: closed
 opened: 2026-09-26
+closed: 2026-09-28
 priority: P4
 cost: D
 ---
@@ -41,3 +42,7 @@ cost: D
 The ground is `crates/viewer/src/`, `view`'s; the subject — one
 construction spelled in two places — is S-DUP's charter. Any claimant
 may take it by `git mv`.
+
+## Closed (2026-09-28): Ev's ruling
+
+Ev chose option (1): leave `plate_index` as the one copy. A driver-kind test module or a session-free rewrite is not worth it for a single copy with no oracle.
