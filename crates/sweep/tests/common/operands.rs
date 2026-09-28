@@ -29,7 +29,9 @@
 //! - the `Point3`-cornered box in [`super::cavity`], which is that
 //!   module's own corner vocabulary over the same door;
 //! - `super::approx::unit_box`, which is the boolean gate's FACE rule
-//!   fixture and belongs with the surgery vocabulary that reads it.
+//!   fixture and belongs with the surgery vocabulary that reads it;
+//! - [`super::sphere_recut`]'s `plate`, a box that stays with the ball
+//!   it is cut by and the constant measured on the pair.
 
 use geom_core::{Decide, Point2, Tol};
 use profile::test_support::bulge_loop;

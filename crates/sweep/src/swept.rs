@@ -701,9 +701,15 @@ pub(crate) fn face_surface_key<T: Real>(
 /// (the plane is fitted THROUGH the rim), so it must go through the
 /// door — and the moment the plane exists the rim is at rest in it and
 /// says so. Edges the construction has already described some other
-/// way (a cap–wall intersection, a wall's boundary iso) are left
-/// alone: this states what THIS face knows about its own boundary, it
-/// does not re-derive anyone else's description.
+/// way (a wall's boundary iso, a rim a dihedral pass upgraded to an
+/// intersection) are left alone: this states what THIS face knows
+/// about its own boundary, it does not re-derive anyone else's
+/// description.
+///
+/// No dihedral is read here. Its one caller is loft's two caps, whose
+/// every edge is a cap–wall rim between a plane and a `Surface::Nurbs`
+/// wall; D2 exempts NURBS-adjacent edges from the must-carry demand,
+/// and loft's module doc says these rims are never classified.
 pub(crate) fn describe_face_rim_at_rest<T: Decide>(
     body: &mut Body<T>,
     face: FaceKey,

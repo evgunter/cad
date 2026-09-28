@@ -43,14 +43,17 @@ arc and the polygon — hole centre (1.6, 0.8), radius 0.15 — has its
 anchor outside the polygon through the run's vertices, reads `Out`,
 and stays on the face it no longer lies in. What the row should
 measure: the ring's owning face after the split, and whether tier 3
-then refuses the result (check 9's nesting arm is silent on `ArcParity`
-outer loops, so it may not).
+then refuses the result. (Check 9's nesting arm was silent on
+`ArcParity` outer loops when this was filed; since 2026-09-25,
+ATREST-12, it places rings on every planar outer loop with
+`splitting::containment::point_in_carrier_loop`, so a ring left on the
+wrong half should now be refused at rest as `RingOutsideOuter`.)
 
-**What closes it.** `loop_shape` dispatch the way `boolean::contfp`
-does: `Disc` through `boolean::contain::disc_side` (crate-visible since
-ATREST-5), `Polygon` through the walk, and `ArcParity`/`NoWalk` either
-refused typed or answered by the general arc-aware walk
-(`work/tang/arc-aware-point-in-loop`, #1076). This is also one of the
+**What closes it.** The general arc-aware walk
+(`work/tang/arc-aware-point-in-loop`, #1076) exists now as
+`splitting::containment::point_in_carrier_loop` (`pub(crate)`, ATREST-9);
+check 9's nesting arm reads every class through it with no shape
+dispatch (ATREST-12), and `rehome_rings` can do the same. This is also one of the
 three loop-in-loop answers `work/walks/three-answers-to-is-this-loop-inside-that-one`
 tracks.
 

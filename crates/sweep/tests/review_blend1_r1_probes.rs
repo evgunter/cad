@@ -25,10 +25,6 @@ fn in_band() -> f64 {
     5.0 * tol().eps()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The three-arc cylinder `m5_pr12_refusals` builds too: the homed
 /// `disc_of_arcs` at three arcs, radius 0.5, height 1.
 fn cylinder() -> Body<f64> {
@@ -385,7 +381,7 @@ fn r1_a_near_collinear_profile_vertex_and_the_convexity_arm() {
                 (0.0, 1.0),
             ]
             .into_iter()
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
         );
         let profile = match Profile::new(SketchPlane::xy(), vec![lp]).validate(tol()) {
@@ -485,7 +481,7 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let lp = bulge_loop(
             [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
                 .into_iter()
-                .map(|(x, y)| (p2(x, y), 0.0))
+                .map(|(x, y)| (Point2::new(x, y), 0.0))
                 .collect(),
         );
         let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -511,7 +507,12 @@ fn r1_a_boss_on_an_in_band_tilted_sketch_plane_through_the_union() {
         let u = Vec3::new(1.0, 0.0, 0.0);
         let v = Vec3::new(0.0, theta.cos(), theta.sin());
         let plane = sketch_from_axes(geom_core::Point3::new(0.0, 0.0, z0), u, v, Tol::witness());
-        let boss = extruded(plane, vec![three_arc(p2(0.0, 0.0), 0.25, 0.0)], 1.0, tol());
+        let boss = extruded(
+            plane,
+            vec![three_arc(Point2::new(0.0, 0.0), 0.25, 0.0)],
+            1.0,
+            tol(),
+        );
         let r = topo::boolean::union(&base, &boss, tol());
         match r {
             Ok(out) => {

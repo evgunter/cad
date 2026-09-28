@@ -5,9 +5,11 @@ title: SelectRefusal is #[non_exhaustive], so its variant coverage cannot be enf
 status: closed
 opened: 2026-09-15
 priority: P3
-cost: D
+cost: E
 closed: 2026-09-28
 pr: 3321
+branch: gather/name-edge-home
+rides_with: three-walks-over-the-name-carrying-edges
 ---
 
 

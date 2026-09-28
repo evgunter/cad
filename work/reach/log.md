@@ -97,3 +97,14 @@ Their five lift sites now read `r.map(T::from_f64)`:
 The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
 
 Signed (S-DUP orchestrator).
+
+## 2026-09-27 — ATREST-12 changes `splitting/containment.rs` (seam notice)
+
+ATREST-12 (PR #3288, review fix pass) edits REACH's `splitting/containment.rs`, and only the arc-bearing walk:
+
+- **One arc-trim-by-distance home.** `arc_trim` is new and `pub(crate)`. It holds ATREST-11's distance rule: an end within band counts, then the two-term chordal margin. Check 9's `validate::window` now calls it, and so does the carrier walk's `ConicArc::in_window`. The walk's old cosine window compressed by `sin(w/2)` near an arc's end. The new rows are `point_in_arc_loop_conic_end` plus the existing `point_in_arc_loop_conic_window`, which now carries the chordal margin.
+- **Per-ray rows retry.** `point_in_carrier_loop` treats an in-band margin on these rows as a graze and moves to the next ray: the arm row (via the new `walk_schedule` parameter `ArmBand::Retry`), side, advance, `conic_disc`, `conic_advance` and `conic_window`. Only the pre-pass rows escalate. `point_in_loop` passes `ArmBand::Escalate` and is unchanged, for all four of its consumers.
+- **`conic_span`** now refuses only a window definitely wound past a period; an in-band span is read as an arc.
+- **`reach`**: an in-band ball gap places nothing (`None`) instead of escalating.
+
+The ATREST-9 rows are green on the change: `pis_arc_capped_poses::*` and `bool3_torus_doors::a_revolved_disc_caps_interior_is_on_the_face`.

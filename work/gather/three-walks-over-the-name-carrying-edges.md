@@ -5,10 +5,11 @@ title: the name-carrying edge set (Transform, Part, split pass-through) is walke
 status: closed
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: M
 refs: [the-solve-accepts-a-body-placed-under-two-roots, product-refuses-naming-when-one-instance-is-placed-under-two-roots]
 closed: 2026-09-28
 pr: 3321
+branch: gather/name-edge-home
 ---
 
 Recorded from PR 3142's review (Q1), filed by the GATHER two-roots lane.

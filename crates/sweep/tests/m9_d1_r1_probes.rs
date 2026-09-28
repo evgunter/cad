@@ -15,7 +15,7 @@ use crate::revolve_common;
 
 use core::f64::consts::FRAC_PI_2;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, Revolved, revolve};
@@ -23,7 +23,10 @@ use sweep::{Revolution, Revolved, revolve};
 /// The ball meridian, authored CCW: (0,−1) —arc(bulge 1)→ (0,1)
 /// —axis line→ close. Canonical vertex 0 is (0,−1), the authored start.
 fn ball_ccw() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)])
+    bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ])
 }
 
 /// The SAME ball meridian authored in the reversed (CW) vertex order:
@@ -31,7 +34,10 @@ fn ball_ccw() -> ProfileLoop<f64> {
 /// close. Canonicalization reverses the traversal and keeps the
 /// authored start, so canonical vertex 0 is (0,1), north.
 fn ball_cw() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(0.0, 1.0), -1.0), (p2(0.0, -1.0), 0.0)])
+    bulge_loop(vec![
+        (Point2::new(0.0, 1.0), -1.0),
+        (Point2::new(0.0, -1.0), 0.0),
+    ])
 }
 
 /// y-coordinate of an exported pole vertex.
@@ -111,9 +117,9 @@ fn partial_ball_both_sweep_directions_export_the_same_canonical_poles() {
 #[test]
 fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
     let lp = bulge_loop(vec![
-        (p2(0.0, -1.0), 1.0),
-        (p2(0.0, 1.0), 0.0),
-        (p2(0.0, 0.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -138,9 +144,9 @@ fn full_subdivided_axis_run_exports_tips_and_omits_the_interior() {
 #[test]
 fn partial_subdivided_axis_run_exports_all_three_poles() {
     let lp = bulge_loop(vec![
-        (p2(0.0, -1.0), 1.0),
-        (p2(0.0, 1.0), 0.0),
-        (p2(0.0, 0.0), 0.0),
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
@@ -165,9 +171,9 @@ fn partial_subdivided_axis_run_exports_all_three_poles() {
 fn full_mixed_profile_exports_poles_only_at_pinned_vertices() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), b),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), b),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let t = revolve(
         &validated(vec![lp]),
