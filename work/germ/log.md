@@ -448,3 +448,16 @@ The spec is `docs/GERM-VERBS-CONE-SPEC.md` on `germ/verbs-cone-spec` (`3edfab44f
   - **Q7:** the item text is refreshed by the U3/U6 lane.
 - **Dispatched:** U3 (the apex closure) and U6 (sphere × cone and sphere × torus from the scan to the pass), combined in one lane with one PR (Ev's CI note), on branch `germ/cone-apex-closure` off the spec branch. The review tier is single, since `point_in_solid` on partial cones goes from refusing to answering.
 - **Waiting on PR 3375:** U1 (line roots) and U2 (circle roots). U4, then U7, follow.
+
+## 2026-09-28 — PR 3375's dual review: both NOT-MERGEABLE-AS-IS
+
+- **Pre-note:**
+  - **Bilateral:** the first-Out mutant survives because the row's solver order puts the In root first (MAJOR/MAJOR, both executed); the parallel arm treats any tilt in band as exact and decides reach in-plane (R2 MAJOR executed, R1 MINOR argued: severity divergent); the `on_line` guards are unpinned.
+  - **R1 alone:** the pole-near-a-root conditioning makes the quartic certificate UNSOUND (a silent premise-S miss executed in `sweep_traces`) — **a tally candidate**, pending the blinded coder's dedup against R2's lever over-refusal; the `crossed_elsewhere` pin; the lily re-pins weakened (R2 disagrees).
+  - **R2 alone:** the small-circle lever over-refusal; the stale chord-arm comment; the factor of 2 in the height margin; no sweep row built around the quartic arm.
+  - **Fairness:** R1 saw R2's directory NAMES during cleanup, no contents; flagged under rule 3, no findings glimpsed.
+- **Blinded coding:** byte 19.
+- **The fix pass** carries the union to the implementer, merging main (PR 3372) first.
+- **Consequence:** VERBS-CONE's U2 (circle × cone) reuses this quartic, so it waits on the conditioning fix.
+
+**Class (logged):** "every root is examined" rows must put an Out root FIRST in the solver's own order. A row whose first-examined root is In cannot kill a first-root-only mutant. This is the third first-root defect this week, counting the P0 (PR 3358) and this row.
