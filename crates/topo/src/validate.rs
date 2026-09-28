@@ -4222,7 +4222,7 @@ pub(crate) fn shell_vertices<'b, T: Real>(
 /// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
 /// or `None` where the walk refuses or the sign is still undecided when
 /// the schedule runs out.
-fn shell_role<T: Decide>(
+pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,

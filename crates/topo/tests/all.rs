@@ -79,6 +79,8 @@ mod census_g2_carrier;
 mod cone_apex_cap_body;
 #[path = "contact1_touch_cones.rs"]
 mod contact1_touch_cones;
+#[path = "contact5_gate_and_beam.rs"]
+mod contact5_gate_and_beam;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
