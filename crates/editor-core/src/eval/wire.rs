@@ -3758,9 +3758,9 @@ fn resolve_declarations<'n>(
         let (live1, l1) = declare_landing(n1, doc, table_of(o1))?;
         let (live2, l2) = declare_landing(n2, doc, table_of(o2))?;
         let (n1, n2) = (n1.name(), n2.name());
-        // Asked of the NAMES' kinds, which the table's two row writers
-        // (`NameTable::insert_ref`, `insert_tied_ref`) make every
-        // candidate's kind, so a tie answers it too.
+        // Asked of the NAMES' kinds, which every `NameTable` door that
+        // seats a row makes every candidate's kind, so a tie answers it
+        // too.
         let unsupported = |kinds| NodeErrorKind::DeclareUnsupportedPair {
             kinds,
             cross_operand: o1 != o2,
@@ -3778,7 +3778,7 @@ fn resolve_declarations<'n>(
             debug_assert!(
                 false,
                 "a declared {shape} pair projected a key of another kind than its name's: \
-                 `NameTable::insert_ref` and `insert_tied_ref` admit a row only at its \
+                 every `NameTable` door that seats a row admits it only at its \
                  name's kind"
             );
             unsupported((k1.kind(), k2.kind()))

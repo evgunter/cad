@@ -277,9 +277,9 @@ fn a_measure_reference_that_is_no_scope_refuses_naming_what_it_found() {
 ///   before either name is resolved, because a pair the vocabulary
 ///   has no step for is unsupported however many entities answer to
 ///   either name, so no key exists yet to read the word off. The name
-///   table makes the two sources agree (`insert_ref` and
-///   `insert_tied_ref` are its only writers and both refuse a row
-///   whose name's kind is not its key's); the one place they could
+///   table makes the two sources agree (every `NameTable` door that
+///   seats a row refuses one whose name's kind is not its key's); the
+///   one place they could
 ///   differ is a broken table, which that door answers off the KEYS
 ///   under a `debug_assert!`. What this row still cannot see is the
 ///   site at all.
