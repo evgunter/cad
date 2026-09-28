@@ -1361,7 +1361,7 @@ pub enum ValidationError {
     /// see them. The shell's role is `bounded - winding`: `+1` for an
     /// `Outer` shell, `-1` for a `Void`.
     ShellWinding {
-        /// The solid whose shells overlap.
+        /// The solid whose shells wind outside `{0, 1}`.
         solid: SolidKey,
         /// The shell standing at the wrong winding.
         shell: ShellKey,
@@ -2674,8 +2674,8 @@ impl fmt::Display for ValidationError {
             // winding counts the material there twice, or below none.
             Self::ShellWinding { bounded, .. } => write!(
                 f,
-                "one shell of a solid sits inside another the wrong way, so the space it \
-                 bounds counts as material {bounded} times, not 0 or 1. {DEFECT}"
+                "a shell of a solid is placed where its other shells make the space it bounds \
+                 count as material {bounded} times, not 0 or 1. {DEFECT}"
             ),
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
@@ -3313,7 +3313,8 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///     behind a clean check 7): the solid's shells bound winding number
 ///     0 or 1 everywhere — an `Outer` shell adds `+1` inside itself, a
 ///     `Void` `-1` inside its cavity — decided at one vertex of each
-///     shell from the other shells' point-in-solid answers
+///     shell (the first that touches no other shell) from the other
+///     shells' point-in-solid answers
 ///     ([`ValidationError::ShellWinding`]). Several disjoint `Outer`
 ///     shells, an island inside a cavity, and an ordinary cavity all
 ///     pass; a `Void` outside every `Outer`, an `Outer` inside another
@@ -3391,11 +3392,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   walk that refuses — `KindUnsupported` on a spline or `Approx` face,
 ///   a partial sphere, cone or torus face outside the walk's chart
 ///   classes, an escalation, an exhausted ray schedule, an uncertified
-///   at-infinity volume. An `OnBoundary` witness is silent too: two
-///   shells TOUCH there, which the premise below excludes. And check 10
-///   reads one point per shell, which decides only under that premise
-///   — **shells that cross** are global self-intersection's, the first
-///   item of this list.
+///   at-infinity volume. A shell every one of whose vertices touches
+///   another shell is silent too (a touching vertex is skipped for the
+///   next). And check 10 reads one point per shell, which decides only
+///   under the no-crossing premise — **shells that cross** are global
+///   self-intersection's, the first item of this list.
 ///   (`work/atrest/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
 ///   **What check 10 does not refuse is deliberate**: several `Outer`
@@ -3725,44 +3726,13 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
     };
     let quad = Some(crate::props::QuadLane::certified());
     let certificate = plus_v_by_sign(body, band, tol, quad)?;
-    // Check 10, behind a clean check 7 (`shell_winding_by_sign`).
-    let errors = shell_winding_by_sign(body, band, tol, quad);
+    // Check 10, behind a clean check 7 (`shell_winding_errors`).
+    let errors = shell_winding_errors(body, band, tol, quad);
     if errors.is_empty() {
         Ok(certificate)
     } else {
         Err(errors)
     }
-}
-
-/// **Check 10 at SIGN level, through the lane the door holds** — the
-/// lane check 7 was made through, so each shell's role is read the way
-/// [`plus_v_by_sign`] reads a solid's orientation: one sign walk over
-/// that shell's faces, stopped at the round where its enclosure
-/// excludes zero, and silent (no role) where the schedule runs out
-/// first or the walk refuses.
-///
-/// Every door that makes check 10 makes it here, behind a clean check
-/// 7 — a winding read off a solid whose orientation is refused would be
-/// cascade noise.
-fn shell_winding_by_sign<T: geom_core::Decide>(
-    body: &Body<T>,
-    band: Band,
-    tol: Tol,
-    quad: Option<crate::props::QuadLane<T>>,
-) -> Vec<ValidationError> {
-    shell_winding_errors(body, band, tol, &|faces| {
-        crate::props::sign_walk(
-            body,
-            faces,
-            band,
-            tol,
-            quad,
-            |e| shell_role_of_enclosure(e, band).map(Some),
-            |_| None,
-        )
-        .ok()
-        .and_then(|(role, _)| role)
-    })
 }
 
 /// **Check 7, the whole of it, at SIGN level** — one walk per solid
@@ -3951,32 +3921,42 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
 /// the false-refusal direction is the one this check must never fail
 /// in:
 ///
-/// - a shell whose ROLE `role_of` cannot decide (no derivation at this
-///   door, a refused or undecided sign) takes no part: no verdict is
-///   made about it, and none about a shell whose winding it enters;
+/// - a shell whose ROLE cannot be decided (a refused walk, or a sign
+///   still undecided when the schedule runs out) takes no part: no
+///   verdict is made about it, and none about a shell whose winding it
+///   enters;
 /// - a walk that refuses — `KindUnsupported` on a spline face, a
 ///   partial curved face outside the chart classes, an escalation,
 ///   an exhausted ray schedule, an uncertified at-infinity volume —
 ///   leaves that shell's verdict unmade;
-/// - an `OnBoundary` witness means two shells TOUCH, which the
-///   no-crossing premise excludes, so it is not evidence about
-///   winding either way and is silent too.
+/// - an `OnBoundary` answer means the witness lies where two shells
+///   TOUCH, which says nothing about winding; the premise holds
+///   elsewhere on the shell, so the next vertex of the shell is tried,
+///   and the shell is silent only when every one of its vertices
+///   touches another shell.
 ///
 /// Those silences are the residue [`validate_geometric`]'s
 /// not-yet-checked list names.
 ///
+/// **A shell's role is its own sign, read the way check 7 reads a
+/// solid's**: one [`crate::props::sign_walk`] over the shell's faces
+/// through the lane the door made check 7 through (`quad`), stopped at
+/// the round where [`plus_v_decide`] — check 7's own decision and
+/// predicates — reads the enclosure definitely positive (`Outer`) or
+/// definitely negative (`Void`). Every door that makes check 10 calls
+/// this, behind a clean check 7: a winding read off a solid whose
+/// orientation is refused would be cascade noise.
+///
 /// **What it costs.** A solid with one shell is skipped before anything
 /// is read, so the common body pays nothing. A solid with `n > 1`
-/// shells pays `n` role reads through `role_of` and `n (n - 1)` point
-/// probes.
-///
-/// The derivation of a ROLE is the caller's: `role_of` is handed one
-/// shell's faces and answers that shell's role, or `None`.
+/// shells pays `n` sign walks and at least `n (n - 1)` point probes,
+/// with no bounding-box prefilter
+/// (`work/atrest/check-10-is-quadratic-in-shells-per-solid`).
 fn shell_winding_errors<T: Decide>(
     body: &Body<T>,
     band: Band,
     tol: Tol,
-    role_of: &dyn Fn(&[FaceKey]) -> Option<crate::props::ShellRole>,
+    quad: Option<crate::props::QuadLane<T>>,
 ) -> Vec<ValidationError> {
     use crate::boolean::SolidContainment;
     use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
@@ -3995,34 +3975,40 @@ fn shell_winding_errors<T: Decide>(
             .iter()
             .map(|&shell| {
                 let sel = SolidFaces::of_shell(body, shell).ok();
-                let role = sel.as_ref().and_then(|sel| role_of(sel.faces()));
+                let role = sel
+                    .as_ref()
+                    .and_then(|sel| shell_role(body, sel.faces(), band, tol, quad));
                 (shell, role.zip(sel))
             })
             .collect();
         for (i, &(shell, ref this)) in read.iter().enumerate() {
             let Some((role, _)) = this else { continue };
-            let Some(witness) = shell_witness(body, shell) else {
-                continue;
-            };
-            let mut winding = Some(0i32);
-            for (j, (_, other)) in read.iter().enumerate() {
-                if i == j {
-                    continue;
-                }
-                let contribution = other.as_ref().and_then(|(other_role, sel)| {
+            // The winding the other shells put on this one, at the
+            // first vertex of it that touches no other shell.
+            let mut winding = None;
+            'witness: for witness in shell_vertices(body, shell) {
+                let mut sum = 0i32;
+                for (j, (_, other)) in read.iter().enumerate() {
+                    if i == j {
+                        continue;
+                    }
+                    // A shell whose role is unread silences this one.
+                    let Some((other_role, sel)) = other else {
+                        break 'witness;
+                    };
                     let void = i32::from(*other_role == ShellRole::Void);
                     match point_in_solid_faces(body, sel, witness, band, tol) {
-                        Ok(SolidContainment::In) => Some(1 - void),
-                        Ok(SolidContainment::Out) => Some(-void),
-                        // Touching shells, or a walk that cannot
-                        // answer: silent (the doc above).
-                        Ok(SolidContainment::OnBoundary) | Err(_) => None,
+                        Ok(SolidContainment::In) => sum += 1 - void,
+                        Ok(SolidContainment::Out) => sum -= void,
+                        // The shells touch HERE: try the next vertex.
+                        Ok(SolidContainment::OnBoundary) => continue 'witness,
+                        // A walk that cannot answer: silent (the doc
+                        // above).
+                        Err(_) => break 'witness,
                     }
-                });
-                winding = winding.zip(contribution).map(|(w, c)| w + c);
-                if winding.is_none() {
-                    break;
                 }
+                winding = Some(sum);
+                break;
             }
             let Some(winding) = winding else { continue };
             // The winding the shell's own contribution puts just across
@@ -4044,38 +4030,61 @@ fn shell_winding_errors<T: Decide>(
     errors
 }
 
-/// A point of `shell`: the start vertex of the first half-edge of the
-/// outer loop of its first face (face-arena order), or `None` where
-/// the shell has no such vertex to read.
-fn shell_witness<T: Real>(body: &Body<T>, shell: ShellKey) -> Option<geom_core::Point3<T>> {
-    let (_, face) = body.faces().find(|(_, d)| d.shell == shell)?;
-    let vertex = match body.get_loop(face.outer)?.boundary {
-        LoopBoundary::Empty { vertex } => vertex,
-        LoopBoundary::Cycle { .. } => {
-            let first = *loop_cycle_of(body, face.outer)?.first()?;
-            body.half_edges.get(first)?.start
-        }
-    };
-    vertex_point(body, vertex)
+/// Every vertex of `shell`, as positions, in face-arena order and each
+/// face's loop order (outer loop first), repeats included — the
+/// witnesses check 10 tries in turn. Lazy: a shell whose first vertex
+/// touches no other shell reads only that one.
+pub(crate) fn shell_vertices<'b, T: Real>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+) -> impl Iterator<Item = geom_core::Point3<T>> + 'b {
+    body.faces()
+        .filter(move |(_, d)| d.shell == shell)
+        .flat_map(move |(_, face)| {
+            core::iter::once(face.outer)
+                .chain(face.rings.iter().copied())
+                .flat_map(move |lk| {
+                    let vertices: Vec<VertexKey> = match body.get_loop(lk).map(|l| l.boundary) {
+                        Some(LoopBoundary::Empty { vertex }) => vec![vertex],
+                        Some(LoopBoundary::Cycle { .. }) | None => loop_cycle_of(body, lk)
+                            .unwrap_or_default()
+                            .iter()
+                            .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
+                            .collect(),
+                    };
+                    vertices
+                })
+        })
+        .filter_map(move |v| vertex_point(body, v))
 }
 
-/// A shell's role from a volume enclosure, where the enclosure decides
-/// it: the low end definitely positive is `Outer`, the high end
-/// definitely negative is `Void`, and anything else is undecided —
-/// never a guess. The margin is check 7's, `V / A` (a length).
-fn shell_role_of_enclosure<T: Decide>(
-    enclosure: crate::props::VolumeEnclosure<T>,
+/// One shell's role, from its own sign walk through `quad` decided by
+/// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
+/// or `None` where the walk refuses or the sign is still undecided when
+/// the schedule runs out.
+fn shell_role<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
     band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
 ) -> Option<crate::props::ShellRole> {
-    let lever = enclosure.surface_area;
-    let sign = |end| decide("shell_winding_role", Margin::over_lever(end, lever), band);
-    if let Ok(Sign::Positive) = sign(enclosure.volume_lo) {
-        return Some(crate::props::ShellRole::Outer);
-    }
-    if let Ok(Sign::Negative) = sign(enclosure.volume_hi) {
-        return Some(crate::props::ShellRole::Void);
-    }
-    None
+    use crate::props::ShellRole;
+    crate::props::sign_walk(
+        body,
+        faces,
+        band,
+        tol,
+        quad,
+        |e| match plus_v_decide(e, band) {
+            PlusVOutcome::Pass => Some(Some(ShellRole::Outer)),
+            PlusVOutcome::Refuse => Some(Some(ShellRole::Void)),
+            PlusVOutcome::Undecided => None,
+        },
+        |_| None,
+    )
+    .ok()
+    .and_then(|(role, _)| role)
 }
 
 /// [`validate_geometric`] with the body's **declared contacts** in
@@ -5968,14 +5977,14 @@ pub(crate) fn tier3_local_checks_marked<
     // battery coming back clean, for check 7's reason: a winding read
     // off a body the battery has refused is cascade noise. Each
     // shell's role is its own sign through the lane check 7 was made
-    // through (`shell_winding_by_sign`) — so a door that makes no
+    // through (`shell_winding_errors`) — so a door that makes no
     // check 7 reads no role, and this check is silent there rather
     // than made on a sign it did not derive.
     // ------------------------------------------------------------------
     if errors.is_empty()
         && let PlusVCheck::Through(quad) = plus_v
     {
-        errors.extend(shell_winding_by_sign(body, band, tol, quad));
+        errors.extend(shell_winding_errors(body, band, tol, quad));
     }
 
     (errors, certificate)

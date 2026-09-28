@@ -120,6 +120,11 @@ fn a_void_outside_every_outer_refuses() {
         }]),
         "the cavity sits where the solid's only other shell winds 0"
     );
+    assert_eq!(
+        topo::validate_geometric_structural(&body, tol()),
+        topo::validate_geometric(&body, tol()),
+        "the structural door makes check 10 too, through the closed form"
+    );
 }
 
 /// **An `Outer` inside another `Outer` of its solid, no `Void`
@@ -149,6 +154,11 @@ fn an_outer_inside_an_outer_refuses() {
             bounded: 2,
         }]),
         "the inner cube sits where the outer one already winds 1"
+    );
+    assert_eq!(
+        topo::validate_geometric_structural(&body, tol()),
+        topo::validate_geometric(&body, tol()),
+        "the structural door makes check 10 too, through the closed form"
     );
 }
 

@@ -1841,10 +1841,10 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
         let sel = SolidFaces::of_shell(&body, shell).expect("a shell selection");
         point_in_solid_faces(&body, &sel, p, band, tol).expect("the walk answers")
     };
-    let in_cavity = pt(0.43, 0.41, 0.47);
-    let in_wall = pt(0.1, 0.13, 0.11);
-    let beside = pt(2.0, 0.37, 0.41);
-    let far = pt(100.0, 90.0, 80.0);
+    let in_cavity = Point3::new(0.43, 0.41, 0.47);
+    let in_wall = Point3::new(0.1, 0.13, 0.11);
+    let beside = Point3::new(2.0, 0.37, 0.41);
+    let far = Point3::new(100.0, 90.0, 80.0);
     assert_eq!(
         [
             probe(wall, in_cavity),
@@ -1865,5 +1865,71 @@ fn a_shell_selection_reads_the_material_that_shell_alone_bounds() {
         [Out, In, In, In],
         "the cavity wall's material is everything outside the cavity"
     );
+    // The far point's answer is the AT-INFINITY arm's: the schedule's
+    // first ray (+x) from it crosses nothing, so the walk reads the
+    // selection's own signed volume — negative for the cavity wall,
+    // hence `In`. Pinned by the verdict log, so a far point that a ray
+    // happened to reach through a face could not pass for it.
+    let bracket = geom_core::k_stats::Bracket::open();
+    assert_eq!(probe(void, far), In);
+    let log = bracket.finish();
+    assert!(
+        log.verdicts
+            .iter()
+            .any(|v| v.predicate == "bool_point_in_solid_infinity"),
+        "the far probe must be answered at infinity, got {:?}",
+        log.verdicts.iter().map(|v| v.predicate).collect::<Vec<_>>()
+    );
     assert_eq!(validate_geometric(&body, tol), Ok(()));
+}
+
+/// **Check 10 skips a witness where two shells TOUCH, and reads the
+/// next one.** A unit cube hangs from the ceiling of a larger cube,
+/// both `Outer` and under one solid, so the space inside the unit cube
+/// winds `2` — and its top lies ON the larger cube's top. The first
+/// vertex the check reads is on that face (asserted below, from the
+/// body), where the walk answers `OnBoundary`; a check that stopped
+/// there would be silent. The cube's lower vertices touch nothing, and
+/// one of them refuses the body.
+#[test]
+fn check_10_reads_past_a_witness_where_two_shells_touch() {
+    use crate::boolean::SolidContainment;
+    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    let tol = Tol::witness();
+    let mut body: Body<f64> =
+        crate::test_support_fixtures::brick((0.0, 3.0), (0.0, 3.0), (0.0, 3.0), tol);
+    let [outer_solid] = solids_of(&body)[..] else {
+        panic!("a brick is one solid");
+    };
+    let outer = body.shells_of_solid(outer_solid).expect("live")[0];
+    let inner_body: Body<f64> =
+        crate::test_support_fixtures::brick((1.0, 2.0), (1.0, 2.0), (2.0, 3.0), tol);
+    crate::graft_disjoint_all_onto_keyed(&mut body, &[outer_solid], &inner_body, tol)
+        .expect("the graft");
+    let inner = *body
+        .shells_of_solid(outer_solid)
+        .expect("live")
+        .iter()
+        .find(|&&s| s != outer)
+        .expect("the grafted cube");
+
+    let band = geom_core::Band::linear(tol).expect("a band");
+    let sel = SolidFaces::of_shell(&body, outer).expect("a selection");
+    let first = crate::validate::shell_vertices(&body, inner)
+        .next()
+        .expect("the cube has vertices");
+    assert_eq!(
+        point_in_solid_faces(&body, &sel, first, band, tol).expect("the walk answers"),
+        SolidContainment::OnBoundary,
+        "the premise: the first witness {first:?} touches the larger cube"
+    );
+    assert_eq!(
+        validate_geometric(&body, tol),
+        Err(vec![ValidationError::ShellWinding {
+            solid: outer_solid,
+            shell: inner,
+            winding: 1,
+            bounded: 2,
+        }])
+    );
 }

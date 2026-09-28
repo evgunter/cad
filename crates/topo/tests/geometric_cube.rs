@@ -250,9 +250,10 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgraded Intersection re-certifications.
     //
     // The dual goes through the `_structural` door, which is where every
-    // certificate compared below is produced — all nine checks run, check
-    // 7 through the closed form (the cube is planar, so it computes at a
-    // dual with a zero pad), and none of them reads a certified lane. The
+    // certificate compared below is produced — all ten checks run, checks
+    // 7 and 10 through the closed form (the cube is planar, so it computes
+    // at a dual with a zero pad; the cube's one shell skips check 10), and
+    // none of them reads a certified lane. The
     // f64 lane's own composed-door rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>(Tol::witness());

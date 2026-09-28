@@ -168,9 +168,9 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 ///   has **three** owners, not two — `topo::validate`,
 ///   `topo::boolean::join`, and `topo::merge_faces`' role normalization.
 /// - the point-in-solid walk's planar family — check 10 (shell winding)
-///   probes one vertex of each shell of a multi-shell solid against the
-///   other shells through `topo::point_in_solid_faces`, the boolean's
-///   containment fallback, and on these planar fixtures that walk
+///   probes a vertex of each shell of a multi-shell solid against the
+///   other shells through `topo::boolean::solid_contain::point_in_solid_faces`,
+///   the boolean's containment fallback, and on these planar fixtures that walk
 ///   decides only its planar predicates, listed below. It is a
 ///   containment read, never a crossing.
 ///
