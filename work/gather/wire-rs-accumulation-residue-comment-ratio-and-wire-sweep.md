@@ -5,7 +5,8 @@ title: eval/wire.rs is about 47% comment by line and nothing decides whether tha
 status: open
 opened: 2026-09-12
 priority: P4
-cost: D
+cost: M
+design: true
 ---
 
 
