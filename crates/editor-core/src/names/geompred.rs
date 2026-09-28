@@ -542,7 +542,7 @@ pub(crate) fn candidate_matches<T: Decide>(
 /// must carry a wildcard) and does not need to see this one: its own
 /// roster is welded to its rendering cases there.
 #[cfg(test)]
-#[allow(clippy::expect_used)]
+#[allow(clippy::expect_used, clippy::panic)]
 mod census {
     use std::collections::BTreeSet;
 
@@ -621,16 +621,21 @@ mod census {
             .iter()
             .map(test_utils::f6::variant_identifier)
             .collect();
-        let distinct: BTreeSet<&str> = read.iter().map(String::as_str).collect();
+        let read: Vec<&str> = read.iter().map(String::as_str).collect();
+        let distinct: BTreeSet<&str> = read.iter().copied().collect();
         assert_eq!(
             distinct.len(),
             read.len(),
             "two samples are one variant: {read:?}"
         );
-        let roster: BTreeSet<&str> = CENSUS.identifiers().iter().copied().collect();
-        assert_eq!(
-            distinct, roster,
-            "the samples and the census's arms name different variants"
-        );
+        if let Some(report) = test_utils::census::set_difference(
+            CENSUS.identifiers(),
+            &read,
+            "the `SelectRefusal` census and its samples disagree",
+            "sampled here and absent from `CENSUS`",
+            "in `CENSUS` with no sample here — add one",
+        ) {
+            panic!("{report}");
+        }
     }
 }

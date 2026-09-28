@@ -1407,7 +1407,7 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
 /// segment to the names it carries, so every name it publishes from
 /// below keeps its original minter. Which edge it is decides which of
 /// the input's names come through.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug)]
 pub(crate) enum VerbatimEdge<'a> {
     /// Every body of `input`, body `k` in to body `k` out, moved: a
     /// [`Node::Transform`](crate::node::Node::Transform). A selection
@@ -1424,33 +1424,38 @@ pub(crate) enum VerbatimEdge<'a> {
         /// Which body of it.
         select: &'a crate::node::PartSelect,
     },
-    /// The entities of `target` the split leaves intact: a
+    /// The entities of the split target the split leaves intact: a
     /// [`Node::Split`](crate::node::Node::Split). Which ones those are
-    /// is the geometry's answer, not the recipe's.
-    Intact {
-        /// The body split.
-        target: RecipeNodeId,
-    },
+    /// is the geometry's answer, not the recipe's, so no walk follows
+    /// this edge and it carries no input.
+    Intact,
 }
 
-/// **The name-carrying edge `node` is, if any** — the one statement of
-/// N1's pass-through set: a transform, a part's projection, a split's
-/// intact entities. Every other node re-mints what it carries.
+/// **The name-carrying edge `node` is, if any**: a transform, a part's
+/// projection, a split's intact entities (N1's pass-through ops).
+/// Every other node is classified as re-minting what it carries.
 ///
-/// The walks down these edges — the product's two-roots check
+/// Two walks read the set here: the product's two-roots check
 /// (`product::placed_under_two_roots`) and the mate member walk
-/// (`mate::member::walk`) — read the set here and differ only in where
-/// each stops. The match is exhaustive on purpose: a new node kind does
-/// not compile until someone decides whether it passes names through,
-/// and a new kind of edge does not compile until every walk, each
-/// matching [`VerbatimEdge`] without a wildcard, decides what to do
-/// with it.
+/// (`mate::member::walk`); they differ only in where each stops. The
+/// compiler holds the three together: this match is exhaustive, so a
+/// new node kind does not compile until it is classified here, and
+/// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
+/// of edge does not compile until each decides what to do with it.
+///
+/// What is NOT held: that this classification agrees with what the
+/// evaluator actually passes through (`eval::wire`'s `wire_transform`,
+/// `wire_part`, `wire_split`). A node whose evaluation returns its
+/// input's table unchanged but is filed under `None` here compiles,
+/// and both walks stop at it
+/// (`work/gather/verbatim-edge-is-not-tied-to-the-evaluator`). Code
+/// outside this crate cannot read it either.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
         Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
         Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
-        Node::Split { target, .. } => Some(VerbatimEdge::Intact { target: *target }),
+        Node::Split { .. } => Some(VerbatimEdge::Intact),
         Node::Datum(_)
         | Node::Profile(_)
         | Node::Extrude { .. }

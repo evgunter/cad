@@ -209,7 +209,7 @@ pub(super) fn walk<P>(doc: &Doc<P>, r: &crate::node::SitedFace) -> Result<Walk, 
                         select: PartSelect::SplitHalf(_),
                         ..
                     }
-                    | VerbatimEdge::Intact { .. },
+                    | VerbatimEdge::Intact,
                 )
                 | None => return Err(at),
             }

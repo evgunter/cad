@@ -992,7 +992,7 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
                 // The split's intact entities are a subset only its
                 // geometry decides, so the recipe cannot say two
                 // chains through it carry one name.
-                Some(VerbatimEdge::Intact { .. }) | None => break,
+                Some(VerbatimEdge::Intact) | None => break,
             };
             if let Some(&(first, earlier)) = seen
                 .get(&next)
