@@ -998,3 +998,16 @@ class of 65 sites is PRED's row.
   - Filed CONTACT's `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`.
   - Territory: `k_stats.rs` belongs to props and verdict, and `drive.rs` to props; seam notes follow at merge.
   - Full review dispatched. Its focus: every reader of the escalation log, not just the driver.
+- 2026-09-28 — The PR 3343 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: every escalation-log reader was enumerated, and none loses information it relies on. The drop path is sound because no sub-box can certify. The success path is bit-identical by construction; the 12-CSV check is vacuous, because no producer reaches the arm. The rows go red on main.
+  - Fixes taken:
+    - the soundness sentence restated as "no sub-box can certify";
+    - a false universal in the k_stats doc, and its hand-written census of detached sites (replaced by a pointer, not grown);
+    - the undisclosed cost of the Bisect deviation: sliver boxes now go to the floor and are priced Budget. That is evidence for VERDICT's existing coincidence-zone row;
+    - territory: tcost and tint also own the test file;
+    - the CONTACT row's third divergence;
+    - a stale path in drive.rs;
+    - C7 wording that pointed at the README instead of the code comment;
+    - cross-references between the duplicated fixtures.
+  - Declined, and logged as a direction if a second caller appears: a typed pending-escalation value in place of choosing a splice.
+  - Fix pass sent back to the lane.
