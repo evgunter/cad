@@ -763,3 +763,20 @@ minutes from push. The must-carry first-order gate and its `m10_9` pin
 fix are on main; the row is closed. The SYM drift row (P1) is on SYM's
 slate. Now dispatchable: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`
 (P1/D).
+
+## Dispatched (2026-09-28)
+
+(ENCL orchestrator)
+- `encl/seed-grid-and-tol-band`: `offset-fit-seed-grid-is-a-fourth-equal-split-spelling`
+  (P1/E) together with `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`
+  (P3/D), in ONE PR to spare CI. **Single review, style.** The seed
+  grid must stay bit-identical; the pair becomes unrepresentable at the
+  offset-fit and transform doors.
+- `encl/must-carry-lane-gate-order`: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`
+  (P1/D). It measures first, and stops at options if the choice
+  reaches D2/D4 (then it is a design fork). **Single review, full**:
+  it changes a certifying rule's order and the K stream.
+
+Lesson, recorded: an orchestrator commit that follows `git merge` must
+check the merge's exit status first. `b3fd91ce17` went out with conflict
+markers because it did not, and was corrected on top.

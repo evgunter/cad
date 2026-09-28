@@ -2,10 +2,11 @@
 id: must-carry-lane-gate-hides-a-transverse-out-of-lane-pair
 kind: issue
 title: must_carry_over_edge answers UnderDetermined for a transverse edge on an out-of-lane pair: the lane gate runs before the first-order gate
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: D
+branch: encl/must-carry-lane-gate-order
 ---
 
 
