@@ -4113,8 +4113,10 @@ fn attach_contact<T: Decide + Bounds>(
             // Reached where the jet is under-determined on a pair the
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
-            // `K < 2`. A pair the lane REFUSES lands here too, and the
-            // derived image covers the carriers the lane admits, so
+            // `K < 2`. A pair the lane REFUSES lands here too once
+            // every station has read smooth first-order (a crossing
+            // out of lane answers `Transverse` below, as in lane), and
+            // the derived image covers the carriers the lane admits, so
             // such a pair would fall to the certification door's own
             // refusal inside `op("surgery contact edge")`; no arm the
             // battery admits mints one.

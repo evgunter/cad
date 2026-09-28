@@ -1,9 +1,10 @@
 //! **The must-carry rule over an edge, on both sweep verbs.**
 //!
 //! `geom_brep::must_carry_over_edge` is the one home of the rule a
-//! constructor applies to a definitely-smooth join: gate on the jet
-//! certificate's lane, read the certification schedule's interior
-//! stations — each first-order before second-order — and answer
+//! constructor applies to a definitely-smooth join: read the
+//! certification schedule's interior stations — each first-order,
+//! then second-order where the jet certificate's lane admits the
+//! pair — and answer
 //! jet-determinate (store the intrinsic `TangentIntersection`),
 //! under-determined (store the conventional chart image), in-band
 //! (refuse TYPED) or transverse (the join is a corner, not the smooth
@@ -362,28 +363,53 @@ fn a_revolve_latitude_join_with_an_in_band_margin_refuses_typed() {
 // The lane gate.
 // ---------------------------------------------------------------
 
-/// An out-of-lane pair answers "conventional" WITHOUT metering: the
-/// certificate cannot store an intrinsic tangency on a carrier/surface
-/// triple it refuses to bound, so a jet reading there decides nothing.
-/// The pair below is second-order definite if it is metered — a cone
-/// against its tangent plane along a ruling — and the gate is what
-/// keeps the answer under-determined anyway.
+/// A smooth out-of-lane pair answers "conventional" without a
+/// second-order reading: the certificate cannot store an intrinsic
+/// tangency on a carrier/surface triple it refuses to bound, so a jet
+/// reading there decides nothing. The pair below is second-order
+/// definite if it is metered — a cone against its tangent plane along
+/// a ruling — and the lane is what keeps the answer under-determined
+/// anyway, in both surface orders.
 #[test]
-fn an_out_of_lane_pair_is_under_determined() {
+fn a_smooth_out_of_lane_pair_is_under_determined() {
     let (plane, cone, carrier) = out_of_lane_triple();
     assert!(
         !geom_brep::tangent_certificate_lane(&carrier, &plane, &cone),
         "a Line carrier on a cone pair is outside the certificate's lane"
     );
-    let answer = must_carry_over_edge(&plane, &cone, &carrier, 0.0, 1.0, 1.0, band());
     assert_eq!(
-        answer,
-        MustCarryVerdict::UnderDetermined,
-        "an out-of-lane pair answers conventional"
+        both_orders(&plane, &cone, &carrier, 1.0, 1.0),
+        (
+            MustCarryVerdict::UnderDetermined,
+            MustCarryVerdict::UnderDetermined
+        ),
+        "a smooth out-of-lane pair answers conventional in both orders"
     );
-    // That nothing was METERED is the K-stream row's claim, which
-    // counts samples rather than reading a field the answer no longer
-    // carries.
+    // That no station was read SECOND-order is the K-stream row's
+    // claim, which counts samples rather than reading a field the
+    // answer does not carry.
+}
+
+/// **The lane has no say in the first-order question.** A plane
+/// crossing a cone at a right angle along a ruling is a corner, and a
+/// Line carrier on a (Plane, Cone) pair is outside the lane: the rule
+/// answers `Transverse` in both surface orders, exactly as it does for
+/// a crossing in lane, rather than the conventional `UnderDetermined`
+/// that would let a caller store a chart image for an edge whose
+/// honest description is `Intersection`.
+#[test]
+fn a_transverse_out_of_lane_pair_reads_transverse_in_both_orders() {
+    let (plane, cone, carrier) = out_of_lane_crossing();
+    assert!(
+        !geom_brep::tangent_certificate_lane(&carrier, &plane, &cone)
+            && !geom_brep::tangent_certificate_lane(&carrier, &cone, &plane),
+        "a Line carrier on a cone pair is outside the lane in both orders"
+    );
+    assert_eq!(
+        both_orders(&plane, &cone, &carrier, 1.0, 1.0),
+        (MustCarryVerdict::Transverse, MustCarryVerdict::Transverse),
+        "a right-angle crossing out of lane is a corner in both surface orders"
+    );
 }
 
 /// A cone tangent to a plane along one ruling, and that ruling as the
@@ -409,6 +435,20 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let carrier = Curve3::Line {
         origin: Point3::new(dir.x, 0.0, dir.z),
         dir,
+    };
+    (plane, cone, carrier)
+}
+
+/// The plane `y = 0` and the 45° cone about the z axis, crossing at a
+/// right angle along the ruling in the `x = z` half-plane (the plane
+/// holds the axis, and the cone's normal along the ruling lies in the
+/// plane), and that ruling as the carrier.
+fn out_of_lane_crossing() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
+    let (_, cone, carrier) = out_of_lane_triple();
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     (plane, cone, carrier)
 }
@@ -667,11 +707,13 @@ fn every_edge_the_two_fixtures_mint_presents_the_rule_a_lane_admitted_triple() {
 /// spends `CERT_SAMPLES − 2` samples of `tangent_second_order`, an
 /// under-determined one spends the deciding station's index — one here,
 /// where the first station decides (the walk exits there) — and an
-/// out-of-lane one spends none (the gate answers
-/// before any station is read).
+/// out-of-lane one spends none: the lane gates the second-order
+/// reading. Its first-order reading is metered like any pair's, one
+/// `dihedral_arm` and one `dihedral_wedge` per station read — every
+/// interior station for a smooth pair, the first alone for a crossing.
 #[cfg(feature = "probe")]
 #[test]
-fn the_rule_meters_the_schedules_interior_stations_and_the_gate_meters_nothing() {
+fn the_rule_meters_the_schedules_interior_stations_and_the_lane_meters_no_second_order() {
     use geom_core::k_stats::{self, Probe};
     let interior = usize::try_from(geom_brep::CERT_SAMPLES - 2).expect("a small count");
     let count = |samples: Vec<geom_core::k_stats::MarginSample>| {
@@ -744,32 +786,55 @@ fn the_rule_meters_the_schedules_interior_stations_and_the_gate_meters_nothing()
         "the first station decides an under-determined join, and the walk stops there"
     );
 
-    // The gate spends nothing: an out-of-lane pair is answered before
-    // any station is read.
-    let (plane, cone, carrier) = out_of_lane_triple();
-    let plane = probe_surface(&plane);
-    let cone = probe_surface(&cone);
-    let carrier = probe_carrier(&carrier);
-    k_stats::start_recording();
-    let answer = must_carry_over_edge(
-        &plane,
-        &cone,
-        &carrier,
-        Probe(0.0),
-        Probe(1.0),
-        Probe(1.0),
-        band(),
-    );
-    let after = k_stats::take_samples();
-    assert_eq!(
-        answer,
-        MustCarryVerdict::UnderDetermined,
-        "the out-of-lane pair is conventional"
-    );
-    assert!(
-        after.is_empty(),
-        "an out-of-lane pair emits no K sample: {after:?}"
-    );
+    // Out of lane: no second-order sample, and the first-order walk
+    // metered as in lane — to the end for the smooth pair, one station
+    // for the crossing.
+    let first_order = |samples: &[geom_core::k_stats::MarginSample]| {
+        ["dihedral_arm", "dihedral_wedge"]
+            .map(|name| samples.iter().filter(|s| s.predicate == name).count())
+    };
+    for (label, (s1, s2, carrier), verdict, stations) in [
+        (
+            "the smooth out-of-lane pair",
+            out_of_lane_triple(),
+            MustCarryVerdict::UnderDetermined,
+            interior,
+        ),
+        (
+            "the out-of-lane crossing",
+            out_of_lane_crossing(),
+            MustCarryVerdict::Transverse,
+            1,
+        ),
+    ] {
+        let (s1, s2, carrier) = (
+            probe_surface(&s1),
+            probe_surface(&s2),
+            probe_carrier(&carrier),
+        );
+        k_stats::start_recording();
+        let answer = must_carry_over_edge(
+            &s1,
+            &s2,
+            &carrier,
+            Probe(0.0),
+            Probe(1.0),
+            Probe(1.0),
+            band(),
+        );
+        let after = k_stats::take_samples();
+        assert_eq!(answer, verdict, "{label}");
+        assert_eq!(
+            first_order(&after),
+            [stations, stations],
+            "{label}: one arm and one wedge per station read: {after:?}"
+        );
+        assert_eq!(
+            after.len(),
+            2 * stations,
+            "{label}: the lane admits no second-order sample: {after:?}"
+        );
+    }
 }
 
 /// **What the rule costs a whole extruded body**, so the PR's K-stream
