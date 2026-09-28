@@ -3361,7 +3361,7 @@ mod value_field_tests {
 
     use super::{FieldVocabulary, number_text, value_field_ops, value_gesture};
     use crate::forms::FieldWriting;
-    use crate::frame::{self, StatusUpdate};
+    use crate::frame::{self, LineVerdict};
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
@@ -3797,7 +3797,7 @@ mod value_field_tests {
         assert_eq!(row.session.history().len(), before, "and nothing lands");
         assert_eq!(row.showing().0, 2.0, "and the field keeps the count");
         let typed = frame::frame_status(&row.notices, &typed_ops, None);
-        let StatusUpdate::Show(said) = &typed else {
+        let LineVerdict::Show(said) = &typed else {
             panic!("the typed refusal reaches the line: {typed:?}");
         };
         assert_eq!(said.text(), "a literal value must be finite");
