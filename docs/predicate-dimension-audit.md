@@ -324,7 +324,7 @@ which is what actually moves the number.
 | certify.rs:917/925 | carrier_endpoint_start/end | point distance | m | OK |
 | certify.rs:950/958/992/1000 | carrier/tangent_on_surface_1/2 | implicit_residual (/2r-normalized) | m | OK |
 | certify.rs:1015 | tangent_second_order | κ_rel·arm²/2 | m | OK |
-| certify.rs:1035 | tangent_normal_parallel | sinθ / κ_rel (arm = 1/κ_rel, the D4 ¶1 tangency lever) | m | OK (note N4) |
+| certify.rs:1982/1954 | tangent_normal_parallel | sinθ / κ_rel (arm = 1/κ_rel, the D4 ¶1 tangency lever) on a Positive second-order margin; sinθ × the folded lever arm (`dihedral::folded_lever_arm`) at a second-order refusal, where a definite reading only renames the refusal | m | OK (note N4) |
 | certify.rs:1047 | carrier_matches_mapped_source | point distance | m | OK |
 | certify.rs:1057/1068/1076 | carrier_on_seam_* | residual / radial·unit | m | OK |
 | certify.rs:1103/1112 | tangent_hull_sup / tube_margin | m residual sums; κ·arm² | m | OK |
@@ -995,7 +995,9 @@ Notes (verified honest, kept for the design conversation):
 - **N4** `tangent_normal_parallel`'s arm 1/κ_rel is the ratified D4 ¶1
   tangency lever ("normal-parallel within θ ⟺ within ε of the locus");
   unbounded only in the refusing direction, and the second-order gate
-  fires first.
+  fires first. The fallback lever (the folded arm, where the
+  second-order margin refused and `1/κ_rel` does not exist) reads only
+  on a path that already refuses.
 - **N5** `ps_frame_seam`, `pcurve_sphere_chart_frame`,
   `split_chart_azimuth_frame`, and `split_conic_phase_frame` are
   deterministic BRANCH/frame selections whose arms are all documented
