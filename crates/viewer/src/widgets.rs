@@ -1195,10 +1195,7 @@ fn offer<V: Copy + PartialEq>(
     );
     match refused {
         Some(a) => {
-            row.on_disabled_hover_text(format!(
-                "{label} is not well-typed here — the tip is {}",
-                sketch::tip_state_words(a.state),
-            ));
+            row.on_disabled_hover_text(sketch::not_well_typed(label, a.state));
         }
         None if row.clicked() => *chosen = option,
         None => {}

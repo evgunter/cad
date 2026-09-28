@@ -301,13 +301,9 @@ pub(crate) fn path_steps_ui(
                             match refusal {
                                 Some(state) => {
                                     // The verb's `Display`, which is
-                                    // the word the combo shows, not
-                                    // its `Debug`: the sentence is
-                                    // about the row a reader is
-                                    // looking at.
-                                    row.on_disabled_hover_text(format!(
-                                        "{option} is not well-typed here — the tip is {}",
-                                        sketch::tip_state_words(state),
+                                    // the word the combo shows.
+                                    row.on_disabled_hover_text(sketch::not_well_typed(
+                                        option, state,
                                     ));
                                 }
                                 None if row.clicked() && option != verb => {
@@ -430,13 +426,14 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{ProfileError, SketchPlane, Step, Target, Verb};
+    use pncad::profile::{ProfileError, SketchPlane, Step, Target, TipState, Verb};
 
     use super::preview_verdict;
     use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
     use crate::drafts::Drafts;
     use crate::pane::headless::{
         Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
+        painted_while_hovering_opened,
     };
     use crate::sketch::{self, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
     use crate::test_support::{inserted, try_inserted, xy_frame};
@@ -608,6 +605,46 @@ mod tests {
                 &mut steps,
             );
         })
+    }
+
+    /// What a pointer resting on the choice `target` reads once the
+    /// combo showing `opener` is open, over a free list of `steps`.
+    fn hovering_a_choice(mut steps: Vec<Step<f64>>, opener: &str, target: &str) -> String {
+        painted_while_hovering_opened(opener, target, 0, |ui| {
+            super::path_steps_ui(
+                ui,
+                "probe",
+                Tol::witness(),
+                (pncad::quantity::M.def(), pncad::quantity::RAD.def()),
+                crate::forms::ShapeEdits::Free,
+                &mut steps,
+            );
+        })
+    }
+
+    /// **Both pickers grey a refused choice with the one sentence** —
+    /// the verb combo, at a lone row whose tip is the entry, and an arc
+    /// spec's mode picker, at an `arc_to` off a plain point. Each is
+    /// the text [`sketch::not_well_typed`] composes, word for word.
+    #[test]
+    fn both_pickers_say_a_refused_choice_is_not_well_typed_in_one_sentence() {
+        let verb = hovering_a_choice(vec![crate::widgets::new_row_step(0)], "at", "line_to");
+        let said = "line_to is not well-typed here — the tip is at the entry, before any verb";
+        assert_eq!(
+            sketch::not_well_typed(Verb::LineTo, TipState::Entry),
+            said
+        );
+        assert!(verb.lines().any(|line| line == said), "verb combo: {verb}");
+
+        let arc = sketch::fresh_step_at(Verb::ArcTo, Some(TipState::PlainPoint));
+        assert!(
+            matches!(arc, Step::ArcTo(pncad::profile::ArcData::Bulge { .. })),
+            "the arc lands in bulge, so its mode combo reads `bulge`: {arc:?}"
+        );
+        let mode = hovering_a_choice(vec![crate::widgets::new_row_step(0), arc], "bulge", "radius");
+        let said = "radius is not well-typed here — the tip is a bound position with no incoming \
+                    tangent";
+        assert!(mode.lines().any(|line| line == said), "mode picker: {mode}");
     }
 
     /// **A locked list's step controls say why while disabled**: each
