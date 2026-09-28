@@ -263,3 +263,14 @@ unjudged by kind). The FULL review's fix pass landed on the same branch.
 Filed: `restfront/check-4-gives-no-arm-verdict-to-a-mixed-or-nurbs-adjacent-edge`;
 the audit row `every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one`
 rose to P2 (STEP import admits an undeclared cusp body).
+## 2026-09-28 — wire.rs gets its editorial pass (PR 3365)
+
+Ev ruled a one-time editorial pass (in chat) and a standing
+drive-by note, which landed as PR 3361 (implementer-discipline §4).
+The pass took `eval/wire.rs` from 47.1% to 33.5% comment by line
+with code unchanged apart from five `#[allow]` reasons; a STYLE
+review restored three cut reasons (`fold_descent`, `wire_blend`'s
+attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
+had contradicted the code on main, and cut the hand-kept caller
+lists. Three WIRE rows filed for comments that were doing the
+code's work.

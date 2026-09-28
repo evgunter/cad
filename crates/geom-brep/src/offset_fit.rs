@@ -223,7 +223,9 @@ use geom_core::Bounds;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, BandError, Interval, KERNEL_DEFECT_ENDING, Point3, Tol};
+use geom_core::{
+    Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
+};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -306,11 +308,12 @@ impl OffsetLimb {
 }
 
 /// **The smallest bound the refinement loop reached**, and the grid it
-/// was first reached on: what every refinement refusal sizes its
-/// recourse to ([`OffsetFitError::BudgetExhausted`],
+/// was first reached on: what every refinement refusal reports
+/// ([`OffsetFitError::BudgetExhausted`],
 /// [`OffsetFitError::SampleCapReached`],
 /// [`OffsetFitError::RefinementStalled`], and
-/// [`OffsetFitError::BoundNotFinite`] when a round reached one).
+/// [`OffsetFitError::BoundNotFinite`] when a round reached one), and
+/// the size a last-resort loosening names where no other lever is left.
 ///
 /// # The recourse claim
 ///
@@ -398,15 +401,16 @@ pub enum LastRound {
 ///
 /// The levers above are the kernel's. Neither constant is a caller's
 /// to change, so each face's message names the caller's repair
-/// instead: a tolerance no tighter than the smallest bound any round
-/// reached ([`BestBound`], whose doc states when a request there
-/// certifies), a face split into pieces that need less refinement
-/// where more refinement was still paying (the cap, and the budget on
-/// [`LastRound::Improved`]), or,
-/// when no bound was ever finite, an offset distance of larger
-/// magnitude. A face whose last round did not fall names the tolerance
-/// alone: nothing in the loop's state says a smaller piece would fall
-/// further.
+/// instead: a face split into pieces that need less refinement where
+/// more refinement was still paying (the cap, and the budget on
+/// [`LastRound::Improved`]), or, when no bound was ever finite, an
+/// offset distance of larger magnitude. A face whose last round did not
+/// fall has no such lever: nothing in the loop's state says a smaller
+/// piece would fall further. It names loosening the tolerance to no
+/// tighter than the smallest bound any round reached ([`BestBound`],
+/// whose doc states when a request there certifies) as the last resort
+/// a kernel approximation limit leaves, with the note that the refusal
+/// may be a kernel bug ([`geom_core::KERNEL_LIMIT_LAST_RESORT`]).
 ///
 /// **D2 classification: row 1**, stated here once for the four faces
 /// (their own docs point back here rather than restating it). Every
@@ -485,9 +489,10 @@ pub enum OffsetFitError {
     /// only: on [`LastRound::DidNotImprove`] a further round is the
     /// both-directions step, which can stall in its turn, so no lever
     /// is known. The message names no rounds as the way through either
-    /// way. The caller's recourse is `best` on both readings, and on
-    /// [`LastRound::Improved`] also a face split so each piece needs
-    /// fewer rounds. Classification: the enum's, above.
+    /// way. The caller's recourse on [`LastRound::Improved`] is a face
+    /// split so each piece needs fewer rounds; on
+    /// [`LastRound::DidNotImprove`] it is `best`, as the last resort.
+    /// Classification: the enum's, above.
     BudgetExhausted {
         /// The round budget that expired.
         budget: usize,
@@ -754,8 +759,7 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit used all {budget} refinement rounds while still \
                  improving, and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: loosen the tolerance to {best} m or more, or split \
-                 the face so each piece fits in fewer rounds"
+                 {tolerance} m. Recourse: split the face so each piece fits in fewer rounds"
             ),
             Self::BudgetExhausted {
                 budget,
@@ -768,7 +772,7 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit used all {budget} refinement rounds, the last of \
                  which did not improve on the one before, and its best certified error was \
                  {best} m against a tolerance of {tolerance} m. Recourse: loosen the \
-                 tolerance to {best} m or more"
+                 tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::SampleCapReached {
                 cap,
@@ -779,8 +783,7 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit reached its limit of {cap} samples per direction, \
                  and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: loosen the tolerance to {best} m or more, or split \
-                 the face so each piece needs fewer samples"
+                 {tolerance} m. Recourse: split the face so each piece needs fewer samples"
             ),
             Self::BoundNotFinite {
                 d,
@@ -801,7 +804,8 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit bounded its error at {b} m on coarser sampling \
                  and lost that bound on finer sampling, so it cannot be certified to \
-                 {tolerance} m. Recourse: loosen the tolerance to {b} m or more"
+                 {tolerance} m. Recourse: loosen the tolerance to {b} m or more, \
+                 {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::RefinementStalled {
                 tolerance,
@@ -812,7 +816,7 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit stopped improving: refining it in both directions \
                  either did not lower its certified error or added no samples, and its best \
                  certified error was {best} m against a tolerance of {tolerance} m. Recourse: \
-                 loosen the tolerance to {best} m or more"
+                 loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
