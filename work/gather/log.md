@@ -251,3 +251,15 @@ In chat:
 
 The derive-cusp-legality unit (Ev's ruling on PR 3317) is running on
 `gather/derive-cusp-legality`, single FULL review.
+
+## 2026-09-28 — wire.rs gets its editorial pass (PR 3365)
+
+Ev ruled a one-time editorial pass (in chat) and a standing
+drive-by note, which landed as PR 3361 (implementer-discipline §4).
+The pass took `eval/wire.rs` from 47.1% to 33.5% comment by line
+with code unchanged apart from five `#[allow]` reasons; a STYLE
+review restored three cut reasons (`fold_descent`, `wire_blend`'s
+attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
+had contradicted the code on main, and cut the hand-kept caller
+lists. Three WIRE rows filed for comments that were doing the
+code's work.
