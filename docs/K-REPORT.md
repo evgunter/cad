@@ -849,9 +849,9 @@ or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
 | `point_in_arc_loop_advance` | `ParityRows` field |
 | `point_in_arc_loop_arm` | a bare literal passed to `walk_schedule` |
 | `point_in_arc_loop_reach` | a bare literal at the `decide` site |
-| `point_in_arc_loop_conic_span` | a bare literal at the `decide` site (once per arc edge) |
-| `point_in_arc_loop_conic_on` | a bare literal at the `decide` site |
-| `point_in_arc_loop_conic_window` | a bare literal in `ConicArc::in_window` |
+| `point_in_arc_loop_conic_span` | a `ConicRows` field (CONTACT-4; once per arc edge) |
+| `point_in_arc_loop_conic_on` | a `ConicRows` field (CONTACT-4) |
+| `point_in_arc_loop_conic_window` | an `ArcTrimRows` field (`ARC_LOOP_TRIM`: `arc_trim`'s trim row on a ray's crossing) |
 | `point_in_arc_loop_conic_disc` | a bare literal at the `decide` site |
 | `point_in_arc_loop_conic_advance` | a bare literal at the `decide` site |
 
@@ -859,6 +859,53 @@ Dimensions and dispositions: `docs/predicate-dimension-audit.md`'s
 `point_in_arc_loop_*` rows. They pool with nothing: a loop of lines
 still decides under `point_in_loop_*`, so the polygon population is
 unchanged by this walk.
+
+**Roster addition (CONTACT-4): an edge's boundary decided as distances.**
+`topo/src/splitting/containment.rs`'s `LoopEdge::contact` is the one
+boundary reading of a planar loop's edge. A straight edge is read as
+its distance to the closed segment (`ray_parity::on_segment`). A conic
+is read as its distance from the conic, then its distance to either end
+and a chordal-defect sum, neither compressed near an end. A circle is
+exact through one lever. An ellipse is bounded on both sides:
+- `on` is decided on the lower bound for OFF and the upper bound for
+  ON, so one call can mint the row twice;
+- `span` reads WOUND past a period on the lower bound `(τ − w)·b` and
+  AN ARC only where the upper bound `(τ − w)·a` is not definitely
+  negative, so one call can mint the row twice;
+- `end` is the exact distance to the end point.
+
+Where the two bounds straddle the whole band, the escalation carries
+its own name (`*_straddle`), which never reaches the funnel.
+
+Each caller passes its own names in a `BoundaryRows` value, so the
+populations stay apart:
+
+| name | carrier |
+|---|---|
+| `point_in_arc_loop_conic_end` | `ConicRows` field (`WALK_ROWS`, the carrier walk) |
+| `point_in_arc_loop_conic_trim` | `ConicRows` field (`WALK_ROWS`) |
+| `bool_contact_arc_end` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
+| `bool_contact_arc_trim` | `ConicRows` field (`ROWS`) |
+| `bool_contact_edge_length` | `ParityRows` field (`contain`'s `EDGE_ROWS`) |
+| `bool_contact_arc_end_vertex` | a `const` in `contain` (`END_VERTEX`): a conic edge's carrier end against one of its stored vertices, asked only where `q` reads at that end while the vertex pass placed it clear |
+
+Notes on the neighbouring names:
+- `EDGE_ROWS` also names `bool_contact_edge` (its `boundary` field). Its
+  `side` and `advance` fields are never read by `on_segment`, so they
+  are never minted.
+- `bool_contact_edge_span` is retired with the span gates it named.
+- `point_in_arc_loop_conic_on`, `point_in_arc_loop_conic_span`,
+  `bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
+  fields.
+- `point_in_arc_loop_conic_window` decides only where a ray crosses an
+  arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
+  check 9's `ring_outer_arc_{end,trim}` also read).
+- `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
+  edge's ball. A clearance in the band abandons the ray rather than
+  escalating.
+
+Dimensions: `docs/predicate-dimension-audit.md`'s rows of the same
+names.
 
 **Roster addition (TRIM-2 PR-1): the trim piece's monotonicity.** ONE
 name, carried by a bare literal at its `decide` site (blind spot #1 of
