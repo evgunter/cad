@@ -325,6 +325,10 @@ fn rendered_boolean_refusals() -> Vec<(&'static str, String)> {
             PointInSolidError::EdgeCarrierUnsupported { face },
         ),
         (
+            "Containment(WallOutlineUnsupported)",
+            PointInSolidError::WallOutlineUnsupported { face },
+        ),
+        (
             "Containment(NoSuchSolid)",
             PointInSolidError::NoSuchSolid {
                 solid: SolidKey::default(),

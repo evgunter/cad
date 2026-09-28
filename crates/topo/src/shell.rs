@@ -2260,7 +2260,8 @@ fn offending_face<T: Real>(body: &Body<T>, error: &ReplaceFaceError<T>) -> Optio
         }
         ReplaceFaceError::TogetherEdgeDisagreement { edge, .. }
         | ReplaceFaceError::TogetherAxialEdge { edge, .. }
-        | ReplaceFaceError::ReanchorOffCarrier { edge, .. } => {
+        | ReplaceFaceError::ReanchorOffCarrier { edge, .. }
+        | ReplaceFaceError::NeighborPoseUnroutable { edge, .. } => {
             face_of_he(body.get_edge(*edge)?.he_plus)
         }
         _ => None,

@@ -572,7 +572,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
     let p_f = product_recorded(&doc, &ev_f, tol);
     let p_d = product_recorded(&doc, &ev_d, tol);
     // The two arms agree EXCEPT where the certified at-rest gate
-    // decides: `SolidInvalid` is minted only by `gate_at_rest`, which
+    // decides: `RootInvalid` is minted only by `gate_at_rest`, which
     // is structurally absent at `Dual` (DUAL-DESIGN DL3), so an f64
     // gate refusal — which this document produces at tight ε, where
     // `props_quad_converged` escalates on the arc-walled split — is
@@ -585,7 +585,7 @@ fn own_document_builds_at_dual64_with_f64_value_channel() {
             "f64 gathered but Dual64 refused: {:?}",
             p_d.as_ref().err()
         ),
-        Err(ProductError::SolidInvalid { .. }) => assert!(
+        Err(ProductError::RootInvalid { .. }) => assert!(
             p_d.is_ok(),
             "the at-rest gate is structurally absent at Dual64 (DL3), so an \
              f64 gate refusal must leave the Dual64 gather Ok; got {:?}",

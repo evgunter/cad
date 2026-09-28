@@ -32,3 +32,15 @@ buys anything the aggregate one does not (a per-instance subject for
 the error's `solid` id, a verdict before the graft) is EXCH's to
 argue; retiring it would change DESIGN step 4's ratified text, so it
 goes to Ev as an `[ev]` PR rather than landing as a cleanup.
+
+**The product side is done (GATHER, 2026-09-28).** `editor_core::product_recorded`
+no longer calls `topo::per_part_gate_owed`: it gates the aggregate once
+and, only when that refuses, re-gates each source body to name every
+failing root (`ProductError::RootInvalid`). Re-gating rather than
+reading the aggregate's findings was forced by attribution, and it
+bears on this row's question: tier 3's early stops are body-wide, so an
+aggregate with one solid's check 1–6 finding does not report another
+solid's `NegativeVolume` (ATREST's
+`check-7-stops-body-wide-so-one-solids-defect-hides-anothers-orientation`).
+A per-instance subject is therefore still something the aggregate gate
+alone does not give. STEP import is now `per_part_gate_owed`'s only caller.

@@ -51,3 +51,14 @@ routability — the germ/chord lanes this item's operand work opens, and
 `chord_join::section_case` / `boolean::join::pair_section_frame`, both
 of which still refuse every cone-bearing pair typed. Until one of those
 lands, the arm's evidence is its own acceptance rows.
+
+**2026-09-28 (the C5 pose-gate unit):** `replace_face.rs`'s gate is no
+longer a kind-pair boolean. It asks the pair's arm about the pose
+(`geom_brep::route_pose`) and refuses `NeighborPoseUnroutable` by the
+arm's own grounds; `curved_face_containment` has a cone arm. What this
+item's operand lanes still meet in `crates/topo/src/boolean/reduce.rs`
+is the list of kind dispatches with no cone arm, each unreachable for a
+cone only because `boolean_arm_exists` keeps it off the roster:
+`boolean_arm_exists` and `revert_arm_exists` themselves, the curved
+clearance's second-derivative match (`f2`, a `_ => frontier()` door),
+and `wall_crossing`'s root lane (`_ => Unsettled`).
