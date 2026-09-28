@@ -229,11 +229,14 @@ fn two_half_overlapping_cubes_refuse_as_a_mixed_touch() {
 
 /// **A three-solid arena**: the L-bracket, a part floating in its
 /// concavity (which clears as a pair), and a third box piercing the
-/// bracket's far arm. The pierce names the bracket, so the
-/// bracket × part pair is refused on the precondition — conservative,
-/// and measured here so the cost is on record.
+/// bracket's far arm. The pierce is between the bracket and the
+/// piercer, and that pair refuses on it — its corners are inside the
+/// bracket. It says nothing of where the part sits: the bracket's
+/// material is its own and well formed, and a finding blocks a pair
+/// only when it names an entity of each of its solids. So the
+/// bracket × part pair clears here exactly as it does alone.
 #[test]
-fn a_pierce_between_a_and_c_blocks_the_a_b_material_test() {
+fn a_pierce_between_a_and_c_leaves_the_a_b_pair_to_its_own_findings() {
     let l = common::prism_z::<f64>(&L_PROFILE, 0.0, 1.0, Tol::witness());
     let part = common::brick::<f64>((1.2, 1.8), (1.5, 2.5), (0.2, 0.8), Tol::witness());
     let piercer = common::brick::<f64>((2.3, 2.7), (-0.5, 0.5), (0.3, 0.7), Tol::witness());
@@ -243,23 +246,18 @@ fn a_pierce_between_a_and_c_blocks_the_a_b_material_test() {
         .expect_err("the pierce refuses");
     assert!(!crossings(&errors).is_empty(), "{errors:?}");
     let placements = placement_findings(&errors);
-    println!("three-solid placement findings: {placements:?}");
-    let [bracket, part_solid, _] = solids(&body)[..] else {
+    let [bracket, _, piercer_solid] = solids(&body)[..] else {
         panic!()
     };
     assert!(
-        placements.iter().any(|e| matches!(
-            e,
-            ValidationError::CensusUndecidable {
-                a: EntityId::Solid(o),
-                b: EntityId::Solid(i),
-                what,
-            } if *o == bracket && *i == part_solid && what.contains("another finding")
-        )),
+        matches!(
+            placements[..],
+            [ValidationError::InstanceInterference { outer, inner, .. }]
+                if *outer == bracket && *inner == piercer_solid
+        ),
         "{placements:?}"
     );
-    // And the pair without the third solid clears — the refusal above
-    // is the precondition's, not the placement's.
+    // And the pair without the third solid clears too.
     assert_eq!(
         validate_pseudomanifold(
             &assembly(&l.body, &part),

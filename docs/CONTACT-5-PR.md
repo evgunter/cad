@@ -1,194 +1,280 @@
-# CONTACT-5 — the backstop clears a meeting pair only through the touch analysis
+# CONTACT-5 — the backstop decides a meeting pair by the probe and the touch analysis
 
 Carries `partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate`
 (P0) and `a-beam-across-two-supports-edges-refuses-on-coplanar-edge-crosses`
-(P0). Files `declared-only-meetings-clear-at-the-census-gate-unread` (P1).
+(P0). Files `declared-only-meetings-clear-at-the-census-gate-unread`, now P0
+and narrowed to the residue this unit leaves.
 
 ## The logical change
 
-**Arm 2's box gate answers containment and nothing else.** Before, a
-pair whose two orderings both separated on the box was cleared before
-any finding between the two solids was read. Now
-`sweep_cross_solid_backstop` asks first whether the two boundaries
-meet — any standing finding with one entity on each solid (`meets`).
+**Arm 2's box gate answers containment, and only per shell.** Before
+this change, a pair whose two whole-solid hulls both separated on the
+box was cleared before any finding between the two solids was read.
+Two things were wrong with that:
 
-- No finding between them: the gate clears, as before.
-- Findings, and a box that could contain the other: the material
-  probe runs in both orderings, then `blocks`, as before.
-- Findings, both orderings separated: `blocks` alone decides. Any
-  meeting that is not a rest refuses with its reason; an all-rest pair
-  clears with no probe.
+- The gate read whole-solid hulls. A solid may have several outer
+  shells: `boolean::union` of two disjoint cubes is one solid with two
+  shells. One lump can sit inside the other instance while its sibling
+  pokes out.
+- Box separation says nothing about two boundaries that meet.
 
-The site states why no probe is needed. If every meeting is a rest,
-`U = int A ∩ int B` has no meeting point in its closure. So `∂U` splits
-into parts of `∂A` inside `B` and parts of `∂B` inside `A`, each open
-and closed, and each part is a union of whole shells. Filling the voids
-reduces this to the outer shells: one solid's outer shell sits inside
-the other's filled region, hence inside its reach box, so that ordering
-would not have separated. The argument assumes the census is complete.
-An escalation breaks that, and so does a declared-only meeting (the
-row below).
+Now `sweep_cross_solid_backstop` does this per pair:
+
+- **It reads the gate per shell.** Every shell's vertex hull is tested
+  against the other solid's reach box. A shell that is not definitely
+  separated "reaches".
+- **It asks whether the boundaries meet on record.** They meet if a
+  standing finding names one entity of each solid (`meets_found`), or a
+  declared v-on-f, v-v, curve or patch record names one of each
+  (`meets_declared`).
+- **Nothing on record, every shell separated:** the pair clears at the
+  gate.
+- **Otherwise the probe runs.** Every vertex of each solid is tested
+  against the other's material, in both orderings.
+  - An `In` vertex is a decided interference.
+  - If both orderings are clear, `blocks` reads every finding about the
+    pair. A declared-only pair is the exception; see below.
+
+The site states why this decides the pair. Let `U` be the overlap of
+the two interiors. If every meeting is a rest, no point where the
+boundaries meet is in `U`'s closure. So `∂U` splits into points of `∂A`
+inside `B` and points of `∂B` inside `A`. Each part is open and closed
+in its own boundary, so it is a union of whole shells. Therefore `U` is
+non-empty only if some shell of one solid lies wholly inside the other,
+and then that shell's vertices are strictly inside:
+
+- With nothing on record, that shell's hull also lies inside the other
+  solid's reach box, so the per-shell gate would not have separated it.
+- Otherwise the probe finds the shell's vertices.
+
+The argument assumes the census is complete for planar boundaries.
+That is why `blocks` refuses on an escalation or on an entity left
+unexamined against everything. A pair with nothing on record clears at
+the gate even beside an escalation; the escalation stands as the
+body's refusal.
+
+**Declared-only pairs.** For a pair whose only meetings are declared,
+the probe runs and `declared_crossing` refuses a declared v-on-f or v-v
+touch that decidedly crosses. `blocks` is not run there. Running it
+refuses ratified acceptance rows: the M9-2 declared curved boss as
+`TouchUnreadable`, and nineteen declared planar seats as
+`DeclaredFacePair`. So two things remain taken on the records' word:
+
+- a declared touch the analysis cannot read;
+- the events a declared face pair backs.
+
+An overlap those hide with no vertex strictly inside clears. No such
+pose has been built. This residue is the re-scoped P0 row.
+
+**One finding→pair mapping.** `Named::of` maps every standing finding
+to the entities it names and what it says of them (`Said`). Both
+`meets_found` and `blocks` read it.
+
+**One third-solid rule.** A finding blocks a pair only if it names one
+entity of each of the pair's solids. A pierce, an arm-1 refusal or an
+unsupported face pair between one of them and a third solid is that
+other pair's finding and is read there. Three kinds block beyond that,
+each because the argument needs every meeting of the pair on record:
+
+- An escalation names no entity. The event that escalated may be this
+  pair's meeting.
+- An entity left unexamined against everything may meet either solid
+  unseen.
+- A pierce or edge cross between two entities of one solid is that
+  solid's boundary crossing itself. No placement can be read against
+  that material.
+
+`bool4r2_probes::a_pierce_between_a_and_c_blocks_the_a_b_material_test`
+pinned the old conservative arm "so the cost is on record". It is
+re-signed as `a_pierce_between_a_and_c_leaves_the_a_b_pair_to_its_own_findings`:
+
+- The bracket's material is its own and well formed.
+- The bracket × part pair clears exactly as it does alone.
+- The bracket × piercer pair refuses, as `InstanceInterference`.
 
 **A crossing of two edges is a touch site.** `TouchSite::EdgeCross(a, b)`
-maps `CensusContact::EdgeEdgeCross` through the same `of / entities /
-verdict` path as every other kind. Its site is the crossing point
-(`ee_cross_point`, the one formula the crossing lane now shares). Its
-cones are the two edges' dihedral wedges there. `Cone::wedge` now
-takes the touch point and levers its faces at it: the crossing point
-for a cross, and the vertex for a vertex-on-edge (before, the edge's
-start). A cross of two edges of ONE of the pair's solids still blocks
-as `Crossing`. A cross between one of the pair and a third solid no
-longer blocks the pair; it is that other pair's touch, like every
-other touch kind.
+maps `CensusContact::EdgeEdgeCross` through the same `of`, `entities`
+and `verdict` path as every other kind. Its site is the crossing point,
+from `ee_cross_point`, which the crossing lane shares. Its cones are
+the two edges' dihedral wedges there.
+
+`Cone::wedge` levers its faces at a point on its own edge:
+
+- For a cross, the crossing point.
+- For a vertex-on-edge, the vertex.
+- For a collinear overlap, the overlap's midpoint (`ee_overlap_midpoint`)
+  for both wedges. Before this change it was each edge's start. In the
+  pass before this one, edge `b`'s wedge was levered at `a`'s start,
+  which can lie off `b`.
 
 **"Coplanar" is decided where the finding is made.** An `EdgeEdgeCross`
-is pushed only after `pm_census_ee_gap` decides that the two lines
-meet, and it escalates in band there. So every cross finding's edges
-span one plane. There is no "non-coplanar" cross for the site to screen
-out. A cross whose materials pass into each other reads as a crossing
-through its wedges (the plus-shaped slabs below). A cross with no
-shared face plane, such as two ridges crossed edge on edge, is a real
-rest, and the wedge test decides it exactly.
+is pushed only after `pm_census_ee_gap` decides that the lines meet,
+and that predicate escalates in band. So there is no "non-coplanar"
+cross finding.
+
+- A cross whose materials pass into each other reads as a crossing
+  through its wedges: the plus-shaped slabs.
+- Ridges crossed edge on edge share no face plane and are a real rest.
 
 ## Base vs head
 
-"Refused" means a placement finding on the solid pair. The undeclared
-touches stand as findings in every row.
+"Refused" means a placement finding on the solid pair. Three columns:
 
-| pose | base | head |
-|---|---|---|
-| half-overlapping cubes `[0,2]³`, `[1,3]×[0,2]²` | cleared at the gate (wrong) | refused `MixedTouch` |
-| two cubes side by side, face to face | cleared | cleared (8 rests read) |
-| beam across two supports (the row's pose) | cleared at the gate | cleared through the analysis (8 edge crosses, all rests) |
-| same beam sunk 1 mm | cleared at the gate (pierces stand) | refused `Crossing` ×2 |
-| beam tilted in band about one bottom edge | cleared at the gate (escalations stand) | refused `Unexamined` ×2 |
-| two ridges crossed edge on edge | cleared | cleared |
-| same ridges sunk 1 cm | cleared at the gate | refused `Crossing` |
-| two interpenetrating cubes (`m3_pr6_tier3prime`) | cleared at the gate | refused `Crossing` |
-| plus of two slabs (`review_m3_pr6::r2_coplanar_plus_overlap_detected`) | cleared at the gate | refused `MixedTouch`, read at its coplanar edge crosses |
-| obtuse-sector part dipping 2–30·zero into the floor, 9 poses | all cleared at the gate (wrong) | all refused |
-| brick grid, 1000 poses (below) | 422 wrong clears, 0 false refusals | 0 wrong clears, 0 false refusals |
+- **base**: `main` before CONTACT-5.
+- **first pass**: `3af4ebc`.
+- **head**: this fix pass.
 
-The beam row's premise did not reproduce end to end. At the base the
-beam pose is gate-separated, so it cleared before `blocks` read its
-crosses. The refusal the row describes is what `blocks` would have done
-had it run. The pose now clears for the right reason, and its sunk and
-tilted variants refuse.
+| pose | base | first pass | head |
+|---|---|---|---|
+| half-overlapping cubes | cleared (wrong) | `MixedTouch` | `MixedTouch` |
+| two cubes face to face | cleared | cleared | cleared |
+| beam across two supports | cleared at the gate | cleared (8 crosses read as rests) | cleared |
+| beam sunk 1 mm | cleared at the gate | `Crossing` ×2 | `Crossing` ×2 |
+| beam tilted in band | cleared | `Unexamined` ×2 | corners too close to place, both pairs |
+| ridges crossed, resting / sunk | cleared / cleared | cleared / `Crossing` | cleared / `Crossing` |
+| **M1** two-lump solid, lump 1 inside B, lump 2 touching B | cleared (wrong) | cleared (wrong) | `InstanceInterference`, lump solid inside B |
+| **M1** same, lump 2 far off (nothing meets) | cleared (wrong) | cleared (wrong) | `InstanceInterference` |
+| **M1** same, touching and declared | cleared (wrong) | cleared (wrong) | `InstanceInterference` |
+| **M2** prism dipping 0.1 into a wall, 4 corners declared v-on-f | `Ok(())` (wrong) | `Ok(())` (wrong) | `InstanceInterference` |
+| **M2** declared patch seat with a keel 0.5 deep | `Ok(())` (wrong) | `Ok(())` (wrong) | `InstanceInterference` |
+| same seat, flat | validates | validates | validates |
+| one solid crossing itself (plus of two shells) beside a resting block | cleared | `Crossing` | `Crossing` |
+| two interpenetrating cubes (`m3_pr6_tier3prime`) | cleared | `Crossing` | `InstanceInterference` |
+| obtuse-sector part dipping 30·zero | cleared (wrong) | refused | `InstanceInterference` (floor, part) |
+| obtuse-sector part dipping 2 or 5·zero (in band) | cleared (wrong) | refused | corners too close to place, (floor, part) |
 
-Moved rows:
+The beam row's premise did not reproduce end to end. At base the beam
+is gate-separated and cleared before `blocks` read its crosses. The
+refusal the row described is what `blocks` would have said had it run.
 
-- `bool4r2_probes::two_half_overlapping_cubes_are_cleared_at_the_gate` →
+## Sweeps
+
+- **Brick grid**
+  (`contact5_gate_and_beam::a_grid_of_brick_pairs_clears_exactly_the_rests`):
+  the cube `[0,2]³` against every brick on the grid −1…3, 1000 poses.
+  Exact ground truth comes from interval overlap: 512 poses overlap and
+  488 are rests. Base: 422 wrong clears and 0 false refusals. Head: 0
+  and 0, at eps unset, 1e-6 and 1e-12.
+- **The reviewers' 480-pose rotated-prism sweep**: 0 wrong clears and 0
+  false refusals at head.
+- **The reviewers' crossed-ridge sweep** (135 poses) and **coplanar
+  cross sweep** (12): 0 mismatches.
+
+**The obtuse-sector re-check.**
+`census::tests::an_obtuse_sector_never_clears_a_dip_where_the_gate_separates`
+now pins the pair and the reason:
+
+- Dips decidedly below the floor are the part's corners inside the
+  floor.
+- Dips in band are corners the probe cannot place.
+
+No dip clears at any of the three eps rows.
+
+## Mutations
+
+- `EdgeCross` forced to read `Rest`: `an_edge_cross_reads_rest_and_crossing`
+  goes red. It pins the plus-slab crosses as crossings and a bar's
+  crosses over a block's edges as rests. The end-to-end rows stay
+  green, because in every overlapping pose measured the overlap also
+  shows as an edge lying in a face, a pierce or a vertex inside.
+  Whether an overlap can show only at crosses is not settled, and the
+  row says so.
+- Same-solid cross clause removed: `a_solid_crossing_itself_blocks_its_pair`
+  goes red.
+
+## Goldens that moved
+
+`editor-core` `perf12_census_*` were re-blessed at all three eps rows.
+Relative to base:
+
+- `kitchen_sink` gains `Unexamined` refusals for solid pairs (1,8),
+  (3,8) and (4,8). Solid 8 is curved, and arm 1 refused its faces
+  against theirs, which are unexamined meetings between those pairs.
+- The first pass's (3,4) refusal is gone. Solids 3 and 4 are the two
+  halves split at z = 0.625, and all of their own findings are rests.
+  They had refused only on other pairs' arm-1 findings; the third-solid
+  rule ends that false refusal.
+- `cut_cylinder` gains a `VolumeUncertified` refusal both ways. The
+  pair meets, so it is probed, and the door cannot certify the curved
+  part's volume.
+
+All of these bodies already refused.
+
+## Other moved rows
+
+- The half-overlap row is renamed to its refusal,
   `two_half_overlapping_cubes_refuse_as_a_mixed_touch`.
-- `m3_pr6_tier3prime::hand_built_self_intersection_is_undeclared` and
-  `review_m3_pr6::r2_coplanar_plus_overlap_detected` now expect the
-  pair's one refusal beside the findings.
-- `editor-core` `docm6_seam_declarations::unattributed_is_only_a_finding_no_declaration_answers_for`:
-  the penetrating seat now carries the instance arm's `MixedTouch`, a
-  solid-pair refusal no declaration answers for. The allowlist admits
-  it.
-- `editor-core` `perf12_census_goldens`, re-blessed at all three ε
-  rows. `kitchen_sink` gains four `Unexamined` solid-pair refusals and
-  `cut_cylinder` gains one. Those pairs meet and are separated at the
-  box, and arm-1 findings stand naming their solids. Both bodies
-  already refused. This is the census deciding more of the pairs it
-  used to clear unread.
-
-## The sweep (`contact5_gate_and_beam::a_grid_of_brick_pairs_clears_exactly_the_rests`)
-
-The cube `[0,2]³` is tested against every brick whose sides run
-between the grid values `−1, 0, 1, 2, 3` on each axis. That gives 1000
-poses with coplanar faces, collinear edges and in-plane crosses
-wherever the grid lines coincide. For bricks, ground truth is exact:
-the materials overlap iff the intervals overlap in positive length on
-all three axes. This equals grid sampling of the shared interior with
-no sampling error. 512 poses overlap and 488 are rests.
-
-- Base: 422 wrong clears (every overlapping pose the gate separates)
-  and 0 false refusals.
-- Head: 0 wrong clears and 0 false refusals, at ε unset, 1e-6 and
-  1e-12.
-
-**The obtuse-sector re-check (the lever gap).** The part from
-`an_obtuse_sector_is_read_through_its_rays` already sits on the floor
-in a gate-separated pose.
-`an_obtuse_sector_never_clears_a_dip_where_the_gate_separates` runs it
-end to end. Dips are 2, 5 and 30 times the zero threshold. Sectors run
-from 0.6° short of flat down to 300 band widths short of it, scaled to
-the run's band. No dip clears at any of the three ε rows. All nine poses are gate-separated, so
-the base cleared every one at the gate (measured on the first). A lifted face (a true rest) refuses while
-its lift is in band. It also refused at 1e-6 in one measured pose,
-`δ = 0.03`, 30·zero: a false refusal, which the redesign row
-`touch-cone-readings-are-levered-directions-not-face-distances` owns.
+- `review_m3_pr6::r2_coplanar_plus_overlap_detected` expects the pair's
+  `MixedTouch`.
+- `m3_pr6_tier3prime::hand_built_self_intersection_is_undeclared`
+  expects the decided interference.
+- The allowlist in `editor-core` `docm6_seam_declarations` admits a
+  solid-pair `CensusUndecidable` only for the reason that occurs, the
+  penetrating seat's `MixedTouch`.
+- `sweep` `verbs_pierce_r2_probes::r2_the_1032_declaration_measurement_reproduces`
+  moves from 11 and 6 to 12 and 7. It counts every `CensusUndecidable`,
+  and the plate × boss pair now adds one solid-pair `Unexamined`
+  refusal. The pair meets through the curved candidates arm 1 left
+  unexamined, and a pair that meets is no longer cleared past them.
 
 ## Sweep for the class (discipline §5)
 
-The shape is a box test that CLEARS a pair on containment grounds
-before the pair's boundary evidence is read. The second part of the
-class is a finding kind that `TouchSite::of` leaves without a site.
+The class is a box test that clears on containment grounds before the
+boundary evidence is read, or that reads a solid as one hull.
 
-Pattern 1: `decide("…(contain|gate|separat|disjoint|box)…")` across
+**Pattern 1:** `decide("…(contain|gate|separat|disjoint|box)…")` across
 `crates/`.
 
-- `census.rs` `census_backstop_containment`: fixed.
-- `census.rs` `census_backstop_gap` (arm 1): not this class. It is a
-  separation test on sound reach boxes, so separated boxes cannot
-  meet.
-- `shell.rs` `shell_footprint_separation`: not this class. It is a
-  separation test on grown boxes, and its direction only refuses.
+- `census_backstop_containment`: fixed, now per shell.
+- `census_backstop_gap` (arm 1): a separation test on sound reach
+  boxes. Not this class.
+- `shell.rs` `shell_footprint_separation`: a separation test on grown
+  boxes that can only refuse. Not this class.
 
-Pattern 1 cannot match a box skip spelled as an `Aabb` overlap test or
-an unnamed comparison. Second pass: `.overlaps(` / `.intersects(` /
-`.later(` in `topo`, `editor-core` and `geom-brep` sources. Hits:
+**Pattern 2:** `.overlaps(` / `.intersects(` / `.later(` in `topo`,
+`editor-core` and `geom-brep`. The hits are:
 
-- `census.rs` vertex, edge, reach and extent pre-filters.
-- `separation.rs` ×2.
-- `boolean/reduce.rs`.
-- `boolean/ops.rs` ×4.
-- `editor-core/src/eval/wire.rs`.
+- the census pre-filters;
+- `separation.rs` ×2;
+- `boolean/reduce.rs`;
+- `boolean/ops.rs` ×4;
+- `eval/wire.rs`.
 
-Every hit skips on DISJOINT boxes, which cannot meet. None clears on
-containment, so none is this unit's.
+Every one skips on disjoint boxes, which cannot meet.
 
-Pattern 2: every `CensusContact` arm of `TouchSite::of` that returns
-`None`.
+**Pattern 3:** `TouchSite::of` arms that return `None`.
 
 - `EdgeEdgeCross`: fixed.
-- `EdgeFacePierce`: a transverse crossing, and correctly `Crossing`.
-- `ConformalPatch`: a curved touch, and correctly `TouchUnreadable`.
+- `EdgeFacePierce`: a crossing.
+- `ConformalPatch`: a curved touch.
 
-Consumers of `EdgeEdgeCross` outside the census (`validate.rs`
-display, `pncad-py` tag, `test_support_samples`) only render it.
+**Pattern 4** (the multi-shell blind spot): whole-solid hulls used as
+the contained side. The hit is `solid_boxes` in arm 2, now used only by
+the extent pre-filter. That filter prunes on disjoint extents, and a
+union hull is sound for that.
 
-**Not matched, stated:** meetings that leave no finding. Declared
-v-on-f, v-v and face-pair records are not read by `meets`. Counting
-them refused the `sweep` M9-2 acceptance row (a declared curved boss,
-`TouchUnreadable`) and nineteen declared planar-seat rows
-(`DeclaredFacePair`). Filed as
-`work/contact/declared-only-meetings-clear-at-the-census-gate-unread.md`
-with the evidence. A measured bound: the half-overlap cannot be
-declared finding-free, because a vertex on an edge has no record type.
+**Not matched:** the declared-only residue, filed as the P0 row.
 
 ## Territory seam
 
-Everything is `crates/topo/src/census.rs` and `crates/topo/tests/`
-(contact's ground, `work.py territory`: 0 paths elsewhere), except
-two moved expectations in `crates/editor-core/tests/`
-(`docm6_seam_declarations.rs` and the three `perf12_census_*.txt`
-goldens). Those move only because the census now decides differently,
-and their owners should read the kitchen-sink and cut-cylinder rows
-above.
+Most of the change is in `crates/topo/src/census.rs` and
+`crates/topo/tests/` (contact's ground). Two `editor-core` test
+expectations move: the docm6 allowlist and the three `perf12` goldens.
 
 ## Local results
 
-- `cargo test -p topo --lib --test all`: green at ε unset, 1e-6 and
+- `cargo test -p topo --lib --test all`: green at eps unset, 1e-6 and
   1e-12.
-- `editor-core`, `sweep` and `pncad` under nextest at ε unset; the
-  moved `editor-core` rows at all three.
-- `cargo clippy -p topo --all-targets -D warnings`.
-- `cargo doc -p topo --no-deps --document-private-items --features
-  sweep-testing` under the doc gate's lints (`-D warnings -A
-  rustdoc::private_intra_doc_links`) is clean. Plain
-  `RUSTDOCFLAGS='-D warnings' cargo doc -p topo --no-deps` fails on
-  106 pre-existing private-link errors, none in `census.rs`.
+- `editor-core`, `sweep` and `pncad` under nextest at eps unset:
+  3998 of 3999 passed. The one red, the #1032 measurement row above,
+  was re-baselined and then passed at all three eps rows.
+- The moved `editor-core` rows and the `sweep` boss-union row: green at
+  all three eps rows.
+- `cargo clippy -p topo --all-targets -D warnings`: clean.
+- Rustdoc for topo with the doc gate's lints and
+  `--document-private-items --features sweep-testing`: clean.
+- Every `scripts/gates/*.sh`, `check-ci-mirror-parity` and
+  `work.py lint`: clean. `check-python-lint` skipped itself because the
+  local ruff is not the pinned version; no python changed.
 
 The hosted run is the record.

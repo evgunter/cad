@@ -1,17 +1,19 @@
-//! **The instance arm clears a meeting pair only through the touch
-//! analysis.** The box gate answers containment: when neither solid's
-//! vertex hull sits inside the other's reach, the pair is cleared at the
-//! gate only if nothing on record says the two boundaries meet. A pair
-//! whose boundaries meet — any finding with one entity on each side, or
-//! a declared record naming one of each — clears only when every touch
-//! between them reads as a rest, and a crossing of two edges at one
-//! point is such a touch, read through the two edges' dihedral wedges.
+//! **The instance arm decides a meeting pair by the probe and the
+//! touch analysis.** The box gate answers containment, shell by shell:
+//! a pair is cleared there only when nothing on record says the two
+//! boundaries meet and no SHELL of either sits inside the other's
+//! reach. A pair that meets — a finding with one entity on each side,
+//! or a declared record naming one of each — has every vertex probed
+//! against the other's material both ways, and clears only when the
+//! findings about it are rests; a crossing of two edges at one point
+//! is such a touch, read through the two edges' dihedral wedges.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, ValidationError, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidKey, ValidationError,
+    VfContact, validate_pseudomanifold,
 };
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -116,7 +118,7 @@ fn refusals(errors: &[ValidationError]) -> Vec<&'static str> {
 }
 
 const CROSSING: &str = "another finding reports their boundaries crossing";
-const UNEXAMINED: &str = "another finding left their boundaries unchecked";
+const TOO_CLOSE: &str = "a corner of one lies too close to the other's boundary";
 
 /// **Two cubes side by side, face to face.** `[0, 2]³` and `[2, 4] ×
 /// [0, 2]²` share the face `x = 2` with opposite normals, every edge of
@@ -181,9 +183,10 @@ fn a_beam_sunk_into_its_supports_refuses() {
 /// **A beam tilted in band about one bottom edge.** The beam pivots on
 /// its bottom edge `y = 0.1` so its other bottom edge rises by a height
 /// inside the run band: whether that edge's line meets the supports'
-/// top edges is too close to call, so the sweep escalates there, and
-/// every beam × support pair — whose boundaries meet at the pivot
-/// edge's crosses — refuses on the escalation rather than clearing.
+/// top edges is too close to call, so the sweep escalates there. The
+/// pivot edge's crosses are meetings, so each beam × support pair is
+/// probed, and the raised corners — in band of the supports' tops —
+/// cannot be placed: the pairs refuse rather than clear.
 #[test]
 fn a_beam_tilted_in_band_escalates() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -205,7 +208,12 @@ fn a_beam_tilted_in_band_escalates() {
         crosses(&errors) > 0,
         "the pivot edge still crosses: {errors:?}"
     );
-    assert_eq!(refusals(&errors), [UNEXAMINED, UNEXAMINED], "{errors:?}");
+    let refused = refusals(&errors);
+    assert!(refused.len() >= 2, "{errors:?}");
+    assert!(
+        refused.iter().all(|w| w.starts_with(TOO_CLOSE)),
+        "{errors:?}"
+    );
 }
 
 /// Two square bars turned 45° about their axes and crossed ridge on
@@ -297,4 +305,204 @@ fn a_grid_of_brick_pairs_clears_exactly_the_rests() {
     assert_eq!(overlapping + rests, 1000);
     assert!(wrong_clears.is_empty(), "{wrong_clears:?}");
     assert!(false_refusals.is_empty(), "{false_refusals:?}");
+}
+
+/// The one `InstanceInterference` a body carries: `(outer, inner)`.
+fn the_interference(errors: &[ValidationError]) -> (SolidKey, SolidKey) {
+    let placements = placement_findings(errors);
+    match placements[..] {
+        [ValidationError::InstanceInterference { outer, inner, .. }] => (*outer, *inner),
+        _ => panic!("one decided interference: {errors:?}"),
+    }
+}
+
+/// **A two-lump solid with one lump inside the other instance.** A
+/// union of two disjoint cubes is ONE solid with two outer shells.
+/// Lump 1, `[0, 1]³`, lies strictly inside `B = [−1, 10] × [−1, 2]²`;
+/// lump 2 sits at `x ∈ [10, 11]`, face to face with B, or far off at
+/// `x ∈ [20, 21]`. The solid's whole hull sticks out of B's box either
+/// way, but lump 1's shell does not, so the pair is probed and lump 1's
+/// corners are inside B, whether or not anything meets and whether or
+/// not the meetings are declared.
+#[test]
+fn a_lump_inside_the_other_instance_is_found_whatever_its_sibling_does() {
+    let tol = Tol::witness();
+    for (lump2, meets) in [((10.0, 11.0), true), ((20.0, 21.0), false)] {
+        let unit = (0.0, 1.0);
+        let union =
+            topo::boolean::union(&block(unit, unit, unit), &block(lump2, unit, unit), tol).unwrap();
+        let a = union.body().unwrap().body.clone();
+        assert_eq!((a.solids().count(), a.shells().count()), (1, 2));
+        let body = assembly(&[a, block((-1.0, 10.0), (-1.0, 2.0), (-1.0, 2.0))]);
+        let lumps = body.solids().next().unwrap().0;
+        let errors = errors_of(&body);
+        assert_eq!(
+            errors
+                .iter()
+                .any(|e| matches!(e, ValidationError::UndeclaredContact { .. })),
+            meets,
+            "{errors:?}"
+        );
+        assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
+        // Declared: lump 2's corners resting on B, every touch recorded.
+        let records = ContactRecords {
+            b_on_a: errors
+                .iter()
+                .filter_map(|e| match e {
+                    ValidationError::UndeclaredContact {
+                        contact: CensusContact::VertexOnFace { vertex, face },
+                        ..
+                    } => Some(VfContact {
+                        vertex: *vertex,
+                        face: *face,
+                    }),
+                    _ => None,
+                })
+                .collect(),
+            ..ContactRecords::default()
+        };
+        let errors = validate_pseudomanifold(&body, &records, tol).unwrap_err();
+        assert_eq!(the_interference(&errors).1, lumps, "{errors:?}");
+    }
+}
+
+/// **A declared rest with a point dipping into the wall.** A prism over
+/// `(0, 0), (1, 0), (1, 2), (0, 2), (−0.1, 1)` stands against the wall
+/// `x = 0` of a block `x ≤ 0`: its four corners at `x = 0` rest on the
+/// wall, and its point `(−0.1, 1)` dips into the block. The four
+/// corners are declared, so the pair carries no finding at all; the
+/// declaration is a meeting, the pair is probed, and the dipped corner
+/// is inside the block.
+#[test]
+fn a_declared_rest_with_a_dipping_point_is_probed() {
+    let wall = block((-5.0, 0.0), (-5.0, 5.0), (-5.0, 5.0));
+    let prof = [(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0), (-0.1, 1.0)];
+    let part = common::prism_z::<f64>(&prof, 0.0, 1.0, Tol::witness()).body;
+    let body = assembly(&[wall, part]);
+    let records = ContactRecords {
+        b_on_a: errors_of(&body)
+            .iter()
+            .filter_map(|e| match e {
+                ValidationError::UndeclaredContact {
+                    contact: CensusContact::VertexOnFace { vertex, face },
+                    ..
+                } => Some(VfContact {
+                    vertex: *vertex,
+                    face: *face,
+                }),
+                _ => None,
+            })
+            .collect(),
+        ..ContactRecords::default()
+    };
+    assert_eq!(records.b_on_a.len(), 4);
+    let errors = validate_pseudomanifold(&body, &records, Tol::witness()).unwrap_err();
+    let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+    assert_eq!(
+        the_interference(&errors),
+        (solids[0], solids[1]),
+        "{errors:?}"
+    );
+}
+
+/// **A declared seat with a keel through the top.** A part's two
+/// underside faces lie on a block's top face `y = 1`, declared as two
+/// face-pair records (the Rest mate's declaration), and between them a
+/// V keel hangs half a metre into the block along the part's whole
+/// length. The records back every event the seat makes, so no finding
+/// stands; the records are meetings, the pair is probed, and the keel's
+/// corners are inside the block. The flat part on the same records
+/// still validates.
+#[test]
+fn a_declared_seat_with_a_keel_is_probed() {
+    for keel in [true, false] {
+        let base: common::Prism<f64> = common::prism_z(
+            &[(-1.0, -1.0), (4.0, -1.0), (4.0, 1.0), (-1.0, 1.0)],
+            -1.0,
+            4.0,
+            Tol::witness(),
+        );
+        let prof: Vec<(f64, f64)> = if keel {
+            vec![
+                (0.0, 1.0),
+                (1.0, 1.0),
+                (1.5, 0.5),
+                (2.0, 1.0),
+                (3.0, 1.0),
+                (3.0, 1.5),
+                (0.0, 1.5),
+            ]
+        } else {
+            vec![
+                (0.0, 1.0),
+                (1.0, 1.0),
+                (2.0, 1.0),
+                (3.0, 1.0),
+                (3.0, 1.5),
+                (0.0, 1.5),
+            ]
+        };
+        let part: common::Prism<f64> = common::prism_z(&prof, 0.0, 3.0, Tol::witness());
+        let mut body = base.body;
+        let top = base.side_faces[2];
+        let keys = topo::graft_disjoint_all_keyed(&mut body, &part.body, Tol::witness()).unwrap();
+        let under = |i: usize| keys.face(part.side_faces[i]).unwrap();
+        let records = ContactRecords {
+            patches: vec![
+                PatchContact {
+                    face_a: under(0),
+                    face_b: top,
+                },
+                PatchContact {
+                    face_a: under(if keel { 3 } else { 2 }),
+                    face_b: top,
+                },
+            ],
+            ..ContactRecords::default()
+        };
+        let errors = validate_pseudomanifold(&body, &records, Tol::witness())
+            .err()
+            .unwrap_or_default();
+        let placements = placement_findings(&errors);
+        if keel {
+            assert!(
+                matches!(
+                    placements[..],
+                    [ValidationError::InstanceInterference { .. }]
+                ),
+                "{errors:?}"
+            );
+        } else {
+            assert!(placements.is_empty(), "{errors:?}");
+        }
+    }
+}
+
+/// **One solid's boundary crossing itself blocks its pairs.** Solid A
+/// is two slabs crossed in a plus, `[0, 3] × [1, 2] × [0, 1]` and
+/// `[1, 2] × [0, 3] × [0, 1]`, as two shells of ONE solid: their edges
+/// cross each other in the planes `z = 0` and `z = 1`. A block B rests
+/// on A's first slab end, face to face. Every finding between A and B
+/// is a rest, but A's own edge crosses say its boundary crosses itself,
+/// and no placement can be read against such a material.
+#[test]
+fn a_solid_crossing_itself_blocks_its_pair() {
+    let mut body = block((0.0, 3.0), (1.0, 2.0), (0.0, 1.0));
+    let a = body.solids().next().unwrap().0;
+    topo::graft_disjoint_all_onto_keyed(
+        &mut body,
+        &[a],
+        &block((1.0, 2.0), (0.0, 3.0), (0.0, 1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
+    topo::graft_disjoint(
+        &mut body,
+        &block((-1.0, 0.0), (1.0, 2.0), (0.0, 1.0)),
+        Tol::witness(),
+    )
+    .unwrap();
+    let errors = errors_of(&body);
+    assert!(crosses(&errors) > 0, "{errors:?}");
+    assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
 }
