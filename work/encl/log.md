@@ -1111,3 +1111,5 @@ class of 65 sites is PRED's row.
   - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
   - Subscribed to 3352 for Ev's answer.
 - 2026-09-28 — PR 3351 at `28393a4e91` has two red rows at 1e-12. One is the deliberate pair row. The other, `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`, is the PR's own failure: the new source-scan census isn't in the reader ledger. It doesn't depend on the ruling and was sent to the lane to fix now.
+- 2026-09-28 — While 3351 and 3352 wait on Ev, dispatched `domain-grid-homing-residue` (P4/E) on `encl/domain-grid-residue`: Opus, style review. It is mechanical: the residual grid and sliver spellings and the hand interior filters in `props/quad.rs` (PROPS territory).
+  - Held until the ruling: the designers' off-question findings, i.e. `MeterError`'s Zero/Negative fold and main's `classify_certify` giving residual escalations a face-angle reason. Their content depends on 3352.
