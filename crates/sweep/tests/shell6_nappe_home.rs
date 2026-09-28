@@ -23,9 +23,10 @@ use geom_core::Tol;
 use topo::{FaceKey, ReplaceFaceError};
 
 use crate::common::approx::band;
+use crate::common::charts::{charts, moves_by};
 use crate::common::cone_nappe::{
-    H, R_NARROW, R_WIDE, T, chart_moves, cone_faces, corners, mirror_frustum, opening_frustum,
-    reanchor_cone, revolved, stations, surface_of,
+    H, R_NARROW, R_WIDE, T, cone_faces, corners, mirror_frustum, opening_frustum, reanchor_cone,
+    revolved, stations, surface_of,
 };
 
 fn cone_of(body: &topo::Body<f64>, face: FaceKey) -> Surface<f64> {
@@ -108,9 +109,9 @@ fn both_doors_mint_the_turned_offset_on_both_nappes() {
                 panic!("a cone's offset is a cone");
             };
             let mut work = body.clone();
-            let moves = chart_moves(&work, -d);
+            let moves = moves_by(charts(&work), -d);
             let outcome = if door == "per-chart" {
-                topo::replace_faces_offset(&mut work, &faces, -d, band(), tol)
+                topo::replace_faces_offset(&mut work, &faces, -d, tol)
             } else {
                 topo::offset_charts_together(&mut work, &moves, band(), tol)
             };
@@ -187,7 +188,7 @@ fn the_per_chart_doors_reach_is_a_threshold_in_the_rim_tolerance() {
         for mag in [0.5 * threshold, 1e3 * threshold] {
             for signed in [-mag, mag] {
                 let mut work = body.clone();
-                let got = topo::replace_faces_offset(&mut work, &faces, signed, band(), tol);
+                let got = topo::replace_faces_offset(&mut work, &faces, signed, tol);
                 if mag > threshold {
                     let Err(ReplaceFaceError::ReanchorOffCarrier { gap, .. }) = got else {
                         panic!("{what} d={signed:e}: wanted the rim refusal, got {got:?}");
@@ -228,7 +229,7 @@ fn the_apex_window_gate_fires_on_both_nappes_at_the_same_reach() {
         let faces = cone_faces(&body);
         for (d, expect_window) in [(-over, true), (-under, false), (over, false)] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &faces, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &faces, d, Tol::witness());
             match (&got, expect_window) {
                 (
                     Err(ReplaceFaceError::ApexWindow {
@@ -316,9 +317,9 @@ fn a_face_whose_corners_reach_its_apex_refuses_at_both_doors() {
 
         for door in ["per-chart", "axial"] {
             let mut work = body.clone();
-            let moves = chart_moves(&work, -T);
+            let moves = moves_by(charts(&work), -T);
             let got = if door == "per-chart" {
-                topo::replace_faces_offset(&mut work, &group, -T, band(), Tol::witness())
+                topo::replace_faces_offset(&mut work, &group, -T, Tol::witness())
             } else {
                 topo::offset_charts_together(&mut work, &moves, band(), Tol::witness())
             };
@@ -369,7 +370,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
     ] {
         for d in [-T, T] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &faces, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &faces, d, Tol::witness());
             let Err(ReplaceFaceError::NappeStraddles { face, what, .. }) = got else {
                 panic!("{order} d={d}: a chart on both nappes must refuse, got {got:?}");
             };
@@ -382,7 +383,7 @@ fn a_chart_whose_faces_disagree_refuses_at_both_doors() {
     }
     for d in [-T, T] {
         let mut work = body.clone();
-        let moves = chart_moves(&work, d);
+        let moves = moves_by(charts(&work), d);
         let got = topo::offset_charts_together(&mut work, &moves, band(), Tol::witness());
         assert!(
             matches!(got, Err(ReplaceFaceError::NappeStraddles { .. })),

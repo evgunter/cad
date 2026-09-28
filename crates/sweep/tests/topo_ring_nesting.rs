@@ -9,15 +9,13 @@
 //! must be refused by name, on that face and that loop, because a row
 //! whose honest half alone is green cannot see the arm switched off.
 //!
-//! The outer-loop classes the arm decides — no arc, and one circle —
-//! are measured by such pairs. The classes it is silent on (arcs over
-//! three or more vertices, and arcs over fewer that are not one
-//! circle) are measured here too, as a pair whose honest body
-//! validates and whose inversion, with the silent class as its outer
-//! loop, draws no check-9 word at all: that is check 9's stated
-//! residue, and a residue nothing measures is a claim. The
-//! `ArcParity` gate is also asserted crate-side, in
-//! `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`.
+//! Every outer-loop class the arm decides is measured by such pairs:
+//! no arc, one circle, and the arc-bearing loops the polygon through
+//! the vertices does not express — a slot and a bowed end (arcs over
+//! three or more vertices), a half-disc (arcs over fewer), and a D
+//! whose hole sits in the lune between its arc and the chord that arc
+//! spans. The arc-bearing class is also asserted crate-side, in
+//! `validate::tests::an_arc_bearing_outer_loop_is_decided_on_its_own_region`.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom_core::{Point2, Tol, Vec2};
@@ -200,17 +198,14 @@ fn two_rings_on_one_face() {
     nested_then_inverted("two-ring plate", &body);
 }
 
-/// **A bowed end on the outer loop does not cost the pair its
-/// refusal.** The honest face's outer loop bears an arc, so check 9's
-/// nesting arm is silent on it — the polygon through an arc-bearing
-/// loop's vertices is a proper region but not the LOOP's region, and
-/// an arm that refuses a body on `Out` may not read one from it. The
-/// INVERTED body's outer loop is the rectangular hole, which is all
-/// lines, so the inverted glue is still refused by name. The gate
-/// itself is asserted directly crate-side, in
-/// `validate::tests::an_arc_bearing_outer_loop_is_the_gates_residue`.
+/// **A bowed end on the outer loop is decided like any other.** The
+/// honest face's outer loop bears one arc over four vertices, which
+/// the polygon through those vertices does not express; the walk reads
+/// the arc on its own circle, so the honest body certifies. The
+/// INVERTED body's outer loop is the rectangular hole, all lines, and
+/// is refused by name.
 #[test]
-fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
+fn a_plate_with_one_rounded_end_is_decided() {
     let outer = vec![
         (0.0, 0.0, 0.0),
         (3.0, 0.0, 0.5),
@@ -226,8 +221,8 @@ fn a_plate_with_one_rounded_end_still_refuses_its_inversion() {
 /// **An annular face is decided, in both directions.** A loop every
 /// edge of which is an arc of ONE circle bounds that circle's disc,
 /// which the parity polygon does not express — the polygon through two
-/// semicircle endpoints has zero area — and which `boolean::contain`'s
-/// `disc_side` decides exactly. The honest annulus validates; its
+/// semicircle endpoints has zero area — and which the walk reads on
+/// the circle itself. The honest annulus validates; its
 /// inversion, whose outer loop is the small circle and whose ring is
 /// the large one, is refused by name.
 #[test]
@@ -292,41 +287,56 @@ fn a_hole_one_clear_gap_from_its_rim_certifies() {
     }
 }
 
-/// **The two classes the arm is silent on stay silent, in both
-/// directions.** A rectangular plate carrying a hole whose loop bears
-/// arcs and is not one circle: the honest body is decided (its outer
-/// loop is the rectangle) and validates; its inversion's outer loop is
-/// the hole, whose region no exact instrument expresses, so the ring
-/// lying outside it draws no check-9 word. A half-disc (an arc and its
-/// chord, two vertices) is `NoWalk`; a slot (two bowed ends, arcs of two
-/// different circles meeting the flanks at a corner, four vertices) is
-/// `ArcParity`. What closes
-/// both is `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`.
+/// **The arc-bearing outer loops are decided, in both directions.**
+/// Each outline is measured twice: as a HOLE in a square plate, whose
+/// inversion puts it on the outer loop with the square outside it —
+/// refused by name — and as the plate's OUTLINE holding a square hole,
+/// which certifies. A half-disc (an arc and its chord, two vertices)
+/// has a zero-area vertex polygon; a slot (two bowed ends, arcs of two
+/// different circles meeting the flanks at a corner, four vertices)
+/// has a proper one that is not its region. Both are read on their
+/// arcs' own circles.
 #[test]
-fn the_silent_classes_are_silent_in_both_directions() {
-    let half_disc = vec![(-1.0, 0.0, 0.0), (1.0, 0.0, 1.0)];
-    let slot = vec![
-        (-0.5, -0.2, 0.0),
-        (0.5, -0.2, 0.5),
-        (0.5, 0.2, 0.0),
-        (-0.5, 0.2, 0.5),
-    ];
-    for (name, hole) in [("NoWalk: half-disc", half_disc), ("ArcParity: slot", slot)] {
-        let body = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &hole], 0.3);
-        let words = check_9_words(&body);
-        assert!(words.is_empty(), "[{name}] honest: {words:?}");
-        assert_eq!(
-            topo::validate_geometric(&body, tol()),
-            Ok(()),
-            "[{name}] the honest body validates"
-        );
-        let (inverted, _, _) = invert_the_glue(&body);
-        let words = check_9_words(&inverted);
-        assert!(
-            words.is_empty(),
-            "[{name}] the arm's residue: the inversion must draw no check-9 word; got {words:?}"
-        );
+fn the_arc_bearing_classes_are_decided_in_both_directions() {
+    let half_disc = |r: f64| vec![(-r, 0.0, 0.0), (r, 0.0, 1.0)];
+    let slot = |w: f64, h: f64| vec![(-w, -h, 0.0), (w, -h, 0.5), (w, h, 0.0), (-w, h, 0.5)];
+    for (name, hole, outline, inner) in [
+        (
+            "half-disc (two vertices)",
+            half_disc(1.0),
+            half_disc(2.0),
+            rect(-0.5, 0.3, 0.5, 0.8),
+        ),
+        (
+            "slot (four vertices)",
+            slot(0.5, 0.2),
+            slot(2.0, 1.0),
+            rect(-0.5, -0.3, 0.5, 0.3),
+        ),
+    ] {
+        let holed = plate(&[&rect(-2.0, -2.0, 2.0, 2.0), &hole], 0.3);
+        nested_then_inverted(&format!("{name} as the hole"), &holed);
+        let outlined = plate(&[&outline, &inner], 0.3);
+        nested_then_inverted(&format!("{name} as the outline"), &outlined);
     }
+}
+
+/// **A hole in the lune certifies.** A D-shaped plate whose bowed end
+/// reaches `x = 3.25` past the chord `x = 3` its two vertices span,
+/// carrying a hole that lies wholly in the lune between them: every
+/// hole vertex is outside the polygon through the outline's vertices
+/// and inside the outline. A walk that read the polygon would refuse
+/// this valid body; the arm reads the arc on its circle.
+#[test]
+fn a_hole_in_the_lune_of_a_bowed_end_certifies() {
+    let outer = vec![
+        (0.0, 0.0, 0.0),
+        (3.0, 0.0, 0.5),
+        (3.0, 1.0, 0.0),
+        (0.0, 1.0, 0.0),
+    ];
+    let body = plate(&[&outer, &rect(3.05, 0.4, 3.15, 0.6)], 0.4);
+    nested_then_inverted("D-plate, hole in the lune", &body);
 }
 
 /// **Every shelled vessel of revolution carries an annular rim, and it
@@ -385,8 +395,8 @@ fn a_shelled_vessel_of_revolution_certifies_and_its_inverted_rim_does_not() {
 /// **`revert` does not move the finding.** It reverses every cycle and
 /// flips every sense; the chart normal reaches the containment walk
 /// unmultiplied by the face's sense, and that walk's verdict is
-/// invariant under the normal's sign — and the disc class's radial
-/// decide reads no orientation at all. The WITNESS may move — the walk
+/// invariant under the normal's sign, on every outer-loop class. The
+/// WITNESS may move — the walk
 /// stops at the first vertex in cycle order that reads outside, and
 /// reversing the cycle changes which that is — so the comparison here
 /// is by variant, as `RingOutsideOuter`'s own doc says it must be.
@@ -410,6 +420,21 @@ fn revert_does_not_move_the_verdict() {
         (
             "annulus: the disc class",
             plate(&[&circle(0.0, 0.0, 2.0), &circle(0.4, -0.3, 0.5)], 0.3),
+        ),
+        (
+            "slot hole: arcs of two circles on the inverted outer loop",
+            plate(
+                &[
+                    &rect(-2.0, -2.0, 2.0, 2.0),
+                    &[
+                        (-0.5, -0.2, 0.0),
+                        (0.5, -0.2, 0.5),
+                        (0.5, 0.2, 0.0),
+                        (-0.5, 0.2, 0.5),
+                    ],
+                ],
+                0.3,
+            ),
         ),
     ] {
         let (inverted, _, _) = invert_the_glue(&body);

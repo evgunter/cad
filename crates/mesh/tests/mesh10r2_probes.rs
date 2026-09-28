@@ -22,7 +22,7 @@
 use crate::common;
 use common::*;
 use geom::Curve3;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use topo::Body;
 
@@ -197,10 +197,10 @@ fn m10r2_split_lineage_after_graft() {
     let far_box = || {
         sweep::extrude(
             &validated(vec![profile::ProfileLoop::<f64>::polygon([
-                p2(10.0, 10.0),
-                p2(11.0, 10.0),
-                p2(11.0, 11.0),
-                p2(10.0, 11.0),
+                Point2::new(10.0, 10.0),
+                Point2::new(11.0, 10.0),
+                Point2::new(11.0, 11.0),
+                Point2::new(10.0, 11.0),
             ])]),
             sweep::Extrusion::Distance(1.0),
             tol,

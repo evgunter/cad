@@ -167,7 +167,7 @@ canonical statement), `test_support_fixtures.rs`'s *"three axes"*
 
 The rest of the population is outside this row's two doors and is
 filed as
-`work/dup/rustdoc-count-sentences-outside-the-two-doors-are-unguarded.md`.
+`work/reroute/rustdoc-count-sentences-outside-the-two-doors-are-unguarded.md`.
 
 ## Closed (2026-09-24, PR #3152)
 

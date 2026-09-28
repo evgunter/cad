@@ -115,6 +115,33 @@ folding both rows into one unit, which is too large for one lane.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-26 — CONTACT-2 lands (PR 3250)
+
+The fix was the lane, not the gate. The survey's reading held, and the
+lane widened the premise sweep to `Nurbs → true` and to role
+resolution's straight-midpoint tiers. The row's claim that the
+full-length flat builds was false on this tree, and the lane corrected
+it.
+
+Adjudication: the axis lap now refuses `UnpairedLooseEnds`. That
+defect is pre-existing and planar, it is ZIP's, and it is filed and
+pinned. The spec's "no other invariant" clause was aimed at this arm,
+so the orchestrator accepted the result rather than widening onto ZIP
+ground.
+
+From the review, all adopted:
+- M1: the chord-midpoint anchor is unsound on curved edges, and this
+  is pre-existing. It is now fenced at its site with a witness row.
+- S1: the midpoint has one home.
+- S3/S4: tier names, and the stale guard prose.
+- M2: the PR body.
+
+Not adopted: S7, fixing tier 2 in this unit. That is ZIP's row.
+
+Gate: hosted green through `b9040bc`. The final head is gated by its
+own hosted run; the local gate was blocked by permissions.
+
+Signed: (CONTACT orchestrator)
 ## 2026-09-26 — CONTACT-1 lands (PR 3253)
 
 Dual on `e97c2e2` (DR-8): both reviewers APPROVE-WITH-FIXES, neither
@@ -198,3 +225,15 @@ holds, so both run now. The beam refusal (P0) and the half-overlap
 gate row wait for CONTACT-1 to merge.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 retyped topo's two ray-direction tables. `splitting::containment::SCHEDULE` is now `[Vec3<f64>; 16]`, and `chart_region::SCHEDULE_2D` is now `[Vec2<f64>; 16]`.
+
+Their five lift sites now read `r.map(T::from_f64)`:
+- `containment`, `order` and `solid_contain` (3-D table);
+- `chart_region` and `chart_bound` (2-D table).
+
+The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
+
+Signed (S-DUP orchestrator).

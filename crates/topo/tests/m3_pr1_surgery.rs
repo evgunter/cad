@@ -13,10 +13,6 @@ use crate::common;
 use common::{declined_cube, describe_as_intersections, geometric_cube, line};
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 /// Builds a cube with a detached closed inner box grown from an empty
 /// ring on the top face, closed by mfkrh (the cross-shell lmfkrh
 /// motion). Returns (body, shell, top_face, promoted_inner_face).
@@ -46,7 +42,7 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
                 he1: top_he,
                 he2: top_he,
             },
-            pt(0.25, 0.25, 1.25),
+            Point3::new(0.25, 0.25, 1.25),
             Tol::witness(),
         )
         .unwrap();
@@ -54,8 +50,8 @@ fn cube_with_inner_box() -> (Body<f64>, topo::ShellKey, topo::FaceKey, topo::Fac
     // Grow a closed inner box from the ring (the cube sequence rooted
     // in the ring loop; the ring itself becomes the box's last face by
     // promotion).
-    let p = |x: f64, y: f64| pt(0.25 + x, 0.25 + y, 1.5);
-    let q = |x: f64, y: f64| pt(0.25 + x, 0.25 + y, 1.75);
+    let p = |x: f64, y: f64| Point3::new(0.25 + x, 0.25 + y, 1.5);
+    let q = |x: f64, y: f64| Point3::new(0.25 + x, 0.25 + y, 1.75);
     let i_ab = body
         .mev_line(
             MevSite::Lone {
@@ -353,10 +349,10 @@ fn merge_coplanar_declared_vs_numeric() {
     let mut bit_equal = build(|_| {
         FaceSurface::New(plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
         ))
@@ -370,10 +366,10 @@ fn merge_coplanar_declared_vs_numeric() {
     let mut same_source = build(|_| {
         FaceSurface::New(plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
         ))
@@ -404,10 +400,10 @@ fn merge_coplanar_declared_vs_numeric() {
     let mut declared = build(|_| {
         FaceSurface::New(plane(
             &[
-                pt(0.0, 0.0, 1.0),
-                pt(1.0, 0.0, 1.0),
-                pt(1.0, 1.0, 1.0),
-                pt(0.0, 1.0, 1.0),
+                Point3::new(0.0, 0.0, 1.0),
+                Point3::new(1.0, 0.0, 1.0),
+                Point3::new(1.0, 1.0, 1.0),
+                Point3::new(0.0, 1.0, 1.0),
             ],
             Tol::witness(),
         ))
@@ -434,7 +430,7 @@ fn merge_coplanar_declared_vs_numeric() {
     // DESIGN: coincidence is structural or declared, never inferred.
     let mut numeric = build(|_| {
         FaceSurface::New(geom::Surface::Plane {
-            origin: pt(0.25, 0.75, 1.0),
+            origin: Point3::new(0.25, 0.75, 1.0),
             normal: Point3::new(0.0, 0.0, 1.0) - Point3::new(0.0, 0.0, 0.0),
             u_ref: Point3::new(1.0, 0.0, 0.0) - Point3::new(0.0, 0.0, 0.0),
         })
@@ -449,7 +445,7 @@ fn merge_coplanar_declared_vs_numeric() {
 #[test]
 fn merge_coplanar_refuses_open_input() {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let _ = seed;
     let before = format!("{body:?}");
     let err = body.merge_coplanar_faces(Tol::witness()).unwrap_err();

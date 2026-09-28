@@ -25,12 +25,12 @@ use crate::fixture;
 
 use editor_core::{
     CancelToken, CapEnd, Cmp, CurveKind, CurveKindSet, Datum, Dimension, EntityKind, EvalOptions,
-    Expr, GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag,
-    SelectRefusal, Selector, SurfaceKindSet, evaluate, select, select_where,
+    GeomPred, NamePat, Node, ParamEnv, ProfileDoc, RecipeNodeId, SegPat, SegTag, SelectRefusal,
+    Selector, SurfaceKindSet, evaluate, select, select_where,
 };
 use geom_brep::SurfaceKind;
 
-use fixture::{insert, len, on_frame};
+use fixture::{ang, insert, len, on_frame};
 use geom_core::Tol;
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
@@ -402,7 +402,7 @@ fn a_non_length_value_refuses() {
     let bad = [GeomPred::DatumDistance {
         datum,
         cmp: Cmp::Approx,
-        value: Expr::literal(1.0, Dimension::Angle).unwrap(),
+        value: ang(1.0),
     }];
     assert!(matches!(
         select_where(

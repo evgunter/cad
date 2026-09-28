@@ -24,10 +24,6 @@ use topo::{
 use crate::verbs_shell::{prism, roles_by_solid, v};
 use sweep::test_support::brick;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn tol() -> Tol {
     Tol::witness()
 }
@@ -40,7 +36,7 @@ fn boxy_at(x0: f64, y0: f64, z0: f64, w: f64, d: f64, h: f64) -> Body<f64> {
 /// A meridian polyline revolved a full turn about the sketch's `+y`
 /// axis through `(axis_x, 0)`, on the xy plane translated by `z0`.
 fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
         .validate(tol())
@@ -48,7 +44,7 @@ fn revolved_at(pts: &[(f64, f64)], axis_x: f64, z0: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(axis_x, 0.0),
+            origin: Point2::new(axis_x, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -331,16 +327,16 @@ fn r1p1_cylindrical_void_in_a_box_through_the_per_chart_door() {
 #[test]
 fn r1p6_open_a_void_ceiling_with_a_pillar_through_it() {
     let outer_loop = bulge_loop(vec![
-        (p2(1.0, 1.0), 0.0),
-        (p2(3.0, 1.0), 0.0),
-        (p2(3.0, 3.0), 0.0),
-        (p2(1.0, 3.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(3.0, 1.0), 0.0),
+        (Point2::new(3.0, 3.0), 0.0),
+        (Point2::new(1.0, 3.0), 0.0),
     ]);
     let hole = bulge_loop(vec![
-        (p2(1.8, 1.8), 0.0),
-        (p2(1.8, 2.2), 0.0),
-        (p2(2.2, 2.2), 0.0),
-        (p2(2.2, 1.8), 0.0),
+        (Point2::new(1.8, 1.8), 0.0),
+        (Point2::new(1.8, 2.2), 0.0),
+        (Point2::new(2.2, 2.2), 0.0),
+        (Point2::new(2.2, 1.8), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 1.0)));
     let profile = match Profile::new(plane, vec![outer_loop, hole]).validate(tol()) {
@@ -532,7 +528,7 @@ fn r1_e2e_hollow_twice_then_open_the_inner_wall() {
     let counts: Vec<usize> = three.body.solids().map(|(_, s)| s.shells.len()).collect();
     assert_eq!(counts.iter().filter(|&&n| n == 1).count(), 1, "{counts:?}");
     assert_eq!(
-        three.body.get_solid(opened_solid).unwrap().shells.len(),
+        three.body.shells_of_solid(opened_solid).unwrap().len(),
         1,
         "the designated ceiling's wall is the cup"
     );

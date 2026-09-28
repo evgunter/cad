@@ -169,15 +169,13 @@ fn a_positive_size_under_epsilon_reads_a_false_fact_at_both_doors_today() {
 /// brackets, not points.
 mod certified {
     use super::{all_edges, same_f64};
-    use geom_core::{Bounds, Interval, Real, Tol};
+    use geom_core::{Bounds, Interval, Tol};
     use sweep::blend::BlendError;
     use sweep::blend::build::fillet_edges;
     use sweep::chamfer::chamfer_edges;
     use sweep::test_support::cube;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     /// **Zero, negative, poisoned and STRADDLING brackets all refuse at
     /// both doors, and the payload is the bracket's low end.** The

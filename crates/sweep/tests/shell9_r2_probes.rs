@@ -13,8 +13,9 @@ use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::charts::hollow_moves;
 use super::common::latitude_seam::two_arc_sphere;
-use super::shell7_common::{drum, hollow_moves, p2, polyline, revolved, tol};
+use super::shell7_common::{drum, polyline, revolved, tol};
 use super::shell8_common::beside;
 use super::verbs_shell::vessel;
 
@@ -25,13 +26,16 @@ fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 
 /// `sf2b_axial`'s sphere-zone vase.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )

@@ -17,10 +17,6 @@ use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 use crate::verbs_shell::{cut, two_void_box};
 use sweep::test_support::{block, brick};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
     topo::classify_shells(body, Tol::witness())
         .expect("classifies")
@@ -154,10 +150,10 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
 /// A cylinder of radius `r` spanning `z0..z1`, coaxial with `z`.
 fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, z0), 0.0),
-        (p2(r, z0), 0.0),
-        (p2(r, z1), 0.0),
-        (p2(0.0, z1), 0.0),
+        (Point2::new(0.0, z0), 0.0),
+        (Point2::new(r, z0), 0.0),
+        (Point2::new(r, z1), 0.0),
+        (Point2::new(0.0, z1), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -165,7 +161,7 @@ fn can(r: f64, z0: f64, z1: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -247,7 +243,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         .find(|(_, s)| voids.contains(s))
         .expect("a thin solid for the void")
         .0;
-    let twin = out.get_solid(twin_solid).expect("the thin solid").shells[0];
+    let twin = out.shells_of_solid(twin_solid).expect("the thin solid")[0];
     let tb = shell_box(out, twin);
     assert!(
         tb[0].1 > 0.85 + 1e-9,
@@ -334,7 +330,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
             .expect("the operand void")
             .faces
             .clone();
-        let shells = &out.get_solid(solid).expect("a thin solid").shells;
+        let shells = out.shells_of_solid(solid).expect("a thin solid");
         assert_eq!(shells.len(), 2, "a thin solid is twin plus void");
         let twin = *shells
             .iter()
@@ -392,7 +388,7 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         .expect("MEASURED: the door accepts a lone void");
     assert_eq!(body.solids().count(), 2);
     assert_eq!(
-        body.get_solid(minted).expect("the minted solid").shells,
+        body.shells_of_solid(minted).expect("the minted solid"),
         vec![voids[0]]
     );
     assert_eq!(

@@ -32,6 +32,10 @@
 /// The GUI-4 assembly fixture (a gallery-shaped workspace on disk).
 pub mod asm;
 
+/// The corpus pick suites' walk: their landings, their single-level
+/// reference and their two aims.
+pub mod corpus_pick;
+
 use bvh::Aabb;
 use pncad::document::{SolvedPoses, mate_reach, solve_document};
 use pncad::geom_core::Point3;
@@ -101,139 +105,16 @@ pub fn corners(b: &Aabb) -> Vec<Point3<f64>> {
 
 use pncad::document::{
     Dimension, Doc, DocEdit, DocParam, Expr, LoopProgram, Node, ParamName, ProfileProgram,
-    RecipeNodeId, apply,
+    RecipeNodeId,
 };
 use pncad::geom_core::Tol;
 use viewer::sketch::{Notation, ProfileShape};
 
-/// Apply one edit, answering the new document and any minted id.
-pub fn edited(
-    doc: &Doc<ProfileProgram>,
-    edit: DocEdit<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-    let applied = apply(doc, &edit, tol, &pncad::document::RefusingReach)
-        .expect("the fixture's edit applies");
-    (applied.doc, applied.record.minted)
-}
-
-/// **A document holding one declared parameter and nothing else** —
-/// the fixture both panel suites build their parameter rows on.
-///
-/// `label` is the document's derived name, so two fixtures in one
-/// binary cannot share an identity. No oracle: it is the spelling of
-/// `Doc::empty_derived` plus one `SetDocParam`, and what each row
-/// asserts is about the `value` it handed in.
-pub fn declared(label: &str, name: &ParamName, value: DocParam) -> Doc<ProfileProgram> {
-    let tol = Tol::witness();
-    let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-    edited(
-        &doc,
-        DocEdit::SetDocParam {
-            name: name.clone(),
-            value,
-        },
-        tol,
-    )
-    .0
-}
-
-/// Insert a node through the document's own door (`apply`, no
-/// session), answering the new document and the minted id. The op
-/// vocabulary's door is [`session_insert`].
-pub fn inserted(
-    doc: &Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, minted) = edited(doc, DocEdit::InsertNode { node }, tol);
-    (doc, minted.expect("an insert mints an id"))
-}
-
-/// The `&mut` spelling of `inserted`: insert a node in place and
-/// answer the minted id, for a fixture that threads one document
-/// through a sequence of edits rather than rebinding at each one.
-/// Same call and same refusal behaviour — only the caller differs.
-pub fn insert_into(
-    doc: &mut Doc<ProfileProgram>,
-    node: Node<ProfileProgram>,
-    tol: Tol,
-) -> RecipeNodeId {
-    let (applied, id) = inserted(doc, node, tol);
-    *doc = applied;
-    id
-}
-
-/// The `&mut` spelling of `edited`, for an edit whose minted id (if
-/// any) the caller does not want.
-pub fn edit_into(doc: &mut Doc<ProfileProgram>, edit: DocEdit<ProfileProgram>, tol: Tol) {
-    let (applied, _) = edited(doc, edit, tol);
-    *doc = applied;
-}
-
-/// A sketch frame node's payload.
-pub fn frame(origin: [f64; 3], u: [f64; 3], v: [f64; 3]) -> Node<ProfileProgram> {
-    Node::Datum(pncad::document::Datum::Frame {
-        origin: len3(origin),
-        u: scl3(u),
-        v: scl3(v),
-    })
-}
-
-/// The world xy frame's payload — the plane these fixtures sketch on.
-pub fn xy_frame() -> Node<ProfileProgram> {
-    frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0])
-}
-
-/// An axis-aligned rectangular loop, `w` by `h`, its lower-left
-/// corner at `origin` in the plane's own coordinates, counter-clockwise
-/// from that corner — the loop [`rectangle`] draws, for a
-/// `SessionOp::AddProfile` that takes loops rather than a node.
-///
-/// # Panics
-///
-/// Unless `w` and `h` are both positive: a non-positive side would
-/// turn the winding or collapse the loop, and "lower-left,
-/// counter-clockwise" would stop being true of what it returns.
-pub fn rectangle_loop(origin: [f64; 2], w: f64, h: f64) -> LoopProgram {
-    assert!(
-        w > 0.0 && h > 0.0,
-        "a rectangle has positive sides: {w} x {h}"
-    );
-    let [x0, y0] = origin;
-    LoopProgram::polygon([(x0, y0), (x0 + w, y0), (x0 + w, y0 + h), (x0, y0 + h)])
-        .expect("finite corners")
-}
-
-/// An axis-aligned rectangular profile node's payload on `plane`:
-/// [`rectangle_loop`] drawn on it. `square` is this with two equal
-/// sides at the plane origin, and a fixture whose block sits elsewhere
-/// moves `origin`.
-pub fn rectangle(plane: RecipeNodeId, origin: [f64; 2], w: f64, h: f64) -> Node<ProfileProgram> {
-    Node::Profile(ProfileProgram {
-        plane,
-        loops: vec![rectangle_loop(origin, w, h)],
-        ids: Vec::new(),
-    })
-}
-
-/// A square profile node's payload on `plane`, `side` metres on a side,
-/// at the plane origin.
-pub fn square(plane: RecipeNodeId, side: f64) -> Node<ProfileProgram> {
-    rectangle(plane, [0.0, 0.0], side, side)
-}
-
-/// **A frame and a square drawn on it**, answering the document and the
-/// PROFILE's id — two nodes where a fixture used to insert one, because
-/// a profile names the plane it is drawn on.
-pub fn framed_square(
-    doc: &Doc<ProfileProgram>,
-    side: f64,
-    tol: Tol,
-) -> (Doc<ProfileProgram>, RecipeNodeId) {
-    let (doc, plane) = inserted(doc, xy_frame(), tol);
-    inserted(&doc, square(plane, side), tol)
-}
+// The literal, edit, frame, rectangle and δ doors are `viewer`'s own
+// `test_support` (its `test-support` feature, on for these suites through
+// the crate's self dev-dependency), so the crate's unit-test modules and
+// these suites read ONE definition. A suite says `common::len` as before.
+pub use viewer::test_support::*;
 
 /// **The witnessed band a placement axis is decided under** — what
 /// `Frame::rotate_then_translate` asks the direction door with. Rows
@@ -241,49 +122,6 @@ pub fn framed_square(
 /// is the axis decision reads the refusal instead.
 pub fn band() -> pncad::geom_core::Band {
     pncad::geom_core::Band::linear(Tol::witness()).expect("the witnessed band")
-}
-
-/// A length literal.
-pub fn len(metres: f64) -> Expr {
-    Expr::literal(metres, Dimension::Length).expect("a finite length")
-}
-
-/// A length literal that remembers it was WRITTEN in millimetres —
-/// `len` lowers canonically and carries no notation, which is what a
-/// row about the unit a literal keeps cannot use.
-pub fn len_mm(metres: f64) -> Expr {
-    Expr::literal_with_unit(metres, Dimension::Length, pncad::prelude::MM.def())
-        .expect("a finite length")
-}
-
-/// A dimensionless literal.
-pub fn scl(value: f64) -> Expr {
-    Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-}
-
-/// An angle literal.
-pub fn ang(radians: f64) -> Expr {
-    Expr::literal(radians, Dimension::Angle).expect("a finite angle")
-}
-
-/// Three length literals — a datum origin, a translation.
-pub fn len3(v: [f64; 3]) -> [Expr; 3] {
-    [len(v[0]), len(v[1]), len(v[2])]
-}
-
-/// Three dimensionless literals — a normal, a direction, an axis.
-pub fn scl3(v: [f64; 3]) -> [Expr; 3] {
-    [scl(v[0]), scl(v[1]), scl(v[2])]
-}
-
-/// Two length literals — a point in a sketch frame's own coordinates.
-pub fn len2(v: [f64; 2]) -> [Expr; 2] {
-    [len(v[0]), len(v[1])]
-}
-
-/// Two dimensionless literals — a direction in a sketch frame.
-pub fn scl2(v: [f64; 2]) -> [Expr; 2] {
-    [scl(v[0]), scl(v[1])]
 }
 
 /// One form template lowered CANONICALLY — what a suite means when it
@@ -658,40 +496,10 @@ pub fn tempdir(label: &str) -> std::path::PathBuf {
 // (`along_x`, `along_y`) — and the pick below reads the session's
 // display view, which is what makes it the viewport's pick.
 
-use pncad::geom_core::Vec3;
+use bvh::test_support::ray;
 use pncad::select::Ray;
 use viewer::pickindex::{PickIndex, PickIndexError, PictureKey};
 use viewer::scene::DisplayTolerance;
-
-/// The display tolerance the plate-scale suites run the display
-/// pipeline at, 2*10^-4 m — whatever they hand it to: an index build,
-/// a pick cache sync, a fit request.
-///
-/// Two bounds pull opposite ways on it — coarser is cheaper to run,
-/// finer resolves more of a curved face — and this value is where the
-/// suites that share it settled. A suite whose fixture is a different
-/// size chooses its own; `asm::delta` is the assembly fixture's.
-pub fn plate_delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-4).expect("a positive delta")
-}
-
-/// The display tolerance the corpus suites hand the pick seam,
-/// 2*10^-3 m.
-///
-/// An order coarser than [`plate_delta`], for a reason those suites do
-/// not share: the corpus holds documents whose tessellation at the
-/// application's own δ is large enough that a suite walking all of
-/// them pays for every facet.
-pub fn corpus_delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
-}
-
-/// The display tolerance the GUI-2 suites index the gallery ring at,
-/// 2*10^-3 m — a cost choice: those rows are about the selection walk,
-/// not the facet count.
-pub fn ring_delta() -> DisplayTolerance {
-    DisplayTolerance::new(2.0e-3).expect("a positive delta")
-}
 
 /// The pick index for `session`'s landed evaluation at `delta`, or the
 /// refusal — a failed or poisoned root is an ordinary editing state,
@@ -725,13 +533,11 @@ pub fn corpus_index(session: &DocSession) -> PickIndex {
     index_of(session, corpus_delta())
 }
 
-/// A ray straight down through `(x, y)` from height `z`.
-pub fn down_from(x: f64, y: f64, z: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, z),
-        dir: Vec3::new(0.0, 0.0, -1.0),
-    }
-}
+/// A ray straight down through `(x, y)` from height `z` —
+/// `editor_core::test_support`'s, re-exported rather than re-written, as
+/// the mate heads below are: `editor-core`'s pick suites aim the same
+/// ray.
+pub use editor_core::test_support::down_from;
 
 /// [`down_from`] at one metre up — above anything the plate- and
 /// assembly-scale fixtures build. A suite whose fixture reaches higher,
@@ -744,10 +550,7 @@ pub fn down_at(x: f64, y: f64) -> Ray {
 /// anything those fixtures build, for the underside faces a downward
 /// ray never reaches.
 pub fn up_at(x: f64, y: f64) -> Ray {
-    Ray {
-        origin: Point3::new(x, y, -1.0),
-        dir: Vec3::new(0.0, 0.0, 1.0),
-    }
+    ray([x, y, -1.0], [0.0, 0.0, 1.0])
 }
 
 /// **The face `ray` meets, picked the way the viewport picks it** —
@@ -777,7 +580,7 @@ pub fn displayed_face_at(session: &DocSession, index: &PickIndex, ray: &Ray) -> 
 ///
 /// Unless `sense` is `1.0` or `-1.0`.
 pub fn along_x(sense: f64, y: f64, z: f64) -> Ray {
-    level([1.0, 0.0], sense, Point3::new(-sense, y, z))
+    level([1.0, 0.0], sense, [-sense, y, z])
 }
 
 /// [`along_x`] one axis over: a level ray along y through `(x, z)`.
@@ -786,20 +589,17 @@ pub fn along_x(sense: f64, y: f64, z: f64) -> Ray {
 ///
 /// Unless `sense` is `1.0` or `-1.0`.
 pub fn along_y(sense: f64, x: f64, z: f64) -> Ray {
-    level([0.0, 1.0], sense, Point3::new(x, -sense, z))
+    level([0.0, 1.0], sense, [x, -sense, z])
 }
 
 /// The one body both level rays share: `axis` scaled by `sense`, from
 /// `origin`.
-fn level(axis: [f64; 2], sense: f64, origin: Point3<f64>) -> Ray {
+fn level(axis: [f64; 2], sense: f64, origin: [f64; 3]) -> Ray {
     assert!(
         sense == 1.0 || sense == -1.0,
         "a level ray's sense is 1 or -1: {sense}"
     );
-    Ray {
-        origin,
-        dir: Vec3::new(sense * axis[0], sense * axis[1], 0.0),
-    }
+    ray(origin, [sense * axis[0], sense * axis[1], 0.0])
 }
 
 // The mate-head helpers are `crate::fixture`'s, re-exported rather than

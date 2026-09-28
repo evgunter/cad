@@ -34,15 +34,11 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A circle-derived cylinder: circle (cx, cy) of radius r, extruded
 /// from z0 to z1 — exactly #347's "`circle`-derived cylinder".
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
@@ -337,26 +333,26 @@ pub(crate) fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
 fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
     let tol = Tol::witness();
     let outline = profile::Open
-        .at(p2(w / 2.0, 0.0))
+        .at(Point2::new(w / 2.0, 0.0))
         .toward(1.0, 0.0, tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, 1.0, tol)
         .unwrap()
-        .to(p2(w, h / 2.0), tol)
+        .to(Point2::new(w, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(-1.0, 0.0, tol)
         .unwrap()
-        .to(p2(w / 2.0, h), tol)
+        .to(Point2::new(w / 2.0, h), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
         .toward(0.0, -1.0, tol)
         .unwrap()
-        .to(p2(0.0, h / 2.0), tol)
+        .to(Point2::new(0.0, h / 2.0), tol)
         .unwrap()
         .fillet(r, tol)
         .unwrap()
@@ -563,8 +559,12 @@ fn a_wall_the_trim_cannot_express_gets_no_verdict() {
 fn the_line_clearance_clamp_is_what_lets_a_radial_edge_clear() {
     let tol = Tol::witness();
     let wall = cyl(0.0, 0.0, 1.0, 0.0, 2.0);
-    let lp =
-        profile::ProfileLoop::polygon([p2(0.5, 0.999), p2(2.5, 0.999), p2(2.5, 3.0), p2(0.5, 3.0)]);
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(0.5, 0.999),
+        Point2::new(2.5, 0.999),
+        Point2::new(2.5, 3.0),
+        Point2::new(0.5, 3.0),
+    ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.9)));
     let brick = extrude(
         &Profile::new(plane, vec![lp]).validate(tol).unwrap(),

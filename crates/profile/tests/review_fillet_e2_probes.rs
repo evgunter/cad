@@ -31,16 +31,12 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The bend `fillet_recourse_followability.rs` builds: the incoming
 /// ray runs east from the origin, the corner sits at `(4, 0)`, the
 /// arrival leaves it at `theta`, anchored three units along.
 fn bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?

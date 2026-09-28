@@ -31,10 +31,10 @@
 // Panicking is a test's failure mechanism (workspace lint note).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::{axis_y, eps, p2, sampled_deviation, validated};
+use crate::common::{axis_y, eps, sampled_deviation, validated};
 use core::f64::consts::{FRAC_PI_4, PI, TAU};
 use geom::{Curve3, Surface};
-use geom_core::{Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use mesh::cert::cert_torus;
 use mesh::tessellate;
 use mesh::validate::check_mesh;
@@ -53,7 +53,10 @@ const MINOR: f64 = 1.0;
 /// `φ = ±π/2`, and on a partial sweep two planar caps whose edges are
 /// meridian semicircles.
 fn tube(major: f64, sweep: Revolution<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(major, -MINOR), 1.0), (p2(major, MINOR), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(major, -MINOR), 1.0),
+        (Point2::new(major, MINOR), 1.0),
+    ]);
     revolve(&validated(vec![lp]), axis_y(), sweep, Tol::witness())
         .unwrap()
         .body

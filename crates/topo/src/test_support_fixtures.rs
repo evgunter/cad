@@ -231,6 +231,13 @@ pub struct PrismOps {
     pub sides: Vec<MefCreated>,
 }
 
+/// The `map` [`prism_ops`] takes for a prism in its own frame: the
+/// coordinates themselves, lifted exactly into the caller's scalar
+/// through `map`, the linear types' componentwise door.
+pub fn identity_map<T: Real>(x: f64, y: f64, z: f64) -> Point3<T> {
+    Point3::new(x, y, z).map(T::from_f64)
+}
+
 /// **The one Euler sequence every box and prism in this file is built
 /// by**: a right prism over the simple polygon `profile` (x, y corners,
 /// no repeats, reflex corners welcome) spanning `z`, into `body`, with
@@ -251,8 +258,8 @@ pub struct PrismOps {
 /// The three axes the callers differ on are all parameters here, and
 /// that is the whole of the difference between them:
 ///
-/// - **`map`** is where the tilted operands live. `Point3::new` at
-///   `T::from_f64` gives the untransformed prism; anything else — a
+/// - **`map`** is where the tilted operands live. [`identity_map`]
+///   gives the untransformed prism; anything else — a
 ///   scale, an affine, a shear — is the same body pushed through it.
 ///   The 2x box and the unit cube are one call apart.
 /// - **`faces`** is [`FaceGeometry`]: real Newell planes, or face
@@ -455,7 +462,7 @@ fn unit_cube<T: geom_core::Decide>(faces: FaceGeometry, tol: Tol) -> CubeOps<T> 
         &mut body,
         &UNIT_SQUARE,
         (0.0, 1.0),
-        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        identity_map,
         faces,
         tol,
     );
@@ -566,7 +573,7 @@ pub fn prism_z<T: geom_core::Decide>(
         &mut body,
         profile,
         (z0, z1),
-        |x, y, z| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z)),
+        identity_map,
         FaceGeometry::Certified,
         tol,
     );
@@ -975,7 +982,7 @@ pub fn plane_every_face<T: geom_core::Decide>(body: &mut Body<T>, tol: Tol) {
 /// The holes must lie inside the top face and clear of one another;
 /// nothing checks either.
 pub fn holed_block<T: geom_core::Decide>(w: f64, hole_centres: &[f64], tol: Tol) -> Body<T> {
-    let pt = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
+    let pt = identity_map::<T>;
     let mut body = Body::<T>::new();
     let ops = prism_ops(
         &mut body,

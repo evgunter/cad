@@ -25,10 +25,6 @@ use geom_brep::{
 use geom_core::Vec3;
 use slotmap::SlotMap;
 
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// The corner configuration of the filleted die: the corner ball
 /// (radius r, centred on the edge cylinder's axis) and one edge
 /// cylinder (radius r). They are tangent along the full circle at
@@ -37,20 +33,20 @@ fn corner_pair(r: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let sphere = Surface::Sphere {
         center: p(r, r, r),
         radius: r,
-        axis: v(0.0, 0.0, 1.0),
-        u_ref: v(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
         origin: p(r, r, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let circle = Curve3::Circle {
         center: p(r, r, r),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     (sphere, cylinder, circle)
 }
@@ -60,15 +56,15 @@ fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
     let (sphere, cylinder, circle) = corner_pair(0.2);
     let plane = Surface::Plane {
         origin: p(0.0, 0.0, 0.0),
-        normal: v(0.0, 0.0, 1.0),
-        u_ref: v(1.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let torus = Surface::Torus {
         center: p(0.0, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         major_radius: 1.0,
         minor_radius: 0.2,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     for s2 in [&sphere, &cylinder, &plane, &torus] {
         assert!(
@@ -79,17 +75,17 @@ fn circle_carriers_are_in_the_certified_lane_on_every_revolution_kind() {
     // The LINE arm is unchanged: torus stays out of it.
     let line = Curve3::Line {
         origin: p(0.0, 0.0, 0.0),
-        dir: v(0.0, 0.0, 1.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
     };
     assert!(!tangent_certificate_lane(&line, &torus, &plane));
     assert!(tangent_certificate_lane(&line, &cylinder, &plane));
     // A carrier kind outside both arms stays outside.
     let ellipse = Curve3::Ellipse {
         center: p(0.0, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         major: 2.0,
         minor: 1.0,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     assert!(!tangent_certificate_lane(&ellipse, &sphere, &plane));
 }
@@ -173,20 +169,20 @@ fn the_corner_trimline_jet_is_one_over_the_radius_everywhere() {
 fn cap_crossing(r: f64, h: f64) -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
     let plane = Surface::Plane {
         origin: p(0.0, 0.0, h),
-        normal: v(0.0, 0.0, 1.0),
-        u_ref: v(1.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let cylinder = Surface::Cylinder {
         origin: p(0.0, 0.0, 0.0),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let circle = Curve3::Circle {
         center: p(0.0, 0.0, h),
-        axis: v(0.0, 0.0, 1.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     (plane, cylinder, circle)
 }

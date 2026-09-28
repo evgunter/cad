@@ -66,13 +66,14 @@ fn width(e: Interval) -> f64 {
 
 /// Wall `i`'s ring: the prism's side face, wound outward.
 fn wall<T: Real>(i: usize) -> [Point3<T>; 4] {
+    use crate::shared::point::p3;
+
     let (a, b) = (DUMBBELL[i], DUMBBELL[(i + 1) % DUMBBELL.len()]);
-    let p = |x: f64, y: f64, z: f64| Point3::new(T::from_f64(x), T::from_f64(y), T::from_f64(z));
     [
-        p(a.0, a.1, 0.0),
-        p(b.0, b.1, 0.0),
-        p(b.0, b.1, HEIGHT),
-        p(a.0, a.1, HEIGHT),
+        p3(a.0, a.1, 0.0),
+        p3(b.0, b.1, 0.0),
+        p3(b.0, b.1, HEIGHT),
+        p3(a.0, a.1, HEIGHT),
     ]
 }
 

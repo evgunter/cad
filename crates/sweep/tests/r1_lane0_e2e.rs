@@ -87,14 +87,9 @@ fn the_f64_seam_answers_every_public_door() {
         panic!("the mapped cap is still approximating");
     };
     let spec = m.spec();
-    let free = geom_brep::certify_offset_over(
-        &spec.description,
-        &spec.fit,
-        spec.window,
-        Tol::witness(),
-        band(),
-    )
-    .expect("`geom-brep`'s certifier measures the mapped pair");
+    let free =
+        geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, Tol::witness())
+            .expect("`geom-brep`'s certifier measures the mapped pair");
     let got = m.certificate();
     for (name, x, y) in [
         ("distance", got.distance, free.distance),
@@ -122,7 +117,7 @@ fn the_f64_seam_answers_every_public_door() {
             FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, band(), Tol::witness()) {
+    match topo::replace_faces_offset(&mut fresh, &[cap], 0.05, Tol::witness()) {
         Ok(()) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the `f64` mint must not report the lane's absence: {other:?}"),
@@ -134,7 +129,7 @@ fn the_f64_seam_answers_every_public_door() {
             FaceSurface::New(Surface::Nurbs(Arc::new(planar_patch(1.0)))),
         )
         .expect("the cap takes a NURBS surface");
-    match topo::replace_face_offset(&mut single, scap, 0.05, band(), Tol::witness()) {
+    match topo::replace_face_offset(&mut single, scap, 0.05, Tol::witness()) {
         Ok(()) => {}
         Err(topo::ReplaceFaceError::FittedBoundaryUnsupported { .. }) => {}
         other => panic!("the single-face `f64` mint must not report the lane's absence: {other:?}"),
@@ -160,8 +155,9 @@ fn the_interval_seam_refuses_at_every_public_door() {
     };
     let lifted = a.map_scalar(Interval::from_f64);
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2, v3};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -214,7 +210,7 @@ fn the_interval_seam_refuses_at_every_public_door() {
 
     match topo::transform_rigid(
         &body,
-        &Affine3::translation(geom_core::Vec3::new(iv(1.0), iv(0.0), iv(0.0))),
+        &Affine3::translation(v3(1.0, 0.0, 0.0)),
         Tol::witness(),
     ) {
         Err(topo::TransformError::ApproxLaneUnsupported { lane }) => {
@@ -231,8 +227,9 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     use geom_core::{Bounds, Interval, Real};
     use profile::{Profile, SketchPlane, test_support::bulge_loop};
 
-    let iv = Interval::from_f64;
-    let v = |x: f64, y: f64| (geom_core::Point2::new(iv(x), iv(y)), iv(0.0));
+    use crate::common::interval::{iv, p2};
+
+    let v = |x: f64, y: f64| (p2(x, y), iv(0.0));
     let lp = bulge_loop(vec![v(0.0, 0.0), v(2.0, 0.0), v(2.0, 2.0), v(0.0, 2.0)]);
     let profile = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
@@ -258,13 +255,7 @@ fn the_interval_mint_refuses_through_the_public_offset_door() {
     let nurbs = planar_patch(1.0).map_scalar(Interval::from_f64);
     body.set_face_surface(face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
         .expect("the attach-layer door accepts a live face");
-    match topo::replace_faces_offset(
-        &mut body,
-        &[face],
-        iv(0.05),
-        geom_core::Band::linear(Tol::witness()).unwrap(),
-        Tol::witness(),
-    ) {
+    match topo::replace_faces_offset(&mut body, &[face], iv(0.05), Tol::witness()) {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
             assert_eq!(f, face, "the refusal names the face it could not mint");
         }
@@ -329,13 +320,7 @@ fn the_probe_seam_refuses_at_the_map_and_the_mint() {
         .unwrap();
     b2.set_face_surface(c2.face, FaceSurface::New(Surface::Nurbs(Arc::new(nurbs))))
         .unwrap();
-    match topo::replace_faces_offset(
-        &mut b2,
-        &[c2.face],
-        Probe::from_f64(0.05),
-        geom_core::Band::linear(Tol::witness()).unwrap(),
-        Tol::witness(),
-    ) {
+    match topo::replace_faces_offset(&mut b2, &[c2.face], Probe::from_f64(0.05), Tol::witness()) {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face }) => {
             assert_eq!(face, c2.face);
         }

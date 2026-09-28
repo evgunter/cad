@@ -32,11 +32,6 @@ fn session(tol: Tol) -> DocSession {
     DocSession::inline(Doc::empty_derived("profile-edit", tol), tol)
 }
 
-/// A point of the sketch frame, in metres.
-fn pt(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The notation a person writing in millimetres and degrees mints.
 const MM: Notation = Notation {
     length: pncad::quantity::MM,
@@ -46,10 +41,10 @@ const MM: Notation = Notation {
 /// A closed square authored the way the form's default chain is.
 fn square(x0: f64, side: f64) -> Vec<Step<f64>> {
     vec![
-        Step::At(pt(x0, 0.0)),
-        Step::LineTo(Target::Point(pt(x0 + side, 0.0))),
-        Step::LineTo(Target::Point(pt(x0 + side, side))),
-        Step::LineTo(Target::Point(pt(x0, side))),
+        Step::At(Point2::new(x0, 0.0)),
+        Step::LineTo(Target::Point(Point2::new(x0 + side, 0.0))),
+        Step::LineTo(Target::Point(Point2::new(x0 + side, side))),
+        Step::LineTo(Target::Point(Point2::new(x0, side))),
         Step::LineTo(Target::Start),
     ]
 }
@@ -95,9 +90,9 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
             "arc path",
             vec![ProfileShape::Path {
                 steps: vec![
-                    Step::At(pt(-0.01, 0.0)),
+                    Step::At(Point2::new(-0.01, 0.0)),
                     Step::ArcTo(ArcData::Bulge {
-                        target: Target::Point(pt(0.01, 0.0)),
+                        target: Target::Point(Point2::new(0.01, 0.0)),
                         b: 1.0,
                     }),
                     Step::LineTo(Target::Start),
@@ -108,12 +103,12 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
             "continue-to path",
             vec![ProfileShape::Path {
                 steps: vec![
-                    Step::At(pt(0.005, 0.0)),
-                    Step::LineTo(Target::Point(pt(0.01, 0.0))),
-                    Step::LineTo(Target::Point(pt(0.01, 0.01))),
-                    Step::LineTo(Target::Point(pt(0.0, 0.01))),
-                    Step::LineTo(Target::Point(pt(0.0, 0.005))),
-                    Step::ContinueTo(Target::Point(pt(0.0, 0.0))),
+                    Step::At(Point2::new(0.005, 0.0)),
+                    Step::LineTo(Target::Point(Point2::new(0.01, 0.0))),
+                    Step::LineTo(Target::Point(Point2::new(0.01, 0.01))),
+                    Step::LineTo(Target::Point(Point2::new(0.0, 0.01))),
+                    Step::LineTo(Target::Point(Point2::new(0.0, 0.005))),
+                    Step::ContinueTo(Target::Point(Point2::new(0.0, 0.0))),
                     Step::LineTo(Target::StartArriving),
                 ],
             }],
@@ -122,9 +117,9 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
             "tangent-arc path",
             vec![ProfileShape::Path {
                 steps: vec![
-                    Step::At(pt(0.0, 0.0)),
+                    Step::At(Point2::new(0.0, 0.0)),
                     Step::Angle(0.0),
-                    Step::TangentArcTo(Target::Point(pt(0.0, 0.01))),
+                    Step::TangentArcTo(Target::Point(Point2::new(0.0, 0.01))),
                     Step::LineTo(Target::Start),
                 ],
             }],
@@ -133,7 +128,7 @@ fn authored() -> Vec<(&'static str, Vec<ProfileShape>)> {
             "split circle",
             vec![ProfileShape::Path {
                 steps: vec![Step::CircleSplit {
-                    centre: pt(0.0, 0.0),
+                    centre: Point2::new(0.0, 0.0),
                     radius: 0.01,
                     n: 3,
                     phase: 0.25,
@@ -272,7 +267,7 @@ fn a_moved_number_is_one_edit_and_undoes() {
     let (mut session, profile) = with_profile(&loops, MM);
     let original = session.committed_doc().clone();
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
-    held[0][1] = Step::LineTo(Target::Point(pt(0.015, 0.0)));
+    held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
         base: program(&session, profile).clone(),
@@ -326,9 +321,9 @@ fn a_reshaped_program_refuses_restructure() {
     let before = session.committed_doc().clone();
     let held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     let mut longer = held.clone();
-    longer[0].insert(4, Step::LineTo(Target::Point(pt(-0.005, 0.005))));
+    longer[0].insert(4, Step::LineTo(Target::Point(Point2::new(-0.005, 0.005))));
     let mut reverbed = held.clone();
-    reverbed[0][1] = Step::ContinueTo(Target::Point(pt(0.01, 0.0)));
+    reverbed[0][1] = Step::ContinueTo(Target::Point(Point2::new(0.01, 0.0)));
     let mut two = held.clone();
     two.push(square(0.02, 0.005));
     for (name, loops, expected) in [
@@ -418,8 +413,8 @@ fn an_invalid_program_refuses_as_itself() {
     let before = session.committed_doc().clone();
     let mut held = sketch::held_loops(session.committed_doc(), profile).expect("held");
     // Swap the two far corners: the loop crosses itself.
-    held[0][2] = Step::LineTo(Target::Point(pt(0.0, 0.01)));
-    held[0][3] = Step::LineTo(Target::Point(pt(0.01, 0.01)));
+    held[0][2] = Step::LineTo(Target::Point(Point2::new(0.0, 0.01)));
+    held[0][3] = Step::LineTo(Target::Point(Point2::new(0.01, 0.01)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
         base: program(&session, profile).clone(),
@@ -630,7 +625,7 @@ fn numbers_loaded_from_a_program_since_replaced_refuse_stale() {
     });
     assert!(out.refusal.is_none(), "{:?}", out.refusal);
     let between = session.committed_doc().clone();
-    held[0][1] = Step::LineTo(Target::Point(pt(0.015, 0.0)));
+    held[0][1] = Step::LineTo(Target::Point(Point2::new(0.015, 0.0)));
     let out = session.perform(SessionOp::EditProfile {
         node: profile,
         base: loaded,

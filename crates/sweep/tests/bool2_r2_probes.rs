@@ -11,7 +11,7 @@
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::test_support::brick;
@@ -21,7 +21,11 @@ use topo::{Body, PointInSolidError, SolidContainment, point_in_solid};
 use crate::common::approx::band;
 
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 fn cone() -> Body<f64> {
@@ -36,7 +40,12 @@ fn cone() -> Body<f64> {
 }
 
 fn frustum() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.5, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -255,7 +264,11 @@ fn r2_apex_posture() {
 #[test]
 fn r2_generator_parallel_schedule_member() {
     let h = 1.0 / 20.0_f64.sqrt();
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, h)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, h),
+    ]);
     let body = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -367,7 +380,12 @@ fn r2_probe_offset_clamp_saturation() {
 /// the INTERIOR of its base cap.
 #[test]
 fn r2_planar_base_cap_interior_is_on_the_boundary() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let cyl = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -539,7 +557,12 @@ fn r2_apex_escalation_shell_vs_the_clamp_floor() {
 /// it hit the cone bodies this unit ships rows for?
 #[test]
 fn r2_planar_cap_misread_blast_radius() {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let cyl = revolve(
         &validated(vec![lp]),
         axis_y(),

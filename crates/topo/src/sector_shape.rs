@@ -402,10 +402,6 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
-        Vec3::new(x, y, z)
-    }
-
     /// `Vec3` carries no `PartialEq`; these rows want BIT equality, not
     /// a tolerance.
     fn bits_eq(a: Vec3<f64>, b: Vec3<f64>) -> bool {
@@ -428,7 +424,7 @@ mod tests {
         next: Vec3<f64>,
         full_circle: bool,
     ) -> Result<SectorShape<f64>, SectorFault> {
-        let n = OutwardNormal::from_chart(v(0.0, 0.0, 1.0), true);
+        let n = OutwardNormal::from_chart(Vec3::new(0.0, 0.0, 1.0), true);
         sector_shape(own, next, n, full_circle, band())
     }
 
@@ -438,11 +434,11 @@ mod tests {
     fn convex_corner_needs_no_subdivision() {
         // own = +y (CCW-last), next = +x (CCW-first): the sector sweeps
         // +x → +y CCW around +z, so (b̂ × â)·n = (x̂ × ŷ)·ẑ = +1.
-        let s = shape(v(0.0, 3.0, 0.0), v(2.0, 0.0, 0.0), false).unwrap();
+        let s = shape(Vec3::new(0.0, 3.0, 0.0), Vec3::new(2.0, 0.0, 0.0), false).unwrap();
         assert!(s.bisector.is_none());
         assert_eq!(s.arm, 2.0);
-        assert_dir(s.unit_own, v(0.0, 1.0, 0.0));
-        assert_dir(s.unit_next, v(1.0, 0.0, 0.0));
+        assert_dir(s.unit_own, Vec3::new(0.0, 1.0, 0.0));
+        assert_dir(s.unit_next, Vec3::new(1.0, 0.0, 0.0));
     }
 
     /// A definitely reflex corner (θ = 270°) subdivides at
@@ -450,23 +446,23 @@ mod tests {
     #[test]
     fn reflex_corner_subdivides_at_the_reflex_bisector() {
         // own = +x, next = +y: (ŷ × x̂)·ẑ = −1 ⇒ reflex.
-        let s = shape(v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), false).unwrap();
+        let s = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 1.0, 0.0), false).unwrap();
         let b = s.bisector.expect("a reflex corner subdivides");
-        assert!(bits_eq(b, -(v(1.0, 1.0, 0.0).normalize())));
+        assert!(bits_eq(b, -(Vec3::new(1.0, 1.0, 0.0).normalize())));
         // The sector sweeps +y → +x the LONG way; the bisector is
         // strictly interior to it, i.e. on the far side from (+1, +1).
-        assert!(b.dot(v(-1.0, -1.0, 0.0)) > 0.0);
+        assert!(b.dot(Vec3::new(-1.0, -1.0, 0.0)) > 0.0);
     }
 
     /// A straight corner (θ = 180°, where `â + b̂` collapses) falls to
     /// the cosine rung and subdivides 90° into the interior.
     #[test]
     fn straight_corner_subdivides_ninety_degrees_in() {
-        let s = shape(v(1.0, 0.0, 0.0), v(-1.0, 0.0, 0.0), false).unwrap();
+        let s = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(-1.0, 0.0, 0.0), false).unwrap();
         // n × b̂ = ẑ × (−x̂) = −ŷ.
         assert_dir(
             s.bisector.expect("a straight corner subdivides"),
-            v(0.0, -1.0, 0.0),
+            Vec3::new(0.0, -1.0, 0.0),
         );
     }
 
@@ -474,7 +470,7 @@ mod tests {
     /// cosine rung — it is ill-conditioned, not a full circle.
     #[test]
     fn spike_between_distinct_edges_refuses_named() {
-        let e = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), false)
+        let e = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), false)
             .expect_err("a spike has no valid interior direction");
         // LITERAL pins, restored across the `SectorFault` boundary.
         // `assert_eq!(e, invalid(band(), "sector_straight"))` reads
@@ -524,14 +520,14 @@ mod tests {
         let tiny = 1e-200;
         // The premise: the norm flushed, and the direction survives in
         // the witness the underflow question is asked against.
-        assert_eq!(v(0.0, tiny, 0.0).norm(), 0.0);
-        assert_eq!(v(0.0, tiny, 0.0).norm_witness(), tiny);
+        assert_eq!(Vec3::new(0.0, tiny, 0.0).norm(), 0.0);
+        assert_eq!(Vec3::new(0.0, tiny, 0.0).norm_witness(), tiny);
         for full_circle in [false, true] {
             for (own, next) in [
-                (v(0.0, tiny, 0.0), v(0.0, tiny, 0.0)),
-                (v(0.0, 3.0, 0.0), v(tiny, 0.0, 0.0)),
-                (v(tiny, 0.0, 0.0), v(0.0, 3.0, 0.0)),
-                (v(tiny, tiny, tiny), v(0.0, 3.0, 0.0)),
+                (Vec3::new(0.0, tiny, 0.0), Vec3::new(0.0, tiny, 0.0)),
+                (Vec3::new(0.0, 3.0, 0.0), Vec3::new(tiny, 0.0, 0.0)),
+                (Vec3::new(tiny, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0)),
+                (Vec3::new(tiny, tiny, tiny), Vec3::new(0.0, 3.0, 0.0)),
             ] {
                 assert_eq!(
                     shape(own, next, full_circle).err(),
@@ -544,14 +540,14 @@ mod tests {
         // still the arm rung's, not this one's: 1e-12 squares to 1e-24,
         // which the format holds.
         assert_eq!(
-            shape(v(0.0, 1e-12, 0.0), v(0.0, 3.0, 0.0), false).err(),
+            shape(Vec3::new(0.0, 1e-12, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
             Some(invalid(band(), SECTOR_ARM))
         );
         // And the zero chord is not an underflowed one: it has no
         // direction to recover, so its witness is zero too and the
         // predicate's two ratios are both poison.
         assert_eq!(
-            shape(v(0.0, 0.0, 0.0), v(0.0, 3.0, 0.0), false).err(),
+            shape(Vec3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0), false).err(),
             Some(invalid(band(), SECTOR_ARM))
         );
     }
@@ -617,10 +613,10 @@ mod tests {
         let big = 1e200;
         for full_circle in [false, true] {
             for (own, next) in [
-                (v(big, 0.0, 0.0), v(big, 0.0, 0.0)),
-                (v(0.0, 3.0, 0.0), v(big, 0.0, 0.0)),
-                (v(big, 0.0, 0.0), v(0.0, 3.0, 0.0)),
-                (v(f64::NAN, 0.0, 0.0), v(0.0, 3.0, 0.0)),
+                (Vec3::new(big, 0.0, 0.0), Vec3::new(big, 0.0, 0.0)),
+                (Vec3::new(0.0, 3.0, 0.0), Vec3::new(big, 0.0, 0.0)),
+                (Vec3::new(big, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0)),
+                (Vec3::new(f64::NAN, 0.0, 0.0), Vec3::new(0.0, 3.0, 0.0)),
             ] {
                 assert_eq!(
                     shape(own, next, full_circle).err(),
@@ -631,7 +627,7 @@ mod tests {
         }
         // A finite pair still climbs the rungs — the row above cannot
         // be passing because rung 0 refuses everything.
-        assert!(shape(v(0.0, 3.0, 0.0), v(2.0, 0.0, 0.0), false).is_ok());
+        assert!(shape(Vec3::new(0.0, 3.0, 0.0), Vec3::new(2.0, 0.0, 0.0), false).is_ok());
     }
 
     /// The SAME reading on a one-edge orbit is the legitimate strut
@@ -640,17 +636,17 @@ mod tests {
     /// for the wrong reason.
     #[test]
     fn strut_full_circle_subdivides() {
-        let s = shape(v(1.0, 0.0, 0.0), v(1.0, 0.0, 0.0), true).unwrap();
+        let s = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(1.0, 0.0, 0.0), true).unwrap();
         assert_dir(
             s.bisector.expect("a strut vertex subdivides"),
-            v(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
         );
     }
 
     /// A collapsed bounding chord fails the arm rung, named.
     #[test]
     fn degenerate_arm_refuses_named() {
-        let e = shape(v(1.0, 0.0, 0.0), v(0.0, 0.0, 0.0), false)
+        let e = shape(Vec3::new(1.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 0.0), false)
             .expect_err("a collapsed chord cannot meter the corner");
         // Literal pins, for the reason spelled out on the spike row.
         let SectorFault::Rung(e) = e else {

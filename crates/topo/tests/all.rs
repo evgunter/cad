@@ -241,6 +241,8 @@ mod seat3_flush_detector;
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]
@@ -281,6 +283,8 @@ mod r2_rim_probes;
 mod lane0_r2_probes;
 #[path = "lane2_r2_probes.rs"]
 mod lane2_r2_probes;
+#[path = "replace_face_band_probes.rs"]
+mod replace_face_band_probes;
 
 #[path = "certified_enclosure_impl_census.rs"]
 mod certified_enclosure_impl_census;
