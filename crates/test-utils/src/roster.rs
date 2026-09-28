@@ -41,14 +41,11 @@
 //! the mirror of `row_prefix`'s split — and its own `--selftest`
 //! refuses to pass on an empty listing (`:1067`-`:1072`), which is this
 //! module's vacuity floor written independently in bash.
-//! `.github/workflows/ci.yml` (`:4837`) is what produces that listing
-//! for it, and `scripts/check-ci-mirror-parity.py` (`:1584`) reads the
-//! `listing=$(cargo test … --list)` assignment as a live row rather
-//! than dropping it — the two neighbouring readers of the same output.
+//! `.github/workflows/nightly.yml` is what produces that listing for it.
 //!
-//! Nothing is shared between those three and this module, and nothing
-//! can be. They are shell and Python reading a listing produced by a
-//! `cargo test` invocation they spell themselves; this is Rust inside
+//! Nothing is shared between that reader and this module, and nothing
+//! can be. It is shell reading a listing produced by a
+//! `cargo test` invocation the workflow spells itself; this is Rust inside
 //! the binary being listed, which is the only seat from which
 //! `module_path!()` answers for the invoking module. The shell/Rust
 //! boundary is the whole reason for the second implementation. What

@@ -1,9 +1,8 @@
 #!/usr/bin/env python3
 """Shared CI change filter — the SINGLE implementation of change
-classification, used by BOTH .github/workflows/ci.yml (its `filter` job is
-a thin YAML wrapper) and local-scripts/ci-local.sh. There is no second copy of
-these rules anywhere; hosted and local runs are gated identically, and the
-synthetic-diff tests exercise the one script both of them call.
+classification, used by .github/workflows/ci.yml (its `filter` job is a thin
+YAML wrapper). There is no second copy of these rules anywhere, and the
+synthetic-diff tests exercise the one script CI calls.
 
 Three tiers (Ev's ask: "changing a core crate runs everything, adding a
 new crate only runs that new crate's tests" — dependency-AWARE, not naive
@@ -250,11 +249,6 @@ properties the seeding bought — a re-run of the same commit picks the same row
 and the row is recoverable from the SHA alone — are answered instead by there
 being no row to pick.
 
-LOCAL AND HOSTED NOW GATE THE SAME CONFIGURATION SET, and this sentence has
-moved twice in three days. `ci-local.sh` runs all three eps rows and all five
-k-lint unifications; so does a hosted run. What local still adds over
-hosted is its opt-in `--nightly` row, and nothing else.
-
 A NOTICE IS NOT A MATRIX POINT AND MUST NOT ENTER THE KEY=value STREAM. What is
 left to announce here is the gated-suite skips, and
 they go to STDERR and into `--notices` when a caller asks for it — never to
@@ -409,23 +403,6 @@ import sys
 # immediately and loudly instead of silently coupling the hosted gate to a
 # developer's machine. Scripts hosted CI DOES run stay in scripts/ and keep
 # forcing TIER=all, because a change to any of them can move a result.
-#
-# ONE JOB IS EXEMPT AND HAS TO BE: `mirror` reads local-scripts/ci-local.sh
-# because its whole subject is whether the two halves of CI still run the
-# same checks. That does not weaken the classification below — it is what
-# makes it honest. `mirror` carries no `if:`, so it runs on EVERY tier
-# including this one; a change under local-scripts/ therefore skips every
-# build row and still runs the one job it can move. Before that job
-# existed, a gate whose input was this tree argued it need not read the
-# tree, BECAUSE a change to the tree classified docs and skipped the gate —
-# a description of a hole offered as the reason not to close it.
-# `scripts/check-ci-mirror-parity.py` fails if a second job stops pruning, or if
-# `mirror` starts. That check is SITED IN THE JOB IT DESCRIBES, which is
-# self-referential and is stated rather than hidden: deleting the job deletes
-# the thing that would have complained. What limits the damage is that the same
-# check runs in the local half above its docs exit, that the job is a required
-# status check on this branch, and that a diff removing it is one line long in
-# a file three tracks read.
 #
 # .claude/: agent session config (2026-08-15) — the SessionStart hook that
 # provisions a Claude Code on the web container, and the settings.json that
@@ -1324,11 +1301,8 @@ def _all_tier(root: str) -> dict[str, str]:
 # watertight    builds bodies profile -> sweep -> topo -> mesh and writes
 #               them with `cargo run -p stl --example export_acceptance`;
 #               everything it touches is under stl's (dev-)dependency graph.
-#               ITS HOSTED HALF MOVED TO nightly.yml (2026-08-22) and runs
-#               there UNGATED — once a day is not a bill worth filtering — so
-#               this signal's only remaining consumer is ci-local.sh. It is
-#               kept rather than deleted because the local gate is the half
-#               that pays for an unfiltered row, in a developer's wall clock.
+#               It runs in nightly.yml UNGATED — once a day is not a bill
+#               worth filtering — so no job reads this signal.
 # step-import   runs FreeCAD over the COMMITTED fixtures in
 #               crates/step-export/tests/fixtures (no cargo build at all),
 #               which are byte-golden against the step-export writer.
@@ -1339,7 +1313,7 @@ def _all_tier(root: str) -> dict[str, str]:
 #               the jobs re-ran them at two fixed ε, defeating the ε sampling
 #               for exactly those modules), and `rebuild latency` moved to
 #               nightly.yml. What still reads this is ci.yml's `test`
-#               job — its two named interval rows — plus ci-local.sh.
+#               job — its two named interval rows.
 # pncad-py      NOT HERE, AND NOT A GATE ANYWHERE. `RUN_PNCAD_PY` is
 #               computed in `decorate` off the SEEDS and is REPORTING:
 #               the python suite runs on every code-tier run in both
@@ -1574,9 +1548,7 @@ KLINT_ROWS: tuple[str, ...] = (
 # READER of this file needs, which is how the set becomes a nextest expression
 # and every way that derivation is allowed to fail.
 #
-# WHY THIS IS READ FROM THE TEXT AND NOT FROM A ROSTER. The same argument
-# `scripts/nightly-only-selection.py` makes for the demoted set and
-# `check-ci-mirror-parity.py` makes for its citations: a central list of which
+# WHY THIS IS READ FROM THE TEXT AND NOT FROM A ROSTER. A central list of which
 # suites are gated is a second copy of a fact the tree already holds, free to
 # drift from it, while a mark at the test cannot. The set below is DERIVED on
 # every run, from the tree that is about to be tested.
@@ -2113,9 +2085,8 @@ def gated_filter(
 def gated_set(root: str) -> int:
     """`--gated-set`: the union of EVERY gated suite's term, for the nightly.
 
-    NOT the KEY=value stream — one filterset expression on stdout, the shape
-    `nightly-only-selection.py` emits, because the caller passes it straight
-    to `nextest -E`.
+    NOT the KEY=value stream — one filterset expression on stdout, because
+    the caller passes it straight to `nextest -E`.
 
     AN EMPTY SET IS LEGITIMATE AND IS STILL NOT ACCEPTED BLINDLY, exactly as
     the demoted lane's is: a tree with no marker anywhere has no gated set,
@@ -2308,14 +2279,10 @@ class ConfigError(Exception):
 # tuple plus whatever "every row of this dimension" is spelled as in the job
 # conditions that read it — `all` for both.
 #
-# EPS GAINED ITS MEMBER ON 2026-09-04, and the asymmetry it used to have is
-# worth recording because it was real rather than an oversight. `EPS=all` was
-# a LOCAL word: ci-local.sh loops the rows, while the hosted rows interpolated
-# the value straight into CAD_TOLERANCE_EPS, where `all` is a parse error by
-# design (geom-core/src/tolerance.rs) — so requesting it hosted asked for a run
-# whose test rows could not start. ci.yml now expands `all` into three matrix
-# legs and interpolates one ROW per leg, so nothing ever puts the word in the
-# variable, and `all` is what an un-narrowed run prints.
+# `all` is never interpolated into CAD_TOLERANCE_EPS, where it is a parse
+# error by design (geom-core/src/tolerance.rs): the workflows expand `all`
+# into one leg per ROW, so nothing puts the word in the variable, and `all`
+# is what an un-narrowed run prints.
 CONFIG_DIMENSIONS: dict[str, tuple[str, tuple[str, ...]]] = {
     "eps": ("EPS", (*EPS_ROWS, "all")),
     "klint": ("KLINT_ROW", (*KLINT_ROWS, "all")),
@@ -2451,7 +2418,7 @@ def decorate(
     # and its dev-edge rule is argued there.
     #
     # NO JOB READS IT. `python suite (wheel + guide + north-star)` runs on
-    # every code-tier run of ci.yml and unconditionally in ci-local.sh: the
+    # every code-tier run of ci.yml: the
     # job hangs off `filter` in parallel beside the serial build -> test chain
     # that sets a run's length, so narrowing it returns nothing to the
     # contributor waiting on the gate while costing the attribution a per-PR
@@ -2497,10 +2464,8 @@ def decorate(
     #
     # `unsampled` IS THE WORD FOR "THE WHOLE DIMENSION RUNS", and it is now the
     # standing value for eps and the k-lint row on every hosted run, not just
-    # the local half's seedless one. It was already that word before 2026-09-04
-    # and is not re-spelled: a reader who learned it on a `ci-local.sh` run
-    # reads the same thing here, and the value beside it (`EPS=all`) says the
-    # same in the machine-readable half.
+    # a seedless one. The value beside it (`EPS=all`) says the same in the
+    # machine-readable half.
     source = dict.fromkeys(
         (key for key, _ in CONFIG_DIMENSIONS.values()), "unsampled"
     )
@@ -2536,7 +2501,7 @@ def decorate(
 # OBTAINED and are invisible to a test that hands `classify` a list directly.
 #
 # The fixture ships a STUB `cargo` on PATH. The hosted job this runs in
-# installs no toolchain at all (`mirror` is greps and stdlib python), so a
+# may run without a toolchain, so a
 # self-test shelling out to the real cargo would be testing the runner image
 # and would report TIER=all — the safe answer — for the wrong reason on every
 # closure case. The stub also lets the closure cases state a dependency graph
@@ -2901,7 +2866,7 @@ def selftest() -> None:
             ("a design doc", ["docs/DESIGN.md"]),
             ("prose anywhere", ["README.md", "crates/topo/src/NOTES.md"]),
             ("the memories tree", ["memories/MEMORY.md", "memories/evan-profile.md"]),
-            ("the local half", ["local-scripts/ci-local.sh"]),
+            ("the local half", ["local-scripts/test-fast.sh"]),
             ("agent session config", [".claude/settings.json"]),
             # The other side of the two rows below: a page NOTHING consumes
             # stays in the docs tier. Widening `_is_docs`'s exception to all
@@ -3472,7 +3437,7 @@ def _selftest_gated() -> None:
             )
 
     # AND THE EMPTY TREE, which is legitimate and is still not accepted
-    # blindly — the same distinction `nightly-only-selection.py` draws. Here
+    # blindly. Here
     # `none()` is provable from the source: no marker anywhere under crates/.
     with tempfile.TemporaryDirectory() as t:
         _plant_fixture(t)
@@ -3799,8 +3764,7 @@ def main() -> int:
         # answer is "run everything", which is safe because everything then
         # runs; this mode's caller runs ONLY what it prints, so its failure
         # answer has to be a red step. An empty answer it cannot prove is the
-        # silent-zero-coverage shape `nightly-only-selection.py` was written
-        # against, one lane over.
+        # silent-zero-coverage shape.
         return gated_set(_repo_root())
 
     # BEFORE ANY WORK, AND OUTSIDE THE FAIL-CLOSED WRAPPER BELOW. A malformed

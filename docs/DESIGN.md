@@ -998,15 +998,13 @@ grounds (rounding control, f64, portability) are re-checkable facts.
    checks watcher asserts a minimum green-row count equal to the current
    full CI matrix, bumped in the same PR that grows the matrix. CI
    carries a three-tier change filter, implemented once in
-   `scripts/ci-filter.py` and called by both `ci.yml`'s filter job and
-   `local-scripts/ci-local.sh` so hosted and local gating cannot drift:
+   `scripts/ci-filter.py` and called by `ci.yml`'s filter job:
    tier `docs` (only `*.md`/`memories/`) skips every build row and
    gates on the `docs-only` marker job; tier `all` (any workspace-level
    file, any member `Cargo.toml`, anything the allowlist does not
    recognise) runs the whole matrix; tier `closure` (crate sources
    only) scopes the cargo rows to the changed members plus every member
    that transitively depends on them. Classification fails CLOSED.
-   `ci-local.sh --full` forces tier `all`.
 4. **Semantic equivariance where it is free — with the premise
    UNAUDITED.** Kernel constructions and selection rules should commute
    with rigid motions *and reflections* at the semantic level (in ℝ),

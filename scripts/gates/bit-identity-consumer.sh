@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # bit-identity-consumer.sh — the bit-identity consumer tripwire
-# (retirement landed, M4 PR 5). ONE home; ci.yml's "bit-identity
-# consumer tripwire (retirement landed, M4 PR 5)" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# (retirement landed, M4 PR 5). ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # Bit-identity coincidence checking is RETIRED from production
 # (M4 PR 5, NAMING-DESIGN N6; DESIGN.md roadmap; Ev, #53): the
