@@ -62,7 +62,7 @@ use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, StatusUpdate};
+use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
@@ -1193,7 +1193,7 @@ impl ViewerApp {
                 None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
-        let update = frame::frame_status(&notices, &performed, refusal.as_ref());
+        let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown parameter
@@ -1221,7 +1221,7 @@ impl ViewerApp {
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }
-        self.apply_status(update);
+        self.apply_status(verdict);
     }
 
     /// Write everything the viewer remembers — the theme, the key
@@ -1353,19 +1353,18 @@ impl ViewerApp {
     /// the ranking has ALREADY WEIGHED: `perform_batch` hands
     /// [`crate::frame::frame_status`]'s answer here rather than assigning the
     /// field. Its one live caller, and deliberately so — a `Show` that
-    /// has been through the ranking must reach the field, and handing
-    /// it to [`frame::deliver`] instead would loop it back onto
-    /// `notices` to be ranked a second time.
+    /// has been through the ranking must reach the field and must not
+    /// be ranked a second time. The types hold both halves:
+    /// [`frame::deliver`], which would push it back onto `notices`,
+    /// does not take a [`RankedVerdict`], and this does not take a
+    /// policy's `frame::StatusUpdate`.
     ///
-    /// **Not the one place a [`StatusUpdate`] becomes the field** —
-    /// that is [`crate::frame::apply`], which [`crate::pane::viewport`] reaches directly
-    /// at both of its doors: `land` through [`frame::deliver`], and the
-    /// cursor's retirement through [`crate::frame::apply`] itself. Neither has a
-    /// `&mut self` to come through; both take the `&mut
-    /// Option<frame::Message>` this is shorthand for. This is the
-    /// `&mut self` shorthand, nothing more.
-    fn apply_status(&mut self, update: StatusUpdate) {
-        frame::apply(&mut self.status, update);
+    /// This is the `&mut self` shorthand for [`crate::frame::apply`],
+    /// nothing more. [`crate::pane::viewport`]'s policies reach the
+    /// field through [`frame::deliver`], with the `&mut
+    /// Option<frame::Message>` it lends them.
+    fn apply_status(&mut self, verdict: RankedVerdict) {
+        frame::apply(&mut self.status, verdict);
     }
 
     /// **The advisory-check findings, in a window a reader can keep
@@ -2061,14 +2060,11 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) notices: &'a mut Vec<frame::Message>,
     /// The line itself, for the one thing a notice cannot do: RETIRE a
     /// sentence. [`crate::frame::cursor_status`] and a clean camera fold expire
-    /// what they last said and add nothing, so both reach the field
-    /// directly — by different doors, because the two policies are not
-    /// the same shape. `cursor_status` answers only `Keep` or `Expire`,
-    /// so it can never have news and goes straight through
-    /// [`crate::frame::apply`] ([`crate::pane::viewport`], the id pass). `fold_status`
-    /// can answer either way, so `land` hands it to
-    /// [`frame::deliver`], which routes the refusal to `notices` above
-    /// and the clean fold's retirement here.
+    /// what they last said and add nothing, so neither retirement is
+    /// ranked: [`frame::deliver`], the one door a policy's verdict
+    /// fits, writes each retirement here and sends a refused fold's
+    /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
+    /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,
     pub(crate) id_log: &'a mut IdQueryLog,

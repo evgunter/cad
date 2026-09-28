@@ -59,3 +59,15 @@ document landed. That is this row's fix, for one helper. On
 left is to give `painted_with` and the `Driven` harness the same
 bounded wait, ideally as one function they all call, rather than a
 third copy of the loop.
+
+## What the two frames showed (2026-09-28)
+
+The ranked-verdict unit's lane (`vnews/a-ranked-verdict-is-its-own-type`)
+hit the same row failing under full-suite load, twice, and recorded the
+difference: one frame painted `indexing…`, the other `evaluating…`,
+`Cancel` and three `—` readouts. So the two frames are in different
+phases of the startup evaluation, as this row predicts. It had filed a
+second row for this (`an-undeclared-parameter-pane-row-compares-two-frames-across-an-async-state`);
+that row was deleted in review as a duplicate of this one, and its one
+alternative fix, comparing only the properties pane's own region, is
+the one-row half-fix this row warns against.

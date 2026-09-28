@@ -779,7 +779,7 @@ neither.
 |---|---|
 | `forms` | What the panels offer for authoring, and how a typed field behaves. The vocabularies — `DatumKindChoice`, `ShapeKind`, `PatternKindChoice`, `PartSelectChoice`, `MATE_PRIMITIVES` — mirror a kernel or session enum, and the MIRROR is what is hand-maintained: the four enums declare themselves and their `ALL` in one declaration (**Closed vocabularies are declared once**, below), so no membership list here can fall behind its own enum, while `MATE_PRIMITIVES` mirrors an enum in another crate deliberately partially and says so. A kernel vocabulary this crate offers WHOLE is not mirrored at all: the boolean form draws one button per entry of `topo::BooleanOp::ALL` and writes only the labels, at an exhaustive match, the projection form does the same over `select::SplitHalf::ALL` (`split_half_label`), and the path form does the same over `profile::Verb::ALL` (whose `Display` is its word), `profile::ArcMode::ALL` and `profile::TargetKind::ALL`, editing the kernel's own `Step` rather than a copy of it. The field-writing family — `FieldWriting`, `drag_tick` and the four drag speeds — mirrors nothing and is a product decision on its own (how much of a unit one pixel of drag is worth). Both are decisions the toolkit does not make, which is what puts them here rather than in `app` |
 | `drafts` | `Drafts`, `ProfileEdit` and `CommitFault`: the in-flight form state (`ProfileEdit` is the add-profile form's editor held over a committed profile, for the edit door), its defaults, and its lowering of typed field values to `Expr`, `LoopProgram` and the add-datum form's `session::DatumSpec` — the same layer as `session::author`, and today the larger half of it |
-| `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `Badge`, the doors that build one and the two that spend one — `apply` for a ranked verdict or a retirement, `deliver` for a policy that may or may not have news), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
+| `frame` | The per-frame policies the viewport runs, as values: hand one the values a frame holds and it answers the same way every time, with no window, no session and no process around it — which is what makes a rule about the chrome testable at all, and why the frame loop still decides WHEN to call one and no longer decides what it MEANS. What the chrome has to say and which of its two channels says it (`Subject`, `Message`, `StatusUpdate`, `RankedVerdict`, `Badge`, the doors that build one and the two that spend one — `deliver` for a policy's `StatusUpdate`, `apply` for the ranking's `RankedVerdict`, each taking only its own type, so the compiler rejects a policy's verdict at the ranked door — though a hand-built `RankedVerdict::Show` still passes, which is `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors.md`), `frame_status`'s ranking over a frame's news, the badge family including `product_badge`, the draft and the offer a refused batch leaves behind (`retype_draft`, `creation_offer`), what a folded event stream amounts to (`folded_moved`, `fold_status`), and what a frame says about work outstanding (`progress`). **The charter's exclusions are the half that was missing**: a concern that reads ambient process state is a function of the machine and lives in `platform`; a concern that carries state across frames is not a function of one frame and lives in `idpass`. Both are consumed here (`cursor_status` takes an `idpass::IdStep`) and neither is decided here. This row used to say the charter argues for taking each concern out of `app` and **not** for their being one module — `work/view/frame-module-has-eight-concerns-and-no-holds-row.md` owned the split that sentence deferred, and the split is taken: the charter above is now true of what is here, so the row covers the module rather than confessing that it cannot |
 | `platform` | What the environment the process was started in offers the shell, read once before the first frame. Each value here — the chooser-backend verdict (`ChooserBackend`, whose `unusable` answers the reason a dialog the environment cannot put up gives for being disabled; `chooser_backend`; `chooser_backend_of` over `Zenity` and `SessionBus`), the XDG preferences path (`prefs_path`, `prefs_path_in`) and the WSL probe (`running_under_wsl`) — takes the environment as its ARGUMENT, so none is a function of anything this crate holds and none can be replayed from a value a test builds. That is why they are not `frame`'s and why they are one module: `scripts/gates/no-ambient-env.sh` ratifies that the viewer's runtime environment reads have ONE home and allowlists this file as that home, and its argument against the gate's four rows is an argument about exactly these probes. A module that exists FOR the door is what makes that entry a door rather than a region inside something else |
 | `idpass` | The GPU id pass's bookkeeping: what query is outstanding, what it was asked about, and what its answer is worth when it comes back (`IdQueryLog`, `IdSubject`, `IdStep`, `Disagreement`, `disagreement`). The id pass is a round trip — one frame issues a query, a later frame reads the answer, and in between the cursor can move, the picture can be rebuilt and the index can be replaced — so the only thing that can say whether an answer still describes its question is state carried ACROSS frames. That is what puts it here rather than in `frame`, whose policies are values precisely so they can be replayed: everything in this module exists because it REMEMBERS. The failure it remembers against is an answer outliving its question, which does not look like a fault — it reports as *the two picking paths disagree* |
 
@@ -830,12 +830,14 @@ message** that has the subject **display**.
 
 What differs between the channels is the ENFORCEMENT. A message is
 stored as a message, so retiring it is the chrome's own bookkeeping:
-`frame::StatusUpdate::Expire` retires one subject and `Clear` sweeps
-the whole line, belonging to the acting batch alone because an act the
-document accepted makes every held complaint stale. `frame::apply` is
-the one place a verdict becomes the field. **No such machinery touches
-a badge** — its subject names the event that changes the state it
-reads, and the badge goes because the read does. The state itself may
+`frame::StatusUpdate::Expire` retires one subject and
+`frame::RankedVerdict::Clear` sweeps the whole line, belonging to the
+acting batch alone because an act the document accepted makes every
+held complaint stale — which is why no policy's `StatusUpdate` can
+spell it. `frame::deliver` is where a policy's retirement reaches the
+field and `frame::apply` is where the ranking's answer does. **No
+such machinery touches a badge** — its subject names the event that
+changes the state it reads, and the badge goes because the read does. The state itself may
 still be bookkept by hand (`ViewerApp` clears `scene_fault` where a
 rebuild lands, `pane::viewport` clears `projection_fault` where a
 matrix forms); that is work about the seam, not about the chrome, and
@@ -860,13 +862,16 @@ state, so it wants a badge, and badging it means holding it and
 deciding what retires it. That is
 `work/view/startup-notices-need-holding-to-badge.md`.
 
-**Applying a verdict outside the ranking is not the same as writing
-one**, and the difference is what the count turns on. A retirement has
+**Delivering a retirement outside the ranking is not the same as
+writing a sentence**, and the difference is what the count turns on. A retirement has
 nothing to say and must NOT be ranked: `frame::cursor_status` returns
 only `Keep` or `Expire`, so it can never put a sentence on the line and
 was never one of these writers. `frame::deliver` is the door that
-splits the two: news to the notices, retirement to the field;
-`frame::apply` stays the door a retirement belongs at.
+splits the two: news to the notices, retirement to the field. It is
+the only door a policy's `StatusUpdate` fits — `frame::apply` takes
+the ranking's `RankedVerdict` and nothing else — so a `Show` a policy
+grows later joins the notices without its call site changing, and
+handing a policy's verdict to the wrong door does not build.
 
 **A missing file-chooser backend is not on the line at all**, and the
 provenance rule above is why rather than a reachability accident. It is
