@@ -403,6 +403,55 @@ well. The spec said the slot and the rounded rectangle "must answer as
 before". That holds only where the polygon and the region agree: in the
 arc bulges the base was wrong, and the head is right there.
 
+### The last pass (the second delta review)
+
+- **No panic.** The walk's `Boundary::Decided` arm meeting `On`/`End`
+  now returns `PointInLoopError::Escalated` with the name
+  `point_in_arc_loop_boundary_disagreement`. The two passes agree
+  whenever every decision is the band's own. They can part only where a
+  decision was taken on something else, such as the test-only
+  `identity-pass-testing` feature, which reads an in-band margin as
+  `Zero`. The comment now says that.
+- **The ellipse's centre.** The lower bound is decided first. It is
+  finite everywhere, and at the centre it is `b`, the true distance, so
+  a definite OFF needs nothing else. The Newton foot is formed only
+  where the lower bound is within the escalation band, and there `∇F ≠
+  0`. The centre no longer records a spurious `Invalid` sample. Rows:
+  - `an_ellipses_centre_reads_off_on_the_lower_bound`;
+  - under `--features probe`, `an_ellipses_centre_records_no_invalid_margin`.
+- **The span lever.** The span verdict closes the window. On an ellipse
+  it is now two-sided:
+  - CLOSED only on the gap's upper bound `(τ − w)·a`;
+  - OPEN only on its lower bound, the chord between the arc's ends;
+  - between them it escalates.
+
+  Row: `a_nearly_full_ellipse_arc_is_not_closed`. A full period less a
+  15ε gap at the minor vertex, at `a/b = 20`, has ends. Levered by `b`
+  the gap read 0.75ε and the arc read closed. Reverting to the `b`
+  lever turns the row red.
+- **Why ON reads the upper bound.**
+  `an_ellipse_tighter_than_the_band_straddles_it` uses an ellipse with
+  `b²/a = ε/100`. A point 20ε out from the major vertex has its lower
+  bound within the zero band and its upper bound 20ε, and it escalates
+  on `point_in_arc_loop_conic_straddle`. Reading ON off the lower bound
+  turns it red. On any body that bends looser than the band, the two
+  cannot be told apart, and the site says so.
+  `a_steep_ellipse_reads_the_band_in_metres` now demands the definite
+  `Off`/`On` answers, so an understated lever that only escalates turns
+  it red.
+- **The invalid-margin helper** moves to its own neutral module,
+  `crate::invalid_margin`. Its doc covers the three things its callers
+  mean:
+  - an impossible sign;
+  - a question not validly posed (the census's transverse dihedral);
+  - two sound bounds straddling the band.
+
+  The straddles carry their own names (`bool_contact_arc_straddle`,
+  `point_in_arc_loop_conic_straddle`), and the audit's never-funnel list
+  names them.
+- **The module header** of `splitting/containment.rs` lists every row
+  the arc-aware walk and `LoopEdge::contact` own.
+
 ## Rows added, moved, deleted
 
 - **Added in `crates/sweep/tests/contfp_reads_arcs_on_their_carriers.rs`:**

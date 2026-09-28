@@ -867,9 +867,14 @@ its distance to the closed segment (`ray_parity::on_segment`). A conic
 is read as its distance from the conic, then its distance to either end
 and a chordal-defect sum, neither compressed near an end. A circle is
 exact through one lever. An ellipse is bounded on both sides:
-- `on` is decided on the upper bound for ON and the lower bound for
-  OFF, so one call can mint the row twice;
+- `on` is decided on the lower bound for OFF and the upper bound for
+  ON, so one call can mint the row twice;
+- `span` is CLOSED on the gap's upper bound `(τ − w)·a` and OPEN on its
+  lower bound, the chord between the arc's ends;
 - `end` is the exact distance to the end point.
+
+Where the two bounds straddle the whole band, the escalation carries
+its own name (`*_straddle`), which never reaches the funnel.
 
 Each caller passes its own names in a `BoundaryRows` value, so the
 populations stay apart:

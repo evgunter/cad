@@ -168,6 +168,7 @@ pub(crate) mod source_walk;
 #[cfg(test)]
 mod cert_m3r1_probes;
 pub mod instance;
+pub(crate) mod invalid_margin;
 #[cfg(test)]
 pub(crate) mod iso;
 pub(crate) mod live;

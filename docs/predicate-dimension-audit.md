@@ -267,16 +267,22 @@ measurement, absent from the alternation while being named in this
 file's own first paragraph. That residue is this table's standing cost,
 disclosed rather than discovered.
 
-**Seven names carry the K vocabulary and never reach the funnel**, so
+**Ten names carry the K vocabulary and never reach the funnel**, so
 they are correctly outside the 248 and a reader who greps for one
-should know why. They live only in an `Indeterminate.predicate` —
-six through `predicate: Some("…")` (`carrier_kind`,
-`contact_tangent_independent`, `contact_rest_senses_opposed`,
-`contact_rest_ladder_invariant`, `transversality`, `validate_probe`),
-and one — `plane_nurbs_transversality_reported` — as the name argument
-of a `k_stats::gate_measured` call, which records the escalation on the
-open frame but classifies nothing, so it is outside this table for the
-same reason the other six are.
+should know why. They live only in an `Indeterminate.predicate`:
+- six through `predicate: Some("…")`: `carrier_kind`,
+  `contact_tangent_independent`, `contact_rest_senses_opposed`,
+  `contact_rest_ladder_invariant`, `transversality`, `validate_probe`;
+- three through `topo::invalid_margin::invalid`:
+  - `bool_contact_arc_straddle` and `point_in_arc_loop_conic_straddle`,
+    an ellipse's lower and upper bound on one distance straddling the
+    whole band;
+  - `point_in_arc_loop_boundary_disagreement`, the carrier walk meeting
+    on an edge a point its caller's pass placed off it;
+- one, `plane_nurbs_transversality_reported`, as the name argument of a
+  `k_stats::gate_measured` call. That records the escalation on the
+  open frame but classifies nothing, so it is outside this table for
+  the same reason the other nine are.
 None decides anything, none appears in the M7 baseline, and none has a
 comparand to dimension.
 

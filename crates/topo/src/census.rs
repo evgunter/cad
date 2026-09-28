@@ -1206,7 +1206,7 @@ fn gap_is_zero<T: Decide>(
         Ok(Sign::Positive) => Some(false),
         Ok(Sign::Negative) => {
             errors.push(ValidationError::CensusEscalated {
-                cause: crate::ray_parity::invalid(band, name),
+                cause: crate::invalid_margin::invalid(band, name),
             });
             None
         }
@@ -1993,7 +1993,7 @@ fn ee_cross_backed<T: Decide>(
         match geom_brep::classify_dihedral(sa, sb, q, arm_extent, band) {
             Ok(geom_brep::DihedralClass::Smooth) => {}
             Ok(geom_brep::DihedralClass::Transverse) => {
-                undecided.push(crate::ray_parity::invalid(band, "material_wedge_side"));
+                undecided.push(crate::invalid_margin::invalid(band, "material_wedge_side"));
                 continue;
             }
             Err(cause) => {

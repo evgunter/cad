@@ -17,7 +17,7 @@ use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
 use crate::body::Body;
 use crate::entity::{EdgeKey, FaceKey, LoopKey, VertexKey};
-use crate::ray_parity::{self, ParityRows};
+use crate::ray_parity::ParityRows;
 use crate::splitting::containment::{
     BoundaryRows, CarrierLoop, ConicRows, EdgeContact, carrier_loop, carrier_loop_side,
 };
@@ -400,7 +400,7 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// hit shadow a ring vertex, fixed here with its red-then-green row
 /// below) — then edge interiors over all loops, each edge on the row
 /// its carrier has: a `Line` is the distance to its closed segment
-/// ([`ray_parity::on_segment`]), and a circle or an ellipse is asked its
+/// ([`crate::ray_parity::on_segment`]), and a circle or an ellipse is asked its
 /// own conic and trim — both through
 /// [`crate::splitting::containment::LoopEdge::contact`], the one
 /// boundary reading the carrier walk runs too, so a point this pass
@@ -424,7 +424,7 @@ fn boundary_pre_pass<T: Decide>(
                 Ok(Sign::Zero) => return Ok(PrePass::On(FaceContainment::OnVertex(*v))),
                 Ok(Sign::Positive) => {}
                 Ok(Sign::Negative) => {
-                    return Err(ContainError::Escalated(ray_parity::invalid(
+                    return Err(ContainError::Escalated(crate::invalid_margin::invalid(
                         band,
                         "bool_contact_vertex",
                     )));
@@ -478,7 +478,7 @@ enum PrePass<T: geom_core::Real> {
     Off(Vec<(LoopKey, CarrierLoop<T>)>),
 }
 
-/// The pre-pass's rows for a straight edge: [`ray_parity::on_segment`]
+/// The pre-pass's rows for a straight edge: [`crate::ray_parity::on_segment`]
 /// reads `segment` (the edge's own length, the degeneracy gate) and
 /// `boundary` (the distance from `q` to the closed segment) and nothing
 /// else, so `side` and `advance` are never minted.
@@ -497,6 +497,7 @@ const ROWS: BoundaryRows = BoundaryRows {
         on: "bool_contact_arc",
         end: "bool_contact_arc_end",
         trim: "bool_contact_arc_trim",
+        straddle: "bool_contact_arc_straddle",
     },
 };
 
@@ -817,7 +818,7 @@ pub(super) fn point_on_circle<T: Decide>(
     match decide("bool_contact_arc", Margin::of(d), band) {
         Ok(Sign::Zero) => Ok(Some((radial, r_norm))),
         Ok(Sign::Positive) => Ok(None),
-        Ok(Sign::Negative) => Err(ray_parity::invalid(band, "bool_contact_arc")),
+        Ok(Sign::Negative) => Err(crate::invalid_margin::invalid(band, "bool_contact_arc")),
         Err(diag) => Err(diag),
     }
 }
