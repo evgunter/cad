@@ -759,8 +759,9 @@ fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
         "a refusal renamed to TangentParallel left an escalation on the log"
     );
     assert!(
-        recorded.verdicts.iter().any(|v| v.predicate == "tangent_normal_parallel"
-            && v.sign == geom_core::Sign::Positive),
+        recorded.verdicts.iter().any(
+            |v| v.predicate == "tangent_normal_parallel" && v.sign == geom_core::Sign::Positive
+        ),
         "the naming reading's definite verdict left the verdict channel: {:?}",
         recorded.verdicts
     );

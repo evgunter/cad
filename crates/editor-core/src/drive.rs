@@ -1714,7 +1714,9 @@ fn classify_replay<T: geom_core::Decide>(
 /// of the leaf — its FIRST escalation speaks — or `None` for an empty
 /// log, which leaves the node to read (3).
 fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdict> {
-    escalations.first().map(|first| indeterminate(&first.source))
+    escalations
+        .first()
+        .map(|first| indeterminate(&first.source))
 }
 
 /// What one escalation makes of a leaf: a terminal sliver when its
