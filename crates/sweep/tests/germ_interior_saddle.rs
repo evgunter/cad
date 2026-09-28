@@ -5,11 +5,14 @@
 //! A partial arc face grazes a rod's wall in one closed loop that
 //! touches no edge of either body; a bracket's pin pierces the rod's
 //! top cap, so the op has crossings and never reaches the no-crossings
-//! fallback's `cylinder_extent_gate`. On main before the guard's
-//! cylinder half every op came back a VALID `Seamed` body that was
-//! wrong: ∩ kept the pin alone and missed the lens. These rows pin the
-//! refusal, the no-crossings control, and the pin-only answer the guard
-//! must leave standing.
+//! fallback. Before the interior-loop guard covered the cylinder, every
+//! op came back a VALID `Seamed` body that was wrong: ∩ kept the pin
+//! alone and missed the lens. The section certificate classifies the
+//! pair as the cylinder pair table's middle row — one null saddle loop
+//! — whose witness lies strictly inside both faces with no event on the
+//! pair: a certified interior loop (R-loop). These rows pin the
+//! refusal, its payload and verdict, the no-crossings control, and the
+//! pin-only answer the guard must leave standing.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -160,7 +163,8 @@ fn a_tilted_cylinder_saddle_behind_a_pin_refuses_every_op() {
 
 /// **The no-crossings control.** A full rod at `y = 1.3` meets the wall
 /// in the same saddle loop and nowhere else: no crossings, so the op
-/// takes the fallback and `cylinder_extent_gate` refuses it there.
+/// takes the fallback, and its section pass refuses the loop there as
+/// R-loop. So does the arc prism alone, without its bracket.
 #[test]
 fn the_saddle_without_a_pin_refuses_at_the_fallback() {
     let a = cyl(1.0, 2.0);
@@ -178,11 +182,18 @@ fn the_saddle_without_a_pin_refuses_at_the_fallback() {
         Tol::witness(),
     )
     .expect("the rod moves");
-    for (_, name, r) in every_op(&a, &rod) {
-        assert!(
-            matches!(r, Err(topo::BooleanError::FallbackExtentUnsupported { .. })),
-            "rod and full rod, {name}: {r:?}"
-        );
+    for (what, b) in [("full rod", rod), ("arc prism", arc_prism())] {
+        for (_, name, r) in every_op(&a, &b) {
+            match r {
+                Err(topo::BooleanError::FallbackExtentUnsupported { what: why, .. }) => {
+                    assert!(
+                        why.contains("closed loop interior to both faces"),
+                        "rod and {what}, {name}: {why}"
+                    );
+                }
+                other => panic!("rod and {what}, {name}: {other:?}"),
+            }
+        }
     }
 }
 
@@ -214,6 +225,74 @@ fn the_pin_alone_still_answers_its_closed_form() {
         assert!(
             (got - want).abs() <= 1e-9 * want.max(1.0),
             "{name}: {got} against the closed form {want}"
+        );
+    }
+}
+
+fn cylinder_faces(b: &Body<f64>) -> Vec<topo::FaceKey> {
+    b.faces()
+        .filter(|(_, fd)| {
+            matches!(
+                b.get_surface(fd.surface),
+                Some(geom::Surface::Cylinder { .. })
+            )
+        })
+        .map(|(k, _)| k)
+        .collect()
+}
+
+/// **The refusal names both walls, and the certificate's verdict is a
+/// certified interior loop.** Every op's payload names the rod's wall
+/// and the arc face, from its first operand's side, and the crossings
+/// path's per-pair verdict for that pair is R-loop. Red against the
+/// middle row read as two thin-essential loops (W2 would clear it on the
+/// arc face), against the no-event decision answering `In`-both as
+/// clear, and against W4 reading the op's events rather than the
+/// pair's.
+#[test]
+fn the_saddle_is_a_certified_interior_loop_naming_both_walls() {
+    let tilted = topo::transform_rigid(
+        &arc_bracket(),
+        &Affine3::rotation_about_axis(Point3::origin(), Vec3::unit_y(), 0.15),
+        Tol::witness(),
+    )
+    .expect("the bracket tilts");
+    for (what, b) in [("straight", arc_bracket()), ("tilted", tilted)] {
+        let a = cyl(1.0, 2.0);
+        let (wall_a, wall_b) = (cylinder_faces(&a), cylinder_faces(&b));
+        assert_eq!(wall_b.len(), 1, "{what}: the bracket's one arc face");
+        for (op, name, r) in every_op(&a, &b) {
+            let a_first = !name.starts_with('B');
+            let (first, second) = if a_first {
+                (&wall_a, &wall_b)
+            } else {
+                (&wall_b, &wall_a)
+            };
+            match r {
+                Err(topo::BooleanError::CurvedPairUnsupported {
+                    op: Some(o),
+                    site: topo::PairRefusalSite::InteriorLoopGuard,
+                    operand: topo::Operand::A,
+                    face,
+                    other_face,
+                    ..
+                }) => {
+                    assert_eq!(o, op, "{what}, {name}");
+                    assert!(
+                        first.contains(&face) && second.contains(&other_face),
+                        "{what}, {name}: names {face:?} × {other_face:?}"
+                    );
+                }
+                other => panic!("{what}, {name}: {other:?}"),
+            }
+        }
+        let verdicts = topo::test_support::section_report(BooleanOp::Union, &a, &b, Tol::witness())
+            .expect("the reduction runs");
+        assert!(
+            verdicts
+                .iter()
+                .any(|(fa, fb, v)| wall_a.contains(fa) && *fb == wall_b[0] && v == "Err(Loop)"),
+            "{what}: {verdicts:?}"
         );
     }
 }

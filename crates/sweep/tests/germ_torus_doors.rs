@@ -953,7 +953,7 @@ fn a_torus_poking_through_a_slab_face_is_not_an_assembly() {
     }
 }
 
-/// **The extent gate holds against a curved partner too.** A cylinder
+/// **The no-crossings guard holds against a curved partner too.** A cylinder
 /// of radius 0.55 along `x` through `(0, 0, 3)` dips into the donut's
 /// outer equator at the top of the ring: the two walls meet in a closed
 /// loop that touches no edge of either body, which no vertex probe can
@@ -1070,20 +1070,43 @@ fn the_sweep_never_steps_over_a_contradicted_torus_root() {
     }
 }
 
-/// **The extent gate's known conservative refusal, stated.** A cube in
-/// the donut's hole touches nothing, but the donut's outer face's box
-/// spans the hole, so the no-crossings fallback refuses the union on a
-/// box overlap rather than answering it. Pinned so that a gate that
-/// learns to separate the two is a visible change.
+/// **A cube in the donut's hole answers** (the retired extent gate's
+/// known conservative refusal). It touches nothing, but the outer face's
+/// box spans the hole; the section certificate reads each pair's section
+/// instead — the cube's side planes cut the torus in two `(0,1)` ovals,
+/// its caps in two parallels, all essential on a torus face that
+/// describes (W2) — so the no-crossings fallback answers the disjoint
+/// union. Red against the blanket gate kept.
 #[test]
-fn a_cube_in_the_donuts_hole_is_the_extent_gates_conservative_refusal() {
-    let cube = bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5));
-    let err = topo::union(&donut(), &cube, Tol::witness())
-        .expect_err("the gate cannot separate a box overlap from a meeting");
+fn a_cube_in_the_donuts_hole_answers_the_disjoint_union() {
+    let (d, cube) = (donut(), bar((-0.5, 0.5), (-0.25, 0.25), (-0.5, 0.5)));
+    let r = topo::union(&d, &cube, Tol::witness()).expect("the cube stands clear of the donut");
+    let b = &r.body().expect("non-empty").body;
+    let vol = |x: &Body<f64>| {
+        topo::mass_properties(x, Tol::witness())
+            .expect("the volume integrates")
+            .volume
+    };
+    let want = std::f64::consts::PI.powi(2) + 0.5;
     assert!(
-        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-        "{err:?}"
+        (vol(b) - want).abs() <= 1e-9 * want,
+        "{} against {want}",
+        vol(b)
     );
+    assert!((vol(&d) + vol(&cube) - want).abs() <= 1e-9 * want);
+    for (q, want) in [
+        (Point3::new(0.0, 0.0, 0.0), true),
+        (Point3::new(2.0, 0.0, 0.0), true),
+        (Point3::new(1.0, 0.0, 0.0), false),
+    ] {
+        assert!(
+            matches!(
+                (topo::point_in_solid(b, q, band(), Tol::witness()), want),
+                (Ok(topo::SolidContainment::In), true) | (Ok(topo::SolidContainment::Out), false)
+            ),
+            "{q:?}"
+        );
+    }
 }
 
 // -------------------------------------------------------------------
@@ -1142,7 +1165,7 @@ fn bracket() -> Body<f64> {
 /// **∖ and ∩ refuse the oval, both operand orders.** The bracket's foot
 /// meets the half donut's outer face in a closed oval interior to both
 /// faces, while the pin crosses the cap elsewhere, so the op has
-/// crossings and never reaches the no-crossings extent gate; the join
+/// crossings and never reaches the no-crossings section pass; the join
 /// and the face-region propagation cannot see an oval no edge crosses
 /// (`work/germ/torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`).
 /// The revert roster refusing the torus face is what keeps ∖ and ∩ off
