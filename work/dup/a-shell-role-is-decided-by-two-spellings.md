@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-27
 priority: P4
 cost: E
-refs: [tier-3-does-not-check-shell-roles-per-solid]
+refs: [3301]
 ---
 
 
@@ -31,3 +31,7 @@ function in `props` both call. Not done in ATREST-7 because the
 `chk_shell_volume_sign` rows are pinned by name in several suites
 (`shell_census_is_thread_count_invariant`, `dsc_checks`, the shell8
 probes) and moving them is SHELL/CENSUS ground.
+
+## Re-homed
+
+2026-09-27, from `work/atrest/` at ATREST's close: the finding is one decision spelled twice (check 7's `plus_v_decide` and props' `chk_shell_volume_sign`), which is S-DUP's charter. The fix edits `validate.rs`, RESTFRONT's ground; the landing PR announces the seam.
