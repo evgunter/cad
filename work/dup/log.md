@@ -2327,3 +2327,19 @@ Ev ruled on every question that was waiting on him.
 - `the-arc-carrier-fence-fixture-is-written-twice-in-editor-core-tests` (E): waits on `tint`'s call about `cert3r1_dump`.
 
 S-REROUTE (11.5/30) still has no orchestrator.
+
+## 2026-09-28: batch 9 lands (#3368, #3371)
+
+- **#3368: one corpus walk, and the dump instruments run on demand.** Ev ruled to keep `cert3r1_dump` as the instrument the m10-p fence cites, but to remove its cost and its copy.
+  - `m10_p_fence::walk` is now the only corpus and fixture walk. The fence digests what it sees; `cert3r1_dump` and `r2_cert3_coord_dump` print it.
+  - Both dumps are `#[ignore]`d with a run command, and the per-PR slow set lost the dump's entry.
+  - Before and after the refactor, the fence's three digests are unchanged and the dumps' printed output is byte-identical.
+  - The tint row closes on the ruling. The unread "never pushed" harnesses and `*dump*` files are a new P4 row, and per Ev it stays on `tint` because it is P2 or below.
+- **#3371: eight sweep suites stop exporting fixtures to 25 others.** The groups move into `tests/common`, per Ev's narrowest-home rule: seven new modules, plus `oracles` and `cavity`. The census came out at 8 owners and 25 consumers, where the row said 7 and 22.
+  - The style review found the recurring left-behind members again: inline `hollow_box` and `tube` copies, and the prism, klein-elbow and `cut_cylinder` twins in files the PR had open. It also found consumer lists in the new module docs, a routing list missing four of its own modules, and `latitude_seam` importing a suite.
+  - The fix pass folded every one of them. Surviving variants carry ``NOT `common::`` markers. A whole-body `== 6` assertion became a count over the named corner-arc set (`== 4`).
+  - Filed: the per-suite `revolved` helpers (fixture), the planar cap finders (helper), and the family-homes question (dup, `design: true`: do `shell7_common`, `shell8_common` and `mate2_common` stay, or fold into `common`).
+
+**The slate.** `dup` reads 6/30.
+- One row is S-DUP's own: the family-homes design question.
+- Two rows came in from atrest's close (`9fa9355a4`): `a-shell-role-is-decided-by-two-spellings` (P4) and `validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them` (P3). Both are ordinary S-DUP work for the next batch.
