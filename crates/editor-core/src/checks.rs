@@ -527,10 +527,10 @@ pub struct CheckFinding {
 // output) attribution. Three arms end in a recourse the story already
 // carries, so `recourse` answers "" ("already told") there:
 // - Unsupported forwards its payload's `Display`, recourse included.
-// - Escalated renders the payload's data view (no stage prefix, no
-//   arena key, neither of which a document user can act on) and ends
-//   in the escalating decision's own ending, [`ShellClassifyError::
-//   ending`], the one the payload's `Display` ends in too.
+// - Escalated renders the refusal's data view,
+//   [`ShellClassifyError::payload`] (no stage prefix and no arena key,
+//   neither of which a document user can act on), then the same ending
+//   the refusal's own `Display` ends in, [`ShellClassifyError::ending`].
 // - StaleExpectation's pinned prose ends in its own ". Recourse:".
 impl crate::finding::Finding for CheckFinding {
     fn subject(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
@@ -548,22 +548,7 @@ impl crate::finding::Finding for CheckFinding {
                 "{actual} disconnected component(s) where {expected} was expected"
             ),
             CheckEvidence::Escalated { source } => {
-                f.write_str("the component count is unknowable: ")?;
-                match source {
-                    ShellClassifyError::Escalated { source, .. } => {
-                        write!(f, "{}", source.payload())
-                    }
-                    ShellClassifyError::ZeroVolume { .. } => {
-                        f.write_str("a shell's signed volume is definitely zero")
-                    }
-                    ShellClassifyError::Straddles { .. } => {
-                        f.write_str("a shell's certified volume bracket straddles zero")
-                    }
-                    // run_checks routes only the sign-read arms here;
-                    // any other source forwards its own story, and the
-                    // shell-role decision has no ending for it.
-                    other => return write!(f, "{other}"),
-                }?;
+                write!(f, "the component count is unknowable: {}", source.payload())?;
                 match source.ending() {
                     Some(ending) => write!(f, ". {ending}"),
                     None => Ok(()),

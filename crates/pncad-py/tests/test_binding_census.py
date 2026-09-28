@@ -1012,9 +1012,10 @@ BOUND_AS = {
     # beside the two `CheckEvidence` arms that carry it, and its
     # discriminant is the word those arms publish: `band`, `props`,
     # `escalated`, `zero_volume` or `straddles`. `CheckEvidence.reason`
-    # is the same refusal's sentence — the kernel's own prose — and this is the
-    # branchable half beside it, so a caller stops substring-matching
-    # the sentence to learn which shell refusal escalated the count.
+    # is the same refusal's sentence — the kernel's own prose — and
+    # this is the branchable half beside it, so a caller stops
+    # substring-matching the sentence to learn which shell refusal
+    # escalated the count.
     #
     # Its own fields do not cross: which shell, and the mass-properties
     # failure under `props`, are the shell door's vocabulary and this

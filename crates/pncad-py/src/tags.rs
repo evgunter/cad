@@ -2692,9 +2692,9 @@ pub fn unexaminable_tag(why: Unexaminable) -> &'static str {
 /// (`unsupported`). This one says which of the shell door's five ways
 /// it refused, so a caller reads it instead of substring-matching the
 /// sentence: the run's tolerance formed no band, a face refused in the
-/// props inventory, the sign read escalated in-band, the signed volume
-/// is definitely zero, or its certified bracket straddles zero, so
-/// there is no side to classify to.
+/// props inventory, the sign read escalated, the signed volume (or an
+/// end of its bracket) is zero at this tolerance, or its certified
+/// bracket straddles zero, so there is no side to classify to.
 ///
 /// `band` is the same word [`checks_error_tag`] mints for the
 /// registry's own band refusal, one namespace up, and means the same

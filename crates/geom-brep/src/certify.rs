@@ -673,10 +673,7 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
             }
             (
                 Reading::AtRest,
-                RefusedArm::Zero(_)
-                | RefusedArm::ZeroOrNegative
-                | RefusedArm::Straddles
-                | RefusedArm::SignCertain,
+                RefusedArm::Zero(_) | RefusedArm::ZeroOrNegative | RefusedArm::SignCertain,
             )
             | (Reading::Adopt, _) => defect.to_owned(),
         },

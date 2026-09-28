@@ -2999,8 +2999,9 @@ fn every_check_finding_renders_within_the_budget() {
 /// escalated** (D4 ¶1 (i)). The shell-role sign passes on either
 /// definite sign and its margin is a thickness, so every band-decided
 /// arm ends in its lever plus the tolerance that decides it, valued at
-/// `|m|/K` where the verdict carries a margin; a bracket straddling zero
-/// is passed by no tolerance. A source that is not that decision's
+/// `|m|/K` where the verdict carries a margin and without a value where
+/// it does not (a zero, a straddle); an enclosure across zero is passed
+/// by no tolerance and names the lever alone. A source that is not that decision's
 /// ends in its own payload's recourse and no invented lever. No row the
 /// window writes itself advises lowering the tolerance.
 #[test]
@@ -3074,20 +3075,20 @@ fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
             ),
         ),
         (
-            "definite zero",
+            "zero",
             S::ZeroVolume { shell },
             format!(
-                "{head}a shell's signed volume is definitely zero. {LEVER}, or, if this \
-                 thickness is intended, tighten the tolerance"
+                "{head}a shell's signed volume, or an end of its certified bracket, is zero at \
+                 this tolerance. {LEVER}, or, if this thickness is intended, tighten the \
+                 tolerance"
             ),
         ),
         (
             "straddle",
             S::Straddles { shell },
             format!(
-                "{head}a shell's certified volume bracket straddles zero. {LEVER}; if the wall \
-                 is sound, its volume is below what the quadrature certifies, which may \
-                 indicate a kernel bug worth reporting"
+                "{head}a shell's certified volume bracket straddles zero at this tolerance. \
+                 {LEVER}, or, if this thickness is intended, tighten the tolerance"
             ),
         ),
     ];

@@ -58,10 +58,6 @@ pub enum RefusedArm<'a> {
     /// tolerance offer (the Negative half would be misled by one), and
     /// no defect ending (the Zero half is band-decided).
     ZeroOrNegative,
-    /// A DECIDED verdict whose certified enclosure has one end definitely
-    /// on each side of zero: no smaller tolerance decides it passing, so
-    /// it ends as a zero verdict with no size to tighten below does.
-    Straddles,
     /// The margin classified with a definite sign that refuses.
     SignCertain,
 }
@@ -140,10 +136,9 @@ pub struct SizedDecision {
     pub passes: SizedPass,
     /// How its sign-certain arm ends over stored geometry.
     pub stored: StoredDefinite,
-    /// What a zero verdict leaving no size to tighten below, or a
-    /// straddling one, may mean beyond the lever, where the decision's
-    /// own metering can reach it on sound geometry: appended to the
-    /// lever as "; {at_zero}".
+    /// What a zero verdict leaving no size to tighten below may mean
+    /// beyond the lever, where the decision's own metering can reach
+    /// zero on sound geometry: appended to the lever as "; {at_zero}".
     pub at_zero: Option<&'static str>,
 }
 
@@ -166,12 +161,11 @@ impl SizedDecision {
     ///   and with no value on a zero arm whose variant carries none. A
     ///   margin on the refused side, at zero, or straddling zero is
     ///   passed by no smaller tolerance and names the lever alone (and,
-    ///   on a zero verdict or a decided straddle,
-    ///   [`SizedDecision::at_zero`] where the decision has one); a
-    ///   margin that could not be read keeps the lever and adds
-    ///   [`UNREADABLE_MARGIN_NOTE`]. At adoption no arm names a
-    ///   tolerance ([`Reading::Adopt`]). A decided Zero-or-Negative
-    ///   verdict names the lever alone.
+    ///   on a zero verdict, [`SizedDecision::at_zero`] where the
+    ///   decision has one); a margin that could not be read keeps the
+    ///   lever and adds [`UNREADABLE_MARGIN_NOTE`]. At adoption no arm
+    ///   names a tolerance ([`Reading::Adopt`]). A decided
+    ///   Zero-or-Negative verdict names the lever alone.
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
     #[must_use]
@@ -194,17 +188,16 @@ impl SizedDecision {
                 format!("Recourse: {lever}, or, if this {size} is intended, tighten the tolerance")
             }
         };
-        let noted = || match at_zero {
-            Some(note) => format!("Recourse: {lever}; {note}"),
-            None => alone(),
-        };
         match arm {
             RefusedArm::Zero(_) if passes.passes_zero() => alone(),
             RefusedArm::Zero(None) => tighten(None),
             RefusedArm::Zero(Some(Classified { margin, band })) if passes.tightens(margin) => {
                 tighten(Some(margin.abs() / k(band)))
             }
-            RefusedArm::Zero(Some(_)) | RefusedArm::Straddles => noted(),
+            RefusedArm::Zero(Some(_)) => match at_zero {
+                Some(note) => format!("Recourse: {lever}; {note}"),
+                None => alone(),
+            },
             RefusedArm::ZeroOrNegative => alone(),
             RefusedArm::SignCertain => match (reading, stored) {
                 (Reading::Build, _) | (Reading::AtRest | Reading::Adopt, StoredDefinite::Lever) => {
@@ -227,5 +220,106 @@ impl SizedDecision {
                 }
             }
         }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use super::*;
+
+    /// `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
+    fn band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
+    /// Which margins a smaller tolerance decides passing, per pass set:
+    /// a one-sided set tightens positive margins only, the two-sided set
+    /// any nonzero one, and none tightens zero.
+    #[test]
+    fn each_pass_set_tightens_the_margins_it_accepts() {
+        use SizedPass::{NonNegative, NonZero, Positive};
+        let rows = [
+            (Positive, 5e-9, true),
+            (Positive, -5e-9, false),
+            (NonNegative, 5e-9, true),
+            (NonNegative, -5e-9, false),
+            (NonZero, 5e-9, true),
+            (NonZero, -5e-9, true),
+            (Positive, 0.0, false),
+            (NonNegative, -0.0, false),
+            (NonZero, 0.0, false),
+            (NonZero, -0.0, false),
+        ];
+        for (pass, v, want) in rows {
+            assert_eq!(pass.tightens(v), want, "{pass:?} at {v:e}");
+        }
+        assert!(!Positive.passes_zero() && !NonZero.passes_zero() && NonNegative.passes_zero());
+    }
+
+    /// An enclosure is decided below its nearer end's `|m|/K` only when
+    /// both ends sit on one accepted side; one across zero is decided
+    /// passing by no tolerance.
+    #[test]
+    fn an_enclosure_tightens_only_with_both_ends_on_one_side() {
+        use SizedPass::{NonZero, Positive};
+        let k = 10.0;
+        let rows = [
+            (NonZero, 2e-9, 5e-9, Some(2e-10)),
+            (NonZero, -5e-9, -2e-9, Some(2e-10)),
+            (NonZero, -2e-9, 3e-9, None),
+            (NonZero, 0.0, 3e-9, None),
+            (Positive, 2e-9, 5e-9, Some(2e-10)),
+            (Positive, -5e-9, -2e-9, None),
+            (Positive, -2e-9, 3e-9, None),
+        ];
+        for (pass, lo, hi, want) in rows {
+            assert_eq!(
+                pass.below(lo, hi, k),
+                want,
+                "{pass:?} over [{lo:e}, {hi:e}]"
+            );
+        }
+    }
+
+    /// The two-sided decision through the table: a void-side margin is
+    /// offered the tolerance at its magnitude, an enclosure across zero
+    /// names the lever alone, and a zero with no margin the valueless
+    /// offer.
+    #[test]
+    fn a_two_sided_decision_ends_by_its_verdict() {
+        let decision = SizedDecision {
+            lever: "L",
+            size: "thickness",
+            passes: SizedPass::NonZero,
+            stored: StoredDefinite::Lever,
+            at_zero: None,
+        };
+        let cause = |margin| Indeterminate {
+            margin,
+            band: band(),
+            predicate: None,
+        };
+        let ends =
+            |margin| decision.recourse(RefusedArm::Undecided(&cause(margin)), Reading::Build);
+        assert_eq!(
+            ends(MarginDiag::Value(-5e-9)),
+            "Recourse: L, or, if this thickness is intended, tighten the tolerance below 5e-10 m"
+        );
+        assert_eq!(
+            ends(MarginDiag::Enclosure {
+                lo: -2e-9,
+                hi: 3e-9
+            }),
+            "Recourse: L"
+        );
+        assert_eq!(
+            ends(MarginDiag::Invalid),
+            format!("Recourse: L; {UNREADABLE_MARGIN_NOTE}")
+        );
+        assert_eq!(
+            decision.recourse(RefusedArm::Zero(None), Reading::Build),
+            "Recourse: L, or, if this thickness is intended, tighten the tolerance"
+        );
     }
 }
