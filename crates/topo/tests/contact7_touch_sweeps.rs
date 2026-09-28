@@ -152,6 +152,17 @@ fn a_rotated_bracket_and_brick_sweep_clears_no_overlap() {
     );
     assert_eq!(overlapping + apart, 432);
     assert!(wrong_clears.is_empty(), "{wrong_clears:?}");
+    // The one known cost: a brick seated in the inner corner ON the
+    // floor meets the bracket's saddle corner `(1, 1)` (a reflex edge
+    // and two convex ones), which no test certifies
+    // (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`).
+    assert!(
+        false_refusals
+            .iter()
+            .all(|&(_, x, y, z)| x.0 == 1.0 && y.0 == 1.0 && z == (0.0, 1.0)),
+        "{false_refusals:?}"
+    );
+    assert_eq!(false_refusals.len(), 12, "{false_refusals:?}");
 }
 
 /// A parallelepiped `p + u·a + v·b + w·c` over the unit cube, grafted
@@ -297,4 +308,5 @@ fn a_crossed_ridge_sweep_clears_no_overlap() {
     );
     assert_eq!(overlapping + apart, 135);
     assert!(wrong_clears.is_empty(), "{wrong_clears:?}");
+    assert!(false_refusals.is_empty(), "{false_refusals:?}");
 }

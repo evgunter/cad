@@ -2,10 +2,11 @@
 id: touch-cone-readings-are-levered-directions-not-face-distances
 kind: issue
 title: The census's touch analysis decides a face's side of a candidate plane by a unit-direction reading times a lever, not by the face's own distance from the plane — an obtuse sector reads a dipping face as on the plane
-status: open
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: H
+closed: 2026-09-28
 ---
 
 
@@ -64,3 +65,19 @@ near face's plane.
 edge-in-face wedge along the dipping face) refuses the pair, and no
 end-to-end wrong clear has been shown; the witness row pins both halves
 so the redesign moves the local half deliberately. Cost H.
+
+## Closed
+
+Fixed by CONTACT-7. Every sign the touch analysis decides as a verdict
+is now a vertex's signed distance from a plane through the touch point,
+in metres (`census_touch_side`, `census_touch_dihedral`). Each star face
+is read through its piece at the touch point: the part of the face
+visible from it, which is star-shaped from the point, so its vertices'
+distances bound every point of it. Directions only propose candidate
+planes. The one levered reading left is the candidate span test, where a
+Zero only skips a candidate, and the source row
+`census::tests::the_touch_analysis_levers_only_its_candidates` refuses a
+levered door anywhere else in the analysis. A rest is minted only by
+`rest::certify`. The witness `an_obtuse_sector_is_read_through_its_rays`
+reads not-Rest at 2, 5, 30 and 500 times the zero threshold, and on a
+synthetic star.
