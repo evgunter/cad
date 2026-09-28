@@ -75,6 +75,7 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::SplineError;
+use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::CERT_SAMPLES;
@@ -568,14 +569,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        let (lo, hi) = kv.domain();
-        (1..PXN_WALL_SPANS)
-            .filter_map(|i| {
-                #[allow(clippy::cast_precision_loss)]
-                let t = lo + (hi - lo) * (i as f64 / PXN_WALL_SPANS as f64);
-                kv.multiplicity_of(t).is_none().then_some(t)
-            })
-            .collect()
+        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());

@@ -109,6 +109,7 @@
 
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
+use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::spline::compose::{self, CurveRingData, ImplicitSurface, tensor};
 use geom_core::{
     Band, Bounds, CertifiedEnclosure, Decide, Interval, Margin, Point3, Real, Sign, SupSpeed, Vec3,
@@ -231,7 +232,6 @@ impl SsiLimb {
 /// Refine the carrier so the hull limbs have small spans to work with
 /// (knot refinement is exact in ℝ; the curve is unchanged).
 fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
-    let (lo, hi) = curve.domain();
     let kv = curve.knots();
     // Already fine enough: refining a carrier that the marcher's step
     // rule already gave hundreds of spans buys nothing and costs an
@@ -239,16 +239,9 @@ fn refined<T: Real>(curve: &NurbsCurve3<T>) -> NurbsCurve3<T> {
     if kv.control_count() >= SSI_CERT_SPANS + kv.degree() {
         return curve.clone();
     }
-    let mut add = Vec::new();
-    for i in 1..SSI_CERT_SPANS {
-        #[allow(clippy::cast_precision_loss)]
-        let t = lo + (hi - lo) * (i as f64 / SSI_CERT_SPANS as f64);
-        // Skip parameters already present as knots (refinement would
-        // raise multiplicity, which is not what this is for).
-        if kv.multiplicity_of(t).is_none() {
-            add.push(t);
-        }
-    }
+    // Parameters already present as knots are skipped (refinement would
+    // raise multiplicity, which is not what this is for).
+    let add = domain_grid_points(kv, SSI_CERT_SPANS, GridSkip::BitEqual);
     curve.refine_knots(&add).unwrap_or_else(|_| curve.clone())
 }
 
@@ -1159,6 +1152,7 @@ mod tests {
     }
 
     /// A degree-2 carrier on `[0, 1]` with the given interior knots.
+    #[allow(clippy::unwrap_used)]
     fn carrier(interior: &[f64]) -> geom::NurbsCurve3<f64> {
         use geom_core::Point3;
         use geom_core::spline::KnotVector;
