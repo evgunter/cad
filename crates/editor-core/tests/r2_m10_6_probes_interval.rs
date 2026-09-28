@@ -841,8 +841,16 @@ fn guide(bound: f64) -> Guide {
 fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let g = guide(2.0 - 1.0e-11);
     let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    let verdict =
-        drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
+    // On rayon: at 1e-12 this drive refines far enough to hold its `test`
+    // leg for six minutes serially (365 s on the hosted run of
+    // evgunter/cad PR 3318), and the schedule moves no verdict
+    // (`DriveConfig::parallel`; `m10_7_r2_drive_schedule_is_deterministic`
+    // pins it). The cache seam below keys on this same config.
+    let drive_cfg = DriveConfig {
+        parallel: true,
+        ..numeric_lane()
+    };
+    let verdict = drive(&g.doc, &analyzed, &drive_cfg, Tol::witness()).expect("the nominal builds");
     eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -927,7 +935,6 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
 
     // The cache seam, used the documented way.
     let mut cache = editor_core::report::ReportCache::new();
-    let drive_cfg = numeric_lane();
     let key = report_key(
         "stackup",
         verdict.content_key().0,
