@@ -181,18 +181,38 @@ fn an_arc_whose_first_crossing_is_outside_the_window_still_pierces_inside_it() {
     assert!(!hits.is_empty(), "the in-window crossing is a pierce");
 }
 
-/// **Both crossings outside the window**: the same arc at azimuth −40°
-/// crosses `B`'s carrier twice, both past the window. The certified
-/// negative — every root placed `Out` — is no event, and no refusal.
+/// **The certified negative, on the lily's own pairs.** The arch's
+/// outer equator seam crosses the stem's torus CARRIER on its arc, at a
+/// point past the stem face's 22° window, and its two ends are
+/// definitely off that carrier (one inside the tube at the weld, one
+/// far outside). The root is placed `Out` in the stem face's chart, so
+/// the pair is examined and is NO event — against both of the stem's
+/// wall faces — and the sweep does not refuse. On the base this pair
+/// refused `CurvedPierceUnsupported` (the straddle arm read a crossing
+/// accounted for off the face as a contradiction). The stem's inner
+/// seam against the arch's walls is the same certificate from the
+/// other side: two roots on the arc, both before the arch face's
+/// window.
 #[test]
-fn an_arc_crossing_the_carrier_only_outside_the_window_is_no_event() {
-    let (a, b) = (a_half(-40_f64.to_radians(), 1.2, true), b_quarter());
-    let seam = circle_edges(&a, A_MAJOR - A_MINOR);
-    assert_eq!(seam.len(), 1, "one inner seam");
-    assert!(
-        accepted_against_torus(&a, &b, &seam).is_empty(),
-        "no crossing of the face itself"
-    );
+fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
+    let (s, a) = (stem(), arch());
+    let (ab, ba) = sweep_traces(&s, &a, SweepStrategy::Realized, None, Tol::witness())
+        .unwrap_or_else(|e| panic!("the lily's reduction sweep refused: {e:?}"));
+    for (label, trace, x, y, radius) in [
+        ("stem inner seam × arch walls", &ab, &s, &a, 5.0 - 0.060),
+        ("arch outer seam × stem walls", &ba, &a, &s, 1.1 + 0.052),
+    ] {
+        let seam = circle_edges(x, radius);
+        let walls = torus_faces(y);
+        assert_eq!(seam.len(), 1, "{label}: one seam");
+        let pairs = |v: &[(EdgeKey, FaceKey)]| {
+            v.iter()
+                .filter(|(e, f)| seam.contains(e) && walls.contains(f))
+                .count()
+        };
+        assert_eq!(pairs(&trace.examined), walls.len(), "{label}: examined against every wall face");
+        assert_eq!(pairs(&trace.accepted), 0, "{label}: and no event on any");
+    }
 }
 
 /// **The inner-contour region**: `A` facing AWAY from `B`'s axis at
@@ -251,3 +271,4 @@ fn a_coaxial_circle_clear_of_the_tube_is_no_event() {
     assert!(!seams.is_empty(), "the coaxial seams exist");
     assert!(accepted_against_torus(&a, &b, &seams).is_empty());
 }
+
