@@ -553,9 +553,11 @@ const WITNESS_AT_MID_PARAMETER: &str = "witness_at_mid_parameter";
 /// Every name a check of [`EdgeCurve::certify`] escalates under — its
 /// own, and those of the classifiers it calls (the dihedral and
 /// second-order readings, the chart-image mint, the plane × NURBS lane
-/// and the rung-3 certificate under it) — is listed by name. Each
-/// decides the edge against its own two faces, so each takes the
-/// edge-local lever. `None` for any other name (or none): the table
+/// and the rung-3 certificate under it) — is listed by name, routed to
+/// the edge-local lever `topo::validate`'s `classify_certify` already
+/// named for the whole arm; the per-family split is
+/// `work/encl/certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle.md`.
+/// `None` for any other name (or none): the table
 /// holds nothing for it, and the caller says so with
 /// [`MissingRecourse`] rather than asserting a lever over a decision it
 /// does not know. A poisoned margin is not routed here: it is not a
@@ -3772,6 +3774,46 @@ mod tests {
         EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
     }
 
+    /// D4 ¶1 (the two-tolerance principle, clause (i)): the definite and
+    /// in-band halves of one decision are one user situation, so both
+    /// end in the same recourse — `NotTransverse` with the transversality
+    /// check's escalation, `NotSecondOrderSeparated` with the second-order
+    /// check's. The pair's shared recourse is `PAIR_RECOURSE`.
+    #[test]
+    fn each_two_tolerance_pair_ends_in_one_recourse() {
+        const PAIR_RECOURSE: &str = geom_core::COINCIDENCE_RECOURSE;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let escalated = |check, predicate| {
+            CertifyError::Escalated {
+                check,
+                sample: 1,
+                cause: Indeterminate {
+                    margin: MarginDiag::Value(5e-9),
+                    band,
+                    predicate: Some(predicate),
+                },
+            }
+            .to_string()
+        };
+        let pairs = [
+            (
+                CertifyError::NotTransverse { sample: 1 }.to_string(),
+                escalated(CertCheck::Transversality, crate::dihedral::DIHEDRAL_WEDGE),
+            ),
+            (
+                CertifyError::NotSecondOrderSeparated { sample: 1, band }.to_string(),
+                escalated(
+                    CertCheck::TangentSecondOrder,
+                    crate::dihedral::TANGENT_SECOND_ORDER,
+                ),
+            ),
+        ];
+        for (definite, in_band) in pairs {
+            assert!(definite.ends_with(PAIR_RECOURSE), "{definite}");
+            assert!(in_band.ends_with(PAIR_RECOURSE), "{in_band}");
+        }
+    }
+
     /// An escalated check ends in exactly one ending, routed by the
     /// predicate that escalated ([`escalation_recourse`]): the
     /// edge-local lever for an undecided margin, in band or too wide to
@@ -3824,5 +3866,113 @@ mod tests {
             "{unknown}"
         );
         assert!(!unknown.contains("Recourse:"), "{unknown}");
+    }
+
+    /// **Every name certification can escalate under is in the table**,
+    /// read off the source: each `decide`-family call in the code paths
+    /// that feed [`CertifyError::Escalated`] names its predicate by a
+    /// constant, and that constant is one of [`escalation_recourse`]'s
+    /// arms. A literal is admitted only where the call absorbs its
+    /// escalation (it never reaches the error), and those are listed.
+    ///
+    /// Each region must hold at least one call, so a region the scan
+    /// stopped finding (a renamed function, a moved file) reds rather
+    /// than passing empty.
+    #[test]
+    fn every_escalating_name_is_routed_by_the_table() {
+        use test_utils::source::{
+            ItemBody, balanced_end, boundary_after, boundary_before, code_and_literals, code_only,
+            crate_dir, item_body, skip_ws, top_level_split,
+        };
+        /// Calls whose escalation is absorbed before it can become a
+        /// `CertifyError`: structure selection, not a decision.
+        const ABSORBED: [&str; 2] = ["pcurve_chart_radial_moving", "pcurve_chart_azimuth_frame"];
+        const CALLS: [&str; 5] = [
+            "decide",
+            "decide_positive",
+            "decide_flagged",
+            "gate_measured",
+            "check_residual",
+        ];
+        let src = crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let read = |file: &str| {
+            let text = std::fs::read_to_string(src.join(file)).expect("a readable source file");
+            (code_only(&text), code_and_literals(&text))
+        };
+        let body_of = |blanked: &str, name: &str| {
+            let head = format!("fn {name}");
+            let at = blanked
+                .match_indices(&head)
+                .map(|(i, _)| i)
+                .find(|&i| boundary_after(blanked, i + head.len()))
+                .unwrap_or_else(|| panic!("fn {name} is where this census reads"));
+            match item_body(blanked, at) {
+                ItemBody::Body(r) => r,
+                other => panic!("fn {name} has no body: {other:?}"),
+            }
+        };
+        let (certify, _) = read("certify.rs");
+        let table = body_of(&certify, "escalation_recourse");
+        let table = &certify[table];
+        let in_table = |id: &str| {
+            table
+                .match_indices(id)
+                .any(|(i, _)| boundary_before(table, i) && boundary_after(table, i + id.len()))
+        };
+
+        let mut problems = Vec::new();
+        let regions: [(&str, &[&str]); 5] = [
+            ("certify.rs", &["run_checks"]),
+            (
+                "dihedral.rs",
+                &["classify_dihedral", "tangent_second_order"],
+            ),
+            ("pcurve_cache.rs", &["chart_pcurve", "stable_azimuth"]),
+            ("edge_nurbs.rs", &["plane_nurbs_limbs"]),
+            ("ssi/certify.rs", &[]),
+        ];
+        for (file, fns) in regions {
+            let (blanked, lit) = read(file);
+            let ranges: Vec<std::ops::Range<usize>> = if fns.is_empty() {
+                // The whole module above its tests.
+                let end = blanked.find("#[cfg(test)]").unwrap_or(blanked.len());
+                std::iter::once(0..end).collect()
+            } else {
+                fns.iter().map(|f| body_of(&blanked, f)).collect()
+            };
+            for range in ranges {
+                let mut calls = 0;
+                for call in CALLS {
+                    for (i, _) in blanked[range.clone()].match_indices(call) {
+                        let at = range.start + i;
+                        let end = at + call.len();
+                        if !boundary_before(&blanked, at) || !boundary_after(&blanked, end) {
+                            continue;
+                        }
+                        let open = skip_ws(&blanked, end);
+                        if !blanked[open..].starts_with('(') {
+                            continue;
+                        }
+                        let close = balanced_end(&blanked, open).expect("a closed call");
+                        let args = &blanked[open + 1..close];
+                        let first = top_level_split(args, ',')[0].clone();
+                        let first = lit[open + 1 + first.start..open + 1 + first.end].trim();
+                        calls += 1;
+                        let named = first
+                            .chars()
+                            .all(|c| c.is_ascii_uppercase() || c.is_ascii_digit() || c == '_');
+                        if named {
+                            if !in_table(first) {
+                                problems.push(format!("{file}: {call}({first}) is not routed"));
+                            }
+                        } else if !ABSORBED.iter().any(|a| first == format!("\"{a}\"")) {
+                            problems.push(format!("{file}: {call}({first}) names no constant"));
+                        }
+                    }
+                }
+                assert!(calls > 0, "{file}: a region holds no decide-family call");
+            }
+        }
+        assert!(problems.is_empty(), "{}", problems.join("\n"));
     }
 }

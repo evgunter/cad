@@ -62,6 +62,10 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/Certify",
+    // Keyed because `topo::TransformError::Certify`'s `Display` prints
+    // the mapped edge as `{edge:?}`, not because these are kernel bugs;
+    // filed on CHROME's slate:
+    // work/chrome/transform-certify-refusal-names-the-edge-by-arena-key.md
     "Transform/Certify/Escalated/wedge",
     "Transform/Certify/Escalated/plane-nurbs-enclosure",
     "Transform/Certify/Escalated/invalid",
@@ -955,18 +959,22 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 /// that whole ending: the edge-local lever for a name a check raises (in
 /// band, and an enclosure too wide to classify), the dead end on a
 /// poisoned margin, and the named hole for a name no check raises.
+///
+/// The band is fixed rather than the run's witness band, so the rendered
+/// band numbers the whole-text pin reads are the same at every eps row.
 fn certify_escalations() -> Vec<(&'static str, geom_brep::CertifyError, &'static str)> {
     use geom_brep::dihedral::DIHEDRAL_WEDGE as WEDGE;
     use geom_brep::edge_nurbs::PLANE_NURBS_TRANSVERSALITY as PLANE_NURBS;
-    use geom_core::{Indeterminate, MarginDiag};
+    use geom_core::{Band, Indeterminate, MarginDiag};
     const EDGE: &str =
         "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
+    let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
     let escalated = |predicate, margin| geom_brep::CertifyError::Escalated {
         check: geom_brep::CertCheck::Transversality,
         sample: 4,
         cause: Indeterminate {
             margin,
-            band: payloads::band(),
+            band,
             predicate: Some(predicate),
         },
     };

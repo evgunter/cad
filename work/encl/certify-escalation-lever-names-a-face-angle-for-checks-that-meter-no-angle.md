@@ -4,8 +4,9 @@ kind: issue
 title: geom-brep: certify's escalation table routes every check to the face-angle lever, including span, endpoint, seam and chart-image checks that meter no angle
 status: open
 opened: 2026-09-28
+priority: P3
+cost: M
 ---
-
 
 (ENCL implementer, from `certify-escalation-renders-the-coincidence-menu-unlabelled`.)
 
@@ -36,6 +37,14 @@ angle:
 - the chart-image mint's thirteen `pcurve_*_chart_*` picks
   (`crates/geom-brep/src/pcurve_cache.rs`, `chart_pcurve`), which
   decide the carrier's placement on ONE surface.
+
+A third group decides whether the curve lies ON its faces, not the
+angle between them, so whether the angle lever fits them is itself the
+question: `carrier_on_surface_1`, `carrier_on_surface_2`,
+`tangent_on_surface_1`, `tangent_on_surface_2`, `tangent_hull_sup`,
+`plane_nurbs_on_locus`, `plane_nurbs_hull_sup`, `witness_on_surface_1`,
+`witness_on_surface_2`, `ssi_on_locus`, `ssi_hull_sup`,
+`ssi_on_locus_foot`, `ssi_foot_orthogonality`, `ssi_hull_sup_chart`.
 
 ## Repair shape
 

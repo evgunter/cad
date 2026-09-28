@@ -4315,15 +4315,6 @@ fn run_iso_checks<T: Decide>(
     })
 }
 
-/// Branch-stabilized azimuth (M5 S13, shared by every chart's
-/// derivation since M6-3): atan2's cut sits on the negative-x axis,
-/// and an interval y touching zero there (a seam meridian's angle-π
-/// copy, or a rim whose start sits ON the seam) explodes the
-/// enclosure to a full period even though every consumer reads
-/// azimuth mod τ. On a definitely-negative-x frame the same angle is
-/// `atan2(−y, −x) + π`. The frame trilean chooses between two
-/// identical formulas; degenerate and in-band arms keep the direct
-/// one (tie-break, D9).
 // The predicate names [`chart_pcurve`] escalates under, one spelling
 // for the decide site and for `crate::certify::escalation_recourse`,
 // which routes a certification that minted through here.
@@ -4341,6 +4332,15 @@ pub(crate) const PCURVE_TORUS_CHART_CENTERED: &str = "pcurve_torus_chart_centere
 pub(crate) const PCURVE_TORUS_CHART_MERIDIAN: &str = "pcurve_torus_chart_meridian";
 pub(crate) const PCURVE_TORUS_CHART_MERIDIONAL_RATE: &str = "pcurve_torus_chart_meridional_rate";
 
+/// Branch-stabilized azimuth (M5 S13, shared by every chart's
+/// derivation since M6-3): atan2's cut sits on the negative-x axis,
+/// and an interval y touching zero there (a seam meridian's angle-π
+/// copy, or a rim whose start sits ON the seam) explodes the
+/// enclosure to a full period even though every consumer reads
+/// azimuth mod τ. On a definitely-negative-x frame the same angle is
+/// `atan2(−y, −x) + π`. The frame trilean chooses between two
+/// identical formulas; degenerate and in-band arms keep the direct
+/// one (tie-break, D9).
 fn stable_azimuth<T: Decide>(y: T, x: T, band: Band) -> T {
     match decide("pcurve_chart_azimuth_frame", Margin::of(x), band) {
         Ok(Sign::Negative) => (T::zero() - y).atan2(T::zero() - x) + T::pi(),
