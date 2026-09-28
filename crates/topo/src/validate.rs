@@ -2241,10 +2241,15 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::certify::{Reading, RefusedArm, recourse};
+    use geom_brep::certify::Reading;
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
-    let (why, recourse) = match e {
+    // The lead is this window's own; the ending, where the refusal is a
+    // decision's refused arm, is that decision's, read at rest
+    // (`CertifyError::ending`), so the window and the certifier route
+    // through one table. `own` is the ending of a refusal no decision
+    // owns, and is not read where a decision's ending exists.
+    let (why, own) = match e {
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -2253,8 +2258,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => (MISMATCH, DEFECT),
-        // The DEFINITE halves of their two-tolerance pairs: the check
-        // decided, and what it decided contradicts the description.
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => (
             "its faces are tangent where its description says they cross",
             DEFECT,
@@ -2272,41 +2275,22 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => (KIND, NOT_YET),
-        // The certificate's definite and undecided refusals share its one
-        // ending (D4 ¶1 (iv)); the certifier's typed routing names it.
         CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
-            let check = CertCheck::PlaneNurbsCertificate;
-            return (
-                certify_undecided(check),
-                recourse(check, RefusedArm::SignCertain, Reading::AtRest).into(),
-            );
+            (certify_undecided(CertCheck::Transversality), DEFECT)
         }
-        // An undecided margin names its decision (`CertCheck`), and the
-        // certifier's routing gives the one ending that decision's refused
-        // arms share.
-        CertifyError::Escalated { check, cause, .. } => {
-            return (
-                certify_undecided(*check),
-                recourse(*check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
-            );
+        CertifyError::Escalated { check, .. } => (certify_undecided(*check), DEFECT),
+        CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
+            (certify_undecided(CertCheck::Transversality), DEFECT)
         }
-        CertifyError::PlaneNurbs(P::TransversalityEscalated { cause, .. }) => {
-            let check = CertCheck::Transversality;
-            return (
-                certify_undecided(check),
-                recourse(check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
-            );
-        }
-        CertifyError::PlaneNurbs(P::Escalated(cause)) => {
-            let check = CertCheck::PlaneNurbsCertificate;
-            return (
-                certify_undecided(check),
-                recourse(check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
-            );
+        CertifyError::PlaneNurbs(P::Escalated(_)) => {
+            (certify_undecided(CertCheck::PlaneNurbsCertificate), DEFECT)
         }
         CertifyError::Band(b) => (classify_band(b), TOLERANCE),
     };
-    (why, recourse.into())
+    let recourse = e
+        .ending(Reading::AtRest)
+        .map_or(std::borrow::Cow::Borrowed(own), std::borrow::Cow::Owned);
+    (why, recourse)
 }
 
 /// Why an edge's certification decision refused undecided, in the words
@@ -12508,10 +12492,45 @@ mod certify_escalation_rows {
                  tolerance. There is no way through: this is a kernel defect or a damaged \
                  file; report it",
             ),
+            // A zero verdict where zero does not pass is band-decided
+            // (D4 ¶1 (i)): the lever, and the conditional tolerance.
             (
                 says(CertifyError::NotTransverse { sample: 4 }),
-                "its faces are tangent where its description says they cross. There is no way \
-                 through: this is a kernel defect or a damaged file; report it",
+                "its faces are tangent where its description says they cross. Recourse: move \
+                 the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance",
+            ),
+            // A definite stored contradiction no move or loosening
+            // reaches: an approximation's residual, and the lane's limb.
+            (
+                says(CertifyError::ResidualExceeded {
+                    check: CertCheck::Surface2Residual,
+                    sample: 0,
+                }),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::OnLocus,
+                        value: 2.0e-8,
+                    },
+                )),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            // The lane's straddling tube is the transversality decision's
+            // straddle: its lever alone.
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
+                        certified_clearance: 0.0,
+                        boxes: 4,
+                    },
+                )),
+                "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
+                 move the geometry so the faces cross at a clearer angle",
             ),
         ];
         for (msg, tail) in rows {

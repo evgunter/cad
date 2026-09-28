@@ -37,6 +37,16 @@ that survives the fold is a kernel defect, and should end in the
 kernel-defect ending. It needs its own arm (or the limb, as below) for
 the routing to see that.
 
+The tube's definite refusal is already routed by its own decision.
+`PlaneNurbsRefusal::TubeStraddles` is the uniqueness tube's
+transversality enclosure containing zero (`ssi_tube_transversality`
+in `certify_rung3`), so PR 3351 routes it as
+`CertCheck::Transversality`'s straddling arm
+(`RefusedArm::Straddles`): the lever alone, at every reading. What
+stays on the certificate's ending is `PlaneNurbsRefusal::Limb` (the
+on-locus and hull limbs' definite miss) and the undecided
+`Escalated`, until the limb rides the escalation.
+
 ## Repair shape
 
 Carry the limb on the certificate's escalation

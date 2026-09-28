@@ -342,12 +342,11 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
-/// fails these cells.
-const TANGENT_SECOND_ORDER_ZERO: &str = concat!(
-    "the faces agree to second order at sample 1, so they do not fix where the edge runs, \
-     which its description says they do. ",
-    geom_core::kernel_or_file_defect_ending!()
-);
+/// fails these cells. Band-decided, like the tangent-plane zero: the
+/// lever alone at adoption.
+const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
+     not fix where the edge runs, which its description says they do. Recourse: move the \
+     geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -393,11 +392,12 @@ const SEAM_HALFPLANE_DEFINITE: &str = concat!(
 const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
      indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
-/// transversality precondition fails, and the ladder says which.
-const TANGENT_PLANES_COINCIDE: &str = concat!(
-    "the faces meet tangentially at sample 1, where the edge's description says they cross. ",
-    geom_core::kernel_or_file_defect_ending!()
-);
+/// transversality precondition fails, and the ladder says which. A zero
+/// verdict is band-decided (the same file imports at a finer band), so
+/// at adoption it names its decision's lever alone, and the attempt ends
+/// there (the `;` before the next rung).
+const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
+     description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \

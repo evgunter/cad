@@ -190,10 +190,10 @@ impl PlaneNurbsRefusal {
     /// refused arm. `Display` renders the payload alone, as
     /// [`crate::CertifyError`]'s does, and the door appends this.
     ///
-    /// The per-sample transversality is the `Transversality` decision,
-    /// and its definite and undecided arms end alike (D4 ¶1 (iv)); the
-    /// certificate's limb, tube and escalation refusals share the
-    /// certificate's ending.
+    /// The per-sample transversality and the uniqueness tube are the
+    /// `Transversality` decision, whose band-decided arms end alike (D4
+    /// ¶1 (iv)); the certificate's limb and escalation refusals share
+    /// the certificate's ending.
     #[must_use]
     pub fn ending(&self, reading: Reading) -> Option<String> {
         match self {
@@ -207,9 +207,17 @@ impl PlaneNurbsRefusal {
                 RefusedArm::Undecided(cause),
                 reading,
             )),
-            Self::Limb { .. } | Self::TubeStraddles { .. } => Some(recourse(
+            Self::Limb { .. } => Some(recourse(
                 CertCheck::PlaneNurbsCertificate,
                 RefusedArm::SignCertain,
+                reading,
+            )),
+            // The tube's margin is the lane's transversality over the
+            // chain (`ssi_tube_transversality`), and an enclosure of it
+            // that contains zero is undecided on that decision.
+            Self::TubeStraddles { .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::Straddles,
                 reading,
             )),
             Self::Escalated(diag) => Some(recourse(

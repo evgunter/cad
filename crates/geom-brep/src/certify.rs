@@ -583,21 +583,53 @@ pub enum Reading {
     /// defective operation does.
     AtRest,
     /// At STEP adoption: the geometry is the file's, certified at the
-    /// kernel's tolerance, which import does not motivate changing (D4
-    /// ¶1, D7). A definite refusal ends as a damaged file or a kernel
-    /// defect, and an undecided one names its decision's geometry lever.
+    /// kernel's tolerance. D4 ¶1: "Import does not motivate loosening ε
+    /// (D7)", and "at adoption the lever is the import's own ε_in (D7),
+    /// phrased by the import door". No such lever exists for these
+    /// arms yet — the adoption ladder certifies at the kernel's ε, which
+    /// no ε_in reaches — so no arm read here names a tolerance: the
+    /// missing ε_in lever is why, not a D4 prohibition on tightening. A
+    /// band-decided arm names its decision's geometry lever alone; a
+    /// sign-certain one ends as a damaged file or a kernel defect.
     Adopt,
 }
 
-impl Passes {
-    /// Whether a margin of value `v` lies on a side this decision
-    /// accepts, so that a tolerance small enough to decide it passes it.
-    fn accepts(self, v: f64) -> bool {
+/// The pass set of a decision on a size the user may intend: one that
+/// passes on a nonzero sign, the only kind a smaller tolerance can
+/// decide passing (D4 ¶1 (i)).
+#[derive(Clone, Copy)]
+enum SizedPass {
+    /// A definitely positive margin.
+    Positive,
+    /// A positive or zero margin.
+    NonNegative,
+}
+
+impl SizedPass {
+    /// Whether a zero margin passes this decision.
+    fn passes_zero(self) -> bool {
         match self {
-            Self::Positive => v > 0.0,
-            Self::NonNegative => v >= 0.0,
-            Self::Zero => v == 0.0,
-            Self::AnySign => !v.is_nan(),
+            Self::Positive => false,
+            Self::NonNegative => true,
+        }
+    }
+
+    /// Whether a tolerance below `v`'s own size decides `v` passing: `v`
+    /// is a nonzero margin on the side the decision accepts. Either pass
+    /// set accepts every positive margin, and a zero one leaves no size
+    /// to tighten below.
+    fn tightens(self, v: f64) -> bool {
+        match self {
+            Self::Positive | Self::NonNegative => v > 0.0,
+        }
+    }
+}
+
+impl From<SizedPass> for Passes {
+    fn from(p: SizedPass) -> Self {
+        match p {
+            SizedPass::Positive => Self::Positive,
+            SizedPass::NonNegative => Self::NonNegative,
         }
     }
 }
@@ -611,6 +643,10 @@ pub enum RefusedArm<'a> {
     /// The margin classified as zero where zero does not pass. The
     /// variants that report this arm carry no margin value.
     Zero,
+    /// The margin's enclosure straddles zero, and the variant that
+    /// reports it carries no enclosure to quote: undecided, and decided
+    /// by no tolerance.
+    Straddles,
     /// The margin classified with a definite sign that refuses.
     SignCertain,
 }
@@ -624,7 +660,17 @@ enum Unsized {
     LastResort,
 }
 
-/// How one decision's refusals end.
+/// The pass set of a decision with no size to tighten below.
+#[derive(Clone, Copy)]
+enum UnsizedPass {
+    /// A residual: passes only at zero.
+    Zero,
+    /// A form selection: passes on any definite sign.
+    AnySign,
+}
+
+/// How one decision's refusals end, and what it passes on: the one
+/// table both [`CertCheck::passes`] and [`recourse`] read.
 enum Ending {
     /// A decision on a size the user may intend: its own geometry lever,
     /// and on a band-decided arm the tolerance that decides it.
@@ -633,38 +679,32 @@ enum Ending {
         lever: &'static str,
         /// The noun the conditional names ("if this {size} is intended").
         size: &'static str,
+        /// What it passes on.
+        passes: SizedPass,
     },
     /// A residual or a form selection: no size to tighten below.
-    Unsized(Unsized),
+    Unsized {
+        /// How its refusals end.
+        ends: Unsized,
+        /// What it passes on.
+        passes: UnsizedPass,
+    },
 }
 
 impl CertCheck {
     /// The verdicts this decision passes on.
     #[must_use]
     pub fn passes(self) -> Passes {
-        match self {
-            Self::ParamSpan
-            | Self::Transversality
-            | Self::TangentSecondOrder
-            | Self::TangentTube => Passes::Positive,
-            Self::ParamWinding => Passes::NonNegative,
-            Self::EndpointStart
-            | Self::EndpointEnd
-            | Self::Surface1Residual
-            | Self::Surface2Residual
-            | Self::WitnessSurface1
-            | Self::WitnessSurface2
-            | Self::WitnessMidpoint
-            | Self::TangentParallel
-            | Self::TangentHull
-            | Self::MappedSource
-            | Self::SeamHalfplane
-            | Self::SeamSide
-            | Self::ChartResidual
-            | Self::PlaneNurbsOnLocus
-            | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Passes::Zero,
-            Self::ChartImage => Passes::AnySign,
+        match self.ending() {
+            Ending::Sized { passes, .. } => passes.into(),
+            Ending::Unsized {
+                passes: UnsizedPass::Zero,
+                ..
+            } => Passes::Zero,
+            Ending::Unsized {
+                passes: UnsizedPass::AnySign,
+                ..
+            } => Passes::AnySign,
         }
     }
 
@@ -676,18 +716,22 @@ impl CertCheck {
             Self::ParamSpan => Ending::Sized {
                 lever: "move the geometry so this edge is not vanishingly short",
                 size: "length",
+                passes: SizedPass::Positive,
             },
             Self::ParamWinding => Ending::Sized {
                 lever: "move the geometry so this arc stays clearly short of a full turn",
                 size: "arc",
+                passes: SizedPass::NonNegative,
             },
             Self::Transversality => Ending::Sized {
                 lever: "move the geometry so the faces cross at a clearer angle",
                 size: "angle",
+                passes: SizedPass::Positive,
             },
             Self::TangentSecondOrder | Self::TangentTube => Ending::Sized {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
+                passes: SizedPass::Positive,
             },
             // Exact constructions: the endpoints and witness the kernel
             // placed, the seam and the declared source it restates, the
@@ -702,8 +746,14 @@ impl CertCheck {
             | Self::MappedSource
             | Self::SeamHalfplane
             | Self::SeamSide
-            | Self::ChartResidual
-            | Self::ChartImage => Ending::Unsized(Unsized::Defect),
+            | Self::ChartResidual => Ending::Unsized {
+                ends: Unsized::Defect,
+                passes: UnsizedPass::Zero,
+            },
+            Self::ChartImage => Ending::Unsized {
+                ends: Unsized::Defect,
+                passes: UnsizedPass::AnySign,
+            },
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
             // lane's fitted image and rung-3 certificate. The surface
@@ -716,35 +766,41 @@ impl CertCheck {
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
             | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Ending::Unsized(Unsized::LastResort),
+            | Self::PlaneNurbsCertificate => Ending::Unsized {
+                ends: Unsized::LastResort,
+                passes: UnsizedPass::Zero,
+            },
         }
     }
 }
 
 /// The one ending a refusal of `check` carries on `arm`, read at
-/// `reading` (D4 ¶1 (i)): every refused arm of one decision shares it,
-/// and it is computed from the decision and its verdict, never from a
-/// predicate name.
+/// `reading` (D4 ¶1 (i)): computed from the decision and its verdict,
+/// never from a predicate name.
 ///
-/// - A decision that passes on a nonzero sign ends in its own geometry
-///   lever. On a band-decided arm (in band, or zero where zero does not
-///   pass) whose margin lies on the side the decision accepts
-///   ([`CertCheck::passes`]), it adds the tolerance that decides it,
-///   conditionally and with the value the margin gives: below `m/K` for
-///   an undecided margin `m`, and no value on a zero arm, whose
-///   variants carry none. A margin on the refused side, or an enclosure
-///   that straddles zero, is passed by no smaller tolerance and names
-///   the lever alone; a margin that could not be read keeps the lever
-///   and says what it may mean.
-/// - A residual or a form selection ends as its definite refusal does:
-///   the kernel-defect ending where the kernel built the geometry
-///   exactly, or the last resort where it approximated.
-/// - Read over stored geometry (at rest, or at adoption), a definite
-///   refusal is a contradiction no move of the geometry reaches, and
-///   ends in the ending that names the file as well as the kernel (D4
-///   ¶1 (iv)). At adoption the tolerance is the kernel's, which import
-///   does not motivate changing, so no arm names it: an undecided arm
-///   names the lever alone, and a residual never the last resort.
+/// - A decision on a size (it passes on a nonzero sign) ends in its own
+///   geometry lever on every band-decided arm — in band, zero where zero
+///   does not pass, or an enclosure straddling zero — at every reading.
+///   At a build or at rest it adds the tolerance that decides the
+///   margin, conditionally, where one does: below `m/K` for an undecided
+///   margin `m` (or the nearer end of a one-sided enclosure) that is
+///   nonzero and on the side the decision accepts, and with no value on
+///   a zero arm, whose variants carry none. A margin on the refused side,
+///   at zero, or straddling zero is passed by no smaller tolerance and
+///   names the lever alone, and a margin that could not be read keeps
+///   the lever and says what it may mean. At adoption no arm names a
+///   tolerance ([`Reading::Adopt`]).
+/// - Its sign-certain arm names the lever alone at a build. Read over
+///   stored geometry (at rest, or at adoption) it is a contradiction no
+///   move of the geometry reaches, and ends in the ending that names the
+///   file as well as the kernel (D4 ¶1 (iv)).
+/// - A residual or a form selection has no size. Every arm ends in the
+///   kernel-defect ending where the kernel built the geometry exactly
+///   (the file's too, at rest and at adoption). Where the kernel
+///   approximated, an arm read at a build, and an undecided arm read at
+///   rest, end in the last resort; a definite arm at rest, and every arm
+///   at adoption, end in the file's defect ending, since no loosening
+///   repairs a stored contradiction.
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> String {
     let defect = match reading {
@@ -752,8 +808,11 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
         Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
     };
     match check.ending() {
-        Ending::Sized { lever, size } => {
-            let passes = check.passes();
+        Ending::Sized {
+            lever,
+            size,
+            passes,
+        } => {
             let alone = || format!("Recourse: {lever}");
             let tighten = |below: Option<f64>| match (reading, below) {
                 (Reading::Adopt, _) => alone(),
@@ -765,20 +824,22 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
                     "Recourse: {lever}, or, if this {size} is intended, tighten the tolerance"
                 ),
             };
-            match (arm, reading) {
-                (RefusedArm::Zero | RefusedArm::SignCertain, Reading::AtRest | Reading::Adopt) => {
-                    defect.to_owned()
-                }
-                (RefusedArm::Zero, Reading::Build) if !passes.accepts(0.0) => tighten(None),
-                (RefusedArm::Zero | RefusedArm::SignCertain, Reading::Build) => alone(),
-                (RefusedArm::Undecided(cause), _) => {
+            match arm {
+                RefusedArm::Zero if passes.passes_zero() => alone(),
+                RefusedArm::Zero => tighten(None),
+                RefusedArm::Straddles => alone(),
+                RefusedArm::SignCertain => match reading {
+                    Reading::Build => alone(),
+                    Reading::AtRest | Reading::Adopt => defect.to_owned(),
+                },
+                RefusedArm::Undecided(cause) => {
                     let k = cause.band.escalate() / cause.band.zero();
                     match cause.margin {
-                        MarginDiag::Value(m) if passes.accepts(m) => tighten(Some(m.abs() / k)),
+                        MarginDiag::Value(m) if passes.tightens(m) => tighten(Some(m / k)),
                         MarginDiag::Enclosure { lo, hi }
-                            if passes.accepts(lo) && passes.accepts(hi) =>
+                            if passes.tightens(lo) && passes.tightens(hi) =>
                         {
-                            tighten(Some(lo.abs().min(hi.abs()) / k))
+                            tighten(Some(lo.min(hi) / k))
                         }
                         MarginDiag::Value(_) | MarginDiag::Enclosure { .. } => alone(),
                         MarginDiag::Invalid => format!(
@@ -790,10 +851,21 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
                 }
             }
         }
-        Ending::Unsized(Unsized::Defect) => defect.to_owned(),
-        Ending::Unsized(Unsized::LastResort) => match reading {
-            Reading::Build | Reading::AtRest => KERNEL_LIMIT_RECOURSE.to_owned(),
-            Reading::Adopt => defect.to_owned(),
+        Ending::Unsized {
+            ends: Unsized::Defect,
+            ..
+        } => defect.to_owned(),
+        Ending::Unsized {
+            ends: Unsized::LastResort,
+            ..
+        } => match (reading, arm) {
+            (Reading::Build, _)
+            | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddles) => {
+                KERNEL_LIMIT_RECOURSE.to_owned()
+            }
+            (Reading::AtRest, RefusedArm::Zero | RefusedArm::SignCertain) | (Reading::Adopt, _) => {
+                defect.to_owned()
+            }
         },
     }
 }
@@ -3953,15 +4025,16 @@ mod tests {
         EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
     }
 
-    /// D4 ¶1 (i)/(iv): the definite and in-band halves of one decision
-    /// are one user story, so both end in the decision's one recourse —
-    /// `NotTransverse` with the transversality check's escalation,
-    /// `NotSecondOrderSeparated` with the second-order check's, the
-    /// plane × NURBS lane's `NotTransverse` with its own per-sample
-    /// escalation, its limb and tube refusals with the certificate's
-    /// escalation, and an unavailable chart image with the chart pick's
-    /// escalation. A sized decision shares the lever and the conditional
-    /// tolerance, and only the in-band half has a margin to quote.
+    /// D4 ¶1 (i)/(iv), at every reading: the band-decided arms of one
+    /// sized decision — its undecided margin and its Zero verdict — end
+    /// in one ending, the in-band one adding only the value it quotes;
+    /// its sign-certain arm shares the lever at a build and ends in the
+    /// file's defect ending over stored geometry (at rest, at adoption).
+    /// The pairs: `NotTransverse` with the transversality check's
+    /// escalation, the lane's `NotTransverse` with its per-sample
+    /// escalation, `NotSecondOrderSeparated` with the second-order and
+    /// tube checks'. The lane's straddling tube is the transversality
+    /// decision's straddle, and names that lever alone everywhere.
     #[test]
     fn each_two_tolerance_pair_ends_in_one_recourse() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
@@ -3971,85 +4044,141 @@ mod tests {
             band,
             predicate: Some("a_probe"),
         };
-        let built = |e: CertifyError| e.render(Reading::Build);
-        let lane = |p: P| format!("{p}. {}", p.ending(Reading::Build).unwrap());
-        let escalated = |check| {
-            built(CertifyError::Escalated {
-                check,
-                sample: 1,
-                cause,
-            })
-        };
-        let cross = "Recourse: move the geometry so the faces cross at a clearer angle, or, if \
-                     this angle is intended, tighten the tolerance";
+        let cross = "Recourse: move the geometry so the faces cross at a clearer angle";
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
-                     they touch, or, if this curvature difference is intended, tighten the \
-                     tolerance";
-        let sized = [
-            (
-                built(CertifyError::NotTransverse { sample: 1 }),
-                escalated(CertCheck::Transversality),
-                cross,
-            ),
-            (
-                lane(P::NotTransverse { sample: 1 }),
-                lane(P::TransversalityEscalated { sample: 1, cause }),
-                cross,
-            ),
-            (
-                built(CertifyError::NotSecondOrderSeparated { sample: 1, band }),
-                escalated(CertCheck::TangentSecondOrder),
-                curve,
-            ),
-            (
-                built(CertifyError::NotSecondOrderSeparated { sample: 0, band }),
-                escalated(CertCheck::TangentTube),
-                curve,
-            ),
-        ];
-        for (definite, in_band, shared) in sized {
-            assert!(definite.ends_with(shared), "{definite}");
-            // m = 5e-9 against K = 10: tighten below m/K.
-            assert!(
-                in_band.ends_with(&format!("{shared} below 5e-10 m")),
-                "{in_band}"
-            );
-            for msg in [&definite, &in_band] {
-                assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
-                assert!(!msg.contains("declare"), "{msg}");
+                     they touch";
+        let escalated = |check| CertifyError::Escalated {
+            check,
+            sample: 1,
+            cause,
+        };
+        for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+            let end = |e: CertifyError| e.ending(reading).unwrap();
+            let lane = |p: P| p.ending(reading).unwrap();
+            let pairs = [
+                (
+                    CertCheck::Transversality,
+                    end(CertifyError::NotTransverse { sample: 1 }),
+                    end(escalated(CertCheck::Transversality)),
+                    cross,
+                    "angle",
+                ),
+                (
+                    CertCheck::Transversality,
+                    lane(P::NotTransverse { sample: 1 }),
+                    lane(P::TransversalityEscalated { sample: 1, cause }),
+                    cross,
+                    "angle",
+                ),
+                (
+                    CertCheck::TangentSecondOrder,
+                    end(CertifyError::NotSecondOrderSeparated { sample: 1, band }),
+                    end(escalated(CertCheck::TangentSecondOrder)),
+                    curve,
+                    "curvature difference",
+                ),
+                (
+                    CertCheck::TangentTube,
+                    end(CertifyError::NotSecondOrderSeparated { sample: 0, band }),
+                    end(escalated(CertCheck::TangentTube)),
+                    curve,
+                    "curvature difference",
+                ),
+            ];
+            for (check, zero, in_band, lever, size) in pairs {
+                let (shared, valued) = match reading {
+                    Reading::Build | Reading::AtRest => {
+                        let shared = format!(
+                            "{lever}, or, if this {size} is intended, tighten the tolerance"
+                        );
+                        let valued = format!("{shared} below 5e-10 m");
+                        (shared, valued)
+                    }
+                    Reading::Adopt => (lever.to_owned(), lever.to_owned()),
+                };
+                assert_eq!(zero, shared, "{reading:?}");
+                assert_eq!(in_band, valued, "{reading:?}");
+                let definite = recourse(check, RefusedArm::SignCertain, reading);
+                match reading {
+                    Reading::Build => assert_eq!(definite, lever),
+                    Reading::AtRest | Reading::Adopt => {
+                        assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{reading:?}");
+                    }
+                }
+                for msg in [&zero, &in_band, &definite] {
+                    assert!(msg.matches("Recourse:").count() <= 1, "{msg}");
+                    assert!(!msg.contains("declare"), "{msg}");
+                }
             }
-        }
-        let certificate = lane(P::Escalated(cause));
-        let chart = escalated(CertCheck::ChartImage);
-        let residual = [
-            (
-                lane(P::Limb {
-                    limb: crate::ssi::SsiLimb::OnLocus,
-                    value: 2e-8,
-                }),
-                &certificate,
-                KERNEL_LIMIT_RECOURSE,
-            ),
-            (
+            assert_eq!(
                 lane(P::TubeStraddles {
                     certified_clearance: 0.0,
                     boxes: 4,
                 }),
-                &certificate,
-                KERNEL_LIMIT_RECOURSE,
-            ),
+                cross,
+                "{reading:?}"
+            );
+        }
+    }
+
+    /// The residual families pair their definite and undecided arms per
+    /// reading: an exact construction's (an unavailable chart image and
+    /// the chart pick's escalation) end in the defect ending everywhere;
+    /// an approximation's (the lane's limb and the certificate's
+    /// escalation) share the last resort at a build, part at rest, where
+    /// a definite stored contradiction is a defect no loosening repairs,
+    /// and share the file's defect ending at adoption.
+    #[test]
+    fn each_residual_pair_ends_as_its_reading_gives() {
+        use crate::edge_nurbs::PlaneNurbsRefusal as P;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let cause = Indeterminate {
+            margin: MarginDiag::Value(5e-9),
+            band,
+            predicate: Some("a_probe"),
+        };
+        let limb = P::Limb {
+            limb: crate::ssi::SsiLimb::OnLocus,
+            value: 2e-8,
+        };
+        let unavailable = CertifyError::ChartImageUnavailable {
+            chart: "cone",
+            carrier: "ellipse",
+        };
+        let chart = CertifyError::Escalated {
+            check: CertCheck::ChartImage,
+            sample: 1,
+            cause,
+        };
+        let rows = [
             (
-                built(CertifyError::ChartImageUnavailable {
-                    chart: "cone",
-                    carrier: "ellipse",
-                }),
-                &chart,
+                Reading::Build,
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_LIMIT_RECOURSE,
                 KERNEL_DEFECT_ENDING,
             ),
+            (
+                Reading::AtRest,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_LIMIT_RECOURSE,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                Reading::Adopt,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
         ];
-        for (definite, in_band, shared) in residual {
-            assert!(definite.ends_with(shared), "{definite}");
-            assert!(in_band.ends_with(shared), "{in_band}");
+        for (reading, definite, undecided, exact) in rows {
+            assert_eq!(limb.ending(reading).unwrap(), definite, "{reading:?}");
+            assert_eq!(
+                P::Escalated(cause).ending(reading).unwrap(),
+                undecided,
+                "{reading:?}"
+            );
+            assert_eq!(unavailable.ending(reading).unwrap(), exact, "{reading:?}");
+            assert_eq!(chart.ending(reading).unwrap(), exact, "{reading:?}");
         }
     }
 
@@ -4135,11 +4264,55 @@ mod tests {
                 KERNEL_LIMIT_RECOURSE,
             ),
             (
+                undecided(CertCheck::ParamSpan, MarginDiag::Value(0.0)),
+                "Recourse: move the geometry so this edge is not vanishingly short",
+            ),
+            (
+                undecided(CertCheck::ParamSpan, MarginDiag::Value(-0.0)),
+                "Recourse: move the geometry so this edge is not vanishingly short",
+            ),
+            (
+                undecided(
+                    CertCheck::ParamWinding,
+                    MarginDiag::Enclosure {
+                        lo: 0.0,
+                        hi: 4.0e-9,
+                    },
+                ),
+                "Recourse: move the geometry so this arc stays clearly short of a full turn",
+            ),
+            (
                 recourse(
                     CertCheck::EndpointStart,
                     RefusedArm::SignCertain,
                     Reading::AtRest,
                 ),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            // At rest: a sized decision's sign-certain arm is a stored
+            // contradiction (defect); its zero arm is band-decided
+            // (lever and conditional); an approximation's definite
+            // residual is a stored contradiction no loosening repairs.
+            (
+                recourse(
+                    CertCheck::ParamSpan,
+                    RefusedArm::SignCertain,
+                    Reading::AtRest,
+                ),
+                KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                recourse(CertCheck::ParamSpan, RefusedArm::Zero, Reading::AtRest),
+                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
+                 length is intended, tighten the tolerance",
+            ),
+            (
+                CertifyError::ResidualExceeded {
+                    check: CertCheck::Surface2Residual,
+                    sample: 0,
+                }
+                .ending(Reading::AtRest)
+                .unwrap(),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
         ];
@@ -4172,11 +4345,12 @@ mod tests {
         );
     }
 
-    /// At adoption the geometry is the file's and the tolerance the
-    /// kernel's (D4 ¶1, D7): no ending there names the tolerance, in
-    /// either direction, or blames the kernel alone. A definite refusal
-    /// ends in the ending that names the file too, and an undecided arm
-    /// of a sized decision in its lever alone.
+    /// At adoption the geometry is the file's and the ladder certifies
+    /// at the kernel's tolerance, which no ε_in lever reaches yet
+    /// ([`Reading::Adopt`]): no ending there names the tolerance, in either direction, or
+    /// blames the kernel alone. A sign-certain refusal ends in the
+    /// ending that names the file too, and a band-decided arm of a sized
+    /// decision in its lever alone.
     #[test]
     fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4203,10 +4377,11 @@ mod tests {
                 .iter()
                 .map(|cause| recourse(check, RefusedArm::Undecided(cause), Reading::Adopt))
                 .collect();
-            for arm in [RefusedArm::Zero, RefusedArm::SignCertain] {
-                let definite = recourse(check, arm, Reading::Adopt);
-                assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?} {arm:?}");
-                endings.push(definite);
+            let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
+            assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
+            endings.push(definite);
+            for arm in [RefusedArm::Zero, RefusedArm::Straddles] {
+                endings.push(recourse(check, arm, Reading::Adopt));
             }
             for ending in endings {
                 assert!(!ending.contains("tolerance"), "{check:?}: {ending}");
