@@ -6,7 +6,8 @@ status: open
 opened: 2026-09-12
 refs: [2409]
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 

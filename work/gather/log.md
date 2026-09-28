@@ -40,3 +40,50 @@ slate.
 Load is 31/30. It is not split: this wave takes about 16 points off the
 dispatchable count, which leaves a slate one session can hold.
 `parallel-node-map-loses-the-funnel-and-the-symbolic-session` is next.
+
+## 2026-09-28 — the second wave, and the rows re-priced
+
+The first wave closed: #3141 (the E batch), #3142 (two roots),
+#3143 (member-space look-through), #3145 (parallel node map), #3256
+(split halves as roots), #3259 (the tag-vocabulary macro), #3264 (step
+arg roles) and #3280 (the per-part gate's home). Residue filed along
+the way is the slate now in `plan.md`.
+
+The seven open rows were priced `D`, which before 2026-09-27 was
+sometimes used to mean medium effort (#3308, Ev in chat). Re-priced by
+reading each body:
+
+- `product-gate-refuses-a-declared-cusp-sweep…` → **H**, no design flag.
+  The decisions it lists (the record's shape on the node value, which
+  gate reads it) are technical ones inside this program's own policy,
+  and whether the census certifies a curve contact between two faces
+  of one body is unmeasured, which is what makes it hard.
+- `three-walks-over-the-name-carrying-edges` → **M**; its fix is stated.
+- `select-refusal-coverage…` → **E**; its fix is written out in full.
+- `product-per-part-gate-counts-solids…` → **E + design**; the row says
+  so itself: option (b) changes a refusal callers observe.
+- `the-gather-tie-merge…`, `loft-path-loses-nine-predicate-families…`
+  → **M + design**; each needs a mechanism chosen (candidate identity;
+  one of three dispositions across two programs).
+- `wire-rs-accumulation-residue…` → **M + design**; whether a
+  comment-ratio budget exists at all binds future work.
+
+Load 17.5 → 17.
+
+**Second wave, dispatched 2026-09-28.** Every lane runs on Opus.
+
+- `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares`
+  on `gather/cusp-sweep-gate`: **single FULL review**. It moves a gate
+  onto the declared door and carries a record across two crates, and
+  whether the census certifies a curve contact inside one body is
+  unmeasured, so believing it takes more than reading it.
+- `three-walks-over-the-name-carrying-edges`, with
+  `select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+  riding along, on `gather/name-edge-home`: **single STYLE review**.
+  Both fixes are stated in their rows, and the walks' semantics do not
+  change.
+- `product-per-part-gate-counts-solids-but-gates-sources`: to the two
+  designers (Opus and Fable, `docs/prompts/designer.md`) before
+  anything is built, because option (b) changes a refusal callers see.
+
+The other three `+design` rows wait for this wave to land.
