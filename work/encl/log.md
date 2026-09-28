@@ -1110,3 +1110,4 @@ class of 65 sites is PRED's row.
   - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
   - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
   - Subscribed to 3352 for Ev's answer.
+- 2026-09-28 — PR 3351 at `28393a4e91` has two red rows at 1e-12. One is the deliberate pair row. The other, `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`, is the PR's own failure: the new source-scan census isn't in the reader ledger. It doesn't depend on the ruling and was sent to the lane to fix now.
