@@ -588,8 +588,8 @@ pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
 /// plans that insert [`equal_split_points`]`(kv, splits)` — every
 /// nonempty span of `kv` cut into `splits` equal pieces, built from
 /// structure alone. One plan per inserted point, so the chain's length
-/// is the insertion count; the last plan's knots are the refined vector
-/// (`kv` itself when the chain is empty).
+/// is the insertion count. A caller that needs the refined vector takes
+/// the last plan's knots, or `kv` when the chain is empty.
 ///
 /// # Errors
 ///
@@ -1112,7 +1112,8 @@ mod tests {
                 assert_eq!(ring_out.len(), f64_out.len(), "{tag}: extent");
                 // ONE allowance, shared by claims 3 and 4: the width a
                 // non-inflating fold may accumulate over `plans.len()`
-                // insertions (one plan per insertion), in ulps of the coefficient scale.
+                // insertions (one plan per insertion), in ulps of the
+                // coefficient scale.
                 #[allow(clippy::cast_precision_loss)]
                 let ceiling_ulps = 8.0 * (plans.len() + 1) as f64;
                 let slack = ceiling_ulps * scale * f64::EPSILON;

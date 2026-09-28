@@ -108,8 +108,9 @@ use geom_core::spline::{CurvePlan, KnotVector};
 /// rational speed meter refines by a count of the same value, but that
 /// count prices one curve bound against the refusal frontier its own
 /// tests pin, while this one prices the per-cell partial hulls every
-/// [`patch_cells`] consumer reads against the insertion rounding below.
-/// Neither follows the other. Knot
+/// [`patch_cells`] consumer reads (against the insertion rounding
+/// below), and `mesh::chords`' rational carrier `sup‖C″‖` bound
+/// through [`rational_split_points`]. Neither follows the other. Knot
 /// insertion is evaluation-invariant in ℝ, so it changes no geometry;
 /// it only shrinks every hull the bound is assembled from, which is
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
