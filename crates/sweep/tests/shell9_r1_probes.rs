@@ -21,10 +21,11 @@ use sweep::test_support::block;
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
+use super::common::bulge;
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
+use super::common::shell_operands::{hollow_box, two_void_box, vessel};
 use super::shell7_common::{point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
-use super::verbs_shell::{hollow_box, two_void_box, vessel};
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
@@ -41,12 +42,6 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
 }
 
 /// `sf2b_axial`'s sphere-zone vase: a belly on a sphere centred on the
@@ -129,6 +124,8 @@ fn cap_at_y(body: &Body<f64>, y: f64) -> Vec<FaceKey> {
 /// One line per stored row: half-edge, face, the face's surface kind,
 /// the parameter window and the image — `{:?}` is shortest round-trip,
 /// so equal text is equal bits.
+/// NOT `common::pcurve_rows::print_rows`: its own `[r1rows]` tag and a
+/// surface-kind column this suite's diff reads.
 fn dump_rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {

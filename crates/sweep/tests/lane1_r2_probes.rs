@@ -10,7 +10,7 @@
 //! the measurement doors or the marks pass.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::cert_m2r1_passes::corpus;
+use crate::common::cert_corpus::corpus;
 use geom_core::{Bounds, Sym, Tol};
 use topo::{Body, ContactRecords};
 

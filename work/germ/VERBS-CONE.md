@@ -2,7 +2,7 @@
 id: VERBS-CONE
 kind: issue
 title: cone and torus operand lanes
-status: open
+status: dispatched
 opened: 2026-08-21
 refs: [1604, VERBS-C5ARMS]
 priority: P0

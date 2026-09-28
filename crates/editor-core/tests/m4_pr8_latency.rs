@@ -407,10 +407,14 @@ const SPLIT_FINS: i64 = 160;
 /// - `whole_ms` — the wrapper, which is the two together and is what
 ///   the old single figure measured.
 /// - `census_ms` — the tier-3' census over the SAME aggregate, the
-///   term this resident exists instead of. Fewer reps than the others
-///   ([`CENSUS_REPS`]) because it costs seconds where they cost
-///   milliseconds, and it REFUSES on this document (the fins meet the
-///   base), so it is the cost of a refusing run.
+///   term this resident exists instead of: the assembly gate
+///   (`gate_at_rest_declared`) over the product's kept tier-3 verdict,
+///   which is the census alone. Entries before the change that kept
+///   the verdict (`gather/assemble-single-local-battery`) timed the
+///   local battery plus the census, so the series steps down there by
+///   the battery's share. Fewer reps than the others ([`CENSUS_REPS`])
+///   because it is the slowest term, and it REFUSES on this document
+///   (the fins meet the base), so it is the cost of a refusing run.
 struct Split {
     solids: usize,
     faces: usize,
