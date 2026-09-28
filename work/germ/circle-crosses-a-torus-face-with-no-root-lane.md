@@ -49,7 +49,10 @@ own predicate rows (`bool_circle_torus_*`), in
 arc's antipode and certified off the torus (`bool_circle_torus_pole`),
 which makes the monic division sound and certifies the one unreachable
 parameter is not a root; a coaxial carrier is decided first, in metres.
-`wall_crossing` takes the circle's roots and meters its end gaps as
+The parallel-axes pose (the lily's) has its own closed form decided on
+lengths — circle × contour — because the quartic's discriminant also
+meters the COMPLEX roots and read the lily's 8 mm near-miss as a graze
+at ε = 1e-6 (hosted CI, `tour_runs_green_at_eps_1e_6`). `wall_crossing` takes the circle's roots and meters its end gaps as
 arc length; every root is examined.
 
 **The certificate chosen: the roots, not an arc-to-chart map.** The
