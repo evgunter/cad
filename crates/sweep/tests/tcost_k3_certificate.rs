@@ -22,7 +22,7 @@
 //! Every row NAMES its property in the assertion message, because the
 //! rows share their expensive fixture (the aggregation rule in
 //! `memories/test-suite-cost.md`): `IDENTITY`, `ONE CERTIFICATE`,
-//! `ONE READ PER FACE`, `ROUND SPLIT`, `PLANTED`.
+//! `ONE READ PER FACE`, `ROUND SPLIT`, `PLANTED`, `CONTINUATION BRACKET`.
 //!
 //! # ε, and why the fixture is ε-SCALED
 //!
@@ -431,9 +431,21 @@ fn a_multi_solid_certificate_reads_each_face_once() {
 /// part's faces and not the other's — asserted, so the row cannot pass
 /// by having nothing to split. Both graft ORDERS, because the assembly
 /// re-orders parts into arena order and an order-sensitive splice would
-/// agree on one and not the other. The third subject pairs the `1e5·ε`
-/// prism with the exhausting `1e11·ε` one: the gate admits it, and the
-/// continuation must refuse exactly as `mass_properties` does.
+/// agree on one and not the other. The last two subjects pair the
+/// exhausting `1e11·ε` prism with each of the others: the gate admits
+/// both, and the continuation must refuse exactly as `mass_properties`
+/// does.
+///
+/// **CONTINUATION BRACKET** rides on those two refusals, because they
+/// are the two postures a budget refusal's bracket can be in. The
+/// exhausting prism's lane refuses in the round the certificate already
+/// took, so behind the `1e5·ε` prism (finished at round 0) the
+/// continuation resumes nothing and must hand back the certificate's
+/// own bracket, bit for bit; behind the `1e9·ε` prism, which sits
+/// first in arena order with its wall open, the continuation refines
+/// that wall to its target before it reaches the refusal, and the
+/// bracket it hands back must be strictly narrower than the
+/// certificate's.
 ///
 /// Every body is ε-scaled, so each takes the same arm at every ε row.
 #[test]
@@ -447,6 +459,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
         ("small then fine", grafted(&[small(), fine()])),
         ("fine then small", grafted(&[fine(), small()])),
         ("small then exhausting", grafted(&[small(), exhausting()])),
+        ("fine then exhausting", grafted(&[fine(), exhausting()])),
     ] {
         assert_eq!(body.solids().count(), 2, "ROUND SPLIT {label}: two solids");
         let mut measured = None;
@@ -467,9 +480,16 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                  pair: {errors:?}"
             )
         });
+        let held = gated.enclosure();
+        // `measure` is `refine_to_target` with its refusal classified:
+        // the same walk and the same verdicts, so the count below is
+        // the continuation's either way.
         let mut continued = None;
-        let refine = quad_verdicts(|| continued = Some(gated.refine_to_target()));
-        let continued = continued.expect("the closure ran");
+        let refine = quad_verdicts(|| continued = Some(gated.measure()));
+        let (continued, bracket) = match continued.expect("the closure ran") {
+            Ok(props) => (Ok(props), None),
+            Err(topo::TargetUnreached { refusal, bracket }) => (Err(refusal), bracket),
+        };
 
         match (&continued, &measured) {
             (Ok(continued), Ok(measured)) => {
@@ -501,6 +521,45 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                     "ROUND SPLIT {label}: the continuation must refuse as the measurement \
                      does, naming the same face"
                 );
+                let bracket = bracket.unwrap_or_else(|| {
+                    panic!("CONTINUATION BRACKET {label}: a budget refusal keeps a bracket")
+                });
+                let ends = |lo: f64, hi: f64| [lo.to_bits(), hi.to_bits()];
+                if label.starts_with("small") {
+                    assert_eq!(
+                        ends(bracket.volume_lo, bracket.volume_hi),
+                        ends(held.volume_lo, held.volume_hi),
+                        "CONTINUATION BRACKET {label}: the continuation resumed nothing, so \
+                         its bracket is the certificate's: [{}, {}] vs [{}, {}]",
+                        bracket.volume_lo,
+                        bracket.volume_hi,
+                        held.volume_lo,
+                        held.volume_hi,
+                    );
+                } else {
+                    let (before, after) = (
+                        held.volume_hi - held.volume_lo,
+                        bracket.volume_hi - bracket.volume_lo,
+                    );
+                    assert!(
+                        after < before,
+                        "CONTINUATION BRACKET {label}: the continuation refined the fine \
+                         prism's wall before it refused, so its bracket must be strictly \
+                         narrower than the certificate's — width {after:e} against {before:e}"
+                    );
+                    // Both are sound brackets of the one volume, so
+                    // they meet.
+                    assert!(
+                        bracket.volume_lo.max(held.volume_lo)
+                            <= bracket.volume_hi.min(held.volume_hi),
+                        "CONTINUATION BRACKET {label}: [{}, {}] and the certificate's \
+                         [{}, {}] are disjoint, so one of them does not hold the volume",
+                        bracket.volume_lo,
+                        bracket.volume_hi,
+                        held.volume_lo,
+                        held.volume_hi,
+                    );
+                }
             }
             _ => panic!(
                 "ROUND SPLIT {label}: the continuation and the measurement disagree on \

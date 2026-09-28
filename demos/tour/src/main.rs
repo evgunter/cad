@@ -574,14 +574,14 @@ fn run_body(
             let slack = delta * mesh_area(&mesh);
             assert!(
                 v_mesh > enclosure.volume_lo - slack && v_mesh < enclosure.volume_hi + slack,
-                "{label}: mesh signed volume {v_mesh} is outside the certified SIGN-level \
-                 bracket [{}, {}] widened by the chordal slack {slack:e}",
+                "{label}: mesh signed volume {v_mesh} is outside the certified bracket \
+                 [{}, {}] widened by the chordal slack {slack:e}",
                 enclosure.volume_lo,
                 enclosure.volume_hi
             );
             println!(
-                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3 at SIGN level (tier 3 certified \
-                 the sign; the reporting target 1024·ε is under this body's quadrature floor, \
+                "   [{label}] exact: V in [{:.6e}, {:.6e}] m^3, certified bracket (tier 3 \
+                 certified the sign; the reporting target 1024·ε is under this body's quadrature floor, \
                  so it has no volume NUMBER at this ε), A = {:.6} m^2; mesh (delta = {:.0e}): \
                  {} triangles, V_mesh = {v_mesh:.6e} (inside the bracket, chordal slack ±{slack:.1e})",
                 enclosure.volume_lo,

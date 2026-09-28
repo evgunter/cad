@@ -685,9 +685,9 @@ class TestGateAndMeasureInOneQuadrature(unittest.TestCase):
         volume number at this eps. The door refuses there with the
         reporting door's own class and `reason`, so a caller already
         catching `mass_properties()` catches this unchanged; what is
-        new is the sign-level bracket the gate DID certify, which is
-        the whole of what the certified quadrature is entitled to say
-        about such a body.
+        new is the bracket the certificate held, which is the whole of
+        what the certified quadrature is entitled to say about such a
+        body.
 
         ONE certified quadrature is run here and that is deliberate:
         this row is the suite's most expensive and the reporting

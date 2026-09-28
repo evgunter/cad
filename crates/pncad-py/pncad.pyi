@@ -3969,8 +3969,9 @@ class Body:
         eps. Tier 3 admits such a body and the measurement raises
         `ValidationError` with `reason == "mass_properties_failed"`,
         exactly as `mass_properties()` does — carrying, there and
-        only there, the sign-level bracket the gate did certify as
-        `volume_lo`, `volume_hi` and `surface_area`."""
+        only there, the narrowest bracket the gate's certificate or
+        its continuation held, as `volume_lo`, `volume_hi` and
+        `surface_area`."""
     def validate_pseudomanifold(self) -> None:
         """Tier 3′, the ladder's fourth rung: tier 3's whole local
         battery PLUS the global coincidence census tier 3 defers,

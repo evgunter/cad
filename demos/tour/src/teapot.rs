@@ -238,8 +238,9 @@
 //!    **Tier 3 admits the body anyway.** Its +V check consumes only
 //!    the SIGN of the volume enclosure — the tier's own docs say
 //!    deciding that sign "is an act of certification rather than a
-//!    measurement" — and this body's enclosure excludes zero by about
-//!    five orders of magnitude at the very round the chase stops on.
+//!    measurement" — and this body's enclosure excludes zero at the
+//!    very round the chase stops on, its lower end about ten of its
+//!    own half-widths clear at ε = 1e-12.
 //!    So the scene certifies at every ε, and where it has no number
 //!    to print the tour's ribbon prints the SIGN-level bracket
 //!    instead. The spout's own probe measures through the same door —
@@ -2038,15 +2039,17 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
     // reading refuses `QuadratureBudget`.
     //
     // Tier 3 admits the body regardless — its +V check consumes only
-    // the SIGN of this enclosure, decided by five orders of magnitude
-    // at the very round the chase stops on — so the refusal here is a
-    // missing NUMBER and not a missing certificate.
+    // the SIGN of this enclosure, decided at the very round the chase
+    // stops on, with the lower end about ten half-widths clear of zero
+    // at 1e-12 — so the refusal here is a missing NUMBER and not a
+    // missing certificate.
     //
     // So the scene measures THROUGH that certificate: the gate hands
     // it back, and `measure` continues it to the reporting target. On
-    // the budget refusal, the answer carries the sign-level bracket
-    // the gate decided on, and the probe reports it; any other refusal
-    // is a body with no volume at all, and stays fail-loud.
+    // the budget refusal, the answer carries the narrowest bracket the
+    // certificate or its continuation held, and the probe reports it;
+    // any other refusal is a body with no volume at all, and stays
+    // fail-loud.
     //
     // What is asserted is the bracket either way: the straightened
     // frustum lies inside the kernel's own certified enclosure — the
@@ -2099,9 +2102,12 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
             refusal,
         }) => {
             // The bracket is the SIGN-level one — at 1e-12, ±9 % on
-            // this body — although the continuation that refused held a
-            // far narrower one and dropped it (`work/encl`'s
-            // `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`).
+            // this body — because it is the narrowest the kernel ever
+            // computed here: every spout face finished its schedule in
+            // the gate's own walk, so the continuation resumes nothing.
+            // The refusal's `width_len` is far narrower, and it is not
+            // an enclosure: it is the proven LOWER bound on the width a
+            // round the lane refused to run would have reached.
             let half = 0.5 * (b.volume_hi - b.volume_lo);
             assert!(
                 b.volume_lo <= v_spout && v_spout <= b.volume_hi,
@@ -2372,9 +2378,9 @@ pub fn stops(tol: Tol) -> Vec<Stop> {
              that target unreachable, so mass_properties refuses QuadratureBudget after \
              round 0 -- rounds: 1, no work spent. TIER 3 ADMITS THE BODY ANYWAY, which is \
              what makes this authoring the honest one: its +V check consumes only the \
-             SIGN of that enclosure, and the enclosure excludes zero by about five orders \
-             of magnitude at the very round the chase stops on, so the scene certifies at \
-             every eps and the volume ribbon prints the SIGN-level bracket where it has \
+             SIGN of that enclosure, and the enclosure excludes zero at the very round \
+             the chase stops on, by the margin the reading above prints, so the scene \
+             certifies at every eps and the volume ribbon prints the SIGN-level bracket where it has \
              no number to print. The reading above measures through the certificate the \
              tier hands back, so where the number is refused it reports that same \
              bracket and holds the frustum to it. More budget would not \
