@@ -2,10 +2,13 @@
 id: product-doc-states-a-tier-3-prime-cost-sixty-times-the-measured-one
 kind: issue
 title: product.rs's module doc prices tier 3′ on the heat sink at ~11.4 s; the hosted series has measured ~180 ms since
-status: open
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: E
+branch: gather/product-doc-cost-figure
+closed: 2026-09-28
+pr: 3378
 ---
 
 
