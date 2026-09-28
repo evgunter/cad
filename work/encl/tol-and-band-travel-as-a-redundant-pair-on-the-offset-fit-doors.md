@@ -2,10 +2,13 @@
 id: tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors
 kind: issue
 title: (tol, band) travel as a redundant pair through the offset-fit doors and the transform's surface map, so a pair that disagrees is representable
-status: open
+status: closed
 opened: 2026-09-26
 priority: P3
 cost: D
+branch: encl/seed-grid-and-tol-band
+pr: 3320
+closed: 2026-09-28
 ---
 
 

@@ -194,3 +194,28 @@ only the first failing root as `node`.
 Filed by the lane and priced here: `assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate`
 (P3, M), which waits on the cusp row. The cusp row's pin now reads
 `RootInvalid`.
+
+## 2026-09-28 — the pass-through set is tied to the evaluator (PR 3335)
+
+`verbatim-edge-is-not-tied-to-the-evaluator` closed on PR 3335. A
+corpus guard checks every evaluated node against `verbatim_edge`'s
+variant: `Whole`/`Selected` publish only rows other nodes head,
+`Intact` publishes both, and `None` publishes none foreign. A census
+forces every `Node` kind into the corpus with rows, or onto an explicit
+row-free list asserted to publish none. `Sweep`, which never evaluates,
+and `Shell`, which sits beside the registry, have one home in
+`tests/corpus`, read by both corpus suites.
+
+Single STYLE review, verdict mergeable. The reviewer's probes showed
+the first guard blind to which edge a node returns (`Part`/`Transform`
+misfiled as `Intact` stayed green; the walk suites caught them), and
+six kinds sampled vacuously. The fix pass took all four items: the
+guard reads the variant, row-free kinds are explicit, the frontier
+has one home, and the two checks are separate tests. The lane
+red-proofed each misfile.
+
+CI was red on `main` meanwhile: a 3322 × 3331 semantic merge in
+`topo`'s window-site census. Fixed by PR 3337 and ported here.
+
+Filed: TINT's `corpus-node-kinds-roster-is-hand-written`
+(`corpus::NODE_KINDS` is not welded to `Node`).
