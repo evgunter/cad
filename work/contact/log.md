@@ -419,3 +419,29 @@ Signed: (CONTACT orchestrator)
 - **CONTACT-7** is dispatched with a dual review.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — the area-overlap designers agree; [ev] PR #3350
+
+- **First reports**, recorded in `docs/DESIGN-FORK-LOG.md` row 3 on the
+  PR. They agree on both decisions:
+  - fix the merge door, deleting a seam edge left dangling at any
+    angle, repeatedly, by a topological test;
+  - a boolean refuses a planar declared group it cannot glue.
+
+  Both corrected the row's cause: the rest door is not on the path; the
+  skip is the merge's `GroupNotClosed{ScaffoldingEmptyLoop}`. Both
+  would reword `docs/DESIGN.md`'s "never elides vertices"
+  (`e16309aa7`, the M3-exit sweep, which Ev approved), so the change
+  goes to Ev.
+- **No reconciliation round.** The final states are the same.
+- **To Ev:** PR #3350 carries the clause edit and both `For Ev`
+  sections verbatim, as A/B. The implementation unit waits for the
+  ruling. The row is flagged `needs_ev` on the PR's branch.
+- **Filed**, found by the designers beyond the question:
+  - `a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact`
+    (P2);
+  - `editor-core-never-reads-merge-skipped` (P3);
+  - `gate-maximal-faces-may-miss-coincident-curved-faces-on-different-keys`
+    (P3).
+
+Signed: (CONTACT orchestrator)
