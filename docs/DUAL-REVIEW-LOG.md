@@ -42,4 +42,4 @@ headline; unilateral findings R1→ and R2→; severity divergence);
 
 - **Later escape, DR-11 (PR 3265):** a torus face meeting a partner only in a face-interior oval WHILE crossings exist elsewhere (a half donut and a C-bracket) made `union` return a valid body with the lens counted twice. Neither review raised it; both raised the no-crossings instance (R2's tallied MAJOR). Found 2026-09-28 by GERM's torus-ops lane (PR 3330's measurement) and fixed by the stopgap PR 3336. The sphere analogue, found alongside it, predates PR 3265.
 
-**Tally: 1 of 8. Fair pairs toward twelve: 13 — the readout is owed (rule 9), asked at DR-13.** (DR-2 excluded: method divergence.)
+**Tally: 1 of 8. Fair pairs that found any MAJOR, toward twelve: 4 (DR-5, DR-9, DR-11, DR-13).** (DR-2 excluded: method divergence.)

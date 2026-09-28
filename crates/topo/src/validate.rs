@@ -1185,10 +1185,10 @@ pub enum ValidationError {
     /// not a thinness gate — degenerate pillow fixtures stay legal and
     /// ε-tightening never flips valid → invalid; a genuinely
     /// positive-area loop never classifies `Negative` under a
-    /// tighter ε). Examined on loops of `Line` and `Circle` carriers,
-    /// whose winding is exact (chord polygon plus each arc's circular
-    /// segment); a loop riding an `Ellipse`, spiric or NURBS carrier is
-    /// not examined.
+    /// tighter ε). Examined on loops of `Line`, `Circle` and `Ellipse`
+    /// carriers, whose winding is exact (chord polygon plus each arc's
+    /// conic segment); a loop riding a spiric or NURBS carrier is not
+    /// examined.
     LoopRoleInverted {
         /// The face whose loop roles disagree with the windings.
         face: FaceKey,

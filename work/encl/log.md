@@ -1110,3 +1110,24 @@ class of 65 sites is PRED's row.
   - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
   - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
   - Subscribed to 3352 for Ev's answer.
+- 2026-09-28 — PR 3351 at `28393a4e91` has two red rows at 1e-12. One is the deliberate pair row. The other, `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`, is the PR's own failure: the new source-scan census isn't in the reader ledger. It doesn't depend on the ruling and was sent to the lane to fix now.
+- 2026-09-28 — While 3351 and 3352 wait on Ev, dispatched `domain-grid-homing-residue` (P4/E) on `encl/domain-grid-residue`: Opus, style review. It is mechanical: the residual grid and sliver spellings and the hand interior filters in `props/quad.rs` (PROPS territory).
+  - Held until the ruling: the designers' off-question findings, i.e. `MeterError`'s Zero/Negative fold and main's `classify_certify` giving residual escalations a face-angle reason. Their content depends on 3352.
+- 2026-09-28 — The domain-grid residue lane opened PR 3354 (head `131a9f0c6b`).
+  - Adds `range_grid_points(…, mandatory)` under `domain_grid_points`. `knot_aligned_cuts` (both of its grids) now goes through it, and `block_edges` is deleted.
+  - Two `quad.rs` sites use `interior_knots()`; two range filters are kept, with comments.
+  - Pinning rows were added first, and bits are unchanged.
+  - Filed `work/issues/arc-rim-span-count-hand-spells-interior` (unowned `pcurves.rs`).
+  - Style review dispatched.
+  - PR 3351 at `054c90ae91` is confirmed red only on the pair row, as intended.
+- 2026-09-28 — The PR 3354 style review came back APPROVE-WITH-FIXES.
+  - Bits are unchanged, including the `block_edges` end drop (4M random ranges, worst gap 1.0·ε·width).
+  - Three new pins can't go red for their named mutations: two re-association forms, the sliver scale (only a collapse is caught), and the degree-2 double-knot dedup.
+  - Also taken:
+    - vacuous ends-clearance prose;
+    - the filed row moved to CHART (TRIM's cut gave `pcurves.rs` to CHART);
+    - the sliver overflow reassociated so it is exact;
+    - the sweep table completed.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
+  - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.
