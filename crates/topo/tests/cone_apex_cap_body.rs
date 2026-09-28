@@ -23,13 +23,6 @@ use geom_core::Tol;
 use geom_core::{Point3, Vec3};
 use topo::{Body, FaceKey, FaceSurface, MefSite, MevSite, ValidationError, validate_geometric};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// Apex at the origin, axis `+Z`, half-angle 45°; the rim sits 10 mm
 /// of slant from the apex.
 const SL: f64 = 0.010;
@@ -41,23 +34,23 @@ fn cone_rim_row() -> Body<f64> {
     let tol = Tol::witness();
     let r = SL * SIN_A;
     let h = SL * SIN_A;
-    let a = p3(r, 0.0, h);
-    let b = p3(-r, 0.0, h);
+    let a = Point3::new(r, 0.0, h);
+    let b = Point3::new(-r, 0.0, h);
     let rim = Curve3::Circle {
-        center: p3(0.0, 0.0, h),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, h),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: r,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Cone {
-            apex: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 0.0, 1.0),
+            apex: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
             half_angle: core::f64::consts::FRAC_PI_4,
-            u_ref: v3(1.0, 0.0, 0.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();

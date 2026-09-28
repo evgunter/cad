@@ -29,7 +29,7 @@ use editor_core::{
 };
 use geom_core::{Dual64, Tol};
 
-use fixture::{Recorder, len, scl};
+use fixture::{Recorder, ang, len, scl};
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
@@ -162,7 +162,7 @@ fn stepped_shaft_sized(
         input: boss_raw,
         translation: [len(0.0), len(0.0), param("h1", Dimension::Length)],
         rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite"),
+        rotation_angle: ang(0.0),
     });
     let refs = vec![
         SitedRef::new(base, fname(base, RoleSeg::Cap(CapEnd::Start))),

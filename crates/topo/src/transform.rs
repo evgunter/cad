@@ -305,7 +305,6 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
     map: &Affine3<T>,
     s: &Surface<T>,
     tol: Tol,
-    band: Band,
 ) -> Result<Surface<T>, TransformError> {
     Ok(match *s {
         Surface::Plane {
@@ -380,7 +379,6 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
             map,
             a,
             tol,
-            band,
             <T as crate::props::AtRestPolicy>::offset_fit_lane(),
         )?)),
     })
@@ -429,11 +427,11 @@ fn map_surface<T: Decide + geom_brep::PcurveFittedLane + crate::props::AtRestPol
 /// ([`geom::OffsetCertificate::carrying_rounds`]), for the reason
 /// [`geom::OffsetCertificate::rounds`] states once.
 ///
-/// The band reaches only the fit door's degeneracy meters (the
-/// regularity floor and the collapse reach); the two limbs are
-/// classified against `tol` directly. Both are the run's, exactly as at
-/// [`geom_brep::OffsetFitLane::recertify`], the door tier 3 reaches per
-/// face.
+/// `tol` is the only tolerance argument. The two limbs are classified
+/// against it, and the fit door derives from it the band its degeneracy
+/// meters read (the regularity floor and the collapse reach), exactly
+/// as at [`geom_brep::OffsetFitLane::recertify`], the door tier 3
+/// reaches per face.
 /// `offset_fit` is the re-derivation door ([`geom_brep::OffsetFitLane`]),
 /// handed in as a parameter; what a `None` means is
 /// [`crate::AtRestPolicy::offset_fit_lane`]'s subject. A caller
@@ -443,7 +441,6 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
     map: &Affine3<T>,
     a: &geom::ApproxSurface<T>,
     tol: Tol,
-    band: Band,
     offset_fit: Option<geom_brep::OffsetFitLane<T>>,
 ) -> Result<geom::ApproxSurface<T>, TransformError> {
     let old = a.spec();
@@ -461,7 +458,7 @@ fn map_approx<T: Decide + geom_brep::PcurveFittedLane>(
         None => Err(TransformError::ApproxLaneUnsupported {
             lane: <T as geom_brep::PcurveFittedLane>::lane_name(),
         }),
-        Some(lane) => match lane.remap(description, fit, window, tol, band) {
+        Some(lane) => match lane.remap(description, fit, window, tol) {
             Err(source) => Err(TransformError::ApproxRecertify { source }),
             Ok(certificate) => Ok(certificate.carrying_rounds(rounds)),
         },
@@ -614,7 +611,7 @@ pub fn transform_rigid_via<T: Decide + geom_brep::PcurveFittedLane + crate::prop
     }
     let mut mapped_surfaces = Vec::new();
     for (k, s) in &out.surfaces {
-        mapped_surfaces.push((k, map_surface(map, s, tol, band)?));
+        mapped_surfaces.push((k, map_surface(map, s, tol)?));
     }
     for (k, s) in mapped_surfaces {
         out.surfaces[k] = s;
@@ -841,12 +838,7 @@ mod tests {
     #[test]
     fn the_surface_placeholder_is_what_refuses() {
         assert!(matches!(
-            map_surface(
-                &aside(),
-                &Surface::nurbs_placeholder(),
-                Tol::witness(),
-                Band::linear(Tol::witness()).unwrap()
-            ),
+            map_surface(&aside(), &Surface::nurbs_placeholder(), Tol::witness()),
             Err(TransformError::NurbsPlaceholder)
         ));
     }
@@ -863,13 +855,7 @@ mod tests {
     fn a_described_surface_maps_by_its_control_points() {
         let map = aside();
         let before = described_surface();
-        let after = map_surface(
-            &map,
-            &before,
-            Tol::witness(),
-            Band::linear(Tol::witness()).unwrap(),
-        )
-        .expect("a described net maps");
+        let after = map_surface(&map, &before, Tol::witness()).expect("a described net maps");
         let (Surface::Nurbs(b), Surface::Nurbs(a)) = (&before, &after) else {
             panic!("the variant changed under the map");
         };
@@ -928,7 +914,7 @@ mod tests {
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod offset_fit_door_rows {
     use geom_brep::OffsetFitLane;
-    use geom_core::{Affine3, Band, Point3, Tol, Vec3};
+    use geom_core::{Affine3, Point3, Tol, Vec3};
 
     use super::{TransformError, map_approx};
 
@@ -944,9 +930,8 @@ mod offset_fit_door_rows {
     #[test]
     fn no_door_refuses_the_mapped_surface_by_name() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        match map_approx(&turned(), &approx, tol, band, None) {
+        match map_approx(&turned(), &approx, tol, None) {
             Err(TransformError::ApproxLaneUnsupported { lane }) => assert_eq!(lane, "f64"),
             other => panic!("the absence must name the lane: {other:?}"),
         }
@@ -967,14 +952,13 @@ mod offset_fit_door_rows {
     #[test]
     fn the_f64_door_re_derives_the_mapped_pair() {
         let tol = Tol::witness();
-        let band = Band::linear(tol).unwrap();
         let map = turned();
         let approx = crate::fixtures::bowed_offset_approx::<f64>();
-        let mapped = map_approx(&map, &approx, tol, band, Some(OffsetFitLane::fit()))
+        let mapped = map_approx(&map, &approx, tol, Some(OffsetFitLane::fit()))
             .expect("a rigid map of a certified fit re-certifies at the run's ε");
         let spec = mapped.spec();
         let reference =
-            geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol, band)
+            geom_brep::certify_offset_over(&spec.description, &spec.fit, spec.window, tol)
                 .expect("`geom-brep`'s certifier measures the mapped pair");
         let got = mapped.certificate();
         crate::fixtures::assert_certificates_agree("the mapped pair", got, &reference);

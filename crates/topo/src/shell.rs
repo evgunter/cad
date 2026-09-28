@@ -295,9 +295,9 @@
 //! ([`ValidationError::RingOutsideOuter`], with
 //! [`ValidationError::RingNestingUndecided`] for the pair it cannot
 //! certify). That is the statement an inverted host/guest pick at the
-//! rim glue below falsifies, and it reaches a planar face whose outer
-//! loop bears no arc or is one circle; check 9's own banner enumerates
-//! what it leaves out.
+//! rim glue below falsifies, and it reaches every planar face whose
+//! outer loop carries lines, circle arcs or ellipse arcs; check 9's own
+//! banner enumerates what it leaves out.
 //!
 //! **An UNDECIDABLE separation refuses too** and never proceeds to
 //! build ([`ShellError::Escalated`]) — the glue is a write, and
@@ -1171,12 +1171,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness)?;
-                    crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(
-                        |error| ShellError::Face {
+                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
+                        ShellError::Face {
                             face,
                             error: Box::new(error),
-                        },
-                    )?;
+                        }
+                    })?;
                 }
             }
         }
@@ -1453,7 +1453,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 crate::offset_charts_together(&mut out, &moves, band, tol)
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, &lift_group, back, band, tol)
+                crate::replace_faces_offset(&mut out, &lift_group, back, tol)
             }
         };
         outcome.map_err(|error| ShellError::Lift {
@@ -1492,17 +1492,17 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
         // unexplainable, is tier 3's check 9: its nesting half says a
         // ring lies strictly inside its face's outer loop and refuses
         // the inverted body by name, on the shapes that half reaches
-        // — a planar face whose outer loop bears no arc, or is one
-        // circle, which covers the annular rim of every shelled vessel
-        // of revolution (check 9's banner enumerates the rest). Nothing
-        // in this verb relies on that arm; what it buys is the class
+        // — every planar face whose outer loop carries lines, circle
+        // arcs or ellipse arcs, which covers the annular rim of every
+        // shelled vessel of revolution and a rim that mixes arcs with
+        // lines (check 9's banner enumerates the rest). Nothing in
+        // this verb relies on that arm; what it buys is the class
         // being loud wherever else it is minted. On a rim outside its
-        // reach — an outer loop mixing arcs with lines or with arcs of
-        // a second circle — the assignment here is pinned only
+        // reach — a non-planar rim, or an outer loop carrying a spiric
+        // or spline edge — the assignment here is pinned only
         // structurally: the void-ceiling row asserts the designated
         // void face DIES, and the pairing row reads each thin solid's
-        // twin through the record
-        // (`work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk.md`).
+        // twin through the record.
         let (host, guest) = match side {
             RimShell::Void => (counterpart, mouth),
             RimShell::Outer => (mouth, counterpart),

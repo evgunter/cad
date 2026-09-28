@@ -1370,6 +1370,8 @@ fn attribute(
         | ValidationError::DegenerateTorusEscalated { .. }
         | ValidationError::PoisonedSurfaceDatum { .. }
         | ValidationError::UnrepresentableSurfaceDatum { .. }
+        | ValidationError::PoisonedCurveDatum { .. }
+        | ValidationError::UnrepresentableCurveDatum { .. }
         | ValidationError::ApproxCertification { .. }
         | ValidationError::ApproxLaneUnsupported { .. }
         | ValidationError::EdgeCertification { .. }
@@ -1399,6 +1401,7 @@ fn attribute(
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::ShellWinding { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }

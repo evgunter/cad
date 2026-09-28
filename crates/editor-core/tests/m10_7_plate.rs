@@ -18,13 +18,13 @@
 use crate::fixture;
 
 use editor_core::{
-    Datum, Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
+    Dimension, Distribution, DocEdit, DocParam, EntityKind, Expr, GeomPred, LoopProgram,
     MeasureExpr, MeasurePrimitive, NamePat, Node, ParamName, ProfileDoc, ProfileProgram,
     RecipeNodeId, Selector, SitedRef, SurfaceKindSet, UnitSym, select_where,
 };
 use geom_core::Tol;
 
-use fixture::Recorder;
+use fixture::{Recorder, len, xy_frame};
 
 /// The nominal hole spacing, in metres (3.1 mm) — the tour's own.
 pub(crate) const SPACING: f64 = 3.1e-3;
@@ -32,14 +32,6 @@ pub(crate) const SPACING: f64 = 3.1e-3;
 pub(crate) const RADIUS: f64 = 1.25e-3;
 /// The nominal web: `SPACING − 2·RADIUS` = 0.6 mm.
 pub(crate) const WEB: f64 = SPACING - 2.0 * RADIUS;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length")
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar")
-}
 
 fn param(n: &str) -> Expr {
     Expr::param(ParamName::new(n), Dimension::Length)
@@ -87,11 +79,7 @@ pub(crate) fn plate(
         );
     }
 
-    let plane = r.insert(Node::Datum(Datum::Frame {
-        origin: [len(0.0), len(0.0), len(0.0)],
-        u: [scl(1.0), scl(0.0), scl(0.0)],
-        v: [scl(0.0), scl(1.0), scl(0.0)],
-    }));
+    let plane = r.insert(xy_frame());
     let plate_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![

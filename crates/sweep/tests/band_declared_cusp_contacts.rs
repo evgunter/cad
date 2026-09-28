@@ -22,22 +22,18 @@ use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, Validated
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, ContactClass, DeclaredContact, EdgeKey, FaceKey, ValidationError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The lune: the lip between the internally tangent circles (0,1) r 1
 /// and (0,2) r 2, `.cusp()` at the kiss (canonical joint 2).
 fn lune() -> ProfileLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(2.0, tol)
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol)
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol)
@@ -52,10 +48,10 @@ fn lune() -> ProfileLoop<f64> {
 fn sphere_cone_crescent() -> ProfileLoop<f64> {
     let tol = Tol::witness();
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    Open.at(p2(1.0, 0.0))
+    Open.at(Point2::new(1.0, 0.0))
         .angle(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(h, h), tol)
+        .tangent_arc_to(Point2::new(h, h), tol)
         .unwrap()
         .cusp()
         .line(1.0, tol)
@@ -70,7 +66,7 @@ fn sphere_cone_crescent() -> ProfileLoop<f64> {
 /// full revolve's wire case, whose two π-bands each carry the cusp.
 fn sphere_cone_on_axis() -> ProfileLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 1.0))
+    Open.at(Point2::new(0.0, 1.0))
         .angle(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(std::f64::consts::SQRT_2 - 1.0, tol)
@@ -168,10 +164,10 @@ fn extrude_carries_the_outer_cusp_either_way_it_extrudes() {
 #[test]
 fn extrude_carries_a_hole_cusp_as_the_slit_it_sweeps() {
     let plate = bulge_loop(vec![
-        (p2(-1.0, -1.0), 0.0),
-        (p2(3.0, -1.0), 0.0),
-        (p2(3.0, 5.0), 0.0),
-        (p2(-1.0, 5.0), 0.0),
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(3.0, -1.0), 0.0),
+        (Point2::new(3.0, 5.0), 0.0),
+        (Point2::new(-1.0, 5.0), 0.0),
     ]);
     let profile = validated(vec![plate, lune()]);
     let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
@@ -190,14 +186,14 @@ fn extrude_carries_nothing_for_declared_smooth_joints() {
     let q = 0.25;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let lp = bulge_loop(vec![
-        (p2(q, 0.0), 0.0),
-        (p2(1.0 - q, 0.0), b),
-        (p2(1.0, q), 0.0),
-        (p2(1.0, 1.0 - q), b),
-        (p2(1.0 - q, 1.0), 0.0),
-        (p2(q, 1.0), b),
-        (p2(0.0, 1.0 - q), 0.0),
-        (p2(0.0, q), b),
+        (Point2::new(q, 0.0), 0.0),
+        (Point2::new(1.0 - q, 0.0), b),
+        (Point2::new(1.0, q), 0.0),
+        (Point2::new(1.0, 1.0 - q), b),
+        (Point2::new(1.0 - q, 1.0), 0.0),
+        (Point2::new(q, 1.0), b),
+        (Point2::new(0.0, 1.0 - q), 0.0),
+        (Point2::new(0.0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let built = extrude(
@@ -217,7 +213,7 @@ fn extrude_carries_nothing_for_declared_smooth_joints() {
 fn revolve_carries_the_cusp_rim_partial_and_full() {
     let profile = validated(vec![sphere_cone_crescent()]);
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     for revolution in [Revolution::Partial(1.0), Revolution::Full] {
@@ -238,7 +234,7 @@ fn revolve_carries_the_cusp_rim_partial_and_full() {
 fn revolve_wire_case_carries_the_cusp_on_both_bands() {
     let profile = validated(vec![sphere_cone_on_axis()]);
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let built = revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap();
@@ -276,9 +272,9 @@ fn loft_carries_the_cusp_seam() {
 /// the `.cusp()` door: the joint carries the same record.
 fn raw_lune() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, 4.0), 0.0),
-        (p2(0.0, 2.0), -1.0),
-        (p2(0.0, 0.0), 1.0),
+        (Point2::new(0.0, 4.0), 0.0),
+        (Point2::new(0.0, 2.0), -1.0),
+        (Point2::new(0.0, 0.0), 1.0),
     ])
     .with_tangent_joints(vec![2])
 }
@@ -287,14 +283,14 @@ fn filleted_block(x0: f64) -> ProfileLoop<f64> {
     let q = 0.25;
     let b = core::f64::consts::FRAC_PI_8.tan();
     bulge_loop(vec![
-        (p2(x0 + q, 0.0), 0.0),
-        (p2(x0 + 1.0 - q, 0.0), b),
-        (p2(x0 + 1.0, q), 0.0),
-        (p2(x0 + 1.0, 1.0 - q), b),
-        (p2(x0 + 1.0 - q, 1.0), 0.0),
-        (p2(x0 + q, 1.0), b),
-        (p2(x0, 1.0 - q), 0.0),
-        (p2(x0, q), b),
+        (Point2::new(x0 + q, 0.0), 0.0),
+        (Point2::new(x0 + 1.0 - q, 0.0), b),
+        (Point2::new(x0 + 1.0, q), 0.0),
+        (Point2::new(x0 + 1.0, 1.0 - q), b),
+        (Point2::new(x0 + 1.0 - q, 1.0), 0.0),
+        (Point2::new(x0 + q, 1.0), b),
+        (Point2::new(x0, 1.0 - q), 0.0),
+        (Point2::new(x0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
 }
@@ -317,10 +313,10 @@ fn a_raw_authored_cusp_carries_like_the_door() {
 #[test]
 fn a_hole_cusp_carries_its_slit_at_either_sign_and_either_winding() {
     let plate = bulge_loop(vec![
-        (p2(-1.0, -1.0), 0.0),
-        (p2(3.0, -1.0), 0.0),
-        (p2(3.0, 5.0), 0.0),
-        (p2(-1.0, 5.0), 0.0),
+        (Point2::new(-1.0, -1.0), 0.0),
+        (Point2::new(3.0, -1.0), 0.0),
+        (Point2::new(3.0, 5.0), 0.0),
+        (Point2::new(-1.0, 5.0), 0.0),
     ]);
     // Hole authored the "right" (CW) way AND the wrong way.
     for hole in [lune(), raw_lune()] {
@@ -340,7 +336,7 @@ fn a_hole_cusp_carries_its_slit_at_either_sign_and_either_winding() {
 #[test]
 fn revolve_and_loft_carry_nothing_for_smooth_joints() {
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     let profile = validated(vec![filleted_block(2.0)]);
@@ -369,8 +365,8 @@ fn revolve_and_loft_carry_nothing_for_smooth_joints() {
 fn crescent_raw(far: Point2<f64>, declared: bool) -> ProfileLoop<f64> {
     let h = std::f64::consts::FRAC_1_SQRT_2;
     let lp = bulge_loop(vec![
-        (p2(1.0, 0.0), (std::f64::consts::PI / 16.0).tan()),
-        (p2(h, h), 0.0),
+        (Point2::new(1.0, 0.0), (std::f64::consts::PI / 16.0).tan()),
+        (Point2::new(h, h), 0.0),
         (far, 0.0),
     ]);
     if declared {
@@ -385,8 +381,8 @@ fn crescent_raw(far: Point2<f64>, declared: bool) -> ProfileLoop<f64> {
 #[test]
 fn a_loft_whose_sections_disagree_carries_the_cusp_seam() {
     let h = std::f64::consts::FRAC_1_SQRT_2;
-    let a = crescent_raw(p2(2.0 * h, 0.0), true);
-    let b = crescent_raw(p2(1.5, 0.2), false);
+    let a = crescent_raw(Point2::new(2.0 * h, 0.0), true);
+    let b = crescent_raw(Point2::new(1.5, 0.2), false);
     let va = validated(vec![a.clone()]);
     let vb = validated(vec![b.clone()]);
     assert_eq!(

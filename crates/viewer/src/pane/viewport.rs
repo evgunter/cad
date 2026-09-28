@@ -1020,8 +1020,11 @@ mod tests {
         // A message about the DOCUMENT: a clean fold retires what the
         // camera said and nothing else, so this row goes red if the
         // expiry reaches past its own subject.
-        let landing =
-            frame::Message::new(frame::Subject::Document, "product: the landing's own news");
+        let landing = frame::Message::new(
+            frame::Subject::Document,
+            "product: the landing's own news",
+            frame::Retold::Again,
+        );
         let mut status = Some(landing.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -1051,7 +1054,8 @@ mod tests {
         let mut camera = framed();
         let refuses = CameraOp::Dolly { factor: 0.0 };
         let folded = fold_recorded(&camera, std::slice::from_ref(&refuses));
-        let older = frame::Message::new(frame::Subject::Document, "older news");
+        let older =
+            frame::Message::new(frame::Subject::Document, "older news", frame::Retold::Again);
         let mut status = Some(older.clone());
         let mut notices = Vec::new();
         land(&mut camera, &mut notices, &mut status, &folded);
@@ -1189,6 +1193,7 @@ mod tests {
         let raised = frame::Message::new(
             frame::Subject::Document,
             "product: two roots collide in the name table",
+            frame::Retold::Again,
         );
         let mut status = Some(raised.clone());
         let mut notices = Vec::new();
@@ -1742,6 +1747,7 @@ mod tests {
                     "picking paths disagree at the cursor: id buffer id {id}, \
                      which no patch of this picture draws, ray nothing"
                 ),
+                frame::Retold::Again,
             )),
         );
     }

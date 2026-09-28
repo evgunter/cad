@@ -46,10 +46,8 @@
 //! * `inside_out_strip` — the reversed thin strip, whose census
 //!   REFUSES: the failure path, where the walk stops at a shell.
 //!
-//! **One row is `probe`-gated and it is rostered as EXECUTED**
-//! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`): the sample
-//! population is the thing k-lint counts, so a row asserting it does not
-//! move with the thread count is worth nothing if it only compiles.
+//! **Its `probe` row lives in `thread_count_probe_populations`**, for
+//! the reason `mass_props_are_thread_count_invariant`'s header gives.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::cavity::{brick, rod};
@@ -348,46 +346,5 @@ fn voided_rods_verdicts_as_a_sorted_multiset() {
         got, want,
         "voided_rod's verdict multiset moved: a sign changed or a predicate came or went \
          (an ORDER change alone does not reach this row — that is the golden's)"
-    );
-}
-
-/// **The `probe` sample population does not shrink with the thread
-/// count** — what k-lint counts, read at 1 and 4 threads over the
-/// census door. The golden above cannot carry this: the sink only
-/// exists in a `probe` build.
-#[cfg(feature = "probe")]
-#[test]
-fn the_sample_population_is_identical_at_one_and_four_threads() {
-    use geom_core::Probe;
-    use geom_core::k_stats::{start_recording, take_samples};
-
-    let eps = Tol::witness().get().eps;
-    let body: Body<Probe> = loft_body::<Probe>(
-        &[arc_section(1.0e9 * eps), arc_section(1.0e9 * eps)],
-        &stacked(&[0.0, 1.0], 1.0e9 * eps),
-        1,
-        Tol::witness(),
-    )
-    .expect("the probe arc loft lofts")
-    .body;
-    let population = |threads: usize| {
-        on_pool(threads, || {
-            start_recording();
-            let _ = topo::classify_shells(&body, Tol::witness());
-            take_samples()
-                .iter()
-                .map(|s| (s.predicate, s.margin.to_bits(), s.outcome.token()))
-                .collect::<Vec<_>>()
-        })
-    };
-    let one = population(1);
-    let four = population(4);
-    assert!(
-        !one.is_empty(),
-        "the probe lane recorded no sample — the comparison below is vacuous"
-    );
-    assert_eq!(
-        one, four,
-        "the sample population moved with the thread count"
     );
 }
