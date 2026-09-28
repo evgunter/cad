@@ -13,20 +13,22 @@ opened: 2026-09-28
 ## What
 
 The kernel-defect ending has one home now:
-`geom_core::KERNEL_DEFECT_RECOURSE` ("There is no way through: this is
-a kernel defect; report it"), `KERNEL_OR_FILE_DEFECT_RECOURSE` for a
+`geom_core::KERNEL_DEFECT_ENDING` ("There is no way through: this is
+a kernel defect; report it"), `KERNEL_OR_FILE_DEFECT_ENDING` for a
 body that may have been read from a file, and the
-`geom_core::kernel_defect_recourse!` macros for a `&'static str` site.
+`geom_core::kernel_defect_ending!` macros for a `&'static str` site.
 The split's kernel-bug refusals end instead in a "(kernel bug)" tag,
 which carries neither the marker `test_utils::refusal::recourse_markers`
 counts nor the report:
 
 - `topo::splitting::SplitReduceError::ConsecutiveOnSectors`
-  (`crates/topo/src/splitting/mod.rs`).
+  (`crates/topo/src/splitting/mod.rs:416`).
 - `topo::splitting::SplitFinishError::TornComponent`
+  (`crates/topo/src/splitting/finish.rs:205`)
   (`crates/topo/src/splitting/finish.rs`).
 - `topo::chord_join::SplitJoinError::UnpairedLooseEnds`,
-  `SectionLoopMixed`, `CutInvariant` (`crates/topo/src/chord_join.rs`;
+  `SectionLoopMixed`, `CutInvariant` (`crates/topo/src/chord_join.rs:427`,
+  `:431`, `:435`;
   shared with TANG by territory).
 
 All are rows in `editor-core/tests/refusal_concision_chains.rs`
@@ -34,5 +36,5 @@ All are rows in `editor-core/tests/refusal_concision_chains.rs`
 
 ## Repair shape
 
-Replace each tag with ". {KERNEL_DEFECT_RECOURSE}" (or the file
+Replace each tag with ". {KERNEL_DEFECT_ENDING}" (or the file
 variant where the body may have been read).

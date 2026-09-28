@@ -52,10 +52,12 @@ every caller holds both directions.
 ## Evidence: the offset fit's spellings are settled (2026-09-28)
 
 ENCL's `kernel-defect-endings-and-repair-labels-have-no-shared-home`
-labels every repair the offset fit forwards (`PatchBoundError::note()`,
-`FitError`, `SplineError`, `KnotVectorIssue`) `Recourse:` and ends
-every kernel-defect refusal there in `geom_core::KERNEL_DEFECT_RECOURSE`
-(or `KERNEL_OR_FILE_DEFECT_RECOURSE`), which carries the marker. On the
+labels the repair of every carrier the offset fit reaches
+(`PatchBoundError::note()`, `FitError`, `SplineError`,
+`KnotVectorIssue`) `Recourse:`; where the kernel supplied a carrier's
+input (`OffsetFitError::Fit`, `Structure`) it renders a kernel finding
+instead of the carrier's repair. It ends every kernel-defect refusal there in `geom_core::KERNEL_DEFECT_ENDING`
+(or `KERNEL_OR_FILE_DEFECT_ENDING`), which carries the marker. On the
 feature-tree rows `offset_fit_routes` renders, one arm still counts
 zero, `Meter/Escalated` (filed:
 `work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`);
@@ -63,3 +65,12 @@ zero, `Meter/Escalated` (filed:
 `refusal_concision_chains.rs` holds the rest at exactly one. The
 kernel-bug tags that still count zero elsewhere are filed on their
 owners' slates (see that unit's PR).
+
+Two more spellings the case-sensitive count misses or splits (ENCL,
+2026-09-28): `crates/topo/src/boolean/mod.rs:1729` spells the marker in
+lowercase mid-sentence ("there is no way through this in the kernel
+yet"), which `recourse_markers` counts zero; and "There is no way
+through yet" (`topo::validate`'s `NOT_YET`, the `census` arms; "…
+through this in the kernel yet" at `boolean/mod.rs:1722`) is a second
+dead-end spelling with no shared
+home beside `geom_core::KERNEL_DEFECT_ENDING`.

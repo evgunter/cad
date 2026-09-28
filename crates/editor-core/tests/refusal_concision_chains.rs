@@ -260,9 +260,12 @@ fn every_node_refusal_renders_within_the_budget() {
 
 /// Every offset-fit refusal the feature tree shows ends exactly once,
 /// on every route: a labelled repair, or the shared dead end. The
-/// carriers the fit forwards whole (`FitError`, `SplineError`,
-/// `PatchBoundError`) label their own repair, so a wrapper that added
-/// one of its own would read here as two.
+/// carrier the fit forwards whole (`PatchBoundError`) labels its own
+/// repair, so a wrapper that added one of its own would read here as
+/// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
+/// forwarded: the kernel chose their samples and knots, so a builder's
+/// repair would name nothing the user supplied, and those rows end in
+/// the kernel-defect ending instead.
 ///
 /// `Meter/Escalated` ends zero times: it forwards `Indeterminate`'s
 /// shared menu, which is unlabelled and offers a declaration a single
@@ -281,6 +284,16 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             want,
             "{name}: {text}"
         );
+        let arm = name
+            .strip_prefix("Shell/Face/Fit/")
+            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
+            .expect("every offset-fit row is on one of the two routes");
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "{name}: {text}"
+            );
+        }
     }
 }
 

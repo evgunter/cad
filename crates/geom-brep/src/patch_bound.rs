@@ -199,12 +199,12 @@ impl PatchBoundError {
             Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
                  always allows. ",
-                geom_core::kernel_defect_recourse!()
+                geom_core::kernel_defect_ending!()
             ),
             Self::DerivedKnots => concat!(
                 "NURBS face whose derivative could not be formed, which a valid face always \
                  allows. ",
-                geom_core::kernel_defect_recourse!()
+                geom_core::kernel_defect_ending!()
             ),
         }
     }
@@ -959,7 +959,7 @@ mod tests {
                 arm,
                 PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
             ) {
-                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_RECOURSE), "{msg}");
+                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{msg}");
             }
             let lower = msg.to_lowercase();
             assert!(

@@ -136,7 +136,9 @@ pub enum FitError {
     },
     /// The Type-2 loop spent [`FIT_REMOVAL_BUDGET`] removal attempts
     /// without finishing; carries the bound achieved so far (OUR
-    /// semantics — module docs).
+    /// semantics — module docs), so a caller can see what the loop
+    /// reached before it expired. The constant is the lever, sized for
+    /// fitting-sized inputs.
     BudgetExhausted {
         /// The attempt budget that expired.
         budget: usize,
@@ -150,9 +152,9 @@ impl core::fmt::Display for FitError {
         match self {
             FitError::TooFewPoints { have, need } => write!(
                 f,
-                "the fit has {have} points and needs at least {need}. Recourse: supply the missing \
-                 samples; a degree-p interpolant needs p+1 of them and any fit needs 2, so a \
-                 lower degree lowers this floor only down to 2"
+                "the fit has {have} points and needs at least {need}: a degree-p interpolant \
+                 needs p+1 of them and any fit needs 2, so a lower degree lowers this floor \
+                 only down to 2. Recourse: supply the missing samples"
             ),
             FitError::NonFinitePoint { index } => write!(
                 f,
@@ -167,9 +169,9 @@ impl core::fmt::Display for FitError {
             ),
             FitError::InvalidTolerance { tolerance } => write!(
                 f,
-                "the fit's tolerance {} is invalid, and the tolerance is the loop's \
-                 acceptance budget and has to be a number to compare against. Recourse: ask \
-                 with a finite tolerance strictly above zero",
+                "the fit's tolerance {} is invalid: it is the loop's acceptance budget and \
+                 has to be a number to compare against. Recourse: ask with a finite tolerance \
+                 strictly above zero",
                 Readable(*tolerance)
             ),
             FitError::ParamCountMismatch { params, points } => write!(
@@ -191,11 +193,9 @@ impl core::fmt::Display for FitError {
             ),
             FitError::BudgetExhausted { budget, achieved } => write!(
                 f,
-                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}), and \
-                 FIT_REMOVAL_BUDGET is the lever, sized for fitting-sized inputs of a few \
-                 hundred samples. Recourse: fit the data in pieces, or raise the constant for \
-                 a genuinely larger fit; the achieved bound rides the refusal so a caller \
-                 can see what the loop reached before it expired"
+                "the fit's removal budget {budget} ran out (achieved bound {achieved:e}); \
+                 the budget is sized for inputs of a few hundred samples. Recourse: fit the \
+                 data in pieces, or raise FIT_REMOVAL_BUDGET for a genuinely larger fit"
             ),
         }
     }

@@ -3007,7 +3007,7 @@ impl Undecided {
             }
             Self::CorruptInstance => concat!(
                 "one part's topology could not be walked. ",
-                geom_core::kernel_or_file_defect_recourse!()
+                geom_core::kernel_or_file_defect_ending!()
             ),
         }
     }

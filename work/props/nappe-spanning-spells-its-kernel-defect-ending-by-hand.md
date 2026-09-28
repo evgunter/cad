@@ -13,13 +13,13 @@ opened: 2026-09-28
 ## What
 
 `geom_brep::props::PropsError::NappeSpanning`'s `Display`
-(`crates/geom-brep/src/props/mod.rs`) reads "no construction here
+(`crates/geom-brep/src/props/mod.rs:561`) reads "no construction here
 produces such a face, so report it rather than repairing a body: a cone
 face stays on one nappe": a hand-spelled kernel-defect ending with no
 `There is no way through` marker (zero to
 `test_utils::refusal::recourse_markers`), behind an `integral
 properties:` stage prefix. The ending has one home now,
-`geom_core::KERNEL_DEFECT_RECOURSE` (or `KERNEL_OR_FILE_DEFECT_RECOURSE`
+`geom_core::KERNEL_DEFECT_ENDING` (or `KERNEL_OR_FILE_DEFECT_ENDING`
 if the face may have been read from a file). Its sibling in `topo`,
 `MassPropsError::RingOnCurvedFace`, is filed on the unowned slate
 (`work/issues/boolean-kernel-bug-refusals-end-without-the-shared-ending.md`).

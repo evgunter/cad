@@ -1025,41 +1025,44 @@ pub const SPLIT_PLANE_RECOURSE: &str =
 /// nothing the user changes in the model is a way through, so the
 /// sentence says so plainly and asks for the report.
 ///
-/// **Unlike its neighbours it is a whole sentence, marker included.**
-/// Those are repairs a site labels `Recourse:`; a dead end carries no
+/// **An ending, not a recourse: a whole sentence, marker included.**
+/// The `*_RECOURSE` neighbours are repairs a site labels `Recourse:`;
+/// a dead end is not a recourse and carries no
 /// such label, and the words that say there is none ARE the marker a
 /// refusal's shape is checked by (`test_utils::refusal::recourse_markers`
 /// counts `There is no way through`). So a site appends this after its
 /// own sentence and adds nothing: the ending is here, whole, once.
 ///
 /// A site that must compose it into a `&'static str` reaches the same
-/// literal through [`kernel_defect_recourse!`](crate::kernel_defect_recourse).
-pub const KERNEL_DEFECT_RECOURSE: &str = crate::kernel_defect_recourse!();
+/// literal through the hidden `geom_core::kernel_defect_ending!` macro.
+pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 
-/// [`KERNEL_DEFECT_RECOURSE`] where the thing refused may have been
+/// [`KERNEL_DEFECT_ENDING`] where the thing refused may have been
 /// READ rather than built: a body or record at rest, which a damaged
 /// file reaches as surely as a defective operation does. The user's
 /// report is the same; what it is about is not, so the sentence names
 /// both. A refusal over something the kernel computed on the spot — a
 /// description the constructors already validated — ends in
-/// [`KERNEL_DEFECT_RECOURSE`], since no file stands between them.
-pub const KERNEL_OR_FILE_DEFECT_RECOURSE: &str = crate::kernel_or_file_defect_recourse!();
+/// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
+pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
-/// [`KERNEL_DEFECT_RECOURSE`] as a literal, for `concat!` at a site
+/// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
 /// one). The constant is defined through this macro, so the two are
 /// one spelling.
+#[doc(hidden)]
 #[macro_export]
-macro_rules! kernel_defect_recourse {
+macro_rules! kernel_defect_ending {
     () => {
         "There is no way through: this is a kernel defect; report it"
     };
 }
 
-/// [`KERNEL_OR_FILE_DEFECT_RECOURSE`] as a literal, for `concat!`; see
-/// [`kernel_defect_recourse!`](crate::kernel_defect_recourse).
+/// [`KERNEL_OR_FILE_DEFECT_ENDING`] as a literal, for `concat!`; see
+/// `kernel_defect_ending!`.
+#[doc(hidden)]
 #[macro_export]
-macro_rules! kernel_or_file_defect_recourse {
+macro_rules! kernel_or_file_defect_ending {
     () => {
         "There is no way through: this is a kernel defect or a damaged file; report it"
     };

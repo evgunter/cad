@@ -80,7 +80,7 @@ impl core::fmt::Display for SplineError {
             ),
             SplineError::NonFiniteWeight { index, weight } => write!(
                 f,
-                "weight {index} is {}, not finite, and an infinite weight passes `> 0` and \
+                "weight {index} is {}, not finite: an infinite weight passes `> 0` but \
                  is not usable structure. Recourse: supply a finite strictly positive weight \
                  there",
                 Readable(*weight)
@@ -164,7 +164,7 @@ impl core::fmt::Display for KnotVectorIssue {
             ),
             KnotVectorIssue::Decreasing { index } => write!(
                 f,
-                "knot {index} decreases, and a knot vector is non-decreasing. Recourse: supply the \
+                "knot {index} decreases, which a knot vector never does. Recourse: supply the \
                  values in ascending order, repeating one to raise its multiplicity rather \
                  than stepping back"
             ),
@@ -182,9 +182,9 @@ impl core::fmt::Display for KnotVectorIssue {
             ),
             KnotVectorIssue::InteriorMultiplicityTooHigh { index } => write!(
                 f,
-                "interior knot {index} has multiplicity > degree, and an interior value may \
-                 repeat up to degree times, which drops continuity to C⁰, and never past it. \
-                 Recourse: drop the surplus copies there"
+                "interior knot {index} has multiplicity > degree; an interior value may \
+                 repeat at most degree times (which drops continuity to C⁰). Recourse: drop \
+                 the surplus copies there"
             ),
         }
     }

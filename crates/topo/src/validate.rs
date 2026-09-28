@@ -2094,7 +2094,7 @@ impl fmt::Display for StaleDeclaration {
 /// the model repairs a body whose structure a kernel operation (or a
 /// damaged file) left wrong. A body at rest may have been read, so it
 /// is the shared ending that names the file too.
-const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_RECOURSE;
+const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
 /// The recourse for a shape the kernel cannot check yet.
 const NOT_YET: &str = "There is no way through yet";

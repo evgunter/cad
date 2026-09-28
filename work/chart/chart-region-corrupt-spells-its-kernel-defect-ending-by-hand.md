@@ -13,14 +13,14 @@ opened: 2026-09-28
 ## What
 
 `topo::chart_region::ChartRegionError::Corrupt`'s `Display`
-(`crates/topo/src/chart_region.rs`) ends "a kernel invariant, not an
+(`crates/topo/src/chart_region.rs:434`) ends "a kernel invariant, not an
 input a caller can repair. Rebuild the body through the Euler
 operators, and report this: …": a hand-spelled kernel-defect ending
 with no `There is no way through` marker (zero to
 `test_utils::refusal::recourse_markers`), behind a `chart-region:`
 stage prefix. The ending has one home now,
-`geom_core::KERNEL_OR_FILE_DEFECT_RECOURSE` for a body that may have
-been read (`KERNEL_DEFECT_RECOURSE` otherwise).
+`geom_core::KERNEL_OR_FILE_DEFECT_ENDING` for a body that may have
+been read (`KERNEL_DEFECT_ENDING` otherwise).
 
 ## Repair shape
 

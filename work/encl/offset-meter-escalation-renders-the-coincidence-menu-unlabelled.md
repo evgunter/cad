@@ -13,7 +13,7 @@ opened: 2026-09-28
 ## What
 
 `geom_brep::offset_meters::MeterError::Escalated`'s `Display`
-(`crates/geom-brep/src/offset_meters.rs`) renders its `Indeterminate`
+(`crates/geom-brep/src/offset_meters.rs:242`) renders its `Indeterminate`
 whole: "whether the face can be offset is too close to call:
 {source}". `Indeterminate`'s own `Display`
 (`crates/geom-core/src/predicate.rs`) ends in
@@ -39,5 +39,5 @@ things follow on the offset fit's refusal surface:
 
 Render `source.payload()` (`IndeterminatePayload`, no shared tail) and
 append one `Recourse:` routed the way `classify_offset_fit` routes it,
-or `geom_core::KERNEL_DEFECT_RECOURSE` on `MarginDiag::Invalid`. Then
+or `geom_core::KERNEL_DEFECT_ENDING` on `MarginDiag::Invalid`. Then
 flip the chains row's exception to one marker like every other arm.
