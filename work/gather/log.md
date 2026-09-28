@@ -274,6 +274,16 @@ attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
 had contradicted the code on main, and cut the hand-kept caller
 lists. Three WIRE rows filed for comments that were doing the
 code's work.
+## 2026-09-28 — assemble runs the local battery once (PR 3374)
+
+The product gather now keeps its tier-3 verdict on the body
+(`topo::AtRestBody`), and the assembly gate runs tier 3′'s census over
+it instead of re-running the local battery. On the heat sink at 160
+fins (991 faces, local dev profile) that drops the assembly gate from
+185–246 ms to 97–143 ms, the battery's 62–105 ms, and the hosted
+`census_ms` series steps down at this merge. Four rows filed from the
+sweep and review (tour re-gate, shell re-gate across the graft, the
+stale 11.4 s figure, the kept verdict's Sym session).
 
 ## 2026-09-28 — every op that can mint a wedge end is audited (PR 3373)
 
@@ -287,3 +297,7 @@ self-overlap. STEP import mints nothing its file did not state: a
 designer pair found no open fork (Ev's ruling on PR 3317 covers it),
 and a round-trip row pins the admission. The shoulder's other
 orientation refusing at reduce is filed on reach.
+
+## 2026-09-28 — tier-3′ cost figures cite the series (PR 3378)
+
+`product.rs` and `checks.rs` cite `registry_split` in `docs/perf-data/rebuild-latency/` instead of the stale ~11.4 s / ~250 ms figures, and drop the census-is-quadratic reason the BVH pre-filter retired.

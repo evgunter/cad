@@ -300,6 +300,29 @@ pub mod test_support {
         body.arena_counts()
     }
 
+    /// **The section certificate's per-pair report** on the crossings
+    /// path: every in-scope pair of `a` × `b` whose boxes overlap, with
+    /// the events of the reduction `op` would run, as
+    /// `(A face, B face, outcome)`. The outcome is `Ok` with each
+    /// component's witness (`Unbounded`, `Essential(F|G)`, `Out(F|G)`,
+    /// `LoneEvented`) or `Err` with the refusal (`Reach`, `Tangent(..)`,
+    /// `Loop`, `Undecided`, `LoneVertex`), spelled by `Debug`.
+    ///
+    /// # Errors
+    ///
+    /// The reduction's own refusals.
+    pub fn section_report(
+        op: crate::BooleanOp,
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<Vec<(crate::FaceKey, crate::FaceKey, String)>, crate::BooleanError> {
+        Ok(crate::boolean::section_report(op, a, b, tol)?
+            .into_iter()
+            .map(|p| (p.a_face, p.b_face, format!("{:?}", p.verdict)))
+            .collect())
+    }
+
     /// Is `p`, on `face`'s plane, inside the face? `point_in_solid`'s
     /// planar in-face test, which the ray sweep reaches only through a
     /// hit it decides to take — named here so a row can ask it about a
@@ -430,7 +453,7 @@ pub use splitting::{
 };
 pub use transform::{TransformError, transform_rigid, transform_rigid_via};
 pub use validate::{
-    CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
+    AtRestBody, CensusContact, CensusSubject, CensusUnsupportedCause, ContactMark, RingContact,
     StaleDeclaration, ValidationError, contact_marks, contact_marks_structural, validate,
     validate_closed, validate_geometric, validate_geometric_certificate,
     validate_geometric_certificate_structural, validate_geometric_structural,

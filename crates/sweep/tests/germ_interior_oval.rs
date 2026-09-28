@@ -3,12 +3,15 @@
 //!
 //! Nothing on the crossings path sees such a loop: no edge event marks
 //! it, the join cuts nothing along it, and face-region propagation
-//! carries each face's side across it. On main before the guard both
-//! fixtures below came back as VALID bodies that were wrong — the
-//! overlap counted twice under ∪ and dropped under ∩ and ∖. The guard
-//! (`ops::interior_loop_verdict`) refuses them typed, and these rows
-//! pin that, the controls it must leave answering, and the one correct
-//! answer it gives up.
+//! carries each face's side across it. Before the guard these fixtures
+//! came back as VALID bodies that were wrong — the overlap counted twice
+//! under ∪ and dropped under ∩ and ∖. The section certificate
+//! (`topo::boolean::section_cert`, run by `ops::interior_loop_verdict`
+//! on the crossings path and by the fallback's section pass without
+//! crossings) classifies every face pair's section and refuses a loop it
+//! certifies interior to both faces. These rows pin those refusals, the
+//! answers it gives back (with their closed forms), and the verdict it
+//! reaches per pair (`topo::test_support::section_report`).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -19,6 +22,26 @@ use profile::{ProfileLoop, RawLoop, test_support::bulge_loop};
 use revolve_common::{axis_y, validated};
 use sweep::{Revolution, revolve};
 use topo::Body;
+
+/// The certificate's verdicts on the crossings path, one string per
+/// pair: `Ok([...])` with each component's witness, or `Err(...)` with
+/// the refusal.
+fn verdicts(a: &Body<f64>, b: &Body<f64>) -> Vec<String> {
+    topo::test_support::section_report(topo::BooleanOp::Union, a, b, Tol::witness())
+        .expect("the reduction runs")
+        .into_iter()
+        .map(|(_, _, v)| v)
+        .collect()
+}
+
+fn in_solid(b: &Body<f64>, q: Point3<f64>) -> Option<bool> {
+    let band = geom_core::Band::linear(Tol::witness()).expect("the run's band");
+    match topo::point_in_solid(b, q, band, Tol::witness()) {
+        Ok(topo::SolidContainment::In) => Some(true),
+        Ok(topo::SolidContainment::Out) => Some(false),
+        _ => None,
+    }
+}
 
 /// A C-shaped profile in the `xz` plane, extruded symmetrically in `y`.
 fn bracket_xz(pts: &[(f64, f64)], half_y: f64) -> Body<f64> {
@@ -219,16 +242,24 @@ fn a_torus_oval_refuses_union_at_the_guard_and_intersect_and_subtract_at_the_ros
     ] {
         refuses_at(r, site, op, torus, what);
     }
+    // The foot's top face cuts a scrape oval with no event, witnessed
+    // strictly inside both faces: a certified interior loop.
+    assert!(
+        verdicts(&h, &c).iter().any(|v| v == "Err(Loop)"),
+        "{:?}",
+        verdicts(&h, &c)
+    );
 }
 
-/// **What the torus half gives up, stated.** The bracket without its
-/// foot — the pin alone crossing the cap — has no loop anywhere, and its
-/// union was the correct `π²/2 + 0.594 − 0.006`. Its pin still stands
-/// inside the torus faces' boxes with no event between them, and the
-/// guard refuses on reach, as the no-crossings extent gate does. A
-/// guard that learns to answer this is a visible change here.
+/// **The pin alone answers its closed form** (the stopgap refused it on
+/// reach). The pin's `x = 1.95` and `x = 2.05` faces cut scrape ovals
+/// with no event whose witness points lie outside the pin face (W3); its
+/// `y` faces cut two parallels and its `z` faces two `(0,1)` loops (W2).
+/// The union is `vol(H) + vol(C) − 0.006`, the pin's piece in the tube.
+/// Red against: the per-op reach kept, `σ` swapped in the scrape
+/// witness, and W3 reading the torus face only.
 #[test]
-fn the_pin_alone_is_the_torus_guards_conservative_refusal() {
+fn the_pin_alone_answers_its_closed_form() {
     let pin_only = bracket_xz(
         &[
             (1.95, -0.1),
@@ -242,12 +273,36 @@ fn the_pin_alone_is_the_torus_guards_conservative_refusal() {
         ],
         0.3,
     );
-    refuses_as_the_interior_loop_guard(
-        topo::union(&half_donut(), &pin_only, Tol::witness()),
-        topo::BooleanOp::Union,
-        geom_brep::SurfaceKind::Torus,
-        "the pin alone",
+    let h = half_donut();
+    let v = verdicts(&h, &pin_only);
+    assert!(v.iter().all(|x| x.starts_with("Ok(")), "{v:?}");
+    assert!(
+        v.iter().any(|x| x.contains("Out(")),
+        "a W3 clearance: {v:?}"
     );
+    let r = topo::union(&h, &pin_only, Tol::witness())
+        .unwrap_or_else(|e| panic!("the pin alone: {e:?}"));
+    let b = &r.body().expect("non-empty").body;
+    assert_eq!(topo::validate_geometric(b, Tol::witness()), Ok(()));
+    close(
+        volume(b),
+        volume(&h) + volume(&pin_only) - 0.006,
+        "the pin's union",
+    );
+    for (q, want) in [
+        // The pin's piece inside the tube.
+        (Point3::new(2.0, 0.0, -0.05), true),
+        // Torus only, beside the pin, inside a scrape oval's lens side.
+        (Point3::new(1.9, 0.45, -0.05), true),
+        // Torus only, far round the ring.
+        (Point3::new(0.0, 0.0, -2.0), true),
+        // Bracket only.
+        (Point3::new(3.1, 0.0, 0.0), true),
+        // Neither: between the tube and the bracket wall.
+        (Point3::new(2.7, 0.0, -0.1), false),
+    ] {
+        assert_eq!(in_solid(b, q), Some(want), "{q:?}");
+    }
 }
 
 /// **The sphere analogue: a dome and a bracket whose foot cuts a cap off
@@ -291,6 +346,11 @@ fn a_sphere_cap_behind_crossings_elsewhere_refuses_every_op() {
             "dome and bracket",
         );
     }
+    assert!(
+        verdicts(&d, &c).iter().any(|v| v == "Err(Loop)"),
+        "{:?}",
+        verdicts(&d, &c)
+    );
 }
 
 /// **The sphere lane the guard must leave answering.** The bracket's top
@@ -390,16 +450,18 @@ fn the_oval_lens_is_well_above_the_rows_tolerance() {
     assert!(lens < 0.02, "the lens volume {lens}");
 }
 
-/// **The corner bar: a second lens, and the torus half's per-op reach
-/// is what covers it.** A `0.2`-square bar across the donut's hole, cut
-/// to the length that puts all eight corners on the inner face. Its end
-/// squares' edges along `y` keep a constant `ρ`, so their interiors run
-/// inside the tube, and the lens between each end square and the tube
-/// is bounded by no event but the corners' own contacts. A gate that
-/// cleared a torus pair because it HAS events would pass it; the torus
-/// half never consults events — any undeclared overlapping pair refuses
-/// unless the carriers are certified apart — so whatever door the
-/// pipeline reaches first, the result is never a body.
+/// **The corner bar: a second lens, never a body.** A `0.2`-square bar
+/// across the donut's hole, cut to the length that puts all eight
+/// corners on the inner face. Its end squares' edges along `y` keep a
+/// constant `ρ`, so their interiors run inside the tube, and the lens
+/// between each end square and the tube is bounded only by the corners'
+/// own contacts. The section certificate would clear it (each end
+/// square's section is one component with the corners' events on it,
+/// W4; the side faces cut `(0,1)` and `(1,0)` pairs, W2): the lens arcs
+/// are evidenced, and tracing them is the crossing layer's business.
+/// What keeps the result from being a body is downstream of the guard —
+/// the chord rule and the sagitta charge, where the reduction refuses
+/// today — and that is what this row pins.
 #[test]
 fn the_corner_bar_never_comes_back_a_body() {
     let d = {
@@ -427,16 +489,17 @@ fn the_corner_bar_never_comes_back_a_body() {
     }
 }
 
-/// **The one carrier certificate, read by the no-crossings torus gate
-/// too.** A wedge above the donut (`R = 2`, `r = 0.5` about `y`), its
+/// **A wedge clear of the donut's carrier answers although its box
+/// overlaps.** A wedge above the donut (`R = 2`, `r = 0.5` about `y`), its
 /// underside tilted along the plane `0.3x + y = 1.3`: every face's
 /// carrier plane clears the torus — the underside by its support
 /// `R·|n⊥| + r ≈ 1.075` against a distance `≈ 1.245`, the top, the ends
 /// and the caps by more — while the underside's BOX, running down to
 /// `y = 0.4` at `x = 3`, overlaps the donut faces' boxes. There are no
-/// crossings, so the fallback runs; the torus gate used to refuse the
-/// box overlap, and with the certificate it answers the two disjoint
-/// solids — `π²` (the donut, `2π²Rr²`) plus the wedge's `7.2 × 6`.
+/// crossings, so the fallback runs, and the section pass certifies each
+/// pair apart (W0: the torus × plane classification returns no
+/// component), so the fallback answers the two disjoint solids — `π²`
+/// (the donut, `2π²Rr²`) plus the wedge's `7.2 × 6`.
 #[test]
 fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
     let donut = {

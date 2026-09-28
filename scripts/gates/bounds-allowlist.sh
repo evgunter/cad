@@ -457,16 +457,19 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   'crates/topo/src/boolean/boxes.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
-  # ops.rs's no-crossings extent checks are one driver seam in three
-  # kinds — `sphere_extent_scan`, `cylinder_extent_gate` and
-  # `torus_extent_gate` (the torus doors, PR 3265) — each reading the
-  # certified face boxes the sweep built and deciding on them, the
-  # amendment's funnel shape; the third is why the count was 12. The
-  # crossings path's interior-loop guard, `interior_loop_verdict`, is the
-  # same check on the other path (the interior-oval stopgap): it reads
-  # the same certified face boxes through `first_unsupported_pair` and
-  # decides on them, so the count is 13.
-  'crates/topo/src/boolean/ops.rs 13 2026-07-29 (M5 PR 8), the driver amendment'
+  # ops.rs's no-crossings extent checks and its crossings-path guard
+  # are one driver seam: each reads the certified face boxes the sweep
+  # built and decides on them, the amendment's funnel shape. The
+  # section certificate (the section-certificate unit) carries it in
+  # four: `section_pairs`, the scan over box-overlapping pairs; its two
+  # callers, `interior_loop_verdict` (crossings) and
+  # `section_extent_pass` (no crossings), which replaced the torus and
+  # cylinder extent gates; and `section_report`, the test door over the
+  # same scan. With `sphere_extent_scan` and the rest of the file's
+  # pre-existing seams the count is 14. `section_cert.rs` itself, the
+  # classifier and the per-pair rule, reads no box and carries no
+  # compound bound.
+  'crates/topo/src/boolean/ops.rs 14 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
@@ -563,18 +566,25 @@ BOUNDS_ALLOWLIST=(
   # 2026-08-29, the advisory-check registry.
   'crates/editor-core/src/checks.rs 4 2026-08-29, the advisory-check registry'
   # 2026-09-02, the certified at-rest validator and the shell verbs.
-  # `validate.rs` carries the at-rest validator's bounds, 17 of them:
+  # `validate.rs` carries the at-rest validator's bounds, 21 of them:
   # the 10 public doors of the module doc's door roster (5 at
-  # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 6
-  # private passes they share (`structural_via`,
-  # `validate_geometric_certified`, `tier3_local_checks`,
-  # `tier3_local_checks_marked`, `contact_marks_via`,
-  # `pseudomanifold_certificate_via`); and one test helper (`check1`).
+  # `CertifiedBounds`, their 5 `_structural` twins at `Bounds`); the 2
+  # `AtRestBody` methods beside the roster (`validate`, which is
+  # `validate_geometric` keeping its verdict, and
+  # `validate_pseudomanifold`, the tier-3′ door reading it), each at its
+  # door's own `CertifiedBounds` bound; the 7 private passes they share
+  # (`structural_via`, `validate_geometric_certified`,
+  # `tier3_local_checks`, `tier3_local_checks_marked`,
+  # `contact_marks_via`, `pseudomanifold_certificate_via`, and
+  # `census_verdict`, the census tail both tier-3′ paths end in, at the
+  # census's own `Bounds`); `CertifiedLanes::held`, the one spelling of
+  # the certified lanes those doors hold, at `CertifiedBounds`; and one
+  # test helper (`check1`).
   # The tier-3′ ones among them reach `census::census_and_certify`, which
   # is why the census took the C10 tree as its pre-filter — the driver
   # amendment's seam, argued in the ledger under 2026-07-29 beside
   # `separation`.
-  'crates/topo/src/validate.rs 17 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
+  'crates/topo/src/validate.rs 21 2026-09-02, the certified at-rest validator; the three census doors under 2026-07-29 (M5 PR 8), the driver amendment'
   # The census's BVH pre-filter: `Trees::build`, `Candidates::build`,
   # the three census entries above them (`census_and_certify`,
   # `census_traces`, `census_with`) and the backstop's own tree over its
