@@ -869,8 +869,9 @@ and a chordal-defect sum, neither compressed near an end. A circle is
 exact through one lever. An ellipse is bounded on both sides:
 - `on` is decided on the lower bound for OFF and the upper bound for
   ON, so one call can mint the row twice;
-- `span` is CLOSED on the gap's upper bound `(τ − w)·a` and OPEN on its
-  lower bound, the chord between the arc's ends;
+- `span` reads WOUND past a period on the lower bound `(τ − w)·b` and
+  AN ARC only where the upper bound `(τ − w)·a` is not definitely
+  negative, so one call can mint the row twice;
 - `end` is the exact distance to the end point.
 
 Where the two bounds straddle the whole band, the escalation carries
@@ -886,6 +887,7 @@ populations stay apart:
 | `bool_contact_arc_end` | `ConicRows` field (`contain`'s `ROWS`, the boundary pre-pass) |
 | `bool_contact_arc_trim` | `ConicRows` field (`ROWS`) |
 | `bool_contact_edge_length` | `ParityRows` field (`contain`'s `EDGE_ROWS`) |
+| `bool_contact_arc_end_vertex` | a `const` in `contain` (`END_VERTEX`): a conic edge's carrier end against one of its stored vertices, asked only where `q` reads at that end while the vertex pass placed it clear |
 
 Notes on the neighbouring names:
 - `EDGE_ROWS` also names `bool_contact_edge` (its `boundary` field). Its

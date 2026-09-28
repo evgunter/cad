@@ -329,7 +329,7 @@ which is what actually moves the number.
 | certify.rs:917/925 | carrier_endpoint_start/end | point distance | m | OK |
 | certify.rs:950/958/992/1000 | carrier/tangent_on_surface_1/2 | implicit_residual (/2r-normalized) | m | OK |
 | certify.rs:1015 | tangent_second_order | κ_rel·arm²/2 | m | OK |
-| certify.rs:1035 | tangent_normal_parallel | sinθ / κ_rel (arm = 1/κ_rel, the D4 ¶1 tangency lever) | m | OK (note N4) |
+| certify.rs:1982/1954 | tangent_normal_parallel | sinθ / κ_rel (arm = 1/κ_rel, the D4 ¶1 tangency lever) on a Positive second-order margin; sinθ × the folded lever arm (`dihedral::folded_lever_arm`) at a second-order refusal, where a definite reading only renames the refusal | m | OK (note N4) |
 | certify.rs:1047 | carrier_matches_mapped_source | point distance | m | OK |
 | certify.rs:1057/1068/1076 | carrier_on_seam_* | residual / radial·unit | m | OK |
 | certify.rs:1103/1112 | tangent_hull_sup / tube_margin | m residual sums; κ·arm² | m | OK |
@@ -398,6 +398,7 @@ which is what actually moves the number.
 | site | predicate | comparand | dim | status |
 |---|---|---|---|---|
 | boolean/contain.rs (`boundary_pre_pass`) | bool_contact_vertex / bool_contact_edge_length / bool_contact_edge | point distance; a straight edge's own length (the degeneracy gate) and the distance from the point to its closed segment, through `ray_parity::on_segment` | m | OK (CONTACT-4) |
+| boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex — any in-band value escalates, and a definite one escalates too (a body certified at a coarser band carries up to that band's ε) | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::LoopEdge::contact`) | bool_contact_arc_span / bool_contact_arc / bool_contact_arc_end / bool_contact_arc_trim | `(τ − w)` levered by the smaller semi-axis. A CIRCLE: the distance from the circle `√(((ρ − 1)·r)² + axial²)` (the quantity `point_on_circle` meters under this name), the unit-circle chord to either end and the chordal-defect sum, each levered by the radius — exact. An ELLIPSE: the distance bounded on both sides, `on` decided on the upper bound (a point of the ellipse one Newton step and a radial snap from `q`) for ON and on the lower bound `2|F|/(g + √(g² + 4|F|/b²))` for OFF; `end` the exact distance from `q` to the end point; `trim` the chordal defect of the foot levered by the LARGER semi-axis, so it bounds the arc length to the nearer end from above | m | OK (CONTACT-4) |
 | boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless); verified CODE-READ + suites-green only — the rare germ-fan lane fires in none of the unit's live twin/probe configs (review MINOR-2, stated) |
 | boolean/insert.rs:262 | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm | m | OK |
@@ -423,6 +424,13 @@ which is what actually moves the number.
 | boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel / side_code | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified) | m | OK |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_section_seat | off-axis distance; `minor − r`; `major·|n̂·â| − r`; the major axis's minor-direction component × `(major − minor)`, the displacement a rotation in the plane causes | m | OK |
+| boolean/solid_contain.rs (`wall_outline`) | bool_wall_piece_span | azimuth extent × radius | m | OK |
+| boolean/solid_contain.rs (`rim_levels`) | bool_wall_rim_level | offset of one rim plane from another along the axis | m | OK |
+| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_trim (piece side) | perpendicular distance from a unit-normal plane | m | OK |
+| boolean/solid_contain.rs (`point_on_chart_wall`) | bool_wall_junction | cos and sin of the angle between two unit radial directions × radius | m | OK |
+| boolean/solid_contain.rs (`wall_hit_outside_reach`) | bool_wall_outline_reach | distance to the ball's centre − its radius | m | OK |
 | boolean/solid_contain.rs:538/562/587 | bool_point_in_solid_plane | plane residual; /2r linearizations | m | OK |
 | boolean/solid_contain.rs:645/655 | bool_point_in_solid_advance/order | ray parameters (m, unit dir) | m | OK |
 | boolean/solid_contain.rs:691 | bool_point_in_solid_denom (plane) | cos(unit,unit), no arm | dimensionless | FLAG F2 |
@@ -995,7 +1003,9 @@ Notes (verified honest, kept for the design conversation):
 - **N4** `tangent_normal_parallel`'s arm 1/κ_rel is the ratified D4 ¶1
   tangency lever ("normal-parallel within θ ⟺ within ε of the locus");
   unbounded only in the refusing direction, and the second-order gate
-  fires first.
+  fires first. The fallback lever (the folded arm, where the
+  second-order margin refused and `1/κ_rel` does not exist) reads only
+  on a path that already refuses.
 - **N5** `ps_frame_seam`, `pcurve_sphere_chart_frame`,
   `split_chart_azimuth_frame`, and `split_conic_phase_frame` are
   deterministic BRANCH/frame selections whose arms are all documented

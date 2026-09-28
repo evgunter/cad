@@ -2599,6 +2599,61 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         run: cargo test --no-run --workspace
 
+  # THE SAME PRIME FOR `k-lint`'s release-default leg, for the same reason
+  # `cache-prime` above exists: `k-lint` carries `github.event_name !=
+  # 'push'`, so it never runs on main, so main's scope holds no entry under
+  # its key, and every pull request's FIRST run of the leg restored nothing
+  # and rebuilt `demos/tour` — the kernel included — in release: `No cache
+  # found` and a 6m36s build on evgunter/cad PR 3300's run, ahead of a
+  # 6-minute suite. A later push to the same branch restores that branch's
+  # own entry, so what this buys is every first run.
+  #
+  # ONE ROW, NOT FIVE, and the row is chosen by cost: release-default is the
+  # leg that builds the kernel in release before it runs anything, and on
+  # that run it was the longest of the three chains that set a run's wall
+  # clock. The other legs' first-run builds are cheaper and are not primed;
+  # widening the matrix is one line when one of them is worth it.
+  #
+  # KEYED THROUGH THE SAME MATRIX VALUE so the two `shared-key`s are one
+  # text, which `scripts/check-cache-prime-parity.py` compares; `runs-on`,
+  # the (absent) `env:` block and the `workspaces:` list are the leg's too,
+  # and must stay so — every one of them is in the key. What it BUILDS is
+  # the leg's compile set: `cargo nextest run --release` compiles the tour's
+  # test targets exactly as `cargo test --release --no-run` does, and the
+  # die-corpus step runs the binary those targets already built.
+  #
+  # Guarded on `cache-hit` for the reason `cache-prime` gives: an exact hit
+  # means the entry is current, and rebuilding on every push to main would
+  # cost more than the misses it removes.
+  #
+  # NO LOCAL MIRROR: its entire output is a GitHub Actions cache entry written under the default branch's scope for other hosted runs to restore, which a developer box keeping one target directory has no counterpart for.
+  k-lint-cache-prime:
+    name: prime the k-lint cache (${{ matrix.row }})
+    runs-on: ubuntu-latest
+    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    strategy:
+      matrix:
+        row: [release-default]
+    steps:
+      - uses: actions/checkout@v4
+      - name: prune local-only tooling (hosted CI may not depend on it)
+        run: rm -rf local-scripts .claude
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        id: cache
+        with:
+          shared-key: k-lint-${{ matrix.row }}
+          workspaces: |
+            .
+            demos/tour
+            demos/wild
+            tools/k-lint
+            tools/tess-lint
+            tools/tess-meter
+      - name: build the tour's release test targets (only when the key stored nothing)
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: cd demos/tour && cargo test --release --no-run
+
   # BUILD job (see the build-once header comment above
   # the `env:` block). Compiles the scoped test binaries exactly once and
   # publishes them as a nextest archive; the `test` matrix below only RUNS.
@@ -3894,9 +3949,12 @@ jobs:
       # moves. True of the dependency graph and beside the point: `target/` is
       # in the cache paths too, and it is exactly the half `--features probe`
       # and `--release` move entirely.
+      # `shared-key`, not `key`: the automatic key carries the JOB ID, which
+      # `k-lint-cache-prime` below cannot reproduce, so an entry it wrote
+      # under `key:` would be one this job never restores.
       - uses: Swatinem/rust-cache@v2
         with:
-          key: k-lint-${{ matrix.row }}
+          shared-key: k-lint-${{ matrix.row }}
           workspaces: |
             .
             demos/tour
@@ -4685,6 +4743,7 @@ jobs:
       - clippy
       - clippy-all-features
       - cache-prime
+      - k-lint-cache-prime
       - build
       - test
       - release-corruption

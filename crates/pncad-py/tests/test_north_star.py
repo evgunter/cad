@@ -2566,8 +2566,8 @@ class TestTeapot(unittest.TestCase):
     #: chased to a reporting target derived from eps, and at
     #: eps = 1e-12 that target is proven unreachable after round 0.
     #: Tier 3 admits the body anyway -- its +V check consumes only the
-    #: SIGN of the enclosure, and the sign is decided by five orders of
-    #: magnitude at the round the chase stops on -- so the Rust scene
+    #: SIGN of the enclosure, and the sign is decided at the round the
+    #: chase stops on, about ten half-widths clear of zero -- so the Rust scene
     #: certifies at every eps and its volume ribbon reports the
     #: SIGN-level bracket where it has no number to report.
     SPOUT_ARCS: ClassVar[int] = 4

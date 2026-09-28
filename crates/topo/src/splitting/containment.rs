@@ -466,10 +466,12 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     a: T,
     b: T,
     /// The smaller semi-axis, the fewest metres one unit-coordinate step
-    /// buys. It levers the CROSSING rows only, where a `Zero` abandons a
-    /// ray and an understated margin costs rays, never an answer. A
-    /// boundary verdict, where a `Zero` IS the answer, never reads it
-    /// for an ellipse ([`Self::hit`]).
+    /// buys. It levers the CROSSING rows, where a `Zero` abandons a ray
+    /// and an understated margin costs rays, never an answer. A verdict
+    /// on an ellipse reads it only where a LOWER bound is the sound side
+    /// — the span rule's wound-past-period ([`Self::of`]); the boundary
+    /// reading bounds its distances on both sides ([`Self::hit`]), and
+    /// an arc's span needs the larger semi-axis too.
     lever: T,
     /// The carrier parameters of the arc's two ends.
     span: (T, T),
@@ -482,6 +484,9 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
 pub(crate) enum ConicArcError {
     /// The window winds definitely past a period: no edge at all.
     WoundPastPeriod,
+    /// An ellipse's overlap past a period is neither definitely within
+    /// the band nor definitely past it ([`ConicArc::of`]'s span rule).
+    Escalated(Indeterminate),
 }
 
 /// Where a point sits against one conic edge.
@@ -501,12 +506,34 @@ impl<T: Decide> ConicArc<T> {
     /// The arc a certified conic carrier spans over `(t0, t1)`; `None`
     /// for a carrier that is not a circle or an ellipse.
     ///
-    /// A window wound definitely past a period is no edge at all. One
-    /// within the band of a whole turn is an arc like any other: the
-    /// distance trim reads a whole circle, a near-whole one and a short
-    /// one alike — on a whole turn its two ends coincide at the edge's
-    /// one vertex and every other point of the carrier is on it — so
-    /// nothing here turns on which it is, and no gap is read as closed.
+    /// **The span rule, two-sided.** Let `Δ = τ − w`: a gap to a whole
+    /// turn where positive, a doubled stretch of carrier (an OVERLAP)
+    /// where negative. Its length along the carrier is `|Δ|` times a
+    /// speed between the smaller semi-axis and the larger — exact on a
+    /// circle, where the two are one. The band is not symmetric about a
+    /// verdict: `Zero` is `|m| ≤ ε`, an escalation `ε < |m| < 10ε`, and a
+    /// sign only beyond `10ε`. So each verdict reads the lever that makes
+    /// it sound:
+    ///
+    /// - **Wound past a period** — no edge at all — only where `Δ·min`,
+    ///   a LOWER bound on the overlap's length, is definitely negative.
+    /// - **An arc** only where `Δ` times an UPPER bound on the edge's
+    ///   speed over the overlap (at most the larger semi-axis; the bound
+    ///   is at the site) is not definitely negative: any overlap is then within
+    ///   the escalation band along the edge, which is the slack a circle
+    ///   has always had (a `Zero` or an in-band `Δ·r` is an arc), and
+    ///   points on it lie within that band of the edge's vertex. A gap,
+    ///   of any length, is an arc like any other: the distance trim reads
+    ///   a whole circle, a near-whole one and a short one alike — on a
+    ///   whole turn its two ends coincide at the edge's one vertex — so
+    ///   no gap is read as closed.
+    /// - **Between the two** — an ellipse whose overlap is definitely
+    ///   longer than the band by its upper bound but not by its lower —
+    ///   the span escalates: on the smaller lever's own margin
+    ///   where it has one, on `rows.straddle` where the two bounds
+    ///   straddle the band. Reading it as an arc would put a stretch of
+    ///   the edge on both sides of its own trim, and a point ON it would
+    ///   read off the edge.
     fn of(
         carrier: &geom::Curve3<T>,
         (t0, t1): (T, T),
@@ -530,12 +557,28 @@ impl<T: Decide> ConicArc<T> {
             _ => return Ok(None),
         };
         let lever = a.min(b);
-        if let Ok(Sign::Negative) = decide(
-            rows.span,
-            Margin::levered(T::tau() - (t1 - t0), lever),
-            band,
-        ) {
+        let gap = T::tau() - (t1 - t0);
+        let low = decide(rows.span, Margin::levered(gap, lever), band);
+        if let Ok(Sign::Negative) = low {
             return Err(ConicArcError::WoundPastPeriod);
+        }
+        // A circle's two levers are one, and its lower bound has spoken.
+        // An ellipse's upper lever is the edge's speed over the overlap
+        // itself: `|P′(θ)| = √((a·sin θ)² + (b·cos θ)²)` at its middle
+        // `m = t0 − Δ/2`, plus `a·|Δ|/2` for the stretch either side
+        // (the speed changes at most as fast as `|P″| ≤ a`) — never less
+        // than the speed anywhere on the overlap, and tight as it
+        // shrinks, so a certified window (its ends pinned within the
+        // band of its vertex) is never read as over-wound.
+        let (sm, cm) = (t0 - gap * T::from_f64(0.5)).sin_cos();
+        let speed = ((a * sm).powi(2) + (b * cm).powi(2)).sqrt() + a * gap.abs() * T::from_f64(0.5);
+        if kind == ConicKind::Ellipse
+            && let Ok(Sign::Negative) = decide(rows.span, Margin::levered(gap, speed), band)
+        {
+            return Err(ConicArcError::Escalated(match low {
+                Err(diag) => diag,
+                _ => crate::invalid_margin::invalid(band, rows.straddle),
+            }));
         }
         let (s0, c0) = t0.sin_cos();
         let (s1, c1) = t1.sin_cos();
@@ -713,6 +756,12 @@ impl<T: Decide> ConicArc<T> {
         let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
         Ok(
             match decide(rows.trim, Margin::levered(side, a.max(b)), band)? {
+                // `Zero` is unreachable: both ends are definitely more than
+                // `10ε` from `q` and the foot is within `ε` of `q`, so the
+                // foot is more than `9ε` of arc from either end, and the
+                // margin, levered by the larger semi-axis, is at least that
+                // arc length. It reads as on, as a circle's does, should
+                // rounding reach it.
                 Sign::Positive | Sign::Zero => ConicHit::On,
                 Sign::Negative => ConicHit::Carrier,
             },
@@ -943,6 +992,9 @@ pub(crate) fn carrier_loop<T: Decide>(
             }
             Ok(None) => {}
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
+            Err(ConicArcError::Escalated(diag)) => {
+                return Err(PointInLoopError::Escalated { r#loop, diag });
+            }
         }
         edges.push(match carrier {
             geom::Curve3::Line { .. } => LoopEdge::Chord,
@@ -1107,22 +1159,14 @@ fn carrier_walk<T: Decide>(
     let escalate = |diag| PointInLoopError::Escalated { r#loop, diag };
     let (verts, edges) = (&lp.verts, &lp.edges);
     // The loop's reach from `q`: the schedule gate's lever.
-    let mut extent = T::zero();
-    for v in verts {
-        extent = extent.max((*v - q).norm());
-    }
-    let mut balls = Vec::new();
-    for edge in edges {
-        let (center, reach) = match *edge {
-            LoopEdge::Chord => continue,
-            LoopEdge::Conic(k) => (k.center, k.a.max(k.b)),
-            LoopEdge::Unrowed { center, reach } => {
-                balls.push((center, reach));
-                (center, reach)
-            }
-        };
-        extent = extent.max((center - q).norm() + reach);
-    }
+    let extent = reach_from(verts, edges, q);
+    let balls: Vec<_> = edges
+        .iter()
+        .filter_map(|e| match *e {
+            LoopEdge::Unrowed { center, reach } => Some((center, reach)),
+            _ => None,
+        })
+        .collect();
     let n = verts.len();
     // ---- Boundary pass, and which conics carry `q`. ----
     let mut on_carrier = vec![false; n];
@@ -1224,6 +1268,49 @@ fn carrier_walk<T: Decide>(
         Err(PointInLoopError::RayExhausted { .. }) if blocked => Ok(None),
         Err(e) => Err(e),
     }
+}
+
+/// The radius of a ball about `from` that holds the whole loop: every
+/// vertex, and every edge's carrier locus through the bound its
+/// [`LoopEdge`] carries (a conic within its larger semi-axis of its
+/// centre, an unrowed carrier within its own reach).
+fn reach_from<T: Decide>(verts: &[Point3<T>], edges: &[LoopEdge<T>], from: Point3<T>) -> T {
+    let mut ball = T::zero();
+    for v in verts {
+        ball = ball.max((*v - from).norm());
+    }
+    for edge in edges {
+        let (center, reach) = match *edge {
+            LoopEdge::Chord => continue,
+            LoopEdge::Conic(k) => (k.center, k.a.max(k.b)),
+            LoopEdge::Unrowed { center, reach } => (center, reach),
+        };
+        ball = ball.max((center - from).norm() + reach);
+    }
+    ball
+}
+
+/// **A ball holding the whole loop**, `(center, radius)`: the loop's
+/// first vertex and the reach [`point_in_carrier_loop`] confines its
+/// refusal with. Nothing here needs the loop to be planar — each edge
+/// is bounded on its own carrier — so a curved face's outer loop is
+/// served the same way.
+///
+/// # Errors
+///
+/// [`PointInLoopError`] — an unwalkable loop, or a conic span that
+/// escalates.
+pub(crate) fn loop_reach<T: Decide>(
+    body: &Body<T>,
+    r#loop: LoopKey,
+    band: Band,
+) -> Result<(Point3<T>, T), PointInLoopError> {
+    let lp = carrier_loop(body, r#loop, WALK_ROWS, band)?;
+    let anchor = *lp
+        .verts
+        .first()
+        .ok_or(PointInLoopError::CorruptLoop { r#loop })?;
+    Ok((anchor, reach_from(&lp.verts, &lp.edges, anchor)))
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
@@ -1459,6 +1546,97 @@ mod tests {
             full.hit(full.point(0.0), WALK_ROWS.conic, band),
             Ok(ConicHit::End)
         );
+    }
+
+    /// **An over-wound ellipse window is not read as an arc.** The review's
+    /// repro: `a = 14, b = 1`, a window of a full period plus a `30ε`
+    /// overlap at the minor vertex (where the edge runs at speed `a`).
+    /// Levered by `b` alone the overlap read `2.1ε`, in band and not
+    /// negative, so the window read as an arc and a point ON the doubled
+    /// stretch — `15ε` from each end — read `Carrier`, off the edge. The
+    /// span now needs the LARGER lever for an arc: the overlap is `30ε`
+    /// there, definitely past the band, and the span escalates.
+    #[test]
+    fn an_over_wound_ellipse_window_is_not_an_arc() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let eps = band.zero();
+        let ellipse = |a: f64| geom::Curve3::Ellipse {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            major: a,
+            minor: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        // The repro, as the review spelled it at ε = 1e-9.
+        if eps == 1e-9 {
+            let got = ConicArc::of(
+                &ellipse(14.0),
+                (1.570796325723468, 7.853981635045912),
+                WALK_ROWS.conic,
+                band,
+            );
+            assert!(
+                matches!(got, Err(ConicArcError::Escalated(_))),
+                "the repro reads as an arc"
+            );
+        }
+        // The population: overlaps of 30ε and 100ε of arc, at a/b 14, 20 and
+        // 100, centred at the minor vertex, the major vertex and between.
+        // Never an arc: escalated, or wound past a period.
+        for a in [14.0f64, 20.0, 100.0] {
+            for overlap in [30.0 * eps, 100.0 * eps] {
+                for at in [
+                    core::f64::consts::FRAC_PI_2,
+                    0.0,
+                    core::f64::consts::FRAC_PI_4,
+                ] {
+                    let speed = (a.powi(2) * at.sin().powi(2) + at.cos().powi(2)).sqrt();
+                    let dt = overlap / speed;
+                    let span = (at - 0.5 * dt, at - 0.5 * dt + core::f64::consts::TAU + dt);
+                    let got = ConicArc::of(&ellipse(a), span, WALK_ROWS.conic, band);
+                    assert!(
+                        matches!(
+                            got,
+                            Err(ConicArcError::Escalated(_) | ConicArcError::WoundPastPeriod)
+                        ),
+                        "a/b {a}, overlap {overlap} at {at}: read as an arc"
+                    );
+                }
+            }
+        }
+        // A window certification can pin to one vertex — its overlap within
+        // `2ε` of arc — is an arc, at the MAJOR vertex too, where the
+        // larger semi-axis would overstate that overlap twentyfold.
+        for a in [20.0f64, 100.0] {
+            let dt = 2.0 * eps;
+            let got = ConicArc::of(
+                &ellipse(a),
+                (-0.5 * dt, core::f64::consts::TAU + 0.5 * dt),
+                WALK_ROWS.conic,
+                band,
+            );
+            assert!(
+                matches!(got, Ok(Some(_))),
+                "a/b {a}: a 2ε overlap at the major vertex is an arc"
+            );
+        }
+        // A circle is unchanged: an overlap in its band is an arc, one past
+        // it wound.
+        let circle = geom::Curve3::Circle {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            radius: 1.0,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let tau = core::f64::consts::TAU;
+        assert!(matches!(
+            ConicArc::of(&circle, (0.0, tau + 5.0 * eps), WALK_ROWS.conic, band),
+            Ok(Some(_))
+        ));
+        assert!(matches!(
+            ConicArc::of(&circle, (0.0, tau + 30.0 * eps), WALK_ROWS.conic, band),
+            Err(ConicArcError::WoundPastPeriod)
+        ));
     }
 
     /// **The centre of an ellipse** is `b` from it, exactly the lower

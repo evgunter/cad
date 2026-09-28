@@ -477,8 +477,10 @@ questions:
      closed.
 2. **The ray crossing's window is ATREST-12's distance trim** (`in_window`
    calls `arc_trim` in unit coordinates, rows `ARC_LOOP_TRIM`). The
-   cosine window is gone from the walk, and `solid_contain`'s by-hand
-   site list drops `ConicArc::in_window`, down to two restated sites.
+   cosine window is gone from the walk. Against main, `solid_contain`'s
+   by-hand site list drops `contain::point_on_arc`, which this branch
+   deletes. (`ConicArc::in_window` was never on main's list; it was an
+   entry this branch had added and now removes again.)
 3. **In-band on a ray retries** (`ArmBand::Retry`). An error in
    `ray_crossings` or `conic_crossings` abandons that ray, and
    exhaustion escalates as main does; the argument is stated once, at
@@ -492,9 +494,8 @@ questions:
      middle of the gap and points 5ε and 11ε into it are never `On`.
    - A true full period reads `On` everywhere on the carrier except its
      joint, which reads `End` (the edge's one vertex).
-   - This branch's two-sided span bound and its `span`-row straddle are
-     therefore dropped: main's rule never closes a gap, so there is
-     nothing to bound.
+   - The gap side needs no bound: main's rule never closes a gap. The
+     OVERLAP side does, and the next delta review found it (below).
    - `a_nearly_full_ellipse_arc_is_not_closed` is re-signed to those
      assertions; it used to assert a `None` window.
 
@@ -542,6 +543,83 @@ questions:
   - Main's retry now answers 96 of them and exhausts 4
     (`RayExhausted`).
   - That is question 3's ruling doing what it says.
+
+### After the reconciliation (the third delta review)
+
+- **MAJOR — an over-wound ellipse window read as an arc.** Main's span
+  rule levers `Δ = τ − w` by the smaller semi-axis and reads every
+  non-negative result as an arc. That is sound for the WOUND verdict,
+  but an arc is a verdict too. An ellipse window could run past 2π by
+  up to `10ε/b` rad, which at the minor vertex is `10ε·a/b` of doubled
+  edge, and still be an arc.
+  - The review's repro: `a = 14, b = 1`, span
+    `(1.570796325723468, 7.853981635045912)`, 2π plus a 30ε overlap at
+    the minor vertex. `hit` at `q = point(π/2)`, ON the edge 15ε from
+    each end, returned `Ok(Carrier)`, and the walk answered `In`/`Out`
+    for an on-edge point.
+  - The review's conic probe found 1,800 such wrong `Carrier` readings,
+    all over-wound ellipses (overlaps 30ε and 100ε; `a/b` 14, 20 and
+    100; three poses). Circles gave 0.
+
+  **The fix:** the span rule is two-sided (`ConicArc::of`, argued at the
+  site).
+  - WOUND past a period on the LOWER bound, `Δ·b` definitely negative,
+    as on main.
+  - AN ARC only where `Δ` times an UPPER bound on the edge's speed over
+    the overlap is not definitely negative. That bound is the speed at
+    the overlap's middle plus `a·|Δ|/2`, since `|P″| ≤ a`: at most the
+    larger semi-axis, and tight as the overlap shrinks.
+  - In between, it escalates: on the lower bound's margin where it has
+    one, otherwise on `*_straddle`.
+  - A circle is unchanged (its two levers are one), and so is the gap
+    side.
+
+  **Measured after the fix:**
+  - The repro's window escalates at construction, so the walk and
+    `contfp` escalate and never answer `In`/`Out`.
+  - All 18 windows of the review's population (three `a/b` × two
+    overlaps × three poses) are refused, escalated or wound. The row is
+    `containment::tests::an_over_wound_ellipse_window_is_not_an_arc`.
+    Removing the upper-lever check turns it red.
+  - A window certification can pin to one vertex (a 2ε overlap) still
+    reads as an arc at the MAJOR vertex, where the larger semi-axis
+    alone would overstate it twentyfold.
+
+  **Check 9** reads the same walk. Its rows in `validate.rs` pass at all
+  three ε rows. No row through check 9 reaches this case: certification
+  pins both carrier ends of an edge to its vertex within the zero band
+  (`geom_brep`'s `carrier_endpoint_{start,end}`), so no validation door
+  carries an overlap longer than about 2ε. The seam is posted on
+  `work/restfront/log.md`.
+- **(a) `End` → `Corrupt` is gone.** Certification pins a carrier end to
+  its vertex within the zero band of the band the body was CERTIFIED
+  at. A body certified at a coarser band than the query's can carry up
+  to that band's ε, which is not a defect. So a conic end within the
+  band of `q` while the vertex pass placed `q` clear of both vertices
+  now always escalates: on the new row `bool_contact_arc_end_vertex`
+  where the carrier end is within the band of a vertex, and otherwise
+  on that row itself (`invalid_margin`). The tolerance is stated at the
+  site.
+- **(b)** The ellipse `hit` mapping a trim `Sign::Zero` to `On` is
+  unreachable. Both ends are definitely more than 10ε from `q`, the foot
+  is within ε of `q`, and the margin levered by the larger semi-axis is
+  at least the foot's arc length to either end, more than 9ε. The site
+  says so.
+- **(c)** The carrier-end-to-vertex question has its own row,
+  `bool_contact_arc_end_vertex`, apart from `bool_contact_arc_end`
+  (`q` to an end). The span docstring now states the band's actual
+  shape: `Zero` within ε, an escalation between ε and 10ε, a sign
+  beyond.
+- **(d)** Claim 2's wording is corrected above.
+- **Claim 6 is settled** by the review: 9,315 ray escalations at the
+  pre-merge head answer right through main's retry, with 0 wrong and 0
+  refused against an independent oracle.
+- **Merging main again brought in a site-list row that fails on main's
+  code as merged here** (not run on main itself). GERM's merge moved the cone's period guard into
+  `cone_trimmed_window`, and
+  `wall_section_rows::the_window_construction_sites_are_the_ones_listed`
+  still named `cone_chart_trim`. The list and the row now name
+  `cone_trimmed_window`, and `contain.rs`'s set loses `point_on_arc`.
 
 ## Rows added, moved, deleted
 

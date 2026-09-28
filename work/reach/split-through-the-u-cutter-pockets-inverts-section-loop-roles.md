@@ -42,3 +42,10 @@ faces there carry holes. Those are the likely subject; this is not
 confirmed. Planes at y = 1.25, 2, 2.2 and 3.5 and at z = 2 split the same
 subtract cleanly; their halves pass the per-source gate in
 `gather_placed_under_two_roots`.
+
+**The refusal renamed (GATHER, 2026-09-28).** The product gate is now
+one aggregate gate whose refusal re-gates each source, so both repros
+above refuse as `ProductError::RootInvalid`, naming the root and output
+whose half fails (the `Part(Above)` root at output 0; with the two halves
+as roots, each failing half). `SolidInvalid` retired into it, and
+`ProductInvalid` now means only that every source passed.
