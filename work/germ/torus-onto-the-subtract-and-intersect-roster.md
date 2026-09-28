@@ -2,12 +2,12 @@
 id: torus-onto-the-subtract-and-intersect-roster
 kind: issue
 title: Torus onto revert_arm_exists: subtract and intersect still refuse a torus operand at the front door
-status: dispatched
+status: parked
 opened: 2026-09-25
 refs: [torus-operand-gate-admission]
 priority: P2
 cost: D
-branch: germ/torus-ops-and-chord
+blocked_on: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 ---
 
 ## What
@@ -58,3 +58,7 @@ cavity door) is kind-generic and was not what refused anywhere.
 ## Home
 
 GERM, beside `torus-operand-gate-admission`.
+
+## Parked (2026-09-28)
+
+Measured by PR 3330 and not admitted: under ∖ and ∩ the interior-oval class returns wrong bodies. It waits on the section certificate, (b) on `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`.

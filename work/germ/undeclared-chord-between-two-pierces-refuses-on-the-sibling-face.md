@@ -2,12 +2,14 @@
 id: undeclared-chord-between-two-pierces-refuses-on-the-sibling-face
 kind: issue
 title: The undeclared (Zero, Zero) chord between two torus pierces refuses on the sibling face, though NoInterior and two certified Elsewhere ends leave it no incidence there
-status: dispatched
+status: closed
 opened: 2026-09-25
 refs: [torus-operand-gate-admission]
 priority: P1
 cost: D
 branch: germ/torus-ops-and-chord
+closed: 2026-09-28
+pr: 3330
 ---
 
 ## What
@@ -63,3 +65,7 @@ torus-doors unit did not make it.
 
 GERM: `reduce.rs`'s crossing layer, the lane the torus doors run
 through.
+
+## Closed (PR 3330, 2026-09-28)
+
+Landed after a dual review (DR-14), both APPROVE-WITH-FIXES, the fix pass taken whole. See the PR body.
