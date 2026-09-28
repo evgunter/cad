@@ -2,11 +2,11 @@
 id: product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares
 kind: issue
 title: the recipe layer drops a sweep's carried cusp declarations and the product gate reads none, so a document with a .cusp() extrude refuses as UndeclaredCusp
-status: open
+status: review
 opened: 2026-09-25
 priority: P1
 cost: H
-branch: gather/cusp-sweep-gate
+branch: gather/derive-cusp-legality
 ---
 
 
