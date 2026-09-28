@@ -638,13 +638,18 @@ Five commitments:
    decision and its verdict: *declare the coincidence* only at a door
    that takes a declaration whose presence would change the verdict;
    *move the geometry*, phrased as the decision's own lever, always;
-   *lower the tolerance* only where lowering ε can move the verdict to
-   a pass — the band-decided arms (in band, or Zero where Zero does not
-   pass) of a decision that passes on a nonzero sign — never on a
-   sign-certain arm, and never on a decision that passes only at Zero
-   (a residual), where lowering ε turns an in-band refusal definite.
-   The three-arm sentence (declare the coincidence / move the geometry
-   / lower the tolerance) is thus the recourse of a decision whose
+   *tighten the tolerance* only where the refused margin is a size the
+   user may intend and a smaller ε decides it — the band-decided arms
+   (in band, or Zero where Zero does not pass) of a decision that passes
+   on a nonzero sign — phrased conditionally and with the value the
+   margin gives ("if this size is intended, tighten the tolerance below
+   m/K"); never on a sign-certain arm, and never on a decision that
+   passes only at Zero (a residual), whose refused margin is a miss,
+   not a size. No refusal advises loosening ε: at adoption the lever is
+   the import's own ε_in (D7), phrased by the import door, and a change
+   to a document's ε reports what it flips at the change itself. The
+   three-arm sentence (declare the coincidence / move the geometry /
+   tighten the tolerance) is thus the recourse of a decision whose
    refused side is a declarable coincidence; a contact site, whose
    question is "did anyone declare this", drops the third arm per
    SELECT-DESIGN §3d. The decision is a closed type at its site (as
