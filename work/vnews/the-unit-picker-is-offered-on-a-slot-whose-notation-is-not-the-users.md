@@ -76,10 +76,12 @@ nothing in `props.rs` needs to move.
 
 ## Closed
 
-`slot_unit_ui` now asks `SetSlotUnit`'s own admission for each
-component (`DocSession::slot_unit_refusal`, the function
-`set_slot_unit` commits or refuses on), where before it drew the combo
-unconditionally.
+`slot_unit_ui` now asks each component what `SetSlotUnit` refuses that
+slot with whatever unit is picked (`DocSession::slot_unit_refusal`, over
+`props::slot_literal`, which `props::slot_unit_edit` runs first). Before
+this, it drew the combo unconditionally. The session-wide
+`GestureInFlight` gate is not read here: that is a class across the
+gated controls, filed as `a-gated-control-does-not-read-the-held-gesture-refusal`.
 
 The vector case is decided as **write the components it can, and say
 which it skipped**. It does not refuse the family. A computed component
@@ -91,17 +93,20 @@ repeat this row's defect in mirror image: a control disabled where the
 op it pushes would accept. So:
 
 - every component refused (a driven scalar, or an all-driven vector):
-  the combo is drawn disabled, and its disabled hover is the refusals'
-  own `Display`;
+  the combo reads `computed` and is drawn disabled, and its disabled
+  hover is the refusals' own `Display`, one per line;
 - some refused: the combo is live, a pick pushes `SetSlotUnit` for the
-  writable components only, and its hover names the skipped components
-  with their refusals;
+  writable components only, and its hover says which components a pick
+  writes and which it skips, followed by the skipped components'
+  refusals;
 - the selected text is the unit the writable components agree on. A
   driven component's canonical rendering (`m`) used to count towards
   `mixed`, so `(10 mm, 5 mm, =expr)` read `mixed` even though every
   written number was in millimetres.
 
 The one-picker comment stays, re-scoped to the written components.
-Three whole-app rows in `app.rs`'s `properties_pane_tests` pin it (a
-driven scalar, a literal control, and a vector with a driven z), and
-each one hovers and clicks the real pane.
+Four whole-app rows in `app.rs`'s `properties_pane_tests` pin it (a
+driven scalar, a literal control, a vector with a driven z, and an
+all-driven vector), and each one hovers and clicks the real pane. A
+vector pick is still one history action per component. That predates
+this branch and is filed as `a-vector-unit-pick-is-one-undo-per-component`.

@@ -220,13 +220,15 @@ pub(crate) fn toned(text: impl Into<String>, theme: &Theme, tone: frame::Tone) -
 /// refusal's own words as the reason it cannot be used. Answers
 /// whether it was clicked.
 ///
-/// The one composition of the rule *a control a reader cannot use owes
-/// the sentence a click would have been answered with*
-/// (`crates/viewer/README.md`). Four controls obey it — the toolbar's
-/// two cancel doors, its Undo and Redo, its New-document Create, and
-/// the parts catalogue's entries — and each spelled the same three
+/// The composition, for a BUTTON, of the rule *a control a reader
+/// cannot use owes the sentence a click would have been answered with*
+/// (`crates/viewer/README.md`). Its callers are whatever
+/// `rg 'refusable_button\('` lists, and they spelled the same three
 /// lines until they were one call. The caller keeps what a click
-/// MEANS, because the four push different things.
+/// MEANS, because they push different things. A control of another
+/// shape obeys the rule in its own body: the Properties pane's unit
+/// picker is a combo over up to three components and composes the
+/// same two hooks itself (`ViewerBehavior::slot_unit_ui`).
 pub(crate) fn refusable_button(
     ui: &mut egui::Ui,
     label: impl Into<egui::WidgetText>,
@@ -3182,6 +3184,34 @@ mod properties_pane_tests {
     use super::ViewerApp;
     use crate::session::{Selection, SessionOp};
 
+    /// **One frame of the real app**, at a 1600 by 1000 window, with
+    /// `time` and `events` as its input: every text run it painted and
+    /// where. The one frame body every whole-app row here draws with.
+    fn app_frame(
+        ctx: &egui::Context,
+        app: &mut ViewerApp,
+        frame: &mut eframe::Frame,
+        time: Option<f64>,
+        events: Vec<egui::Event>,
+    ) -> Vec<crate::pane::headless::Landed> {
+        let input = egui::RawInput {
+            screen_rect: Some(egui::Rect::from_min_size(
+                egui::Pos2::ZERO,
+                egui::vec2(1600.0, 1000.0),
+            )),
+            time,
+            events,
+            ..Default::default()
+        };
+        let mut output = ctx.run_ui(input, |ui| {
+            eframe::App::ui(app, ui, frame);
+        });
+        // Nothing here paints, so the frame's texture delta is
+        // dropped rather than uploaded.
+        output.textures_delta.clear();
+        crate::pane::headless::landed_in(&output.shapes)
+    }
+
     /// Every text the app painted on the second of two frames with
     /// `selection` made, in paint order.
     fn painted_with(selection: Selection) -> Vec<String> {
@@ -3192,23 +3222,10 @@ mod properties_pane_tests {
         let mut frame = eframe::Frame::_new_kittest();
         let mut texts = Vec::new();
         for _ in 0..2 {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 1000.0),
-                )),
-                ..Default::default()
-            };
-            let mut output = ctx.run_ui(input, |ui| {
-                eframe::App::ui(&mut app, ui, &mut frame);
-            });
-            texts = crate::pane::headless::landed_in(&output.shapes)
+            texts = app_frame(&ctx, &mut app, &mut frame, None, Vec::new())
                 .into_iter()
                 .map(|landed| landed.text)
                 .collect();
-            // Nothing here paints, so the frame's texture delta is
-            // dropped rather than uploaded.
-            output.textures_delta.clear();
         }
         texts
     }
@@ -3287,25 +3304,11 @@ mod properties_pane_tests {
         /// One frame of the real app with `events` delivered.
         fn frame(&mut self, events: Vec<egui::Event>) -> Vec<(String, egui::Rect)> {
             self.time += 1.0;
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 1000.0),
-                )),
-                time: Some(self.time),
-                events,
-                ..Default::default()
-            };
+            let time = Some(self.time);
             let Self {
                 ctx, app, frame, ..
             } = self;
-            let mut output = ctx.run_ui(input, |ui| {
-                eframe::App::ui(app, ui, frame);
-            });
-            // Nothing here paints, so the frame's texture delta is
-            // dropped rather than uploaded.
-            output.textures_delta.clear();
-            crate::pane::headless::landed_in(&output.shapes)
+            app_frame(ctx, app, frame, time, events)
                 .into_iter()
                 .map(|landed| (landed.text, landed.allocated))
                 .collect()
@@ -3384,6 +3387,24 @@ mod properties_pane_tests {
     /// so the slot it drives has no written unit.
     const COMPUTED: &str = "1 mm + 1 mm";
 
+    /// The sentence `SetSlotUnit` refuses a computed slot with, as the
+    /// session renders it — read from the op's own admission.
+    fn refusal_for(pane: &Driven, node: RecipeNodeId, slot: SlotId) -> String {
+        pane.app
+            .session
+            .slot_unit_refusal(node, slot)
+            .expect("SetSlotUnit refuses a computed slot")
+            .to_string()
+    }
+
+    /// Whatever the status line holds after the frames drawn so far.
+    fn status(pane: &Driven) -> Option<String> {
+        pane.app
+            .status
+            .as_ref()
+            .map(|message| message.text().to_owned())
+    }
+
     /// **A driven slot's unit picker is drawn, cannot be opened, and
     /// says what `SetSlotUnit` would refuse with** — the whole app,
     /// the real pane, a slot made driven through the real door.
@@ -3404,15 +3425,10 @@ mod properties_pane_tests {
         ]);
         let before = pane.row(EXTRUDE, SlotId::Distance);
         assert!(before.driver.is_driven(), "the setup drove the slot");
-        // Computed, it is shown in the canonical unit
-        // (`props::rendering_unit`), which is the picker's text.
-        let gained = pane.gained_hovering("m");
-        let said = pane
-            .app
-            .session
-            .slot_unit_refusal(EXTRUDE, SlotId::Distance, pncad::prelude::M.def())
-            .expect("SetSlotUnit refuses a computed slot")
-            .to_string();
+        // No writable component, so no unit: the picker says what the
+        // slot is instead.
+        let gained = pane.gained_hovering("computed");
+        let said = refusal_for(&pane, EXTRUDE, SlotId::Distance);
         assert_eq!(
             gained,
             vec![said.clone()],
@@ -3425,7 +3441,7 @@ mod properties_pane_tests {
             "the distance slot on node 2 is computed, so it has no written unit to change — \
              set an expression to change what it says"
         );
-        pane.click("m");
+        pane.click("computed");
         let after = pane.quiet();
         assert!(
             !after.iter().any(|(run, _)| run == "mm"),
@@ -3456,9 +3472,10 @@ mod properties_pane_tests {
     /// x and y are written in millimetres and z is computed. The
     /// picker reads `mm` — the notation the writable components agree
     /// on, where counting z's canonical rendering would say `mixed`;
-    /// its hover is z's refusal, in the op's words; a pick of `cm`
-    /// rewrites x and y and leaves z alone, and nothing is refused,
-    /// because nothing the op would refuse was pushed.
+    /// its hover says what a pick writes and skips, then z's refusal
+    /// in the op's words; a pick of `cm` rewrites x and y and leaves z
+    /// alone, and nothing reaches the status line, because nothing the
+    /// op would refuse was pushed.
     #[test]
     fn a_vector_picker_writes_its_literal_components_and_names_the_skipped_one() {
         let mm = pncad::prelude::MM.def();
@@ -3485,14 +3502,18 @@ mod properties_pane_tests {
         let z = pane.row(FRAME, SlotId::Origin(Axis3::Z));
         assert!(z.driver.is_driven(), "the setup drove z");
         let gained = pane.gained_hovering("mm");
+        let said = refusal_for(&pane, FRAME, SlotId::Origin(Axis3::Z));
         assert_eq!(
             gained,
-            vec![
-                "the origin z slot on node 0 is computed, so it has no written unit to change — \
-                 set an expression to change what it says"
-                    .to_owned()
-            ],
-            "the live picker says what a pick will skip"
+            vec![format!(
+                "a pick writes origin x, origin y and skips origin z:\n{said}"
+            )],
+            "the live picker says what a pick does and what it skips"
+        );
+        assert_eq!(
+            said,
+            "the origin z slot on node 0 is computed, so it has no written unit to change — \
+             set an expression to change what it says"
         );
         pane.click("mm");
         pane.click("cm");
@@ -3504,10 +3525,58 @@ mod properties_pane_tests {
             z,
             "z is not the pick's"
         );
+        pane.quiet();
+        assert_eq!(
+            status(&pane),
+            None,
+            "the pick pushed nothing the op refused"
+        );
+    }
+
+    /// **A vector with every component computed is refused whole**,
+    /// and its disabled hover carries each component's refusal, one
+    /// per line, in the op's words.
+    #[test]
+    fn an_all_driven_vector_picker_is_disabled_with_every_refusal() {
+        let axes = [Axis3::X, Axis3::Y, Axis3::Z];
+        let mut ops: Vec<SessionOp> = axes
+            .iter()
+            .map(|axis| SessionOp::SetSlotExpression {
+                node: FRAME,
+                slot: SlotId::Origin(*axis),
+                text: COMPUTED.to_owned(),
+            })
+            .collect();
+        ops.push(SessionOp::Select(Selection::Node(FRAME)));
+        let mut pane = Driven::with(ops);
+        let before: Vec<_> = axes
+            .iter()
+            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert!(before.iter().all(|row| row.driver.is_driven()));
+        let gained = pane.gained_hovering("computed");
+        let said: Vec<String> = axes
+            .iter()
+            .map(|axis| refusal_for(&pane, FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert_eq!(gained, vec![said.join("\n")]);
+        assert!(
+            gained[0].starts_with(
+                "the origin x slot on node 0 is computed, so it has no written unit to change"
+            ) && gained[0].contains("\nthe origin y slot on node 0 is computed")
+                && gained[0].contains("\nthe origin z slot on node 0 is computed"),
+            "{gained:?}"
+        );
+        pane.click("computed");
         let after = pane.quiet();
         assert!(
-            !after.iter().any(|(run, _)| run.contains("is computed")),
-            "the pick pushed nothing the op refused: {after:?}"
+            !after.iter().any(|(run, _)| run == "mm"),
+            "a refused picker does not open: {after:?}"
         );
+        let now: Vec<_> = axes
+            .iter()
+            .map(|axis| pane.row(FRAME, SlotId::Origin(*axis)))
+            .collect();
+        assert_eq!(now, before);
     }
 }

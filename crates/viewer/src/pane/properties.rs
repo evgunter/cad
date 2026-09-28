@@ -767,13 +767,18 @@ impl ViewerBehavior<'_> {
     /// picker emits `SessionOp::SetSlotUnit`, one per component it
     /// writes.
     ///
-    /// **The picker is gated on the op's own admission**
-    /// ([`crate::session::DocSession::slot_unit_refusal`]), asked once
-    /// per component. A component driven by an expression has no
-    /// written notation, and `SetSlotUnit` refuses it with
-    /// `SlotUnitFault::NotALiteral`; the picker reads that refusal
-    /// rather than the row's driver, so it is disabled exactly where
-    /// the op would refuse and says what the op would have said.
+    /// **Each component is gated on the op's own slot admission**
+    /// ([`crate::session::DocSession::slot_unit_refusal`]), which is
+    /// what `SetSlotUnit` refuses a slot with whatever unit is picked. A
+    /// component driven by an expression has no written notation, and
+    /// the op refuses it with `SlotUnitFault::NotALiteral`. The picker
+    /// reads that refusal, not the row's driver, and carries its words
+    /// rather than composing its own. Two answers of the op are not read
+    /// here. A held value gesture refuses every `SetSlotUnit` in
+    /// `DocSession::perform` before this admission runs, and a pick made
+    /// then is refused loudly there. A unit that does not measure the
+    /// slot is the op's to refuse at the pick, and every option offered
+    /// comes off the slot's own dimension's table.
     ///
     /// **Over a vector, the picker writes the components that HAVE a
     /// notation and says which it skips.** A computed component shows
@@ -782,25 +787,21 @@ impl ViewerBehavior<'_> {
     /// literal ones; one driven component does not make that notation
     /// any less the user's to choose. So:
     ///
-    /// - every component refused: the picker is drawn disabled, with
-    ///   the refusals' own sentences on its disabled hover;
+    /// - every component refused: the picker reads `computed` and is
+    ///   drawn disabled, with the refusals' own sentences on its
+    ///   disabled hover;
     /// - some refused: the picker is live over the rest, a pick writes
-    ///   the rest, and its hover carries the skipped components'
-    ///   refusals — what the pick will not do, said before it is made;
+    ///   the rest, and its hover says which components a pick writes
+    ///   and which it skips, followed by the skipped components'
+    ///   refusals, before the pick is made;
     /// - none refused: the picker writes all of them.
     ///
     /// The selected text is the unit the WRITABLE components agree on,
     /// else `mixed` — a disagreement is reported rather than quietly
     /// normalized, and the document says what it says until someone
     /// picks. A driven component's canonical rendering is not a
-    /// notation anyone chose, so it is no party to that disagreement.
-    ///
-    /// The admission is asked in the unit each component is shown in.
-    /// The refusal that depends on the unit (a unit that does not
-    /// measure the slot) is the op's to give at the pick: every option
-    /// here is off the slot's own dimension's table, and a pick the
-    /// op refuses anyway is performed and refused loudly rather than
-    /// withheld.
+    /// notation anyone chose, so it plays no part in that agreement.
+    /// A picker with no writable component therefore shows no unit.
     ///
     /// Nothing is drawn at all for a dimension with no units (`Scalar`,
     /// `Count`) — there is no notation to offer for a number that is
@@ -813,33 +814,41 @@ impl ViewerBehavior<'_> {
         if options.is_empty() {
             return;
         }
-        // Each component, in the unit it is shown in, with what
-        // `SetSlotUnit` would answer for it.
+        // Each component with the unit it is shown in, or with what
+        // `SetSlotUnit` would refuse it with.
         let mut writable: Vec<(&SlotRow, Option<UnitDef>)> = Vec::new();
-        let mut refused: Vec<Refusal> = Vec::new();
+        let mut refused: Vec<(&SlotRow, Refusal)> = Vec::new();
         for row in rows {
-            let shown = props::rendering_unit(row.dimension, row.unit);
-            match shown.and_then(|unit| self.session.slot_unit_refusal(node, row.slot, unit)) {
-                Some(refusal) => refused.push(refusal),
-                None => writable.push((row, shown)),
+            match self.session.slot_unit_refusal(node, row.slot) {
+                Some(refusal) => refused.push((row, refusal)),
+                None => writable.push((row, props::rendering_unit(row.dimension, row.unit))),
             }
         }
-        let shown: Vec<Option<UnitDef>> = if writable.is_empty() {
-            rows.iter()
-                .map(|row| props::rendering_unit(row.dimension, row.unit))
-                .collect()
-        } else {
-            writable.iter().map(|(_, shown)| *shown).collect()
-        };
-        let common = shown
+        let first_unit = writable.first().and_then(|(_, unit)| *unit);
+        let common = writable
             .iter()
-            .all(|unit| *unit == shown[0])
-            .then_some(shown[0])
+            .all(|(_, unit)| *unit == first_unit)
+            .then_some(first_unit)
             .flatten();
-        let label = common.as_ref().map_or("mixed", UnitDef::symbol);
-        // The refusals render themselves; nothing here composes words.
-        let said: Vec<String> = refused.iter().map(ToString::to_string).collect();
-        let said = said.join("\n");
+        let label = match (common, writable.is_empty()) {
+            (_, true) => "computed",
+            (Some(unit), false) => unit.symbol(),
+            (None, false) => "mixed",
+        };
+        // The refusals render themselves; what is composed here is
+        // only which components a pick writes and which it skips.
+        let refusals: Vec<String> = refused
+            .iter()
+            .map(|(_, refusal)| refusal.to_string())
+            .collect();
+        let refusals = refusals.join("\n");
+        let written: Vec<String> = writable.iter().map(|(row, _)| row.slot.label()).collect();
+        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.slot.label()).collect();
+        let skips = format!(
+            "a pick writes {} and skips {}:\n{refusals}",
+            written.join(", "),
+            skipped.join(", "),
+        );
         let picker = ui.add_enabled_ui(!writable.is_empty(), |ui| {
             // `id_salt` off the first component's slot: two vectors on
             // one node (a plane's origin and its normal) draw two
@@ -863,13 +872,13 @@ impl ViewerBehavior<'_> {
         });
         let combo = picker.inner;
         if !refused.is_empty() {
-            // Disabled, the hover is why; live, it is what a pick
-            // skips. egui reads exactly one of the two hooks.
+            // Disabled, the hover is why; live, it is what a pick does
+            // and skips. egui reads exactly one of the two hooks.
             let _ = combo
                 .response
                 .clone()
-                .on_disabled_hover_text(&said)
-                .on_hover_text(&said);
+                .on_disabled_hover_text(&refusals)
+                .on_hover_text(&skips);
         }
         if let Some(unit) = combo.inner.flatten() {
             for (row, _) in &writable {

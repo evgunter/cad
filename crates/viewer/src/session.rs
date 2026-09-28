@@ -1534,38 +1534,29 @@ impl DocSession {
     /// narrower `SlotUnitFault::NotALiteral` the panel model raises —
     /// an expression has no authored notation to change.
     fn set_slot_unit(&mut self, node: RecipeNodeId, slot: SlotId, unit: UnitDef) -> OpOutcome {
-        match self.slot_unit_admission(node, slot, unit) {
+        match props::slot_unit_edit(self.committed_doc(), node, slot, unit) {
             Ok(edit) => self.commit(edit),
-            Err(refusal) => OpOutcome::refused(refusal),
+            Err(fault) => OpOutcome::refused(Refusal::SlotUnit(fault)),
         }
     }
 
-    /// **What `SessionOp::SetSlotUnit` would answer for this slot and
-    /// unit, or `None` where it would accept** — asked ahead of the
-    /// click by the control that pushes it.
+    /// **What `SessionOp::SetSlotUnit` would answer for this slot
+    /// whatever unit is picked, or `None` where the slot has a written
+    /// notation to change** — asked ahead of the pick by the control
+    /// that pushes the op.
     ///
-    /// The op's own admission, not a reading of it: `set_slot_unit`
-    /// commits or refuses on exactly this value, so a control gated on
-    /// it is disabled where the op refuses and nowhere else, and the
-    /// words it carries are the refusal's own.
-    pub fn slot_unit_refusal(
-        &self,
-        node: RecipeNodeId,
-        slot: SlotId,
-        unit: UnitDef,
-    ) -> Option<Refusal> {
-        self.slot_unit_admission(node, slot, unit).err()
-    }
-
-    /// The one admission [`Self::set_slot_unit`] and
-    /// [`Self::slot_unit_refusal`] share.
-    fn slot_unit_admission(
-        &self,
-        node: RecipeNodeId,
-        slot: SlotId,
-        unit: UnitDef,
-    ) -> Result<DocEdit<ProfileProgram>, Refusal> {
-        props::slot_unit_edit(self.committed_doc(), node, slot, unit).map_err(Refusal::SlotUnit)
+    /// It is the unit-free half of the op's own slot admission
+    /// ([`props::slot_literal`], which `props::slot_unit_edit` runs
+    /// first), so the words it carries are the refusal's own. It is not
+    /// everything `perform` can answer: the session-wide gate `perform`
+    /// applies before any op (a held value gesture refuses
+    /// `SetSlotUnit` with [`Refusal::GestureInFlight`]) is not read
+    /// here, and neither is the unit-dependent arm, which the op
+    /// answers at the pick.
+    pub fn slot_unit_refusal(&self, node: RecipeNodeId, slot: SlotId) -> Option<Refusal> {
+        props::slot_literal(self.committed_doc(), node, slot)
+            .err()
+            .map(Refusal::SlotUnit)
     }
 
     /// **The declared dimensions `parse_expr` reads text against** —
