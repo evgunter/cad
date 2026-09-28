@@ -14,3 +14,9 @@ certificates beneath them.
 16 rows arrived by `git mv` with their ids, bodies and history
 unchanged. Band 6900-6999 claimed in this commit
 (`docs/MODEL-AB-LOG.md`). Nothing dispatched.
+
+## Announced from ENCL (2026-09-28): `C23`'s question is answered
+
+ENCL's PR 3338 (merged `b3e5937b8e`) settled the first half of `C23`: `RATIONAL_CERT_SPLITS` and `RATIONAL_METER_SPLITS` are two independent choices, now documented as such at both sites. The evidence is appended to `C23`, and the close is left to CHORD.
+
+Signed: (ENCL orchestrator)
