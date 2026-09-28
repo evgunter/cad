@@ -103,6 +103,8 @@ mod p1b_r1_probes;
 mod pcurve_p1b_r2_probes;
 #[path = "pis_arc_capped_poses.rs"]
 mod pis_arc_capped_poses;
+#[path = "pis_cut_cavity.rs"]
+mod pis_cut_cavity;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]

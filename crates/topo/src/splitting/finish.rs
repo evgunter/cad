@@ -319,6 +319,20 @@ pub(super) fn split_finish<T: Decide>(
         };
         let promoted = body.mfkrh(ring, FaceSurface::New(plane_for(ring_side)))?;
         body.set_face_surface(section.face, FaceSurface::New(plane_for(other_side)))?;
+        // **Both section faces are sense `true`**: `plane_for` charts
+        // each with its OUTWARD normal `m` (module docs), so the chart
+        // normal is the material side by construction. `mfkrh` onto a
+        // `New` surface mints `true` for the promoted face, but
+        // `set_face_surface` re-charts the null face and keeps the bit
+        // it had. That bit is the null face's parent's: `mef` minted
+        // the null face on an operand face's surface and inherited
+        // that face's sense with it, so a null face carved from a
+        // reversed wall (a bore or cavity, `sense: false`) would carry
+        // `false` onto a chart whose normal is already outward, and
+        // every reader of the bit (the ray lane's crossing sign among
+        // them) would take the section face as facing into material.
+        body.set_face_sense(promoted.face, true)?;
+        body.set_face_sense(section.face, true)?;
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
