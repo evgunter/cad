@@ -300,6 +300,13 @@ struct FaceGeo<T: Real> {
     normal: Vec3<T>,
     /// Every vertex on the face's outer loop and rings.
     boundary: BTreeSet<VertexKey>,
+    /// The face's loops, each its vertices in walk order (the outer
+    /// loop first) — the order a corner is read in.
+    loops: Vec<Vec<VertexKey>>,
+    /// Every loop walked and every edge of every loop is a `Line`: the
+    /// face is the planar polygon its vertices bound, so it lies in
+    /// their convex hull.
+    polygon: bool,
 }
 
 /// The census snapshot: the exact planar geometry the vertex-granular
@@ -1125,13 +1132,26 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
             }
         };
         let mut boundary = BTreeSet::new();
-        // A loop this cannot walk contributes no boundary vertex.
-        for cycle in face_cycles(body, face).filter_map(Result::ok) {
+        let mut loops = Vec::new();
+        let mut polygon = true;
+        // A loop this cannot walk contributes no boundary vertex, and
+        // the face is no polygon the touch analysis reads.
+        for cycle in face_cycles(body, face) {
+            let Ok(cycle) = cycle else {
+                polygon = false;
+                continue;
+            };
+            let mut ring = Vec::with_capacity(cycle.len());
             for he in cycle {
                 if let Some(he_data) = body.half_edges.get(he) {
                     boundary.insert(he_data.start);
+                    ring.push(he_data.start);
+                    polygon &= edge_is_line(body, he_data.edge);
+                } else {
+                    polygon = false;
                 }
             }
+            loops.push(ring);
         }
         // Incidence for the face-granularity backing rung — EVERY
         // face, curved included (a curved declared face's boundary
@@ -1145,6 +1165,8 @@ fn snapshot<T: Decide>(body: &Body<T>) -> Geo<T> {
                 origin,
                 normal,
                 boundary,
+                loops,
+                polygon,
             });
         }
     }
@@ -3096,85 +3118,59 @@ enum Recorded {
     FacePair,
 }
 
-// ---- The local material cone of a touch: arm 2's clear, condition 3.
+// ---- The touch analysis: arm 2's clear, condition 3.
+//
+// Every sign it decides as a verdict is a vertex's signed distance from
+// a plane through the touch point, in metres (`Margin::of`). Directions
+// — face normals, edge directions, their cross products — only PROPOSE
+// planes; the one levered reading left is `touch_candidates`' span
+// test, where a Zero only skips a candidate. `census::tests::
+// the_touch_analysis_levers_only_its_candidates` holds that by reading
+// this section's source.
 
-/// K name: a direction's side of a candidate plane, or a face normal's
-/// alignment with it (unit vectors), levered by [`touch_lever`]'s rule.
+/// K name: a star vertex's signed distance `n·(q − p)` from a candidate
+/// plane through the touch point `p`, in metres.
 const TOUCH_SIDE: &str = "census_touch_side";
-/// K name: an edge ray's dihedral — the next piece's far bound against
-/// the previous face's outward normal — levered by [`touch_lever`]'s
-/// rule.
+/// K name: a star face's vertex's signed distance from the plane of the
+/// other face of an edge at the touch point, in metres — the edge's
+/// convexity, read in both orders.
 const TOUCH_DIHEDRAL: &str = "census_touch_dihedral";
-/// K name: whether a candidate spans a plane — the norm of a cross
-/// product of unit vectors — levered by [`touch_lever`]'s rule.
+/// K name: a face's boundary vertex's signed distance from the plane
+/// through the face's previous edge, normal to the face, in metres —
+/// whether the face turns toward its interior at the corner between.
+const TOUCH_CORNER: &str = "census_touch_corner";
+/// K name: whether two generators span a candidate plane — the norm of
+/// the cross product of unit vectors, levered at the two stars' reach.
+/// The analysis's one levered reading: a Zero only skips a candidate.
 const TOUCH_SPAN: &str = "census_touch_span";
-
-/// **The one lever rule of the touch analysis.** Every sign the
-/// analysis decides is a dimensionless reading of unit directions — a
-/// ray's side of a plane, a face normal's alignment with one, a
-/// dihedral, a tilt — standing for a FACE: a boundary ray and a sector
-/// bisector for the faces they bound, a face normal and a dihedral's
-/// far bound for their own face, a half-space's normal for its face.
-/// Every reading is levered (`Margin::levered`) at the lever of the face
-/// it stands for: the distance from the touch point `p` to that face's
-/// farthest boundary vertex, the value this function returns — and
-/// where a reading stands for more than one face, at the largest of
-/// their levers.
-///
-/// **What the rule does not hold.** A levered reading equals a face's
-/// distance from the plane only when the reading IS the face's tilt. A
-/// ray's side is `sin θ · sin α` for a face tilted `θ` about its other
-/// bounding ray, where `α` is the sector's angle: in an obtuse sector
-/// near 180°, and at a thin corner of a non-convex face, `sin α` is
-/// small and a face whose far vertex leaves the plane by many times the
-/// band can still read zero at a ray. In every pose measured, the
-/// pair-level reading (the edge-in-face wedge along the dipping face)
-/// refuses the pair anyway, and no end-to-end wrong clear has been
-/// shown. The row `census::tests::an_obtuse_sector_is_read_through_its_rays`
-/// pins the local reading,
-/// `census::tests::an_obtuse_sector_never_clears_a_dip_where_the_gate_separates`
-/// pins the pair's refusal where only the analysis stands, and
-/// `work/contact/touch-cone-readings-are-levered-directions-not-face-distances.md`
-/// is the redesign that closes the gap: a face's side of a candidate
-/// plane decided by its boundary vertices' signed distances, in metres.
-///
-/// `None` when the face is outside the planar snapshot (curved) or has
-/// no boundary vertex with a position. Tier 1 admits curved faces; it
-/// is the callers' order that keeps this arm unreached for them — every
-/// cone refuses a curved face as unreadable before asking its lever.
-fn touch_lever<T: Real>(geo: &Geo<T>, face: FaceKey, p: Point3<T>) -> Option<T> {
-    planar_face(geo, face)?
-        .boundary
-        .iter()
-        .filter_map(|q| geo.vmap.get(q))
-        .map(|&q| (q - p).norm())
-        .reduce(|a, b| a.max(b))
-}
 
 /// What the local analysis of one touch between two solids decided.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TouchVerdict {
-    /// The two materials' local cones at the touch have disjoint
-    /// interiors: a rest.
-    Rest,
-    /// The cones' interiors meet: the touch is the degenerate shape of
-    /// a crossing.
+    /// The two stars at the touch lie within ε of complementary sides
+    /// of one plane, or one within ε of the closure of the other's
+    /// convex complement: a rest. The certificate is minted only by
+    /// [`rest::certify`], which runs the readings.
+    Rest(rest::Rest),
+    /// The two materials' interiors meet at the touch, on decided
+    /// readings: the touch is the degenerate shape of a crossing.
     Crossing,
     /// A sign the analysis needed is in band.
     InBand,
     /// A curved face or edge takes part.
     Unreadable,
-    /// A saddle corner neither test certifies.
+    /// A saddle corner no test certifies, or a candidate plane refused
+    /// only because a face that is not convex reaches back across it.
     Unanalysed,
-    /// Decided readings of one cone's faces that contradict each other
-    /// on a candidate plane (two faces folded onto each other give
-    /// them).
+    /// Decided readings of one star that contradict each other on a
+    /// candidate plane, or a folded edge (two faces lying on each
+    /// other) at the touch.
     Degenerate,
-    /// An edge at the corner is too long or too short to be a number.
+    /// A star's extent is too long or too short to be a number.
     ChordScale,
-    /// The topology around the touch did not walk. The census runs only
-    /// on bodies tier 1 admits (orbit closure, no split orbit, every
-    /// key resolving), so this is a kernel defect.
+    /// The topology around the touch did not read. The census runs only
+    /// on bodies tier 1 admits (loops closed, every key resolving), so
+    /// this is a kernel defect.
     Corrupt,
 }
 
@@ -3182,7 +3178,7 @@ impl TouchVerdict {
     /// The refusal a verdict pushes, or `None` for a rest.
     fn refusal(self) -> Option<Undecided> {
         match self {
-            Self::Rest => None,
+            Self::Rest(_) => None,
             Self::Crossing => Some(Undecided::MixedTouch),
             Self::InBand => Some(Undecided::TouchInBand),
             Self::Unreadable => Some(Undecided::TouchUnreadable),
@@ -3192,10 +3188,15 @@ impl TouchVerdict {
             Self::Corrupt => Some(Undecided::CorruptInstance),
         }
     }
+
+    #[cfg(test)]
+    fn is_rest(self) -> bool {
+        matches!(self, Self::Rest(_))
+    }
 }
 
 /// Where a touch between two solids is, as the analysis reads it: the
-/// one mapping from a touch kind to the two cones it compares, shared
+/// one mapping from a touch kind to the two stars it compares, shared
 /// by undeclared findings and declared records.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum TouchSite {
@@ -3210,10 +3211,10 @@ enum TouchSite {
     /// (`pm_census_ee_gap`, in band escalated there), so the two edges
     /// always span one plane: a beam's bottom edge over a support's top
     /// edge, or two ridges crossed edge on edge. The touch is the
-    /// crossing point, and the two cones are the edges' dihedral wedges
-    /// there. A cross whose materials pass into each other is not a
-    /// separate class the site has to screen out — its wedges' interiors
-    /// meet and the analysis reads it as a crossing.
+    /// crossing point, and the two stars are the edges' two faces
+    /// each. A cross whose materials pass into each other is not a
+    /// separate class the site has to screen out — no plane separates
+    /// its stars and the analysis reads it as a crossing.
     EdgeCross(EdgeKey, EdgeKey),
 }
 
@@ -3249,225 +3250,506 @@ impl TouchSite {
     /// The analysis's verdict on the site ([`touch_verdict`]).
     fn verdict<T: Decide>(self, body: &Body<T>, geo: &Geo<T>, band: Band) -> TouchVerdict {
         let at_vertex = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
-        let at_edge = |e: EdgeKey| {
+        let edge = |e: EdgeKey| {
             geo.edges
                 .iter()
                 .find(|d| d.key == e)
-                .map(|d| d.p0)
                 .ok_or(TouchVerdict::Unreadable)
         };
-        let half = |f: FaceKey, p: Result<Point3<T>, TouchVerdict>| {
-            p.and_then(|p| Cone::half(body, geo, f, p))
+        let vertex = |v: VertexKey| Star::vertex(body, geo, v, band);
+        let on_edge = |e: EdgeKey, p: Result<Point3<T>, TouchVerdict>| {
+            p.and_then(|p| Star::edge(body, geo, e, p, band))
         };
-        let wedge = |e: EdgeKey, p: Result<Point3<T>, TouchVerdict>| {
-            p.and_then(|p| Cone::wedge(body, geo, e, p, band))
+        let in_face = |f: FaceKey, p: Result<Point3<T>, TouchVerdict>| {
+            p.and_then(|p| Star::face(body, geo, f, p, band))
         };
         let (a, b) = match self {
-            Self::VertexVertex(a, b) => (
-                Cone::vertex(body, geo, a, band),
-                Cone::vertex(body, geo, b, band),
-            ),
-            Self::VertexOnEdge(v, e) => (Cone::vertex(body, geo, v, band), wedge(e, at_vertex(v))),
+            Self::VertexVertex(a, b) => (vertex(a), vertex(b)),
+            Self::VertexOnEdge(v, e) => (vertex(v), on_edge(e, at_vertex(v))),
             Self::EdgeEdge(a, b) => {
-                let m = geo
-                    .edges
-                    .iter()
-                    .find(|d| d.key == a)
-                    .zip(geo.edges.iter().find(|d| d.key == b))
-                    .map(|(ea, eb)| ee_overlap_midpoint(ea, eb))
-                    .ok_or(TouchVerdict::Unreadable);
-                (wedge(a, m), wedge(b, m))
+                let m = edge(a).and_then(|ea| edge(b).map(|eb| ee_overlap_midpoint(ea, eb)));
+                (on_edge(a, m), on_edge(b, m))
             }
-            Self::VertexOnFace(v, f) => (Cone::vertex(body, geo, v, band), half(f, at_vertex(v))),
-            Self::EdgeInFace(e, f) => (wedge(e, at_edge(e)), half(f, at_edge(e))),
+            Self::VertexOnFace(v, f) => (vertex(v), in_face(f, at_vertex(v))),
+            Self::EdgeInFace(e, f) => {
+                let p = edge(e).map(|d| d.p0);
+                (on_edge(e, p), in_face(f, p))
+            }
             Self::EdgeCross(a, b) => {
-                let q = geo
-                    .edges
-                    .iter()
-                    .find(|d| d.key == a)
-                    .zip(geo.edges.iter().find(|d| d.key == b))
-                    .map(|(ea, eb)| ee_cross_point(ea, eb))
-                    .ok_or(TouchVerdict::Unreadable);
-                (wedge(a, q), wedge(b, q))
+                let q = edge(a).and_then(|ea| edge(b).map(|eb| ee_cross_point(ea, eb)));
+                (on_edge(a, q), on_edge(b, q))
             }
         };
         touch_verdict(a, b, band)
     }
 }
 
-/// The shape class of a local material cone — what decides which of
-/// the analysis's tests are exact for it.
+/// Where the touch point sits on one solid's boundary.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ConeShape {
-    /// A half-space: every edge at the point flat.
-    Flat,
-    /// Convex and pointed, or a convex dihedral wedge: every edge at
-    /// the point convex or flat (at least one convex), every face
-    /// sector under 180° — the conic hull of its boundary rays.
+enum At {
+    /// At a vertex: the star vertex with this index.
+    Vertex(usize),
+    /// Inside a line edge.
+    Edge,
+    /// Inside a planar face.
+    Face,
+}
+
+/// One face of a star: a planar polygon bounded by line edges.
+struct StarFace<T: Real> {
+    surface: geom::Surface<T>,
+    /// `Face::sense`, the bit [`geom_brep::classify_material_pairing`]
+    /// takes.
+    sense: bool,
+    /// The outward unit normal.
+    outward: Vec3<T>,
+    /// Each loop's vertices in walk order (the face's interior on the
+    /// left about `outward`), as star vertex indices.
+    loops: Vec<Vec<usize>>,
+    /// Whether a Below reading of this face is decided at the touch
+    /// point: the face is convex, or the point is inside it. A face
+    /// that is not convex can reach back across a plane far from the
+    /// point while lying on the plane's good side near it.
+    local: bool,
+    /// The face's vertices joined to the touch point by a segment of
+    /// the face: its loop neighbours at a vertex, the edge's ends
+    /// inside an edge. One of them Below puts the face Below near the
+    /// point whatever the face's shape.
+    near: Vec<usize>,
+}
+
+/// A line edge through the touch point, read once for its convexity.
+struct StarEdge {
+    /// Its ends other than the touch point, as star vertex indices: one
+    /// at a vertex, both inside the edge.
+    ends: Vec<usize>,
+    /// Its two faces, as star face indices.
+    faces: [usize; 2],
+    dihedral: Dihedral,
+}
+
+/// An edge's convexity at the touch point (S3.3 of the design).
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Dihedral {
     Convex,
-    /// The closure of its complement is convex: every edge at the
-    /// point reflex or flat (at least one reflex), every face sector
-    /// under 180°.
+    Reflex,
+    /// The two faces coplanar, their normals aligned.
+    Flat,
+    /// No order decided and a reading was in band.
+    InBand,
+    /// No order decided on decided readings: both faces reach around
+    /// the edge's line.
+    Unread,
+}
+
+/// The shape class of a star — what decides its material side when no
+/// face lies on a candidate plane and no edge does.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum Shape {
+    /// Every edge flat: one plane.
+    Flat,
+    /// Every edge convex or flat (one convex), no face turning away at
+    /// the point.
+    Convex,
+    /// Every edge reflex or flat (one reflex), no face turning away at
+    /// the point: the closure of its complement is convex.
     CoConvex,
-    /// Neither, or a dihedral in band.
-    Saddle,
+    /// Neither, or a reading the class depends on was in band.
+    Saddle { in_band: bool },
 }
 
-/// One boundary ray of a fan cone.
-#[derive(Clone, Copy, Debug)]
-enum RayKind {
-    /// A ray inside one face's sector (a subdivision of a sector of
-    /// 180° or more): the pieces on both sides carry that face's normal.
-    InFace,
-    /// An edge between two faces, with its dihedral: `Negative` convex,
-    /// `Positive` reflex, `Zero` flat (or folded — the two are not told
-    /// apart here), `None` in band.
-    Edge(Option<Sign>),
+/// **One solid's finite star at a touch point `p`**: the faces holding
+/// `p` and the line edges through it, read from the census snapshot.
+/// At a vertex, the faces whose boundary holds it and the line edges
+/// ending at it; inside an edge, the edge's two faces; inside a face,
+/// that face. No orbit is walked and no sector built: the faces are
+/// read whole, by their boundary vertices.
+struct Star<T: Real> {
+    p: Point3<T>,
+    at: At,
+    verts: Vec<Point3<T>>,
+    faces: Vec<StarFace<T>>,
+    edges: Vec<StarEdge>,
+    /// Unit directions that propose candidate planes (edge directions,
+    /// and each face's direction off an edge the point is inside). They
+    /// decide nothing.
+    rays: Vec<Vec3<T>>,
+    /// The farthest star vertex from `p`.
+    reach: T,
+    shape: Shape,
 }
 
-/// A solid's local material cone at a touch point `p`: the directions
-/// from `p` that enter its material.
-enum ConeKind<T: Real> {
-    /// `p` inside a planar face: the half-space behind its outward
-    /// normal.
-    Half(Vec3<T>),
-    /// `p` at a vertex or inside an edge: the complete boundary as a
-    /// cyclic chain of unit rays. Piece `k` is the planar sector swept
-    /// counterclockwise about its face's outward normal `normals[k]`
-    /// from `rays[k + 1]` to `rays[k]`, under 180° (the vertex's
-    /// sectors are subdivided by `sector_shape` where they are not;
-    /// the wedge's four pieces are right angles by construction), and
-    /// `levers[k]` is its face's [`touch_lever`].
-    Fan {
-        rays: Vec<Vec3<T>>,
-        kinds: Vec<RayKind>,
-        normals: Vec<Vec3<T>>,
-        levers: Vec<T>,
-    },
-}
-
-/// One solid's local material cone at a touch point, with the shape
-/// class it is read under.
-struct Cone<T: Real> {
-    kind: ConeKind<T>,
-    shape: ConeShape,
-    /// The farthest [`touch_lever`] among the cone's faces.
-    lever: T,
-    /// A dihedral the shape class depends on was in band.
-    in_band: bool,
-}
-
-/// Whether a cone lies in a closed half-space.
+/// Whether a star lies in a closed half-space `{x : n·(x − p) ≥ 0}`
+/// with its material on the `+n` side.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Within {
     Yes,
+    /// Decidedly not: a face Below near `p`, or the material on the
+    /// other side.
     No,
-    /// A sign the answer needs is in band.
+    /// Not, but only because a face that is not convex reaches back
+    /// across the plane away from `p`.
+    ReachBack,
     InBand,
-    /// A saddle cone strictly on one side of the plane: which side its
+    /// A saddle star strictly on one side of the plane: which side its
     /// material takes is not read here.
     Unanalysed,
-    /// Decided readings that contradict each other (a folded face).
+    /// Decided readings that contradict each other (a folded star).
     Degenerate,
 }
 
-/// A dimensionless sign levered at `lever` (metres, [`touch_lever`]'s
-/// rule) under the run band; `None` in band.
-fn touch_sign<T: Decide>(name: &'static str, x: T, lever: T, band: Band) -> Option<Sign> {
-    decide(name, Margin::levered(x, lever), band).ok()
+/// A star face's side of a plane, from its boundary vertices' signed
+/// distances (S3.1): every vertex's sign, as flags.
+#[derive(Clone, Copy, Debug, Default)]
+struct FaceSide {
+    pos: bool,
+    neg: bool,
+    band: bool,
 }
 
-impl<T: Decide> Cone<T> {
-    /// The cone of a planar face's interior at `p`.
-    fn half(body: &Body<T>, geo: &Geo<T>, f: FaceKey, p: Point3<T>) -> Result<Self, TouchVerdict> {
-        if planar_face(geo, f).is_none() {
-            return Err(TouchVerdict::Unreadable);
+impl FaceSide {
+    fn of(signs: impl Iterator<Item = Option<Sign>>) -> Self {
+        let mut s = Self::default();
+        for sign in signs {
+            match sign {
+                Some(Sign::Positive) => s.pos = true,
+                Some(Sign::Negative) => s.neg = true,
+                Some(Sign::Zero) => {}
+                None => s.band = true,
+            }
         }
-        let m = crate::face_normal::face_outward_normal(body, f).ok_or(TouchVerdict::Unreadable)?;
+        s
+    }
+
+    /// Every vertex Zero: the face lies within ε of the plane.
+    fn on(self) -> bool {
+        !(self.pos || self.neg || self.band)
+    }
+
+    /// Every vertex on one decided side or Zero, at least one on it:
+    /// `Some(Positive)` in front, `Some(Negative)` behind.
+    fn strictly(self) -> Option<Sign> {
+        match (self.pos, self.neg, self.band) {
+            (true, false, false) => Some(Sign::Positive),
+            (false, true, false) => Some(Sign::Negative),
+            _ => None,
+        }
+    }
+}
+
+/// Whether the face turns toward its interior at corner `b` of the
+/// walk `a → b → c`: `c`'s signed distance from the plane through `b`
+/// holding the edge `ab`, normal to the face, whose unit normal
+/// `m × (b − a)` points into the face. `Positive` convex, `Negative`
+/// reflex, `Zero` straight; `None` in band.
+fn corner<T: Decide>(
+    a: Point3<T>,
+    b: Point3<T>,
+    c: Point3<T>,
+    m: Vec3<T>,
+    band: Band,
+) -> Option<Sign> {
+    let inward = m.cross(b - a).normalize();
+    decide(TOUCH_CORNER, Margin::of(inward.dot(c - b)), band).ok()
+}
+
+/// A face's outward normal against a candidate plane's `n`, or two
+/// faces' outward normals against each other: aligned or opposed,
+/// through the one classifier of that question. The magnitude is about
+/// 1 wherever it is asked (the faces lie on the plane), and only its
+/// sign is read.
+fn pairing<T: Decide>(
+    s: (&geom::Surface<T>, bool),
+    t: (&geom::Surface<T>, bool),
+    p: Point3<T>,
+    reach: T,
+    band: Band,
+) -> Option<geom_brep::MaterialPairing> {
+    let arm = geom_brep::folded_lever_arm(s.0, t.0, p, reach);
+    geom_brep::classify_material_pairing(s.0, s.1, t.0, t.1, p, arm, band).ok()
+}
+
+/// The candidate plane through `p` with unit normal `n`, as a surface
+/// whose outward side is `+n`.
+fn candidate_plane<T: Real>(p: Point3<T>, n: Vec3<T>) -> geom::Surface<T> {
+    // The pairing reads the plane's normal and nothing else, so the
+    // frame direction it carries is never read.
+    let one = T::one();
+    geom::Surface::Plane {
+        origin: p,
+        normal: n,
+        u_ref: n.cross(Vec3::new(one, one, one)),
+    }
+}
+
+impl<T: Decide> Star<T> {
+    /// A star from its faces and edges: its reach, each face's shape,
+    /// each edge's convexity and the star's shape class are read here.
+    /// A folded edge refuses the star as degenerate.
+    fn assemble(
+        p: Point3<T>,
+        at: At,
+        verts: Vec<Point3<T>>,
+        mut faces: Vec<StarFace<T>>,
+        mut edges: Vec<StarEdge>,
+        rays: Vec<Vec3<T>>,
+        band: Band,
+    ) -> Result<Self, TouchVerdict> {
+        // Every chord from `p` a number: an edge too long or too short
+        // to measure has no distance to read.
+        let mut reach = T::zero();
+        for (i, &q) in verts.iter().enumerate() {
+            if at == At::Vertex(i) {
+                continue;
+            }
+            let chord = q - p;
+            let len = chord.norm();
+            if !geom_core::is_finite_length(len)
+                || geom_core::is_underflowed_length(len, chord.norm_witness())
+            {
+                return Err(TouchVerdict::ChordScale);
+            }
+            reach = reach.max(len);
+        }
+        // Each face: convex (one loop, no corner turning away), and its
+        // vertices joined to `p` inside it.
+        for f in &mut faces {
+            let mut convex = f.loops.len() == 1;
+            let mut near = Vec::new();
+            for ring in &f.loops {
+                let n = ring.len();
+                for k in 0..n {
+                    let (a, b, c) = (ring[(k + n - 1) % n], ring[k], ring[(k + 1) % n]);
+                    if convex
+                        && !matches!(
+                            corner(verts[a], verts[b], verts[c], f.outward, band),
+                            Some(Sign::Positive | Sign::Zero)
+                        )
+                    {
+                        convex = false;
+                    }
+                    if at == At::Vertex(b) {
+                        near.extend([a, c]);
+                    }
+                }
+            }
+            if at == At::Edge {
+                near.extend(edges.iter().flat_map(|e| e.ends.iter().copied()));
+            }
+            f.local = at == At::Face || convex;
+            f.near = near;
+        }
+        for e in &mut edges {
+            e.dihedral = Self::dihedral(p, &verts, &faces, e.faces, reach, band)?;
+        }
+        let shape = Self::shape(p, at, &verts, &faces, &edges, band);
         Ok(Self {
-            kind: ConeKind::Half(m.vec()),
-            shape: ConeShape::Flat,
-            lever: touch_lever(geo, f, p).ok_or(TouchVerdict::Corrupt)?,
-            in_band: false,
+            p,
+            at,
+            verts,
+            faces,
+            edges,
+            rays,
+            reach,
+            shape,
         })
     }
 
-    /// A fan cone from its chain: each edge ray's dihedral is decided
-    /// here — the next piece's far bound against the previous piece's
-    /// outward normal, behind it for a convex edge and in front for a
-    /// reflex one, levered at the far piece's face lever — and the
-    /// shape class follows from them. `subdivided` says some sector was
-    /// 180° or more, which makes the cone a saddle.
-    fn fan(
-        rays: Vec<Vec3<T>>,
-        mut kinds: Vec<RayKind>,
-        normals: Vec<Vec3<T>>,
-        levers: Vec<T>,
-        subdivided: bool,
+    /// An edge's convexity (S3.3): the far face's vertices' distances
+    /// from the near face's plane through `p`, in both orders. A
+    /// definite side in either order decides. Where neither decides and
+    /// either reads the far face on the near one's plane, the smaller
+    /// face lies within ε of the other's plane: aligned normals are a
+    /// flat seam, opposed ones a fold (a slit), which refuses.
+    fn dihedral(
+        p: Point3<T>,
+        verts: &[Point3<T>],
+        faces: &[StarFace<T>],
+        [i, j]: [usize; 2],
+        reach: T,
         band: Band,
-    ) -> Self {
-        let n = rays.len();
-        // The chain's invariant (`ConeKind::Fan`), checked where it is
-        // cheap: every piece sweeps counterclockwise under 180°.
-        debug_assert!(
-            (0..n).all(|k| !matches!(
-                rays[(k + 1) % n]
-                    .cross(rays[k])
-                    .dot(normals[k])
-                    .sign_within(band),
-                Ok(Sign::Negative | Sign::Zero)
-            )),
-            "a fan piece of 180° or more"
-        );
-        let (mut convex, mut reflex, mut in_band) = (false, false, false);
-        for k in 0..n {
-            if let RayKind::Edge(_) = kinds[k] {
-                let prev = normals[(k + n - 1) % n];
-                let far = (k + 1) % n;
-                let s = touch_sign(TOUCH_DIHEDRAL, prev.dot(rays[far]), levers[k], band);
-                match s {
-                    Some(Sign::Negative) => convex = true,
-                    Some(Sign::Positive) => reflex = true,
-                    Some(Sign::Zero) => {}
-                    None => in_band = true,
+    ) -> Result<Dihedral, TouchVerdict> {
+        let read = |near: &StarFace<T>, far: &StarFace<T>| {
+            FaceSide::of(far.loops.iter().flatten().map(|&k| {
+                decide(
+                    TOUCH_DIHEDRAL,
+                    Margin::of(near.outward.dot(verts[k] - p)),
+                    band,
+                )
+                .ok()
+            }))
+        };
+        let (fi, fj) = (&faces[i], &faces[j]);
+        let orders = [read(fi, fj), read(fj, fi)];
+        let convex = orders.iter().any(|s| s.strictly() == Some(Sign::Negative));
+        let reflex = orders.iter().any(|s| s.strictly() == Some(Sign::Positive));
+        Ok(match (convex, reflex) {
+            (true, true) => return Err(TouchVerdict::Degenerate),
+            (true, false) => Dihedral::Convex,
+            (false, true) => Dihedral::Reflex,
+            (false, false) if orders.iter().any(|s| s.on()) => {
+                match pairing(
+                    (&fi.surface, fi.sense),
+                    (&fj.surface, fj.sense),
+                    p,
+                    reach,
+                    band,
+                ) {
+                    Some(geom_brep::MaterialPairing::Aligned) => Dihedral::Flat,
+                    Some(geom_brep::MaterialPairing::Opposed) => {
+                        return Err(TouchVerdict::Degenerate);
+                    }
+                    None => Dihedral::InBand,
                 }
-                kinds[k] = RayKind::Edge(s);
+            }
+            (false, false) if orders.iter().any(|s| s.band) => Dihedral::InBand,
+            (false, false) => Dihedral::Unread,
+        })
+    }
+
+    /// The star's shape class, from its edges' convexity and, at a
+    /// vertex, each face's corner there.
+    fn shape(
+        p: Point3<T>,
+        at: At,
+        verts: &[Point3<T>],
+        faces: &[StarFace<T>],
+        edges: &[StarEdge],
+        band: Band,
+    ) -> Shape {
+        if at == At::Face {
+            return Shape::Flat;
+        }
+        let (mut convex, mut reflex, mut in_band, mut unread) = (false, false, false, false);
+        for e in edges {
+            match e.dihedral {
+                Dihedral::Convex => convex = true,
+                Dihedral::Reflex => reflex = true,
+                Dihedral::Flat => {}
+                Dihedral::InBand => in_band = true,
+                Dihedral::Unread => unread = true,
             }
         }
-        let shape = if subdivided || in_band {
-            ConeShape::Saddle
-        } else {
-            match (convex, reflex) {
-                (false, false) => ConeShape::Flat,
-                (true, false) => ConeShape::Convex,
-                (false, true) => ConeShape::CoConvex,
-                (true, true) => ConeShape::Saddle,
+        if let At::Vertex(i) = at {
+            for f in faces {
+                let corners: Vec<(usize, usize)> = f
+                    .loops
+                    .iter()
+                    .flat_map(|ring| {
+                        let n = ring.len();
+                        (0..n)
+                            .filter(move |&k| ring[k] == i)
+                            .map(move |k| (ring[(k + n - 1) % n], ring[(k + 1) % n]))
+                    })
+                    .collect();
+                match corners[..] {
+                    [(a, c)] => match corner(verts[a], p, verts[c], f.outward, band) {
+                        Some(Sign::Positive | Sign::Zero) => {}
+                        Some(Sign::Negative) => unread = true,
+                        None => in_band = true,
+                    },
+                    _ => unread = true,
+                }
             }
-        };
-        let lever = levers.iter().copied().fold(T::zero(), |a, b| a.max(b));
-        Self {
-            kind: ConeKind::Fan {
-                rays,
-                kinds,
-                normals,
-                levers,
-            },
-            shape,
-            lever,
-            in_band,
+        }
+        if in_band || unread {
+            return Shape::Saddle { in_band };
+        }
+        match (convex, reflex) {
+            (false, false) => Shape::Flat,
+            (true, false) => Shape::Convex,
+            (false, true) => Shape::CoConvex,
+            (true, true) => Shape::Saddle { in_band: false },
         }
     }
 
-    /// The dihedral wedge at an interior point `p` of a line edge
-    /// between two planar faces, its faces levered at `p` (the rays do
-    /// not depend on where along the edge `p` is). Its rays are
-    /// the edge both ways, `d` and `−d` — the wedge contains the whole
-    /// edge line, so both are boundary rays and both carry the edge's
-    /// dihedral — and each face's in-face direction off it (`m × t` for
-    /// that face's half-edge direction `t`: the face interior is on the
-    /// left). The chain runs `d, w−, −d, w+`, the vertex fans'
-    /// orientation.
-    fn wedge(
+    /// One planar, line-bounded face of the snapshot as a star face,
+    /// its vertices entered in `verts` through `index`.
+    fn star_face(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        f: FaceKey,
+        index: &mut std::collections::BTreeMap<VertexKey, usize>,
+        verts: &mut Vec<Point3<T>>,
+    ) -> Result<StarFace<T>, TouchVerdict> {
+        let fg = planar_face(geo, f).ok_or(TouchVerdict::Unreadable)?;
+        if !fg.polygon {
+            return Err(TouchVerdict::Unreadable);
+        }
+        let face = body.get_face(f).ok_or(TouchVerdict::Corrupt)?;
+        let surface = body
+            .get_surface(face.surface)
+            .cloned()
+            .ok_or(TouchVerdict::Corrupt)?;
+        let outward = crate::face_normal::face_outward_normal(body, f)
+            .ok_or(TouchVerdict::Unreadable)?
+            .vec();
+        let mut loops = Vec::with_capacity(fg.loops.len());
+        for ring in &fg.loops {
+            let mut out = Vec::with_capacity(ring.len());
+            for &v in ring {
+                let k = match index.get(&v) {
+                    Some(&k) => k,
+                    None => {
+                        let q = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?;
+                        verts.push(q);
+                        index.insert(v, verts.len() - 1);
+                        verts.len() - 1
+                    }
+                };
+                out.push(k);
+            }
+            loops.push(out);
+        }
+        Ok(StarFace {
+            surface,
+            sense: face.sense,
+            outward,
+            loops,
+            local: false,
+            near: Vec::new(),
+        })
+    }
+
+    /// The star at a vertex: the faces whose boundary holds it and the
+    /// line edges ending at it.
+    fn vertex(
+        body: &Body<T>,
+        geo: &Geo<T>,
+        v: VertexKey,
+        band: Band,
+    ) -> Result<Self, TouchVerdict> {
+        let p = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?;
+        let keys: Vec<FaceKey> = geo
+            .vertex_faces
+            .get(&v)
+            .map(|fs| fs.iter().copied().collect())
+            .filter(|fs: &Vec<FaceKey>| !fs.is_empty())
+            .ok_or(TouchVerdict::Corrupt)?;
+        let mut index = std::collections::BTreeMap::new();
+        let mut verts = vec![p];
+        index.insert(v, 0);
+        let faces = keys
+            .iter()
+            .map(|&f| Self::star_face(body, geo, f, &mut index, &mut verts))
+            .collect::<Result<Vec<_>, _>>()?;
+        let slot = |f: FaceKey| keys.iter().position(|&g| g == f).ok_or(TouchVerdict::Corrupt);
+        let (mut edges, mut rays) = (Vec::new(), Vec::new());
+        for e in geo.edges.iter().filter(|e| e.v0 == v || e.v1 == v) {
+            let far = if e.v0 == v { e.v1 } else { e.v0 };
+            let end = *index.get(&far).ok_or(TouchVerdict::Corrupt)?;
+            edges.push(StarEdge {
+                ends: vec![end],
+                faces: [slot(e.f_plus)?, slot(e.f_minus)?],
+                dihedral: Dihedral::Unread,
+            });
+            rays.push((verts[end] - p).normalize());
+        }
+        Self::assemble(p, At::Vertex(0), verts, faces, edges, rays, band)
+    }
+
+    /// The star at a point `p` inside a line edge: the edge's two faces.
+    fn edge(
         body: &Body<T>,
         geo: &Geo<T>,
         e: EdgeKey,
@@ -3479,352 +3761,348 @@ impl<T: Decide> Cone<T> {
             .iter()
             .find(|d| d.key == e)
             .ok_or(TouchVerdict::Unreadable)?;
-        let normal = |f: FaceKey| -> Result<Vec3<T>, TouchVerdict> {
-            if planar_face(geo, f).is_none() {
-                return Err(TouchVerdict::Unreadable);
-            }
-            crate::face_normal::face_outward_normal(body, f)
-                .map(|m| m.vec())
-                .ok_or(TouchVerdict::Unreadable)
-        };
-        let lever = |f: FaceKey| touch_lever(geo, f, p).ok_or(TouchVerdict::Corrupt);
-        let (mp, mm) = (normal(edge.f_plus)?, normal(edge.f_minus)?);
-        let (rp, rm) = (lever(edge.f_plus)?, lever(edge.f_minus)?);
+        let mut index = std::collections::BTreeMap::new();
+        let mut verts = Vec::new();
+        let mut keys = vec![edge.f_plus];
+        if edge.f_minus != edge.f_plus {
+            keys.push(edge.f_minus);
+        }
+        let faces = keys
+            .iter()
+            .map(|&f| Self::star_face(body, geo, f, &mut index, &mut verts))
+            .collect::<Result<Vec<_>, _>>()?;
+        let end = |v: VertexKey| index.get(&v).copied().ok_or(TouchVerdict::Corrupt);
+        let edges = vec![StarEdge {
+            ends: vec![end(edge.v0)?, end(edge.v1)?],
+            faces: [0, keys.len() - 1],
+            dihedral: Dihedral::Unread,
+        }];
         let d = edge.dir;
-        let (wp, wm) = (mp.cross(d), mm.cross(-d));
-        Ok(Self::fan(
-            vec![d, wm, -d, wp],
-            vec![
-                RayKind::Edge(None),
-                RayKind::InFace,
-                RayKind::Edge(None),
-                RayKind::InFace,
-            ],
-            vec![mm, mm, mp, mp],
-            vec![rm, rm, rp, rp],
-            false,
-            band,
-        ))
+        let mut rays = vec![d, -d];
+        rays.extend(faces.iter().map(|f| f.outward.cross(d)));
+        Self::assemble(p, At::Edge, verts, faces, edges, rays, band)
     }
 
-    /// The cone at a vertex, from its orbit: each sector a corner of a
-    /// planar face between two line edges, a sector of 180° or more
-    /// subdivided at an interior direction ([`crate::sector_shape::sector_shape`]).
-    fn vertex(
+    /// The star at a point `p` inside a planar face: that face.
+    fn face(
         body: &Body<T>,
         geo: &Geo<T>,
-        v: VertexKey,
+        f: FaceKey,
+        p: Point3<T>,
         band: Band,
     ) -> Result<Self, TouchVerdict> {
-        use crate::sector_face::{SectorCarrier, SectorFaceError, resolve};
-        use crate::sector_shape::{SectorFault, sector_shape};
-        if geo
-            .vertex_faces
-            .get(&v)
-            .is_some_and(|fs| fs.iter().any(|g| geo.curved_faces.contains(g)))
-        {
-            return Err(TouchVerdict::Unreadable);
-        }
-        // Tier 1 (the census's precondition) holds that the orbit from
-        // `emanating` closes and visits every half-edge leaving the
-        // vertex; a body where it does not is corrupt.
-        let orbit = body
-            .get_vertex(v)
-            .and_then(|d| d.emanating)
-            .and_then(|he| body.vertex_orbit(he))
-            .filter(|o| !o.is_empty())
-            .ok_or(TouchVerdict::Corrupt)?;
-        debug_assert_eq!(
-            body.half_edges.iter().filter(|(_, h)| h.start == v).count(),
-            orbit.len(),
-            "one orbit visits every half-edge leaving the vertex"
-        );
-        let base = geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt)?;
-        let chord = |he: HalfEdgeKey| -> Result<Vec3<T>, TouchVerdict> {
-            let edge = body.get_half_edge(he).ok_or(TouchVerdict::Corrupt)?.edge;
-            if !edge_is_line(body, edge) {
-                return Err(TouchVerdict::Unreadable);
-            }
-            let end = body.half_edge_end(he).ok_or(TouchVerdict::Corrupt)?;
-            let p = geo.vmap.get(&end).copied().ok_or(TouchVerdict::Corrupt)?;
-            Ok(p - base)
-        };
-        let (mut rays, mut kinds, mut normals, mut levers) =
-            (Vec::new(), Vec::new(), Vec::new(), Vec::new());
-        let mut subdivided = false;
-        for (i, &he) in orbit.iter().enumerate() {
-            let next = orbit[(i + 1) % orbit.len()];
-            let sector = resolve(body, v, he).map_err(|e| match e {
-                SectorFaceError::Unsupported { .. } => TouchVerdict::Unreadable,
-                SectorFaceError::Corrupt(_) => TouchVerdict::Corrupt,
-            })?;
-            if sector.carrier != SectorCarrier::Plane {
-                return Err(TouchVerdict::Unreadable);
-            }
-            let m = sector.normal.vec();
-            let lever = touch_lever(geo, sector.face, base).ok_or(TouchVerdict::Corrupt)?;
-            let shape = sector_shape(chord(he)?, chord(next)?, sector.normal, he == next, band)
-                .map_err(|fault| match fault {
-                    SectorFault::Rung(_) => TouchVerdict::InBand,
-                    SectorFault::NonFiniteChord | SectorFault::UnderflowedChord => {
-                        TouchVerdict::ChordScale
-                    }
-                })?;
-            // The sector runs from this orbit chord to the next one.
-            rays.push(shape.unit_own);
-            kinds.push(RayKind::Edge(None));
-            normals.push(m);
-            levers.push(lever);
-            if let Some(b) = shape.bisector {
-                subdivided = true;
-                rays.push(b);
-                kinds.push(RayKind::InFace);
-                normals.push(m);
-                levers.push(lever);
-            }
-        }
-        Ok(Self::fan(rays, kinds, normals, levers, subdivided, band))
+        let mut index = std::collections::BTreeMap::new();
+        let mut verts = Vec::new();
+        let face = Self::star_face(body, geo, f, &mut index, &mut verts)?;
+        Self::assemble(
+            p,
+            At::Face,
+            verts,
+            vec![face],
+            Vec::new(),
+            Vec::new(),
+            band,
+        )
     }
 
-    /// The outward normals of the faces at `p`.
-    fn normals(&self) -> &[Vec3<T>] {
-        match &self.kind {
-            ConeKind::Half(m) => core::slice::from_ref(m),
-            ConeKind::Fan { normals, .. } => normals,
-        }
-    }
-
-    /// The boundary rays, each with the lever it is levered at: the
-    /// farther of its two pieces' face levers (none for a half-space).
-    fn rays(&self) -> Vec<(Vec3<T>, T)> {
-        match &self.kind {
-            ConeKind::Half(_) => Vec::new(),
-            ConeKind::Fan { rays, levers, .. } => {
-                let n = rays.len();
-                (0..n)
-                    .map(|k| (rays[k], levers[k].max(levers[(k + n - 1) % n])))
-                    .collect()
-            }
-        }
-    }
-
-    /// Does the cone lie in the closed half-space `{d : n·d ≥ 0}`?
+    /// **Does the star lie in the closed half-space `{x : n·(x − p) ≥
+    /// 0}`, its material on the `+n` side?** (S3.2 of the design.)
     ///
-    /// A half-space cone does exactly when its outward normal is `−n`.
-    /// A fan does exactly when (a) every boundary ray lies in the
-    /// half-space — then the open complement meets no boundary and,
-    /// being connected, lies wholly inside the material or wholly
-    /// outside it — and (b) it lies outside. (b) is read at a boundary
-    /// ray ON the plane, where the local picture is a face (its
-    /// outward normal against `n`) or a dihedral (the two faces'
-    /// normals, joined by the edge's convexity). With no ray on the
-    /// plane the boundary lies strictly on one side, and (b) is the
-    /// shape class: a convex cone is inside, a co-convex one is not,
-    /// and a saddle is not decided here. Readings that settle nothing
-    /// though decided — a face normal on the plane at a ray on it, or
-    /// two rays on it disagreeing — are [`Within::Degenerate`]. Every
-    /// sign is levered by [`touch_lever`]'s rule.
+    /// Every vertex is read once, as its signed distance from the plane
+    /// in metres, and each face from its vertices (S3.1): all Zero ⇒ On,
+    /// all Positive or Zero with one Positive ⇒ Above, any Negative ⇒
+    /// Below. A planar polygon lies in its vertices' convex hull, so the
+    /// reading is exact for the whole face. The star lies in the closed
+    /// half-space iff no face is Below. Then the open side `n·(x − p) <
+    /// 0` misses the star near `p` and, being connected, lies wholly in
+    /// the material or wholly outside it; which, is read:
+    /// - at an On face, from its outward normal against `n` (every On
+    ///   face must agree; two that do not are a fold);
+    /// - else at an edge on the plane, both its faces Above, from its
+    ///   convexity: a convex edge's material is the wedge above the
+    ///   plane, a reflex one's reaches below it;
+    /// - else from the shape class: a convex star is inside, a
+    ///   co-convex one is not, and a saddle is not read.
+    ///
+    /// **A Zero here is a verdict**, and it is ε-true over the whole face
+    /// it is read on: a face On the plane lies within ε of it, and every
+    /// verdict drawn from it is about that face alone.
+    ///
+    /// A Below face is decided only where it is Below near `p`: `p` is
+    /// inside it, or it is convex, or a vertex joined to `p` inside it
+    /// is Below. A face that is not convex and is Below only far from
+    /// `p` answers [`Within::ReachBack`].
     fn within(&self, n: Vec3<T>, band: Band) -> Within {
-        let side = |v: Vec3<T>, lever: T| touch_sign(TOUCH_SIDE, n.dot(v), lever, band);
-        let (kinds, normals, levers) = match &self.kind {
-            ConeKind::Half(m) => {
-                return match side(*m, self.lever) {
-                    Some(Sign::Negative) => {
-                        match touch_sign(TOUCH_SPAN, n.cross(*m).norm(), self.lever, band) {
-                            Some(Sign::Zero) => Within::Yes,
-                            Some(_) => Within::No,
-                            None => Within::InBand,
-                        }
-                    }
-                    Some(_) => Within::No,
-                    None => Within::InBand,
-                };
+        let side: Vec<Option<Sign>> = self
+            .verts
+            .iter()
+            .enumerate()
+            .map(|(i, &q)| {
+                if self.at == At::Vertex(i) {
+                    Some(Sign::Zero)
+                } else {
+                    decide(TOUCH_SIDE, Margin::of(n.dot(q - self.p)), band).ok()
+                }
+            })
+            .collect();
+        let (mut below, mut reach_back, mut in_band) = (false, false, false);
+        let mut on = Vec::new();
+        for (k, f) in self.faces.iter().enumerate() {
+            let s = FaceSide::of(f.loops.iter().flatten().map(|&i| side[i]));
+            if s.neg {
+                if f.local || f.near.iter().any(|&i| side[i] == Some(Sign::Negative)) {
+                    below = true;
+                } else {
+                    reach_back = true;
+                }
+            } else if s.band {
+                in_band = true;
+            } else if s.on() {
+                on.push(k);
             }
-            ConeKind::Fan {
-                kinds,
-                normals,
-                levers,
-                ..
-            } => (kinds, normals, levers),
-        };
-        let mut on_plane = Vec::new();
-        let mut in_band = false;
-        for (k, (r, lever)) in self.rays().into_iter().enumerate() {
-            match side(r, lever) {
-                Some(Sign::Negative) => return Within::No,
-                Some(Sign::Zero) => on_plane.push(k),
-                Some(Sign::Positive) => {}
-                None => in_band = true,
-            }
+        }
+        if below {
+            return Within::No;
+        }
+        if reach_back {
+            return Within::ReachBack;
         }
         if in_band {
             return Within::InBand;
         }
-        let len = normals.len();
-        let face = |k: usize| side(normals[k], levers[k]);
-        // Whether the open complement is outside the material, read at
-        // on-plane ray `k`: `Ok(verdict)`, or `Err(true)` for a sign in
-        // band and `Err(false)` for decided signs that settle nothing.
-        let outside = |k: usize| -> Result<bool, bool> {
-            let decide_face = |s: Option<Sign>| match s {
-                Some(Sign::Negative) => Ok(true),
-                Some(Sign::Positive) => Ok(false),
-                Some(Sign::Zero) => Err(false),
-                None => Err(true),
-            };
-            match kinds[k] {
-                RayKind::InFace | RayKind::Edge(Some(Sign::Zero)) => decide_face(face(k)),
-                RayKind::Edge(Some(dihedral)) => {
-                    let (s1, s2) = (face((k + len - 1) % len), face(k));
-                    let neg = |s: Option<Sign>| s == Some(Sign::Negative);
-                    let pos = |s: Option<Sign>| s == Some(Sign::Positive);
-                    // −n enters a convex wedge iff it is behind both
-                    // faces, a reflex one iff it is behind either.
-                    let verdict = if dihedral == Sign::Negative {
-                        if neg(s1) || neg(s2) {
-                            Some(true)
-                        } else if pos(s1) && pos(s2) {
-                            Some(false)
-                        } else {
-                            None
-                        }
-                    } else if neg(s1) && neg(s2) {
-                        Some(true)
-                    } else if pos(s1) || pos(s2) {
-                        Some(false)
-                    } else {
-                        None
-                    };
-                    verdict.ok_or(s1.is_none() || s2.is_none())
-                }
-                RayKind::Edge(None) => Err(true),
-            }
+        // Tallies of the material-side readings: (inside, outside,
+        // in band, not read).
+        let verdict = |(yes, no, band, unread): (bool, bool, bool, bool)| match (yes, no) {
+            (true, true) => Within::Degenerate,
+            (false, true) => Within::No,
+            (true, false) if !(band || unread) => Within::Yes,
+            _ if band => Within::InBand,
+            _ => Within::Unanalysed,
         };
-        let (mut yes, mut no, mut degenerate) = (false, false, false);
-        for &k in &on_plane {
-            match outside(k) {
-                Ok(true) => yes = true,
-                Ok(false) => no = true,
-                Err(true) => in_band = true,
-                Err(false) => degenerate = true,
+        if !on.is_empty() {
+            let plane = candidate_plane(self.p, n);
+            let mut t = (false, false, false, false);
+            for k in on {
+                let f = &self.faces[k];
+                match pairing(
+                    (&f.surface, f.sense),
+                    (&plane, true),
+                    self.p,
+                    self.reach,
+                    band,
+                ) {
+                    // The face's outward normal is `−n`: its material,
+                    // behind it, is on the `+n` side.
+                    Some(geom_brep::MaterialPairing::Opposed) => t.0 = true,
+                    Some(geom_brep::MaterialPairing::Aligned) => t.1 = true,
+                    None => t.2 = true,
+                }
+            }
+            return verdict(t);
+        }
+        let mut t = (false, false, false, false);
+        let mut any = false;
+        for e in &self.edges {
+            if e.ends.iter().all(|&i| side[i] == Some(Sign::Zero)) {
+                any = true;
+                match e.dihedral {
+                    Dihedral::Convex => t.0 = true,
+                    Dihedral::Reflex => t.1 = true,
+                    // Two coplanar faces both Above with their edge on
+                    // the plane contradict each other.
+                    Dihedral::Flat => return Within::Degenerate,
+                    Dihedral::InBand => t.2 = true,
+                    Dihedral::Unread => t.3 = true,
+                }
             }
         }
-        match (yes, no) {
-            (true, false) => Within::Yes,
-            (false, true) => Within::No,
-            (true, true) => Within::Degenerate,
-            (false, false) if in_band => Within::InBand,
-            (false, false) if degenerate => Within::Degenerate,
-            (false, false) => match self.shape {
-                ConeShape::Convex | ConeShape::Flat => Within::Yes,
-                ConeShape::CoConvex => Within::No,
-                ConeShape::Saddle if self.in_band => Within::InBand,
-                ConeShape::Saddle => Within::Unanalysed,
-            },
+        if any {
+            return verdict(t);
+        }
+        match self.shape {
+            Shape::Convex => Within::Yes,
+            Shape::CoConvex => Within::No,
+            Shape::Flat | Shape::Saddle { in_band: false } => Within::Unanalysed,
+            Shape::Saddle { in_band: true } => Within::InBand,
         }
     }
 }
 
-/// **The one local analysis of a touch** between two solids `a` and
-/// `b` at a feature point `p`, over their material cones there.
+/// What the candidate search noted on its way: the reasons a candidate
+/// failed other than on decided readings.
+#[derive(Clone, Copy, Debug, Default)]
+struct Notes {
+    in_band: bool,
+    unanalysed: bool,
+    degenerate: bool,
+}
+
+impl Notes {
+    fn note(&mut self, w: Within) {
+        match w {
+            Within::InBand => self.in_band = true,
+            Within::ReachBack | Within::Unanalysed => self.unanalysed = true,
+            Within::Degenerate => self.degenerate = true,
+            Within::Yes | Within::No => {}
+        }
+    }
+}
+
+/// **The one door a rest comes through.** [`Rest`](rest::Rest) has a
+/// private field, so nothing outside this module can build one: a rest
+/// exists only where [`certify`](rest::certify) ran the readings
+/// against a candidate and they held.
+mod rest {
+    use super::{Band, Decide, Notes, Shape, Star, Vec3, Within};
+
+    /// The certificate of a rest: every point of both stars lies within
+    /// ε of its side of one plane, or one star within ε of the closure
+    /// of the other's convex complement.
+    #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+    pub(super) struct Rest {
+        _sealed: (),
+    }
+
+    /// A candidate the readings are run against.
+    pub(super) enum Candidate<'s, T: Decide> {
+        /// A plane through the touch point, with this unit normal:
+        /// either star on either side.
+        Plane(Vec3<T>),
+        /// `inner` in every closed half-space outside `outer`'s faces,
+        /// where `outer` is co-convex or flat.
+        Complement { inner: &'s Star<T>, outer: &'s Star<T> },
+    }
+
+    /// Runs the readings ([`Star::within`]) against one candidate and
+    /// mints a rest where they hold; notes why they did not, unless
+    /// they failed on decided readings.
+    pub(super) fn certify<T: Decide>(
+        a: &Star<T>,
+        b: &Star<T>,
+        candidate: Candidate<'_, T>,
+        band: Band,
+        notes: &mut Notes,
+    ) -> Option<Rest> {
+        match candidate {
+            Candidate::Plane(n) => {
+                for s in [n, -n] {
+                    let (wa, wb) = (a.within(s, band), b.within(-s, band));
+                    if wa == Within::Yes && wb == Within::Yes {
+                        return Some(Rest { _sealed: () });
+                    }
+                    if wa != Within::No && wb != Within::No {
+                        notes.note(wa);
+                        notes.note(wb);
+                    }
+                }
+                None
+            }
+            Candidate::Complement { inner, outer } => {
+                if !matches!(outer.shape, Shape::CoConvex | Shape::Flat) {
+                    return None;
+                }
+                let ws: Vec<Within> = outer
+                    .faces
+                    .iter()
+                    .map(|f| inner.within(f.outward, band))
+                    .collect();
+                if ws.iter().all(|&w| w == Within::Yes) {
+                    return Some(Rest { _sealed: () });
+                }
+                if !ws.contains(&Within::No) {
+                    for w in ws {
+                        notes.note(w);
+                    }
+                }
+                None
+            }
+        }
+    }
+}
+
+/// The candidate planes two stars' generators span, each proposed by
+/// the cross product of two unit generators. Whether a pair spans a
+/// plane is the analysis's one levered reading, at the two stars'
+/// reach: a Zero skips the pair, an in-band span is noted.
+fn touch_candidates<T: Decide>(a: &Star<T>, b: &Star<T>, band: Band, notes: &mut Notes) -> Vec<Vec3<T>> {
+    let lever = a.reach.max(b.reach);
+    let rays: Vec<Vec3<T>> = a.rays.iter().chain(&b.rays).copied().collect();
+    let mut out = Vec::new();
+    for (i, &r) in rays.iter().enumerate() {
+        for &s in &rays[i + 1..] {
+            let c = r.cross(s);
+            match decide(TOUCH_SPAN, Margin::levered(c.norm(), lever), band) {
+                Ok(Sign::Positive) => out.push(c.normalize()),
+                Ok(_) => {}
+                Err(_) => notes.in_band = true,
+            }
+        }
+    }
+    out
+}
+
+/// **The one local analysis of a touch** between two solids at a point
+/// `p`, over their stars there.
 ///
-/// A touch is admitted as a rest only if the two cones have DISJOINT
-/// INTERIORS; anything else, including an answer the analysis cannot
-/// lever, is not a rest. Two tests certify it:
+/// A touch is admitted as a rest only on a certificate
+/// ([`rest::certify`]):
 ///
-/// 1. **A separating plane through `p`**: `a` in one closed half-space
-///    and `b` in the other ([`Cone::within`] both ways). The candidate
-///    normals are every face normal at `p` on either side, then the
-///    cross product of every pair of boundary rays. For two convex
-///    cones (a half-space and a convex wedge included) that search is
+/// 1. **A separating plane through `p`**: one star within ε of each
+///    closed side, the materials apart ([`Star::within`] both ways).
+///    The candidates are every face's plane on either side, then every
+///    plane two generators (edge directions, and a face's direction off
+///    an edge `p` is inside) span. For two convex stars that search is
 ///    complete — the separating plane of two convex polyhedral cones is
-///    a facet plane of their Minkowski difference, which is spanned by
-///    two generators — so failing it is a decided crossing.
-/// 2. **The complement**: when `b`'s complement is convex (every edge
-///    at `p` reflex or flat), `a` inside every one of `b`'s face
-///    half-spaces lies in that complement's closure — a peg seated in
-///    a concave corner. Exact whenever `a` is not a saddle.
+///    a facet plane of their Minkowski difference, spanned by two
+///    generators — so failing it on decided readings is a crossing.
+/// 2. **The complement**: when one star's complement is convex (every
+///    edge at `p` reflex or flat), the other inside every one of its
+///    faces' outer half-spaces lies in that complement's closure — a
+///    peg seated in a concave corner.
 ///
-/// A saddle cone (a vertex with both convex and reflex edges, or a
-/// face sector of 180° or more) certifies through either test when one
-/// applies; when none does the answer is [`TouchVerdict::Unanalysed`],
-/// never a crossing and never a rest. Every sign is decided under the
-/// run band by [`touch_lever`]'s rule. Any sign in band that the search
-/// reached without a rest is [`TouchVerdict::InBand`]; any
-/// contradictory reading, [`TouchVerdict::Degenerate`].
+/// A crossing is claimed only on decided readings over two stars the
+/// search is complete for. A candidate refused in band, on a saddle, on
+/// contradictory readings, or only because a face that is not convex
+/// reaches back across it, leaves the touch [`TouchVerdict::InBand`],
+/// [`TouchVerdict::Degenerate`] or [`TouchVerdict::Unanalysed`] — never
+/// a crossing and never a rest.
 fn touch_verdict<T: Decide>(
-    a: Result<Cone<T>, TouchVerdict>,
-    b: Result<Cone<T>, TouchVerdict>,
+    a: Result<Star<T>, TouchVerdict>,
+    b: Result<Star<T>, TouchVerdict>,
     band: Band,
 ) -> TouchVerdict {
+    use rest::{Candidate, certify};
     let (a, b) = match (a, b) {
         (Ok(a), Ok(b)) => (a, b),
         (Err(v), _) | (_, Err(v)) => return v,
     };
-    let in_band = core::cell::Cell::new(a.in_band || b.in_band);
-    let unanalysed = core::cell::Cell::new(false);
-    let degenerate = core::cell::Cell::new(false);
-    let note = |w: Within| match w {
-        Within::InBand => in_band.set(true),
-        Within::Unanalysed => unanalysed.set(true),
-        Within::Degenerate => degenerate.set(true),
-        Within::Yes | Within::No => {}
-    };
-    let separates = |n: Vec3<T>| -> bool {
-        for s in [n, -n] {
-            let wa = a.within(s, band);
-            note(wa);
-            if wa == Within::Yes {
-                let wb = b.within(-s, band);
-                note(wb);
-                if wb == Within::Yes {
-                    return true;
-                }
-            }
-        }
-        false
-    };
+    let mut notes = Notes::default();
     // Face planes first: every rest a planar stack makes is found here.
-    for &m in a.normals().iter().chain(b.normals()) {
-        if separates(m) {
-            return TouchVerdict::Rest;
+    let normals: Vec<Vec3<T>> = a.faces.iter().chain(&b.faces).map(|f| f.outward).collect();
+    for n in normals {
+        if let Some(rest) = certify(&a, &b, Candidate::Plane(n), band, &mut notes) {
+            return TouchVerdict::Rest(rest);
         }
     }
-    for (x, y) in [(&a, &b), (&b, &a)] {
-        if matches!(y.shape, ConeShape::CoConvex | ConeShape::Flat) {
-            let mut all = true;
-            for &m in y.normals() {
-                let w = x.within(m, band);
-                note(w);
-                all &= w == Within::Yes;
-            }
-            if all {
-                return TouchVerdict::Rest;
-            }
+    for (inner, outer) in [(&a, &b), (&b, &a)] {
+        if let Some(rest) = certify(&a, &b, Candidate::Complement { inner, outer }, band, &mut notes) {
+            return TouchVerdict::Rest(rest);
         }
     }
-    // A candidate spanned by two rays: whether they span one is read at
-    // the farther of the two rays' levers.
-    let rays: Vec<(Vec3<T>, T)> = a.rays().into_iter().chain(b.rays()).collect();
-    for (i, &(r, rr)) in rays.iter().enumerate() {
-        for &(s, sr) in &rays[i + 1..] {
-            let c = r.cross(s);
-            match touch_sign(TOUCH_SPAN, c.norm(), rr.max(sr), band) {
-                Some(Sign::Positive) => {
-                    if separates(c.normalize()) {
-                        return TouchVerdict::Rest;
-                    }
-                }
-                Some(_) => {}
-                None => in_band.set(true),
-            }
+    for n in touch_candidates(&a, &b, band, &mut notes) {
+        if let Some(rest) = certify(&a, &b, Candidate::Plane(n), band, &mut notes) {
+            return TouchVerdict::Rest(rest);
         }
     }
-    if in_band.get() {
+    let saddle_in_band = |s: Shape| s == Shape::Saddle { in_band: true };
+    if notes.in_band || saddle_in_band(a.shape) || saddle_in_band(b.shape) {
         TouchVerdict::InBand
-    } else if degenerate.get() {
+    } else if notes.degenerate {
         TouchVerdict::Degenerate
-    } else if unanalysed.get() || a.shape == ConeShape::Saddle || b.shape == ConeShape::Saddle {
+    } else if notes.unanalysed
+        || matches!(a.shape, Shape::Saddle { .. })
+        || matches!(b.shape, Shape::Saddle { .. })
+    {
         TouchVerdict::Unanalysed
     } else {
         TouchVerdict::Crossing
@@ -6907,7 +7185,7 @@ mod tests {
         ]
         .concat();
         assert!(
-            rests.iter().all(|&(_, v)| v == TouchVerdict::Rest),
+            rests.iter().all(|&(_, v)| v.is_rest()),
             "{rests:?}"
         );
         let crossings = [
@@ -6992,7 +7270,7 @@ mod tests {
                 .collect();
             assert!(vf.len() >= 2, "{times}: {vf:?}");
             assert!(
-                vf.iter().all(|&v| v != TouchVerdict::Rest),
+                vf.iter().all(|&v| !v.is_rest()),
                 "{times}× zero: {vf:?}"
             );
         }
@@ -7106,7 +7384,7 @@ mod tests {
             let got = sites(&body);
             assert!(!got.is_empty(), "{times}");
             assert!(
-                got.iter().all(|&(_, t)| t != TouchVerdict::Rest),
+                got.iter().all(|&(_, t)| !t.is_rest()),
                 "{times}× zero: {got:?}"
             );
         }
@@ -7136,7 +7414,7 @@ mod tests {
             let got = sites(&body);
             assert!(!got.is_empty(), "{times}");
             assert!(
-                got.iter().all(|&(_, t)| t != TouchVerdict::Rest),
+                got.iter().all(|&(_, t)| !t.is_rest()),
                 "{times}× zero: {got:?}"
             );
         }
@@ -7167,86 +7445,148 @@ mod tests {
                 .collect();
             assert!(!edges.is_empty(), "{times}: {got:?}");
             assert!(
-                edges.iter().all(|&t| t != TouchVerdict::Rest),
+                edges.iter().all(|&t| !t.is_rest()),
                 "{times}× zero: {edges:?}"
             );
         }
     }
 
-    /// A shallow pit's apex: three rays rising `h` over unit length at
-    /// 120° apart, their faces' outward normals pointing up (material
-    /// below the pit's surface), every face levered at 1 m.
-    fn shallow_pit(h: f64, band: Band) -> Cone<f64> {
-        let ray = |deg: f64| {
-            let t = deg.to_radians();
-            Vec3::new(t.cos(), t.sin(), h).normalize()
-        };
-        let rays = vec![ray(0.0), ray(240.0), ray(120.0)];
-        let normals: Vec<Vec3<f64>> = (0..3)
-            .map(|k| rays[(k + 1) % 3].cross(rays[k]).normalize())
+    /// A star built from bare geometry: each face `(outward, loops)`
+    /// over `verts`, each edge `(ends, faces)`, as [`Star::assemble`]
+    /// reads it.
+    #[allow(clippy::type_complexity)]
+    fn synthetic(
+        p: Point3<f64>,
+        at: At,
+        verts: Vec<Point3<f64>>,
+        faces: &[(Vec3<f64>, Vec<Vec<usize>>)],
+        edges: &[(Vec<usize>, [usize; 2])],
+        band: Band,
+    ) -> Result<Star<f64>, TouchVerdict> {
+        let faces = faces
+            .iter()
+            .map(|(m, loops)| StarFace {
+                surface: Surface::Plane {
+                    origin: verts[loops[0][0]],
+                    normal: *m,
+                    u_ref: m.cross(Vec3::new(1.0, 1.0, 1.0)).normalize(),
+                },
+                sense: true,
+                outward: *m,
+                loops: loops.clone(),
+                local: false,
+                near: Vec::new(),
+            })
+            .collect::<Vec<_>>();
+        let mut rays = Vec::new();
+        let edges = edges
+            .iter()
+            .map(|(ends, fs)| {
+                rays.extend(ends.iter().map(|&i| (verts[i] - p).normalize()));
+                StarEdge {
+                    ends: ends.clone(),
+                    faces: *fs,
+                    dihedral: Dihedral::Unread,
+                }
+            })
             .collect();
-        Cone::fan(
-            rays,
-            vec![RayKind::Edge(None); 3],
-            normals,
-            vec![1.0; 3],
-            false,
-            band,
-        )
+        Star::assemble(p, at, verts, faces, edges, rays, band)
     }
 
-    /// **A dihedral is levered at its far face.** The apex of a shallow
-    /// pit — every edge barely reflex, the complement a thin convex cone
-    /// — touching a floor whose material is below it: the pit's material
-    /// is below its surface too, so the two overlap, and the answer is a
-    /// crossing. Read with the dihedrals levered short, the edges read
-    /// flat, the pit reads as a half-space lying on the floor, and the
-    /// touch reads as a rest.
+    /// A floor face through the origin, `[-2, 2]²` at `z = 0`, its
+    /// material below.
+    fn floor_star(band: Band) -> Star<f64> {
+        let verts = vec![
+            Point3::new(-2.0, -2.0, 0.0),
+            Point3::new(2.0, -2.0, 0.0),
+            Point3::new(2.0, 2.0, 0.0),
+            Point3::new(-2.0, 2.0, 0.0),
+        ];
+        synthetic(
+            Point3::new(0.0, 0.0, 0.0),
+            At::Face,
+            verts,
+            &[(Vec3::new(0.0, 0.0, 1.0), vec![vec![0, 1, 2, 3]])],
+            &[],
+            band,
+        )
+        .expect("a floor")
+    }
+
+    /// A shallow pit's apex at the origin: three edges rising `h` over
+    /// 1 m at 120° apart, bounding three triangles whose outward normals
+    /// point up (material below the pit's surface).
+    fn shallow_pit(h: f64, band: Band) -> Star<f64> {
+        let q = |deg: f64| {
+            let t = deg.to_radians();
+            Point3::new(t.cos(), t.sin(), h)
+        };
+        let verts = vec![Point3::new(0.0, 0.0, 0.0), q(0.0), q(120.0), q(240.0)];
+        // Triangle k is (apex, q_k, q_{k+1}), counterclockwise from above.
+        let tri = |k: usize| {
+            let (a, b) = (1 + k, 1 + (k + 1) % 3);
+            let m = (verts[a] - verts[0]).cross(verts[b] - verts[0]).normalize();
+            (m, vec![vec![0, a, b]])
+        };
+        let faces = [tri(0), tri(1), tri(2)];
+        let edges = [
+            (vec![1], [2, 0]),
+            (vec![2], [0, 1]),
+            (vec![3], [1, 2]),
+        ];
+        synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &edges, band)
+            .expect("a pit")
+    }
+
+    /// **A barely reflex corner is read at its faces' far vertices.** The
+    /// apex of a shallow pit — every edge reflex by `400·zero` over a
+    /// metre, the complement a thin convex cone — touching a floor whose
+    /// material is below it: the pit's material is below its surface
+    /// too, so the two overlap, and the answer is a crossing. Read at a
+    /// short lever the edges would read flat, the pit a half-space lying
+    /// on the floor, and the touch a rest.
     #[test]
-    fn a_dihedral_is_levered_at_its_face() {
+    fn a_shallow_pit_is_read_at_its_far_vertices() {
         let band = Band::linear(Tol::witness()).unwrap();
         let pit = shallow_pit(400.0 * band.zero(), band);
-        assert_eq!(pit.shape, ConeShape::CoConvex);
-        let floor = Cone {
-            kind: ConeKind::Half(Vec3::new(0.0, 0.0, 1.0)),
-            shape: ConeShape::Flat,
-            lever: 1.0,
-            in_band: false,
-        };
+        assert_eq!(pit.shape, Shape::CoConvex);
         assert_eq!(
-            touch_verdict(Ok(pit), Ok(floor), band),
+            touch_verdict(Ok(pit), Ok(floor_star(band)), band),
             TouchVerdict::Crossing
         );
     }
 
-    /// **Decided readings that contradict each other refuse as such.** A
-    /// slit — two faces lying on each other in the plane `x = 0`, the
-    /// edge along `y` — read against the plane `z = 0`: its edge rays lie
-    /// on the plane and its faces' normals lie in it, so nothing settles
-    /// which side the material takes, and the reading is degenerate, not
-    /// in band.
+    /// **A slit is named, not read as flat.** Two faces lying on each
+    /// other in the plane `x = 0` — one rectangle over the edge along
+    /// `y`, once with its outward normal `−x` and once with `+x`: each
+    /// face lies on the other's plane in both orders, the Zero that a
+    /// flat seam reads too. The two outward normals are opposed
+    /// ([`geom_brep::classify_material_pairing`]), so the edge is a fold
+    /// and the star refuses as degenerate; turn one face over and the
+    /// same two faces are a flat seam.
     #[test]
     fn a_slit_reads_degenerate() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let (x, y, z) = (
-            Vec3::new(1.0, 0.0, 0.0),
-            Vec3::new(0.0, 1.0, 0.0),
-            Vec3::new(0.0, 0.0, 1.0),
-        );
-        let slit = Cone::fan(
-            vec![y, z, -y, z],
-            vec![
-                RayKind::Edge(None),
-                RayKind::InFace,
-                RayKind::Edge(None),
-                RayKind::InFace,
-            ],
-            vec![-x, -x, x, x],
-            vec![1.0; 4],
-            false,
-            band,
-        );
-        assert_eq!(slit.within(z, band), Within::Degenerate);
+        let verts = vec![
+            Point3::new(0.0, -1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 1.0),
+            Point3::new(0.0, -1.0, 1.0),
+        ];
+        let x = Vec3::new(1.0, 0.0, 0.0);
+        let star = |other: Vec3<f64>| {
+            synthetic(
+                Point3::new(0.0, 0.0, 0.0),
+                At::Edge,
+                verts.clone(),
+                &[(-x, vec![vec![0, 1, 2, 3]]), (other, vec![vec![3, 2, 1, 0]])],
+                &[(vec![0, 1], [0, 1])],
+                band,
+            )
+        };
+        assert!(matches!(star(x), Err(TouchVerdict::Degenerate)));
+        let seam = star(-x).expect("a flat seam");
+        assert_eq!(seam.edges[0].dihedral, Dihedral::Flat);
         assert_eq!(
             TouchVerdict::Degenerate.refusal(),
             Some(Undecided::TouchDegenerate)
@@ -7255,7 +7595,7 @@ mod tests {
 
     /// **A corner whose edges are not numbers refuses on scale.** A
     /// brick shrunk to 1e-170 m (its chords underflow) and one blown up
-    /// to 1e200 m (they overflow): the corner's cone refuses as
+    /// to 1e200 m (they overflow): the corner's star refuses as
     /// [`TouchVerdict::ChordScale`], the rescale recourse.
     #[test]
     fn a_corner_out_of_scale_refuses_on_scale() {
@@ -7274,7 +7614,7 @@ mod tests {
             let (v, _) = body.vertices.iter().next().unwrap();
             assert!(
                 matches!(
-                    Cone::vertex(&body, &geo, v, band),
+                    Star::vertex(&body, &geo, v, band),
                     Err(TouchVerdict::ChordScale)
                 ),
                 "{scale}"
@@ -7407,7 +7747,7 @@ mod tests {
                 let got = sites(&body);
                 assert!(!got.is_empty(), "{name} @ {ang}");
                 assert!(
-                    got.iter().all(|&(_, t)| t == TouchVerdict::Rest),
+                    got.iter().all(|&(_, t)| t.is_rest()),
                     "{name} @ {ang}: {got:?}"
                 );
                 let others: Vec<String> = crate::validate_pseudomanifold(
@@ -7426,22 +7766,20 @@ mod tests {
         }
     }
 
-    /// **An obtuse sector is read through its rays — the known gap, pinned.**
-    /// A prism over `(0,0), (1,0), (1,1), (−1,1), (−1,δ)` rests its
-    /// corner `(0,0)` on the floor; the corner's bottom sector is just
-    /// under 180° and the bottom face is sheared so its far edge dips
-    /// 30 times the zero threshold below the floor. A ray's side reading
-    /// is the face's tilt times `sin α` of the sector, so both bounding
-    /// rays read on the floor and the corner's vertex-on-face touch
-    /// reads as a REST although the face dips. The pair is still
-    /// refused: the edge-in-face wedge along the dipping face reads it.
-    /// This row pins both halves so the redesign in
-    /// `work/contact/touch-cone-readings-are-levered-directions-not-face-distances.md`
-    /// moves the local half deliberately.
+    /// **An obtuse sector is read at its face's far vertices.** A prism
+    /// over `(0,0), (1,0), (1,1), (−1,1), (−1,δ)` rests its corner
+    /// `(0,0)` on the floor; the corner's bottom sector is just under
+    /// 180° and the bottom face is sheared so its far edge dips 2, 5,
+    /// 30 and 500 times the zero threshold below the floor. Both of the
+    /// sector's bounding edges end within ε of the floor — read through
+    /// them, the corner rested at every dip. The bottom face is read by
+    /// its vertices, and its far ones leave the floor: in band at the
+    /// small dips, decidedly below at the large ones, and the corner's
+    /// vertex-on-face touch is never a rest. The pair-level wedge along
+    /// the dipping face refuses too.
     #[test]
     fn an_obtuse_sector_is_read_through_its_rays() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let phi = 30.0 * band.zero();
         let prof = [
             (0.0, 0.0),
             (1.0, 0.0),
@@ -7449,31 +7787,71 @@ mod tests {
             (-1.0, 1.0),
             (-1.0, 0.01),
         ];
-        let body = on_floor(|b| {
-            mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
-                Point3::new(x, y, z - phi * y)
-            })
-        });
-        let geo = snapshot(&body);
-        let got = sites(&body);
-        let corner: Vec<TouchVerdict> = got
-            .iter()
-            .filter(|(site, _)| match site {
-                TouchSite::VertexOnFace(v, _) => geo
-                    .vmap
-                    .get(v)
-                    .is_some_and(|q| q.x.abs() < 1e-9 && q.y.abs() < 1e-9),
-                _ => false,
-            })
-            .map(|&(_, t)| t)
-            .collect();
-        assert_eq!(corner, [TouchVerdict::Rest], "the known local gap: {got:?}");
-        assert!(
-            got.iter()
-                .any(|&(site, t)| matches!(site, TouchSite::EdgeInFace(..))
-                    && t != TouchVerdict::Rest),
-            "the pair-level wedge refuses: {got:?}"
-        );
+        for times in [2.0, 5.0, 30.0, 500.0] {
+            let phi = times * band.zero();
+            let body = on_floor(|b| {
+                mapped_prism(b, &prof, (0.0, 0.03), |x, y, z| {
+                    Point3::new(x, y, z - phi * y)
+                })
+            });
+            let geo = snapshot(&body);
+            let got = sites(&body);
+            let corner: Vec<TouchVerdict> = got
+                .iter()
+                .filter(|(site, _)| match site {
+                    TouchSite::VertexOnFace(v, _) => geo
+                        .vmap
+                        .get(v)
+                        .is_some_and(|q| q.x.abs() < 1e-9 && q.y.abs() < 1e-9),
+                    _ => false,
+                })
+                .map(|&(_, t)| t)
+                .collect();
+            assert_eq!(corner.len(), 1, "{times}× zero: {got:?}");
+            assert!(!corner[0].is_rest(), "{times}× zero: {got:?}");
+            assert!(
+                got.iter()
+                    .any(|&(site, t)| matches!(site, TouchSite::EdgeInFace(..)) && !t.is_rest()),
+                "{times}× zero, the pair-level wedge: {got:?}"
+            );
+        }
+    }
+
+    /// **The obtuse sector on a synthetic star.** The same corner built
+    /// from bare geometry — the sheared bottom face and the two side
+    /// faces meeting at it — dipping 500 times the zero threshold over
+    /// the floor face: the bottom face reads Below on its far vertices,
+    /// no candidate certifies, and with every reading decided the touch
+    /// is a crossing.
+    #[test]
+    fn an_obtuse_sector_on_a_synthetic_star_is_not_a_rest() {
+        let band = Band::linear(Tol::witness()).unwrap();
+        let (phi, delta, h) = (500.0 * band.zero(), 0.01, 0.03);
+        let at = |x: f64, y: f64, z: f64| Point3::new(x, y, z - phi * y);
+        let verts = vec![
+            at(0.0, 0.0, 0.0),
+            at(1.0, 0.0, 0.0),
+            at(1.0, 1.0, 0.0),
+            at(-1.0, 1.0, 0.0),
+            at(-1.0, delta, 0.0),
+            at(0.0, 0.0, h),
+            at(1.0, 0.0, h),
+            at(-1.0, delta, h),
+        ];
+        let normal = |a: usize, b: usize, c: usize| {
+            (verts[b] - verts[a]).cross(verts[c] - verts[b]).normalize()
+        };
+        let faces = [
+            (normal(0, 4, 3), vec![vec![0, 4, 3, 2, 1]]),
+            (normal(0, 1, 6), vec![vec![0, 1, 6, 5]]),
+            (normal(4, 0, 5), vec![vec![4, 0, 5, 7]]),
+        ];
+        let edges = [(vec![1], [0, 1]), (vec![4], [0, 2]), (vec![5], [1, 2])];
+        let part = synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &edges, band)
+            .expect("a corner");
+        assert_eq!(part.shape, Shape::Convex);
+        let verdict = touch_verdict(Ok(part), Ok(floor_star(band)), band);
+        assert_eq!(verdict, TouchVerdict::Crossing);
     }
 
     /// **An edge cross reads both ways through its wedges.** Two slabs
@@ -7519,7 +7897,7 @@ mod tests {
             &brick((0.5, 1.0), (-0.5, 2.5), (2.0, 2.2)),
         ));
         assert!(!bar.is_empty());
-        assert!(bar.iter().all(|&v| v == TouchVerdict::Rest), "{bar:?}");
+        assert!(bar.iter().all(|&v| v.is_rest()), "{bar:?}");
     }
 
     /// **The obtuse-sector pose, end to end, where the gate separates.**
@@ -7598,39 +7976,33 @@ mod tests {
         }
     }
 
-    /// The dihedral each vertical-edge ray of `v` reads, from the real
-    /// fan `Cone::vertex` builds.
-    fn vertical_dihedrals(body: &Body<f64>, vs: &[VertexKey]) -> Vec<Option<Sign>> {
+    /// The convexity each vertex's vertical edge reads, from the star
+    /// [`Star::vertex`] builds.
+    fn vertical_dihedrals(body: &Body<f64>, vs: &[VertexKey]) -> Vec<Dihedral> {
         let band = Band::linear(Tol::witness()).unwrap();
         let geo = snapshot(body);
         vs.iter()
             .map(|&v| {
-                let cone = Cone::vertex(body, &geo, v, band).expect("a planar corner");
-                let ConeKind::Fan { rays, kinds, .. } = &cone.kind else {
-                    panic!("a fan");
-                };
-                let k = rays
+                let star = Star::vertex(body, &geo, v, band).expect("a planar corner");
+                star.edges
                     .iter()
-                    .position(|r| r.z.abs() > 0.9)
-                    .expect("the vertical edge");
-                match kinds[k] {
-                    RayKind::Edge(s) => s,
-                    RayKind::InFace => panic!("an edge ray"),
-                }
+                    .find(|e| (star.verts[e.ends[0]] - star.p).z.abs() > 0.009)
+                    .expect("the vertical edge")
+                    .dihedral
             })
             .collect()
     }
 
-    /// **A dihedral is read at its far face, on real geometry.** A prism
-    /// whose profile turns by a sliver at `(0,0)`: a 1 m side and a
-    /// 3 cm side, 1 cm tall, meet at a vertical edge convex by `15·zero`
-    /// per metre.
-    /// At the bottom corner the dihedral's far face is the long side, and
-    /// read at that face's lever the edge is decidedly convex; at the
-    /// top corner the orbit runs the other way, the far face is the
-    /// short side, and read at its lever the edge reads flat. Levered at
-    /// the previous face instead, or a hundred times short, the two
-    /// readings swap or both go flat, and this row goes red.
+    /// **A dihedral reads the same from either end, on real geometry.**
+    /// A prism whose profile turns by a sliver at `(0,0)`: a 1 m side and
+    /// a 3 cm side, 1 cm tall, meet at a vertical edge convex by
+    /// `15·zero` per metre. The long side's far vertices lie `15·zero`
+    /// behind the short side's plane, which decides the edge convex; the
+    /// short side's lie within ε of the long side's plane, which decides
+    /// nothing, and a definite side in either order decides. The edge
+    /// reads convex at the bottom corner and at the top one. It used to
+    /// read convex at one end and flat at the other, as the walk around
+    /// each corner happened to run: the pin encoded that defect.
     #[test]
     fn a_dihedral_is_read_at_its_far_face_on_a_real_corner() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -7646,7 +8018,7 @@ mod tests {
         let got = vertical_dihedrals(&prism.body, &[prism.bottom[0], prism.top[0]]);
         assert_eq!(
             got,
-            [Some(Sign::Negative), Some(Sign::Zero)],
+            [Dihedral::Convex, Dihedral::Convex],
             "bottom, top: {got:?}"
         );
     }
@@ -7692,7 +8064,7 @@ mod tests {
                 .collect();
             assert!(!tip.is_empty(), "{side}: {got:?}");
             assert!(
-                tip.iter().all(|&t| t != TouchVerdict::Rest),
+                tip.iter().all(|&t| !t.is_rest()),
                 "{side}: {tip:?}"
             );
         }
