@@ -627,10 +627,11 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     );
     let out = fillet_edges(&body, &edges, 0.1 * r, tol())
         .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
-    assert!(
-        chart_contact_edges(&out.body) >= 4,
-        "the four corner arcs are stored as chart images, got {}",
-        chart_contact_edges(&out.body)
+    assert_eq!(
+        chart_contact_edges(&out.body),
+        6,
+        "the four corner arcs are stored as chart images, beside the vent's two chart edges \
+         (the boolean's)"
     );
 }
 
