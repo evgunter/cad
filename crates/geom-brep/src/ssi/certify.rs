@@ -121,17 +121,6 @@ use crate::dihedral::decide;
 use super::enclose::{Box3, NurbsBoxes, graph_margin};
 use super::{SsiError, SsiOperand, TubeScale};
 
-// The predicate names the rung-3 certificate decides under, one
-// spelling for the decide site and for
-// `crate::certify::escalation_recourse`, which routes a plane × NURBS
-// certification that runs it.
-pub(crate) const SSI_ON_LOCUS: &str = "ssi_on_locus";
-pub(crate) const SSI_HULL_SUP: &str = "ssi_hull_sup";
-pub(crate) const SSI_ON_LOCUS_FOOT: &str = "ssi_on_locus_foot";
-pub(crate) const SSI_FOOT_ORTHOGONALITY: &str = "ssi_foot_orthogonality";
-pub(crate) const SSI_HULL_SUP_CHART: &str = "ssi_hull_sup_chart";
-pub(crate) const SSI_TUBE_TRANSVERSALITY: &str = "ssi_tube_transversality";
-
 /// The **largest** tube radius tried, as a fraction of the caller's
 /// named extent. The ladder halves from here.
 pub const SSI_TUBE_RADIUS_MAX: f64 = 1.0 / 8.0;
@@ -371,7 +360,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
         // `max`, not a `>` branch: the running worst is a scalar-typed
         // quantity now, and generic evaluation code does not compare.
         worst = worst.max(r);
-        match decide(SSI_ON_LOCUS, Margin::of(r), band) {
+        match decide("ssi_on_locus", Margin::of(r), band) {
             // Zero is the affirmative: the residual is zero to
             // tolerance (the `dihedral_wedge` convention).
             Ok(Sign::Zero) => {}
@@ -404,7 +393,7 @@ fn analytic_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // bound is — and it is lifted here so the limb is banded at the
     // caller's scalar like every other residual (field docs).
     let sup = T::from_f64(composite.sup_bound() * to_meters);
-    match decide(SSI_HULL_SUP, Margin::of(sup), band) {
+    match decide("ssi_hull_sup", Margin::of(sup), band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -442,7 +431,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
                 last_distance: e.last_distance,
             })?;
         worst = worst.max(proj.distance);
-        match decide(SSI_ON_LOCUS_FOOT, Margin::of(proj.distance), band) {
+        match decide("ssi_on_locus_foot", Margin::of(proj.distance), band) {
             Ok(Sign::Zero) => {}
             Ok(Sign::Positive | Sign::Negative) => {
                 return Err(SsiError::CertificateLimb {
@@ -461,7 +450,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
             (proj.orthogonality_v, jet.dv.norm()),
         ] {
             let margin = Margin::levered_inv(res, speed);
-            match decide(SSI_FOOT_ORTHOGONALITY, margin, band) {
+            match decide("ssi_foot_orthogonality", margin, band) {
                 Ok(Sign::Zero) => {}
                 Ok(Sign::Positive | Sign::Negative) => {
                     return Err(SsiError::CertificateLimb {
@@ -529,7 +518,7 @@ fn nurbs_limbs<T: Decide + Bounds + CertifiedEnclosure>(
     // own bracket (`ring_coords`), so a widened control net widens the
     // composite and the bound stays honest.
     let sup = T::from_f64(sup);
-    match decide(SSI_HULL_SUP_CHART, Margin::of(sup), band) {
+    match decide("ssi_hull_sup_chart", Margin::of(sup), band) {
         Ok(Sign::Zero) => Ok((worst, sup)),
         Ok(Sign::Positive | Sign::Negative) => Err(SsiError::CertificateLimb {
             limb: SsiLimb::HullSup,
@@ -924,7 +913,7 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // lever arm is the caller's scalar, so the product — the number the
     // trilean classifies — is scalar-typed.
     let transversality = Margin::levered(T::from_f64(margin), arm);
-    match decide(SSI_TUBE_TRANSVERSALITY, transversality, band) {
+    match decide("ssi_tube_transversality", transversality, band) {
         Ok(Sign::Positive) => {}
         Ok(Sign::Zero | Sign::Negative) => {
             return Err(SsiError::TubeStraddles {

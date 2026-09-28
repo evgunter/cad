@@ -378,7 +378,7 @@ use core::fmt;
 
 use geom::{NetState, Surface};
 use geom_brep::{
-    CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
+    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
@@ -2129,9 +2129,9 @@ fn own_close(margin: &geom_core::MarginDiag, recourse: &'static str) -> &'static
     }
 }
 
-/// An edge's own faces too close to call: the edge-local lever, whose
-/// one home is the certifier's escalation table.
-const EDGE_CLOSE: &str = geom_brep::certify::EDGE_CLOSE_RECOURSE;
+/// An edge's own faces too close to call: the edge-local lever.
+const EDGE_CLOSE: &str =
+    "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
 
 /// A census subject in words, without its keys (they ride in `Debug`).
 fn subject_noun(subject: &CensusSubject) -> &'static str {
@@ -2276,8 +2276,8 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
+    use geom_brep::certify::{Reading, RefusedArm, recourse};
     const MISMATCH: &str = "its stored description does not match its geometry";
-    const CLOSE: &str = "its faces meet too nearly tangentially to decide at this tolerance";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
     let (why, recourse) = match e {
         CertifyError::ChartImageUnavailable { .. }
@@ -2307,23 +2307,79 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
         | CertifyError::PlaneNurbs(P::Unsupported { .. }) => (KIND, NOT_YET),
-        CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => (CLOSE, EDGE_CLOSE),
-        // The certifier's escalation reads its own routing table; a
-        // name the table does not hold says so rather than borrowing a
-        // lever.
-        CertifyError::Escalated { cause, .. } | CertifyError::PlaneNurbs(P::Escalated(cause)) => {
-            let recourse = match geom_brep::certify::escalation_recourse(cause.predicate) {
-                Some(lever) => own_close(&cause.margin, lever).into(),
-                None if cause.margin == geom_core::MarginDiag::Invalid => DEFECT.into(),
-                None => geom_core::MissingRecourse(cause.predicate)
-                    .to_string()
-                    .into(),
-            };
-            return (CLOSE, recourse);
+        // The certificate's definite and undecided refusals share its one
+        // ending (D4 ¶1 (iv)); the certifier's typed routing names it.
+        CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
+            let check = CertCheck::PlaneNurbsCertificate;
+            return (
+                certify_undecided(check),
+                recourse(check, RefusedArm::SignCertain, Reading::AtRest).into(),
+            );
+        }
+        // An undecided margin names its decision (`CertCheck`), and the
+        // certifier's routing gives the one ending that decision's refused
+        // arms share.
+        CertifyError::Escalated { check, cause, .. } => {
+            return (
+                certify_undecided(*check),
+                recourse(*check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
+            );
+        }
+        CertifyError::PlaneNurbs(P::TransversalityEscalated { cause, .. }) => {
+            let check = CertCheck::Transversality;
+            return (
+                certify_undecided(check),
+                recourse(check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
+            );
+        }
+        CertifyError::PlaneNurbs(P::Escalated(cause)) => {
+            let check = CertCheck::PlaneNurbsCertificate;
+            return (
+                certify_undecided(check),
+                recourse(check, RefusedArm::Undecided(cause), Reading::AtRest).into(),
+            );
         }
         CertifyError::Band(b) => (classify_band(b), TOLERANCE),
     };
     (why, recourse.into())
+}
+
+/// Why an edge's certification decision refused undecided, in the words
+/// of the decision it asks.
+fn certify_undecided(check: CertCheck) -> &'static str {
+    match check {
+        CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
+        CertCheck::ParamWinding => {
+            "whether its arc stays short of a full turn is too close to call at this tolerance"
+        }
+        CertCheck::Transversality => {
+            "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
+            "its faces curve apart too little to decide where it runs at this tolerance"
+        }
+        CertCheck::ChartImage => {
+            "where it sits on its face's parameter chart is too close to call at this tolerance"
+        }
+        CertCheck::EndpointStart
+        | CertCheck::EndpointEnd
+        | CertCheck::Surface1Residual
+        | CertCheck::Surface2Residual
+        | CertCheck::WitnessSurface1
+        | CertCheck::WitnessSurface2
+        | CertCheck::WitnessMidpoint
+        | CertCheck::TangentParallel
+        | CertCheck::TangentHull
+        | CertCheck::MappedSource
+        | CertCheck::SeamHalfplane
+        | CertCheck::SeamSide
+        | CertCheck::ChartResidual
+        | CertCheck::PlaneNurbsOnLocus
+        | CertCheck::PlaneNurbsHull
+        | CertCheck::PlaneNurbsCertificate => {
+            "whether it lies where its description says is too close to call at this tolerance"
+        }
+    }
 }
 
 fn classify_offset_fit(
@@ -12543,70 +12599,93 @@ mod offset_fit_door_rows {
     }
 }
 
-/// The checks window reads the certifier's escalation table, and renders
-/// each route whole: the edge-local lever for a name a check raises (in
-/// band, or an enclosure too wide to classify), the file's defect ending
-/// for a poisoned margin (the window reads a body at rest), and the named
-/// hole for a name no check raises. None offers a declaration: the faces
-/// are the edge's own.
+/// The checks window reads the certifier's typed routing (D4 ¶1): each
+/// undecided decision says, whole, why it refused in that decision's own
+/// words and ends in the one ending its refused arms share — its own
+/// lever and the tolerance below `m/K` for a sized decision, the file's
+/// defect ending for an exact residual or chart pick (the window reads a
+/// body at rest), and the last resort for an approximation. A definite
+/// contradiction at rest keeps the defect ending. None offers a
+/// declaration: certification takes none.
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod certify_escalation_rows {
     use geom_brep::{CertCheck, CertifyError};
-    use geom_core::{Band, Indeterminate, MarginDiag, Tol};
+    use geom_core::{Band, Indeterminate, MarginDiag};
 
     use super::ValidationError;
     use crate::entity::EdgeKey;
 
-    fn says(predicate: &'static str, margin: MarginDiag) -> String {
+    fn says(error: CertifyError) -> String {
         ValidationError::EdgeCertification {
             edge: EdgeKey::default(),
-            error: CertifyError::Escalated {
-                check: CertCheck::Transversality,
-                sample: 4,
-                cause: Indeterminate {
-                    margin,
-                    band: Band::linear(Tol::witness()).unwrap(),
-                    predicate: Some(predicate),
-                },
-            },
+            error,
         }
         .to_string()
     }
 
+    /// A fixed band, so the quoted `m/K` is the same at every eps row.
+    fn escalated(check: CertCheck, margin: MarginDiag) -> String {
+        says(CertifyError::Escalated {
+            check,
+            sample: 4,
+            cause: Indeterminate {
+                margin,
+                band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                predicate: Some("a_probe"),
+            },
+        })
+    }
+
     #[test]
-    fn a_certify_escalation_renders_its_routed_sentence() {
-        const LEAD: &str = "an edge's stored curve does not certify against its faces: its \
-                            faces meet too nearly tangentially to decide at this tolerance. ";
-        let wide = MarginDiag::Enclosure {
-            lo: -2.0e-9,
-            hi: 4.0e-9,
-        };
+    fn a_certify_refusal_renders_its_decisions_sentence() {
+        const LEAD: &str = "an edge's stored curve does not certify against its faces: ";
+        let in_band = MarginDiag::Value(5.0e-9);
         let rows = [
             (
-                says(
-                    geom_brep::dihedral::DIHEDRAL_WEDGE,
-                    MarginDiag::Value(5.0e-9),
+                escalated(CertCheck::Transversality, in_band),
+                "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
+                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(CertCheck::ParamSpan, in_band),
+                "its length is too close to zero to decide at this tolerance. Recourse: move \
+                 the geometry so this edge is not vanishingly short, or, if this length is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(CertCheck::EndpointStart, in_band),
+                "whether it lies where its description says is too close to call at this \
+                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                 file; report it",
+            ),
+            (
+                escalated(CertCheck::Surface1Residual, MarginDiag::Invalid),
+                "whether it lies where its description says is too close to call at this \
+                 tolerance. Recourse: as a last resort, loosen the tolerance; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                escalated(
+                    CertCheck::ChartImage,
+                    MarginDiag::Enclosure {
+                        lo: -2.0e-9,
+                        hi: 4.0e-9,
+                    },
                 ),
-                "Recourse: move the geometry so the faces meet at a clearer angle, or lower the \
-                 tolerance",
+                "where it sits on its face's parameter chart is too close to call at this \
+                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                 file; report it",
             ),
             (
-                says(geom_brep::edge_nurbs::PLANE_NURBS_TRANSVERSALITY, wide),
-                "Recourse: move the geometry so the faces meet at a clearer angle, or lower the \
-                 tolerance",
-            ),
-            (
-                says(geom_brep::dihedral::DIHEDRAL_WEDGE, MarginDiag::Invalid),
-                "There is no way through: this is a kernel defect or a damaged file; report it",
-            ),
-            (
-                says("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
-                "no recourse specific to predicate 'roster_unknown_probe' is recorded",
+                says(CertifyError::NotTransverse { sample: 4 }),
+                "its faces are tangent where its description says they cross. There is no way \
+                 through: this is a kernel defect or a damaged file; report it",
             ),
         ];
-        for (msg, ending) in rows {
-            assert_eq!(msg, format!("{LEAD}{ending}"));
+        for (msg, tail) in rows {
+            assert_eq!(msg, format!("{LEAD}{tail}"));
         }
     }
 }

@@ -1,0 +1,40 @@
+---
+id: certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending
+kind: issue
+title: geom-brep: IntervalNotForward and WindingExceeded end in no routed recourse, and the zero arms quote no margin, because their variants carry no verdict or value
+status: open
+opened: 2026-09-28
+---
+
+
+(ENCL implementer, from the D4 ¶1 reshape of
+`certify-escalation-renders-the-coincidence-menu-unlabelled`.)
+
+## What
+
+`geom_brep::certify::recourse` gives every refused arm of one
+`CertCheck` its decision's one ending (D4 ¶1 (i)/(iv)). Two gaps
+remain in `crates/geom-brep/src/certify.rs`:
+
+- **The span decisions' definite arms are not routed.**
+  `CertifyError::IntervalNotForward` answers both a Zero span (an edge
+  of zero length: band-decided, so the lever and the conditional
+  tolerance apply) and a Negative one (a reversed interval: sign
+  certain, the lever alone), and the variant does not say which.
+  `WindingExceeded` is `ParamWinding`'s sign-certain arm. Both keep
+  their developer prose and name no recourse, while
+  `Escalated { check: ParamSpan | ParamWinding }` ends in the span's
+  lever.
+- **A zero arm quotes no margin.** D4 ¶1 (i) phrases the tolerance
+  "below m" on a Zero-classified arm. `NotTransverse`,
+  `NotSecondOrderSeparated` and `PlaneNurbsRefusal::NotTransverse`
+  carry only a sample index, so `RefusedArm::Zero` renders the
+  conditional without a value.
+
+## Repair shape
+
+Give `IntervalNotForward` its verdict (or split it) and route both span
+arms through `recourse`; carry the classified margin on the three zero
+arms (`classify_dihedral`'s `Smooth`, `tangent_second_order`'s zero,
+the lane's per-sample transversality) and let `RefusedArm::Zero` take
+it.

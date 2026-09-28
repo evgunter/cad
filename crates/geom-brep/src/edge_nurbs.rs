@@ -78,17 +78,8 @@ use geom_core::spline::SplineError;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck, Reading, RefusedArm, recourse};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
-
-/// The predicate name of [`plane_nurbs_limbs`]'s per-sample
-/// transversality: one spelling for the decide site and for
-/// [`crate::certify::escalation_recourse`].
-pub const PLANE_NURBS_TRANSVERSALITY: &str = "plane_nurbs_transversality";
-
-/// The predicate name of [`plane_nurbs_limbs`]'s gate on the reported
-/// transversality.
-pub const PLANE_NURBS_TRANSVERSALITY_REPORTED: &str = "plane_nurbs_transversality_reported";
 
 /// What the plane × NURBS lane proved, in meters unless noted.
 #[derive(Clone, Copy, Debug)]
@@ -173,7 +164,16 @@ pub enum PlaneNurbsRefusal {
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
     },
-    /// A margin escalated inside the certificate.
+    /// The per-sample transversality margin escalated: the same
+    /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
+    TransversalityEscalated {
+        /// The interior sample index.
+        sample: u32,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// A margin escalated inside the rung-3 certificate, or the
+    /// reported transversality was poisoned.
     Escalated(Indeterminate),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
@@ -195,11 +195,24 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                 "the foot-point projection did not converge at schedule sample {sample} \
                  (last distance {last_distance:e} m)"
             ),
+            // The transversality decision's two refused arms end alike
+            // (D4 ¶1 (iv)).
             Self::NotTransverse { sample } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample} — the Intersection transversality precondition fails (D2); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 sample {sample}, where the edge's description says they cross. {}",
+                recourse(CertCheck::Transversality, RefusedArm::Zero, Reading::Build)
+            ),
+            Self::TransversalityEscalated { sample, cause } => write!(
+                f,
+                "whether the plane and the NURBS wall cross at interior sample {sample} is too \
+                 close to call: {}. {}",
+                cause.payload(),
+                recourse(
+                    CertCheck::Transversality,
+                    RefusedArm::Undecided(cause),
+                    Reading::Build
+                )
             ),
             Self::PcurveFit => write!(
                 f,
@@ -222,7 +235,16 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  locus; the certificate's proven clearance from zero is {certified_clearance:e} \
                  m, which is the bound it could prove and not the sliver's own extent"
             ),
-            Self::Escalated(diag) => write!(f, "a plane × NURBS limb margin escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "a plane × NURBS limb margin escalated: {}. {}",
+                diag.payload(),
+                recourse(
+                    CertCheck::PlaneNurbsCertificate,
+                    RefusedArm::Undecided(diag),
+                    Reading::Build
+                )
+            ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -339,12 +361,14 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
         let margin = geom_core::Margin::levered(sin_theta, extent);
-        match crate::dihedral::decide(PLANE_NURBS_TRANSVERSALITY, margin, band) {
+        match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
             Ok(geom_core::Sign::Positive) => {}
             Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
                 return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
             }
-            Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
         }
         // `Real::min` PROPAGATES poison (unlike `f64::min`, which
         // returns the non-NaN operand), so a poisoned sine cannot
@@ -360,7 +384,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // `Invalid` diagnostic, instead of riding out as a reported number
     // no caller can tell from a measurement.
     let min_sin =
-        geom_core::k_stats::gate_measured(PLANE_NURBS_TRANSVERSALITY_REPORTED, min_sin, band)
+        geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
             .map_err(PlaneNurbsRefusal::Escalated)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----

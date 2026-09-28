@@ -66,10 +66,12 @@ const KERNEL_KEYED: &[&str] = &[
     // the mapped edge as `{edge:?}`, not because these are kernel bugs;
     // filed on CHROME's slate:
     // work/chrome/transform-certify-refusal-names-the-edge-by-arena-key.md
-    "Transform/Certify/Escalated/wedge",
-    "Transform/Certify/Escalated/plane-nurbs-enclosure",
-    "Transform/Certify/Escalated/invalid",
-    "Transform/Certify/Escalated/unknown",
+    "Transform/Certify/Routed/transversality",
+    "Transform/Certify/Routed/not-transverse",
+    "Transform/Certify/Routed/span",
+    "Transform/Certify/Routed/invalid",
+    "Transform/Certify/Routed/endpoint",
+    "Transform/Certify/Routed/surface-residual",
     "Transform/NullScaffold",
     "Loft/Euler",
     "Loft/Pcurve",
@@ -950,62 +952,84 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
-    .chain(certify_escalation_routes())
+    .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
 }
 
-/// One `CertifyError::Escalated` sample per ending it routes to, with
-/// that whole ending: the edge-local lever for a name a check raises (in
-/// band, and an enclosure too wide to classify), the dead end on a
-/// poisoned margin, and the named hole for a name no check raises.
+/// One certification refusal per ending the certifier's typed routing
+/// gives (D4 ¶1), with that whole ending:
+/// - a sized decision's lever and the tolerance below `m/K`, on its
+///   in-band arm, and the same lever and conditional on its definite
+///   zero arm, which has no margin to quote;
+/// - the span's own lever;
+/// - a poisoned margin on a sized decision: the lever, and what it may
+///   mean;
+/// - an exact residual's kernel-defect ending;
+/// - an approximation's last resort.
 ///
 /// The band is fixed rather than the run's witness band, so the rendered
-/// band numbers the whole-text pin reads are the same at every eps row.
-fn certify_escalations() -> Vec<(&'static str, geom_brep::CertifyError, &'static str)> {
-    use geom_brep::dihedral::DIHEDRAL_WEDGE as WEDGE;
-    use geom_brep::edge_nurbs::PLANE_NURBS_TRANSVERSALITY as PLANE_NURBS;
+/// band numbers and the quoted `m/K` are the same at every eps row.
+fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static str)> {
+    use geom_brep::{CertCheck, CertifyError};
     use geom_core::{Band, Indeterminate, MarginDiag};
-    const EDGE: &str =
-        "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
     let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
-    let escalated = |predicate, margin| geom_brep::CertifyError::Escalated {
-        check: geom_brep::CertCheck::Transversality,
+    let escalated = |check, margin| CertifyError::Escalated {
+        check,
         sample: 4,
         cause: Indeterminate {
             margin,
             band,
-            predicate: Some(predicate),
+            predicate: Some("dihedral_wedge"),
         },
     };
-    let wide = MarginDiag::Enclosure {
-        lo: -2.0e-9,
-        hi: 4.0e-9,
-    };
+    let in_band = MarginDiag::Value(5.0e-9);
     vec![
-        ("wedge", escalated(WEDGE, MarginDiag::Value(5.0e-9)), EDGE),
-        ("plane-nurbs-enclosure", escalated(PLANE_NURBS, wide), EDGE),
         (
-            "invalid",
-            escalated(WEDGE, MarginDiag::Invalid),
-            "There is no way through: this is a kernel defect; report it",
+            "transversality",
+            escalated(CertCheck::Transversality, in_band),
+            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+             angle is intended, tighten the tolerance below 5e-10 m",
         ),
         (
-            "unknown",
-            escalated("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
-            "; no recourse specific to predicate 'roster_unknown_probe' is recorded",
+            "not-transverse",
+            CertifyError::NotTransverse { sample: 4 },
+            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+             angle is intended, tighten the tolerance",
+        ),
+        (
+            "span",
+            escalated(CertCheck::ParamSpan, in_band),
+            "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
+             length is intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "invalid",
+            escalated(CertCheck::Transversality, MarginDiag::Invalid),
+            "Recourse: move the geometry so the faces cross at a clearer angle; the margin was \
+             not a number, which may indicate a kernel bug worth reporting",
+        ),
+        (
+            "endpoint",
+            escalated(CertCheck::EndpointStart, in_band),
+            geom_core::KERNEL_DEFECT_ENDING,
+        ),
+        (
+            "surface-residual",
+            escalated(CertCheck::Surface1Residual, in_band),
+            geom_core::LAST_RESORT_RECOURSE,
         ),
     ]
 }
 
-/// [`certify_escalations`] as the feature tree meets them: a transform's
+/// [`certify_refusals`] as the feature tree meets them: a transform's
 /// re-certification of a mapped edge.
-fn certify_escalation_routes() -> Vec<(String, NodeErrorKind)> {
-    certify_escalations()
+fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
+    certify_refusals()
         .into_iter()
         .map(|(route, source, _)| {
             row(
-                &format!("Transform/Certify/Escalated/{route}"),
+                &format!("Transform/Certify/Routed/{route}"),
                 NodeErrorKind::Transform(topo::TransformError::Certify {
                     edge: topo::EdgeKey::default(),
                     source,
@@ -1015,40 +1039,33 @@ fn certify_escalation_routes() -> Vec<(String, NodeErrorKind)> {
         .collect()
 }
 
-/// A certification escalation ends in the one ending its predicate and
-/// margin route it to, whole: a named check's escalation carries one
-/// labelled repair and no coincidence menu (an edge's own two faces have
-/// nothing to declare); a poisoned margin carries the dead end; and a
-/// name no check raises carries no label and names the hole.
+/// A certification refusal ends in the one ending its decision and
+/// verdict route it to, whole, with one recourse marker and no
+/// declaration: certification takes none.
 #[test]
-fn every_certify_escalation_ends_in_its_routed_sentence() {
-    let rows = certify_escalation_routes();
-    let routed = certify_escalations();
+fn every_certify_refusal_ends_in_its_routed_sentence() {
+    let rows = certify_refusal_routes();
+    let routed = certify_refusals();
     assert_eq!(rows.len(), routed.len());
     for ((name, kind), (route, _, ending)) in rows.into_iter().zip(routed) {
         let text = as_the_viewer_shows_it(kind);
         assert!(text.ends_with(ending), "{name}: {text}");
-        if route == "wedge" {
+        if route == "transversality" {
             assert_eq!(
                 text,
                 "node 5 failed: the transform op refused: mapped edge EdgeKey(null) failed \
                  re-certification: the transversality margin at sample 4 escalated: predicate \
                  'dihedral_wedge' indeterminate: margin 5e-9 lies inside the ambiguity band \
-                 (1e-9, 1e-8). Recourse: move the geometry so the faces meet at a clearer \
-                 angle, or lower the tolerance"
+                 (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
+                 angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
             );
         }
-        let (markers, menu) = if route == "unknown" { (0, 1) } else { (1, 0) };
         assert_eq!(
             test_utils::refusal::recourse_markers(&text),
-            markers,
+            1,
             "{name}: {text}"
         );
-        assert_eq!(
-            text.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            menu,
-            "{name}: {text}"
-        );
+        assert!(!text.contains("declare"), "{name}: {text}");
     }
 }
 

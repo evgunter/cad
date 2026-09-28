@@ -1046,6 +1046,14 @@ pub const KERNEL_DEFECT_ENDING: &str = crate::kernel_defect_ending!();
 /// [`KERNEL_DEFECT_ENDING`], since no file stands between them.
 pub const KERNEL_OR_FILE_DEFECT_ENDING: &str = crate::kernel_or_file_defect_ending!();
 
+/// The recourse of last resort (D4 ¶1 (i)): where a refusal would
+/// otherwise name no recourse at all because the kernel approximated —
+/// a fitted carrier's residual, a certified bound — loosening the
+/// tolerance is the one lever left, and the refusal may be a kernel bug.
+/// No other refusal advises loosening.
+pub const LAST_RESORT_RECOURSE: &str = "Recourse: as a last resort, loosen the tolerance; this \
+                                        refusal may indicate a kernel bug worth reporting";
+
 /// [`KERNEL_DEFECT_ENDING`] as a literal, for `concat!` at a site
 /// whose prose is a `&'static str` (a constant cannot be spliced into
 /// one). The constant is defined through this macro, so the two are

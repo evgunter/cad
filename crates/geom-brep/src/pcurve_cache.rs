@@ -3241,11 +3241,6 @@ fn weight_ratio_factor<T: Real>(weights: &[f64]) -> T {
     }
 }
 
-/// The predicate name of `|S(P(t)) − C(t)|`: a stored cache's schedule
-/// and a chart description's certification meter the same statement
-/// under this one name.
-pub(crate) const PCURVE_MAP_RESIDUAL: &str = "pcurve_map_residual";
-
 /// Check 3 for either lane: `|S(P(tᵢ)) − C(tᵢ)|` at the shared
 /// schedule, in metres through the map.
 fn schedule_residuals<T: Decide>(
@@ -3263,7 +3258,7 @@ fn schedule_residuals<T: Decide>(
         let mapped = surface.eval(chart_point.x, chart_point.y);
         let on_carrier = carrier.eval(t);
         check_residual(
-            PCURVE_MAP_RESIDUAL,
+            "pcurve_map_residual",
             PcurveCheck::MapResidual,
             i,
             Margin::of(mapped.distance(on_carrier)),
@@ -4315,23 +4310,6 @@ fn run_iso_checks<T: Decide>(
     })
 }
 
-// The predicate names [`chart_pcurve`] escalates under, one spelling
-// for the decide site and for `crate::certify::escalation_recourse`,
-// which routes a certification that minted through here.
-pub(crate) const PCURVE_CHART_ORIENTATION: &str = "pcurve_chart_orientation";
-pub(crate) const PCURVE_CONE_CHART_AXIAL: &str = "pcurve_cone_chart_axial";
-pub(crate) const PCURVE_CONE_CHART_CENTERED: &str = "pcurve_cone_chart_centered";
-pub(crate) const PCURVE_CONE_CHART_NAPPE: &str = "pcurve_cone_chart_nappe";
-pub(crate) const PCURVE_SPHERE_CHART_AXIAL: &str = "pcurve_sphere_chart_axial";
-pub(crate) const PCURVE_SPHERE_CHART_CENTERED: &str = "pcurve_sphere_chart_centered";
-pub(crate) const PCURVE_SPHERE_CHART_MERIDIAN: &str = "pcurve_sphere_chart_meridian";
-pub(crate) const PCURVE_SPHERE_CHART_POLAR_RATE: &str = "pcurve_sphere_chart_polar_rate";
-pub(crate) const PCURVE_SPHERE_CHART_POLE_FRAME: &str = "pcurve_sphere_chart_pole_frame";
-pub(crate) const PCURVE_TORUS_CHART_AXIAL: &str = "pcurve_torus_chart_axial";
-pub(crate) const PCURVE_TORUS_CHART_CENTERED: &str = "pcurve_torus_chart_centered";
-pub(crate) const PCURVE_TORUS_CHART_MERIDIAN: &str = "pcurve_torus_chart_meridian";
-pub(crate) const PCURVE_TORUS_CHART_MERIDIONAL_RATE: &str = "pcurve_torus_chart_meridional_rate";
-
 /// Branch-stabilized azimuth (M5 S13, shared by every chart's
 /// derivation since M6-3): atan2's cut sits on the negative-x axis,
 /// and an interval y touching zero there (a seam meridian's angle-π
@@ -4451,7 +4429,7 @@ pub fn chart_pcurve<T: Decide>(
                     let alpha = stable_azimuth(a_r.dot(cv), a_r.dot(u_ref), band);
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
-                        PCURVE_CHART_ORIENTATION,
+                        "pcurve_chart_orientation",
                         Margin::over_lever(orient, radius),
                         band,
                     ) {
@@ -4515,12 +4493,14 @@ pub fn chart_pcurve<T: Decide>(
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let (h0, hs) = (w.dot(axis), dir.dot(axis));
                     let (r_ref, h_sign) =
-                        match decide(PCURVE_CONE_CHART_NAPPE, Margin::of(h0), band).map_err(esc)? {
+                        match decide("pcurve_cone_chart_nappe", Margin::of(h0), band)
+                            .map_err(esc)?
+                        {
                             Sign::Positive => (radial(w), T::one()),
                             Sign::Negative => (radial(w), T::zero() - T::one()),
                             Sign::Zero => {
                                 match geom_core::k_stats::decide_flagged(
-                                    PCURVE_CONE_CHART_NAPPE,
+                                    "pcurve_cone_chart_nappe",
                                     hs,
                                     band,
                                     "F13",
@@ -4552,7 +4532,7 @@ pub fn chart_pcurve<T: Decide>(
                     // zero — already metres) and centred on the axis.
                     let (aa, ba) = (form.a.dot(axis), form.b.dot(axis));
                     match decide(
-                        PCURVE_CONE_CHART_AXIAL,
+                        "pcurve_cone_chart_axial",
                         Margin::of(aa.abs() + ba.abs()),
                         band,
                     )
@@ -4565,7 +4545,7 @@ pub fn chart_pcurve<T: Decide>(
                     }
                     let radial = |v: Vec3<T>| v - axis * v.dot(axis);
                     let w_r = radial(center - apex);
-                    match decide(PCURVE_CONE_CHART_CENTERED, Margin::norm3(w_r), band)
+                    match decide("pcurve_cone_chart_centered", Margin::norm3(w_r), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
@@ -4581,14 +4561,15 @@ pub fn chart_pcurve<T: Decide>(
                     // as the ruling arm, decided on the height.
                     let h = (center - apex).dot(axis);
                     let v0 = h / c_ha;
-                    let n_sign =
-                        match decide(PCURVE_CONE_CHART_NAPPE, Margin::of(h), band).map_err(esc)? {
-                            Sign::Positive => T::one(),
-                            Sign::Negative => T::zero() - T::one(),
-                            // An apex-level "rim" is the apex point itself;
-                            // no circle lies there.
-                            Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
-                        };
+                    let n_sign = match decide("pcurve_cone_chart_nappe", Margin::of(h), band)
+                        .map_err(esc)?
+                    {
+                        Sign::Positive => T::one(),
+                        Sign::Negative => T::zero() - T::one(),
+                        // An apex-level "rim" is the apex point itself;
+                        // no circle lies there.
+                        Sign::Zero => return Err(PcurveCertifyError::UnsupportedCarrier),
+                    };
                     let a_dir = a_r * n_sign;
                     let alpha = stable_azimuth(a_dir.dot(cv), a_dir.dot(u_ref), band);
                     let orient = a_r.cross(radial(form.b)).dot(axis);
@@ -4598,7 +4579,7 @@ pub fn chart_pcurve<T: Decide>(
                     // offset is constant), so β needs no nappe sign.
                     let rho = a_r.norm();
                     let beta = match decide(
-                        PCURVE_CHART_ORIENTATION,
+                        "pcurve_chart_orientation",
                         Margin::over_lever(orient, rho),
                         band,
                     )
@@ -4684,7 +4665,7 @@ pub fn chart_pcurve<T: Decide>(
             // Which class: does the carrier plane contain the polar
             // axis' direction? (Metered in meters at the chart radius.)
             match decide(
-                PCURVE_SPHERE_CHART_AXIAL,
+                "pcurve_sphere_chart_axial",
                 Margin::of(aa.abs() + ba.abs()),
                 band,
             )
@@ -4694,7 +4675,7 @@ pub fn chart_pcurve<T: Decide>(
                     // POLAR-circle class: a,b ⊥ axis. On the sphere the
                     // center then sits on the axis (its radial part is
                     // zero) — checked, not assumed.
-                    match decide(PCURVE_SPHERE_CHART_CENTERED, Margin::norm3(w_r), band)
+                    match decide("pcurve_sphere_chart_centered", Margin::norm3(w_r), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
@@ -4705,7 +4686,7 @@ pub fn chart_pcurve<T: Decide>(
                     let alpha = stable_az(a_r.dot(cv), a_r.dot(u_ref));
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
-                        PCURVE_CHART_ORIENTATION,
+                        "pcurve_chart_orientation",
                         Margin::over_lever(orient, radius),
                         band,
                     )
@@ -4727,13 +4708,13 @@ pub fn chart_pcurve<T: Decide>(
                     // MERIDIAN class: the carrier plane must contain the
                     // axis (its own axis ⊥ polar) and be centered.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), radius);
-                    match decide(PCURVE_SPHERE_CHART_MERIDIAN, coax, band).map_err(esc)? {
+                    match decide("pcurve_sphere_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
                         }
                     }
-                    match decide(PCURVE_SPHERE_CHART_CENTERED, Margin::norm3(w), band)
+                    match decide("pcurve_sphere_chart_centered", Margin::norm3(w), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
@@ -4747,7 +4728,7 @@ pub fn chart_pcurve<T: Decide>(
                     // structurally nonzero.
                     let delta = aa.atan2(a_r.norm());
                     let use_a =
-                        match decide(PCURVE_SPHERE_CHART_POLE_FRAME, Margin::norm3(a_r), band)
+                        match decide("pcurve_sphere_chart_pole_frame", Margin::norm3(a_r), band)
                             .map_err(esc)?
                         {
                             Sign::Positive | Sign::Negative => true,
@@ -4769,7 +4750,7 @@ pub fn chart_pcurve<T: Decide>(
                         T::zero() - b_r.dot(d_hat) * aa / radius
                     };
                     let sigma = match decide(
-                        PCURVE_SPHERE_CHART_POLAR_RATE,
+                        "pcurve_sphere_chart_polar_rate",
                         Margin::of(sigma_margin),
                         band,
                     )
@@ -4821,7 +4802,7 @@ pub fn chart_pcurve<T: Decide>(
             // Which family: carrier plane ⊥ the axis? (Metres — the
             // axial parts of a and b are displacements.)
             match decide(
-                PCURVE_TORUS_CHART_AXIAL,
+                "pcurve_torus_chart_axial",
                 Margin::of(aa.abs() + ba.abs()),
                 band,
             )
@@ -4829,7 +4810,7 @@ pub fn chart_pcurve<T: Decide>(
             {
                 Sign::Zero => {
                     // PARALLEL: centred on the axis, checked.
-                    match decide(PCURVE_TORUS_CHART_CENTERED, Margin::norm3(w_r), band)
+                    match decide("pcurve_torus_chart_centered", Margin::norm3(w_r), band)
                         .map_err(esc)?
                     {
                         Sign::Zero => {}
@@ -4841,7 +4822,7 @@ pub fn chart_pcurve<T: Decide>(
                     let rho = a_r.norm();
                     let orient = a_r.cross(b_r).dot(axis);
                     let beta = match decide(
-                        PCURVE_CHART_ORIENTATION,
+                        "pcurve_chart_orientation",
                         Margin::over_lever(orient, rho),
                         band,
                     )
@@ -4870,7 +4851,7 @@ pub fn chart_pcurve<T: Decide>(
                     // certified by the residual schedule; the first is
                     // the class gate.
                     let coax = Margin::over_lever(form.a.cross(form.b).dot(axis), minor_radius);
-                    match decide(PCURVE_TORUS_CHART_MERIDIAN, coax, band).map_err(esc)? {
+                    match decide("pcurve_torus_chart_meridian", coax, band).map_err(esc)? {
                         Sign::Zero => {}
                         Sign::Positive | Sign::Negative => {
                             return Err(PcurveCertifyError::UnsupportedCarrier);
@@ -4890,7 +4871,7 @@ pub fn chart_pcurve<T: Decide>(
                     let (sd, cd) = delta.sin_cos();
                     let sigma_margin = ba * cd - b_r.dot(rad) * sd;
                     let sigma = match decide(
-                        PCURVE_TORUS_CHART_MERIDIONAL_RATE,
+                        "pcurve_torus_chart_meridional_rate",
                         Margin::of(sigma_margin),
                         band,
                     )

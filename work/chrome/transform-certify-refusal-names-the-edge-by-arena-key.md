@@ -17,12 +17,12 @@ the `Self::Certify { edge, source }` arm) writes "mapped edge
 fault line shows `EdgeKey(3v1)`, a key the person holding the mouse
 cannot find. `editor-core/tests/refusal_concision_chains.rs` admits it
 by listing every row on that route in `KERNEL_KEYED`: `Transform/Certify`
-and the four `Transform/Certify/Escalated/*` rows. A certification
+and the six `Transform/Certify/Routed/*` rows. A certification
 refusal at a transform is not a kernel bug the key serves: the
 escalated arms end in a user lever.
 
 ## Repair shape
 
 Name the edge in words ("an edge the map moved") and keep the key in
-`Debug`; then drop the five rows from `KERNEL_KEYED`, which is the check
+`Debug`; then drop the seven rows from `KERNEL_KEYED`, which is the check
 that this is done.

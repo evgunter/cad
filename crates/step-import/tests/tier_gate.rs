@@ -343,7 +343,7 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
 /// fails these cells.
-const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
+const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -385,8 +385,8 @@ const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample
      indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which.
-const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
-     precondition fails";
+const TANGENT_PLANES_COINCIDE: &str =
+    "the faces meet tangentially at sample 1, where the edge's description says they cross";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \

@@ -154,17 +154,6 @@ pub(crate) fn decide_nonzero<T: Decide>(
     geom_core::k_stats::decide_nonzero(name, margin, band)
 }
 
-/// The predicate name of [`classify_dihedral`]'s collapsed-arm gate:
-/// one spelling for the decide site and for
-/// [`crate::certify::escalation_recourse`].
-pub const DIHEDRAL_ARM: &str = "dihedral_arm";
-
-/// The predicate name of [`classify_dihedral`]'s wedge margin.
-pub const DIHEDRAL_WEDGE: &str = "dihedral_wedge";
-
-/// The predicate name of [`tangent_second_order`]'s sagitta margin.
-pub const TANGENT_SECOND_ORDER: &str = "tangent_second_order";
-
 /// **`dihedral_wedge`** — classifies the wedge between `s1` and `s2` at
 /// the on-locus point `p` (module docs). Margin: `sin θ · r` in meters,
 /// θ the tangent-plane angle from implicit gradients, `r` the folded
@@ -201,9 +190,9 @@ pub fn classify_dihedral<T: Decide>(
     // true magnitude, unreachable Negative) arm escalates as Invalid —
     // "the question was never validly posed here" — and an in-band or
     // poisoned arm escalates through `decide` itself via `?`.
-    decide_positive(DIHEDRAL_ARM, Margin::of(arm), band)?;
+    decide_positive("dihedral_arm", Margin::of(arm), band)?;
     let margin = Margin::levered(sin_theta, arm);
-    Ok(match decide(DIHEDRAL_WEDGE, margin, band)? {
+    Ok(match decide("dihedral_wedge", margin, band)? {
         Sign::Positive => DihedralClass::Transverse,
         Sign::Zero => DihedralClass::Smooth,
         // Unreachable for a true magnitude (sin θ ≥ 0, arm ≥ 0): a
@@ -296,7 +285,7 @@ pub fn tangent_second_order<T: Decide>(
     let jet = crate::tangent::tangent_jet(s1, s2, p, tangent);
     let arm = folded_lever_arm(s1, s2, p, extent);
     let verdict = decide(
-        TANGENT_SECOND_ORDER,
+        "tangent_second_order",
         Margin::sagitta(jet.kappa_rel.abs(), arm),
         band,
     );
