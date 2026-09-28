@@ -62,7 +62,7 @@ use crate::drafts::{Drafts, ProfileDoors};
 use crate::evalseam::FitService;
 #[cfg(not(target_family = "wasm"))]
 use crate::evalseam::ThreadEvaluator;
-use crate::frame::{self, LineVerdict};
+use crate::frame::{self, RankedVerdict};
 use crate::gpu::{DEPTH_BITS, ViewportRenderer};
 use crate::idpass::IdQueryLog;
 use crate::input::InputMap;
@@ -1191,7 +1191,7 @@ impl ViewerApp {
                 None => self.drafts.accepted(&accepted_op, &minted),
             }
         }
-        let update = frame::frame_status(&notices, &performed, refusal.as_ref());
+        let verdict = frame::frame_status(&notices, &performed, refusal.as_ref());
         // The refuse-then-offer pair for a parse refusal: hold the
         // refused text in the field it was typed into so acting on the
         // refusal does not cost it, and — for an unknown parameter
@@ -1219,7 +1219,7 @@ impl ViewerApp {
             self.drafts.new_param_dimension = None;
             self.drafts.new_param_offer = Some(name.clone());
         }
-        self.apply_status(update);
+        self.apply_status(verdict);
     }
 
     /// Write everything the viewer remembers — the theme, the key
@@ -1351,17 +1351,17 @@ impl ViewerApp {
     /// the ranking has ALREADY WEIGHED: `perform_batch` hands
     /// [`crate::frame::frame_status`]'s answer here rather than assigning the
     /// field. Its one live caller, and deliberately so — a `Show` that
-    /// has been through the ranking must reach the field, and handing
-    /// it to [`frame::deliver`] instead would loop it back onto
-    /// `notices` to be ranked a second time. The type says so: it takes
-    /// a [`LineVerdict`], which only the ranking answers in, and a
-    /// policy's `frame::StatusUpdate` does not build here.
+    /// has been through the ranking must reach the field and must not
+    /// be ranked a second time. The types hold both halves:
+    /// [`frame::deliver`], which would push it back onto `notices`,
+    /// does not take a [`RankedVerdict`], and this does not take a
+    /// policy's `frame::StatusUpdate`.
     ///
     /// This is the `&mut self` shorthand for [`crate::frame::apply`],
     /// nothing more. [`crate::pane::viewport`]'s policies reach the
     /// field through [`frame::deliver`], with the `&mut
     /// Option<frame::Message>` it lends them.
-    fn apply_status(&mut self, verdict: LineVerdict) {
+    fn apply_status(&mut self, verdict: RankedVerdict) {
         frame::apply(&mut self.status, verdict);
     }
 
@@ -2054,10 +2054,10 @@ pub(crate) struct ViewerBehavior<'a> {
     pub(crate) notices: &'a mut Vec<frame::Message>,
     /// The line itself, for the one thing a notice cannot do: RETIRE a
     /// sentence. [`crate::frame::cursor_status`] and a clean camera fold expire
-    /// what they last said and add nothing, so both reach the field
-    /// directly — through [`frame::deliver`], the one door a policy's
-    /// verdict fits, which routes a refused fold to `notices` above
-    /// and each retirement here ([`crate::pane::viewport`]: `land`, and
+    /// what they last said and add nothing, so neither retirement is
+    /// ranked: [`frame::deliver`], the one door a policy's verdict
+    /// fits, writes each retirement here and sends a refused fold's
+    /// news to `notices` above ([`crate::pane::viewport`]: `land`, and
     /// the id pass).
     pub(crate) status: &'a mut Option<frame::Message>,
     pub(crate) id_answer: &'a Arc<AtomicU64>,

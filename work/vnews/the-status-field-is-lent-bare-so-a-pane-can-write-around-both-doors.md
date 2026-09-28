@@ -4,7 +4,7 @@ kind: issue
 title: ViewerBehavior lends the panes the status line as a bare Option<Message>, so a pane can still write around both frame doors
 status: open
 opened: 2026-09-28
-priority: P1
+priority: P3
 cost: M
 refs: [ranked-and-unranked-verdicts-are-one-type]
 design: true
@@ -16,7 +16,7 @@ blind spot of its own fix.
 ## What is left after the two verdicts became two types
 
 `frame::deliver` takes only a policy's `StatusUpdate` and
-`frame::apply` only the ranking's `LineVerdict`, so a policy's verdict
+`frame::apply` only the ranking's `RankedVerdict`, so a policy's verdict
 can no longer reach the field through the wrong door: that is a type
 error now (the `compile_fail` doctest on `frame::deliver`). What the
 types do NOT close is the field itself.
@@ -28,8 +28,8 @@ Option<frame::Message>` (`crates/viewer/src/app.rs`, the
 still
 
 - assign it: `*status = Some(message)`, or
-- build its own `frame::LineVerdict::Show(message)` and `apply` it —
-  `LineVerdict`'s variants are public, so "only `frame_status`
+- build its own `frame::RankedVerdict::Show(message)` and `apply` it —
+  `RankedVerdict`'s variants are public, so "only `frame_status`
   answers in it" is prose on the type,
 
 and either puts a sentence on the line the ranking never saw.
@@ -47,7 +47,7 @@ missing guarantee, not a live defect.
 A `frame::StatusLine` newtype over a private `Option<Message>`, whose
 only mutators are `deliver` and `apply` (plus a read for the toolbar),
 would make both spellings above fail to build, and would let
-`LineVerdict` be made only inside `frame`. It touches `ViewerApp`'s
+`RankedVerdict` be made only inside `frame`. It touches `ViewerApp`'s
 field, `ViewerBehavior`, the toolbar read, the startup initializer
 (the one writer that assigns) and every test that seeds a line. The
 startup exception therefore has to be answered first or alongside, and

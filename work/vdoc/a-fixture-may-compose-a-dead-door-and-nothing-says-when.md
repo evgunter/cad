@@ -80,7 +80,7 @@ that one is the cheaper edit.
 ## Evidence 2026-09-28 (`vnews/a-ranked-verdict-is-its-own-type`): no instance is left
 
 `work/vnews/ranked-and-unranked-verdicts-are-one-type` landed the way
-this row expected: `frame::apply` takes the ranking's `LineVerdict`,
+this row expected: `frame::apply` takes the ranking's `RankedVerdict`,
 and a policy's `StatusUpdate` goes only through `frame::deliver`. Both
 dead compositions, `apply(status, fold_status(refused))`, no longer
 compile, and both rows that held them were rewritten:

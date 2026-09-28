@@ -182,7 +182,7 @@ Citations re-derived against main after #3235 before building. The
 table in the adjudication had rotted again, but every claim held.
 
 **The fix.** `frame::frame_status` answers a new enum,
-`frame::LineVerdict { Keep, Clear, Show(Message) }`, and
+`frame::RankedVerdict { Keep, Clear, Show(Message) }`, and
 `frame::apply` takes that type and nothing else. `frame::StatusUpdate`
 is now only a policy's verdict, `{ Keep, Expire(Subject), Show(Message) }`,
 and `frame::deliver` is the only door that takes it.
@@ -200,21 +200,21 @@ holds that fact.
    `Message` cannot carry its answer. The two vocabularies also differ
    in both directions, and each type states that by what it lacks:
    `Clear` belongs only to the ranking, `Expire` only to a policy.
-2. *`apply`'s public surface:* it stays `pub` and takes `LineVerdict`.
+2. *`apply`'s public surface:* it stays `pub` and takes `RankedVerdict`.
    `app::ViewerApp::apply_status` (production) and two test sites need
    it, so it cannot be made private. The cursor path, which was the
    site this row was about, no longer reaches it.
 3. *Does `deliver`'s `Clear` arm survive:* no. The variant is gone
    from `StatusUpdate`. Its one construction was `batch_status`'s
    `(true, None)` arm, and that is the ranking's vocabulary, so it
-   moved to `LineVerdict`. `deliver`'s header argument (no wildcard)
+   moved to `RankedVerdict`. `deliver`'s header argument (no wildcard)
    still holds for the arms that remain.
 
 **Something the row did not name: `batch_status` is now private.** It
 was `pub` and returned the same type as `frame_status`. On either type
 it would have been a wrong door that compiles. As a `StatusUpdate` it
 would need an unreachable `Expire` arm in `frame_status`. As a public
-`LineVerdict`, `apply(status, batch_status(ops, refusal))` skips every
+`RankedVerdict`, `apply(status, batch_status(ops, refusal))` skips every
 notice the frame produced, which is this row's defect one level down.
 Its only production caller was `frame_status`. The integration rows
 that called it now call `frame_status(&[], ops, refusal)`, which
@@ -241,9 +241,28 @@ the renamed row was fixed in place.
 `work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors`.
 The types close the wrong-door mistake but not the field.
 `ViewerBehavior` still lends the panes a bare `Option<Message>`, and
-`LineVerdict`'s variants are public. So a pane that assigns the field,
-or builds its own `LineVerdict::Show` and hands it to `apply`, still
-bypasses the ranking. No production site does either today.
+`RankedVerdict`'s variants are public. So a pane that assigns the field,
+or builds its own `RankedVerdict::Show` and hands it to `apply`, still
+bypasses the ranking. No production site does either today, so that
+row is P3: a missing guarantee with no live site.
+
+**Why the two verdicts stay two types (for the next sweep).**
+`StatusUpdate { Keep, Expire, Show }` and
+`RankedVerdict { Keep, Clear, Show }` are two three-state enums one
+hop apart, and they share `Keep` and `Show`. They stay separate
+because the shared `Show` means opposite things. In a `StatusUpdate`
+it is a candidate that must be ranked; in a `RankedVerdict` it is the
+winner, which must not be ranked again. The type is what decides which
+door a verdict takes. Merging the two enums, or giving them a shared
+core, would put both meanings back behind one spelling, which is the
+defect this row closed. `RankedVerdict`'s own doc states the same
+argument.
+
+**What the cursor path gains, stated exactly.** `cursor_status` has
+never had a `Show` arm, so moving the id pass to `deliver` changes
+nothing a reader sees today. What it changes is what a future `Show`
+arm would do there: it joins the notices, and the site is not left
+writing a sentence the ranking never saw.
 
 **Where I disagree with the row.** The row says *"one door suffices
 for policies, and it is `deliver`"*. That is true. Its framing of

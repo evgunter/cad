@@ -30,7 +30,7 @@ use pncad::document::{
 use pncad::geom_core::Tol;
 use pncad::prelude::{EntityKind, ProfileEdgeRef, RoleSeg, StableName};
 use pncad::select::{PieceRole, StepId};
-use viewer::frame::{self, LineVerdict};
+use viewer::frame::{self, RankedVerdict};
 use viewer::session::{DocSession, OpOutcome, SessionOp};
 
 /// The face name the extrude `node` mints for its lateral wall at
@@ -119,7 +119,7 @@ fn line_after(outcome: &OpOutcome, op: SessionOp) -> String {
     assert!(outcome.refusal.is_none(), "{:?}", outcome.refusal);
     let notices: Vec<frame::Message> = frame::outcome_notices(outcome).collect();
     match frame::frame_status(&notices, &[op], None) {
-        LineVerdict::Show(line) => line.text().to_owned(),
+        RankedVerdict::Show(line) => line.text().to_owned(),
         other => panic!("an accepted edit with maintenance shows its rows, got {other:?}"),
     }
 }
@@ -213,7 +213,7 @@ fn a_strand_on_a_declaration_rides_beside_a_refusal() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) =
+    let RankedVerdict::Show(line) =
         frame::frame_status(&notices, &[delete, SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
@@ -264,7 +264,8 @@ fn every_maintenance_row_rides_beside_a_refusal() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) = frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    let RankedVerdict::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -431,7 +432,7 @@ fn assert_quiet(outcome: &OpOutcome, op: SessionOp) {
             &[op],
             None
         ),
-        LineVerdict::Clear,
+        RankedVerdict::Clear,
         "an accepted edit with nothing to report clears the line"
     );
 }
@@ -572,7 +573,7 @@ fn an_edit_that_renumbers_nothing_leaves_the_line_to_its_verdict() {
             &[op],
             None
         ),
-        LineVerdict::Clear,
+        RankedVerdict::Clear,
         "an accepted edit with nothing to report clears the line"
     );
 }

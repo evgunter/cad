@@ -15,9 +15,9 @@
 //!
 //! What is here is all of that shape. **What the chrome has to say and
 //! which of its two channels says it**: the [`Subject`] / [`Message`] /
-//! [`StatusUpdate`] / [`LineVerdict`] / [`Badge`] vocabulary, the doors
+//! [`StatusUpdate`] / [`RankedVerdict`] / [`Badge`] vocabulary, the doors
 //! that build one, the two that spend one — [`deliver`] for a policy's
-//! [`StatusUpdate`], [`apply`] for the ranking's [`LineVerdict`], and
+//! [`StatusUpdate`], [`apply`] for the ranking's [`RankedVerdict`], and
 //! the types decide which, not the caller — and [`frame_status`]'s
 //! ranking over a frame's news. **The toolbar
 //! badge for the landed product** ([`product_badge`]) and the rest of
@@ -101,7 +101,7 @@
 //! to. What differs is the ENFORCEMENT. A message is STORED as a
 //! message, so retiring it is the chrome's own bookkeeping: [`deliver`]
 //! matches the held message's subject against a
-//! [`StatusUpdate::Expire`] and drops it, and [`LineVerdict::Clear`]
+//! [`StatusUpdate::Expire`] and drops it, and [`RankedVerdict::Clear`]
 //! sweeps the line whole. **No such machinery touches a badge** — its
 //! subject names the event that changes the state it reads, and the
 //! badge ends because the read does.
@@ -133,7 +133,7 @@
 //! event about its subject: a camera verdict goes on the next camera
 //! event, what the cursor said on the next cursor move, and what the
 //! document said on the next act the document accepts. That last is
-//! [`LineVerdict::Clear`], which sweeps the whole line because an
+//! [`RankedVerdict::Clear`], which sweeps the whole line because an
 //! accepted act makes every standing complaint stale; the other two
 //! are [`StatusUpdate::Expire`], which retires one subject and leaves
 //! the rest alone. Before this rule the only sweeper was `Clear`, so
@@ -146,17 +146,18 @@
 //! writing to the frame's notices — `ViewerApp`'s `notices`, which
 //! `ViewerBehavior` lends the panes.
 //!
-//! **Nothing enforces the "but one".** `ViewerBehavior` lends the panes
-//! the field itself too (its `status`, for the retirements below), and
-//! a pane that assigned it, or handed [`apply`] a [`LineVerdict::Show`]
-//! it built itself, would put a sentence on the line the ranking never
-//! saw, with nothing going red. What the types DO close is the
-//! quieter spelling of that mistake: a policy answers in
-//! [`StatusUpdate`] and [`apply`] does not take one, so a policy's
-//! `Show` cannot reach the field through the door a retirement goes
-//! by — the choice between the two doors is the compiler's, not the
-//! call site's. So this is the tree as read, not a guarantee. It gives no
-//! number: the writers are a grep rather than a type, and a row that
+//! **Nothing enforces the "but one".** The types close one route
+//! around the ranking: a policy answers in [`StatusUpdate`], [`deliver`]
+//! is the only door that takes one and sends its `Show` to the notices,
+//! and [`apply`] takes only a [`RankedVerdict`] — so a policy's verdict
+//! handed to the field-writing door does not build. They do not close
+//! the field. `ViewerBehavior` lends the panes the field itself (its
+//! `status`, which [`deliver`] needs for the retirements below), and
+//! [`RankedVerdict`]'s variants are public, so a pane that assigned the
+//! field, or handed [`apply`] a [`RankedVerdict::Show`] it built
+//! itself, would put a sentence on the line the ranking never saw,
+//! with nothing going red. So this is the tree as read, not a
+//! guarantee. It gives no number: the writers are a grep rather than a type, and a row that
 //! counted them — the way `frame_policy.rs`'s
 //! `the_readme_counts_its_two_populations_correctly` counts
 //! `ViewerApp::store`'s reads — would go red at every new writer and
@@ -176,7 +177,7 @@
 //! and should it grow a `Show`, that `Show` joins the notices without
 //! its call site changing.
 //! [`apply`] is the other door and takes the other type: the
-//! ranking's own answer, a [`LineVerdict`], which has already been
+//! ranking's own answer, a [`RankedVerdict`], which has already been
 //! weighed against everything the frame said and must not be weighed
 //! again.
 //!
@@ -214,11 +215,11 @@
 //! Both are values here rather than conditions at a call site.
 //! [`fold_status`] never CLEARS for a camera fold:
 //! clearing is the acting batch's verdict alone ([`batch_status`]'s
-//! [`LineVerdict::Clear`], which a policy's [`StatusUpdate`] has no
-//! spelling for), because an action the document accepted is the one event that makes
-//! a standing complaint stale, and a fold that cleared would be
-//! deciding the fate of messages written by everyone else in the same
-//! frame. And the gather's verdict badges rather than writes, because
+//! [`RankedVerdict::Clear`], which a policy's [`StatusUpdate`] has no
+//! spelling for), because an action the document accepted is the one
+//! event that makes a standing complaint stale, and a fold that
+//! cleared would be deciding the fate of messages written by everyone
+//! else in the same frame. And the gather's verdict badges rather than writes, because
 //! a fault about the document on screen outlives every frame the
 //! camera moves in.
 
@@ -294,13 +295,13 @@ pub enum Subject {
     Cursor,
     /// **The document on screen and the acts aimed at it** — retired
     /// by the next batch holding an operation [`acts`] counts: swept by
-    /// [`LineVerdict::Clear`] when that batch refused nothing, and
+    /// [`RankedVerdict::Clear`] when that batch refused nothing, and
     /// replaced by the refusal when it did.
     ///
     /// **No [`StatusUpdate::Expire`] issuer** — see the note below,
     /// which this shares with [`Self::Display`] and
     /// [`Self::Preferences`]. What sweeps it today is
-    /// [`LineVerdict::Clear`], and `Clear` is not this subject's
+    /// [`RankedVerdict::Clear`], and `Clear` is not this subject's
     /// event in any sense a type can check: it sweeps the whole line,
     /// a `Camera` message as readily as this one, because an act the
     /// document accepted makes every standing complaint stale
@@ -346,7 +347,7 @@ pub enum Subject {
 /// event and a row can see the difference. [`Subject::Document`],
 /// [`Subject::Display`] and [`Subject::Preferences`] have none, so
 /// nothing yet distinguishes them: each is swept by
-/// [`LineVerdict::Clear`], which is subject-blind, and by nothing
+/// [`RankedVerdict::Clear`], which is subject-blind, and by nothing
 /// else.
 ///
 /// **What each of those three states is therefore a claim about its
@@ -364,7 +365,7 @@ pub enum Subject {
 /// subject is either offered at a seat of this list or named there as
 /// deliberately absent with its reason. A sixth subject WITH an issuer
 /// would otherwise miss the list with no row going red, and its
-/// messages would then be swept only by [`LineVerdict::Clear`],
+/// messages would then be swept only by [`RankedVerdict::Clear`],
 /// silently. The
 /// suite's own row over this list holds a different direction — that
 /// the two named here are the two the policies it calls actually
@@ -377,15 +378,15 @@ partial_mirror! {
     absent [
         Document => "its event is the next act the document ACCEPTS, \
                      which nothing marks yet; what sweeps it today is \
-                     the subject-blind `LineVerdict::Clear`",
+                     the subject-blind `RankedVerdict::Clear`",
         Display => "its event is the next rebuild of the thing the \
                     message is about, which nothing marks yet; the \
                     held facts about the picture badge instead, and \
                     the news that does wear this subject is swept only \
-                    by `LineVerdict::Clear`",
+                    by `RankedVerdict::Clear`",
         Preferences => "its event is the next write of the preferences \
                         file, which nothing marks yet; swept only by \
-                        `LineVerdict::Clear`, for `Display`'s reason",
+                        `RankedVerdict::Clear`, for `Display`'s reason",
     ],
 }
 
@@ -572,7 +573,7 @@ impl core::fmt::Display for Message {
 /// line's field is never written from a `StatusUpdate` directly: a
 /// [`Self::Show`] is one candidate sentence among the frame's, and
 /// only [`frame_status`]'s ranking decides which candidates the line
-/// says. What the ranking answers is the other type, [`LineVerdict`],
+/// says. What the ranking answers is the other type, [`RankedVerdict`],
 /// and that is the one [`apply`] takes.
 ///
 /// **There is no `Clear` here, and that is a rule rather than a gap.**
@@ -592,7 +593,7 @@ pub enum StatusUpdate {
     /// else is untouched.
     ///
     /// This is the whole difference between [`Self::Keep`] and a
-    /// [`LineVerdict::Clear`] that would be far too broad: a clean
+    /// [`RankedVerdict::Clear`] that would be far too broad: a clean
     /// camera fold must retire the camera refusal it wrote a moment
     /// ago without deciding the fate of sentences written by writers
     /// it knows nothing about ([`fold_status`]).
@@ -604,8 +605,10 @@ pub enum StatusUpdate {
 
 /// **The ranking's answer: what the line says after a whole frame.**
 ///
-/// [`frame_status`] is the only function that answers in it, and
-/// [`apply`] is the only door that takes one. It is a separate type
+/// [`frame_status`] is the only public function that answers in it,
+/// and [`apply`] is the only door that takes one. The variants are
+/// public, so a hand-built `Show` still reaches [`apply`]; what the
+/// type refuses is a policy's [`StatusUpdate`]. It is a separate type
 /// from [`StatusUpdate`] because a `Show` means two different things
 /// in the two: a policy's `Show` is one candidate that must be ranked,
 /// and this `Show` is the WINNER, already weighed against everything
@@ -620,8 +623,15 @@ pub enum StatusUpdate {
 /// not here: a retirement is one writer's statement about its own
 /// subject, and it reaches the field through [`deliver`] on the frame
 /// its event happens, so the ranking never answers one.
+///
+/// **Why two three-state enums and not one**, although they share
+/// `Keep` and `Show`: the shared `Show` means opposite things — a
+/// candidate to be weighed, and the winner that must not be — and the
+/// door a verdict takes is decided by which of the two it is. One
+/// enum, or one with a shared core, puts both meanings back behind one
+/// spelling, which is the defect this split exists to remove.
 #[derive(Clone, Debug, PartialEq, Eq)]
-pub enum LineVerdict {
+pub enum RankedVerdict {
     /// Leave the line as it is: the frame had no news and did not act.
     Keep,
     /// Clear it: the user acted, the document accepted it, and the
@@ -709,22 +719,22 @@ pub fn deliver(notices: &mut Vec<Message>, status: &mut Option<Message>, update:
 }
 
 /// **Apply the ranking's verdict to the status line**: the one place a
-/// [`LineVerdict`] becomes the field it describes.
+/// [`RankedVerdict`] becomes the field it describes.
 ///
-/// It takes a [`LineVerdict`] and nothing else, so what reaches the
+/// It takes a [`RankedVerdict`] and nothing else, so what reaches the
 /// field through here is only ever what [`frame_status`] decided —
 /// a policy's [`StatusUpdate`] does not build here, and goes through
-/// [`deliver`]. [`LineVerdict::Keep`] is spelled as a decision rather
+/// [`deliver`]. [`RankedVerdict::Keep`] is spelled as a decision rather
 /// than as the absence of one: a writer that assigns the
 /// `Option<Message>` itself has no way to say "I have nothing to add",
 /// and the natural-looking spelling of it — assigning what it would
 /// have shown — writes `None` over whatever another writer in the same
 /// frame put there.
-pub fn apply(status: &mut Option<Message>, verdict: LineVerdict) {
+pub fn apply(status: &mut Option<Message>, verdict: RankedVerdict) {
     match verdict {
-        LineVerdict::Keep => {}
-        LineVerdict::Clear => *status = None,
-        LineVerdict::Show(message) => *status = Some(message),
+        RankedVerdict::Keep => {}
+        RankedVerdict::Clear => *status = None,
+        RankedVerdict::Show(message) => *status = Some(message),
     }
 }
 
@@ -750,18 +760,18 @@ pub fn acts(op: &SessionOp) -> bool {
 /// answer.
 ///
 /// **Private, because it is an input to the ranking and not an answer
-/// of it.** It answers in [`LineVerdict`] — its three arms are the
+/// of it.** It answers in [`RankedVerdict`] — its three arms are the
 /// ranking's own vocabulary, and its answer IS the ranking's when the
 /// frame has no news — but a caller holding news that applied this
 /// instead of [`frame_status`] would skip every notice the frame
 /// produced. Outside this module the batch's verdict is spelled
 /// `frame_status(&[], ops, refusal)`, which is the same answer and
 /// cannot be asked of a frame with news without weighing it.
-fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> LineVerdict {
+fn batch_status(ops: &[SessionOp], refusal: Option<&Refusal>) -> RankedVerdict {
     match (ops.iter().any(acts), refusal) {
-        (_, Some(refusal)) => LineVerdict::Show(refusal_message(refusal)),
-        (true, None) => LineVerdict::Clear,
-        (false, None) => LineVerdict::Keep,
+        (_, Some(refusal)) => RankedVerdict::Show(refusal_message(refusal)),
+        (true, None) => RankedVerdict::Clear,
+        (false, None) => RankedVerdict::Keep,
     }
 }
 
@@ -797,7 +807,7 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 /// from the SAME ops, and they disagree by construction. A pick the
 /// blend tool declines is still a `Select` that the session performs
 /// cleanly — so [`batch_status`] sees an acting op and no refusal,
-/// answers [`LineVerdict::Clear`], and wipes the notice that was
+/// answers [`RankedVerdict::Clear`], and wipes the notice that was
 /// written a few lines earlier. The user's mis-aimed click moved the
 /// selection to another body and the sentence explaining why it did
 /// not join the blend was on screen for zero frames.
@@ -821,8 +831,8 @@ pub fn refusal_message(refusal: &Refusal) -> Message {
 ///    which is the same keep-last defect [`batch_status`] exists to
 ///    stop for refusals. Not the first one either — a frame CAN drop
 ///    two picks (a seated tool has two seats), and both drops are news.
-/// 3. Else the batch's own verdict — [`LineVerdict::Clear`] for a
-///    clean acting batch, [`LineVerdict::Keep`] otherwise.
+/// 3. Else the batch's own verdict — [`RankedVerdict::Clear`] for a
+///    clean acting batch, [`RankedVerdict::Keep`] otherwise.
 ///
 /// Joining is a SEPARATOR, not a composed sentence: each notice is
 /// still its own typed value's own rendering, which is what the error
@@ -893,9 +903,9 @@ pub fn frame_status(
     notices: &[Message],
     ops: &[SessionOp],
     refusal: Option<&Refusal>,
-) -> LineVerdict {
+) -> RankedVerdict {
     match batch_status(ops, refusal) {
-        LineVerdict::Show(refused) => {
+        RankedVerdict::Show(refused) => {
             let line: Vec<Message> = core::iter::once(refused)
                 .chain(
                     notices
@@ -904,10 +914,10 @@ pub fn frame_status(
                         .cloned(),
                 )
                 .collect();
-            LineVerdict::Show(Message::joined(joined_subject(&line), &line))
+            RankedVerdict::Show(Message::joined(joined_subject(&line), &line))
         }
         verdict if notices.is_empty() => verdict,
-        _ => LineVerdict::Show(Message::joined(joined_subject(notices), notices)),
+        _ => RankedVerdict::Show(Message::joined(joined_subject(notices), notices)),
     }
 }
 
@@ -1026,12 +1036,12 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// that stepped forward over the mate again.
 ///
 /// Its subject is [`Subject::Document`], so what retires it is
-/// [`LineVerdict::Clear`] — and [`acts`] makes that the next thing
+/// [`RankedVerdict::Clear`] — and [`acts`] makes that the next thing
 /// the user DOES other than hovering, which is narrower than "the next
 /// act the document accepts". Three legs, each with a row:
 ///
 /// - **A hover leaves it standing.** [`batch_status`] answers
-///   [`LineVerdict::Keep`] for a batch of nothing but
+///   [`RankedVerdict::Keep`] for a batch of nothing but
 ///   [`SessionOp::Hover`], so the pointer drifting over the viewport
 ///   does not take the sentence
 ///   (`a_hover_only_batch_leaves_the_status_line_alone`).
@@ -1043,7 +1053,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 ///   and `landing_a_clean_fold_does_not_clear_a_message_it_did_not_write`
 ///   on the live path).
 /// - **The next non-hover operation takes the line off it**, whatever
-///   that operation's own verdict is: [`LineVerdict::Clear`] where the
+///   that operation's own verdict is: [`RankedVerdict::Clear`] where the
 ///   document accepted it, the refusal's own sentence where it did not
 ///   (`a_supersession_survives_the_accepted_edit_that_caused_it`,
 ///   `an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on`).
@@ -1077,7 +1087,7 @@ pub const LIST_SEPARATOR: &str = "; ";
 /// It reaches the line through the frame's NOTICES rather than by
 /// assignment, for the reason [`frame_status`] states: the transition
 /// that withdraws is an edit the document accepted, so the same
-/// frame's batch verdict is [`LineVerdict::Clear`].
+/// frame's batch verdict is [`RankedVerdict::Clear`].
 ///
 /// **A refusal in the same frame does not hide it.** Nothing else will
 /// ever say what the edit took or why — the picture shows only what is
@@ -1294,10 +1304,10 @@ impl<'a> Withdrawal<'a> {
 /// ([`maintenance_notice`], one notice per row in the outcome's own
 /// order). They are notices rather than a verdict for [`Withdrawal`]'s
 /// reason: the edit that produced them was accepted, so the same
-/// frame's batch verdict is [`LineVerdict::Clear`], which they
+/// frame's batch verdict is [`RankedVerdict::Clear`], which they
 /// outrank. What takes them off the line is the next frame whose batch
 /// holds any operation [`acts`] counts — [`batch_status`] answers it
-/// with [`LineVerdict::Clear`] when nothing refused and with the
+/// with [`RankedVerdict::Clear`] when nothing refused and with the
 /// refusal otherwise; a hover-only batch keeps them.
 ///
 /// **Destructured rather than field-read**, so a field added to
@@ -1454,7 +1464,7 @@ impl core::fmt::Display for Withdrawal<'_> {
 ///
 /// So the clean arm says nothing, and [`StatusUpdate::Expire`] is how
 /// it says nothing. It cannot clear — [`StatusUpdate`] has no spelling
-/// for [`LineVerdict::Clear`], by design: clearing belongs to
+/// for [`RankedVerdict::Clear`], by design: clearing belongs to
 /// [`batch_status`], where an action the document ACCEPTED
 /// is what makes the last complaint stale; a camera move is not one,
 /// and a fold that cleared would be deciding the fate of sentences
@@ -2285,7 +2295,7 @@ pub fn product_badge(fault: Option<&ProductError>) -> Option<Badge> {
 /// succeeds, and it keeps drawing the mesh it already has — so the
 /// picture on screen is stale for exactly as long as this is `Some`.
 /// It was a line message, where an accepted act's
-/// [`LineVerdict::Clear`] swept it off a picture that had not been
+/// [`RankedVerdict::Clear`] swept it off a picture that had not been
 /// rebuilt and the line then said nothing about a scene it still could
 /// not build.
 ///
@@ -2429,7 +2439,7 @@ fn downstream_root(error: &PickIndexError) -> Option<RecipeNodeId> {
 /// in the toolbar, EARLIER in the same `update` than the pane that
 /// writes this, and `perform_batch` runs after both — so the sentence
 /// was never drawn on the frame it was written, and on a frame whose
-/// batch acted cleanly `LineVerdict::Clear` wiped it before any
+/// batch acted cleanly `RankedVerdict::Clear` wiped it before any
 /// frame could draw it. The chrome then said nothing about a picture
 /// it could not draw, for as long as the user kept acting. A badge is
 /// read where it is drawn, so no ordering decides whether it appears.
@@ -2795,8 +2805,7 @@ mod tests {
              puts it up: {status:?}"
         );
 
-        let mut notices = Vec::new();
-        deliver(&mut notices, &mut status, fold_status(&a_clean_fold()));
+        deliver(&mut Vec::new(), &mut status, fold_status(&a_clean_fold()));
         assert_eq!(
             status, None,
             "the next camera event retires a camera verdict whatever \
@@ -3119,18 +3128,18 @@ mod tests {
         // assigning the field.
         let held = Message::new(Subject::Document, "held", Retold::Again);
         let mut status = Some(held.clone());
-        apply(&mut status, LineVerdict::Keep);
+        apply(&mut status, RankedVerdict::Keep);
         assert_eq!(status, Some(held));
         // `Show` replaces whatever was held, whatever it was about:
         // the ranking's winner is the line.
         let news = Message::new(Subject::Camera, "news", Retold::Again);
-        apply(&mut status, LineVerdict::Show(news.clone()));
+        apply(&mut status, RankedVerdict::Show(news.clone()));
         assert_eq!(status, Some(news));
         // `Clear` is the broad one, and deliberately: an act the
         // document accepted makes every standing complaint stale, not
         // only the ones about the document. It takes a camera message
         // with it.
-        apply(&mut status, LineVerdict::Clear);
+        apply(&mut status, RankedVerdict::Clear);
         assert_eq!(status, None);
     }
 
@@ -3179,7 +3188,7 @@ mod tests {
         let acting = [SessionOp::Undo];
         assert_eq!(
             batch_status(&acting, None),
-            LineVerdict::Clear,
+            RankedVerdict::Clear,
             "the frame this row is about CLEARS the line on its own — without \
              that, the composition below would be asserting about a case \
              where nothing had to survive anything"
@@ -3194,11 +3203,11 @@ mod tests {
              the act the document accepts next is what retires it"
         );
         assert_eq!(message.text(), notice);
-        let update = frame_status(core::slice::from_ref(&message), &acting, None);
-        assert_eq!(update, LineVerdict::Show(message.clone()));
+        let verdict = frame_status(core::slice::from_ref(&message), &acting, None);
+        assert_eq!(verdict, RankedVerdict::Show(message.clone()));
 
         let mut status = None;
-        apply(&mut status, update);
+        apply(&mut status, verdict);
         assert_eq!(status, Some(message));
     }
 
@@ -3277,7 +3286,7 @@ mod tests {
                 .notice(),
             Message::new(Subject::Document, notice.clone(), Retold::Again),
         ];
-        let LineVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
+        let RankedVerdict::Show(shown) = frame_status(&notices, &[SessionOp::Undo], None) else {
             panic!("two withdrawals are news");
         };
         assert!(shown.text().contains("free move:") && shown.text().contains("hide:"));

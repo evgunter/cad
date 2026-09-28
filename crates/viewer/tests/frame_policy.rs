@@ -31,7 +31,7 @@ use pncad::select::{ContactClass, HitTestError, NodePickError};
 use viewer::camera::{Camera, CameraOp};
 use viewer::display::{AdmissionFault, DisplayFault, DisplayView, PruneReport, Withdrawn};
 use viewer::evalseam::{IndexDone, IndexRequest, IndexService, InlineIndexer, MemoReport};
-use viewer::frame::{self, LineVerdict, StatusUpdate};
+use viewer::frame::{self, RankedVerdict, StatusUpdate};
 use viewer::generation::Generation;
 use viewer::idpass::{self, IdQueryLog, IdStep, IdSubject};
 use viewer::input::{self, InputMap, ViewportSize};
@@ -64,12 +64,12 @@ fn a_hover_only_batch_leaves_the_status_line_alone() {
     let hover_only = [SessionOp::Hover(None)];
     assert_eq!(
         frame::frame_status(&[], &hover_only, None),
-        LineVerdict::Keep,
+        RankedVerdict::Keep,
         "a hover is not an action on the document"
     );
     assert_eq!(
         frame::frame_status(&[], &[], None),
-        LineVerdict::Keep,
+        RankedVerdict::Keep,
         "and neither is a frame with no operations at all"
     );
 }
@@ -77,7 +77,7 @@ fn a_hover_only_batch_leaves_the_status_line_alone() {
 #[test]
 fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     let acted = [SessionOp::Select(Selection::None)];
-    assert_eq!(frame::frame_status(&[], &acted, None), LineVerdict::Clear);
+    assert_eq!(frame::frame_status(&[], &acted, None), RankedVerdict::Clear);
 
     // A refusal always reaches the line, whatever the batch was: a
     // hover cannot refuse today, and silence would be the wrong answer
@@ -88,7 +88,7 @@ fn a_clean_action_clears_and_a_refusal_shows_even_from_a_hover_batch() {
     let shown = frame::frame_status(&[], &[SessionOp::Hover(None)], Some(&refusal));
     assert_eq!(
         shown,
-        LineVerdict::Show(frame::Message::new(
+        RankedVerdict::Show(frame::Message::new(
             frame::Subject::Document,
             refusal.to_string(),
             frame::Retold::Again,
@@ -136,14 +136,14 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     // nothing refused, so the line is cleared. This is the seam.
     assert_eq!(
         frame::frame_status(&[], &declined, None),
-        LineVerdict::Clear,
+        RankedVerdict::Clear,
         "a declined pick still performs cleanly, so the batch alone clears"
     );
 
     // The frame policy: the notice is what the line shows.
     assert_eq!(
         frame::frame_status(std::slice::from_ref(&notice), &declined, None),
-        LineVerdict::Show(notice.clone())
+        RankedVerdict::Show(notice.clone())
     );
 
     // A refusal outranks it — the answer to what the user asked the
@@ -153,7 +153,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
     };
     assert_eq!(
         frame::frame_status(std::slice::from_ref(&notice), &declined, Some(&refusal)),
-        LineVerdict::Show(frame::Message::new(
+        RankedVerdict::Show(frame::Message::new(
             frame::Subject::Document,
             refusal.to_string(),
             frame::Retold::Again,
@@ -169,7 +169,7 @@ fn a_tool_notice_survives_the_batch_that_carried_its_own_pick() {
         edges: 6,
     }));
     let both = frame::frame_status(&[notice.clone(), second.clone()], &declined, None);
-    let LineVerdict::Show(line) = &both else {
+    let RankedVerdict::Show(line) = &both else {
         panic!("two notices are shown, got {both:?}");
     };
     assert!(
@@ -227,7 +227,7 @@ fn a_joined_line_splits_back_into_the_notices_it_was_made_from() {
          mark; this one no longer does, so it proves nothing: {nests}"
     );
 
-    let LineVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status(
         &[nests.clone(), dashes.clone()],
         &[SessionOp::Select(Selection::None)],
         None,
@@ -274,7 +274,7 @@ fn a_notice_cannot_carry_the_boundary_mark() {
         "a bullet pasted into the δ field reaches a notice verbatim: {typed}"
     );
 
-    let LineVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status(
         &[asked.clone(), typed.clone()],
         &[SessionOp::Select(Selection::None)],
         None,
@@ -995,7 +995,7 @@ fn an_acting_frame_sweeps_the_line_a_seam_refusal_would_have_been_on() {
     let verdict = frame::frame_status(&[], &acting, None);
     assert_eq!(
         verdict,
-        LineVerdict::Clear,
+        RankedVerdict::Clear,
         "an act the document accepted makes every standing complaint \
          stale — including one about a picture that is still not drawn"
     );
@@ -1071,7 +1071,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
 
     // Agreeing notices keep the subject, so the joined line is still
     // retired by that subject's own event.
-    let LineVerdict::Show(shown) =
+    let RankedVerdict::Show(shown) =
         frame::frame_status(&[cursor("one"), cursor("two")], &acted, None)
     else {
         panic!("two notices are news");
@@ -1099,7 +1099,7 @@ fn a_joined_line_keeps_a_shared_subject_and_falls_back_when_they_differ() {
             frame::Retold::Again,
         ),
     ];
-    let LineVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
+    let RankedVerdict::Show(shown) = frame::frame_status(&mixed, &acted, None) else {
         panic!("two notices are news");
     };
     assert_eq!(
@@ -3091,13 +3091,13 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
          neither of the other two kinds, so they are silent here rather \
          than absent"
     );
-    let update = frame::frame_status(
+    let verdict = frame::frame_status(
         &notices,
         core::slice::from_ref(&mate),
         outcome.refusal.as_ref(),
     );
-    let LineVerdict::Show(message) = update else {
-        panic!("a discarded placement is news, not silence: {update:?}");
+    let RankedVerdict::Show(message) = verdict else {
+        panic!("a discarded placement is news, not silence: {verdict:?}");
     };
     assert!(
         message
@@ -3117,7 +3117,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     // line instead of saying any of that.
     assert_eq!(
         frame::frame_status(&[], core::slice::from_ref(&mate), outcome.refusal.as_ref()),
-        LineVerdict::Clear,
+        RankedVerdict::Clear,
     );
 
     // **A refusing sibling op does not take the sentence.** The same
@@ -3140,7 +3140,7 @@ fn a_superseded_free_move_is_news_the_ranking_shows() {
     let notices: Vec<frame::Message> = frame::outcome_notices(&outcome)
         .chain(frame::outcome_notices(&refused))
         .collect();
-    let LineVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
+    let RankedVerdict::Show(line) = frame::frame_status(&notices, &[mate, drag], Some(refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -3201,7 +3201,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     let acted = [SessionOp::Select(Selection::None)];
 
     // No refusal: rank 2, every notice, as before.
-    let LineVerdict::Show(all) = frame::frame_status(&notices, &acted, None) else {
+    let RankedVerdict::Show(all) = frame::frame_status(&notices, &acted, None) else {
         panic!("three notices are news");
     };
     assert_eq!(
@@ -3216,7 +3216,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) = frame::frame_status(&notices, &acted, Some(&refusal)) else {
+    let RankedVerdict::Show(line) = frame::frame_status(&notices, &acted, Some(&refusal)) else {
         panic!("a refusing frame shows its refusal");
     };
     assert_eq!(
@@ -3325,7 +3325,8 @@ fn every_typed_refusal_door_says_whether_anything_will_say_it_again() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) = frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    let RankedVerdict::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
@@ -3352,7 +3353,7 @@ fn a_refusal_among_the_notices_stays_under_the_batch_refusal() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) = frame::frame_status(
+    let RankedVerdict::Show(line) = frame::frame_status(
         core::slice::from_ref(&noticed),
         &[SessionOp::Undo],
         Some(&refusal),
@@ -3487,7 +3488,8 @@ fn every_withdrawal_kind_rides_beside_a_refusal() {
     let refusal = Refusal::NothingToDo {
         direction: Step::Undo,
     };
-    let LineVerdict::Show(line) = frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
+    let RankedVerdict::Show(line) =
+        frame::frame_status(&notices, &[SessionOp::Undo], Some(&refusal))
     else {
         panic!("a refusing frame shows its refusal");
     };
