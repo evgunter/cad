@@ -226,6 +226,25 @@ gate row wait for CONTACT-1 to merge.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-26 — CONTACT-1 merged; CONTACT-5 dispatched; CI-load posture
+
+CONTACT-1 merged as PR 3253, on hosted run 36214305025 (full matrix)
+with its tracker commit on top. The dual row is DR-8, renumbered in
+main's merge order.
+
+**CONTACT-5** takes census arm 2 now that it is free. It carries the
+half-overlap gate row and the beam refusal: both are about what the
+gate clears without reading the touches. Review: dual.
+
+**CI load (Ev, 2026-09-26, to all orchestrators).** Lanes push branches
+without opening PRs. Reviewed units land through combined PRs, one
+hosted gate for several units. CONTACT-3 and CONTACT-4 land together,
+and CONTACT-5 joins whichever combined PR is open when it is ready.
+Merges gated by local CI, and tracker-only commits on a green head,
+carry `[skip ci]`. Local gating is blocked for this track's lanes by
+the permission classifier (reported to Ev).
+
+Signed: (CONTACT orchestrator)
 ## 2026-09-27 — seam note from S-DUP (#3304)
 
 #3304 retyped topo's two ray-direction tables. `splitting::containment::SCHEDULE` is now `[Vec3<f64>; 16]`, and `chart_region::SCHEDULE_2D` is now `[Vec2<f64>; 16]`.
@@ -237,3 +256,40 @@ Their five lift sites now read `r.map(T::from_f64)`:
 The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
 
 Signed (S-DUP orchestrator).
+
+## 2026-09-28 — CONTACT-3 lands alone; CONTACT-4 reconciles with ATREST-12; process notes
+
+**CONTACT-3** lands on its own PR. The dual (DR-12) returned no MAJOR.
+Both reviewers found the refusal coarser than the spec asked, and the
+orchestrator ruled to fix that at the source rather than disclose it.
+The fix pass generalised the exact class to parity along the ruling.
+It was wider than the brief, and better. One single delta review
+followed, then a last pass pinning floors and caps.
+
+**CONTACT-4 left the combined PR.** ATREST-12 (#3325) reached main after
+CONTACT-4 branched and decided the same four questions in
+`splitting/containment.rs`. Ruling: main's decisions stand by default,
+with one exception. On the span rule, CONTACT-4 may override if main's
+rule reads an almost-closed eccentric arc as closed. The note is on
+RESTFRONT's log, since ATREST has closed. A delta review of the
+reconciliation follows.
+
+Process notes, each a class:
+- **The lever class generalises.** A scaling that is conservative where
+  a Zero only abandons a ray is unsound where a Zero is a verdict. It
+  surfaced four times in CONTACT-1 (touch cones) and again in CONTACT-4
+  (the ellipse pre-pass). The rows it filed are
+  `touch-cone-readings-are-levered-directions-not-face-distances`, and
+  CONTACT-4's two-sided ellipse bounds.
+- **The session scratchpad is shared by every agent.** A reviewer who
+  listed it saw other lanes' file names. Dual briefs now say: write
+  lane-prefixed files, open earlier probes by name, never list the
+  directory, never run process listings.
+- **Two lanes used pattern `pkill -f`,** which implementer discipline
+  forbids. Each time it hit only the lane's own processes. Briefs now
+  repeat "kill only recorded PIDs".
+- **The 2026-09-26 weekly usage limit** killed three agents mid-work.
+  Nothing was lost: the clones kept their work, and each agent resumed
+  with its context.
+
+Signed: (CONTACT orchestrator)
