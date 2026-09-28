@@ -805,9 +805,11 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
             // detection is ROOT-BASED and endpoint-verdict-free — the
             // splitting lane's C12.1 machinery reused verbatim (a
             // belly arc crosses between same-side endpoints, which the
-            // endpoint-sign match below cannot see). Interior roots
-            // split exactly like proper line crossings; the remainder
-            // fragment re-examines the SAME face for the second root.
+            // endpoint-sign match below cannot see). Every interior
+            // root is examined, and the FIRST one the face does not
+            // place `Out` splits exactly like a proper line crossing;
+            // both fragments re-examine the SAME face, so any other
+            // root is found again on them.
             {
                 let curve = match x.get_curve_geom(edge.curve) {
                     Some(CurveGeom::Certified(c)) => c.clone(),
@@ -839,7 +841,7 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                         return Err(BooleanError::Escalated { diag });
                     }
                     Ok(Some(Ok(roots))) => {
-                        if let Some(&t) = roots.first() {
+                        for &t in &roots {
                             let p = curve.carrier().eval(t);
                             let containment =
                                 contfp(y, face, plane.normal, p, band).map_err(|e| esc(e, x_is))?;
@@ -872,7 +874,8 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
                                 }
                             }
                         }
-                        // No interior root: endpoint processing only.
+                        // No interior root lands in the face:
+                        // endpoint processing only.
                         let side = |p: Point3<T>| {
                             decide(
                                 "bool_vertex_face_side",
