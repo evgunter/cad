@@ -644,6 +644,14 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
+    /// The default row's band, pinned: the rows that place a margin
+    /// against the band's own thresholds (a bump of 5.6e-10 m, a tilt of
+    /// 9e-10 m) are claims about THIS band, and at a finer ε the same
+    /// geometry is honestly decidable.
+    fn fixed_band() -> Band {
+        Band::new(1e-9, 1e-8).unwrap()
+    }
+
     fn torus<T: geom_core::Real>() -> geom::Surface<T> {
         geom::Surface::Torus {
             center: Point3::new(T::zero(), T::zero(), T::zero()),
@@ -1053,7 +1061,7 @@ mod tests {
                 -3.0,
                 3.0,
                 &torus(),
-                band(),
+                fixed_band(),
             );
             assert!(
                 matches!(got, Ok(CircleTorusRoots::Uncertain) | Err(_)),
@@ -1178,7 +1186,7 @@ mod tests {
             -3.0,
             3.0,
             &torus(),
-            band(),
+            fixed_band(),
         );
         assert!(
             matches!(got, Ok(CircleTorusRoots::Uncertain) | Err(_)),

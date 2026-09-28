@@ -73,3 +73,15 @@ subtract now reaches the join (evidence on ZIP's
 `GermFrameUnsupported { Plane, Torus }` at the join — the stem's weld
 cap against the arch's wall (evidence on CURVED's
 `c5-plane-torus-cone-cylinder-arms`). No body, so nothing to measure.
+
+**Fix pass (both reviewers NOT-MERGEABLE-AS-IS, adjudicated union).**
+The half-angle pole is now required to be well conditioned, not just
+non-zero: `|F(pole)| ≥ κA` (κ = 1/16, `A` the harmonic amplitude bound)
+keeps every root `κ/2` rad from the pole and the monic coefficients
+below `6/κ`, over 32 candidate anchors, which Parseval makes complete
+unless `F ≡ 0` (the pole's residual decision refuses that case). The
+machinery is surface-generic (`half_angle_roots`), for VERBS-CONE's U2.
+The parallel arm decides on the RESIDUAL at the carrier's two
+extremes, with the admitted tilt charged; the lever is
+`min(2ρ, R + r)`; a covered circle keeps the frontier door at the
+circle rung, so the declared-cover arms are line-only by construction.
