@@ -3566,18 +3566,17 @@ fn pairing<T: Decide>(
 }
 
 /// The candidate plane through `p` with unit normal `n`, as a surface
-/// whose outward side is `+n`. Its frame direction is the branchless
-/// orthonormal-basis construction (Duff et al., 2017), never zero for a
-/// unit `n`; the pairing reads only the normal.
-fn candidate_plane<T: Real>(p: Point3<T>, n: Vec3<T>) -> geom::Surface<T> {
-    let one = T::one();
-    let s = one.copysign(n.z);
-    let a = -one / (s + n.z);
-    let b = n.x * n.y * a;
+/// whose outward side is `+n`, its frame direction taken from the face
+/// that lies on it: `along`, that face's own in-plane frame direction,
+/// with its component along `n` removed. The face lies within ε of the
+/// plane, so its frame direction is within ε/extent of perpendicular to
+/// `n` and the difference is a unit-length direction — real geometry,
+/// no branch. The pairing reads only the plane's normal.
+fn candidate_plane<T: Real>(p: Point3<T>, n: Vec3<T>, along: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Plane {
         origin: p,
         normal: n,
-        u_ref: Vec3::new(one + s * n.x.powi(2) * a, s * b, -s * n.x),
+        u_ref: (along - n * n.dot(along)).normalize(),
     }
 }
 
@@ -4225,10 +4224,16 @@ impl<T: Decide> Star<T> {
             _ => Within::Unanalysed,
         };
         if !on.is_empty() {
-            let plane = candidate_plane(self.p, n);
             let mut t = (false, false, false, false);
             for k in on {
                 let f = &self.faces[k];
+                // Every star face is planar (`Star::star_face` reads it
+                // off the planar snapshot); one that is not is not read.
+                let geom::Surface::Plane { u_ref, .. } = f.surface else {
+                    t.3 = true;
+                    continue;
+                };
+                let plane = candidate_plane(self.p, n, u_ref);
                 match pairing(
                     TOUCH_NORMAL,
                     (&f.surface, f.sense),
@@ -5793,8 +5798,8 @@ mod tests {
     /// - the classifier of unit normals is called only from `pairing`;
     /// - nothing reads a bare sign: no `sign_within`, no comparison of a
     ///   real against zero (`< T::zero()`, `> T::zero()`), no
-    ///   `is_sign_negative`, `is_sign_positive`, `signum`, `partial_cmp`
-    ///   or `total_cmp`, and no `classify_dihedral` (a levered
+    ///   `is_sign_negative`, `is_sign_positive`, `signum`, `copysign`,
+    ///   `abs(`, `partial_cmp` or `total_cmp`, and no `classify_dihedral` (a levered
     ///   classifier of its own). No construction code in the section
     ///   needs one today, so the list has no exemption; one added for
     ///   code whose outcome only shrinks a piece must be named here;
@@ -5861,6 +5866,8 @@ mod tests {
             "signum",
             "partial_cmp",
             "total_cmp",
+            "copysign",
+            "abs(",
         ] {
             stray.extend(outside(needle, &[]));
         }
