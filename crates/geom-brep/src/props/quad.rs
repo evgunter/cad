@@ -7022,15 +7022,14 @@ mod tests {
     /// double knot at `1/2` on a degree-3 image is one break, raised
     /// by ONE inserted copy to multiplicity 3, and the quarters grid
     /// adds `1/4` and `3/4` — four blocks of `degree + 1` points. A
-    /// break listed twice would insert two copies and take `1/2`
-    /// past the degree.
+    /// break that reached the insertion loop twice would insert two
+    /// copies and take `1/2` past the degree; the distinct knot read
+    /// and the dedup each prevent that alone, so the row goes red only
+    /// when both are gone.
     #[test]
     fn bezier_blocks_breaks_once_at_a_repeated_knot() {
-        let kv = KnotVector::clamped(
-            vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0],
-            3,
-        )
-        .unwrap();
+        let kv =
+            KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0], 3).unwrap();
         // The Greville abscissae: an identity image, so each block
         // starts at its break.
         let greville = [0.0, 1.0 / 6.0, 1.0 / 3.0, 2.0 / 3.0, 5.0 / 6.0, 1.0];
