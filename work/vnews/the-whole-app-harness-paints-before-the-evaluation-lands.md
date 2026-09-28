@@ -1,0 +1,37 @@
+---
+id: the-whole-app-harness-paints-before-the-evaluation-lands
+kind: issue
+title: The whole-app headless harness paints two frames and never waits for the evaluation, so a row can catch it still running
+status: open
+opened: 2026-09-28
+priority: P2
+cost: E
+---
+
+Seen by the `preview-error-picks-its-tone-by-hand-in-a-comment` lane
+(2026-09-28): `app::properties_pane_tests::an_undeclared_parameter_is_said_once_in_the_pane`
+failed under a full parallel `cargo test -p viewer --features app --lib`
+and passed alone. The lane read the failing frame as one that caught an
+evaluation still running.
+
+## Why it can
+
+`properties_pane_tests::painted_with` (`crates/viewer/src/app.rs:3187`)
+assembles a `ViewerApp`, performs one batch, and paints **exactly two
+frames** (`for _ in 0..2`, `:3194`), keeping the second frame's text.
+Nothing in the loop waits for the evaluation that the batch started to
+land. Whether the second frame shows the landed document or the
+in-flight one is therefore up to the scheduler. Under load, `with` and
+`without` can be painted in different states, and the row's equality
+fails for a reason that has nothing to do with its subject.
+
+That makes it a harness defect, not a defect of the one row: every row
+built on `painted_with` inherits it (the harness came in with #3230).
+
+## What a fix has to decide
+
+Paint until the application reports nothing outstanding, with a bounded
+number of frames and a loud failure when the bound is hit, rather than
+a fixed two. The session already knows when an evaluation is outstanding
+(`frame::Progress` / `session::Outstanding`), so the harness can read
+that rather than sleep.
