@@ -35,3 +35,5 @@ ask which shape a test is before paying for it).
 ## Home
 
 TCOST: `crates/editor-core/tests/*` is its ground (and TINT's).
+
+**2026-09-28:** `a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.

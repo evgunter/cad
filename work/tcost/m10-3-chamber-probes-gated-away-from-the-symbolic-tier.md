@@ -46,3 +46,5 @@ to cover it. The same question applies to the sibling
 `m10_3_r2_probes_interval` (its `my_own_drive_is_bit_identical…` row
 DID run on SYM-4's PR, so its list differs; the two lists should say
 the same thing about the tier).
+
+**2026-09-28:** The chamber row (`the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment`) and `the_band_and_uniform_drives_ship_the_same_leaf_partition` were deleted in the 2026-09-28 CI-latency cut.

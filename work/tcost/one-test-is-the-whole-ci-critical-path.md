@@ -145,3 +145,5 @@ interval ε = default row's slowest leg goes 148 – 191 s to 103 – 131 s
 and the three f64 rows go 64 – 83 s to 40 – 59 s (that item's leg-wall
 table). None of it reaches the run's wall while this row runs for eight
 minutes beside it.
+
+**2026-09-28:** `a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.

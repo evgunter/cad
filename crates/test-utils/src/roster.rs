@@ -286,8 +286,8 @@ fn violations_against(
 /// test_utils::roster! {
 ///     the_certifying_filter_changes_a_pre_m10_6_documents_drive:
 ///         "the unit's zero-impact claim, exhibited on a document it does not hold",
-///     a_tolerance_study_end_to_end_through_the_public_doors:
-///         "the whole consumer walk; the suite's critical path",
+///     the_mc_stream_is_re_derived_bit_for_bit:
+///         "the MC lane's stream, re-derived from the algorithms",
 /// }
 /// ```
 ///

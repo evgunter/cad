@@ -57,6 +57,11 @@ both, and what that costs the other two goldens that share the fold
 The fold itself is one of the FNV copies
 `work/perf/fnv-digest-and-memo-machinery-copies.md` lists.
 
+**2026-09-28:** the shell census's golden rows and
+`reporting_door_bit_digest` were deleted in the 2026-09-28 CI-latency cut;
+`voided_rods_verdicts_as_a_sorted_multiset` stays, and the only golden
+left on `common::channels` is `mass_props_are_thread_count_invariant`'s.
+
 ## Re-derived (2026-09-15, lane C)
 
 **VERDICT: REPRODUCES** — the instrument is unchanged, the re-cut hash

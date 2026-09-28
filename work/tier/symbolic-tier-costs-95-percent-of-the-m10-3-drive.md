@@ -765,3 +765,5 @@ rendered. Neither is scheduled.
 Cost class, not correctness: nothing is wrong with the pad or the
 report, and the row exists so the next unit that needs that table finds
 the reason rather than re-discovering it.
+
+**2026-09-28:** The chamber row cited above (`m10_3_r1_probes_interval::the_driven_chamber_replays_bit_identically_…`) was deleted in the 2026-09-28 CI-latency cut; the bounded chamber itself stays (`bounded_chamber`, `CHAMBER_LEAVES`).

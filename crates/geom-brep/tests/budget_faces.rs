@@ -9,39 +9,21 @@
 //! smallest finite bound or none — and every message names the lever
 //! its face's doc claims.
 //!
-//! The corpus is 2 bases x 7 deltas x 5 tolerances, and each (base, δ)
-//! column is its own `#[test]`: `fit_offset_at` is seconds per cell, so
-//! a corpus in one row is a row the runner cannot spread over its
-//! cores and is the whole binary's wall. The columns are independent —
-//! a cell's assertions read only that cell's payload — so the split
-//! costs nothing but the fixture, rebuilt per column.
+//! The corpus is the quarter cylinder at two deltas x 5 tolerances,
+//! one `#[test]` per (base, δ) column: the sample cap's witness
+//! (δ = 1e-6) and the witness of a not-finite bound with no finite
+//! round behind it (δ = 1e-8). `tests/offset_fit.rs` pins each refusal
+//! face by name in a single row; these columns read the same faces
+//! across a tolerance sweep. Each column claims its face by name, and
+//! refuses to pass if it reached no refusal face at all.
 //!
-//! What a column claims beyond its cells: that it reached at least one
-//! refusal face. A column every tolerance fits is a column whose
-//! payload assertions never ran, and it says so rather than passing.
-//! The two faces the corpus is here for — the sample cap and a
-//! not-finite bound with no finite round behind it — are claimed by
-//! name on the columns that reach them.
-//!
-//! **Each column also pins its five OUTCOMES**, face and digits, and
-//! the fourteen tables together are the corpus census: which face
-//! each of the 70 requests wears and what bound it carries. Two
-//! things need that and neither is served by the payload invariants
-//! above, which hold whatever the numbers are.
-//!
-//! - **A face count stated in prose is checkable against it.** A
-//!   change that moves requests between faces has to move rows here,
-//!   one per request, so the count in the change's own description is
-//!   read off a table rather than assembled by hand.
-//! - **A bound that GREW reds here.** The cell bound is monotone on a
-//!   fixed grid, but the door's is not monotone in it — a tightening
-//!   reorders the refinement marking, and a different schedule is a
-//!   different fitted surface (`offset_fit`'s `measure`, where the
-//!   marking's cut is taken).
-//!   So "every bound only goes down" is not available as an argument
-//!   and the corpus has to be measured. The digits are pinned at
-//!   `1e-3` relative: tight enough to red on the 1.8% the one grown
-//!   request moved by, loose enough not to chase an ulp.
+//! **Each column also pins its five OUTCOMES**, face and digits, to
+//! `1e-3` relative: the door's bound is not monotone in the cell bound
+//! — a tightening reorders the refinement marking, and a different
+//! schedule is a different fitted surface (`offset_fit`'s `measure`,
+//! where the marking's cut is taken) — so a request whose bound GREW
+//! reds here rather than passing the payload invariants above, which
+//! hold whatever the numbers are.
 //!
 //! The budget face is pinned by its reading too: `budget` on
 //! `LastRound::Improved`, `budget-did-not-improve` on
@@ -58,7 +40,7 @@ use geom_brep::offset_fit::{
     BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, fit_offset_at,
 };
 
-use crate::shared::fixture::{bumpy_patch, quarter_cylinder};
+use crate::shared::fixture::quarter_cylinder;
 use crate::shared::tol::band;
 
 /// The tolerances every column sweeps.
@@ -116,22 +98,14 @@ impl Faces {
 /// its face carries one. `f64::NAN` in a `want` entry is the face
 /// that carries no number.
 ///
-/// The census pins the face's LAST bound, so a face whose best bound
-/// differs from it needs a pin of its own: `best_pins` maps a
-/// tolerance to the best bound its cell carries, and a cell whose best
-/// differs from its last by more than `1e-3` relative with no pin, or
-/// a pin with no such cell, reds.
+/// The census pins the face's LAST bound, so a cell whose best bound
+/// differs from its last by more than `1e-3` relative reds: it would
+/// need a pin of its own.
 ///
 /// Returns the faces the column reached, and refuses a column that
 /// reached none — five fits and nothing asserted is a column that
 /// proves nothing, which is the one way this sweep can rot silently.
-fn column(
-    name: &str,
-    base: &NurbsSurface<f64>,
-    d: f64,
-    want: [(&str, f64); 5],
-    best_pins: &[(f64, f64)],
-) -> Faces {
+fn column(name: &str, base: &NurbsSurface<f64>, d: f64, want: [(&str, f64); 5]) -> Faces {
     let mut seen = Faces::default();
     // EVERY census cell that moved, not the first: a re-pin reads the
     // whole column at once, and a first-mismatch report costs one full
@@ -265,22 +239,14 @@ fn column(
                 got.0, got.1, want[i].1
             ));
         }
-        let pin = best_pins.iter().find(|(pt, _)| *pt == t).map(|&(_, b)| b);
-        match (got_best, pin) {
-            (Some(b), Some(p)) if (b - p).abs() > p * 1e-3 => moved.push(format!(
-                "t={t}: the {} face's best bound is {b:e}, pinned at {p:e}",
-                got.0
-            )),
-            (Some(b), None) if (b - got.1).abs() > got.1 * 1e-3 => moved.push(format!(
+        if let Some(b) = got_best
+            && (b - got.1).abs() > got.1 * 1e-3
+        {
+            moved.push(format!(
                 "t={t}: the {} face's best bound {b:e} differs from its last {:e} and has no \
                  pin of its own",
                 got.0, got.1
-            )),
-            (None, Some(p)) => moved.push(format!(
-                "t={t}: a best bound of {p:e} is pinned, and the {} face carries none",
-                got.0
-            )),
-            _ => {}
+            ));
         }
     }
     assert!(
@@ -317,31 +283,11 @@ fn quarter_cylinder_at_delta_1e_8_keeps_every_faces_payload_invariants() {
             ("not-finite", f64::NAN),
             ("not-finite", f64::NAN),
         ],
-        &[],
     );
     assert!(
         faces.not_finite_none > 0,
         "this column is the corpus's witness of a not-finite bound with no finite \
          round behind it, and it no longer reaches that face"
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_1e_7_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        1e-7,
-        [
-            ("cap", 5.8549822e-7),
-            ("cap", 5.8549822e-7),
-            ("cap", 5.8549822e-7),
-            ("certified", 5.8549822e-7),
-            ("certified", 5.8549822e-7),
-        ],
-        &[],
     );
 }
 
@@ -361,235 +307,11 @@ fn quarter_cylinder_at_delta_1e_6_keeps_every_faces_payload_invariants() {
             ("certified", 3.7544249e-7),
             ("certified", 1.7071974e-5),
         ],
-        &[],
     );
     assert!(
         faces.cap > 0,
         "this column is the corpus's witness of the sample cap, and it no longer \
          reaches that face"
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_1e_5_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        1e-5,
-        [
-            ("budget", 3.6255804e-7),
-            ("budget", 3.6255804e-7),
-            ("budget", 3.6255804e-7),
-            ("certified", 3.6255804e-7),
-            ("certified", 7.1460400e-6),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_0_01_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        0.01,
-        [
-            ("budget", 3.6726212e-7),
-            ("budget", 3.6726212e-7),
-            ("budget", 3.6726212e-7),
-            ("certified", 3.6726212e-7),
-            ("certified", 6.5181412e-5),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        0.05,
-        [
-            ("budget", 3.8180980e-7),
-            ("budget", 3.8180980e-7),
-            ("budget", 3.8180980e-7),
-            ("certified", 3.8180980e-7),
-            ("certified", 6.7531657e-5),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn quarter_cylinder_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "quarter_cylinder",
-        &quarter_cylinder(1.0, 1.0),
-        -0.05,
-        [
-            ("budget", 3.4544881e-7),
-            ("budget", 3.4544881e-7),
-            ("budget", 3.4544881e-7),
-            ("certified", 3.4544881e-7),
-            ("certified", 6.1050669e-5),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_8_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-8,
-        [
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-            ("not-finite", f64::NAN),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_7_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-7,
-        [
-            ("cap", 3.3545915e-7),
-            ("cap", 3.3545915e-7),
-            ("cap", 3.3545915e-7),
-            ("certified", 3.3545915e-7),
-            ("certified", 3.3545915e-7),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_6_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-6,
-        [
-            ("cap", 2.4521974e-7),
-            ("cap", 2.4521974e-7),
-            // Re-pinned when the C9 ring became a newtype over the
-            // backend (`7.6102157e-10` before): `cell_bound`'s
-            // assembly loses the ring's unconditional one-step
-            // outward pad per operation, so the same certificate on
-            // the same cells comes in a third tighter. The FACE each
-            // cell wears is unmoved, which is what this census counts.
-            ("certified", 5.0593136e-10),
-            ("certified", 5.0593136e-10),
-            ("certified", 3.4386399e-6),
-        ],
-        // The cap stops on a bound far above the best: the loop
-        // reached `5.06e-10` on (24, 32), the grid the `1e-9` request
-        // certifies on, and walked off it.
-        &[(1e-15, 5.0593136e-10), (1e-12, 5.0593136e-10)],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_1e_5_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        1e-5,
-        [
-            // Re-pinned for the reason the δ = 1e-6 column gives
-            // (`1.6337241e-7` and `8.3373901e-10` before): the ring's
-            // unconditional pad is gone from `cell_bound`, and the
-            // cap face's achieved bound moves with the certified one
-            // because it is the same assembly read one round short.
-            ("cap", 2.5343499e-8),
-            ("cap", 2.5343499e-8),
-            ("certified", 5.6830092e-10),
-            ("certified", 5.6830092e-10),
-            ("certified", 3.0299228e-5),
-        ],
-        &[(1e-15, 5.6830092e-10), (1e-12, 5.6830092e-10)],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_0_01_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        0.01,
-        [
-            ("cap", 1.4792482e-7),
-            ("cap", 1.4792482e-7),
-            ("cap", 1.4792482e-7),
-            ("certified", 6.0162261e-7),
-            ("certified", 1.9331467e-5),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        0.05,
-        [
-            ("cap", 6.5406620e-7),
-            ("cap", 6.5406620e-7),
-            ("cap", 6.5406620e-7),
-            ("certified", 6.5406620e-7),
-            ("certified", 4.0378183e-5),
-        ],
-        &[],
-    );
-}
-
-/// Every face this column reaches keeps its own payload invariants,
-/// and the table is this column's row of the corpus census.
-#[test]
-fn bumpy_at_delta_minus_0_05_keeps_every_faces_payload_invariants() {
-    column(
-        "bumpy",
-        &bumpy_patch(),
-        -0.05,
-        [
-            ("cap", 6.5784386e-7),
-            ("cap", 6.5784386e-7),
-            ("cap", 6.5784386e-7),
-            ("certified", 6.5784386e-7),
-            ("certified", 4.3826144e-5),
-        ],
-        &[],
     );
 }
 

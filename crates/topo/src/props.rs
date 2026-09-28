@@ -1159,7 +1159,7 @@ fn splice_in_arena_order<T: Decide>(
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
-/// doors, 1 thread against 4. This one pins the rule those rows depend
+/// doors, 4 threads against the serial walk's golden. This one pins the rule those rows depend
 /// on at the site that carries it, with the refusal placed where no
 /// fixture body puts it: at a chosen slot, with a recording on every
 /// slot before and after, so a fold that spliced one face too few or

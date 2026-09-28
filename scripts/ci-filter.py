@@ -171,10 +171,10 @@ THE LAST JOB ON THAT PATH IS THE eps = 1e-12 LEG — the interval lane's until
 that lane became the only one — AND IT USED TO BE NAMED AS
 `test (interval, eps = default, 1/2)` HERE (corrected 2026-09-12).
 That naming was right when every interval leg cost about the same; it is not
-now. The ε = 1e-12 row carries `editor-core::all
-r2_m10_6_probes_interval::a_tolerance_study_end_to_end_through_the_public_doors`,
-which is most of its leg at that ε and a rounding error at the other two, so
-the leg holding it finishes last on EVERY code-tier run measured — 30 of them,
+now. On the runs measured the ε = 1e-12 row carried one editor-core
+tolerance-study row (`r2_m10_6_probes_interval`, deleted in the 2026-09-28
+CI-latency cut) that was most of its leg at that ε and a rounding error at the
+other two, so the leg holding it finished last on EVERY code-tier run measured — 30 of them,
 18 at the live count of 2 and 12 more across counts 2, 3, 4 and 6. THE
 DURATIONS ARE NOT RESTATED HERE, because this note would be their fifth home
 and three of the four disagreed on the day they were written: they live once,

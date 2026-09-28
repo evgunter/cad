@@ -431,3 +431,5 @@ reproduced from the logged seed, and manufactures apparent ε-sensitivity
 — the last hazard in the memory's own closing bullet. A wall-clock ceiling
 OVER the whole EFFORT = 1 population is a good tripwire and is proposed
 as one; it is not the dial.
+
+**2026-09-28:** The chamber row named above was deleted in the 2026-09-28 CI-latency cut.

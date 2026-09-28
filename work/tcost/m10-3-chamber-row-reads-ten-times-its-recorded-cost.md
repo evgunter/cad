@@ -341,3 +341,5 @@ re-homed: the cost figure the gate hid is S-TCOST's instrument, and
 `fuzz-depth-not-existence-run-everything-at-effort-1` is ordered behind
 this — wiring the EFFORT policy before the regression is fixed puts a
 66-83 s row on every pull request.
+
+**2026-09-28:** The chamber row and `the_band_and_uniform_drives_ship_the_same_leaf_partition` were deleted in the 2026-09-28 CI-latency cut.
