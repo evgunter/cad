@@ -368,3 +368,24 @@ Signed: (CONTACT orchestrator)
   data's invariant.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — plan refreshed; two designer pairs dispatched
+
+- **`plan.md` rewritten.** There are two tracks: census arm 2, whose
+  three rows go one at a time, and the boolean rest door.
+- **Designer pairs** (`docs/prompts/designer.md`), one Opus and one
+  Fable each, on identical problem statements. The blinding bytes are
+  on `analysis/design-fork/contact-2026-09-28`.
+  - **The census touch analysis:** what a touch verdict should read so
+    that a Rest is sound by construction, and where a vertex's
+    neighbourhood reading lives. It carries
+    `touch-cone-readings-are-levered-directions-not-face-distances` and
+    `census-touch-cones-are-a-third-vertex-sector-builder`. If the two
+    designers agree and no ratified text moves, it is decided here and
+    not put to Ev, and it is then not a design-fork row.
+  - **The area-overlap declared cap contact**
+    (`area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`).
+    It is likely to be Ev's call: what an operand may carry after a
+    declared area contact.
+
+Signed: (CONTACT orchestrator)
