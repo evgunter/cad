@@ -485,8 +485,8 @@ fn rounded_plate(w: f64, h: f64, r: f64, thick: f64) -> Body<f64> {
 
 /// The D5 trap stays closed through the PUBLIC boolean door: the
 /// probe's no-edge-event pair must never surface `GermFrameUnsupported`
-/// TODAY (no cyl×cyl germs are minted yet) — the wall-pair gate owns
-/// the refusal. If this row ever flips to `GermFrameUnsupported`, D4
+/// TODAY (no cyl×cyl germs are minted yet) — the fallback's section
+/// pass owns the refusal (the pair's one saddle loop, R-loop). If this row ever flips to `GermFrameUnsupported`, D4
 /// widened the reduction without wiring the frame arm: exactly the
 /// regression the trap exists to catch loudly rather than silently.
 #[test]

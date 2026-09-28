@@ -38,8 +38,11 @@
 //! - **W2, essential**: `γ` is essential on the carrier of `X` (it winds
 //!   about the axis, or around the tube) and `chart_boundary(X)` returns
 //!   `Ok`: `X`'s loops lift into one sheet of the chart's cover, so every
-//!   closed curve in `X` lifts to a closed curve with zero winding in
-//!   every periodic channel, and `γ ⊄ X`. This is checked per FACE, never
+//!   closed curve in `int X` lifts to a closed curve with zero winding in
+//!   every periodic channel, and `γ ⊄ int X`. (A section curve that is
+//!   not closed — a ruling — is not inside a compact face at all.) That
+//!   is all the certificate needs: a `γ` that meets `F ∩ G` and is not
+//!   inside `int F ∩ int G` carries an event (L1). This is checked per FACE, never
 //!   assumed of a kind: a seamless periodic band — one face closing on
 //!   itself with no meridian edge — fails the check and loses W2.
 //! - **W3, a witness point `Out`**: one closed-form point of `γ`,
@@ -66,7 +69,14 @@
 //! # The refusals
 //!
 //! - **R-reach**: a kind pair or pose with no arm (torus against an
-//!   oblique cylinder, a non-coaxial torus, any cone or NURBS face).
+//!   oblique cylinder, a non-coaxial torus, any cone; a NURBS or
+//!   approximated face paired with a torus, sphere, cylinder or cone).
+//!   Only pairs with one of those four kinds are examined at all: a
+//!   NURBS face paired with a PLANE is outside the certificate's scope.
+//!   On the no-crossings path the extent scan's NURBS re-gate refuses
+//!   every such entry first; on the crossings path nothing examines that
+//!   pair, which is filed as its own row
+//!   (`nurbs-face-meeting-a-plane-in-an-interior-loop-is-unguarded-on-the-crossings-path`).
 //! - **R-tan**: a classification margin `Zero` or undecided — a
 //!   tangency, where components pinch and the count is not certified.
 //! - **R-loop** and **R-undec**: the no-event decision, above.

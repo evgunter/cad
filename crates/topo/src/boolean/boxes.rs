@@ -33,7 +33,7 @@
 //! PRUNES. That is **two** of the seven doors that read a box from
 //! here; at four of the other five, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL, and at the fifth it is more
-//! exact work:
+//! exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -57,13 +57,18 @@
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
 //! - `boolean::ops`'s section certificate (`section_pairs`, on both
-//!   paths) EXAMINES every pair whose two face boxes overlap and
-//!   levers its angular margins by the overlap's diagonal. A bigger
-//!   box sends a separated pair through the exact classification,
-//!   which certifies it apart, and lengthens the lever, which only
-//!   pushes a tilt margin off `Zero` — onto the exact tilted arm or a
-//!   refusal on reach, never onto a parallel reading. A box tighter
-//!   than its face would be the unsound direction.
+//!   paths) EXAMINES every pair whose two face boxes overlap, and
+//!   builds from the overlap the pair's reach, which pivots and levers
+//!   its angular margins (`section_cert`'s module docs). A bigger box
+//!   sends a separated pair through the exact classification, which
+//!   certifies it apart; and it widens the reach, which lengthens the
+//!   lever, so a nearly parallel pair decides its tilt `Zero` less
+//!   readily — onto the exact tilted arm where there is one, and into
+//!   a REFUSAL on reach where there is not (a torus pair with a
+//!   near-parallel wall). A parallel reading that survives a bigger box
+//!   is bounded by the band over a region at least as large as the
+//!   section's. A box TIGHTER than its face is the unsound direction:
+//!   its reach could miss the section.
 //! - `census`'s arm 2 clears an instance pair at its gate on a
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
@@ -2873,15 +2878,15 @@ mod tests {
     ///   and the section certificate's pair scan (`section_pairs`,
     ///   both paths) reads one [`face_box`] per face of each operand:
     ///   two that overlap put the pair through the certificate, whose
-    ///   angular margins are levered by the overlap's diagonal.
-    ///   **Refuses** at the extent scan: a box that fails to clear turns
-    ///   the pair into `FallbackExtentUnsupported`. **Examines** at the
-    ///   pair scan: a loose box sends a separated pair through the
-    ///   classification, which certifies it apart, and lengthens the
-    ///   lever, which can only push a tilt margin off `Zero` — away
-    ///   from the parallel and coaxial readings, onto the exact tilted
-    ///   arm or R-reach. A box TIGHTER than its face would be the
-    ///   unsound direction: it could call a tilted pair parallel.
+    ///   reach — the ball about the overlap — pivots and levers its
+    ///   angular margins. **Refuses** at the extent scan: a box that
+    ///   fails to clear turns the pair into `FallbackExtentUnsupported`.
+    ///   **Examines, and can refuse,** at the pair scan: a loose box
+    ///   sends a separated pair through the classification, which
+    ///   certifies it apart, and lengthens the lever, so a near-parallel
+    ///   tilt stops deciding `Zero` and the pair takes the tilted arm or
+    ///   refuses on reach. A box TIGHTER than its face would be the
+    ///   unsound direction: its reach could miss the section.
     /// - `separation.rs` — the two separation certificates, the
     ///   placement one and the solid-pair one, on one rule.
     ///   **Refuses**, both of them and for the same reason:

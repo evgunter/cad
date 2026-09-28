@@ -381,10 +381,17 @@ fn the_admitted_torus_lane_stops_at_the_section_pass() {
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("a coincident torus pair still has no classification verdict");
+    let BooleanError::FallbackExtentUnsupported { what, .. } = err else {
+        panic!(
+            "the declared coincident pair passes the crossing layer and stops at \
+             the section pass: {err:?}"
+        );
+    };
+    // The tangency sentence (R-tan): the coincident tube circles are the
+    // torus × torus classification's zero nesting margin.
     assert!(
-        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
-        "the declared coincident pair passes the crossing layer and stops at \
-         the section pass: {err:?}"
+        what.contains("tangent or near-tangent carriers"),
+        "the pass refuses the coincident pair as a tangency: {what}"
     );
 }
 
