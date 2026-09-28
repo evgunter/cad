@@ -8,33 +8,44 @@
 //! node whose evaluation hands its input's names on unchanged compiles
 //! filed as re-minting, and both walks stop at it silently.
 //!
-//! The tie is observable on every evaluated value. A node publishes a
-//! name it did NOT mint — a row whose head `node` is not the node's own
-//! id — exactly when it carries names through verbatim, because every
-//! other op wraps what it carries in a segment of its own and heads the
-//! result itself. So over a corpus that evaluates every node kind that
-//! can evaluate:
+//! The tie is observable on every evaluated value, row by row: a row is
+//! FOREIGN when its head `node` is not the publishing node's own id,
+//! and OWN otherwise. Each edge the walks follow fixes the mix:
 //!
-//! ```text
-//! (some row of node id's table has name.node != id)
-//!     ⇔ carries_names_verbatim(node)
-//! ```
+//! | `verbatim_kind`  | the node's table                         |
+//! |------------------|------------------------------------------|
+//! | `Some(Whole)`    | at least one row, and every row foreign  |
+//! | `Some(Selected)` | at least one row, and every row foreign  |
+//! | `Some(Intact)`   | at least one foreign and one own row     |
+//! | `None`           | no foreign row                           |
 //!
-//! **Why "some row" and why the head.** A split publishes both kinds of
-//! row — the intact entities under their original minters and the cut
-//! faces under its own id — so the left side is an existential, not a
-//! universal. An op that re-mints by WRAPPING a foreign name inside a
-//! role argument (a blend's `FromTarget`, an instance's `InPart`, a
-//! boolean's operand segments) heads the wrapped row itself, so only
-//! the head is compared: a walk into role arguments would read those
-//! ops as pass-throughs.
+//! A transform or a part mints nothing, so one own row there is a
+//! partial re-mint the walks would carry a name across wrongly. A split
+//! publishes its intact entities under their original minters and its
+//! cut faces under its own id, so it carries both.
 //!
-//! **Coverage is asserted, not assumed.** The roster below is welded to
-//! [`Node`] by `test_utils::f6_variants!`, so a variant added to the
-//! vocabulary stops this file compiling until it is named here, and the
-//! census then reds until some corpus document evaluates one — or until
-//! it is listed in [`NEVER_EVALUATES`], whose own entries are held in
-//! the other direction: an exempt kind that does evaluate reds too.
+//! **Why the head.** An op that re-mints by WRAPPING a foreign name
+//! inside a role argument (a blend's `FromTarget`, an instance's
+//! `InPart`, a boolean's operand segments) heads the wrapped row
+//! itself, so only the head is compared: a walk into role arguments
+//! would read those ops as pass-throughs.
+//!
+//! **What the coverage census holds, exactly.** The roster below is
+//! welded to [`Node`] by `test_utils::f6_variants!`, so a variant added
+//! to the vocabulary stops this file compiling until it is named here.
+//! A kind then counts as SAMPLED only when some corpus node of that kind
+//! published at least one row — a kind that evaluates to an empty table
+//! satisfies the `None` row vacuously, so evaluating is not enough. Two
+//! lists stand in for the rows that cannot exist:
+//!
+//! - [`ROW_FREE`]: kinds whose value carries no names. They must still
+//!   evaluate somewhere, and every sample of one is asserted to publish
+//!   ZERO rows — so one that starts publishing is checked, not trusted.
+//! - `corpus::NEVER_EVALUATES`: kinds no document can evaluate at all
+//!   (the frontier's one home, which `m4_pr8_corpus` reads too).
+//!
+//! Both are held in the other direction as well: a listed kind that
+//! publishes rows, or evaluates, reds until its entry is removed.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -43,10 +54,10 @@ use std::collections::BTreeSet;
 use crate::corpus;
 use crate::fixture;
 
-use editor_core::test_support::carries_names_verbatim;
+use editor_core::test_support::{VerbatimKind, verbatim_kind};
 use editor_core::{
     Alignment, AxisSense, CapEnd, ContactClass, DocRef, DocumentId, EvalOptions, MateFrame,
-    MatePrimitive, Node, ProfileDoc, ProfileProgram,
+    MatePrimitive, Node, ProfileDoc, ProfileProgram, RecipeNodeId, StableName,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
 use fixture::{insert, len, on_frame};
@@ -58,7 +69,7 @@ test_utils::f6_variants! {
     /// **Every node kind**, welded to `Node` by the match the macro
     /// writes: a variant added to the vocabulary leaves it
     /// non-exhaustive until it is named here, and the census below then
-    /// reds until the corpus evaluates one.
+    /// reds until the corpus samples one.
     const NODE_KIND: ProfileNode = [
         Datum,
         Profile,
@@ -86,14 +97,20 @@ test_utils::f6_variants! {
     ];
 }
 
-/// The node kinds no document can evaluate to a value, each with the
-/// reason — the kinds the census does not require.
-///
-/// - `Sweep`: a sweep's path operand is a validated profile, whose loop
-///   is closed and so has two or more segments, and every multi-segment
-///   path refuses at `wire_sweep`'s one frontier arm
-///   (`review_m5_pr10_sweep_node`).
-const NEVER_EVALUATES: [&str; 1] = ["Sweep"];
+/// **The node kinds whose value carries no names**: a datum, a profile,
+/// a declaration list, a solved mate, a measurement and an assertion
+/// verdict are not bodies, so their tables are empty and the
+/// equivalence holds of them vacuously. Listed so that vacuity is
+/// asserted — every sample publishes zero rows — rather than counted as
+/// coverage.
+const ROW_FREE: [&str; 6] = [
+    "Datum",
+    "Profile",
+    "Declare",
+    "Mate",
+    "Measure",
+    "Assertion",
+];
 
 /// The unit cube `[0,1]³` as a whole part document, its body at
 /// `fixture::resolver::PART_BODY` so `in_part` names its caps.
@@ -168,18 +185,28 @@ fn samples() -> Vec<(&'static str, ProfileDoc, EvalOptions)> {
     out
 }
 
-/// INVARIANT (N1, held against the producer): a node publishes a name
-/// whose head is another node exactly when `verbatim_edge` classifies
-/// it as a name-carrying edge — and every node kind that can evaluate
-/// is sampled.
-///
-/// Red when a node that evaluates to its input's names is filed under
-/// `None` (it publishes a foreign head and is not classified), or when
-/// a re-minting node is classified (it publishes only its own heads).
-#[test]
-fn a_node_publishes_foreign_names_iff_verbatim_edge_classifies_it() {
-    let mut disagreements = Vec::new();
-    let mut sampled: BTreeSet<String> = BTreeSet::new();
+/// One evaluated node, as the two rows below read it.
+struct Sample {
+    /// The document it was evaluated in.
+    doc: &'static str,
+    /// Its id there.
+    id: RecipeNodeId,
+    /// Its `Node` variant.
+    kind: String,
+    /// The edge the recipe walks read it as.
+    edge: Option<VerbatimKind>,
+    /// Its table's row count.
+    rows: usize,
+    /// A row headed by another node, if any.
+    foreign: Option<StableName>,
+    /// A row headed by the node itself, if any.
+    own: Option<StableName>,
+}
+
+/// Every node with a value across [`samples`], each document required
+/// green first — a failed node would shrink the sample silently.
+fn evaluated() -> Vec<Sample> {
+    let mut out = Vec::new();
     for (name, doc, opts) in samples() {
         let ev = fixture::run(&doc, &opts);
         let failures = corpus::failures(&ev);
@@ -193,54 +220,136 @@ fn a_node_publishes_foreign_names_iff_verbatim_edge_classifies_it() {
                 continue;
             };
             let node = doc.node(id).expect("an evaluated node is in its document");
-            let kind = test_utils::f6::variant_identifier(node);
-            let foreign = value
-                .name_table
-                .iter()
-                .map(|(n, _)| n)
-                .find(|n| n.node != id);
-            let classified = carries_names_verbatim(node);
-            if foreign.is_some() != classified {
-                disagreements.push(format!(
-                    "{name}: {kind} at {id:?} is {} by `verbatim_edge`, and its table \
-                     ({} rows) {}",
-                    if classified {
-                        "a name-carrying edge"
-                    } else {
-                        "re-minting"
-                    },
-                    value.name_table.len(),
-                    match foreign {
-                        Some(n) => format!("publishes {n}"),
-                        None => "heads every row itself".to_string(),
-                    },
-                ));
-            }
-            sampled.insert(kind);
+            let heads = || value.name_table.iter().map(|(n, _)| n);
+            out.push(Sample {
+                doc: name,
+                id,
+                kind: test_utils::f6::variant_identifier(node),
+                edge: verbatim_kind(node),
+                rows: value.name_table.len(),
+                foreign: heads().find(|n| n.node != id).cloned(),
+                own: heads().find(|n| n.node == id).cloned(),
+            });
         }
     }
+    out
+}
+
+/// What is wrong with `s` against the edge it is classified as, if
+/// anything (the table in the module docs).
+fn disagreement(s: &Sample) -> Option<String> {
+    let (foreign, own) = (s.foreign.is_some(), s.own.is_some());
+    let wanted = match s.edge {
+        Some(VerbatimKind::Whole | VerbatimKind::Selected) if !foreign || own => {
+            "every row headed by another node"
+        }
+        Some(VerbatimKind::Intact) if !foreign || !own => {
+            "rows headed by another node AND rows headed by itself"
+        }
+        None if foreign => "every row headed by itself",
+        None if ROW_FREE.contains(&s.kind.as_str()) && s.rows > 0 => {
+            "no rows at all (it is listed in `ROW_FREE`)"
+        }
+        _ => return None,
+    };
+    let seen = |n: &Option<StableName>| n.as_ref().map_or("none".to_string(), |n| n.to_string());
+    Some(format!(
+        "{}: {} at {:?}, read as {:?} by `verbatim_edge`, should publish {wanted}; its \
+         table has {} rows, a foreign one {}, an own one {}",
+        s.doc,
+        s.kind,
+        s.id,
+        s.edge,
+        s.rows,
+        seen(&s.foreign),
+        seen(&s.own),
+    ))
+}
+
+/// INVARIANT (N1, held against the producer): every evaluated node's
+/// rows are headed the way the edge `verbatim_edge` reads it as
+/// requires — foreign only for `Whole`/`Selected`, both for `Intact`,
+/// own only for `None` — and a `ROW_FREE` kind publishes none.
+///
+/// Red when a node that evaluates to its input's names is filed under
+/// `None`, when a re-minting node is classified as an edge, when a node
+/// is filed under the wrong edge, and when a transform or a part
+/// re-mints part of what it carries.
+#[test]
+fn every_node_publishes_the_heads_its_verbatim_edge_requires() {
+    let disagreements: Vec<String> = evaluated().iter().filter_map(disagreement).collect();
     assert!(
         disagreements.is_empty(),
         "`names::verbatim_edge` and the evaluator disagree on which nodes pass names \
          through:\n  {}",
         disagreements.join("\n  ")
     );
+}
 
-    let required: Vec<&str> = NODE_KIND
+/// INVARIANT: the row above samples every node kind — each kind
+/// published rows somewhere in the corpus, or is `ROW_FREE` and
+/// evaluated somewhere, or is on the evaluation frontier. Both lists
+/// are exact: a `ROW_FREE` kind that publishes, or a frontier kind that
+/// evaluates, reds until its entry goes.
+#[test]
+fn the_corpus_samples_every_node_kind_with_rows() {
+    let all = evaluated();
+    let with_rows: BTreeSet<&str> = all
+        .iter()
+        .filter(|s| s.rows > 0)
+        .map(|s| s.kind.as_str())
+        .collect();
+    let evaluated: BTreeSet<&str> = all.iter().map(|s| s.kind.as_str()).collect();
+    let row_free: BTreeSet<&str> = evaluated
+        .iter()
+        .copied()
+        .filter(|k| ROW_FREE.contains(k))
+        .collect();
+
+    let mut reports = Vec::new();
+    // Every kind the roster names is sampled or exempt, and nothing is
+    // both: a sampled frontier kind lands in the witnessed set without
+    // being declared.
+    let declared: Vec<&str> = NODE_KIND
         .identifiers()
         .iter()
         .copied()
-        .filter(|k| !NEVER_EVALUATES.contains(k))
+        .filter(|k| !corpus::NEVER_EVALUATES.contains(k))
         .collect();
-    let sampled: Vec<&str> = sampled.iter().map(String::as_str).collect();
-    if let Some(report) = test_utils::census::set_difference(
-        &required,
+    let sampled: Vec<&str> = with_rows
+        .iter()
+        .chain(&row_free)
+        .chain(
+            evaluated
+                .iter()
+                .filter(|k| corpus::NEVER_EVALUATES.contains(k)),
+        )
+        .copied()
+        .collect::<BTreeSet<_>>()
+        .into_iter()
+        .collect();
+    reports.extend(test_utils::census::set_difference(
+        &declared,
         &sampled,
-        "the node kinds this guard must sample and the kinds the corpus evaluated disagree",
-        "evaluated here and exempted as never evaluating — drop it from `NEVER_EVALUATES`",
-        "no document evaluates one — add one to `samples`, or exempt it in \
-         `NEVER_EVALUATES` with the reason it cannot evaluate",
-    ) {
-        panic!("{report}");
-    }
+        "the node kinds this guard must sample and the kinds the corpus sampled disagree",
+        "evaluated here, yet listed in `corpus::NEVER_EVALUATES` — drop it there",
+        "no document publishes a row from one — add one to `samples`, or list it in \
+         `ROW_FREE` (it evaluates, to no names) or `corpus::NEVER_EVALUATES` (it cannot \
+         evaluate), with the reason",
+    ));
+    // `ROW_FREE` is exact: each entry evaluated, and none published.
+    let row_free_witnessed: Vec<&str> = row_free
+        .iter()
+        .copied()
+        .filter(|k| !with_rows.contains(k))
+        .collect();
+    reports.extend(test_utils::census::set_difference(
+        &ROW_FREE,
+        &row_free_witnessed,
+        "`ROW_FREE` and the row-free kinds the corpus evaluated disagree",
+        "unreachable: witnessed only from `ROW_FREE` itself",
+        "listed as row-free, and either no document evaluates one or one published rows \
+         — evaluate one in `samples`, or drop the entry",
+    ));
+    assert!(reports.is_empty(), "{}", reports.join("\n"));
 }

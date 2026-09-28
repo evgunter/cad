@@ -186,14 +186,33 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
 
 // --- the recipe walks' pass-through set -----------------------------
 
-/// **Whether the recipe walks read `node` as a name-carrying edge**:
-/// `names::verbatim_edge` answering `Some`, the one statement of N1's
-/// pass-through set that the product's two-roots check and the mate
-/// member walk follow.
+/// **Which name-carrying edge the recipe walks read a node as**: the
+/// variant of `names::VerbatimEdge`, without the operands it carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VerbatimKind {
+    /// `VerbatimEdge::Whole`: every body of the input, moved.
+    Whole,
+    /// `VerbatimEdge::Selected`: one body of the input, projected.
+    Selected,
+    /// `VerbatimEdge::Intact`: the entities a split leaves intact.
+    Intact,
+}
+
+/// **The name-carrying edge the recipe walks read `node` as, if any**:
+/// `names::verbatim_edge`, the one statement of N1's pass-through set
+/// that the product's two-roots check and the mate member walk follow,
+/// reduced to its variant.
 ///
 /// Carries no oracle: it IS the classification, lifted out of the
 /// crate so a row can hold it against what evaluation publishes
-/// (`tests/names_verbatim_edge_evaluator.rs`).
-pub fn carries_names_verbatim<P>(node: &Node<P>) -> bool {
-    crate::names::verbatim_edge(node).is_some()
+/// (`tests/names_verbatim_edge_evaluator.rs`). The match has no
+/// wildcard, so an edge kind added to `VerbatimEdge` does not compile
+/// until it is mirrored here.
+pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
+    use crate::names::VerbatimEdge;
+    Some(match crate::names::verbatim_edge(node)? {
+        VerbatimEdge::Whole { .. } => VerbatimKind::Whole,
+        VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
+        VerbatimEdge::Intact => VerbatimKind::Intact,
+    })
 }

@@ -1446,9 +1446,12 @@ pub(crate) enum VerbatimEdge<'a> {
 /// What the compiler cannot hold — that this classification agrees
 /// with what the evaluator actually passes through (`eval::wire`'s
 /// `wire_transform`, `wire_part`, `wire_split`) — is held at runtime
-/// by `tests/names_verbatim_edge_evaluator.rs`: over a corpus that
-/// evaluates every node kind that can evaluate, a node publishes a
-/// name headed by another node exactly when this answers `Some`.
+/// by `tests/names_verbatim_edge_evaluator.rs`, per edge over an
+/// evaluated corpus: a `Whole` or `Selected` node publishes only names
+/// headed by other nodes, an `Intact` one publishes both kinds, and a
+/// `None` node heads every row itself. Every node kind the corpus can
+/// evaluate is sampled with rows, except the kinds that publish none
+/// at all, which that suite names and holds at zero.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
