@@ -59,19 +59,15 @@ When an implementer names a gap, ask whether the untested axis is the
 row's subject or merely adjacent: adjacent is a follow-up, the subject is
 a blocker.
 
-**Reviewer tests are ordinary tests (Ev, 2026-09-04).** A reviewer may
-write tests while reviewing; the useful ones go into the permanent
-suite as normal rows when that makes sense, and nothing about them is
-special afterwards. They share helpers where two files build the same
-thing, keep their own code only where a row's claim needs its own
-derivation (a general test-design question, not a question of who
-wrote the row), and are trimmed, gated or retired under the same rules
-as every other row ([[test-suite-cost]]). An earlier version of this
-memory made reviewer suites a protected class ("promoted as-is",
-"independence worth keeping", "never simplify to match shipped
-fixtures"); that reading was withdrawn when two test-support trees
-were found stating opposite rules for the same class of duplicate
-(`work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md`).
+**Reviewer tests are ordinary tests (Ev, 2026-09-04, 2026-09-27).**
+Reviewer suites are a good source of integration tests, but make sure
+they are reasonably efficient and that any fuzzers in them are
+configured appropriately. The useful ones go into the permanent suite
+as normal rows, and nothing about them is special afterwards: they
+share helpers where two files build the same thing, keep their own code
+only where a row's claim needs its own derivation, and are trimmed,
+gated or retired under the same rules as every other row
+([[test-suite-cost]]).
 
 **Dependencies: install freely, with supply-chain sanity.** Installing
 tools/crates as needed is fine unless genuinely risky; put roughly a

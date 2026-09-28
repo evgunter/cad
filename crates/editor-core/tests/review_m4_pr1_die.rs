@@ -10,6 +10,7 @@
 //!    Added/Removed, no order/param/ε deltas.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{ang, len, scl};
 use editor_core::{
     Dimension, Doc, DocEdit, DocParam, Expr, Node, NodeChange, ParamName, RecipeNodeId, eval,
 };
@@ -23,16 +24,6 @@ impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).unwrap()
-}
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 const HALF: f64 = 0.010;
 const PITCH: f64 = 0.005;

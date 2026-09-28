@@ -554,8 +554,7 @@ fn mate_surface<T: Decide>(body: &Body<T>, half_edge: HalfEdgeKey) -> Option<Sur
     let geom_brep::EdgeDescription::Intersection { s1, s2, .. } = *curve.description() else {
         return None;
     };
-    let lp = body.get_loop(he.parent_loop)?;
-    let own = body.get_face(lp.face)?.surface;
+    let own = body.get_face(body.face_of_half_edge(half_edge)?)?.surface;
     let other = if own == s1 {
         s2
     } else if own == s2 {
@@ -571,14 +570,7 @@ fn half_edge_surface<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<Surface<T>, PcurveMintError> {
-    let he = body
-        .get_half_edge(half_edge)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let lp = body
-        .get_loop(he.parent_loop)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
-    body.get_surface(face.surface)
+    body.get_surface(half_edge_surface_key(body, half_edge)?)
         .cloned()
         .ok_or(PcurveMintError::Corrupt)
 }
@@ -589,14 +581,10 @@ fn half_edge_surface_key<T: Decide>(
     body: &Body<T>,
     half_edge: HalfEdgeKey,
 ) -> Result<geom_brep::SurfaceKey, PcurveMintError> {
-    let he = body
-        .get_half_edge(half_edge)
+    let face = body
+        .face_of_half_edge(half_edge)
         .ok_or(PcurveMintError::Corrupt)?;
-    let lp = body
-        .get_loop(he.parent_loop)
-        .ok_or(PcurveMintError::Corrupt)?;
-    let face = body.get_face(lp.face).ok_or(PcurveMintError::Corrupt)?;
-    Ok(face.surface)
+    Ok(body.get_face(face).ok_or(PcurveMintError::Corrupt)?.surface)
 }
 
 /// The certified description of `half_edge`'s edge.

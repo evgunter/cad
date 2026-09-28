@@ -296,11 +296,12 @@ concurrency:
 # note that a single run cannot settle it, because any env change here
 # rotates the rust-cache key and buys one cold rebuild.
 #
-# NOT MIRRORED into local-scripts/ci-local.sh, deliberately: these are hosted-
-# runner performance knobs, not gate semantics. No job is added, removed
-# or re-scoped, the same targets are compiled and the same tests run, so
-# the local gate stays byte-for-byte equivalent in what it PROVES. The
-# mirror convention covers the matrix, not the runner's linker.
+# These are runner performance knobs, not gate semantics: no job is added,
+# removed or re-scoped, and the same targets compile and the same tests run.
+# local-scripts/ci-local.sh sets the two DEBUG knobs too (a full local run
+# with full DWARF filled a cloud box's disk), and leaves TEST_STRIP, which
+# exists for the artifact quota, out. The mirror convention covers the
+# matrix, not the runner's linker.
 env:
   # sccache pin for the rig wired into the two build jobs below, which
   # is OFF: it runs only for the repo variable SCCACHE = "1". The
@@ -3995,15 +3996,19 @@ jobs:
       # half (`src/chaintol.rs`), whose subject is the E6 driver's
       # certified leaves and the E5 stackup over them, are compiled and
       # their rows executed here. Their narration is `demo-tour
-      # certified`, which `eps_regression` runs at every ε here and which
-      # asserts nothing; the scene walk the render and budget lanes run
-      # does not narrate them.
+      # certified`, which `eps_regression` runs here at the default ε
+      # only (the scene walk keeps all three; the pin's header says
+      # why). The tolerance cell asserts its captions' findings inside
+      # that narration, so that run is its only execution here — it has
+      # no separate unit row driving the same study a second time. The
+      # scene walk the render and budget lanes run does not narrate them.
       #
       # NEXTEST, SO THE SUITE'S BINARIES SHARE ONE POOL. `cargo test` runs
       # test binaries one after another, and this suite is a handful of
       # long single-threaded tests in two binaries: the bin's unit tests
       # (~8.6 min, three of them minutes each) and then `eps_regression`
-      # (~12.6 min, three whole-tour runs). Run in sequence they left this
+      # (~12.6 min, three whole-tour runs, before the certified cells
+      # went to one ε and a parallel drive). Run in sequence they left this
       # row the last job to finish in 160 of 278 full PR runs
       # (2026-09-22..25, median 28 min). One nextest pool overlaps the
       # two; the tests and what they assert are unchanged.

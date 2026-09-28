@@ -2,10 +2,13 @@
 id: a-viewer-error-arm-is-not-split-because-a-review-suite-pins-it
 kind: issue
 title: camera.rs declines an error-arm split on the ground that a promoted review suite pins the arm — the reading Ev withdrew, in src/
-status: open
+status: closed
 opened: 2026-09-19
 priority: P4
 cost: E
+closed: 2026-09-26
+branch: dup/b7-a
+pr: 3304
 ---
 
 
@@ -121,3 +124,71 @@ my two arguments was wrong — is answered by which door refused."* It
 mentions no suite. **Deleting the review-suite sentence therefore
 leaves the decision standing**, which is why the choice this row hands
 over is a real one and not a forced split.
+
+## Re-read at `0c1932667`: the paragraph above does not carry it either
+
+The S-DUP `viewer-drain` lane (2026-09-26) was asked to make the fix
+if it is a small change in `crates/viewer/src`. It is not, and the
+reason is sharper than the one above:
+
+- **The argument the row leans on fails for the doors it names.**
+  `camera.rs`'s `UnusableBounds` doc says the caller's question
+  *"which of my two arguments was wrong — is answered by which door
+  refused"*. `Camera::framing` and `Camera::fitted` each take BOTH
+  arguments and refuse either one as `UnusableBounds` (`fitted`'s
+  `aspect <= 0.0` guard, and `sphere`'s refusal of the box), so for
+  them which door refused answers nothing.
+- **The single-argument doors are about the VIEWPORT, not bounds.**
+  `Camera::projection_matrix` (a non-positive aspect),
+  `Camera::ray_through` and `datums::datum_view` (a viewport with no
+  area) all answer `UnusableBounds` for a pane. `pane/viewport.rs`'s
+  datum-overlay comment says as much of the badge that shows it, where
+  an infinite pane reaches the matrix as either `NotFinite { what:
+  "aspect" }` or `UnusableBounds`: *"Either way the badge names an
+  argument nobody passed; what this writes names the side of the pane
+  that was not a number of pixels."* The complaint covers both arms,
+  so it is evidence about the vocabulary, not about this arm alone.
+- So deleting the review-suite sentence would leave a decline resting
+  on an argument that does not hold, and restating it means choosing
+  the vocabulary: split out an aspect/viewport arm (a public API
+  change in `viewer`, with `review_gui0_r1`'s aspect row, `datum_draw`'s
+  viewport row and `error_display`'s prose rows re-spelt), or keep one
+  arm with a new reason. That is the owner's call on `viewer`'s error
+  vocabulary, not a duplication lane's. **Left open** for `view`
+  (or `chrome` / `vgeom`), who may claim it by `git mv`.
+
+Sites naming the arm at the base, by name: `review_gui0_r1`'s two
+`Err(CameraError::UnusableBounds)` rows (the aspect case is
+`Camera::framing(&plate_bounds(), 0.0)`), `error_display`'s four
+constructions and one prose assertion, `datum_draw`'s viewport row;
+in `src/`, `datums::datum_view`'s doc and guard and
+`pane/viewport.rs`'s datum-overlay comment.
+
+## Closed (2026-09-26, PR #3304)
+
+Ruled by the S-DUP orchestrator: the arm stays one, the withdrawn
+reading goes, and the API does not change. The review-suite sentence
+is deleted from `CameraError::UnusableBounds`'s rustdoc.
+
+The re-read above was right that the paragraph it leaves behind named
+the wrong doors, so deleting the sentence alone would have left a
+decline standing on a false description. The paragraph is restated
+from the caller's seat, true of every door that returns the arm: the
+doors that take only a viewport (`Camera::projection_matrix`,
+`Camera::ray_through`, `datums::datum_view`) have one candidate, so
+the door that refused names it; `Camera::framing` and `Camera::fitted`
+take both, and there the aspect the caller passed settles it — the arm
+under a positive aspect is the box (a non-positive aspect is refused
+before or after the box, and is wrong either way). That keeps the
+first half of the old argument ("the framing request names no view")
+and replaces the second with a statement that holds at every door.
+
+No other place in `crates/viewer` states the withdrawn cost about
+this arm: `git grep` for `UnusableBounds`, `UnusableAspect`, `pins`
+and `review suite` / `promoted` over `crates/viewer` returned the
+sentence itself, the test sites that construct or match the arm
+(`error_display.rs`, `datum_draw.rs`, `review_gui0_r1.rs`, none with a
+comment about splitting), and two `Promoted from the review lane`
+provenance notes in `creation_ops.rs` that say nothing about this arm.
+Its blind spot is the one this row already names: a decline phrased
+about one named suite without those words would not match.

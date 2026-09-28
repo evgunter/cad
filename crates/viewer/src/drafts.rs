@@ -885,8 +885,7 @@ mod tests {
     #![allow(clippy::panic)]
 
     use pncad::document::{
-        CancelToken, Datum, Dimension, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram,
-        RecipeNodeId, apply, evaluate,
+        CancelToken, Doc, DocEdit, EvalOptions, Expr, Node, ProfileProgram, RecipeNodeId, evaluate,
     };
     use pncad::geom_core::{Point2, Tol};
     use pncad::profile::{Step, Target};
@@ -901,6 +900,7 @@ mod tests {
     use crate::session::{DatumSpec, FaceSelection, ProfilePlane};
     use crate::session::{NodeKindWanted, admits};
     use crate::sketch;
+    use crate::test_support::{inserted, try_edited, try_inserted, xy_frame};
 
     /// **An accepted `NewXy` leaves the form on the frame it
     /// minted**, so the next submit draws on that frame instead of
@@ -1106,27 +1106,7 @@ mod tests {
     fn a_committed_profile_is_not_drawn_again_as_its_preview() {
         let tol = Tol::witness();
         let chord = 1.0e-4;
-        let length = |v: f64| Expr::literal(v, Dimension::Length).expect("finite");
-        let scalar = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let frame = Node::Datum(Datum::Frame {
-            origin: [length(0.0), length(0.0), length(0.0)],
-            u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-            v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-        });
-        let insert = |doc: &Doc<ProfileProgram>, node| {
-            // A part-less fixture: no mate, no cluster, so the reach
-            // is the refusing one and is never asked.
-            let applied = apply(
-                doc,
-                &DocEdit::InsertNode { node },
-                tol,
-                &pncad::document::RefusingReach,
-            )
-            .expect("the fixture's edit applies");
-            let id = applied.record.minted.expect("an insert mints an id");
-            (applied.doc, id)
-        };
-        let (doc, plane) = insert(&Doc::empty_derived("drafts-accepted", tol), frame);
+        let (doc, plane) = inserted(&Doc::empty_derived("drafts-accepted", tol), xy_frame(), tol);
         let mut drafts = Drafts {
             profile_plane: Some(ProfilePlane::Existing(plane)),
             profile_shape: Some(ShapeKind::Circle),
@@ -1141,13 +1121,14 @@ mod tests {
         let loops = drafts
             .profile_programs()
             .expect("the default circle lowers");
-        let (doc, profile) = insert(
+        let (doc, profile) = inserted(
             &doc,
             Node::Profile(ProfileProgram {
                 plane,
                 loops: loops.clone(),
                 ids: Vec::new(),
             }),
+            tol,
         );
         drafts.accepted(
             &SessionOp::AddProfile {
@@ -1282,25 +1263,9 @@ mod tests {
     /// that authored it, and the profile node.
     fn authored_by_the_form() -> (Doc<ProfileProgram>, Drafts, RecipeNodeId) {
         use crate::forms::ShapeKind;
-        use crate::session::DatumSpec;
 
-        let len = |m: f64| Expr::literal(m, Dimension::Length).expect("finite");
-        let scl = |v: f64| Expr::literal(v, Dimension::Scalar).expect("finite");
-        let doc = Doc::empty_derived("drafts-edit", Tol::witness());
-        let frame = datum_node(DatumSpec::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node: frame },
-            Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("a frame inserts")
-        .doc;
-        let plane = *doc.order().last().expect("the frame");
+        let tol = Tol::witness();
+        let (doc, plane) = inserted(&Doc::empty_derived("drafts-edit", tol), xy_frame(), tol);
         let drafts = Drafts {
             profile_shape: Some(ShapeKind::Path),
             profile_plane: Some(ProfilePlane::Existing(plane)),
@@ -1312,15 +1277,8 @@ mod tests {
             loops,
             ids: Vec::new(),
         });
-        let doc = apply(
-            &doc,
-            &DocEdit::InsertNode { node },
-            Tol::witness(),
-            &pncad::document::RefusingReach,
-        )
-        .expect("the form's default path is a profile")
-        .doc;
-        let profile = *doc.order().last().expect("the profile");
+        let (doc, profile) =
+            try_inserted(&doc, node, tol).expect("the form's default path is a profile");
         (doc, drafts, profile)
     }
 
@@ -1338,18 +1296,14 @@ mod tests {
         let edits = sketch::program_edits(current, &loops).expect("same shape");
         assert_eq!(edits.len(), 1, "one argument moved: {edits:?}");
         edits.into_iter().fold(doc.clone(), |doc, (slot, expr)| {
-            apply(
-                &doc,
-                &DocEdit::SetParam {
-                    node: edit.node,
-                    slot,
-                    expr,
-                },
-                Tol::witness(),
-                &pncad::document::RefusingReach,
-            )
-            .expect("the edit door takes it")
-            .doc
+            let edit = DocEdit::SetParam {
+                node: edit.node,
+                slot,
+                expr,
+            };
+            try_edited(&doc, edit, Tol::witness())
+                .expect("the edit door takes it")
+                .0
         })
     }
 

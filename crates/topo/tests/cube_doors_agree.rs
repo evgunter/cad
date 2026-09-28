@@ -524,6 +524,9 @@ fn every_door_builds_the_prism_its_inputs_name() {
 #[test]
 fn every_generic_door_builds_the_prism_its_inputs_name_at_an_interval_scalar() {
     use geom_core::Interval;
+    // Deliberately NOT `common::identity_map`, though it is this map:
+    // `prism_z` places its corners through that door, so an expectation
+    // read from it would agree with the builder whatever the door did.
     let ident = |x: f64, y: f64, z: f64| {
         Point3::new(
             Interval::from_f64(x),

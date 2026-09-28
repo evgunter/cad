@@ -247,7 +247,7 @@ fn r2_a_thin_curved_wall_shells_silently_into_crossing_walls() {
         .find(|(_, s)| voids.contains(s))
         .expect("a thin solid for the void")
         .0;
-    let twin = out.get_solid(twin_solid).expect("the thin solid").shells[0];
+    let twin = out.shells_of_solid(twin_solid).expect("the thin solid")[0];
     let tb = shell_box(out, twin);
     assert!(
         tb[0].1 > 0.85 + 1e-9,
@@ -334,7 +334,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
             .expect("the operand void")
             .faces
             .clone();
-        let shells = &out.get_solid(solid).expect("a thin solid").shells;
+        let shells = out.shells_of_solid(solid).expect("a thin solid");
         assert_eq!(shells.len(), 2, "a thin solid is twin plus void");
         let twin = *shells
             .iter()
@@ -392,7 +392,7 @@ fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
         .expect("MEASURED: the door accepts a lone void");
     assert_eq!(body.solids().count(), 2);
     assert_eq!(
-        body.get_solid(minted).expect("the minted solid").shells,
+        body.shells_of_solid(minted).expect("the minted solid"),
         vec![voids[0]]
     );
     assert_eq!(

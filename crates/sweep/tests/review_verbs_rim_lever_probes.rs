@@ -49,6 +49,9 @@
 
 test_utils::gated_to![
     "crates/sweep/src/blend/",
+    // The vertex doors every blend corner reads its incident edges and
+    // faces through.
+    "crates/topo/src/body.rs",
     "crates/sweep/src/revolve/",
     "crates/sweep/src/extrude.rs",
     "crates/sweep/src/test_support.rs",

@@ -3365,10 +3365,11 @@ mod value_field_tests {
     use crate::props;
     use crate::session::ValueGestureName;
     use crate::session::{DocSession, Refusal, SessionOp};
+    use crate::test_support::{declared, framed_square, inserted, len, scl};
     use eframe::egui;
     use pncad::document::{
-        Datum, Dimension, DimensionError, Doc, DocEdit, DocParam, Expr, LoopProgram, Node,
-        ParamName, PatternKind, ProfileProgram, RecipeNodeId, RefusingReach, SlotId, apply,
+        Dimension, DimensionError, Doc, DocParam, Expr, Node, ParamName, PatternKind,
+        ProfileProgram, RecipeNodeId, SlotId,
     };
     use pncad::geom_core::Tol;
     use pncad::prelude::MM;
@@ -3414,39 +3415,6 @@ mod value_field_tests {
         notices: Vec<crate::frame::Message>,
     }
 
-    /// Apply one edit to a fixture document, answering the document
-    /// and any minted id — `tests/common`'s `edited`, spelled here
-    /// because this suite lives inside the crate.
-    fn edited(
-        doc: &Doc<ProfileProgram>,
-        edit: DocEdit<ProfileProgram>,
-        tol: Tol,
-    ) -> (Doc<ProfileProgram>, Option<RecipeNodeId>) {
-        let applied = apply(doc, &edit, tol, &RefusingReach).expect("the fixture's edit applies");
-        (applied.doc, applied.record.minted)
-    }
-
-    fn inserted(
-        doc: &Doc<ProfileProgram>,
-        node: Node<ProfileProgram>,
-        tol: Tol,
-    ) -> (Doc<ProfileProgram>, RecipeNodeId) {
-        let (doc, minted) = edited(doc, node_insert(node), tol);
-        (doc, minted.expect("an insert mints an id"))
-    }
-
-    fn node_insert(node: Node<ProfileProgram>) -> DocEdit<ProfileProgram> {
-        DocEdit::InsertNode { node }
-    }
-
-    fn len(metres: f64) -> Expr {
-        Expr::literal(metres, Dimension::Length).expect("a finite length")
-    }
-
-    fn scl(value: f64) -> Expr {
-        Expr::literal(value, Dimension::Scalar).expect("a finite scalar")
-    }
-
     impl Row {
         /// One length parameter, declared in millimetres and holding
         /// `canonical` metres.
@@ -3481,36 +3449,13 @@ mod value_field_tests {
         /// row about a DRIVEN slot has something to drive it with.
         fn extrude_distance(label: &str, canonical: f64) -> Self {
             let tol = Tol::witness();
-            let doc: Doc<ProfileProgram> = Doc::empty_derived(label, tol);
-            let (doc, _) = edited(
-                &doc,
-                DocEdit::SetDocParam {
-                    name: ParamName::new("base_r"),
-                    value: DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
-                },
+            let doc = declared(
+                label,
+                &ParamName::new("base_r"),
+                DocParam::written_length(WrittenLength::canonical_in(0.004, MM)),
                 tol,
             );
-            let (doc, plane) = inserted(
-                &doc,
-                Node::Datum(Datum::Frame {
-                    origin: [len(0.0), len(0.0), len(0.0)],
-                    u: [scl(1.0), scl(0.0), scl(0.0)],
-                    v: [scl(0.0), scl(1.0), scl(0.0)],
-                }),
-                tol,
-            );
-            let (doc, profile) = inserted(
-                &doc,
-                Node::Profile(ProfileProgram {
-                    plane,
-                    loops: vec![
-                        LoopProgram::polygon([(0.0, 0.0), (0.04, 0.0), (0.04, 0.04), (0.0, 0.04)])
-                            .expect("finite corners"),
-                    ],
-                    ids: Vec::new(),
-                }),
-                tol,
-            );
+            let (doc, profile) = framed_square(&doc, 0.04, tol);
             let (doc, extrude) = inserted(
                 &doc,
                 Node::Extrude {

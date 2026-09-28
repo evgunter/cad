@@ -13,10 +13,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::slab as plate;
+use crate::common::operands::{slab as plate, three_arc_cylinder};
+use crate::common::three_arc;
 use geom_core::k_stats::Bracket;
 use geom_core::{Affine3, Mat3, Point2, Point3, Tol, Vec3};
-use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
+use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::extruded;
 use sweep::{Extrusion, extrude};
 use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
@@ -29,19 +31,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
 /// boss_union authorship: three 120° arcs on ONE cylinder surface).
 fn cyl(z0: f64, h: f64, r: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + r * th.cos(), 2.0 + r * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(2.0, 2.0), r, z0, h, 0.0)
 }
 
 /// The bored plate: a through-hole subtract (the shipped transverse
@@ -211,24 +201,18 @@ fn declared_rest_with_wrong_radius_contradicts() {
 /// 0.5) with a meridian SEAM on its lowest ruling (profile vertices
 /// at 60°/180°/300° in sketch coordinates), spanning y ∈ [0.5, 3.5].
 fn lying_cyl(zc: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
     // Sketch frame: sketch x → world z, sketch y → world x, normal
     // (extrusion) +y. Disc centre at world (x = 2, z = zc).
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(zc + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(60.0), b120), (at(180.0), b120), (at(300.0), b120)]);
     let plane = SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_z(), Vec3::unit_x(), Vec3::unit_y()),
         Point3::new(0.0, 0.5, 0.0) - Point3::origin(),
     ));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(3.0), Tol::witness())
-        .unwrap()
-        .body
+    extruded(
+        plane,
+        vec![three_arc(p2(zc, 2.0), 0.5, 60.0)],
+        3.0,
+        Tol::witness(),
+    )
 }
 
 /// The plate-top × cylinder-wall pairs declared under `class`.

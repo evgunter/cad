@@ -13,7 +13,7 @@ use editor_core::{
     ProgramArcData, ProgramStep, ProgramTarget, RecipeNodeId, StableName, ValuePayload, evaluate,
     vertex_position,
 };
-use fixture::{ang, insert, len, scl, table};
+use fixture::{ang, insert, len, len2, scl, table};
 use geom_core::Tol;
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
@@ -62,10 +62,6 @@ fn revolve_chain(steps: Vec<ProgramStep>, angle: f64) -> (ProfileDoc, RecipeNode
     )
 }
 
-fn p2(x: f64, y: f64) -> [editor_core::Expr; 2] {
-    [len(x), len(y)]
-}
-
 /// A SUBDIVIDED axis run — an on-axis side carried by two collinear
 /// legs, so the run has an INTERIOR on-axis vertex — is representable
 /// through the program layer: `.tangent()` then `line(len)` is a
@@ -84,8 +80,8 @@ fn subdivided_axis_run_is_representable_through_the_program_layer() {
     let node = Node::Profile(ProfileProgram {
         plane,
         loops: vec![LoopProgram::Chain(vec![
-            ProgramStep::At(p2(0.0, 1.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
+            ProgramStep::At(len2([0.0, 1.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
             ProgramStep::ArcTo(ProgramArcData::Bulge {
@@ -112,10 +108,10 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let (doc, rev) = revolve_chain(
         vec![
-            ProgramStep::At(p2(0.0, 0.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(1.0, 0.0))),
+            ProgramStep::At(len2([0.0, 0.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
             ProgramStep::ArcTo(ProgramArcData::Bulge {
-                target: ProgramTarget::Point(p2(0.0, 1.0)),
+                target: ProgramTarget::Point(len2([0.0, 1.0])),
                 b: scl(b),
             }),
             ProgramStep::LineTo(ProgramTarget::Start),
@@ -139,8 +135,8 @@ fn full_mixed_profile_names_poles_and_anchors_the_off_axis_vertex() {
 fn subdivided_axis_run(angle: f64) -> (ProfileDoc, RecipeNodeId) {
     revolve_chain(
         vec![
-            ProgramStep::At(p2(0.0, 1.0)),
-            ProgramStep::LineTo(ProgramTarget::Point(p2(0.0, 0.0))),
+            ProgramStep::At(len2([0.0, 1.0])),
+            ProgramStep::LineTo(ProgramTarget::Point(len2([0.0, 0.0]))),
             ProgramStep::Tangent,
             ProgramStep::Line(len(1.0)),
             ProgramStep::ArcTo(ProgramArcData::Bulge {

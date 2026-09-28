@@ -9,8 +9,9 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
@@ -41,19 +42,7 @@ fn holed_plate() -> Body<f64> {
 /// vertices so no vertex-vertex or vertex-on-line coincidence backs
 /// the interface by accident), z in [-0.2, 1.4].
 fn through_boss() -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(2.0 + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(90.0), b120), (at(210.0), b120), (at(330.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, -0.2)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.6), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(2.0, 2.0), 0.5, -0.2, 1.6, 90.0)
 }
 
 #[test]

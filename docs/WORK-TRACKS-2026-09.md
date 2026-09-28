@@ -18,7 +18,10 @@ homogeneous in what it demands —
   E track dispatches straight to implementers and takes the S-TCOST
   review posture: batched style review, no A/B row for infra-only or
   test-only units.
-- **D (design)**: a question with several viable answers, a
+- **D (design)**: *(Legacy since 2026-09-27: before then `D` was also
+  used to mean medium effort. The tracker now prices effort as
+  `E`/`M`/`H` and marks an open design question with a separate
+  `design: true`; see `work/README.md`, Vocabularies.)* A question with several viable answers, a
   `DESIGN.md`/API-shape choice, or a body that says "conversation
   before unit". A D track is Ev-paced: it opens with `[ev]` PRs and
   hands the builds to an E or H track once ruled.
