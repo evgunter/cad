@@ -955,3 +955,8 @@ class of 65 sites is PRED's row.
   - Monotonicity is settled: rounds are NOT monotone (each round recomputes from scratch, and midpoint rounding grows with cell count). The `filter` guard stays, and validate.rs's check-7 doc now rests on containment only.
   - `PERF-6-SPEC.md` corrected in place, since it states a measurement.
   - Merging on hosted green of this head.
+- 2026-09-28 — PR 3334 fix pass landed at `5a362d9f20`.
+  - Mutants A and B are killed by the plane/cylinder row.
+  - Driver side channel (b) cannot be fixed cheaply (it needs a new k_stats door or unwrapping about 40 op wrappers), so it is filed as `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` (P3/M). It is visible only on a sliver enclosure.
+  - Fallback pair appended to PRED's `lever-arm-fold-six-hand-rolled-siblings`.
+  - Merging on hosted green of this head.
