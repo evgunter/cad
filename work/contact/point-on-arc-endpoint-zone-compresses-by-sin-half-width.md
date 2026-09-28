@@ -42,3 +42,21 @@ conditioned rewrite of `point_on_arc`'s window, would apply here.
 **To reproduce:** `contfp` on a planar face with a 0.02-rad boundary arc
 of radius 10, with `q` placed `50ε` along the carrier past the arc's end
 (outside it), and again `50ε` inside it.
+
+## 2026-09-27 — one home for the distance trim exists (ATREST-12)
+
+ATREST-12 (PR #3288) moved ATREST-11's distance rule into a single
+function, `splitting::containment::arc_trim` (`pub(crate)`). Check 9's
+`validate::window` calls it, and so does the carrier walk's arc trim,
+which had the same `sin(w/2)` compression as a cosine window. It takes
+the rows as a parameter and a lever (1 for metres; the semi-axis for
+unit coordinates), so `point_on_arc` can call it rather than write a
+third copy.
+
+Sibling sites of the same cosine-window construction, found by the
+same sweep and not measured: `solid_contain`'s
+`point_on_wall_in_face` (azimuth window), `point_on_sphere_in_face`,
+and the third period-guard site at `contain.rs` (the comment "THE
+cosine-window construction's period guard, third site"). All three
+compare `r̂·m̂` against `cos(w/2)`, whose margin compresses near an
+end in the same way.

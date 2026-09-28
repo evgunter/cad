@@ -727,16 +727,50 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             label("PoisonedSurfaceDatum", &datum),
             ValidationError::PoisonedSurfaceDatum { face, kind, datum },
         ));
-        for end in geom::ConventionEnd::iter() {
-            s.push((
-                label("UnrepresentableSurfaceDatum", &datum),
-                ValidationError::UnrepresentableSurfaceDatum {
-                    face,
-                    kind,
-                    datum,
-                    end,
-                },
-            ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!(
+                        "{}/{measure:?}",
+                        label("UnrepresentableSurfaceDatum", &datum)
+                    ),
+                    ValidationError::UnrepresentableSurfaceDatum {
+                        face,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
+        }
+    }
+
+    // A carrier datum, poisoned or outside its range: every datum, at
+    // each end of the range.
+    for datum in geom::CurveDatum::iter() {
+        let kind = crate::query::CurveKind::Ellipse;
+        s.push((
+            label("PoisonedCurveDatum", &datum),
+            ValidationError::PoisonedCurveDatum { edge, kind, datum },
+        ));
+        // Every measure at every end, the frame's included: the
+        // renderings differ by measure, so each is budget-checked.
+        for measure in geom::ConventionMeasure::iter() {
+            for end in geom::ConventionEnd::iter() {
+                s.push((
+                    format!("{}/{measure:?}", label("UnrepresentableCurveDatum", &datum)),
+                    ValidationError::UnrepresentableCurveDatum {
+                        edge,
+                        kind,
+                        datum,
+                        measure,
+                        end,
+                    },
+                ));
+            }
         }
     }
 
@@ -833,6 +867,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
                 face,
                 ring: loop_,
                 source,
+            },
+        ));
+    }
+    // Check 10: both rendered magnitudes, the doubled count and the
+    // negative one.
+    for (winding, bounded) in [(1, 2), (0, -1)] {
+        s.push((
+            format!("ShellWinding/{bounded}"),
+            ValidationError::ShellWinding {
+                solid,
+                shell: ShellKey::default(),
+                winding,
+                bounded,
             },
         ));
     }
