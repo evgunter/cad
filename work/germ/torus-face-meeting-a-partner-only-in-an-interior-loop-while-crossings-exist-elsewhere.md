@@ -2,11 +2,12 @@
 id: torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
 title: A torus face that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop
-status: open
+status: dispatched
 opened: 2026-09-26
 refs: [torus-operand-gate-admission]
 priority: P0
 cost: H
+branch: germ/section-certificate-spec
 ---
 
 ## What

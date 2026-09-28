@@ -298,3 +298,27 @@ ops. The fix pass moved the ring convention's one home down to `geom`, so
 `spiric` could reach it. The ∖/∩ torus roster is parked on the interior-loop
 row's section certificate. Hosted CI is re-run on the head with the stopgap
 merged in.
+
+## 2026-09-28 — round three: a spec before the certificate
+
+Merged in round two: PR 3322 (the cone ground), PR 3336 (the stopgap, which
+closed two live wrong answers) and PR 3330 (the chord rule and the ring
+convention's home; DR-14). A follow-up of PR 3336's row hygiene is in flight
+on `germ/interior-loop-guard-rows`.
+
+The interior-loop class has now escaped two reviews (DR-11) and would meet a
+cone admission (a plane cuts a cone in an interior ellipse). So round three
+writes the certificate's DERIVATION before any code:
+- `germ/section-certificate-spec`, a spec lane on
+  `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
+  (b). Per kind pair (torus and cone against plane, cylinder, sphere, torus,
+  cone): which section components can exist, and what certifies that each is
+  either evidenced by an event or absent. The orchestrator reviews the spec,
+  and an implementer builds it with a dual review.
+- `germ/interior-loop-measurements`, a measurement lane: cylinder ×
+  cylinder, the backstop's tilted-rod case
+  (`union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`),
+  and which cone admissions would meet the class.
+
+`VERBS-CONE` and `circle-crosses-a-torus-face-with-no-root-lane` wait behind
+these two. The ∖/∩ torus roster is parked on (b).

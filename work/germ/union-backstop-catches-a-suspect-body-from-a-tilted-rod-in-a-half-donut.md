@@ -2,10 +2,11 @@
 id: union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut
 kind: issue
 title: A tilted rod entering a half donut's cap and poking an oval out of the inner equator reaches the volume backstop on a tier-valid planar body: the pipeline's upstream result is suspect
-status: open
+status: dispatched
 opened: 2026-09-28
 priority: P1
 cost: M
+branch: germ/interior-loop-measurements
 ---
 
 
