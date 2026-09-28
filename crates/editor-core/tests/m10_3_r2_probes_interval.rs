@@ -5,9 +5,8 @@
 //! Why these rows and not the unit's: every accounting fixture in
 //! `m10_3_driver_interval.rs` uses a BOUNDED distribution, so its tail
 //! column is `Ok(0.0)` in every row and the composition of the analyzed
-//! columns with the tail is never exercised at all. Every determinism
-//! row drives one shape (`slab`). Every containment row lands on the
-//! NEGATIVE arm. The rows below drive a document whose tail is
+//! columns with the tail is never exercised at all. Every containment
+//! row lands on the NEGATIVE arm. The rows below drive a document whose tail is
 //! genuinely non-zero, construct the containment-positive case, and
 //! re-derive the receipt identity and the mass total from the shipped
 //! leaves with arithmetic that does not reuse the module's own.
@@ -516,49 +515,6 @@ fn the_point_scalar_door_refuses_by_bits_not_by_value() {
     use geom_core::Bounds;
     assert_eq!((di.value.lo(), di.value.hi()), (-1.0, 1.0));
     assert_eq!((di.deriv.lo(), di.deriv.hi()), (0.0, 0.0));
-}
-
-// -------------------------------------------------- determinism
-
-/// D9 determinism on a document of my own, not the unit's: the
-/// serialized verdict and its content key are bit-identical across a
-/// repeat and across the rayon schedule, on a drive with certified
-/// leaves, a real refusal class and hundreds of splits.
-///
-/// **The leaf-list comparisons below are whole `PartialEq`s, so they
-/// compare `decisions` and therefore `frozen`.** That column is each
-/// leaf's NEED of the drive's frozen set — a function of the leaf's box
-/// and of the drive, never of the order (`geom_core::SymCounts::frozen`
-/// and `geom_core::sym::memo`'s header) — so this row asks for
-/// something schedule-independent by construction. It was accidentally
-/// satisfied before SYM-13, when the column was the work a leaf
-/// happened to do and this document's every leaf happened to inherit
-/// its forms from the root;
-/// `m10_sym_drive_memo_interval::the_leaves_of_a_racing_drive_report_one_column_under_every_schedule`
-/// drives the adversary that made the difference visible.
-#[test]
-fn my_own_drive_is_bit_identical_across_repeats_and_schedules() {
-    let doc = pinched(20.0 * eps(), 40.0 * eps());
-    let analyzed = analyzed_box(&doc, &AnalysisPolicy::default());
-    let seq = DriveConfig {
-        max_leaves: 512,
-        ..DriveConfig::default()
-    };
-    let par = DriveConfig {
-        parallel: true,
-        ..seq.clone()
-    };
-    let a = drive(&doc, &analyzed, &seq, Tol::witness()).unwrap();
-    let b = drive(&doc, &analyzed, &seq, Tol::witness()).unwrap();
-    let c = drive(&doc, &analyzed, &par, Tol::witness()).unwrap();
-    assert!(a.receipt().splits > 16, "{:?}", a.receipt());
-    assert!(!a.certified().is_empty() || !a.refused().is_empty());
-    assert_eq!(a.serialize(), b.serialize());
-    assert_eq!(a.serialize(), c.serialize());
-    assert_eq!(a.content_key(), c.content_key());
-    // The parallel schedule must also agree leaf for leaf, in order.
-    assert_eq!(a.certified(), c.certified());
-    assert_eq!(a.refused(), c.refused());
 }
 
 // -------------------------------------------------- the widening

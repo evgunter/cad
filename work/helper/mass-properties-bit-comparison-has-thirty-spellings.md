@@ -79,3 +79,5 @@ struct where `MassProperties` derives `PartialEq`; anything in
 roots, which `crates/*/tests` does not cover.
 
 Filed by SUITE/D114.
+
+**2026-09-28:** `sweep/tests/reporting_door_bit_digest.rs` was deleted, and `shell_census_is_thread_count_invariant.rs` lost its golden rows, in the 2026-09-28 CI-latency cut.

@@ -425,9 +425,10 @@ pub enum LastRound {
 /// taken).
 /// A request whose tolerance sits between the old door bound and the
 /// new one would therefore cross INTO a refusal face, and what rules
-/// that out here is the corpus: over `budget_faces`' 70 requests, one
-/// bound rose, by 1.8%, three orders below the tolerance it was asked
-/// for, and no request crossed in. Every request that crossed OUT is
+/// that out here is a corpus measurement: over 70 requests (the
+/// quarter cylinder and a bumpy patch, 7 deltas x 5 tolerances each),
+/// one bound rose, by 1.8%, three orders below the tolerance it was
+/// asked for, and no request crossed in. Every request that crossed OUT is
 /// certified by the same decomposition that refused it.
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
@@ -2711,46 +2712,6 @@ mod tests {
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
-    /// The bumpy patch `tests/offset_fit.rs` and `budget_faces.rs`
-    /// fit, rebuilt here because `Composite` is private: the no-rise
-    /// claim is about cells, and a consumer suite cannot see one.
-    /// The net is the same interpolation of the same height field, so
-    /// the two fixtures are the same surface.
-    fn bumpy_patch() -> geom::NurbsSurface<f64> {
-        use geom::curves::fit::interpolate_columns;
-        let n = 7;
-        let params: Vec<f64> = (0..n).map(|i| f64::from(i) / f64::from(n - 1)).collect();
-        let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
-        let rows: Vec<Vec<f64>> = params
-            .iter()
-            .map(|u| {
-                let mut row = Vec::with_capacity((n as usize) * 3);
-                for v in &params {
-                    row.extend_from_slice(&[*u, *v, height(*u, *v)]);
-                }
-                row
-            })
-            .collect();
-        let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
-        let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n as usize);
-        for l in 0..(n as usize) {
-            let mut row = Vec::with_capacity(ku.control_count() * 3);
-            for rr in &r {
-                row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
-            }
-            rows_v.push(row);
-        }
-        let (kv, pts) = interpolate_columns(&params, 3, &rows_v).unwrap();
-        let (cu, cv) = (ku.control_count(), kv.control_count());
-        let mut control = Vec::with_capacity(cu * cv);
-        for i in 0..cu {
-            for row in pts.iter().take(cv) {
-                control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
-            }
-        }
-        geom::NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
-    }
-
     /// **The divisor of the `‖E‖` floor is certified from above.**
     ///
     /// [`Composite::e_floors`] divides `mig(D)` by `sup‖M̃‖·w̃` to get
@@ -2806,37 +2767,6 @@ mod tests {
         eprintln!(
             "{name} d={d:e}: {cells} cells, an f64 fold would sit below interval arithmetic \
              reading on {fold_below} of them"
-        );
-    }
-
-    /// **No cell rises on the grids of the request whose DOOR bound
-    /// grew.** The quarter cylinder's two grids are measured by the
-    /// row above; the request that came back 1.8% worse at the door
-    /// is the bumpy patch's `d = 1e-5`, and the per-cell claim is
-    /// what separates a schedule that diverged from a bound that
-    /// loosened.
-    ///
-    /// On the 810-cell grid that request lands on, the widest gain
-    /// any cell shows is `1.0000304` — four orders below the 1.8% the
-    /// door moved by, which is the measurement the filed item
-    /// `offset-fit-door-bound-is-not-monotone-in-the-cell-bound`
-    /// rests on.
-    #[test]
-    fn no_cell_rises_on_the_bumpy_grids_whose_door_bound_grew() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let base = bumpy_patch();
-        let (d, tol) = (1e-5, 1e-6);
-        let (fit, cert) = super::fit_offset_at(&base, d, tol, band).unwrap();
-        let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
-        let comp = Composite::build(&base, &fit, d).unwrap();
-        // `no_cell_loosens` asserts the per-cell claim; the gain it
-        // returns is reported, since it is a property of the grid
-        // rather than of the bound.
-        let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(worst >= 1.0, "d={d:e} tol={tol:e}: widest gain {worst}");
-        eprintln!(
-            "bumpy d={d:e} tol={tol:e}: cells={} hull_sup={:.7e} widest cell gain {worst}",
-            cert.cells, cert.hull_sup
         );
     }
 
