@@ -4,6 +4,7 @@ kind: issue
 title: geom-brep: IntervalNotForward and WindingExceeded end in no routed recourse, and the zero arms quote no margin, because their variants carry no verdict or value
 status: review
 branch: encl/certify-span-zero-arms
+pr: 3392
 opened: 2026-09-28
 ---
 
