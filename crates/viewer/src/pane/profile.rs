@@ -787,15 +787,15 @@ mod verdict_tests {
     }
 
     /// The editor's own preview of one path loop.
-    fn path(steps: Vec<Step>) -> Result<ProfilePreview, PreviewError> {
+    fn path(steps: Vec<Step<f64>>) -> Result<ProfilePreview, PreviewError> {
         previewed(&[ProfileShape::Path { steps }])
     }
 
-    fn at(x: f64, y: f64) -> Step {
+    fn at(x: f64, y: f64) -> Step<f64> {
         Step::At(Point2::new(x, y))
     }
 
-    fn line_to(x: f64, y: f64) -> Step {
+    fn line_to(x: f64, y: f64) -> Step<f64> {
         Step::LineTo(Target::Point(Point2::new(x, y)))
     }
 
