@@ -1590,7 +1590,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
     ];
     let folded = input::fold_events(&map, &camera, viewport, &cursor_only);
     assert!(
-        !frame::folded_moved(&folded),
+        !frame::folded_is_a_camera_event(&folded),
         "cursor events denote no camera operation"
     );
 
@@ -1601,7 +1601,7 @@ fn an_empty_batch_and_a_pure_cursor_stream_move_no_camera() {
         delta_px: [12.0, 0.0],
     }];
     let moved = input::fold_events(&map, &camera, viewport, &orbit);
-    assert!(frame::folded_moved(&moved));
+    assert!(frame::folded_is_a_camera_event(&moved));
     assert!(matches!(
         moved.applied.first(),
         Some(CameraOp::Orbit { .. })

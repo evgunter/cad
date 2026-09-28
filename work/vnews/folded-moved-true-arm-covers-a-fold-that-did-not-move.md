@@ -2,10 +2,12 @@
 id: folded-moved-true-arm-covers-a-fold-that-did-not-move
 kind: issue
 title: frame::folded_moved answers true for a fold that refused and did not move, under a name and a doc line that say only moved
-status: open
+status: closed
 opened: 2026-09-19
 priority: P1
 cost: E
+branch: vnews/a-fold-that-has-news
+closed: 2026-09-28
 ---
 
 Found by the sweep `is-instance-collapses-absent-and-wrong-kind`
@@ -195,3 +197,49 @@ whichever lane next holds that file; it is not `frame.rs`'s, so this
 pass left it.
 
 The carrier this rode on is closed, so `rides_with:` is removed.
+
+## Closed 2026-09-28 (`vnews/a-fold-that-has-news`)
+
+**The rename is taken: `frame::folded_is_a_camera_event`.** It is the
+question the doc line already asks and the one the `land` guard in
+`pane::viewport` needs: `land` takes the camera a fold reached AND
+delivers the refusal that stopped it, so its guard wants every fold
+that applied a camera operation, refused one, or both — which is what
+the value always was. The doc's *"The name is narrower than the
+value"* sentence came out with the name it described.
+
+Moved with it, because the rename falsified or would otherwise
+contradict them:
+
+- `pane/viewport.rs`, the comment over the `land` guard: *"Landed only
+  when the fold actually MOVED something … `land` is where a camera
+  MOVE becomes application state"* now says *camera event*, with the
+  three states spelled out.
+- `pane/viewport.rs`, `land`'s own doc: *"The one place a camera move
+  becomes application state"* now says *camera event* and names both
+  halves (the camera reached, the refusal).
+- `frame.rs`'s module header, the declaration, and the two rows in its
+  own tests; `a_clean_fold_keeps_a_message_it_did_not_write`'s message
+  now says the fold applied an orbit and so is a camera event.
+- `crates/viewer/tests/frame_policy.rs`'s two assertions, and
+  `crates/viewer/README.md`'s `frame` charter row, both VDOC's ground by
+  `program.md`'s `keep_out`. Taken here anyway rather than filed: a
+  symbol rename that did not re-spell them would not build (the test)
+  or would leave the README naming a function that does not exist, and
+  `CLAUDE.md` lands a clause re-worded for a renamed symbol with the
+  change that renamed it. Announced to VDOC through this branch's PR.
+
+`an_empty_batch_and_a_pure_cursor_stream_move_no_camera` keeps its
+name: it asserts the `false` arm, of which *moves no camera* is true.
+
+**Sibling sweep.** Every `fn … -> bool` in `crates/viewer/src` whose
+body joins states with `||`, and every bool predicate, field or local
+named `moved`/`changed`/`dirty`/`stale`/`touched`. One sibling:
+`drafts::ProfileEdit::moved`, whose `true` arm covers a held state that
+does not lower — filed as
+`work/vnews/drafts-moved-true-arm-covers-a-held-state-that-refuses.md`.
+`evalseam`'s `busy` and `platform::running_under_wsl` join two states
+under names that cover both. Blind spot: a predicate whose disjunction
+sits in a callee (as `ProfileEdit::moved`'s does, behind a negation)
+matches neither pattern; the name search caught that one, and a
+predicate with a different verb in its name would not be caught.

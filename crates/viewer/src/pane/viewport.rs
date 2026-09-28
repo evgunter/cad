@@ -81,7 +81,8 @@ fn push_loop(
 /// Land a fold: take the camera it reached, and show the refusal that
 /// stopped it.
 ///
-/// **The one place a camera move becomes application state.** Both the
+/// **The one place a camera event becomes application state** — the
+/// camera a fold reached and the refusal that stopped it. Both the
 /// toolbar's single operations and the viewport's event stream come
 /// through here, so what a fold says has one implementation.
 ///
@@ -518,15 +519,17 @@ impl ViewerBehavior<'_> {
 
         // ONE fold, the same one `map_stream` gives the tests.
         //
-        // Landed only when the fold actually MOVED something: the
-        // stream carries cursor events too, and a stream that denotes
-        // no camera operation is not a camera event. `land` is where a
-        // camera MOVE becomes application state, so running it on a
-        // frame with no move would make that sentence false — see
-        // `frame::folded_moved`, which owns the rule and states what it
-        // does and does not buy now that a clean fold clears nothing.
+        // Landed only when the fold is a camera event — it applied a
+        // camera operation, refused one, or both: the stream carries
+        // cursor events too, and a stream that denotes no camera
+        // operation is not a camera event. `land` is where a camera
+        // event becomes application state, so running it on a frame
+        // with none would make that sentence false — see
+        // `frame::folded_is_a_camera_event`, which owns the rule and
+        // states what it does and does not buy now that a clean fold
+        // clears nothing.
         let folded = input::fold_events(&self.input, self.camera, viewport, &events);
-        if frame::folded_moved(&folded) {
+        if frame::folded_is_a_camera_event(&folded) {
             land(self.camera, self.notices, self.status, &folded);
         }
 

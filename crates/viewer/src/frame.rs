@@ -23,9 +23,10 @@
 //! badge for the landed product** ([`product_badge`]) and the rest of
 //! the badge family beside it. **The draft and the offer a refused
 //! batch leaves behind** ([`retype_draft`], [`creation_offer`]).
-//! **What a folded event stream amounts to** ([`folded_moved`],
-//! [`fold_status`]), **what a frame says about work outstanding**
-//! ([`progress`]), and **where a file dialog opens** ([`dialog_dir`]).
+//! **What a folded event stream amounts to**
+//! ([`folded_is_a_camera_event`], [`fold_status`]), **what a frame says
+//! about work outstanding** ([`progress`]), and **where a file dialog
+//! opens** ([`dialog_dir`]).
 //!
 //! The frame loop still decides WHEN to call one. It no longer decides
 //! what one MEANS.
@@ -2680,7 +2681,6 @@ pub fn retype_draft(
 /// ([`Folded::applied`] is a prefix of the input). So `true` does not
 /// say whether the camera moved: a fold whose FIRST operation refused
 /// moved nothing, and one that refused later moved as far as it got.
-/// The name is narrower than the value.
 ///
 /// The stream carries cursor events too, and a stream that denotes no
 /// camera operation is not a camera event.
@@ -2695,7 +2695,7 @@ pub fn retype_draft(
 /// that stopped it — and calling it on frames with no camera event
 /// hands any writer later added to it per-frame behaviour nobody asked
 /// for.
-pub fn folded_moved(folded: &Folded) -> bool {
+pub fn folded_is_a_camera_event(folded: &Folded) -> bool {
     !folded.applied.is_empty() || folded.refused.is_some()
 }
 
@@ -2763,10 +2763,11 @@ mod tests {
         // fold decided the fate of every other writer's sentence.
         let folded = a_clean_fold();
         assert!(
-            folded_moved(&folded),
-            "the fold MOVED, so the frame loop lands it — a fold that \
-             is no camera event never reaches the line at all, and this \
-             row would be asserting about a case that cannot happen"
+            folded_is_a_camera_event(&folded),
+            "the fold applied an orbit, so it is a camera event and the \
+             frame loop lands it — a fold that is no camera event never \
+             reaches the line at all, and this row would be asserting \
+             about a case that cannot happen"
         );
         assert_eq!(fold_status(&folded), StatusUpdate::Expire(Subject::Camera));
 
@@ -2966,7 +2967,10 @@ mod tests {
     #[test]
     fn a_refused_fold_is_news_about_the_camera() {
         let folded = a_refused_fold();
-        assert!(folded_moved(&folded), "a refusal is a camera event too");
+        assert!(
+            folded_is_a_camera_event(&folded),
+            "a refusal is a camera event too"
+        );
         let StatusUpdate::Show(message) = fold_status(&folded) else {
             panic!("a refused fold is news: {:?}", fold_status(&folded));
         };
