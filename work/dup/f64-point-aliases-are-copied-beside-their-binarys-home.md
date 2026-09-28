@@ -80,3 +80,48 @@ annotated `f64`. A binding of the constructor itself —
 `let p2 = Point2::<f64>::new;` (`sweep/tests/bitdump.rs`,
 `must_carry_rule.rs`), `let pt = Point3::new;` — is not a definition
 and is not counted; those name the constructor and hold no body.
+
+## The non-sweep share (lane B, 2026-09-28)
+
+**Ruling applied** (Ev, 2026-09-28): inline by default, keep a helper
+only where it concretely helps. Every crate but `sweep` is done here;
+the `sweep` share is lane A's and appends its own section.
+
+**Census, re-taken at `c1b202b2e`.** Instrument: every tracked `.rs`
+file (`git ls-files`, no path claim), matched for (a) a `fn` of any
+visibility and arity, generic or not, whose brace body (multi-line
+included) is `<Point2|Point3|Vec2|Vec3>[::<T>]::new(<its own parameters
+in order>)`; (b) the same body behind a `let`-bound closure, annotated
+or not; (c) a `let` binding of the constructor itself (`let pt =
+Point3::new;`). Outside `crates/sweep`: **142** hits — 87 `fn`, 14
+closures, 41 bindings (profile 40, topo 70, mesh 18, editor-core 5,
+geom-brep 3, stl 2, viewer 3, step-export 1). The `fn` count agrees
+with this row's 179 less `sweep`'s 92.
+
+**Disposition.**
+
+- **134 inlined**: the definition deleted and `<Type>::new(` written at
+  each call, scoped to the definition's own block, and every per-binary
+  home with it — `profile`, `mesh` and `stl`'s `tests/common::p2`,
+  `mesh`'s `common/witness_bodies` private `p3`/`v3`, and `topo`'s
+  `chart_region::tests::pt` with its two importing modules.
+- **2 kept**, each a `let` binding local to one six-row face table,
+  where inlining makes rustfmt break every row into a six-line record:
+  `geom-brep/src/props/mod.rs`'s
+  `hand_built_cube_volume_sign_tracks_orientation` (`p`) and
+  `step-export/tests/common/mod.rs`'s `die_pips` (`v`). Neither binary
+  holds another copy, so there is nothing to fold onto them.
+- **5 left**: rustdoc examples, a user's chain rather than a test
+  helper — `profile/src/path/family.rs` (four) and `topo/src/lib.rs`.
+- **1 not a member**: `topo/tests/cube_doors_agree.rs`'s `ident`, the
+  identity map passed as a value beside `sheared`, never called.
+
+**Second pass, at the instrument's gaps**: struct-literal bodies
+(`Point2 { x, y }`), `[x, y].into()` / `from` bodies, a `macro_rules!`
+point helper, a renamed type (`Point2 as …`, `type P = Point2<f64>`),
+and a residual `fn(f64, f64[, f64]) -> Point/Vec<f64>` signature with
+any body — no member outside `sweep` (the residual signatures compute
+something). Re-run over the working tree after the fold: only the
+eight above remain.
+
+**Status**: open until the `sweep` share lands.
