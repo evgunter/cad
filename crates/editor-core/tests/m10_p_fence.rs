@@ -525,7 +525,6 @@ where
 fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&mut Digest, T)) {
     use geom_core::Point2;
     use profile::{ArcSweep, Center, Open, Start, Step};
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
     let tip = 0.75_f64.sqrt();
     // (1) the eye: circle x circle carriers crossing AT the entry
     // anchor. (2) the vesica lens: the two-survivor corner the S8
@@ -533,13 +532,13 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
     let programs = [
         Open.arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -547,13 +546,13 @@ fn fixture_digest<T: profile::ArcCarrierScalar>(d: &mut Digest, bits: impl Fn(&m
         ),
         Open.arc_fillet_arc(
             Center {
-                c: p2(-1.0, 0.0),
+                c: Point2::new(-1.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -3.0_f64.sqrt()),
+                p: Point2::new(0.0, -3.0_f64.sqrt()),
             },
             0.5,
             Center {
-                c: p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },

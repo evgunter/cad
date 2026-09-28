@@ -13,21 +13,17 @@ use profile::{
     test_support::bulge_loop,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The stadium: two straight sides and two semicircular ends, every
 /// joint declared tangent, authored through the lattice.
 fn stadium() -> ProfileLoop<f64> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -91,9 +87,9 @@ fn the_materialization_door_reproduces_the_table_bit_for_bit() {
 #[test]
 fn the_materialization_door_does_not_re_adjudicate_the_table() {
     let odd: ProfileLoop<f64> = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![7]);
     let crossed: ProfileLoop<f64> = odd.map_scalar(<f64 as Real>::from_f64);
@@ -202,10 +198,10 @@ fn a_declared_joint_closing_straight_lifts_as_the_continuation() {
 #[test]
 fn a_declared_joint_closing_straight_lifts_beside_a_sharp_seam() {
     let loop_: ProfileLoop<f64> = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(1.0, 1.0),
-        p2(0.5, 0.5),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5, 0.5),
     ])
     .with_tangent_joints(vec![3]);
 
@@ -240,9 +236,9 @@ fn a_declared_joint_closing_straight_lifts_beside_a_sharp_seam() {
 #[test]
 fn a_false_declaration_at_the_closing_joint_is_the_drivers_refusal() {
     let loop_: ProfileLoop<f64> = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.3),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.3),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ])
     .with_tangent_joints(vec![2]);
 
@@ -262,8 +258,12 @@ fn a_false_declaration_at_the_closing_joint_is_the_drivers_refusal() {
 /// spelling is reached by the declaration and never by default.
 #[test]
 fn an_undeclared_seam_still_closes_plain() {
-    let square: ProfileLoop<f64> =
-        RawLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+    let square: ProfileLoop<f64> = RawLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     match lift_checked(&square, Tol::witness()) {
         LiftOutcome::Lifted {
             program, fidelity, ..

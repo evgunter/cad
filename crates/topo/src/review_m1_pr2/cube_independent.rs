@@ -19,17 +19,13 @@ use crate::{Body, LoopBoundary, MefSite, MevSite, validate};
 use geom_core::Point3;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 #[test]
 fn independent_cube_full_verification() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
 
     // Seed at A'.
-    let seed = body.mvfs(pt(0.0, 0.0, 1.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 1.0)).unwrap();
     assert_eq!(validate(&body), Ok(()));
 
     // Top chain A'->B'->C'->D' : one segment + two struts.
@@ -39,7 +35,7 @@ fn independent_cube_full_verification() {
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(1.0, 0.0, 1.0),
+            Point3::new(1.0, 0.0, 1.0),
             tol,
         )
         .unwrap();
@@ -51,7 +47,7 @@ fn independent_cube_full_verification() {
                 he1: h0.he_minus,
                 he2: h0.he_minus,
             },
-            pt(1.0, 1.0, 1.0),
+            Point3::new(1.0, 1.0, 1.0),
             tol,
         )
         .unwrap();
@@ -63,7 +59,7 @@ fn independent_cube_full_verification() {
                 he1: h1.he_minus,
                 he2: h1.he_minus,
             },
-            pt(0.0, 1.0, 1.0),
+            Point3::new(0.0, 1.0, 1.0),
             tol,
         )
         .unwrap();
@@ -107,7 +103,11 @@ fn independent_cube_full_verification() {
     //   C': h1.he_minus (C'->B'),  B': h0.he_minus (B'->A').
     let strut = |body: &mut Body<f64>, at, x, y| {
         let c = body
-            .mev_line(MevSite::Fan { he1: at, he2: at }, pt(x, y, 0.0), tol)
+            .mev_line(
+                MevSite::Fan { he1: at, he2: at },
+                Point3::new(x, y, 0.0),
+                tol,
+            )
             .unwrap();
         assert_eq!(validate(body), Ok(()));
         c
