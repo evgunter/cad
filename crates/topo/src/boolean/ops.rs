@@ -944,8 +944,7 @@ pub(super) fn describe_minted_edges<T: Decide>(
     for edge in worklist {
         let edge_data = body.get_edge(edge).ok_or_else(corrupt)?.clone();
         let face_of = |body: &Body<T>, he| -> Option<crate::geometry::SurfaceKey> {
-            let l = body.get_half_edge(he)?.parent_loop;
-            Some(body.get_face(body.get_loop(l)?.face)?.surface)
+            Some(body.get_face(body.face_of_half_edge(he)?)?.surface)
         };
         let (Some(s1), Some(s2)) = (
             face_of(body, edge_data.he_plus),

@@ -36,7 +36,7 @@ use editor_core::{
 };
 use sweep::test_support::{ROD_FILLET, ROD_FLAT, ROD_L, rod_chord_at};
 
-use crate::fixture::{ename, len, scl, xy_frame};
+use crate::fixture::{ename, len, len2, scl, xy_frame};
 
 use super::{CorpusDoc, Recorder};
 
@@ -63,10 +63,9 @@ pub const CREASE_RESHAPED: usize = 5;
 pub fn rod_loop(bump: bool) -> LoopProgram {
     let c = rod_chord_at(ROD_FLAT);
     let xv = c.half;
-    let pt = |x: f64, y: f64| [len(x), len(y)];
     let mut steps = vec![
-        ProgramStep::At(pt(-1.0, -1.0)),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, -1.0))),
+        ProgramStep::At(len2([-1.0, -1.0])),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, -1.0]))),
     ];
     if bump {
         let (dx, dy) = (BUMP.0 - 1.0, BUMP.1 + 1.0);
@@ -77,13 +76,13 @@ pub fn rod_loop(bump: bool) -> LoopProgram {
         steps.push(ProgramStep::Line(len(dx.hypot(dy))));
     }
     steps.extend([
-        ProgramStep::LineTo(ProgramTarget::Point(pt(1.0, 0.0))),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(xv, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([1.0, 0.0]))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([xv, 0.0]))),
         ProgramStep::ArcTo(ProgramArcData::Bulge {
-            target: ProgramTarget::Point(pt(-xv, 0.0)),
+            target: ProgramTarget::Point(len2([-xv, 0.0])),
             b: scl(c.section_bulge),
         }),
-        ProgramStep::LineTo(ProgramTarget::Point(pt(-1.0, 0.0))),
+        ProgramStep::LineTo(ProgramTarget::Point(len2([-1.0, 0.0]))),
         ProgramStep::LineTo(ProgramTarget::Start),
     ]);
     LoopProgram::Chain(steps)

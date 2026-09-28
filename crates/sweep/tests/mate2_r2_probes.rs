@@ -11,9 +11,11 @@
 
 use crate::mate2_common;
 
+use crate::common::three_arc;
 use geom_core::{OrthoFrame, Point3, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
+use sweep::test_support::extruded;
 use topo::{Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration};
 
 /// The never-silent contract, shared by every row here: refusal is
@@ -187,12 +189,12 @@ fn revolved_collar() -> Body<f64> {
 /// A three-arc peg along the world Y axis, y ∈ [y0, y0 + h].
 fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, y0, 0.0)));
-    let profile = Profile::new(plane, vec![three_arc(0.5, 0.0)])
-        .validate(Tol::witness())
-        .unwrap();
-    sweep::extrude(&profile, sweep::Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
+    extruded(
+        plane,
+        vec![three_arc(p2(0.0, 0.0), 0.5, 0.0)],
+        h,
+        Tol::witness(),
+    )
 }
 
 /// Full-period BORE against a 3-arc peg: the PR's narrower-class claim
@@ -236,12 +238,13 @@ fn r2_full_period_bore_still_refuses_typed() {
 fn r2_full_period_peg_still_refuses_typed() {
     // The collar along Y, arc-split (extruded on the peg's plane).
     let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
-    let profile = Profile::new(plane, vec![three_arc(1.5, 0.0), three_arc(0.5, 0.0)])
-        .validate(Tol::witness())
-        .unwrap();
-    let c = sweep::extrude(&profile, sweep::Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body;
+    let o = p2(0.0, 0.0);
+    let c = extruded(
+        plane,
+        vec![three_arc(o, 1.5, 0.0), three_arc(o, 0.5, 0.0)],
+        1.0,
+        Tol::witness(),
+    );
     // The peg as a full revolve: rectangle x ∈ (0, 0.5], y ∈ [0.5, 2.5].
     let lp = ProfileLoop::polygon([p2(0.0, 0.5), p2(0.5, 0.5), p2(0.5, 2.5), p2(0.0, 2.5)]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])

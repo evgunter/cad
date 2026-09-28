@@ -35,7 +35,7 @@
 
 use editor_core::{Datum, DocEdit, Node, SlotId, TubeWindow};
 
-use super::super::fixture::len;
+use super::super::fixture::{len, scl};
 use super::{CorpusDoc, Recorder};
 
 /// The spine circle's radius, meters (dyadic).
@@ -63,11 +63,11 @@ pub fn document() -> CorpusDoc {
 
     let spine = r.insert(Node::Datum(Datum::Axis {
         origin: [len(0.0), len(0.0), len(0.0)],
-        direction: [scalar(0.0), scalar(0.0), scalar(1.0)],
+        direction: [scl(0.0), scl(0.0), scl(1.0)],
     }));
     let ring = r.insert(Node::HollowTube {
         spine,
-        u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+        u_ref: [scl(1.0), scl(0.0), scl(0.0)],
         major_radius: len(R),
         window: TubeWindow::Full,
         minor_radius: len(OUTER),
@@ -89,9 +89,4 @@ pub fn document() -> CorpusDoc {
         },
         bump_root: ring,
     }
-}
-
-/// A dimensionless component, the spelling a direction takes.
-fn scalar(v: f64) -> editor_core::Expr {
-    editor_core::Expr::literal(v, editor_core::Dimension::Scalar).expect("finite")
 }

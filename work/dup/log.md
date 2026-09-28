@@ -2161,3 +2161,148 @@ Every unit's review found something, and the findings rhyme:
 nine (every one of them priced, most P4/E, one P1/D:
 `step-program-embed-has-no-map-door`). Per the third sitting's log, the
 P4 tail is cut into its own program once #3242 lands.
+
+## 2026-09-26 — the fifth batch: two drains, and gating on local CI
+
+Hosted CI's queue ran hours deep. Ev: run CI locally (a new override
+sentence landed as #3276 so the certification is true), merge on local
+green, mark such commits `[skip ci]`, combine units where convenient,
+and use line tables only for disk (#3296 made that the repo default).
+
+Merged: **#3242** (scalar lift, hosted green), **#3285** (viewer drain:
+four rows closed, one left open for a design decision, none filed) and
+**#3284** (sweep/topo drain: six rows closed, four filed). Both drains
+went through a style review and a fix pass; both merged on a hosted
+green that landed before the local run finished, with the local run's
+completed rows (8161 and 8192 tests at two eps rows, the viewer app row
+978/978) agreeing.
+
+- **Fold, don't file held better, and the recurring defect still
+  appeared in both.** The viewer drain's first cut stopped three class
+  sweeps at the first file; the sweep drain minted a second home for the
+  three-arc cylinder beside `mate2_common::three_arc` and left two
+  byte-identical `ball_poled` twins in files it edited. Both fix passes
+  went past their findings (the sweep pass folded eleven more cylinder
+  spellings) and every fold was planted.
+- **Local CI, runtime parity.** Static parity passed; the first local run
+  still reddened the viewer app row for want of a Vulkan adapter the
+  hosted half installs (method item 28). With it installed the row
+  matches. On 4 cores a full local matrix is 4-6 hours, one eps test row
+  25-70 minutes; with line tables a run's target fits in ~15 GB.
+- **Method item 13 amended**: no rustdoc pointer to a tracker row.
+
+### The slate, and a decision deferred to Ev's view
+
+`dup` reads **40.5/30** after two drain batches that closed ten rows:
+the lanes filed four, three of them D-cost populations (a y-poled ball
+~50 sites, three-arc cylinders ~20, private `extruded` wrappers ~40).
+The census-first method surfaces a class's remainder as fast as a
+drain closes its head, and a priority-seam split is degenerate (the
+slate is all P4 but one P1 and one P3). Recommendation, put to Ev in
+chat: cut the population rows (the ones that are "route the rest of a
+class onto a door that already exists") into their own program, which
+lands under budget, and let S-DUP keep the rows that still need a door.
+
+## 2026-09-26 — S-REROUTE is cut, and the sixth batch goes out as one PR
+
+Ev approved splits of this kind without asking first ("yes you can do such splits without
+asking"). #3298 moved seven route-the-rest rows by `git mv` into the new
+`work/reroute/` program (11.5/30, ready), and `dup` now reads 29/30.
+The cut is on the kind seam, stated in `work/reroute/plan.md`.
+
+The sixth batch is three lanes on disjoint crates. It lands as one
+combined PR gated on a local run with `[skip ci]` (Ev, 2026-09-26):
+
+| lane | rows | fence |
+|---|---|---|
+| a | edges at a vertex (P1 D); a solid's charts as a move set (P4 D) | sweep |
+| b | corpus pick walks; viewer/src literal doors; cross-crate pick rays (P4 D ×3) | viewer, bvh + editor-core pick helpers |
+| c | the stale-vs-foreign key clause (P4 D); the Step-program map door (P4 D) | topo/src Body doors, profile, editor-core Step walks |
+
+These rows are held back, and why:
+- The two P4 H/D cross-crate populations (`Expr::literal` in 63 files,
+  per-component point lifts) touch every fence, so they go after this batch.
+- Two rows need Ev: the policy-memory citation and the fixture routing rule.
+- The error-arm row needs a designer pass before its `[ev]` PR.
+- The PR 17 attribution row touches the attribution sentence the orchestrator is
+  told to leave alone.
+
+### The full local matrix, measured end to end (#3284's merge ref)
+
+This is the first complete local run: 39 rows, about 7.5 hours on 4 cores
+with lane builds beside it.
+- **Test matrix:** all three eps rows ran 8192/8192, and the viewer app row
+  978/978.
+- **Other passes:** doc-tests, rustdoc, wasm, k-lint, tess-budget and python.
+- **Two FAILs, neither the tree's:**
+  - *corrupt input (release profile).* The local half had rotted away from
+    hosted. It lacked `CARGO_PROFILE_RELEASE_DEBUG_ASSERTIONS=false`, so the
+    release-only row never compiled, and it lacked the `review_d18` filter.
+    The parity reader passed both. The batch-6 PR fixes the row and adds the
+    variable to the reader's `SEMANTIC_ENV`, which a plant confirms. The
+    filter half is filed to `mirror`.
+  - *sheet drift.* A render re-baseline landed on main after the ref was
+    cut, and the local output is byte-identical to main's. A gating run
+    must be taken on a fresh merge with main.
+- **step import** is a loud SKIP-as-PASS, because this box has no FreeCAD.
+  Hosted is the gate of record for STEP.
+
+## 2026-09-26 — the sixth batch lands (#3302)
+
+Three lanes landed as one PR, gated by one local run: 9 rows closed and
+6 filed (3 on dup's slate). `dup` went from 29/30 to 17.5/30. Two parts
+of the batch are worth keeping:
+
+- **The reviews earned their cost again.** Every lane's first cut left
+  twins in files it had open. That is the recurring shape, now on its
+  eighth consecutive unit. Two findings were more than twins:
+  - Lane a's refusals had drifted on corrupt bodies: a vertex with a
+    fan but no `emanating` was told to try a run-out policy. It was
+    restored through one helper, `fan_at`.
+  - Lane b's `#[path]` mount of a `src/` file into `tests/common` was a
+    third test-support mechanism beside the tree's feature-gated one.
+    The fix pass moved to the existing mechanism, so no design fork was
+    needed. That move then tripped `witness-not-ambient`, because a
+    feature-gated module is library code to that gate. The local gate
+    caught it and no lane had run it; `declared` now receives `tol`.
+- **The gate:** local `ci-local.sh` on `f0ba128cf` with main at
+  `2035ff0b9`. It ran 39 rows: 37 PASS, 2 SKIP. The three eps rows
+  were 9748/9748 each, and the viewer app row 985/985. The mirror fix
+  turned the release-profile row green. Two runs died when the
+  container recycled while the session was idle; method item 29.
+
+## 2026-09-27 — the seventh batch lands (#3304, #3305)
+
+Hosted CI is healthy again, so batch 7 went back to one PR per lane, gated by a hosted full-matrix run (EPS=all, KLINT_ROW=all).
+
+**#3304 (lane a): point lifts and the viewer error arm.**
+- Topo's two `SCHEDULE` tables are typed as vector constants and lift through `map`, bit-identical.
+- 42 interval point helpers in 22 sweep suites (a population the census instrument could not see behind a local `iv`) and 86 inline constructions are folded onto `sweep/tests/common/interval.rs`.
+- Topo's `identity_map` is now the test-support door. `cube_doors_agree` deliberately keeps its own copy, because a plant shows routing it would blind its guard.
+- The narrowed row moved to `linalg`, and the f64 alias population is filed (185 signatures).
+- The camera.rs arm doc drops the withdrawn cost and now states, per door, what a caller can infer.
+
+**#3305 (lane b): the `Expr::literal` class outside viewer.**
+- 424 calls were dispositioned and 344 folded onto `editor_core::test_support::{len, ang, scl}`.
+- The fix pass folded two adjacent classes the first cut had open in the same files: the point pairs, onto `len2`, and 68 world-xy frames, onto `xy_frame`.
+- viewer now re-exports editor-core's doors.
+- A `super` widening of pncad's use-root guard was reverted in favour of path-qualified calls, so the guard is untouched.
+
+The reviews again found left-behind members in every first cut: ninth and tenth consecutive units. Each fix pass folded more than the findings named.
+
+**Coverage, not duplication (recorded for `tint`/`vacuity`).** These suites reach the new doors but stay green under a wrong value; only a panic control reds them:
+- the sweep `p3` door: 7 suites (`m5_s11`, `m6_tube`, `r2_rim_interval_probes`, `review_m2_pr4_interval`, three `verbs_tubewall*`);
+- editor-core's `len`: 17 suites. `ang`: 18, partly because a rigid rotation is invisible to rotation-invariant rows. `scl`: 12.
+- `len2`: 10, listed in the closed literal row.
+
+They are not filed here; each is a suite asserting less than it builds, which is another program's subject.
+
+**The slate.** `dup` reads 14/30. The rows left are:
+- two on Ev (the policy-memory citation and the sweep routing rule);
+- the PR 17 attribution row, which the orchestrator leaves alone;
+- five that wait on an owner or a design call:
+  - the chart partition (topo);
+  - the arc-carrier fixture (tint's `cert3r1_dump` call);
+  - `plate_index` (viewer's module kinds);
+  - the f64 aliases (a routing choice across 12 programs);
+  - the façade box (a pncad test surface).

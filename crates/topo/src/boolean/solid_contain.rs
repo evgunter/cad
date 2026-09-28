@@ -2676,7 +2676,7 @@ fn point_in_faces<T: Decide>(
 
     // ---- Closest-hit ray sweep over the fixed schedule. ----
     for r in &SCHEDULE {
-        let d = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2])).normalize();
+        let d = r.map(T::from_f64).normalize();
         if let Some(verdict) = cast_ray(body, faces, q, d, band, tol)? {
             return Ok(verdict);
         }

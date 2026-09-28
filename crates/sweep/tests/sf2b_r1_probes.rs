@@ -22,6 +22,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::approx::band;
+use crate::common::charts::{charts, moves_by};
 use geom_core::{Band, Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
@@ -95,20 +96,7 @@ fn r1p1_a_bulged_box_is_not_axial_and_refuses_typed() {
         Err(e) => println!("[r1p1] bulged box refuses: {e:?}"),
     }
     // And the door itself, asked directly, must name the shape.
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    let moves: Vec<topo::ChartMove<f64>> = charts
-        .into_iter()
-        .map(|(_, faces)| topo::ChartMove {
-            faces,
-            distance: -T,
-        })
-        .collect();
+    let moves = moves_by(charts(&body), -T);
     let mut work = body.clone();
     let e = topo::offset_charts_together(&mut work, &moves, band(), tol)
         .expect_err("the axial door must refuse a non-axial body");

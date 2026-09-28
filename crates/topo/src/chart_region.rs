@@ -2960,23 +2960,23 @@ enum PolyContainment {
 /// `f64` structure, so there is no quantity for an arm predicate to
 /// decide — the re-derivation's honest conclusion is three rows, not
 /// four.
-pub(crate) const SCHEDULE_2D: [[f64; 2]; 16] = [
-    [1.0, 0.0],
-    [0.0, 1.0],
-    [0.5, 1.0],
-    [1.0, 0.5],
-    [-0.5, 1.0],
-    [1.0, -0.5],
-    [0.25, 1.0],
-    [1.0, 0.25],
-    [0.75, -1.0],
-    [1.0, 0.75],
-    [-1.0, 0.375],
-    [0.375, 1.0],
-    [0.9375, 0.3125],
-    [0.3125, -0.9375],
-    [-0.75, 1.0],
-    [1.0, -0.75],
+pub(crate) const SCHEDULE_2D: [Vec2<f64>; 16] = [
+    Vec2::new(1.0, 0.0),
+    Vec2::new(0.0, 1.0),
+    Vec2::new(0.5, 1.0),
+    Vec2::new(1.0, 0.5),
+    Vec2::new(-0.5, 1.0),
+    Vec2::new(1.0, -0.5),
+    Vec2::new(0.25, 1.0),
+    Vec2::new(1.0, 0.25),
+    Vec2::new(0.75, -1.0),
+    Vec2::new(1.0, 0.75),
+    Vec2::new(-1.0, 0.375),
+    Vec2::new(0.375, 1.0),
+    Vec2::new(0.9375, 0.3125),
+    Vec2::new(0.3125, -0.9375),
+    Vec2::new(-0.75, 1.0),
+    Vec2::new(1.0, -0.75),
 ];
 
 /// This consumer's K rows for the shared walk ([`crate::ray_parity`]),
@@ -3027,7 +3027,7 @@ fn point_in_polygon<T: Decide>(
 
     // Ray parity with the fixed schedule.
     for r in &SCHEDULE_2D {
-        let d = Vec2::new(T::from_f64(r[0]), T::from_f64(r[1])).normalize();
+        let d = r.map(T::from_f64).normalize();
         let side_axis = Vec2::new(T::zero() - d.y, d.x); // in-plane ⟂, unit
         if let Some(inside) =
             ray_parity::ray_verdict(poly, q, d, side_axis, &ROWS, band).map_err(escalate)?
