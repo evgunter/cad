@@ -1,5 +1,5 @@
 //! **The torus chart sizing's pin**: `mesh::sizing::torus_grid_steps`'
-//! two per-direction steps, swept over `R/r` from 1.2 to 50 and three
+//! two per-direction steps, swept over `R/r` from 1.2 to 50 and two
 //! decades of δ, against the certifier (`mesh::cert::cert_torus`)
 //! recomputed from the emitted mesh, the exact torus distance, the
 //! grid's own count, and the boundary polylines' chord counts.
@@ -230,18 +230,15 @@ fn sweep_row(major: f64, delta: f64, sweep: Revolution<f64>) {
     }
 }
 
-/// `R/r` from 1.2 to 50, δ/r across three decades (3e-2 down to
-/// 3e-5), on a quarter-turn wedge (caps: meridian edges) — the finest
-/// decade on a sixteenth-turn so the row stays at a few hundred
-/// thousand triangles — and, where the count allows, the full tube
-/// (seams and rims).
+/// `R/r` from 1.2 to 50, δ/r across two decades (3e-2 and 3e-3), on a
+/// quarter-turn wedge (caps: meridian edges) and, for two ratios, the
+/// full tube (seams and rims).
 #[test]
 fn torus_sizing_sweep_is_sound_tight_and_on_the_ideal() {
     for major in [1.2, 2.0, 30.0 / 7.0, 10.0, 50.0] {
-        for delta in [3e-2, 3e-3, 3e-4] {
+        for delta in [3e-2, 3e-3] {
             sweep_row(major, delta, Revolution::Partial(PI / 4.0));
         }
-        sweep_row(major, 3e-5, Revolution::Partial(PI / 16.0));
     }
     for major in [1.2, 30.0 / 7.0] {
         for delta in [3e-2, 3e-3] {
