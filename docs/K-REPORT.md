@@ -863,24 +863,28 @@ unchanged by this walk.
 **Roster change (CONTACT-7): the census's touch analysis decides in
 metres.** `topo/src/census.rs`'s touch analysis (the census backstop's
 arm 2) used to decide every sign as a levered reading of unit directions.
-Its verdict rows are now vertex distances from a plane, through
-`Margin::of`, so their populations change meaning at CONTACT-7 and do
-not pool with their CONTACT-1 samples:
+Every verdict sign now comes through one door, `census::metric`, whose
+`Distance` is built only from a point and a plane and is decided through
+`Margin::of`. `census_touch_side` and `census_touch_dihedral` therefore
+change meaning at CONTACT-7, and do not pool with their CONTACT-1
+samples:
 
 | name | carrier | what moved |
 |---|---|---|
 | `census_touch_side` | a named `const` (`TOUCH_SIDE`) | was a levered direction; now a star piece vertex's distance from a candidate plane |
 | `census_touch_dihedral` | a named `const` (`TOUCH_DIHEDRAL`) | was a levered dot at the far face's lever; now the far face's piece vertices' distances from the near face's plane |
-| `census_touch_corner` | a named `const` (`TOUCH_CORNER`) | new: a face's corner, as a vertex's distance from a plane |
 | `census_touch_piece_side` | a named `const` (`TOUCH_PIECE_SIDE`) | new: building a face's piece, a point's distance from a line through the touch point |
-| `census_touch_piece_reach` | a named `const` (`TOUCH_PIECE_REACH`) | new: building a face's piece, which edge a ray meets first |
-| `census_touch_normal` | a named `const` (`TOUCH_NORMAL`), passed to `geom_brep::classify_material_pairing_as` | new: an On face's normal against a candidate plane's; `material_wedge_side`'s construction under its own name, so it does not pool with that population |
+| `census_touch_piece_turn` | a named `const` (`TOUCH_PIECE_TURN`) | new: building a face's piece, a point on the reference ray's line read along it |
+| `census_touch_piece_front` | a named `const` (`TOUCH_PIECE_FRONT`) | new: building a face's piece, an edge's end or crossing read along a probe ray |
+| `census_touch_piece_reach` | a named `const` (`TOUCH_PIECE_REACH`) | new: building a face's piece, which edge a probe ray meets first |
+| `census_touch_piece_meet` | a named `const` (`TOUCH_PIECE_MEET`) | new: building a face's piece, a gap bound's meeting with its edge read against the edge's ends |
+| `census_touch_normal` | a named `const` (`TOUCH_NORMAL`), passed to `geom_brep::classify_material_pairing_as` | new: an On face's normal against a candidate plane's |
+| `census_touch_fold` | a named `const` (`TOUCH_FOLD`), passed to `geom_brep::classify_material_pairing_as` | new: an edge's two faces' normals where neither order of its convexity decides (flat or fold) |
 | `census_touch_span` | a named `const` (`TOUCH_SPAN`) | unchanged: levered, candidate generation only |
 
-An edge's fold (both orders Zero) is read through
-`geom_brep::classify_material_pairing` itself, so those samples join
-`material_wedge_side`: the same question (two faces of one body at one
-edge) that population meters.
+The two `classify_material_pairing_as` rows are `material_wedge_side`'s
+construction under their own names, so neither pools with that
+population.
 
 **Roster addition (CONTACT-4): an edge's boundary decided as distances.**
 `topo/src/splitting/containment.rs`'s `LoopEdge::contact` is the one

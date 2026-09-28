@@ -32,6 +32,23 @@ fn refused(body: &Body<f64>) -> bool {
         })
 }
 
+/// What the census says of the placement: the first placement finding's
+/// reason, cut short, or the first finding of any kind.
+fn why(body: &Body<f64>) -> String {
+    let errors = validate_pseudomanifold(body, &ContactRecords::default(), Tol::witness())
+        .err()
+        .unwrap_or_default();
+    errors
+        .iter()
+        .find_map(|e| match e {
+            ValidationError::CensusUndecidable { what, .. } => Some((*what).to_owned()),
+            ValidationError::InstanceInterference { .. } => Some("interference".to_owned()),
+            _ => None,
+        })
+        .map(|w| w.chars().take(70).collect())
+        .unwrap_or_default()
+}
+
 /// A prism over `profile`, `z` its extrusion, carried by `map`, grafted
 /// into `body` as a new solid.
 fn graft_prism(
@@ -309,4 +326,213 @@ fn a_crossed_ridge_sweep_clears_no_overlap() {
     assert_eq!(overlapping + apart, 135);
     assert!(wrong_clears.is_empty(), "{wrong_clears:?}");
     assert!(false_refusals.is_empty(), "{false_refusals:?}");
+}
+
+/// The U-channel: a base `[0, 3] × [0, 1]` with two arms, `[0, 1] ×
+/// [1, 2]` and `[2, 3] × [1, 2]` — its slot floor edge `(1, 1)–(2, 1)`
+/// lies on the line of the base's top edges.
+const U_CHANNEL: [(f64, f64); 8] = [
+    (0.0, 0.0),
+    (3.0, 0.0),
+    (3.0, 2.0),
+    (2.0, 2.0),
+    (2.0, 1.0),
+    (1.0, 1.0),
+    (1.0, 2.0),
+    (0.0, 2.0),
+];
+/// [`U_CHANNEL`] as boxes in the plane.
+const U_BOXES: [((f64, f64), (f64, f64)); 3] = [
+    ((0.0, 3.0), (0.0, 1.0)),
+    ((0.0, 1.0), (1.0, 2.0)),
+    ((2.0, 3.0), (1.0, 2.0)),
+];
+/// The comb: a base `[0, 4] × [0, 1]` with three teeth, their roots
+/// collinear along `y = 1`.
+const COMB: [(f64, f64); 12] = [
+    (0.0, 0.0),
+    (4.0, 0.0),
+    (4.0, 2.0),
+    (3.5, 2.0),
+    (3.5, 1.0),
+    (2.5, 1.0),
+    (2.5, 2.0),
+    (1.5, 2.0),
+    (1.5, 1.0),
+    (0.5, 1.0),
+    (0.5, 2.0),
+    (0.0, 2.0),
+];
+/// [`COMB`] as boxes in the plane.
+const COMB_BOXES: [((f64, f64), (f64, f64)); 4] = [
+    ((0.0, 4.0), (0.0, 1.0)),
+    ((0.0, 0.5), (1.0, 2.0)),
+    ((1.5, 2.5), (1.0, 2.0)),
+    ((3.5, 4.0), (1.0, 2.0)),
+];
+
+/// Two prisms' materials overlap exactly when some box of one overlaps
+/// some box of the other in a positive length on all three axes.
+fn boxes_overlap(
+    a: &[((f64, f64), (f64, f64))],
+    az: (f64, f64),
+    b: &[((f64, f64), (f64, f64))],
+    bz: (f64, f64),
+) -> bool {
+    overlaps(az, bz)
+        && a.iter()
+            .any(|&(ax, ay)| b.iter().any(|&(bx, by)| overlaps(ax, bx) && overlaps(ay, by)))
+}
+
+/// One pose of a sweep over two prisms, each its profile, its boxes,
+/// its `z` span and its offset in the plane.
+type Part<'a> = (&'a [(f64, f64)], Vec<((f64, f64), (f64, f64))>, (f64, f64));
+
+/// Runs a sweep of prism pairs under the identity and two generic
+/// rotations, and returns `(overlapping, apart, wrong clears, false
+/// refusals)`, each pose labelled.
+fn sweep_pairs(poses: &[(String, Part<'_>, Part<'_>)]) -> (usize, usize, Vec<String>, Vec<String>) {
+    let rotations = [
+        ([0.0, 0.0, 1.0], 0.0),
+        ([1.0, 2.0, 3.0], 0.7),
+        ([-0.3, 1.0, 0.2], 2.1),
+    ];
+    let (mut overlapping, mut apart, mut wrong, mut refused_rests) = (0, 0, Vec::new(), Vec::new());
+    for &(axis, ang) in &rotations {
+        let r = rotation(axis, ang);
+        let map = move |x: f64, y: f64, z: f64| {
+            let q = r([x, y, z]);
+            Point3::new(q[0], q[1], q[2])
+        };
+        for (label, (pa, ba, za), (pb, bb, zb)) in poses {
+            let mut body = Body::<f64>::new();
+            graft_prism(&mut body, pa, *za, map);
+            graft_prism(&mut body, pb, *zb, map);
+            let overlap = boxes_overlap(ba, *za, bb, *zb);
+            let refused = refused(&body);
+            let name = format!("{label} @ {ang}: {}", why(&body));
+            if overlap {
+                overlapping += 1;
+                if !refused {
+                    wrong.push(name);
+                }
+            } else {
+                apart += 1;
+                if refused {
+                    refused_rests.push(name);
+                }
+            }
+        }
+    }
+    (overlapping, apart, wrong, refused_rests)
+}
+
+/// `profile` and its boxes shifted by `(dx, dy)`.
+fn shifted(
+    profile: &[(f64, f64)],
+    boxes: &[((f64, f64), (f64, f64))],
+    (dx, dy): (f64, f64),
+) -> (Vec<(f64, f64)>, Vec<((f64, f64), (f64, f64))>) {
+    (
+        profile.iter().map(|&(x, y)| (x + dx, y + dy)).collect(),
+        boxes
+            .iter()
+            .map(|&((x0, x1), (y0, y1))| ((x0 + dx, x1 + dx), (y0 + dy, y1 + dy)))
+            .collect(),
+    )
+}
+
+/// **The comb and channel sweep.** Two prisms over faces that are not
+/// convex and whose edges run collinear with one another — the
+/// U-channel's slot floor on its base's line, the comb's tooth roots
+/// on one line — so a probe ray from a touch point on those lines runs
+/// along edges behind the point. Each host (`z ∈ [0, 1]`) against a
+/// brick on a grid of spans around, on and into it; then the comb
+/// against the channel, shape against shape, beside, on top of and
+/// sunk into it. Every pose under the identity and two generic
+/// rotations. Ground truth is exact: both prisms are unions of boxes.
+#[test]
+fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
+    let zs = [(-1.0, 0.0), (1.0, 2.0), (0.0, 1.0), (0.25, 0.75)];
+    let mut poses: Vec<(String, Part<'_>, Part<'_>)> = Vec::new();
+    let mut bricks: Vec<(Vec<(f64, f64)>, ((f64, f64), (f64, f64)), (f64, f64), &str)> = Vec::new();
+    let hosts: [(&str, &[(f64, f64)], &[((f64, f64), (f64, f64))], [(f64, f64); 6], [(f64, f64); 6]); 2] = [
+        (
+            "channel",
+            &U_CHANNEL,
+            &U_BOXES,
+            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (3.0, 4.0), (0.5, 1.5)],
+            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (0.5, 1.5), (1.0, 3.0)],
+        ),
+        (
+            "comb",
+            &COMB,
+            &COMB_BOXES,
+            [(-1.0, 0.0), (0.0, 0.5), (0.5, 1.5), (1.5, 2.5), (0.25, 0.75), (3.0, 4.0)],
+            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (0.75, 1.25), (1.0, 3.0)],
+        ),
+    ];
+    for (name, _, _, xs, ys) in &hosts {
+        for &x in xs {
+            for &y in ys {
+                for &z in &zs {
+                    let square = vec![(x.0, y.0), (x.1, y.0), (x.1, y.1), (x.0, y.1)];
+                    bricks.push((square, (x, y), z, name));
+                }
+            }
+        }
+    }
+    for (square, (x, y), z, name) in &bricks {
+        let (_, profile, boxes, _, _) = hosts.iter().find(|h| h.0 == *name).expect("a host");
+        poses.push((
+            format!("{name} vs brick {x:?}×{y:?}×{z:?}"),
+            (profile, boxes.to_vec(), (0.0, 1.0)),
+            (square, vec![(*x, *y)], *z),
+        ));
+    }
+    let comb_at: Vec<((f64, f64), (Vec<(f64, f64)>, Vec<((f64, f64), (f64, f64))>))> = [
+        (-4.0, 0.0),
+        (3.0, 0.0),
+        (0.0, 2.0),
+        (0.0, -2.0),
+        (-0.5, 0.0),
+        (-1.0, 1.0),
+        (0.5, -1.0),
+    ]
+    .into_iter()
+    .map(|d| (d, shifted(&COMB, &COMB_BOXES, d)))
+    .collect();
+    for (d, (profile, boxes)) in &comb_at {
+        for z in [(0.0, 1.0), (1.0, 2.0), (-1.0, 0.0)] {
+            poses.push((
+                format!("channel vs comb at {d:?}×{z:?}"),
+                (&U_CHANNEL, U_BOXES.to_vec(), (0.0, 1.0)),
+                (profile, boxes.clone(), z),
+            ));
+        }
+    }
+    let (overlapping, apart, wrong, refused_rests) = sweep_pairs(&poses);
+    println!(
+        "comb-and-channel sweep: {overlapping} overlapping, {apart} not; wrong clears {}, \
+         false refusals {}: {refused_rests:#?}",
+        wrong.len(),
+        refused_rests.len()
+    );
+    assert_eq!(overlapping + apart, 3 * poses.len());
+    assert!(wrong.is_empty(), "{wrong:#?}");
+    // The known costs, each the same at base: a brick filling a slot
+    // (the channel's `[1, 2] × [1, 2]`, the comb's gap `[0.5, 1.5] ×
+    // [1, 2]`) either sits on the floor of the slot's inner corners —
+    // saddle corners no test certifies
+    // (`work/contact/a-touch-at-a-saddle-corner-refuses-unanalysed.md`) —
+    // or, off the floor, has every corner on the host's boundary, which
+    // the probe cannot place.
+    let named = |r: &String| {
+        (r.starts_with("channel vs brick (1.0, 2.0)×(1.0, ")
+            || r.starts_with("comb vs brick (0.5, 1.5)×(1.0, "))
+            && (r.contains("neither convex nor concave")
+                || r.contains("every corner of one lies on the other's boundary"))
+    };
+    assert!(refused_rests.iter().all(named), "{refused_rests:#?}");
+    assert_eq!(refused_rests.len(), 18, "{refused_rests:#?}");
 }
