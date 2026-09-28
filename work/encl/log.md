@@ -927,3 +927,9 @@ class of 65 sites is PRED's row.
   - A monotonicity contradiction between validate.rs:4370 and the `filter` guard is to be settled from the code.
   - Declined: merging the two near-duplicate refusal types (taste), and the index loop.
   - Fix pass sent back to the lane.
+- 2026-09-28 — The rotation lane opened PR 3332 (head `60c3070c46`, hosted green).
+  - Reproduced: 48 of 93 rotations refused a face minted at 0.998ε. The row's 5% is not a bound: drift varied by fixture from 0.55% to 12%, and was ×3.1 at 1e-12.
+  - Fix: re-fit on refusal in `map_approx`. The original is re-checked in its own frame; if it certifies, the mapped description is minted fresh at the same ε. Otherwise the map refuses as before.
+  - Headroom rejected: the derived δ≈0.8 makes minting ×4–5 dearer, and turns some faces into mint refusals.
+  - Residue at 1e-12 (4 of 93 re-fits stall) filed as `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`. SSI sibling filed.
+  - Single full review dispatched. Its focus: the transform now re-mints (determinism, identity, composition) and no laundering.
