@@ -24,11 +24,11 @@ both orderings. That closes both demonstrated wrong clears:
 Both passed `validate_pseudomanifold` with `Ok(())` before the fix and
 now refuse as `InstanceInterference`.
 
-**What stays open.** For a pair whose only meetings are declared, and
-whose shells all separate from the other's reach, `blocks` is not run.
-Only `declared_crossing` reads the records: a declared v-on-f or v-v
-touch whose cones decidedly cross refuses as `MixedTouch`. Two kinds
-of meeting are still taken on the records' word:
+**What stays open.** A pair whose only meetings are declared is probed
+whether or not it reaches, and `blocks` reads its records with
+`records_on_their_word`: a declared v-on-f or v-v touch whose cones
+decidedly cross refuses as `MixedTouch`. Two kinds of meeting are still
+taken on the records' word:
 
 - a declared touch the analysis cannot read, such as a curved corner;
 - the vertex events a declared face pair backs by structural

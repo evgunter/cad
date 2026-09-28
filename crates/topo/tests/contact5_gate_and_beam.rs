@@ -12,8 +12,9 @@
 use crate::common;
 use geom_core::{Band, Point3, Tol};
 use topo::{
-    Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidKey, ValidationError,
-    VfContact, validate_pseudomanifold,
+    Body, CensusContact, ContactRecords, EntityId, PatchContact, SolidContainment, SolidKey,
+    ValidationError, VfContact, VoidContainment, VoidEvidence, insert_void,
+    validate_pseudomanifold,
 };
 
 fn block(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
@@ -118,7 +119,7 @@ fn refusals(errors: &[ValidationError]) -> Vec<&'static str> {
 }
 
 const CROSSING: &str = "another finding reports their boundaries crossing";
-const TOO_CLOSE: &str = "a corner of one lies too close to the other's boundary";
+const UNEXAMINED: &str = "another finding left their boundaries unchecked";
 
 /// **Two cubes side by side, face to face.** `[0, 2]³` and `[2, 4] ×
 /// [0, 2]²` share the face `x = 2` with opposite normals, every edge of
@@ -185,8 +186,9 @@ fn a_beam_sunk_into_its_supports_refuses() {
 /// inside the run band: whether that edge's line meets the supports'
 /// top edges is too close to call, so the sweep escalates there. The
 /// pivot edge's crosses are meetings, so each beam × support pair is
-/// probed, and the raised corners — in band of the supports' tops —
-/// cannot be placed: the pairs refuse rather than clear.
+/// probed; the raised corners are in band of the supports' tops and the
+/// probe cannot place them, so the findings are read in its place, and
+/// they name the escalation: each pair refuses as left unchecked.
 #[test]
 fn a_beam_tilted_in_band_escalates() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -208,12 +210,7 @@ fn a_beam_tilted_in_band_escalates() {
         crosses(&errors) > 0,
         "the pivot edge still crosses: {errors:?}"
     );
-    let refused = refusals(&errors);
-    assert!(refused.len() >= 2, "{errors:?}");
-    assert!(
-        refused.iter().all(|w| w.starts_with(TOO_CLOSE)),
-        "{errors:?}"
-    );
+    assert_eq!(refusals(&errors), [UNEXAMINED, UNEXAMINED], "{errors:?}");
 }
 
 /// Two square bars turned 45° about their axes and crossed ridge on
@@ -505,4 +502,202 @@ fn a_solid_crossing_itself_blocks_its_pair() {
     let errors = errors_of(&body);
     assert!(crosses(&errors) > 0, "{errors:?}");
     assert_eq!(refusals(&errors), [CROSSING], "{errors:?}");
+}
+
+/// A block `outer` with the block `void` cut out of it as a cavity: one
+/// solid, an outer shell and a void shell.
+fn hollow(outer: [(f64, f64); 3], void: [(f64, f64); 3]) -> Body<f64> {
+    let mut body = block(outer[0], outer[1], outer[2]);
+    let hole = block(void[0], void[1], void[2]);
+    let solid = body.solids().next().unwrap().0;
+    let evidence = VoidEvidence {
+        shells: hole
+            .shells()
+            .map(|(s, _)| (s, VoidContainment::Probed(SolidContainment::In)))
+            .collect(),
+    };
+    insert_void(&mut body, solid, hole, &evidence, Tol::witness()).unwrap();
+    body
+}
+
+/// The Rest mate's declaration of every face-to-face seat in `body`:
+/// planar faces of two solids on one plane with opposite outward
+/// normals and overlapping extents, one patch record each.
+fn rest_patches(body: &Body<f64>) -> Vec<PatchContact> {
+    let extent = |f: topo::FaceKey| -> ([f64; 3], [f64; 3]) {
+        let mut b = ([f64::MAX; 3], [f64::MIN; 3]);
+        for (_, he) in body.half_edges() {
+            if body.get_loop(he.parent_loop).unwrap().face != f {
+                continue;
+            }
+            let p = body
+                .get_point(body.get_vertex(he.start).unwrap().point)
+                .unwrap();
+            for (i, c) in [p.x, p.y, p.z].into_iter().enumerate() {
+                b.0[i] = b.0[i].min(c);
+                b.1[i] = b.1[i].max(c);
+            }
+        }
+        b
+    };
+    let planes: Vec<_> = body
+        .faces()
+        .filter_map(|(k, f)| match body.get_surface(f.surface) {
+            Some(geom::Surface::Plane { origin, normal, .. }) => {
+                let s = if f.sense { 1.0 } else { -1.0 };
+                let n = [normal.x * s, normal.y * s, normal.z * s];
+                let d = n[0] * origin.x + n[1] * origin.y + n[2] * origin.z;
+                Some((k, body.get_shell(f.shell).unwrap().solid, n, d))
+            }
+            _ => None,
+        })
+        .collect();
+    let mut out = Vec::new();
+    for (i, &(fa, sa, na, da)) in planes.iter().enumerate() {
+        for &(fb, sb, nb, db) in &planes[i + 1..] {
+            let dot = na[0] * nb[0] + na[1] * nb[1] + na[2] * nb[2];
+            if sa == sb || dot > -1.0 + 1e-9 || (da + db).abs() > 1e-9 {
+                continue;
+            }
+            let (ba, bb) = (extent(fa), extent(fb));
+            if (0..3).all(|k| ba.0[k] <= bb.1[k] + 1e-9 && bb.0[k] <= ba.1[k] + 1e-9) {
+                out.push(PatchContact {
+                    face_a: fa,
+                    face_b: fb,
+                });
+            }
+        }
+    }
+    out
+}
+
+fn declared_seats(body: &Body<f64>) -> Result<(), Vec<ValidationError>> {
+    let records = ContactRecords {
+        patches: rest_patches(body),
+        ..ContactRecords::default()
+    };
+    assert!(!records.patches.is_empty());
+    validate_pseudomanifold(body, &records, Tol::witness())
+}
+
+/// A U channel along `z`: floor `y ∈ [−1, 0]`, walls `x ∈ [−1, 0]` and
+/// `x ∈ [10, 11]` rising to `y = 7`, `z ∈ [−1, 11]`.
+fn channel() -> Body<f64> {
+    let profile = [
+        (-1.0, -1.0),
+        (11.0, -1.0),
+        (11.0, 7.0),
+        (10.0, 7.0),
+        (10.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 7.0),
+        (-1.0, 7.0),
+    ];
+    common::prism_z::<f64>(&profile, -1.0, 11.0, Tol::witness()).body
+}
+
+/// An L corner along `z`: walls `x ∈ [−1, 0]` and `y ∈ [−1, 0]`,
+/// `z ∈ [−1, 11]`.
+fn corner() -> Body<f64> {
+    let profile = [
+        (-1.0, -1.0),
+        (11.0, -1.0),
+        (11.0, 0.0),
+        (0.0, 0.0),
+        (0.0, 11.0),
+        (-1.0, 11.0),
+    ];
+    common::prism_z::<f64>(&profile, -1.0, 11.0, Tol::witness()).body
+}
+
+const PART: [(f64, f64); 3] = [(0.0, 10.0), (0.0, 10.0), (0.0, 10.0)];
+const CAVITY: [(f64, f64); 3] = [(4.0, 6.0), (4.0, 6.0), (4.0, 6.0)];
+
+/// **A hollow part seated declared validates.** A part `[0, 10]³` with
+/// a cavity `[4, 6]³` sits in a U channel (on its floor, between its
+/// walls) or in an L corner, every seat declared as the Rest mate's
+/// patch record. The cavity's hull lies inside the channel's and the
+/// corner's reach box, but a void shell is not an outer shell, so the
+/// gate reads only the part's outer shell; the pair meets only in
+/// declared seats, so it is probed and its records are taken on their
+/// word. The same seats on a solid part validate too.
+#[test]
+fn a_hollow_part_seated_declared_validates() {
+    for support in [channel(), corner()] {
+        for part in [hollow(PART, CAVITY), block(PART[0], PART[1], PART[2])] {
+            let body = assembly(&[support.clone(), part]);
+            assert_eq!(declared_seats(&body), Ok(()));
+        }
+    }
+}
+
+/// **The gate skips a void shell and probes nothing it need not.** The
+/// same hollow part floats in the channel with a gap of 0.1 all round:
+/// nothing meets, the cavity's hull is inside the channel's reach and
+/// the part's outer shell is not, so the pair clears at the gate. A
+/// block floating in the cavity, touching nothing, is inside the part's
+/// reach and is probed: every corner of each is outside the other, and
+/// the pair clears.
+#[test]
+fn a_void_shell_does_not_open_the_gate() {
+    let gap = hollow(
+        [(0.1, 9.9), (0.1, 9.9), (0.1, 9.9)],
+        [(4.0, 6.0), (4.0, 6.0), (4.0, 6.0)],
+    );
+    let body = assembly(&[channel(), gap]);
+    assert_eq!(
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()),
+        Ok(())
+    );
+    let body = assembly(&[
+        hollow(PART, CAVITY),
+        block((4.5, 5.5), (4.5, 5.5), (4.5, 5.5)),
+    ]);
+    assert_eq!(
+        validate_pseudomanifold(&body, &ContactRecords::default(), Tol::witness()),
+        Ok(())
+    );
+}
+
+/// **A two-lump solid seated declared.** One lump `[0, 2] × [0, 1] ×
+/// [0, 2]` rests on the U channel's floor, declared as a patch record.
+/// Its sibling floats far off, or floats between the channel's walls
+/// touching nothing — its hull inside the channel's reach, so the pair
+/// is probed — and either way the pair validates. With the sibling sunk
+/// in the channel's floor at `[4, 6] × [−0.8, −0.2] × [4, 6]` it
+/// refuses: its corners are inside the channel.
+#[test]
+fn a_two_lump_solid_seated_declared() {
+    let tol = Tol::witness();
+    let seated = [(0.0, 2.0), (0.0, 1.0), (0.0, 2.0)];
+    for (sibling, inside) in [
+        ([(20.0, 22.0), (0.0, 1.0), (0.0, 2.0)], false),
+        ([(4.0, 6.0), (3.0, 5.0), (4.0, 6.0)], false),
+        ([(4.0, 6.0), (-0.8, -0.2), (4.0, 6.0)], true),
+    ] {
+        let lumps = topo::boolean::union(
+            &block(seated[0], seated[1], seated[2]),
+            &block(sibling[0], sibling[1], sibling[2]),
+            tol,
+        )
+        .unwrap()
+        .body()
+        .unwrap()
+        .body
+        .clone();
+        assert_eq!(lumps.shells().count(), 2);
+        let body = assembly(&[channel(), lumps]);
+        let result = declared_seats(&body);
+        if inside {
+            let errors = result.unwrap_err();
+            let solids: Vec<SolidKey> = body.solids().map(|(k, _)| k).collect();
+            assert_eq!(
+                the_interference(&errors),
+                (solids[0], solids[1]),
+                "{errors:?}"
+            );
+        } else {
+            assert_eq!(result, Ok(()), "{sibling:?}");
+        }
+    }
 }

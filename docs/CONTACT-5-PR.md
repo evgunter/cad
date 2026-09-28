@@ -7,7 +7,7 @@ and narrowed to the residue this unit leaves.
 
 ## The logical change
 
-**Arm 2's box gate answers containment, and only per shell.** Before
+**Arm 2's box gate answers containment, per outer shell.** Before
 this change, a pair whose two whole-solid hulls both separated on the
 box was cleared before any finding between the two solids was read.
 Two things were wrong with that:
@@ -20,43 +20,51 @@ Two things were wrong with that:
 
 Now `sweep_cross_solid_backstop` does this per pair:
 
-- **It reads the gate per shell.** Every shell's vertex hull is tested
-  against the other solid's reach box. A shell that is not definitely
-  separated "reaches".
+- **It reads the gate per outer shell.** Every non-void shell's vertex
+  hull is tested against the other solid's reach box. A shell that is
+  not definitely separated "reaches".
+  - A solid's only shell is outer.
+  - Among several, a shell's role is the sign of its own volume
+    (`validate::shell_role`, now `pub(crate)`).
+  - A shell whose role does not read is gated as outer.
 - **It asks whether the boundaries meet on record.** They meet if a
   standing finding names one entity of each solid (`meets_found`), or a
-  declared v-on-f, v-v, curve or patch record names one of each
-  (`meets_declared`).
-- **Nothing on record, every shell separated:** the pair clears at the
-  gate.
+  declared record names one of each (`recorded`).
+- **Nothing on record, every outer shell separated:** the pair clears
+  at the gate.
 - **Otherwise the probe runs.** Every vertex of each solid is tested
   against the other's material, in both orderings.
   - An `In` vertex is a decided interference.
-  - If both orderings are clear, `blocks` reads every finding about the
-    pair. A declared-only pair is the exception; see below.
+  - Otherwise `blocks` reads the findings about the pair. It does so
+    whether or not the probe decided. If it gives a reason, that is
+    the pair's one refusal; if not, the probe's own refusals stand.
 
-The site states why this decides the pair. Let `U` be the overlap of
-the two interiors. If every meeting is a rest, no point where the
-boundaries meet is in `U`'s closure. So `∂U` splits into points of `∂A`
-inside `B` and points of `∂B` inside `A`. Each part is open and closed
-in its own boundary, so it is a union of whole shells. Therefore `U` is
-non-empty only if some shell of one solid lies wholly inside the other,
-and then that shell's vertices are strictly inside:
+**The argument is stated once, at the arm-2 loop.** The module and arm
+docs point to it. In short:
 
-- With nothing on record, that shell's hull also lies inside the other
-  solid's reach box, so the per-shell gate would not have separated it.
-- Otherwise the probe finds the shell's vertices.
+- If every meeting is a rest, the overlap `U` is bounded by whole
+  shells, each lying inside the other solid's material.
+- The outermost shell around a component of `U` has `U`, and so its
+  own solid's material, on its bounded side. It is therefore an outer
+  shell.
+- Its vertices are strictly inside the other solid, and its hull lies
+  inside the other's reach box.
 
-The argument assumes the census is complete for planar boundaries.
-That is why `blocks` refuses on an escalation or on an entity left
-unexamined against everything. A pair with nothing on record clears at
-the gate even beside an escalation; the escalation stands as the
-body's refusal.
+The loop names the premises and what checks each one:
 
-**Declared-only pairs.** For a pair whose only meetings are declared,
-the probe runs and `declared_crossing` refuses a declared v-on-f or v-v
-touch that decidedly crosses. `blocks` is not run there. Running it
-refuses ratified acceptance rows: the M9-2 declared curved boss as
+- Shells are connected: tier 2's `validate_closed` runs before the
+  census, and a solid that crosses itself is refused in `blocks`.
+- A shell's role is the sign of its volume: tier 3's check 10 holds
+  the winding.
+- The census is complete for planar boundaries: an escalation or an
+  unexamined entity blocks, and curved meetings are arm 1's.
+
+**Declared-only pairs.** A pair whose only meetings are declared is
+probed whether or not it reaches. `blocks` reads it with
+`records_on_their_word`: a declared v-on-f or v-v touch that decidedly
+crosses refuses, and nothing else in its records does. It never reaches
+the face-pair tail on reach alone. Reading the records fully refuses
+ratified acceptance rows: the M9-2 declared curved boss as
 `TouchUnreadable`, and nineteen declared planar seats as
 `DeclaredFacePair`. So two things remain taken on the records' word:
 
@@ -66,9 +74,12 @@ refuses ratified acceptance rows: the M9-2 declared curved boss as
 An overlap those hide with no vertex strictly inside clears. No such
 pose has been built. This residue is the re-scoped P0 row.
 
-**One finding→pair mapping.** `Named::of` maps every standing finding
-to the entities it names and what it says of them (`Said`). Both
-`meets_found` and `blocks` read it.
+**One mapping each for findings and records.** `Named::of` maps every
+standing finding to the entities it names and what it says of them
+(`Said`), and both `meets_found` and `blocks` read it. `recorded` maps
+every declared record naming one entity of each solid to a `Recorded`
+(a touch site, or a face pair), and both the meeting test and `blocks`
+read it.
 
 **One third-solid rule.** A finding blocks a pair only if it names one
 entity of each of the pair's solids. A pierce, an arm-1 refusal or an
@@ -122,7 +133,10 @@ cross finding.
 
 - **base**: `main` before CONTACT-5.
 - **first pass**: `3af4ebc`.
-- **head**: this fix pass.
+- **dd95fcb**: the first fix pass.
+- **head**: the last pass.
+
+Where dd95fcb is not shown, it matches head.
 
 | pose | base | first pass | head |
 |---|---|---|---|
@@ -130,7 +144,7 @@ cross finding.
 | two cubes face to face | cleared | cleared | cleared |
 | beam across two supports | cleared at the gate | cleared (8 crosses read as rests) | cleared |
 | beam sunk 1 mm | cleared at the gate | `Crossing` ×2 | `Crossing` ×2 |
-| beam tilted in band | cleared | `Unexamined` ×2 | corners too close to place, both pairs |
+| beam tilted in band | cleared | `Unexamined` ×2 | `Unexamined` ×2, the findings' reason reported over the probe's |
 | ridges crossed, resting / sunk | cleared / cleared | cleared / `Crossing` | cleared / `Crossing` |
 | **M1** two-lump solid, lump 1 inside B, lump 2 touching B | cleared (wrong) | cleared (wrong) | `InstanceInterference`, lump solid inside B |
 | **M1** same, lump 2 far off (nothing meets) | cleared (wrong) | cleared (wrong) | `InstanceInterference` |
@@ -141,7 +155,15 @@ cross finding.
 | one solid crossing itself (plus of two shells) beside a resting block | cleared | `Crossing` | `Crossing` |
 | two interpenetrating cubes (`m3_pr6_tier3prime`) | cleared | `Crossing` | `InstanceInterference` |
 | obtuse-sector part dipping 30·zero | cleared (wrong) | refused | `InstanceInterference` (floor, part) |
-| obtuse-sector part dipping 2 or 5·zero (in band) | cleared (wrong) | refused | corners too close to place, (floor, part) |
+| obtuse-sector part dipping 2 or 5·zero (in band) | cleared (wrong) | refused | `Unexamined` (floor, part) |
+| **last-pass M1** hollow part (cavity `[4,6]³`) seated declared in a U channel or an L corner | `Ok` | `Ok` (dd95fcb: `DeclaredFacePair`) | `Ok` |
+| same with a solid part | `Ok` | `Ok` | `Ok` |
+| hollow part floating in the channel with a 0.1 gap | `Ok` | `Ok` | `Ok`, cleared at the gate |
+| block floating in a part's cavity | `Ok` | `Ok` | `Ok` |
+| two-lump solid, one lump seated declared on the channel floor, sibling far or floating in the channel | not measured | dd95fcb: `DeclaredFacePair` (the seated lump's hull is inside the channel's reach) | `Ok` |
+| same, sibling sunk in the channel floor | not measured | dd95fcb: refused | `InstanceInterference` |
+| all corners on the other's boundary (`bool4_material_containment`) | `AllOn` | `AllOn` | `MixedTouch`: the slab is inside the cube, and the touch analysis says so |
+| a witness in band of a wall (`bool4_material_containment`) | too close to place ×2 | same | `Unexamined` ×1 |
 
 The beam row's premise did not reproduce end to end. At base the beam
 is gate-separated and cleared before `blocks` read its crosses. The
@@ -166,7 +188,8 @@ now pins the pair and the reason:
 
 - Dips decidedly below the floor are the part's corners inside the
   floor.
-- Dips in band are corners the probe cannot place.
+- Dips in band are refused as left unchecked: the probe cannot place
+  the corners, and the sweeps' escalations give the reason.
 
 No dip clears at any of the three eps rows.
 
@@ -185,6 +208,14 @@ No dip clears at any of the three eps rows.
 ## Goldens that moved
 
 `editor-core` `perf12_census_*` were re-blessed at all three eps rows.
+The last pass moved two rows relative to dd95fcb:
+
+- In `kitchen_sink`, (4,1) "every corner on the boundary" becomes
+  (1,4) `MixedTouch`. When the probe cannot decide, the findings are
+  now read, and they give that reason.
+- In `cut_cylinder`, `VolumeUncertified` both ways becomes a single
+  `Unexamined`. Arm 1's refusals of the curved faces are the reason.
+
 Relative to base:
 
 - `kitchen_sink` gains `Unexamined` refusals for solid pairs (1,8),
@@ -194,11 +225,23 @@ Relative to base:
   halves split at z = 0.625, and all of their own findings are rests.
   They had refused only on other pairs' arm-1 findings; the third-solid
   rule ends that false refusal.
-- `cut_cylinder` gains a `VolumeUncertified` refusal both ways. The
-  pair meets, so it is probed, and the door cannot certify the curved
-  part's volume.
+- `cut_cylinder` gains one `Unexamined` refusal of the solid pair.
+- `kitchen_sink`'s (4,1) `AllOn` is now (1,4) `MixedTouch`.
 
 All of these bodies already refused.
+
+**The general pattern, beyond the goldens.** Every assembly with a
+curved face within reach of another solid gains one solid-pair
+`Unexamined` beside arm 1's face-pair refusals, for example the
+`sweep` #1032 plate × boss (12 and 7). The pair meets through
+candidates arm 1 left unexamined, so it is not cleared past them. The
+refusal is redundant with arm 1's: no body changed verdict.
+
+**Behaviour relaxed on purpose.** A declared seat whose part lies
+inside the partner's reach refused as `DeclaredFacePair` at dd95fcb,
+and at base whenever the whole solid's hull did. Such a pair is now probed and its records are taken on their
+word, as for every declared-only pair. The two-lump rows above are the
+measurement.
 
 ## Other moved rows
 
@@ -253,7 +296,11 @@ the contained side. The hit is `solid_boxes` in arm 2, now used only by
 the extent pre-filter. That filter prunes on disjoint extents, and a
 union hull is sound for that.
 
-**Not matched:** the declared-only residue, filed as the P0 row.
+**Not matched:** the declared-only residue, filed as the P0 row. The
+last pass also files
+`work/contact/a-same-solid-self-overlap-seen-only-as-touches-is-not-a-self-crossing.md`
+(P3, found by the delta review): a solid whose own shells overlap while
+meeting only in touches is not caught by the self-crossing exception.
 
 ## Territory seam
 
@@ -265,11 +312,11 @@ expectations move: the docm6 allowlist and the three `perf12` goldens.
 
 - `cargo test -p topo --lib --test all`: green at eps unset, 1e-6 and
   1e-12.
-- `editor-core`, `sweep` and `pncad` under nextest at eps unset:
-  3998 of 3999 passed. The one red, the #1032 measurement row above,
-  was re-baselined and then passed at all three eps rows.
-- The moved `editor-core` rows and the `sweep` boss-union row: green at
-  all three eps rows.
+- `editor-core`, `sweep` and `pncad` under nextest at eps unset, after
+  merging `main`: 4044 of 4044 passed. The #1032 measurement row was
+  re-baselined in the pass before.
+- The moved `editor-core` rows (`perf12`, docm6) and the `sweep`
+  boss-union and #1032 rows: green at all three eps rows.
 - `cargo clippy -p topo --all-targets -D warnings`: clean.
 - Rustdoc for topo with the doc gate's lints and
   `--document-private-items --features sweep-testing`: clean.
