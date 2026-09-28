@@ -73,6 +73,21 @@ last shape by design, since a chosen target is what they are for.
 
 ## Two things the offset-fit fix left behind
 
+Status after the same PR's review fix pass:
+
+- **The first is closed.** `replace_face_offset` / `replace_faces_offset`
+  now take `Tol` alone and derive `Band::linear(tol)` once, first
+  (mapped into a new `ReplaceFaceError::Band`), so the analytic mint,
+  `plan_reanchors`, the carrier transport, the iso rows, the nappe and
+  apex decisions and the fit lane all classify at one band. `mint_offset`
+  and `plan_reanchors` are private and still take `(band, tol)`, but
+  their only production caller is that door, so the pair there cannot
+  disagree.
+- **The second is stated, not closed.** Not every caller of
+  `tier3_local_checks_marked` derives `band` from `tol`:
+  `topo::n2r1_probes` hands it a fixed `Band::new(1e-9, 1e-8)`. The
+  split is written in the function's docs and at the offset arm.
+
 - `topo::replace_face_offset` / `replace_faces_offset` are public and take
   `(band, tol)`, and `mint_offset` passes the caller's band to the
   analytic mint (`geom_brep::offset_surface`) but only `tol` to the fit
@@ -93,3 +108,33 @@ because `tol` is still needed for pcurve mints and `.eps()` reads. So
 reader. A type holding both, constructible only from one witness, keeps
 the single derivation. Which one reads right differs by crate, which is
 why `design: true`.
+
+## A sibling class: "derive the run's band at the door" is spelled per crate
+
+Every door that takes `Tol` alone and needs the band derives it the same
+way, `Band::linear(tol)` mapped into the door's own error, and the
+derivation is spelled again in each crate:
+
+- `geom_brep::offset_fit::run_band` (`crates/geom-brep/src/offset_fit.rs`)
+- `editor_core::names::discriminate::band`
+  (`crates/editor-core/src/names/discriminate.rs`)
+- `editor_core::eval::wire::band` (`crates/editor-core/src/eval/wire.rs`)
+- `profile::path::linear_band` (`crates/profile/src/path.rs`)
+- in `topo`, inline: 21 `Band::linear(tol).map_err(` sites across
+  `boolean/combine.rs`, `euler.rs` (3), `flush.rs`, `merge_faces.rs` (3),
+  `pcurves.rs` (2), `props.rs` (3), `replace_face.rs`, `separation.rs`
+  (2), `shell.rs`, `split.rs`, `splitting/finish.rs`, `splitting/mod.rs`
+  and `transform.rs`, plus four `match Band::linear(tol) { .. }` forms in
+  `validate.rs`.
+
+Each is one line, so the duplication is cheap; what it costs is that the
+rendering of the refusal is decided per error type too. The `BandError`
+carries repairs addressed to a caller choosing thresholds ("set a finite
+positive tolerance", "raise ε or K"). A caller that handed in `Tol`
+already holds a valid tolerance, so rendering the carrier whole gives it
+recourses that are not open to it. `OffsetFitError::Band` and
+`ReplaceFaceError::Band` render the one true recourse (a less extreme
+ε); `ShellError::Band` and the other `{error}`-rendering arms above still
+render the carrier whole. A carrier type built from one witness (above)
+would give this derivation, and its refusal's rendering, one home.
+
