@@ -1898,7 +1898,8 @@ fn run_checks<T: Decide>(
             // is named by a definite parallelism defect at the folded
             // arm when there is one, so a definite first-order defect is
             // reported as itself whatever the surfaces' order or the
-            // scalar.
+            // scalar — in the returned error and on the frame's
+            // escalation log alike.
             Resolved::Tangent { surf1, surf2, .. } => {
                 let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
                     let (p, tau) = spec.carrier.ders1(t);
@@ -1932,10 +1933,26 @@ fn run_checks<T: Decide>(
                     // certificate that accepts one must read the same
                     // sagitta under the same predicate name, or the
                     // stored set and the certified set are two sets.
-                    let so = crate::tangent_second_order(surf1, surf2, p, tau, extent, band);
+                    //
+                    // Both readings are taken detached, because which
+                    // escalation the refusal RESTS on is known only once
+                    // the naming reading has spoken, and the frame's
+                    // escalation log must carry exactly that one — the
+                    // escalation the returned error carries, or none for
+                    // a definite refusal. Two escalations are superseded
+                    // (`k_stats::splice_superseded`): a renamed refusal's
+                    // second-order one, because the definite defect that
+                    // renames it is definite on every sub-box too, and
+                    // the naming reading's own in-band one, because that
+                    // reading never refuses — it only names a refusal
+                    // the second-order reading already made. Their
+                    // verdicts and samples are spliced as recorded.
+                    let (so, second_order) = geom_core::k_stats::detached(|| {
+                        crate::tangent_second_order(surf1, surf2, p, tau, extent, band)
+                    });
                     let (jet, arm) = (so.jet, so.arm);
                     match so.verdict {
-                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Positive) => geom_core::k_stats::splice(second_order),
                         refused => {
                             // No lever `1/κ_rel` exists, so the
                             // parallelism defect is metered at the folded
@@ -1949,14 +1966,22 @@ fn run_checks<T: Decide>(
                             // ladder spells the same fallback lever; the
                             // one deliberate difference is its role here,
                             // where it only names a refusal already made.
-                            let renamed = matches!(
-                                decide(
-                                    "tangent_normal_parallel",
-                                    Margin::levered(jet.sin_theta, arm),
-                                    band,
-                                ),
-                                Ok(Sign::Positive | Sign::Negative)
-                            );
+                            let (renamed, naming) = geom_core::k_stats::detached(|| {
+                                matches!(
+                                    decide(
+                                        "tangent_normal_parallel",
+                                        Margin::levered(jet.sin_theta, arm),
+                                        band,
+                                    ),
+                                    Ok(Sign::Positive | Sign::Negative)
+                                )
+                            });
+                            if renamed {
+                                geom_core::k_stats::splice_superseded(second_order);
+                            } else {
+                                geom_core::k_stats::splice(second_order);
+                            }
+                            geom_core::k_stats::splice_superseded(naming);
                             return Err(match refused {
                                 _ if renamed => CertifyError::ResidualExceeded {
                                     check: CertCheck::TangentParallel,
