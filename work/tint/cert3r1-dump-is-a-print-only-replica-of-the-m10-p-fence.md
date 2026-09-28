@@ -2,10 +2,11 @@
 id: cert3r1-dump-is-a-print-only-replica-of-the-m10-p-fence
 kind: issue
 title: cert3r1_dump replicates m10_p_fence's corpus walk and arc-carrier fixture verbatim, prints instead of asserting, and calls itself never pushed
-status: open
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: E
+closed: 2026-09-28
 ---
 
 
@@ -62,3 +63,29 @@ are taken at the merge base `032999ff2` (`git grep … 032999ff2` and
 This row read none of them. Whether each one asserts, and whether it
 replicates a live suite, is open. Neither pass can see a harness that
 is named without `dump` and does not call itself local-only.
+
+## Closed
+
+Ev's ruling (2026-09-28): keep the instrument, remove its cost and the
+copy. `cert3r1_dump` stays as the diff instrument the fence header and
+`geom-core`'s `cert3_evidence` send a reader to when a fence digest
+moves, and it now runs on demand over the fence's own walk:
+
+- `m10_p_fence.rs` has one walk, `walk`, which hands each observable to
+  a closure (`Seen`). `corpus_digest` folds them into the `Digest`;
+  `cert3r1_dump`'s `dump` prints them. The dump carries no walk and no
+  program list of its own.
+- Its two tests are `#[ignore]`d, its header says what it is for and
+  gives the run command (`cargo test -p editor-core --test all --
+  --ignored --nocapture cert3r1_dump`), and its entry is gone from
+  `.config/nextest.toml`'s slow set.
+- Its printed output is byte-identical before and after at both
+  scalars, and the fence's three committed digests did not move.
+
+`r2_cert3_coord_dump.rs`, a third copy of the same corpus walk found
+beside it, got the same treatment.
+
+The wider finding (five more "never pushed" harnesses and the other
+`*dump*` files, unread) is
+`never-pushed-review-harnesses-and-dump-files-are-unread`, on this
+slate.
