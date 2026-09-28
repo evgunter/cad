@@ -178,15 +178,20 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
     };
     match surface {
         geom::Surface::Plane { normal, .. } => Ok(Some(plane_outward_normal(f, *normal))),
-        // A horn or spindle torus (`R ≤ r`) is singular ON its surface,
-        // where the tube meets the axis: no arm, as for the cone.
+        // A torus outside the ring convention has no regular chart here:
+        // a nonpositive tube has no surface to be normal to, and a horn or
+        // spindle (`R ≤ r`) is singular ON its surface, where the tube
+        // meets the axis. No arm, as for the cone — the tube asked first,
+        // since `R − r` alone passes a negative `r`.
         geom::Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } if geom_brep::ring_torus(*major_radius, *minor_radius, band)
-            .map_err(NormalAtError::Escalated)?
-            != Sign::Positive =>
+        } if geom::torus_tube(*minor_radius, band).map_err(NormalAtError::Escalated)?
+            != Sign::Positive
+            || geom::ring_torus(*major_radius, *minor_radius, band)
+                .map_err(NormalAtError::Escalated)?
+                != Sign::Positive =>
         {
             Ok(None)
         }
@@ -624,6 +629,27 @@ mod tests {
         let (horn, face) = face_on(torus(0.5, 0.5));
         assert!(
             face_outward_normal_at(&horn, face, Point3::new(1.0, 0.0, 0.0), band())
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    /// **The tube is asked before the ring.** `r = −0.3` against
+    /// `R = 0.75` has `R − r = 1.05`, a definite ring margin, so a door
+    /// that read the ring alone would take the chart arm on a torus whose
+    /// tube is not a length. The point sits where that datum's residual
+    /// vanishes (`|ρ − R| = |r|`); the arm answers no normal.
+    #[test]
+    fn a_nonpositive_tube_has_no_arm_though_its_ring_margin_is_definite() {
+        let (body, face) = face_on(geom::Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: 0.75,
+            minor_radius: -0.3,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        });
+        assert!(
+            face_outward_normal_at(&body, face, Point3::new(1.05, 0.0, 0.0), band())
                 .unwrap()
                 .is_none()
         );

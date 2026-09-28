@@ -2068,21 +2068,15 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
-    // **Both windows lean on the ring, so the ring is CHECKED here
-    // rather than premised.** The ring convention is enforced at REST by
-    // tier-3 check 1, and this door does not run the validator; three
-    // doors mint a torus (revolve, step-import, the blend lane), and a
-    // spindle arriving from any of them would lever the azimuth by a
-    // vanishing radial and hand the trim a poison direction. It takes
-    // the typed refusal instead, read from the convention's one home.
-    if geom_brep::ring_torus(major_radius, minor_radius, band).map_err(escalate)? != Sign::Positive
-    {
-        return Err(escalate(geom_core::Indeterminate {
-            margin: geom_core::MarginDiag::Invalid,
-            band,
-            predicate: Some("ring_torus_convention"),
-        }));
-    }
+    // **Both windows lean on the ring convention, so it is CHECKED here
+    // rather than premised** — both halves, the tube first: the minor
+    // window is levered by `r`, the major by `ρ ≥ R − r`. The convention
+    // is enforced at REST by tier-3 check 1, and this door does not run
+    // the validator; three doors mint a torus (revolve, step-import, the
+    // blend lane), and a spindle or a nonpositive tube arriving from any
+    // of them would hand the trim a vanishing lever. It takes the
+    // funnel's escalation instead, read from the convention's one home.
+    geom::require_ring_torus(major_radius, minor_radius, band).map_err(escalate)?;
     let w = p - center;
     let h = w.dot(axis);
     let radial = w - axis * h;
@@ -2098,33 +2092,27 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
             }
         }
     };
+    // **Both windows divide by `ρ`**: the major azimuth's direction is
+    // `radial / ρ` inside [`chart_azimuth_margin`], and the meridian
+    // frame's `r̂` is the same quotient. On a ring torus every SURFACE
+    // point has `ρ ≥ R − r > 0`, so this is not a second statement of
+    // the convention; it guards the division for a point this door does
+    // not certify onto the surface — a query far off the tube can sit on
+    // the axis — and takes the funnel's escalation rather than a poison
+    // direction.
+    if u_win.is_some() || v_win.is_some() {
+        geom_core::k_stats::decide_positive("bool_torus_frame_radius", Margin::of(rho), band)
+            .map_err(escalate)?;
+    }
     if let Some(az) = u_win {
         // The MAJOR azimuth, levered by the local distance from the
-        // axis: that is what one radian of it displaces the point by,
-        // and on a ring torus it never vanishes (`ρ ≥ R − r > 0`).
+        // axis: that is what one radian of it displaces the point by.
         let margin = chart_azimuth_margin(face, axis, u_ref, az, radial, rho, band)?;
         if !ask(margin, &mut verdict)? {
             return Ok(Some(false));
         }
     }
     if let Some(mv) = v_win {
-        // **The meridian frame divides by `ρ`.** The ring was decided
-        // above, and on a ring torus every SURFACE point has
-        // `ρ ≥ R − r > 0`, so this is not a second statement of the
-        // convention. It guards the division for a point this door
-        // does not certify onto the surface: a query far off the tube
-        // can sit on the axis, and it takes the typed refusal rather
-        // than a poison direction.
-        match decide("bool_torus_frame_radius", Margin::of(rho), band).map_err(escalate)? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => {
-                return Err(escalate(geom_core::Indeterminate {
-                    margin: geom_core::MarginDiag::Invalid,
-                    band,
-                    predicate: Some("bool_torus_frame_radius"),
-                }));
-            }
-        }
         let r_hat = radial / rho;
         // The meridian frame: `r̂` is the minor angle's own seam (`v = 0`
         // on the outer equator) and `â` its quarter-turn, so the frame

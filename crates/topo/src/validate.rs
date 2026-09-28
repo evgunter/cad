@@ -5305,7 +5305,7 @@ pub(crate) fn tier3_local_checks_marked<
                     ..
                 } = surface
                 {
-                    match geom_brep::ring_torus(*major_radius, *minor_radius, band) {
+                    match geom::ring_torus(*major_radius, *minor_radius, band) {
                         Ok(Sign::Positive) => {}
                         Ok(Sign::Zero | Sign::Negative) => {
                             errors.push(ValidationError::DegenerateTorus { face: face_key });

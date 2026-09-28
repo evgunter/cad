@@ -583,9 +583,12 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
 /// hole, cut to the length that puts all eight corners ON the donut's
 /// inner face (by the torus's `x ↦ −x`, `y ↦ −y` symmetry, one corner
 /// on the tube puts all of them there). Every edge of the bar is then a
-/// `(Zero, Zero)` span: the long edges cross the hole, the end squares'
-/// edges run across the tube's inner wall, and no quartic root lies
-/// strictly inside any of them. Against the inner face each edge's
+/// `(Zero, Zero)` span: the long edges cross the hole; of the end
+/// squares' edges, the two along `x` dip toward the axis, out of the
+/// tube into the hole, and the two along `y` keep a constant `ρ` and run
+/// INSIDE the tube; and no quartic root lies strictly inside any of
+/// them. (The lens those inside edges bound is what the union cannot
+/// yet see: `work/germ/torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`.) Against the inner face each edge's
 /// corners are `In`, so every edge records there, and those records are
 /// the only place the corners' incidences come from. Against the outer
 /// face every corner is certified `Elsewhere`, so nothing lands there.
@@ -672,6 +675,35 @@ fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
         rod_on_cyl.examined.iter().any(|&(_, f)| f == third[0]),
         "the third face must be examined, or this row tests nothing: {rod_on_cyl:?}"
     );
+}
+
+/// **The relaxation opens no cylinder body.** The same rod through the
+/// three-face wall, under every op: the chord is no event on the third
+/// face now, and what each op meets next is a typed door, never a body.
+/// Measured: every op stops at the curved-sector sagitta charge, where
+/// the rod's pierce vertices sit on a wall — the door the torus pierces
+/// stop at too.
+#[test]
+fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
+    let cyl = three_face_cylinder();
+    let at = |deg: f64| {
+        let t = deg.to_radians();
+        Point3::new(t.cos(), t.sin(), 1.0)
+    };
+    let (p60, p180) = (at(60.0), at(180.0));
+    let rod = framed_bar(p60, p180 - p60, -0.5, 2.2, 0.02);
+    for (what, r) in [
+        ("∪", topo::union(&cyl, &rod, Tol::witness())),
+        ("∩", topo::intersect(&cyl, &rod, Tol::witness())),
+        ("cyl ∖ rod", topo::subtract(&cyl, &rod, Tol::witness())),
+        ("rod ∖ cyl", topo::subtract(&rod, &cyl, Tol::witness())),
+    ] {
+        let err = r.expect_err(what);
+        assert!(
+            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            "{what}: {err:?}"
+        );
+    }
 }
 
 /// A radius-1 cylinder about `z`, two metres tall, its wall split into
