@@ -151,7 +151,6 @@ jobs:
         env:
           REQUIRE_RUFF: "1"
       - name: gates (scripts/gates)
-        if: needs.filter.outputs.run_build == 'true'
         run: |
           rc=0
           for g in scripts/gates/*.sh; do

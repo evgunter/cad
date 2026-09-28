@@ -99,9 +99,8 @@
 # WHERE THIS GATE RUNS. *A gate must be sited where it can fire on its
 # own inputs* (Ev, 2026-08-20, on S61). Half this gate's subject is
 # `crates/viewer/README.md`: the allowlist rows, the kind vocabulary and
-# the table's own shape. A change set of only the README classifies
-# TIER=docs, `RUN_BUILD=false`, and ci.yml's `lint` job runs the gates
-# only when `run_build` is true, so such a change set does not fire it.
+# the table's own shape. ci.yml's `lint` job runs every gate on every
+# tier, so a README-only change set fires it.
 #
 # WHY `crates/viewer/tests/` IS NOT SCANNED, which is a decision and not
 # an oversight. The suites hold hand-written complete variant lists of

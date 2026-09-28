@@ -18,10 +18,8 @@
 # WHERE THIS GATE RUNS. *A gate must be sited where it can fire on its
 # own inputs* (Ev, 2026-08-20, on S61). `crates/viewer/README.md` is the
 # subject of the table parse above check 1 and of checks 3, 4, 6 and 6b;
-# `crates/viewer/Cargo.toml` is check 5's. A change set of only the
-# README classifies TIER=docs, `RUN_BUILD=false`, and ci.yml's `lint`
-# job runs the gates only when `run_build` is true, so such a change set
-# does not fire it.
+# `crates/viewer/Cargo.toml` is check 5's. ci.yml's `lint` job runs
+# every gate on every tier, so a README-only change set fires it.
 #
 # WHERE A MODULE'S KIND IS DECLARED, and why it is not the README.
 # Each module says its own kind, once, in its own doc header:
