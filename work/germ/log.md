@@ -279,3 +279,11 @@ merged in.
 - **Rows:** 24 rows are red on the base (`UnpairedLooseEnds`) and answer their closed forms with the fix.
 - **Moved refusal:** one existing probe's refusal moved from `UnpairedLooseEnds` to the tracked full-period-wall containment limit.
 - **Tier:** orchestrator read. Merged on hosted green.
+## 2026-09-28 — the stopgap's guard rows land (PR 3349)
+
+- The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
+- The lens row checks the true union against a quadrature lens.
+- Both torus gates share the `carriers_apart` certificate. A wedge clear of the donut's carrier is now answered correctly.
+- The ball-to-plane gap has one home.
+- G1–G4 mutants are killed.
+- Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
