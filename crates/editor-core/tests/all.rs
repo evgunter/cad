@@ -80,6 +80,8 @@ mod asm_r2b_interface_wire;
 mod asm_roots;
 #[path = "asm_upd_pin_update.rs"]
 mod asm_upd_pin_update;
+#[path = "assemble_one_local_battery.rs"]
+mod assemble_one_local_battery;
 #[path = "blend5_r1_probes.rs"]
 mod blend5_r1_probes;
 #[path = "blend5_r2_probes.rs"]
