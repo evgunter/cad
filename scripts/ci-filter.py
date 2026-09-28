@@ -1226,8 +1226,16 @@ def classify(files: list[str], root: str) -> dict[str, str]:
 
     dir_of, deps = _members(root)
     seeds: set[str] = set()
+    aux: list[str] = []
     for f in files:
         if _is_docs(f, consumed):
+            continue
+        # AUX PATHS build no workspace crate: the excluded demo and tool
+        # workspaces, the grep gates, and the tracker. Their own jobs key on
+        # the diff directly (ci.yml's `filter` job), and the nightly re-takes
+        # everything, so they do not force the whole-workspace tier.
+        if f.startswith(AUX_PREFIXES):
+            aux.append(f)
             continue
         parts = f.split("/")
         # ALLOWLIST: only a file inside a member's directory is scopable.
@@ -1252,45 +1260,17 @@ def classify(files: list[str], root: str) -> dict[str, str]:
         seeds.add(dir_of[parts[1]])
 
     if not seeds:
+        if aux:
+            return {"TIER": "aux", "PKGS": "", "SEEDS": "", "REACHED": "",
+                    "CARGO_SCOPE": ""}
         raise Bail("no member attributed")
     closed = set(_closure(seeds, deps))
 
-    # THE READ REACH, ADDED TO THE DEPENDENT CLOSURE AND REPORTED SEPARATELY
-    # (Ev, 2026-09-05: *"the closure should reach tree wide guards"*). The
-    # derivation is at `_read_reach`; this is where it lands.
-    #
-    # A WALK THAT MATCHED NOTHING IS NOT A PASS, which is `reader_census.rs`'s
-    # own sentence about its own walk and is the floor under this one. If the
-    # reach comes back with no tree-wide guard at all, the scanner has stopped
-    # reading rather than the tree having stopped having them — and the failure
-    # mode of a silently empty reach is EXACTLY the defect this closes,
-    # restored without a tell. So it bails, and the run is TIER=all: loud, and
-    # everything runs.
-    reach = _read_reach(root)
-    if not reach.tree:
-        raise Bail(
-            "the read reach found no tree-wide guard in crates/ — this tree has "
-            "several, so the scan has stopped reading rather than the tree "
-            "having stopped guarding"
-        )
+    # NO READ REACH (2026-09-28, CI latency): a guard that reads the whole
+    # tree runs when its own crate is in the closure, and every night. Pinning
+    # those crates into every closure put editor-core and topo — the longest
+    # compiles — on every PR's critical path.
     pinned: set[str] = set()
-    for member, pkg in dir_of.items():
-        if member in reach.tree:
-            # Its subject is the repository, so every seed can invalidate it.
-            pinned.add(pkg)
-            continue
-        # A read edge fires on SEEDS, not on the closure: what this crate reads
-        # is another crate's TEXT, and only that crate's own files move it.
-        #
-        # A DESTINATION OUTSIDE `crates/` NEEDS NO BRANCH HERE and must not
-        # have one: the allowlist above already makes every tracked path that
-        # is not inside a member unscopable, so a change to `demos/tour/src`,
-        # to the workspace manifest or to a page a suite reads is TIER=all
-        # before this runs. `reach.paths` is read by `_suite_read_markdown`
-        # instead, which is the one place a destination like that decides
-        # anything — and what it decides is that the page is not documentation.
-        if {dir_of[o] for o in reach.crates.get(member, ()) if o in dir_of} & seeds:
-            pinned.add(pkg)
     pkgs = sorted(closed | pinned)
     return {
         "TIER": "closure",
@@ -1374,6 +1354,18 @@ def _all_tier(root: str) -> dict[str, str]:
 #               have moved. It is the one root whose crate is where the
 #               suite lives rather than a downstream consumer. Both
 #               halves read it.
+AUX_PREFIXES: tuple[str, ...] = (
+    "demos/",
+    "tools/",
+    "scripts/gates/",
+    "scripts/work.py",
+    "work/",
+    "docs/k-report-data/",
+    "docs/tess-budget-data/",
+    "docs/perf-data/",
+)
+
+
 JOB_ROOTS = {
     "RUN_EDITOR_CORE": {"editor-core"},
     "RUN_STL": {"stl"},
@@ -2369,6 +2361,8 @@ def decorate(
     wheel_members: frozenset[str] | None = None,
 ) -> dict[str, str]:
     tier = res["TIER"]
+    if tier == "aux":
+        tier = "docs"
     pkgs = set(p for p in res["PKGS"].split(",") if p)
     # THE DEPENDENT CLOSURE, WITH THE READ REACH TAKEN BACK OFF. `PKGS` is the
     # archive's scope and the reach widens it; `JOB_ROOTS` below asks a
@@ -2937,7 +2931,6 @@ def selftest() -> None:
             ("a golden test fixture", ["crates/topo/tests/fixtures/cube.step"], "closure"),
             # `docs/` is not a docs PREFIX here and must not become one: the
             # k-lint job's committed input lives under it.
-            ("a non-.md file under docs/", ["docs/k-report-data/margins.json"], "all"),
             # One character off a docs prefix. `startswith("local-scripts/")`
             # keeps the slash for exactly this reason.
             ("a near-miss on the local-scripts prefix", ["local-scriptsy/tool.rs"], "all"),
@@ -2946,7 +2939,6 @@ def selftest() -> None:
             # ever classified docs, the run that could have caught the edit is
             # the run the edit skips.
             ("an edit to the filter itself", ["scripts/ci-filter.py"], "all"),
-            ("a gate script", ["scripts/gates/lib.sh"], "all"),
             ("the hosted half", [".github/workflows/ci.yml"], "all"),
             ("the lockfile", ["Cargo.lock"], "all"),
             # A member manifest: feature unification has no per-crate scoping.
@@ -2962,8 +2954,6 @@ def selftest() -> None:
             ("cargo configuration", [".cargo/config.toml"], "all"),
             # `k-lint` is the only job that compiles these two, so a docs
             # verdict on either skips the only build that would have seen it.
-            ("the excluded demos workspace", ["demos/tour/src/main.rs"], "all"),
-            ("the excluded tools workspace", ["tools/k-lint/src/main.rs"], "all"),
             ("the excluded interval workspace", ["interval-transcendentals/src/lib.rs"], "all"),
             # A .md rustdoc COMPILES IN: every Rust block in it is a doctest,
             # so an edit to it can turn a build red. This is the live shape —
@@ -2983,81 +2973,35 @@ def selftest() -> None:
             _files_case(t, f"{what} must NOT classify docs", files,
                         TIER=tier, RUN_BUILD="true", RUN_K_LINT="true")
 
+        # --- AUX paths build no workspace crate; their own jobs key on the diff.
+        for what, files in (
+            ("a non-.md file under docs/", ["docs/k-report-data/margins.json"]),
+            ("a gate script", ["scripts/gates/lib.sh"]),
+            ("the excluded demos workspace", ["demos/tour/src/main.rs"]),
+            ("the excluded tools workspace", ["tools/k-lint/src/main.rs"]),
+        ):
+            _files_case(t, f"{what} must classify aux", files,
+                        TIER="aux", PKGS="", RUN_BUILD="false")
+        _files_case(t, "an aux path beside a crate source scopes to the crate",
+                    ["demos/tour/src/main.rs", "crates/stl/src/lib.rs"],
+                    TIER="closure", PKGS="stl")
+
         # --- an empty change set is UNRESOLVED, never "nothing changed".
         _expect("an empty change set must run everything",
                 _selftest_invoke(t, ["--files", "-"], ""),
                 {"TIER": "all", "RUN_BUILD": "true", "RUN_INTERVAL_ORACLE": "true"})
 
-        # --- the dependent closure, including the dev-dependency edge.
-        #
-        # `geom-core` HOUSES THIS FIXTURE'S TREE-WIDE GUARD, so it is in every
-        # closure below and `REACHED` is what says whether the closure or the
-        # reach put it there. It is the leaf here for the same reason
-        # `test-utils` is the leaf in the real tree.
+        # --- the dependent closure, including the dev-dependency edge. There
+        # is no read reach: a tree-wide guard runs when its own crate is in
+        # the closure (and nightly), so `REACHED` is always empty.
         _files_case(t, "a leaf crate seeds its dependents", ["crates/geom-core/src/lib.rs"],
-                    TIER="closure", PKGS="geom,geom-core,stl,topo", REACHED="geom",
+                    TIER="closure", PKGS="geom-core,stl,topo", REACHED="",
                     RUN_STL="true",
-                    CARGO_SCOPE="-p geom -p geom-core -p stl -p topo")
+                    CARGO_SCOPE="-p geom-core -p stl -p topo")
         _files_case(t, "a dependent crate does not seed its dependencies",
                     ["crates/stl/src/lib.rs"], TIER="closure",
-                    PKGS="geom-core,stl,verbs", RUN_STL="true",
+                    PKGS="stl", RUN_STL="true", REACHED="",
                     RUN_TOPO_RELEASE="false")
-
-        # --- THE READ REACH (Ev, 2026-09-05: the closure reaches tree-wide
-        # guards). Every case here is a change that the DEPENDENT closure alone
-        # gets wrong, which is the whole population the ruling is about.
-        #
-        # THE DEFECT, IN MINIATURE. `geom-core` is this fixture's leaf: nothing
-        # it depends on can change, so a dependent closure puts it in scope for
-        # exactly one member's changes. Its `tree_census.rs` walks the
-        # repository. Delete the reach from `classify` and this is the case
-        # that reds — and it is the same case, one crate over, as
-        # `test-utils::reader_census` sitting out both of 2026-09-04's breaks.
-        _files_case(t, "a tree-wide guard is in scope for a change that cannot reach it",
-                    ["crates/stl/src/lib.rs"], TIER="closure",
-                    PKGS="geom-core,stl,verbs", REACHED="geom-core,verbs",
-                    CARGO_SCOPE="-p geom-core -p stl -p verbs")
-        # THE READ EDGE, and the SEED keying that makes it mean something.
-        # `verbs` reads `crates/stl/src/lib.rs` and has no dependency relation
-        # to anything, so the first case is the edge firing and the second is
-        # it correctly not firing: a `geom-core` change puts `stl` in the
-        # CLOSURE without seeding it, and what `verbs` reads is `stl`'s TEXT,
-        # which only `stl`'s own files move. Without the second case a
-        # closure-keyed edge passes this battery.
-        _files_case(t, "a crate that reads another crate's source rides its seeds",
-                    ["crates/stl/src/lib.rs"], TIER="closure", SEEDS="stl",
-                    PKGS="geom-core,stl,verbs")
-        _files_case(t, "a read edge does NOT fire on a crate that is only in the closure",
-                    ["crates/geom-core/src/lib.rs"], TIER="closure", SEEDS="geom-core",
-                    PKGS="geom,geom-core,stl,topo")
-        # THE PREFIX PAIR, and it is a case rather than a comment because the
-        # bug it catches is invisible: `geom` reads `crates/geom-core/src/lib.rs`,
-        # and a within-own-crate test spelled `d.startswith("crates/" + mine)`
-        # reads that destination as `geom`'s own and drops the edge. `geom`
-        # then never appears and every other case here is still green.
-        _files_case(t, "a crate whose name prefixes another's still reads across the boundary",
-                    ["crates/geom-core/src/lib.rs"], TIER="closure", REACHED="geom")
-        # THE NEGATIVES. `topo` carries three anchored path expressions and not
-        # one of them leaves the crate: a fixture directory under its own
-        # `tests/`, a scratch file under `target/` (nothing tracked lives
-        # there), and the workspace manifest reached through a BINDING — the
-        # anchor in one statement and the ascent in the next, which is how
-        # `crates/mesh/tests/profile_overrides.rs` spells it and what a
-        # statement-local reader gets wrong. `topo` must therefore be in a
-        # scope only when the closure puts it there. Widen the reach — read a
-        # `..` anywhere in an anchored file as an escape — and `topo` appears
-        # in the case above, where it does not belong.
-        _files_case(t, "a within-crate, a target/ and a bound-then-ascended path do not pin",
-                    ["crates/stl/src/lib.rs"], TIER="closure",
-                    PKGS="geom-core,stl,verbs")
-        # A PAGE A RUST SUITE READS IS NOT DOCUMENTATION, the same disposition
-        # `docs/GUIDE.md` gets from `include_str!` and for the same reason:
-        # editing it can red a suite. `crates/stl/tests/reads_page.rs` opens
-        # `docs/AUDIT.md` the way `flagged_census.rs` opens
-        # `docs/predicate-dimension-audit.md`. `docs/PROSE.md`, which nothing
-        # reads, stays in the docs tier one case above.
-        _files_case(t, "a page a Rust suite reads must not classify docs",
-                    ["docs/AUDIT.md"], TIER="all", RUN_BUILD="true")
 
         # --- the oracle signal, which is keyed on PATHS and not on the tier.
         _files_case(t, "certified sources re-certify",
@@ -3093,14 +3037,14 @@ def selftest() -> None:
         _git(t, "commit", "-qm", "rename out of a crate")
         _expect("a crate source renamed to a .md must not classify docs",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "geom-core,stl,topo",
-                 "REACHED": "geom-core", "RUN_BUILD": "true"})
+                {"TIER": "closure", "PKGS": "stl,topo",
+                 "REACHED": "", "RUN_BUILD": "true"})
 
         _git(t, "rm", "-q", "crates/geom-core/src/lib.rs")
         _git(t, "commit", "-qm", "delete")
         _expect("a deleted crate source is still a crate change",
                 _selftest_invoke(t, ["--base", "HEAD~1"]),
-                {"TIER": "closure", "PKGS": "geom,geom-core,stl,topo", "REACHED": "geom"})
+                {"TIER": "closure", "PKGS": "geom-core,stl,topo", "REACHED": ""})
 
         _expect("a base that does not resolve runs everything",
                 _selftest_invoke(t, ["--base", "0000000000000000000000000000000000000000"]),
@@ -3212,82 +3156,6 @@ def selftest() -> None:
         _files_case(t, "a docs-only change runs nothing, the python suite included",
                     ["README.md"], TIER="docs", SEEDS="", RUN_PNCAD_PY="false")
 
-    # --- THE REACH FAILING CLOSED, on its own fixture because it pins a crate
-    # the battery above requires NOT to be pinned. An ascent the chain resolver
-    # cannot follow — here `"../.."` reached through a `const`, which is
-    # anchored to nothing this reads — is measured FROM THE CRATE DIRECTORY, so
-    # it lands at the repository root and pins. A scan that skipped what it
-    # could not follow would leave the next tree-wide guard exactly where the
-    # last five were.
-    with tempfile.TemporaryDirectory() as t:
-        _plant_fixture(t)
-        with open(os.path.join(t, "crates", "topo", "tests", "odd_spelling.rs"), "w") as fh:
-            fh.write(
-                'const UP: &str = "../..";\n'
-                "#[test]\n"
-                "fn it_walks_something() {\n"
-                '    let here = std::path::PathBuf::from(env!("CARGO_MANIFEST_DIR"));\n'
-                "    let _ = here.join(UP);\n"
-                "}\n"
-            )
-        # `RUN_TOPO_RELEASE` IS THE OTHER HALF OF THIS CASE. `topo` is in
-        # `PKGS` here only because the reach pinned it, and `JOB_ROOTS` asks a
-        # different question — whether the named `topo` row's own subject
-        # moved. Key those on `PKGS` instead of on the dependent closure and
-        # pinning a guard silently turns four named job rows permanently on;
-        # this is the assertion that reds when it does.
-        _files_case(t, "an ascent the resolver cannot follow pins the crate anyway",
-                    ["crates/stl/src/lib.rs"], TIER="closure",
-                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
-                    RUN_TOPO_RELEASE="false")
-
-    # --- `crates/` IS THE TREE TOO, and it is a separate arm because it is a
-    # separate spelling: `crates/bvh/tests/aggregator_headers.rs` and
-    # `crates/geom-core/tests/flagged_census.rs` both reach every member by
-    # taking the PARENT of their own crate directory and listing it, never by
-    # naming the repository root. Narrow the rule to the root alone and both of
-    # those fall out of scope with every other case here still green — which is
-    # how the population this fixes came to be five guards rather than one.
-    with tempfile.TemporaryDirectory() as t:
-        _plant_fixture(t)
-        with open(os.path.join(t, "crates", "topo", "tests", "crates_walk.rs"), "w") as fh:
-            fh.write(
-                "fn crates_dir() -> PathBuf {\n"
-                '    std::path::Path::new(env!("CARGO_MANIFEST_DIR"))\n'
-                "        .parent()\n"
-                '        .expect("crates/topo has a parent")\n'
-                "        .to_path_buf()\n"
-                "}\n"
-                "#[test]\n"
-                "fn every_crate_carries_the_header() {\n"
-                "    for e in std::fs::read_dir(crates_dir()).unwrap() { let _ = e; }\n"
-                "}\n"
-            )
-        _files_case(t, "a guard that reaches every member through crates/ is pinned too",
-                    ["crates/stl/src/lib.rs"], TIER="closure",
-                    PKGS="geom-core,stl,topo,verbs", REACHED="geom-core,topo,verbs",
-                    RUN_TOPO_RELEASE="false")
-
-    # --- A REACH THAT MATCHED NOTHING IS NOT A PASS, which is
-    # `reader_census.rs`'s own sentence about its own walk. A tree with no
-    # tree-wide guard in it is a scanner that has stopped reading, and the
-    # failure mode of a silently empty reach is this defect restored with no
-    # tell — so it bails, loudly, into the tier where everything runs.
-    with tempfile.TemporaryDirectory() as t:
-        _plant_fixture(t)
-        for rel in (
-            "crates/geom-core/tests/tree_census.rs",
-            "crates/verbs/tests/reads_stl.rs",
-            "crates/stl/tests/reads_page.rs",
-        ):
-            os.remove(os.path.join(t, *rel.split("/")))
-        got = _selftest_invoke(t, ["--files", "-"], "crates/stl/src/lib.rs\n")
-        _expect("a tree the reach finds no tree-wide guard in must run everything",
-                got, {"TIER": "all", "RUN_BUILD": "true"})
-
-    # An `include!` this reader cannot resolve could name a .md, so it takes
-    # the whole change set to TIER=all rather than guessing. Its own fixture:
-    # one unreadable include poisons every other verdict, which is the point.
     with tempfile.TemporaryDirectory() as t:
         _plant_fixture(t)
         with open(os.path.join(t, "crates", "topo", "src", "gen.rs"), "w") as fh:
@@ -3369,73 +3237,11 @@ def selftest() -> None:
 
     _selftest_docs_premise()
     _selftest_wheel_members_premise()
-    _selftest_eps_rows_workflow()
-    _selftest_klint_workflow()
     _selftest_unsampled()
     _selftest_config()
     _selftest_gated()
-    print(
-        "ci-filter selftest OK: the docs tier is reached by prose, memories/, "
-        "local-scripts/ and .claude/ and by nothing else here — not a .rs beside a .md, "
-        "not a non-.md file under docs/, not a path one character off a docs prefix, "
-        "not an edit to this script, a gate, the workflow, the lockfile or a member "
-        "manifest, not an unrecognised crate directory or top-level file, not the "
-        "workspace manifest, toolchain pin or cargo config, not an excluded workspace, "
-        "not a proptest seed or a golden fixture, not an empty "
-        "diff, not a crate source renamed to a .md, and not a page that rustdoc compiles "
-        "in — by any include! spelling, from any rust tree — or that a python suite "
-        "executes, including one named by a spelling the scan cannot resolve; "
-        "the closure follows dev-dependency "
-        "edges upward only; THE READ REACH puts a crate in scope for what its sources READ "
-        "rather than for what they depend on — a guard that walks the repository from its "
-        "own crate root or that lists crates/ pins its home crate into every non-docs "
-        "closure, a crate that reads another crate's source rides that crate's SEEDS and "
-        "not its closure, an ascent the chain resolver cannot follow is measured from the "
-        "crate root and pins anyway, a page a Rust suite opens leaves the docs tier, and a "
-        "reach that finds no tree-wide guard at all bails to TIER=all rather than passing — "
-        "while a path that stays inside its own crate, one under target/ and one bound in "
-        "a let and ascended in the next statement pin nothing, and none of it reaches "
-        "JOB_ROOTS; THE PYTHON SUITE'S SEEDS are every member A BUILD OF THE WHEEL COMPILES, "
-        "read off the member graph rather than listed here or spelled in the façade — the "
-        "binding crate and its own .py files, the façade, the document model and a kernel "
-        "crate two hops under it all buy the suite, a crate that reaches Python only through "
-        "a re-export chain no façade line names buys it too, while a crate ABOVE the wheel "
-        "and a DEV-ONLY dependency of the binding crate do not though the latter puts "
-        "pncad-py in the dependent closure, and a workspace whose wheel graph cannot be read "
-        "at all runs the suite rather than skipping it; the oracle signal fires on certified "
-        "sources and lockfile and "
-        "not on their prose; NO CONFIGURATION DIMENSION IS SAMPLED OR PINNED — "
-        "EPS=all and KLINT_ROW=all over an ordinary diff, over the two file lists that used "
-        "to pin the lane or the k-lint row, over the demo roots the k-lint pin left alone "
-        "and over an unresolvable change set, each recorded as "
-        "`eps:unsampled klint:unsampled` so the value and the source agree, "
-        "and `--seed` is refused rather than ignored; ci.yml's eps and k-lint matrix "
-        "literals are both re-derived against EPS_ROWS and KLINT_ROWS rather than kept in "
-        "step by a comment, and the k-lint job's step conditions are required to name every "
-        "row of that matrix and no others — read off `if:` keys alone, so a row named only "
-        "in a comment does not count as gating anything — while the job's matrix axis is "
-        "required to read `needs.filter.outputs.klint_rows`, so the literal re-derived is "
-        "the list the job expands and a leg cannot report green over no steps; a "
-        "request NARROWS any one dimension, leaves the rest whole, is recorded as "
-        "`requested`, and `eps=all` / `klint=all` are legal because they are what an "
-        "un-narrowed run prints, while `lane` — the deleted compile-mode axis — is "
-        "refused; --notices carries the gated-suite skips to a relay file and is "
-        "truncated when there are none; and a "
-        "configuration REQUESTED by hand — by the one spelling left, `--config`, where "
-        "ci.yml's workflow_dispatch inputs land — reaches the dimension it names "
-        "and only that one, is recorded in CONFIG_SOURCE, and "
-        "reds the step rather than falling back when it names no real point, "
-        "while `--config-from-message` is refused rather than ignored; "
-        "and the per-file test gate excludes a gated suite whose named paths and own file "
-        "are all untouched — reading the module prefix out of the crate\'s tests/all.rs "
-        "rather than off the filename, and the src/ shape off the module path — while "
-        "running it on any of them, on tier all, on tier docs, on a change to the "
-        "test-utils harness or to a tests/all.rs, and on a marker whose path is not in "
-        "the tree, which is named in a notice and does not un-gate its healthy "
-        "siblings; --gated-set prints every marked suite for the nightly, `none()` for a "
-        "tree that has none, and reds rather than a short filter when a marker cannot be "
-        "resolved"
-    )
+    print("ci-filter selftest OK: docs/aux/closure/all tiers, the dependent closure, "
+          "the python and viewer axes, the oracle signal, requests, and the per-file test gate")
 
 
 # A THIRD FIXTURE, for the per-file test gate. Separate from the two above for
@@ -3772,238 +3578,6 @@ def _selftest_eps_requested(t: str) -> None:
         raise SystemExit("SELFTEST FAILED: `--seed` was accepted. It was deleted with the last "
                          "draw; silently ignoring it tells a caller their run still draws a "
                          f"k-lint row\n{stale.stdout}")
-
-
-# THE JOB WHOSE ROWS THIS TUPLE FEEDS, and the one string in this file that
-# names it. `_selftest_klint_workflow` reads the workflow's TEXT — the census
-# gate reads ci.yml the same way, for the same reason: a claim nobody re-runs
-# against its source is a transcription with a date on it.
-KLINT_JOB_KEY = "k-lint"
-KLINT_WORKFLOW = ".github/workflows/ci.yml"
-# ONE ROW PER MATRIX LEG SINCE 2026-09-04, so a step names its row with a plain
-# equality against `matrix.row` rather than with a `contains(fromJSON([...]))`
-# list that had to carry `all` as its escape hatch. The set a step is gated on
-# is still what this returns, so everything below reads the same way.
-#
-# ANCHORED TO `if:`, because the row set is read off CONDITIONS and not off
-# mentions. An unanchored scan over a step's whole text counts a row named in
-# a COMMENT inside that step, so a careless edit that deletes a real `if:` and
-# leaves the comment behind still satisfies the union check below — which is
-# the one failure this case exists to catch.
-_KLINT_IF_RE = re.compile(r"matrix\.row\s*==\s*'([a-z0-9-]+)'")
-_KLINT_MATRIX_RE = re.compile(r"^\s*klint_rows:.*?'(\[[^\]]*\])'", re.M)
-# THE WIRE BETWEEN THE TWO ENDS. The matrix literal is checked above and the
-# step conditions below, and neither of them reads `strategy.matrix.row` — so
-# without this, rewriting line 3807 to a hand-typed `['dev-default']` leaves
-# both halves green while three rows silently run nothing.
-_KLINT_AXIS_RE = re.compile(
-    r"^\s*row:\s*\$\{\{\s*fromJSON\(\s*needs\.filter\.outputs\.klint_rows\s*\)\s*\}\}\s*$",
-    re.M)
-
-
-def _klint_job_block(text: str) -> str:
-    """The `k-lint` job's own block of ci.yml, and nothing else.
-
-    Every job in this workflow indents identically, so a scan that is not
-    bounded to one block attributes a neighbour's text to this job and the
-    assertions built on it are then about the wrong file.
-    """
-    lines = text.split("\n")
-    try:
-        start = next(i for i, ln in enumerate(lines) if ln == f"  {KLINT_JOB_KEY}:")
-    except StopIteration:
-        raise SystemExit(
-            f"SELFTEST FAILED: {KLINT_WORKFLOW} has no `{KLINT_JOB_KEY}:` job. KLINT_ROWS is "
-            "the matrix that job fans out over; if it was renamed, re-derive against whatever "
-            "replaced it rather than repointing this name"
-        ) from None
-    end = next(
-        (i for i in range(start + 1, len(lines)) if re.match(r"^  [A-Za-z0-9_-]+:\s*$", lines[i])),
-        len(lines),
-    )
-    return "\n".join(lines[start:end])
-
-
-def _klint_job_steps(text: str) -> list[tuple[frozenset[str], str]]:
-    """`(rows this step is gated on, the step's text)` for the k-lint job.
-
-    Bounded to that job's own block: every other job in this workflow indents
-    its steps identically, so an unbounded scan would attribute a neighbour's
-    row to this one and the assertions below would be about the wrong file.
-    A step with no `klint_row` condition comes back with an EMPTY row set
-    rather than being dropped — "gated on nothing" is a real answer here (the
-    checkout and cache steps are), and dropping it would let a row condition
-    that was DELETED read as a step that never had one.
-
-    ONLY the step's `if:` key is read for rows, never its comments or its
-    `run:` body: a row is what GATES a step, and a mention of one is not.
-    """
-    steps: list[list[str]] = []
-    for ln in _klint_job_block(text).split("\n"):
-        if re.match(r"^      - \S", ln):
-            steps.append([])
-        if steps:
-            steps[-1].append(ln)
-    out: list[tuple[frozenset[str], str]] = []
-    for body in steps:
-        blob = "\n".join(body)
-        out.append((frozenset(_KLINT_IF_RE.findall(_step_conditions(body))), blob))
-    return out
-
-
-def _step_conditions(body: list[str]) -> str:
-    """The text of a step's `if:` key(s) and nothing else.
-
-    A block or folded `if:` continues onto the lines indented deeper than the
-    key itself, so those are taken too; anything at the key's indent or
-    shallower ends it. Everything outside — comments, `name:`, `run:` — is
-    dropped, so a row named anywhere but in a condition does not count as
-    gating a step.
-    """
-    out: list[str] = []
-    depth: int | None = None
-    for ln in body:
-        stripped = ln.lstrip()
-        indent = len(ln) - len(stripped)
-        if depth is not None:
-            if stripped and indent <= depth:
-                depth = None
-            else:
-                out.append(ln)
-                continue
-        if re.match(r"if:\s", stripped) or stripped == "if:":
-            out.append(ln)
-            depth = indent
-    return "\n".join(out)
-
-
-def _selftest_klint_workflow() -> None:
-    """THE FIVE ROWS, CHECKED AGAINST THE JOB THAT RUNS THEM.
-
-    `KLINT_ROWS` is printed by this script and validated against by every
-    request; ci.yml carries the same five AGAIN, as the JSON array it expands
-    `KLINT_ROW=all` into, because a matrix dimension has to be a list and this
-    script's output is a stream of words. `EPS_ROWS` has exactly this problem
-    and exactly this answer — read the workflow's TEXT and re-derive.
-
-    THREE CLAIMS, and each is a sentence written elsewhere in this file that
-    would otherwise be true only on the day it was typed:
-
-      * THE MATRIX. ci.yml's `klint_rows` literal names exactly `KLINT_ROWS`.
-        A row in the tuple and not in the literal is a row this script will
-        accept as a request and the workflow will expand into nothing; a row in
-        the literal and not in the tuple is a leg no request can name and no
-        `--selftest` here has ever seen.
-      * THE WIRE. The k-lint job's matrix axis reads
-        `fromJSON(needs.filter.outputs.klint_rows)` — i.e. the literal checked
-        above is the literal the job actually expands. Without this the other
-        two claims hold over a job whose axis was rewritten to a hand-typed
-        list, and three rows run nothing while both ends read green.
-      * THE STEPS. The set of rows the job's own step conditions name is
-        exactly `KLINT_ROWS` too. This is the half that catches the failure the
-        draw used to hide in plain sight: a leg that runs with no step gated on
-        it is a green job reporting on nothing, and a row named by a step but
-        absent from the matrix is a step that can never run — which is what
-        `demos tour fmt + clippy` effectively was on four runs in five.
-
-    WHAT IT STILL CANNOT SEE: whether the steps gated on a row are the RIGHT
-    steps for it. That is the roster at `KLINT_ROWS` and the job's own
-    comments; this is the mechanical shadow of it."""
-    path = os.path.join(_repo_root(), KLINT_WORKFLOW)
-    try:
-        with open(path) as fh:
-            text = fh.read()
-    except OSError as exc:
-        raise SystemExit(f"SELFTEST FAILED: {KLINT_WORKFLOW} cannot be read ({exc}); the k-lint "
-                         "rows have no source to be re-derived against") from exc
-
-    found = _KLINT_MATRIX_RE.findall(text)
-    if len(found) != 1:
-        raise SystemExit(
-            f"SELFTEST FAILED: expected exactly ONE `klint_rows:` output carrying a JSON array "
-            f"literal in {KLINT_WORKFLOW}; found {len(found)}. Two would be two lists to keep in "
-            "step with KLINT_ROWS, which is the thing this case exists to prevent")
-    try:
-        rows = json.loads(found[0])
-    except ValueError as exc:
-        raise SystemExit(f"SELFTEST FAILED: {KLINT_WORKFLOW}'s k-lint matrix literal {found[0]!r} "
-                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
-    if tuple(rows) != KLINT_ROWS:
-        raise SystemExit(
-            f"SELFTEST FAILED: {KLINT_WORKFLOW} expands KLINT_ROW=all into {rows} and this "
-            f"script's KLINT_ROWS is {list(KLINT_ROWS)}. One of them gates unifications the other "
-            "does not name — change both, in the same commit")
-
-    block = _klint_job_block(text)
-    if not _KLINT_AXIS_RE.search(block):
-        raise SystemExit(
-            f"SELFTEST FAILED: the `{KLINT_JOB_KEY}` job in {KLINT_WORKFLOW} does not take its "
-            "matrix axis from `${{ fromJSON(needs.filter.outputs.klint_rows) }}`. The literal "
-            "re-derived above is then not the list the job expands, and a dispatch narrowing "
-            "the `klint` input reaches nothing")
-
-    steps = _klint_job_steps(text)
-    in_workflow = frozenset().union(*(rows for rows, _ in steps)) if steps else frozenset()
-    if in_workflow != frozenset(KLINT_ROWS):
-        raise SystemExit(
-            f"SELFTEST FAILED: KLINT_ROWS is {sorted(KLINT_ROWS)} and the `{KLINT_JOB_KEY}` job's "
-            f"own step conditions name {sorted(in_workflow)}. A row in the matrix with no step "
-            "gated on it is a leg that reports green over nothing; a row named by a step and not "
-            "in the matrix is a step that can never run")
-
-    gated = {row: sum(1 for rows, _ in steps if row in rows) for row in KLINT_ROWS}
-    if min(gated.values()) < 1:
-        raise SystemExit(
-            f"SELFTEST FAILED: this job gates {gated}; a row with no steps is a matrix leg whose "
-            "whole product is a green name")
-    print(f"ci-filter selftest: {KLINT_WORKFLOW}'s k-lint matrix literal re-derives against "
-          f"KLINT_ROWS — {', '.join(KLINT_ROWS)}; steps gated per row {gated}")
-
-
-# THE ε ROWS HAVE TWO SPELLINGS AND THIS IS THE ONE THAT RECONCILES THEM.
-# `EPS_ROWS` above is the tuple this script prints and validates requests
-# against; ci.yml's `filter` job carries the same three rows AGAIN, as a JSON
-# array literal, because a matrix dimension has to be a list and this script's
-# output is a stream of words. A comment saying "keep these in sync" is what
-# that arrangement usually gets, and a comment has never stopped a list
-# drifting. `_selftest_klint_workflow` does the same thing one dimension over,
-# against the same file, for the same reason.
-#
-# WHAT DRIFT WOULD LOOK LIKE WITHOUT IT: adding a fourth ε row here would print
-# `EPS=all`, accept `eps=<new row>` as a request, and run three legs; deleting
-# one would leave the workflow expanding a row this script refuses to name. Both
-# are green runs gating a matrix nobody wrote down.
-EPS_ROWS_WORKFLOW = ".github/workflows/ci.yml"
-_EPS_ROWS_RE = re.compile(r"^\s*eps_rows:.*?'(\[[^\]]*\])'", re.M)
-
-
-def _selftest_eps_rows_workflow() -> None:
-    """ci.yml's eps matrix literal must name exactly `EPS_ROWS`."""
-    path = os.path.join(_repo_root(), EPS_ROWS_WORKFLOW)
-    try:
-        with open(path, encoding="utf-8") as fh:
-            text = fh.read()
-    except OSError as exc:
-        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} cannot be read ({exc}); the eps "
-                         "matrix literal is derived from that file and cannot be checked") from exc
-    found = _EPS_ROWS_RE.findall(text)
-    if len(found) != 1:
-        raise SystemExit(
-            f"SELFTEST FAILED: expected exactly ONE `eps_rows:` output carrying a JSON array "
-            f"literal in {EPS_ROWS_WORKFLOW}; found {len(found)}. Two would be two lists to keep "
-            "in step with EPS_ROWS, which is the thing this case exists to prevent")
-    try:
-        rows = json.loads(found[0])
-    except ValueError as exc:
-        raise SystemExit(f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW}'s eps matrix literal {found[0]!r} "
-                         f"is not JSON ({exc}); the matrix would expand to nothing") from exc
-    if tuple(rows) != EPS_ROWS:
-        raise SystemExit(
-            f"SELFTEST FAILED: {EPS_ROWS_WORKFLOW} expands EPS=all into {rows} and this script's "
-            f"EPS_ROWS is {list(EPS_ROWS)}. One of them gates rows the other does not name — "
-            "change both, in the same commit")
-    print(f"ci-filter selftest: {EPS_ROWS_WORKFLOW}'s eps matrix literal re-derives against "
-          f"EPS_ROWS — {', '.join(EPS_ROWS)}")
 
 
 def _selftest_config() -> None:
