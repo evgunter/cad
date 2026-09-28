@@ -137,3 +137,4 @@ Announced seam: PATHS (`crates/profile`). Delta review: mergeable, two
 MINORs filed as `declared-joint-kind-zero-margin-reads-smooth`. GATHER's
 `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares` now
 has its measured red-first row.
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/band/blend-endings-say-lower-the-tolerance-and-route-by-name.md`. `sweep::blend::ClassifiedMargin` is a third spelling of a decided margin beside `recourse::Classified`; convergence is noted on the encl certify-span row. (ENCL orchestrator)
