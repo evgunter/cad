@@ -7046,4 +7046,111 @@ mod tests {
             assert!(u.hi() - u.lo() < 1e-12, "{u:?}");
         }
     }
+
+    /// `bezier_blocks`' breaks are the DISTINCT interior knots: a
+    /// double knot at `1/2` on a degree-2 image is one break (already
+    /// at full multiplicity, so nothing is inserted there), and the
+    /// quarters grid adds `1/4` and `3/4` — four blocks.
+    #[test]
+    fn bezier_blocks_breaks_once_at_a_repeated_knot() {
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let img = TrimPiece {
+            knots: kv,
+            control: [0.0, 0.25, 0.5, 0.75, 1.0]
+                .iter()
+                .map(|t| (pt(*t), pt(0.0)))
+                .collect(),
+            weights: vec![1.0; 5],
+        };
+        let blocks = bezier_blocks(&img, 4).unwrap();
+        assert_eq!(blocks.len(), 4, "{blocks:?}");
+        for (block, start) in blocks.iter().zip([0.0, 0.25, 0.5, 0.75]) {
+            let u = block[0].0;
+            assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
+        }
+    }
+
+    /// `knot_aligned_cuts` pinned bit for bit on the non-dyadic range
+    /// `[0.1, 0.7]`, where `lo + (hi − lo)·k/n` rounds to the values
+    /// written out below and to others under any re-association.
+    ///
+    /// * `pieces = 16` (a multiple of [`QUAD2_HULL_BLOCKS`], so every
+    ///   block edge is a grid point): a knot one ulp above the grid
+    ///   point `0.2125` stands and the grid point is dropped; the
+    ///   double knot `0.5` is one cut; knots outside or ON the range
+    ///   ends add nothing.
+    /// * `pieces = 5`: the block edges are cuts of their own. A knot
+    ///   one ulp above the block edge `0.32499999999999996` replaces
+    ///   it; with no knots every block edge and grid point stands.
+    /// * `[-0.3, 0.2]`, `pieces = 3`: a range straddling zero.
+    #[test]
+    fn knot_aligned_cuts_are_pinned_bit_for_bit() {
+        let (lo, hi) = (0.1, 0.7);
+        let g3: f64 = 0.2125;
+        let e3: f64 = 0.324_999_999_999_999_96;
+        let near_g3 = f64::from_bits(g3.to_bits() + 1);
+        let near_e3 = f64::from_bits(e3.to_bits() + 1);
+        assert_eq!(near_g3, 0.212_500_000_000_000_02);
+        assert_eq!(near_e3, 0.325);
+        assert_eq!(
+            knot_aligned_cuts(lo, hi, 16, &[-0.5, 0.1, near_g3, 0.5, 0.5, 0.7, 0.9]),
+            [
+                0.1,
+                0.1375,
+                0.175,
+                near_g3,
+                0.25,
+                0.2875,
+                e3,
+                0.362_500_000_000_000_04,
+                0.4,
+                0.4375,
+                0.475,
+                0.5,
+                0.5125,
+                0.549_999_999_999_999_9,
+                0.5875,
+                0.625,
+                0.6625,
+                0.7
+            ]
+        );
+        let bare = [
+            0.1,
+            0.175,
+            0.22,
+            0.25,
+            e3,
+            0.339_999_999_999_999_97,
+            0.4,
+            0.459_999_999_999_999_96,
+            0.475,
+            0.549_999_999_999_999_9,
+            0.58,
+            0.625,
+            0.7,
+        ];
+        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[]), bare);
+        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[e3]), bare);
+        let mut with_knots = bare.to_vec();
+        with_knots[4] = near_e3;
+        with_knots.insert(9, 0.5);
+        assert_eq!(knot_aligned_cuts(lo, hi, 5, &[near_e3, 0.5]), with_knots);
+        assert_eq!(
+            knot_aligned_cuts(-0.3, 0.2, 3, &[]),
+            [
+                -0.3,
+                -0.2375,
+                -0.175,
+                -0.133_333_333_333_333_33,
+                -0.112_499_999_999_999_99,
+                -0.049_999_999_999_999_99,
+                0.012_500_000_000_000_011,
+                0.033_333_333_333_333_326,
+                0.075_000_000_000_000_01,
+                0.1375,
+                0.2
+            ]
+        );
+    }
 }
