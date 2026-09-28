@@ -194,10 +194,7 @@ fn the_partial_revolve_wedge_hollows_to_its_closed_form() {
 fn the_drum_still_hollows_on_the_new_branch() {
     let (r, h) = (3.0 / 64.0, 8.0 / 64.0);
     let want = PI * r * r * h - PI * (r - T) * (r - T) * (h - 2.0 * T);
-    let got = wall(
-        "the drum",
-        &vessel(r, h),
-    );
+    let got = wall("the drum", &vessel(r, h));
     assert!(
         (got - want).abs() <= 1e-15,
         "the wall's closed form is {want}, got {got}"

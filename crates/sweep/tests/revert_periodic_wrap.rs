@@ -43,8 +43,8 @@ use topo::{Body, FaceKey, HalfEdgeKey, LoopBoundary, LoopKey, PcurveMintError, V
 
 use super::common::approx::twisted_loft;
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity, two_arc_sphere};
-use super::revolve_common::donut_profile;
 use super::common::shell_operands::vessel;
+use super::revolve_common::donut_profile;
 use super::shell7_common::*;
 
 /// A cone of radius 1 and height 2 through its apex: the wall's loop
