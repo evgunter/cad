@@ -2,11 +2,13 @@
 id: every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one
 kind: issue
 title: Every op that can mint a wedge-0/2π edge must trace it to a declared input or refuse typed at its own door; the loft is the open hole
-status: review
+status: closed
 branch: gather/wedge-end-door-audit
 opened: 2026-09-28
 priority: P2
 cost: M
+closed: 2026-09-28
+pr: 3373
 refs: [product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares, loft-between-opposite-turning-joints-reverses-a-seam-between-stations, declared-cusps-second-order-wedge-arm, self-overlapping-spines-build-and-validate]
 ---
 
