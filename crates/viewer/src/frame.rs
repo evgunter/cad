@@ -2141,7 +2141,7 @@ fn badge_site(kind: ProductErrorKind) -> BadgeSite {
         | ProductErrorKind::Naming
         | ProductErrorKind::NoBodyRoots
         | ProductErrorKind::Graft
-        | ProductErrorKind::SolidInvalid
+        | ProductErrorKind::RootInvalid
         | ProductErrorKind::ProductInvalid
         | ProductErrorKind::ContactLineage => {
             if kind.means_no_body() {
@@ -2982,7 +2982,7 @@ mod tests {
             ProductErrorKind::PlacedUnderTwoRoots,
             ProductErrorKind::Naming,
             ProductErrorKind::Graft,
-            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ] {
@@ -3038,7 +3038,7 @@ mod tests {
             ProductErrorKind::RootPoisoned,
             ProductErrorKind::NoBodyRoots,
             ProductErrorKind::Graft,
-            ProductErrorKind::SolidInvalid,
+            ProductErrorKind::RootInvalid,
             ProductErrorKind::ProductInvalid,
             ProductErrorKind::ContactLineage,
         ]

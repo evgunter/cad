@@ -170,6 +170,9 @@ use crate::net;
 /// bound is assembled from shrink. The constant is a measured
 /// trade-off, not a tuning knob — see the `rational_speed_lower_bound`
 /// docs and the adversarial rows in `tests/curves/m5_pr7_speed_meter.rs`.
+/// It is this meter's alone: `geom_brep::patch_bound`'s rational
+/// certificate schedule has the same value but prices a different
+/// bound, and neither follows the other.
 const RATIONAL_METER_SPLITS: usize = 16;
 
 macro_rules! nurbs_curve {

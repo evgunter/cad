@@ -87,7 +87,7 @@ findings, whose numbering is kept so the two docs cross-reference.
 | Boolean `join` is O(n³) | `boolean/join.rs:282` loops `find_match`, itself O(open²) over slot pairs (`:520`) | plus a `Vec` alloc per slot scan | commit | 13 |
 | `graft_solid` is O(E²) | `boolean/combine.rs:411` — `.find(\|(_, e)\| e.curve == k)` inside the per-curve loop | missing inverse map | commit | 14 |
 | `StableName` nests one `Box` per boolean | `editor-core/src/names/role.rs:290-382` | O(chain²) on a long boolean chain | commit | 15 |
-| Tier-3 runs twice on the product path | `editor-core/src/product.rs:410` and `:445` | duplicated over the same entities | commit | 16 |
+| Tier-3 runs twice on the product path | `editor-core/src/product.rs`, `product_recorded` | **resolved 2026-09-28**: the aggregate is gated once; sources are re-gated only to attribute a refusal | commit | 16 |
 | Tier-1 pass 13 is quadratic in null scaffolds | `topo/src/validate.rs:3876-3890` — per null-scaffold curve, a full edge-arena `filter().count()` | worst exactly mid-boolean | commit | 5 |
 | Per-op debug full-body tier-1 | `topo/src/euler.rs:60-72` — D1's **ratified** postcondition clause | body construction Θ(ops × N) in every debug/CI row; **measured 2026-08-27 at 6.5× on an extrude build and 5.2× on the two-brick boolean**, and free on validation, mass props and tessellation | CI/dev | 5 |
 | `point_in_loop` re-decides loop-intrinsic facts per query | `topo/src/splitting/containment.rs:238` | per-query work that is per-loop | commit | 8 |

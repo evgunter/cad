@@ -223,7 +223,7 @@ use geom_core::Bounds;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, BandError, Interval, Point3, Tol};
+use geom_core::{Band, BandError, Interval, KERNEL_DEFECT_ENDING, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -444,9 +444,17 @@ pub enum OffsetFitError {
     /// The patch-bound assembly refused (a C⁰ crease, a degree-0
     /// direction, an illegal rational description).
     PatchBound(PatchBoundError),
-    /// The interpolation stack refused.
+    /// The interpolation stack refused. Its input is the kernel's own:
+    /// the samples and parameters the refinement schedule chose, taken
+    /// from a face whose non-finite points refuse earlier
+    /// ([`Self::NonFiniteSample`]). So the carrier's repairs, addressed
+    /// to a caller supplying data, name nothing the user supplied; the
+    /// message asks for the report and the carrier rides in `Debug`.
     Fit(FitError),
-    /// Spline structure construction refused.
+    /// Spline structure construction refused, on knots and control
+    /// points the fit computed over the face's validated domain: a
+    /// kernel finding, rendered as [`Self::Fit`] is and for the same
+    /// reason.
     Structure(SplineError),
     /// `d` or the tolerance is not a finite, non-zero (resp.
     /// positive) number. Both are the call's own arguments, so a
@@ -709,8 +717,19 @@ impl core::fmt::Display for OffsetFitError {
         match self {
             Self::Meter(e) => write!(f, "the offset surface's meters refused: {e}"),
             Self::PatchBound(e) => write!(f, "{e}"),
-            Self::Fit(e) => write!(f, "the offset surface's interpolation refused: {e}"),
-            Self::Structure(e) => write!(f, "the offset surface's spline structure refused: {e}"),
+            // The carriers' own prose is not rendered: their repairs
+            // are addressed to a caller supplying samples or a spline,
+            // and here the kernel supplied both (variant docs).
+            Self::Fit(_) => write!(
+                f,
+                "the offset surface's fit could not interpolate the samples it chose on the \
+                 face, which a valid face always allows. {KERNEL_DEFECT_ENDING}"
+            ),
+            Self::Structure(_) => write!(
+                f,
+                "the offset surface's fit could not assemble a spline from the knots and \
+                 points it computed, which a valid face always allows. {KERNEL_DEFECT_ENDING}"
+            ),
             Self::InvalidRequest { d, tolerance } => write!(
                 f,
                 "the offset cannot be fitted with an offset distance of {d} m and a \
@@ -828,14 +847,12 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit could not raise the face to degree 2 where it is \
                  linear: weight {index} came out as {weight}, which a valid surface never \
-                 gives. There is no way through: this is a kernel defect; report the \
-                 face's description"
+                 gives. {KERNEL_DEFECT_ENDING}"
             ),
             Self::Elevation(_) => write!(
                 f,
                 "the offset surface's fit could not raise the face to degree 2 where it is \
-                 linear, which a valid surface always allows. There is no way through: \
-                 this is a kernel defect; report the face's description"
+                 linear, which a valid surface always allows. {KERNEL_DEFECT_ENDING}"
             ),
             // The carrier's own prose is not rendered: its repairs
             // (set a positive ε; raise ε or K) are addressed to a
@@ -1318,7 +1335,9 @@ pub fn offset_point(base: &NurbsSurface<f64>, d: f64, u: f64, v: f64) -> Option<
 
 /// **The approximating-surface door**: fit the offset of `base` at
 /// signed distance `d`, certify the fit against the description, and
-/// hand back the [`geom::Surface::Approx`] variant that stores both.
+/// hand back the [`geom::ApproxSurface`] that stores both — the payload
+/// of [`geom::Surface::Approx`], so a caller that stores it wraps it and
+/// a caller that reads it needs no variant match.
 ///
 /// The certificate is derived from the STORED pair — the description
 /// that goes into the surface and the fit that goes into the surface —
@@ -1345,7 +1364,7 @@ pub fn approx_offset_surface(
     base: std::sync::Arc<NurbsSurface<f64>>,
     d: f64,
     tol: Tol,
-) -> Result<Surface<f64>, OffsetFitError> {
+) -> Result<std::sync::Arc<geom::ApproxSurface<f64>>, OffsetFitError> {
     let fitted = fit_offset(&base, d, tol)?;
     mint(base, d, fitted, |description, fit, window| {
         certify_offset_over(description, fit, window, tol)
@@ -1371,6 +1390,7 @@ pub fn approx_offset_surface_at(
     mint(base, d, fitted, |description, fit, window| {
         certify_offset_over_at(description, fit, window, tolerance, band)
     })
+    .map(Surface::Approx)
 }
 
 /// The storage step both mint forms share: the spec from the base, `d`
@@ -1386,7 +1406,7 @@ fn mint(
         &NurbsSurface<f64>,
         geom::ApproxWindow,
     ) -> Result<OffsetCertificate, OffsetFitError>,
-) -> Result<Surface<f64>, OffsetFitError> {
+) -> Result<std::sync::Arc<geom::ApproxSurface<f64>>, OffsetFitError> {
     let spec = geom::SurfaceSpec {
         window: geom::ApproxWindow::of(&*base),
         description: geom::SurfaceDescription::Offset { base, d },
@@ -1395,7 +1415,7 @@ fn mint(
     let approx = geom::ApproxSurface::certify(spec, |description, fit, window| {
         certifier(description, fit, window).map(|cert| cert.carrying_rounds(loop_cert.rounds))
     })?;
-    Ok(Surface::Approx(std::sync::Arc::new(approx)))
+    Ok(std::sync::Arc::new(approx))
 }
 
 /// **The re-derivation door** (O5's never-trust posture): re-runs
@@ -3177,21 +3197,31 @@ mod recourse_tests {
             let delegated = match arm {
                 OffsetFitError::Meter(_) => Some(meter.to_string()),
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
+                _ => None,
+            };
+            // Two of the carriers hold an enforcement row of their own
+            // (`every_meter_error_arm_names_a_recourse`,
+            // `every_patch_bound_error_arm_names_a_recourse`), so those
+            // arms are asserted TRANSITIVELY: the carrier is rendered
+            // whole AND its clause survives into the message a caller
+            // reads. The carrier's row is what makes that a statement
+            // about every payload rather than about the one built here.
+            if let Some(carrier) = delegated {
+                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+            }
+            // The fit's and the structure's carriers address a caller
+            // supplying the data; here the kernel supplied it, so the
+            // arm renders the report instead of their repairs.
+            let kernel_input = match arm {
                 OffsetFitError::Fit(_) => Some(fit.to_string()),
                 OffsetFitError::Structure(_) => Some(structure.to_string()),
                 _ => None,
             };
-            // Four of the carriers hold an enforcement row of their own
-            // (`every_meter_error_arm_names_a_recourse`,
-            // `every_patch_bound_error_arm_names_a_recourse`,
-            // `every_fit_error_arm_names_a_recourse`,
-            // `every_spline_error_arm_names_a_recourse`), so those arms
-            // are asserted TRANSITIVELY: the carrier is rendered whole
-            // AND its clause survives into the message a caller reads.
-            // The carrier's row is what makes that a statement about
-            // every payload rather than about the one built here.
-            if let Some(carrier) = delegated {
-                assert!(msg.contains(&carrier), "carrier not rendered whole: {msg}");
+            if let Some(carrier) = kernel_input {
+                assert!(
+                    !msg.contains(&carrier) && msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                    "not the report in place of the carrier's repair: {msg}"
+                );
             }
             if let OffsetFitError::Elevation(KnotAlgebraError::Structure(spline)) = arm {
                 assert!(
@@ -3200,8 +3230,8 @@ mod recourse_tests {
                 );
                 assert!(msg.contains("weight 3 came out as"), "{msg}");
                 assert!(
-                    msg.contains("There is no way through") && !msg.contains("Recourse:"),
-                    "not exactly the one kernel-defect ending: {msg}"
+                    msg.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                    "not the shared kernel-defect ending: {msg}"
                 );
             }
             if let OffsetFitError::Band(band) = arm {
@@ -3214,6 +3244,14 @@ mod recourse_tests {
                     "not exactly the one recourse: {msg}"
                 );
             }
+            // One ending per refusal, a forwarded carrier's included:
+            // its repair is labelled, so a `Recourse:` added here on top
+            // of it would count two.
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one ending: {msg}"
+            );
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),

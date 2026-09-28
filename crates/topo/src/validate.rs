@@ -2090,11 +2090,11 @@ impl fmt::Display for StaleDeclaration {
     }
 }
 
-/// The recourse a kernel defect gets: nothing the user can change in
+/// The ending a kernel defect gets: nothing the user can change in
 /// the model repairs a body whose structure a kernel operation (or a
-/// damaged file) left wrong, and the sentence says so plainly.
-const DEFECT: &str =
-    "There is no way through: this is a kernel defect or a damaged file; report it";
+/// damaged file) left wrong. A body at rest may have been read, so it
+/// is the shared ending that names the file too.
+const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_ENDING;
 
 /// The recourse for a shape the kernel cannot check yet.
 const NOT_YET: &str = "There is no way through yet";
@@ -4222,7 +4222,7 @@ pub(crate) fn shell_vertices<'b, T: Real>(
 /// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
 /// or `None` where the walk refuses or the sign is still undecided when
 /// the schedule runs out.
-fn shell_role<T: Decide>(
+pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
     band: Band,
@@ -4367,8 +4367,13 @@ pub(crate) fn tier3_local_checks<
 ///
 /// The +V invariant reads a volume ENCLOSURE and refuses only on a
 /// definite disagreement, so its verdict on a bracket `[lo, hi]` is
-/// settled as soon as that bracket excludes zero — and refinement only
-/// tightens a bracket, never moves the truth out of it:
+/// settled as soon as that bracket excludes zero, because EVERY
+/// round's bracket contains the true volume. The brackets need not
+/// nest and their widths are not monotone in the round — each round
+/// recomputes its sum from scratch, and the rounding width of its
+/// midpoint sum grows with the cell count (`geom-brep`'s
+/// `last_round_width_lo`) — but containment is all the argument
+/// reads:
 ///
 /// - `hi` definitely negative ⇒ the body's volume is `≤ hi < 0`, and
 ///   no finer round produces an upper end above the volume. REFUSE.
@@ -5300,11 +5305,7 @@ pub(crate) fn tier3_local_checks_marked<
                     ..
                 } = surface
                 {
-                    match decide(
-                        "ring_torus_convention",
-                        Margin::of(*major_radius - *minor_radius),
-                        band,
-                    ) {
+                    match geom::ring_torus(*major_radius, *minor_radius, band) {
                         Ok(Sign::Positive) => {}
                         Ok(Sign::Zero | Sign::Negative) => {
                             errors.push(ValidationError::DegenerateTorus { face: face_key });

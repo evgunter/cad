@@ -161,8 +161,8 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
-        path: "crates/editor-core/tests/per_part_gate_policy.rs",
-        disposition: Shared, // product.rs's per-part policy consultation, code view
+        path: "crates/editor-core/tests/product_gate_attribution.rs",
+        disposition: Shared, // product.rs gates once and attributes on refusal, code view
     },
     Entry {
         path: "crates/editor-core/tests/refusal_concision_chains.rs",
@@ -361,6 +361,10 @@ const LEDGER: &[Entry] = &[
             "Track Q — reaches the shared lexer only through `source_walk::CodeOnly`, \
              topo's handle on it; the direct call is Track Q's to make",
         ),
+    },
+    Entry {
+        path: "crates/topo/src/boolean/wall_section_rows.rs",
+        disposition: Shared, // the window-construction site list, code view
     },
     Entry {
         path: "crates/topo/src/census.rs",

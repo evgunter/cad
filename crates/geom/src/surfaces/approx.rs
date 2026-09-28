@@ -134,7 +134,8 @@ pub struct OffsetCertificate {
     /// the storage door (`geom_brep::approx_offset_surface`) has the
     /// mint loop's, and `topo::transform_rigid` has the operand
     /// surface's — the mapped fit is the rigid image of a fit that took
-    /// exactly that many rounds. Nothing classifies against this field,
+    /// exactly that many rounds; on a re-fit it is the mint door's
+    /// count, as at any mint. Nothing classifies against this field,
     /// so carrying it cannot make a bad surface look good; resetting it
     /// to `0` would only lose provenance.
     pub rounds: u32,

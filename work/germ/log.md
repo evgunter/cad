@@ -230,3 +230,44 @@ to spare CI.
 Held for the next round: `circle-crosses-a-torus-face-with-no-root-lane` and
 `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
 (both H), and `VERBS-CONE`, behind the cone lane.
+
+## 2026-09-28 — the cone ground lands (PR 3322)
+
+The cone gets its `curved_face_containment` arm, and the C5 gate asks the
+arm about the POSE (`route_pose`; the new `NeighborPoseUnroutable`). Tier:
+a single full review, APPROVE-WITH-FIXES:
+- no wrong answer, and no working shell or offset newly refused;
+- one ordering MINOR: an operand guard's refusal read as "served", so
+  `route_pose` admitted a pose it never classified;
+- three rows missing that go red on degradation.
+
+The fix pass took all of it. Hosted run 36391755202 is green on
+`60da0f8c2`. The band-vs-zero posture stays open on its P3 row, which now
+carries the reviewer's argument that the aperture guards are policy, not
+numerical necessity. `VERBS-CONE` now carries the list of `reduce.rs` sites
+that have no cone arm.
+
+## 2026-09-28 — the stopgap lands (PR 3336)
+
+The live wrong answer is closed: `union(half_donut, bracket)` refuses, and
+so does the sphere analogue, which was wrong under every op on main and
+predates PR 3265. The torus is gated per op (a per-pair gate is unsound: one
+plane cuts a tube in two loops); the sphere per pair (its sections have one
+component, or components that cross a seam). Tier: single full review,
+APPROVE-WITH-FIXES, with no soundness break. With the guard off both wrong
+answers return; with it on it fires only in the new rows. **Merged ahead of
+its row-hygiene fixes, because it closes a live wrong answer.** The fixes
+(the ∩ row passes through the revert roster rather than the guard; the lens
+row's threshold is monotone in the wrong direction; stale variant docs; two
+near-parallel torus reach gates) are an immediate follow-up. DR-11 carries
+the escape line. Filed:
+`union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`.
+
+## 2026-09-28 — the chord rule and the ring convention land (PR 3330)
+
+A dual review (DR-14): both APPROVE-WITH-FIXES, no MAJOR, tally 0, fair.
+The chord relaxation's soundness argument held under about 2,300 adversarial
+ops. The fix pass moved the ring convention's one home down to `geom`, so
+`spiric` could reach it. The ∖/∩ torus roster is parked on the interior-loop
+row's section certificate. Hosted CI is re-run on the head with the stopgap
+merged in.

@@ -610,10 +610,12 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
 
 /// **An edge with no crossing row refuses only where it could matter.**
 /// The sectioned vessel's cavity carries planar faces bounded by
-/// SPIRICS (a plane's section of the offset torus). A point on such a
-/// face's plane but outside a ball holding the whole loop is outside
-/// the face; a point inside that ball — here the loop's own vertex —
-/// is refused typed rather than read off a chord.
+/// SPIRICS (a plane's section of the offset torus). The walk holds such
+/// an edge as a ball its arc lies in and steers its rays clear of it: a
+/// point far away along the face's plane is outside the face, the
+/// loop's own vertex is on its boundary (a straight edge leaves it), and
+/// a point ON the spiric — inside its ball, where every ray could meet
+/// the arc — is refused typed rather than read off a chord.
 #[test]
 fn a_spiric_bounded_face_refuses_only_within_its_reach() {
     let band = Band::linear(tol()).expect("the witness band");
@@ -643,10 +645,25 @@ fn a_spiric_bounded_face_refuses_only_within_its_reach() {
         Some(Some(false)),
         "far outside the loop's reach, the face is missed"
     );
-    let got = topo::test_support::point_in_face(&cavity, spiric_face, vertex, band);
+    assert_eq!(
+        topo::test_support::point_in_face(&cavity, spiric_face, vertex, band).ok(),
+        Some(None),
+        "the loop's own vertex is on its boundary"
+    );
+    let on_spiric = loop_half_edges(&cavity, data.outer)
+        .into_iter()
+        .find_map(|he| {
+            let edge = cavity.get_edge(cavity.get_half_edge(he)?.edge)?;
+            let curve = cavity.get_curve_geom(edge.curve)?.certified()?;
+            let (t0, t1) = curve.params();
+            matches!(curve.carrier(), geom::Curve3::Spiric { .. })
+                .then(|| curve.carrier().eval((t0 + t1) * 0.5))
+        })
+        .expect("the face's spiric edge");
+    let got = topo::test_support::point_in_face(&cavity, spiric_face, on_spiric, band);
     assert!(
         matches!(got, Err(PointInSolidError::EdgeCarrierUnsupported { face }) if face == spiric_face),
-        "within the loop's reach the face refuses typed, got {got:?}"
+        "on the spiric the face refuses typed, got {got:?}"
     );
 }
 
@@ -765,17 +782,18 @@ fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     }
 }
 
-/// **The cut cylinder read against its closed form** — red, and not on
-/// the planar arm: the WALL faces are bounded by the tilted section, and
-/// the cylinder arm's chart trim reads a wall as the rectangle its
-/// boundary VERTICES span (`cylinder_chart_trim`'s iso-bounded
-/// premise), which reaches past the section, so a probe just across the
-/// cut plane from the half reads `In`.
+/// **The cut cylinder read against its closed form.** Its WALL faces
+/// are bounded by the tilted section, so their region is not the
+/// rectangle their boundary VERTICES span: that rectangle reaches past
+/// the section where it stands high, and a ray from just across the cut
+/// plane would count a hit there as a crossing and read `In`. The wall
+/// arm reads each wall as the azimuth window cut by its two planes
+/// (`wall_outline`), which is the face exactly.
 #[test]
-#[ignore = "work/contact/cylinder-wall-trim-overcovers-a-tilted-section"]
 fn the_cut_cylinder_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut wrong = Vec::new();
+    let (mut answered, mut at_infinity) = (0usize, 0usize);
     for above in [true, false] {
         let half = cut_cylinder(above);
         for (pose, map) in poses() {
@@ -798,10 +816,17 @@ fn the_cut_cylinder_reads_its_truth() {
                             SolidContainment::Out
                         };
                         match point_in_solid(&posed, map.transform_point(p), band, tol()) {
-                            Ok(got) if got != want => {
-                                wrong.push(format!("above = {above} | {pose} | {p:?}: {got:?}"));
+                            Ok(got) => {
+                                answered += 1;
+                                if got != want {
+                                    wrong
+                                        .push(format!("above = {above} | {pose} | {p:?}: {got:?}"));
+                                }
                             }
-                            _ => {}
+                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
+                            Err(e) => {
+                                wrong.push(format!("above = {above} | {pose} | {p:?}: {e:?}"))
+                            }
                         }
                     }
                 }
@@ -809,4 +834,431 @@ fn the_cut_cylinder_reads_its_truth() {
         }
     }
     assert!(wrong.is_empty(), "{}", wrong.join("\n"));
+    // The only refusal is the at-infinity side (a ray that crosses
+    // nothing, whose side the props lane cannot give for this wall), and
+    // it cannot be most of the grid: a wall read would have to be
+    // refused for that.
+    assert!(
+        answered > at_infinity,
+        "answered {answered}, at-infinity refusals {at_infinity}"
+    );
+}
+
+/// **A point ON the wall but below the section is not on the upper
+/// half's boundary.** At azimuth 2.8 the section stands at ≈ 1.541, so
+/// the wall point at height 1.2 lies on the lower half's wall; the
+/// vertex rectangle (heights 0.941 to 2.5) held it and the boundary
+/// pre-pass read it `OnBoundary`. A point above the section at the same
+/// azimuth is on the upper half's wall and still reads so.
+#[test]
+fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let half = cut_cylinder(true);
+    let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
+    for (pose, map) in poses() {
+        let posed = transform_rigid(&half, &map, tol()).unwrap();
+        let below = point_in_solid(&posed, map.transform_point(at(1.2)), band, tol());
+        assert!(
+            !matches!(
+                below,
+                Ok(SolidContainment::In | SolidContainment::OnBoundary)
+            ),
+            "{pose}: {below:?}"
+        );
+        let above = point_in_solid(&posed, map.transform_point(at(2.0)), band, tol());
+        assert!(
+            matches!(above, Ok(SolidContainment::OnBoundary)),
+            "{pose}: {above:?}"
+        );
+    }
+}
+
+/// **Iso-bounded walls still read through their rectangle.** A plain
+/// cylinder's walls are bounded by rims and seam meridians, and a
+/// quarter sector's wall by rims and the two meridians its radial cuts
+/// leave: both are the class whose rectangle IS the face, so every
+/// probe answers its truth or refuses for a reason that is not the
+/// wall's outline.
+#[test]
+fn iso_bounded_walls_answer_through_their_rectangle() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let quarter = (core::f64::consts::PI / 8.0).tan();
+    let cases = [
+        Case {
+            name: "plain cylinder",
+            body: prism_of(
+                vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)],
+                core::f64::consts::PI,
+            ),
+            truth: |p| p.x * p.x + p.y * p.y < 1.0 && p.z > 0.0 && p.z < 1.0,
+            lo: [-1.0, -1.0, 0.0],
+            hi: [1.0, 1.0, 1.0],
+        },
+        Case {
+            name: "quarter sector",
+            body: prism_of(
+                vec![pv(0.0, 0.0, 0.0), pv(1.0, 0.0, quarter), pv(0.0, 1.0, 0.0)],
+                core::f64::consts::FRAC_PI_4,
+            ),
+            truth: |p| {
+                p.x * p.x + p.y * p.y < 1.0 && p.x > 0.0 && p.y > 0.0 && p.z > 0.0 && p.z < 1.0
+            },
+            lo: [-1.0, -1.0, 0.0],
+            hi: [1.0, 1.0, 1.0],
+        },
+    ];
+    for Case {
+        name,
+        body,
+        truth,
+        lo,
+        hi,
+    } in cases
+    {
+        let mut answered = 0;
+        for (pose, map) in poses() {
+            let posed = transform_rigid(&body, &map, tol()).unwrap();
+            for i in 0..5 {
+                for j in 0..5 {
+                    for k in 0..5 {
+                        let f =
+                            |n: usize, a: usize| lo[a] + (hi[a] - lo[a]) * (n as f64 + 0.5) / 5.0;
+                        let p = Point3::new(f(i, 0), f(j, 1), f(k, 2));
+                        let r2 = p.x * p.x + p.y * p.y;
+                        if (r2 - 1.0).abs() < 0.05 || p.x.abs() < 0.05 || p.y.abs() < 0.05 {
+                            continue;
+                        }
+                        let want = if truth(p) {
+                            SolidContainment::In
+                        } else {
+                            SolidContainment::Out
+                        };
+                        match point_in_solid(&posed, map.transform_point(p), band, tol()) {
+                            Ok(got) => {
+                                assert_eq!(got, want, "{name} | {pose} | {p:?}");
+                                answered += 1;
+                            }
+                            Err(e) => assert!(
+                                !matches!(e, PointInSolidError::WallOutlineUnsupported { .. }),
+                                "{name} | {pose} | {p:?}: {e:?}"
+                            ),
+                        }
+                    }
+                }
+            }
+        }
+        assert!(answered > 0, "{name}: no probe answered");
+    }
+}
+
+/// One cutting plane of a tilted-cut fixture: a point on it and its
+/// normal; the kept side is where `(p − point)·normal` is negative.
+#[derive(Clone, Copy)]
+struct Cut {
+    point: Point3<f64>,
+    normal: Vec3<f64>,
+}
+
+impl Cut {
+    fn tilted(z: f64, about_y: f64) -> Self {
+        Cut {
+            point: Point3::new(0.0, 0.0, z),
+            normal: Vec3::new(about_y.sin(), 0.0, about_y.cos()),
+        }
+    }
+
+    fn at(point: [f64; 3], normal: [f64; 3]) -> Self {
+        Cut {
+            point: Point3::new(point[0], point[1], point[2]),
+            normal: Vec3::new(normal[0], normal[1], normal[2]).normalize(),
+        }
+    }
+
+    fn flip(self) -> Self {
+        Cut {
+            point: self.point,
+            normal: self.normal * -1.0,
+        }
+    }
+
+    fn elevation(&self, p: Point3<f64>) -> f64 {
+        (p - self.point).dot(self.normal)
+    }
+}
+
+/// The unit cylinder of height 2.5 cut down to the side of every plane
+/// in `cuts` below it, through the split door.
+fn cut_by(cuts: &[Cut]) -> Body<f64> {
+    cut_from(
+        prism(vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)], 2.5, tol()),
+        cuts,
+    )
+}
+
+/// `body` cut down to the side of every plane in `cuts` below it.
+fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
+    use topo::splitting::{SplitPart, SplitPlane, split};
+    for cut in cuts {
+        let result = split(
+            &body,
+            &SplitPlane {
+                origin: cut.point,
+                normal: cut.normal,
+            },
+            tol(),
+        )
+        .expect("the cut splits");
+        let SplitPart::Body(kept) = result.below else {
+            panic!("material below every cut");
+        };
+        body = kept;
+    }
+    body
+}
+
+/// A tilted-cut fixture and its closed form.
+struct CutCase {
+    name: &'static str,
+    body: Body<f64>,
+    /// `Some(inside)` for a probe clear of the boundary, `None` near it.
+    truth: Box<dyn Fn(Point3<f64>) -> Option<bool>>,
+}
+
+/// Inside the unit cylinder of height 2.5, clear of its wall and caps
+/// by the probe margin.
+fn in_cylinder(p: Point3<f64>) -> Option<bool> {
+    let r2 = p.x * p.x + p.y * p.y;
+    if (r2 - 1.0).abs() < 0.05 || p.z.abs() < 0.05 || (p.z - 2.5).abs() < 0.05 {
+        return None;
+    }
+    Some(r2 < 1.0 && p.z > 0.0 && p.z < 2.5)
+}
+
+/// Below every cut, clear of each plane.
+fn below_all(cuts: &[Cut], p: Point3<f64>) -> Option<bool> {
+    let mut inside = true;
+    for cut in cuts {
+        let e = cut.elevation(p);
+        if e.abs() < 0.05 {
+            return None;
+        }
+        inside &= e < 0.0;
+    }
+    Some(inside)
+}
+
+fn tilted_cut_cases() -> Vec<CutCase> {
+    let region = |cuts: Vec<Cut>| -> Box<dyn Fn(Point3<f64>) -> Option<bool>> {
+        Box::new(move |p| Some(in_cylinder(p)? && below_all(&cuts, p)?))
+    };
+    let mut cases = Vec::new();
+    let mut add = |name: &'static str, cuts: Vec<Cut>| {
+        cases.push(CutCase {
+            name,
+            body: cut_by(&cuts),
+            truth: region(cuts),
+        });
+    };
+    // One cut through the axis, each side: the pinned witness's shape.
+    add("cut 0.3 (below)", vec![Cut::tilted(1.25, 0.3)]);
+    add("cut 0.3 (above)", vec![Cut::tilted(1.25, 0.3).flip()]);
+    // A cut running out through the top cap: the wall's top chain is
+    // rim, section, rim.
+    add(
+        "corner clip",
+        vec![Cut::at([0.6, 0.0, 2.5], [0.6f64.sin(), 0.0, 0.6f64.cos()])],
+    );
+    add(
+        "corner clip (the chip)",
+        vec![Cut::at([0.6, 0.0, 2.5], [0.6f64.sin(), 0.0, 0.6f64.cos()]).flip()],
+    );
+    // Steep through the centre: the section runs out through both caps.
+    add("tilt 0.9 (below)", vec![Cut::tilted(1.25, 0.9)]);
+    add("tilt 0.9 (above)", vec![Cut::tilted(1.25, 0.9).flip()]);
+    // Between two parallel steep cuts.
+    add(
+        "slab at tilt 1.0",
+        vec![Cut::tilted(1.65, 1.0), Cut::tilted(0.85, 1.0).flip()],
+    );
+    // Below two cuts meeting in a ridge over the axis: a convex roof.
+    add(
+        "wedge",
+        vec![
+            Cut::at([0.0, 0.0, 2.0], [0.4f64.sin(), 0.0, 0.4f64.cos()]),
+            Cut::at([0.0, 0.0, 2.0], [-(0.4f64.sin()), 0.0, 0.4f64.cos()]),
+        ],
+    );
+    // Between two cuts tilted opposite ways about `x`, crossing on the
+    // seam line: each wall face is a lens of two section arcs.
+    add(
+        "lens",
+        vec![
+            Cut::at([0.0, 0.0, 1.25], [0.0, 0.3f64.sin(), 0.3f64.cos()]).flip(),
+            Cut::at([0.0, 0.0, 1.25], [0.0, -(0.3f64.sin()), 0.3f64.cos()]),
+        ],
+    );
+    // A V through the axis, two ways, with the prism's seams turned to
+    // just past ±π/2, where the V's crease meets the wall: the VALLEY
+    // keeps what is above both planes, the RIDGE what is below both.
+    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
+    for (tilt, valley, ridge) in [
+        (0.4, "valley at tilt 0.4", "ridge at tilt 0.4"),
+        (1.1, "valley at tilt 1.1", "ridge at tilt 1.1"),
+    ] {
+        let planes = [
+            Cut::at([0.0, 0.0, 1.25], [f64::sin(tilt), 0.0, f64::cos(tilt)]),
+            Cut::at([0.0, 0.0, 1.25], [-f64::sin(tilt), 0.0, f64::cos(tilt)]),
+        ];
+        for (name, cuts) in [
+            (valley, planes.map(Cut::flip).to_vec()),
+            (ridge, planes.to_vec()),
+        ] {
+            let turned = prism(
+                vec![
+                    pv(turn.cos(), turn.sin(), 1.0),
+                    pv(-turn.cos(), -turn.sin(), 1.0),
+                ],
+                2.5,
+                tol(),
+            );
+            cases.push(CutCase {
+                name,
+                body: cut_from(turned, &cuts),
+                truth: region(cuts),
+            });
+        }
+    }
+    // Through the subtract door: the cut cylinder (below the cut) minus a
+    // box inside it. Its walls keep the tilted section.
+    let cut = Cut::tilted(1.25, 0.3);
+    let pocket: Body<f64> = brick((-0.3, 0.1), (-0.3, 0.1), (0.3, 0.7), tol());
+    match topo::subtract(&cut_by(&[cut]), &pocket, tol()) {
+        Ok(topo::BooleanResult::Body(b)) => cases.push(CutCase {
+            name: "cut 0.3 minus a box (subtract)",
+            body: b.body,
+            truth: Box::new(move |p| {
+                let clear =
+                    |v: f64, lo: f64, hi: f64| (v - lo).abs() >= 0.05 && (v - hi).abs() >= 0.05;
+                if !(clear(p.x, -0.3, 0.1) && clear(p.y, -0.3, 0.1) && clear(p.z, 0.3, 0.7)) {
+                    return None;
+                }
+                let in_box =
+                    p.x > -0.3 && p.x < 0.1 && p.y > -0.3 && p.y < 0.1 && p.z > 0.3 && p.z < 0.7;
+                Some(in_cylinder(p)? && below_all(&[cut], p)? && !in_box)
+            }),
+        }),
+        other => panic!("the pocket subtracts: {:?}", other.err()),
+    }
+    cases
+}
+
+/// **Every tilted-cut wall reads its truth, and its outline is read,
+/// not refused.** Each fixture's wall faces are bounded by rims, seam
+/// meridians and planar sections in the combinations the split and
+/// subtract doors mint: a cut through the axis, one running out through
+/// a cap, a steep one through both caps, a slab, a convex roof and a
+/// lens. Every answer is the truth, and no probe refuses on a wall's
+/// outline. The refusals allowed are the at-infinity side the props lane
+/// owns, and an escalation: at a coarse ε a probe's ray can land within
+/// the band of a boundary edge, and that is a typed refusal, not an
+/// answer.
+/// An escalation this row admits: a trim row's margin strictly inside
+/// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
+/// a boundary edge, which is a typed refusal and not an answer. Two rows
+/// only: the wall's own (`bool_wall_trim`), and a planar face's arc
+/// window (`point_in_arc_loop_conic_window`, which the cuts' ellipse
+/// faces reach). Each shape's count is capped at what was measured.
+fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
+    let (eps, k) = (tol().eps(), tol().k());
+    matches!(
+        diag.predicate,
+        Some("bool_wall_trim" | "point_in_arc_loop_conic_window")
+    ) && matches!(diag.margin, geom_core::MarginDiag::Value(v) if v.abs() > eps && v.abs() < k * eps)
+}
+
+/// Each shape's answered-count floor and escalation cap. The floor is
+/// the fewest answers measured over the three ε rows, less a slack of
+/// 2; the cap is the most in-band escalations measured. A change that
+/// turned chart-wall hits into refusals falls through the floor.
+fn answered_floor_and_escalation_cap(name: &str) -> (usize, usize) {
+    match name {
+        "cut 0.3 (below)" => (332, 0),
+        "cut 0.3 (above)" => (398, 0),
+        "corner clip" => (677, 1),
+        "corner clip (the chip)" => (21, 1),
+        "tilt 0.9 (below)" => (303, 0),
+        "tilt 0.9 (above)" => (454, 0),
+        "slab at tilt 1.0" => (384, 0),
+        "wedge" => (520, 0),
+        "lens" => (59, 0),
+        "valley at tilt 0.4" => (313, 0),
+        "ridge at tilt 0.4" => (300, 0),
+        "valley at tilt 1.1" => (231, 1),
+        "ridge at tilt 1.1" => (212, 0),
+        "cut 0.3 minus a box (subtract)" => (196, 0),
+        other => panic!("no floor for {other}"),
+    }
+}
+
+#[test]
+fn every_tilted_cut_wall_reads_its_truth() {
+    let band = Band::linear(tol()).expect("the witness band");
+    let mut problems = Vec::new();
+    for case in tilted_cut_cases() {
+        let (mut answered, mut wrong, mut at_infinity, mut escalated) = (0, 0, 0, 0);
+        for (pose, map) in poses() {
+            let posed = transform_rigid(&case.body, &map, tol()).unwrap();
+            for i in 0..5 {
+                for j in 0..5 {
+                    for k in 0..5 {
+                        let f =
+                            |n: usize, lo: f64, hi: f64| lo + (hi - lo) * (n as f64 + 0.5) / 5.0;
+                        let p = Point3::new(f(i, -1.0, 1.0), f(j, -1.0, 1.0), f(k, 0.0, 2.5));
+                        let Some(inside) = (case.truth)(p) else {
+                            continue;
+                        };
+                        let want = if inside {
+                            SolidContainment::In
+                        } else {
+                            SolidContainment::Out
+                        };
+                        match point_in_solid(&posed, map.transform_point(p), band, tol()) {
+                            Ok(got) => {
+                                answered += 1;
+                                if got != want {
+                                    wrong += 1;
+                                    problems
+                                        .push(format!("{} | {pose} | {p:?}: {got:?}", case.name));
+                                }
+                            }
+                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
+                            Err(PointInSolidError::Escalated { diag, .. })
+                            | Err(PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                                diag,
+                                ..
+                            })) if in_the_trim_band(&diag) => {
+                                escalated += 1;
+                            }
+                            Err(e) => {
+                                problems.push(format!("{} | {pose} | {p:?}: {e:?}", case.name));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        eprintln!(
+            "MEASURE {}: answered {answered}, wrong {wrong}, at-infinity {at_infinity}, \
+             escalated {escalated}",
+            case.name
+        );
+        let (floor, cap) = answered_floor_and_escalation_cap(case.name);
+        if answered < floor {
+            problems.push(format!("{}: answered {answered}, floor {floor}", case.name));
+        }
+        if escalated > cap {
+            problems.push(format!("{}: escalated {escalated}, cap {cap}", case.name));
+        }
+    }
+    assert!(problems.is_empty(), "{}", problems.join("\n"));
 }

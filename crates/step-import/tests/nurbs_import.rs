@@ -227,7 +227,7 @@ fn rational_props_posture(body: &topo::Body<f64>, who: &str) -> Posture {
 ///   positive_control`, M7-3 review, adopted by merge). It is
 ///   STRICTER than the string check beside it: the import succeeds and
 ///   its enclosure's refusal must be a per-face `QuadratureBudget`
-///   carrying the sign-level bracket — no validity verdict, and no
+///   carrying a bracket — no validity verdict, and no
 ///   escalation standing in for a budget. Because the import's measurement is the
 ///   SAME quadrature the native side runs, this also pins the native
 ///   posture RW2 asserted directly: a native escalation would arrive
@@ -321,7 +321,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                     // itself, not a substring of its prose — the per-face
                     // quadrature budget, and no escalation standing in for
                     // one — and the kernel's own classification of it,
-                    // which keeps the sign-level bracket.
+                    // which keeps a bracket.
                     assert!(
                         matches!(
                             unreached.refusal,
@@ -332,12 +332,10 @@ fn arc_loft_natively_computes_its_rational_volume() {
                         ),
                         "the only surviving refusal is the fixed schedule's budget: {unreached:?}"
                     );
-                    let bracket = unreached
-                        .bracket
-                        .expect("a budget refusal keeps the sign-level bracket");
+                    let bracket = unreached.bracket.expect("a budget refusal keeps a bracket");
                     assert!(
                         bracket.volume_lo > 0.0,
-                        "the bracket the gate admitted on is definitely positive: {bracket:?}"
+                        "the budget refusal's bracket is definitely positive: {bracket:?}"
                     );
                     let msg = unreached.to_string();
                     assert!(
