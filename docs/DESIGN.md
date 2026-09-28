@@ -238,15 +238,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
-   legal smooth-seam case; and the ends carry a **declared second-order
-   arm**: wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's
-   `revert` image — legal together or not at all) are legal iff the
-   tangency is **declared** (the C7 `Tangent` contact vocabulary, never
-   inferred from values) and **jet-determinate**: quadratic transverse
-   separation with κ_rel bounded away from zero — `TangentIntersection`'s
-   own margin, so the cusp edge's honest description IS
-   `TangentIntersection`. In-band κ_rel escalates; an undeclared cusp
-   refuses (`UndeclaredCusp`); osculation refuses (`LaminaWedge`). The
+   legal smooth-seam case; and the ends carry a **second-order arm**:
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
+   image — legal together or not at all) are legal iff the tangency is
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so the
+   cusp edge's honest description IS `TangentIntersection` wherever the
+   tangent certificate's lane reaches. The ends are derived from the
+   body exactly as the π seam is: a cusp and a smooth seam are the same
+   tangent junction on one shared edge, told apart only by the sign of
+   the two faces' outward normals, which the body already certifies.
+   The shared edge is the structural record. Whether a cusp is *wanted*
+   is declared where the tangency is created — the profile's cusp
+   joint, a boolean's C7 `Tangent` operand declaration — never inferred
+   from values, and an op that could mint a wedge end its inputs never
+   declared owns that refusal. In-band κ_rel escalates; osculation
+   refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
    coincident-distinct-edges class, each edge classifying separately.
