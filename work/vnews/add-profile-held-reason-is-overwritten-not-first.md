@@ -8,6 +8,7 @@ priority: P3
 cost: E
 branch: vnews/the-frame-prompt-comes-first
 closed: 2026-09-28
+pr: 3391
 ---
 
 `ViewerBehavior::add_profile_ui` (`crates/viewer/src/pane/create.rs:986-989`)

@@ -8,7 +8,7 @@ priority: P3
 cost: E
 closed: 2026-09-25
 branch: vnews/one-seat-line
-pr: 3281
+pr: 3391
 ---
 
 

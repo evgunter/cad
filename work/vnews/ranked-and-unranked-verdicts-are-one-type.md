@@ -9,6 +9,7 @@ priority: P1
 cost: M
 branch: vnews/a-ranked-verdict-is-its-own-type
 closed: 2026-09-28
+pr: 3391
 ---
 
 Found by #2026's style review, on the unit that created the second
