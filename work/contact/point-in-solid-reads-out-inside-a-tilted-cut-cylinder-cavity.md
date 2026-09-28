@@ -2,12 +2,13 @@
 id: point-in-solid-reads-out-inside-a-tilted-cut-cylinder-cavity
 kind: issue
 title: point_in_solid answers a false Out at hundreds of points inside a tilted-cut cylinder cavity (brick minus rod, cut at tilt 1.0), a cause outside the wall arm
-status: dispatched
+status: closed
 opened: 2026-09-26
 priority: P0
 cost: D
 refs: [CONTACT-3]
 parent: CONTACT-6
+closed: 2026-09-28
 ---
 
 
@@ -40,3 +41,15 @@ re-chart onto the section plane kept it. The volume is right because
 it is integrated from the loop windings, not the bit.
 
 It is a wrong answer, not a refusal, hence P0.
+
+## Closed
+
+Fixed by CONTACT-6. The cause was not the ray lane: `split_finish`
+re-charted each section face but kept the orientation (sense) bit it
+inherited from the face it was carved from. That bit was wrong on a cut
+through a reversed-sense cavity wall. A section face's sense is now its
+loop's winding about the chart normal, read by the function tier 3's
+check 6 uses. Over six poses, 1,274 false `Out` became 0, with
+refusals unchanged. On the hole class (splits through a bore), no
+section face fails check 6, and tier 3 is no worse than base on any
+body.

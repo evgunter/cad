@@ -493,3 +493,18 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+## 2026-09-28 — CONTACT-6 lands
+
+- The fix pass reads a section face's sense from its loop's winding
+  (check 6's own function) and adds `set_face_surface_and_sense`, so a
+  re-chart cannot keep a stale bit. The orchestrator read it:
+  - an unsigned winding refuses typed;
+  - the hole class is at least as good as base on every body;
+  - the rows go red under both wrong rules (the inherited bit, and
+    "always `true`").
+- Landed through its own PR. The branch also carries the orchestrator's
+  tracker state since #3345, including CONTACT-7's spec with its
+  amendment.
+
+Signed: (CONTACT orchestrator)
