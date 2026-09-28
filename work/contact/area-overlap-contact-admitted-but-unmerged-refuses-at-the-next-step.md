@@ -7,6 +7,7 @@ opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: D
+needs_ev: true
 ---
 
 ## What
@@ -68,3 +69,20 @@ this line and is kept as the record of why the file was where it was.
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## The cause, corrected (2026-09-28, CONTACT's designer pair)
+
+The rest door is not on the path. Step 0 runs the ordinary seamed
+boolean: the caps face the same way and the blocks overlap in volume.
+The declared pair is licensed for merging. The merge then fails on
+shape: each cap pair shares a two-edge seam that bends 90° at the
+corner. After the first seam edge is killed, the second is left
+dangling, and the corner vertex has no edge left, which is
+`GroupNotClosed { ScaffoldingEmptyLoop }`. The declared regime records
+that as `merge_skipped` and ships the body with two coplanar caps, and
+F7 refuses it at the next boolean.
+`crates/topo/tests/merge_skip.rs`'s L-corner row pins the skip.
+
+A reproducer on `main`: `a = [0,1]³` and `f = [0.5,1.5]² × [0,1]` with
+`flush_declarations`, then a union with any third brick touching
+either one. (`r2_p2d` lived on the deleted `docm/8-review-r2` branch.)
