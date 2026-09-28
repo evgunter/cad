@@ -75,6 +75,7 @@
 use geom::{NurbsCurve2, NurbsCurve3};
 use geom::{NurbsSurface, Surface};
 use geom_core::spline::SplineError;
+use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
 use crate::certify::CERT_SAMPLES;
@@ -577,14 +578,7 @@ fn localized<T: Real>(wall: &NurbsSurface<T>) -> NurbsSurface<T> {
         if kv.control_count() >= PXN_WALL_SPANS + kv.degree() {
             return Vec::new();
         }
-        let (lo, hi) = kv.domain();
-        (1..PXN_WALL_SPANS)
-            .filter_map(|i| {
-                #[allow(clippy::cast_precision_loss)]
-                let t = lo + (hi - lo) * (i as f64 / PXN_WALL_SPANS as f64);
-                kv.multiplicity_of(t).is_none().then_some(t)
-            })
-            .collect()
+        domain_grid_points(kv, PXN_WALL_SPANS, GridSkip::BitEqual)
     }
     let add_u = breaks(wall.knots_u());
     let add_v = breaks(wall.knots_v());
@@ -785,5 +779,52 @@ mod tests {
                 }
             }
         }
+    }
+
+    /// A degree-2 knot vector on `[0, 1]` with the given interior knots.
+    fn deg2(interior: &[f64]) -> KnotVector {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend_from_slice(interior);
+        knots.extend([1.0, 1.0, 1.0]);
+        KnotVector::clamped(knots, 2).unwrap()
+    }
+
+    fn wall(ku: KnotVector, kv: KnotVector) -> NurbsSurface<f64> {
+        let (nu, nv) = (ku.control_count(), kv.control_count());
+        #[allow(clippy::cast_precision_loss)]
+        let control = (0..nu * nv)
+            .map(|i| Point3::new((i / nv) as f64, (i % nv) as f64, 0.0))
+            .collect();
+        NurbsSurface::new(ku, kv, control, vec![1.0; nu * nv]).unwrap()
+    }
+
+    /// Odd 64ths: none on the sixteenths grid.
+    fn odd64(n: i32) -> Vec<f64> {
+        (0..n).map(|j| f64::from(2 * j + 1) / 64.0).collect()
+    }
+
+    /// `localized` inserts each direction's DOMAIN sixteenths, skipping
+    /// a grid point only where a knot sits on it bit for bit (`0.5`;
+    /// a knot one ulp above `1/16` does NOT suppress `1/16`), and
+    /// leaves a direction with `PXN_WALL_SPANS + degree` control points
+    /// alone while one with a control point fewer takes the grid.
+    #[test]
+    fn localized_inserts_the_domain_grid_per_direction_with_its_cut_off() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let at = deg2(&odd64(15));
+        assert_eq!(at.control_count(), PXN_WALL_SPANS + 2);
+        let out = localized(&wall(deg2(&[near, 0.5]), at.clone()));
+        assert_eq!(
+            out.knots_u().knots(),
+            [
+                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
+            ]
+        );
+        assert_eq!(out.knots_v().knots(), at.knots());
+        let below = deg2(&odd64(14));
+        assert_eq!(below.control_count(), 17);
+        let out = localized(&wall(deg2(&[0.5]), below));
+        assert_eq!(out.knots_v().control_count(), 17 + 15);
     }
 }

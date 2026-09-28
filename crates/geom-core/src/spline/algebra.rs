@@ -601,6 +601,73 @@ pub fn equal_split_plan(
     refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
 }
 
+/// How close a grid point may come to a knot before it is dropped
+/// instead of minting a hairline span or cell, in ulps of the range's
+/// own width — the clearance [`GridSkip::WithinUlps`] is spelled with.
+///
+/// A few ulps, because that is the whole width of the defect: the
+/// grid point and the knot are describing the same place, and the
+/// span between them is arithmetic noise rather than geometry. It is
+/// deliberately NOT a tolerance in the ε sense — no input's meaning
+/// depends on it, only whether one redundant subdivision is taken.
+pub const SLIVER_CLEARANCE_ULPS: u32 = 8;
+
+/// When [`domain_grid_points`] counts a grid point as already a knot
+/// of the vector, and skips it.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum GridSkip {
+    /// Skip a grid point that IS an interior knot: `f64` equality, so a
+    /// knot one ulp off a grid point does not suppress it and both
+    /// reach the output's consumer. The same rule as `WithinUlps(0)`,
+    /// named for the reader.
+    BitEqual,
+    /// Skip a grid point within `ulps · ε · |hi − lo|` of an interior
+    /// knot, `[lo, hi]` the vector's domain: the knot stands and the
+    /// hairline span the grid point would open beside it is never
+    /// minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
+    /// uses.
+    WithinUlps(u32),
+}
+
+/// **The domain-uniform grid**: the interior points
+/// `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of the vector's DOMAIN
+/// `[lo, hi]`, ascending, minus every point `skip` finds on an interior
+/// knot — the `new_knots` a caller hands [`refine_plan`] or
+/// [`refine_plan_homogeneous`] to refine to at least `pieces` spans
+/// over the whole domain, or a break list for a per-span extraction.
+///
+/// **Not the equal-split schedule**: [`equal_split_points`] cuts each
+/// nonempty SPAN into equal pieces, so its grid restarts at every knot
+/// and a knot is a span end by construction. This grid is blind to
+/// where the knots fall, which is why it takes a `skip` rule and the
+/// per-span schedule does not.
+///
+/// It refines ANY vector, however fine already. A caller for whom a
+/// vector with `pieces + degree` or more control points is fine enough
+/// tests that itself and does not call; the grid does not decide it.
+/// `pieces` of 0 or 1 yields none.
+#[must_use]
+pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec<f64> {
+    let (lo, hi) = kv.domain();
+    let sliver = match skip {
+        GridSkip::BitEqual => None,
+        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * f64::from(ulps) * f64::EPSILON),
+    };
+    let clear = |t: f64| {
+        kv.interior_knots().all(|(k, _)| match sliver {
+            None => k != t,
+            Some(sliver) => (t - k).abs() > sliver,
+        })
+    };
+    (1..pieces)
+        .filter_map(|k| {
+            #[allow(clippy::cast_precision_loss)]
+            let t = lo + (hi - lo) * (k as f64 / pieces as f64);
+            (t > lo && t < hi && clear(t)).then_some(t)
+        })
+        .collect()
+}
+
 /// **Knot merging (Book §5.3), the structure half: per vector, the
 /// copies [`refine_plan`] must insert to land it on the UNION of
 /// `vectors`.** The union knot vector carries every distinct interior
@@ -1030,6 +1097,74 @@ mod tests {
             ]
         );
         assert!(equal_split_plan(&kv, 1).unwrap().is_empty());
+    }
+
+    /// The domain-uniform grid runs over the whole domain, blind to
+    /// the spans: on `[0, 1]` with knots at `0.5` and one ulp above
+    /// `0.25`, the quarters grid is `0.25, 0.75` under the bit-equal
+    /// skip (`0.5` is a knot; `0.25` is not) and `0.75` alone under an
+    /// 8-ulp clearance. A vector already finer than the grid is still
+    /// given it, and `pieces` of 0 or 1 yields none.
+    #[test]
+    fn domain_grid_points_skip_rules_and_no_cut_off() {
+        let near = f64::from_bits(0.25f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        assert_eq!(domain_grid_points(&kv, 4, GridSkip::BitEqual), [0.25, 0.75]);
+        assert_eq!(
+            domain_grid_points(&kv, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [0.75]
+        );
+        // The clearance scales with the domain's width: on `[0, 4]` a
+        // knot 4 ulps of `1.0` off the grid point `1.0` is inside it.
+        let off = f64::from_bits(1.0f64.to_bits() + 4);
+        let wide = KnotVector::clamped(vec![0.0, 0.0, off, 4.0, 4.0], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&wide, 4, GridSkip::BitEqual),
+            [1.0, 2.0, 3.0]
+        );
+        assert_eq!(
+            domain_grid_points(&wide, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [2.0, 3.0]
+        );
+        // Ten spans, a grid of four: every quarter is still offered.
+        let fine = KnotVector::clamped(
+            vec![
+                0.0, 0.0, 0.05, 0.15, 0.35, 0.45, 0.55, 0.65, 0.8, 0.9, 0.95, 1.0, 1.0,
+            ],
+            1,
+        )
+        .unwrap();
+        assert_eq!(fine.control_count(), 11);
+        assert_eq!(
+            domain_grid_points(&fine, 4, GridSkip::BitEqual),
+            [0.25, 0.5, 0.75]
+        );
+        assert!(domain_grid_points(&kv, 1, GridSkip::BitEqual).is_empty());
+        assert!(domain_grid_points(&kv, 0, GridSkip::BitEqual).is_empty());
+        // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·k/n`
+        // rounds to these values, and to others under any re-association
+        // (`hi − (hi − lo)·(n − k)/n` gives `0.15999999999999992`,
+        // `0.39999999999999997`, …). The knot at `0.4` is the grid's own
+        // point, so the bit-equal skip drops it.
+        let odd = KnotVector::clamped(vec![0.1, 0.1, 0.4, 0.7, 0.7], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&odd, 10, GridSkip::BitEqual),
+            [
+                0.16,
+                0.22,
+                0.28,
+                0.339_999_999_999_999_97,
+                0.459_999_999_999_999_96,
+                0.52,
+                0.58,
+                0.64
+            ]
+        );
+        // `WithinUlps(0)` is the bit-equal rule.
+        assert_eq!(
+            domain_grid_points(&odd, 10, GridSkip::WithinUlps(0)),
+            domain_grid_points(&odd, 10, GridSkip::BitEqual)
+        );
     }
 
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
