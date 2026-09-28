@@ -1131,3 +1131,5 @@ class of 65 sites is PRED's row.
   - Fix pass sent back to the lane.
 - 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
   - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.
+- 2026-09-28 14:45 — Ev commented on `[ev]` PR 3352, on the one split. The tolerance advice should either be symmetric (tighten or loosen as appropriate) or dropped entirely. Ev leans toward showing it only where changing ε may be the only recourse: tiny intended geometry (tighten), or a NURBS fitted to an edge at a given accuracy (loosen; likely STEP adoption only, or a lowered ε, which could warn at the change). Ev asked for thoughts.
+  - Reconciliation round 2: both designers were given Ev's comment verbatim and asked to answer it directly (≤60 lines each). The reply to Ev will carry both, labelled A/B.
