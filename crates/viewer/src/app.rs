@@ -3249,19 +3249,7 @@ mod properties_pane_tests {
             .expect("startup that needs no graphics device");
         let mut frame = eframe::Frame::_new_kittest();
         let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
-            let input = egui::RawInput {
-                screen_rect: Some(egui::Rect::from_min_size(
-                    egui::Pos2::ZERO,
-                    egui::vec2(1600.0, 1000.0),
-                )),
-                events,
-                ..Default::default()
-            };
-            let mut output = ctx.run_ui(input, |ui| {
-                eframe::App::ui(app, ui, &mut frame);
-            });
-            output.textures_delta.clear();
-            crate::pane::headless::landed_in(&output.shapes)
+            app_frame(&ctx, app, &mut frame, None, events)
         };
         // The startup document's last node is its body (`plate_with_hole`).
         let body = *app.session.doc().order().last().expect("a startup body");

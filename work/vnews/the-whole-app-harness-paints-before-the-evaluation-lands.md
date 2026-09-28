@@ -48,3 +48,14 @@ false greens, because appearing text breaks the equality and vanishing
 text is filtered. The fix pass on that unit factors the two frame
 bodies into one helper, so the fix this row owes lands in one place;
 until then, a fix scoped to `painted_with` alone is half a fix.
+
+## The wait already exists in one helper (2026-09-28)
+
+The seats unit (`vnews/one-seat-line`) added `painted_with_tool` to the
+same module. It paints until `app.session.landed_pair()` is `Some`,
+bounded at 3000 frames with a 10 ms sleep, and asserts that the startup
+document landed. That is this row's fix, for one helper. On
+`vnews/batch-1` all three helpers draw through `app_frame`; what is
+left is to give `painted_with` and the `Driven` harness the same
+bounded wait, ideally as one function they all call, rather than a
+third copy of the loop.
