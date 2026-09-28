@@ -7,6 +7,7 @@ opened: 2026-09-28
 priority: P4
 cost: M
 closed: 2026-09-28
+pr: 3371
 ---
 
 
@@ -67,7 +68,7 @@ The ground is S-TCOST's and S-TINT's (`crates/sweep/tests/*`). The
 question is where a shared fixture lives, which is this program's
 subject, as the row it was found from was.
 
-## Closed (2026-09-28, `dup/b9-b`)
+## Closed (2026-09-28, PR 3371)
 
 **Census re-taken at merge base `2adacbc0e`** (after #3340), with both
 of this row's instruments and a third aimed at their shared gap.
