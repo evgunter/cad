@@ -1016,3 +1016,8 @@ class of 65 sites is PRED's row.
   - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
   - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
 - 2026-09-28 — PR 3343 merged (`f5390b0605`), hosted all green on `0eb6236870`. Closed `driver-escalation-log-names-a-renamed-tangent-refusal-osculating`. Seam notes posted on the props, verdict, tcost and tint logs.
+- 2026-09-28 — The kernel-defect lane opened PR 3346 (head `ab7c781ba1`).
+  - Two constants in `geom_core::predicate`, the kernel defect and the kernel-or-file defect, defined through `#[macro_export]` macros for `concat!` callers.
+  - Forwarded carriers are labelled `Recourse:` about 27 times: `note()`, `FitError`, `SplineError`, `KnotVectorIssue`.
+  - Three more sites folded in. Six rows filed across encl, reach, shell, chart, props and issues. Evidence added to CHROME's checker row.
+  - The scope grew past the brief (macros, the rewording of `ResultVolumeImplausible`, many owners' files). The review stays a style review, pointed at the macro surface, the consistency of the labelling ruling, double labels, and the new rows.
