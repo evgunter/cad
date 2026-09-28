@@ -241,12 +241,16 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    legal smooth-seam case; and the ends carry a **declared second-order
    arm**: wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's
    `revert` image — legal together or not at all) are legal iff the
-   tangency is **declared** (the C7 `Tangent` contact vocabulary, never
-   inferred from values) and **jet-determinate**: quadratic transverse
+   tangency is **declared on the edge** (the profile's cusp joint,
+   written onto the cusp edge's certified curve by the op that mints it
+   and carried with that curve; never inferred from values) and
+   **jet-determinate**: quadratic transverse
    separation with κ_rel bounded away from zero — `TangentIntersection`'s
    own margin, so the cusp edge's honest description IS
    `TangentIntersection`. In-band κ_rel escalates; an undeclared cusp
-   refuses (`UndeclaredCusp`); osculation refuses (`LaminaWedge`). The
+   refuses (`UndeclaredCusp`); a declaration on an edge whose wedge is
+   not an end refuses, since every definite verdict wins over a
+   declaration; osculation refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
    coincident-distinct-edges class, each edge classifying separately.
@@ -321,6 +325,8 @@ reparents only within one shell (`EulerOpError::CrossShell`).
    non-empty contact list is the 3′-grade currency and whose at-rest
    gate is `validate_pseudomanifold(&body, &contacts)`; empty-contact
    results remain plain tier-3 currency, and the two gates agree there.
+   Coincidence records ride the wrapper; a shared edge's own declared
+   wedge is edge data, read by tier 3 where the wedge is judged.
 
    **Representability boundary**: pseudomanifold touching via
    *distinct* entities (two vertices at one point, two edges on one

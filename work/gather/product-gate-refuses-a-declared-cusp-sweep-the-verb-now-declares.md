@@ -8,6 +8,7 @@ priority: P1
 cost: H
 branch: gather/cusp-sweep-gate
 design: true
+needs_ev: true
 ---
 
 
