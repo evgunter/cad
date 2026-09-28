@@ -903,8 +903,8 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 /// - **The shell op's face replacement** (`Shell/Face/Fit/…`): the
 ///   fit lane's mint runs the whole fit loop and then certifies, so it
 ///   raises every arm but `WindowUnsupported` (the mint certifies over
-///   the chart rectangle it fitted). The loop's own terminations —
-///   `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
+///   the chart rectangle it fitted) and `Band` (below). The loop's own
+///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
 ///   and `NonFiniteSample` reach the user by this route only. Its
 ///   wrapper still opens with a stage prefix and names the face by key;
@@ -916,6 +916,11 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   `certify_offset_over` runs the meters and the certificate limbs on
 ///   a fit it did not make, so it raises `Meter`, `PatchBound`,
 ///   `WindowUnsupported`, `Limb` and `Elevation`.
+///
+/// `Band` reaches neither route. The door derives the run's band from
+/// the witness, and both ops derive the same band before they reach the
+/// door and refuse on it themselves (`ShellError::Band`,
+/// `TransformError::Band`), so it has no row here.
 ///
 /// The roster is `topo`'s: every `OffsetFitError` sample
 /// `validation_error_samples` carries, which `topo`'s coverage row holds
@@ -980,7 +985,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
                 | O::Limb { .. }
                 | O::Elevation(_)
         );
-        if !matches!(source, O::WindowUnsupported { .. }) {
+        if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
                 NodeErrorKind::Shell(Box::new(ShellError::Face {

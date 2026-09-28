@@ -1171,12 +1171,12 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 for group in &mine {
                     let face = group[0];
                     let d = inward(&cavity, face, thickness)?;
-                    crate::replace_faces_offset(&mut cavity, group, d, band, tol).map_err(
-                        |error| ShellError::Face {
+                    crate::replace_faces_offset(&mut cavity, group, d, tol).map_err(|error| {
+                        ShellError::Face {
                             face,
                             error: Box::new(error),
-                        },
-                    )?;
+                        }
+                    })?;
                 }
             }
         }
@@ -1453,7 +1453,7 @@ pub fn shell_open<T: Decide + geom_core::CertifiedBounds + crate::props::AtRestP
                 crate::offset_charts_together(&mut out, &moves, band, tol)
             }
             OffsetDoor::PlanesTogether | OffsetDoor::PerChart => {
-                crate::replace_faces_offset(&mut out, &lift_group, back, band, tol)
+                crate::replace_faces_offset(&mut out, &lift_group, back, tol)
             }
         };
         outcome.map_err(|error| ShellError::Lift {
