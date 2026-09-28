@@ -1038,3 +1038,8 @@ class of 65 sites is PRED's row.
   - Dispatched `domain-uniform-refinement-grid-is-spelled-three-times` (P4) on `encl/domain-uniform-grid`, Opus, style review. The sites are PROPS/SSI/NURBS/Q territory, so seam notes follow at merge.
 - 2026-09-28 — PR 3346 merged (`fb0ec473b8`), hosted all green on `1f358a3519`. Closed `kernel-defect-endings-and-repair-labels-have-no-shared-home`. Seam notes posted on the props, nurbs, restfront, contact, tcost and tint logs.
 - 2026-09-28 — Priced `offset-meter-escalation-renders-the-coincidence-menu-unlabelled` (filed by the 3346 lane) at P3/E and dispatched it on `encl/meter-escalation-recourse`, Opus, style review. Its files (offset_meters, the editor-core chains row) are disjoint from the grid lane's.
+- 2026-09-28 — The meter-escalation lane opened PR 3347 (head `7ab8eadc13`).
+  - One routing home, `offset_meters::escalation_recourse`, read by both the Display and `classify_offset_fit`, whose copy is deleted. The checks-window text is unchanged.
+  - The predicate-name constants are used at the `decide` sites. The chains row now wants one marker on every arm.
+  - Four sibling rows filed (encl certify, iso, pcert, props); the pcert one disputes pcert's "delegates soundly" reading.
+  - Style review dispatched. The encl sibling `certify-escalation-renders-the-coincidence-menu-unlabelled` arrives with the merge and gets priced then.

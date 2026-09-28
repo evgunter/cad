@@ -2,7 +2,7 @@
 id: offset-meter-escalation-renders-the-coincidence-menu-unlabelled
 kind: issue
 title: geom-brep: MeterError::Escalated forwards Indeterminate's coincidence menu, unlabelled and offering a declaration a face's meter has no object for
-status: dispatched
+status: review
 opened: 2026-09-28
 priority: P3
 cost: E
