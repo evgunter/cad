@@ -649,3 +649,20 @@ Signed: (CONTACT orchestrator)
   invisible to it. That is a gap in the register, noted in the GERM row.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-9 traced: no wrong answer, false kernel-bug refusals
+
+- The boolean and splitting side codes, traced site by site. Every
+  levered Zero taken as a verdict either leaves the topology unchanged
+  or is caught at the join. A parity argument says a misread vertex
+  always leaves an unpaired section end, which holds for
+  `CAD_AMBIGUITY_K ≥ 2` (default 10).
+- **So there is no wrong answer, but the refusals are false.** Ordinary
+  geometry (a 1 mm edge dipping 50ε or more) refuses
+  `Join(UnpairedLooseEnds)` with "(kernel bug)".
+- **Ruled a failure.** The lane proceeds to step 3: line chords are
+  read at their far vertex in metres, as the splitting lane already
+  does; the K precondition is stated or removed. Single full review
+  after.
+
+Signed: (CONTACT orchestrator)
