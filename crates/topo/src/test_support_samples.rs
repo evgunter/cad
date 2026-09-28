@@ -364,23 +364,32 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 }
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
-    use geom_brep::offset_meters::MeterError;
+    use geom_brep::offset_meters::{Meter, MeterError, Refused};
     use geom_brep::patch_bound::PatchBoundError;
     let mut v = vec![
         OffsetFitError::Meter(MeterError::NormalFloor {
             floor: 1e-9,
-            thinness: 1e-3,
+            thinness: 5e-10,
             speed_lever: 2.0,
+            verdict: Refused::Zero { band: band() },
         }),
+        // Both verdicts: a sign-certain fold, and one inside the zero
+        // band, whose ending differs.
         OffsetFitError::Meter(MeterError::CurvatureHeadroom {
             reach: 0.5,
             headroom: -0.1,
             kappa: (2.0, 0.5),
+            verdict: Refused::Negative,
         }),
-        // Under a name a meter raises: the meters route their repair by
-        // name, and any other names a hole in that table.
+        OffsetFitError::Meter(MeterError::CurvatureHeadroom {
+            reach: 0.5,
+            headroom: 5e-10,
+            kappa: (2.0, 0.5),
+            verdict: Refused::Zero { band: band() },
+        }),
         OffsetFitError::Meter(MeterError::Escalated {
-            source: diag().with_predicate(geom_brep::offset_meters::NORMAL_FLOOR_PREDICATE),
+            meter: Meter::NormalFloor,
+            source: diag().with_predicate(Meter::NormalFloor.predicate()),
         }),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {

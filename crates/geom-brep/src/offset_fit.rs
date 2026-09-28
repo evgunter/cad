@@ -229,6 +229,7 @@ use geom_core::{
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
+use crate::recourse::Reading;
 
 /// The fitted surface's degree in both directions. A CONSTANT (D9:
 /// structure, never data-dependent tuning). Bicubic is the kernel's
@@ -721,7 +722,11 @@ impl From<FitError> for OffsetFitError {
 impl core::fmt::Display for OffsetFitError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Meter(e) => write!(f, "the offset surface's meters refused: {e}"),
+            Self::Meter(e) => write!(
+                f,
+                "the offset surface's meters refused: {}",
+                e.render(Reading::Build)
+            ),
             Self::PatchBound(e) => write!(f, "{e}"),
             // The carriers' own prose is not rendered: their repairs
             // are addressed to a caller supplying samples or a spline,
@@ -2942,8 +2947,9 @@ mod tests {
 #[allow(clippy::unwrap_used)]
 mod recourse_tests {
     use super::{BestBound, LastRound, OffsetFitError, OffsetLimb};
-    use crate::offset_meters::MeterError;
+    use crate::offset_meters::{MeterError, Refused};
     use crate::patch_bound::PatchBoundError;
+    use crate::recourse::Reading;
     use geom::curves::fit::FitError;
     use geom_core::spline::{KnotAlgebraError, SplineError};
     use geom_core::{BandError, BandField};
@@ -2996,6 +3002,9 @@ mod recourse_tests {
             floor: 0.0,
             thinness: 0.0,
             speed_lever: 1.0,
+            verdict: Refused::Zero {
+                band: geom_core::Band::new(1e-9, 1e-8).unwrap(),
+            },
         };
         let patch_bound = PatchBoundError::DegreeZero;
         let fit = FitError::TooFewPoints { have: 1, need: 2 };
@@ -3129,12 +3138,12 @@ mod recourse_tests {
         for arm in &arms {
             let msg = arm.to_string();
             let delegated = match arm {
-                OffsetFitError::Meter(_) => Some(meter.to_string()),
+                OffsetFitError::Meter(_) => Some(meter.render(Reading::Build)),
                 OffsetFitError::PatchBound(_) => Some(patch_bound.to_string()),
                 _ => None,
             };
             // Two of the carriers hold an enforcement row of their own
-            // (`every_meter_error_arm_names_a_recourse`,
+            // (`each_meter_arm_ends_in_its_decisions_recourse`,
             // `every_patch_bound_error_arm_names_a_recourse`), so those
             // arms are asserted TRANSITIVELY: the carrier is rendered
             // whole AND its clause survives into the message a caller

@@ -193,7 +193,7 @@ impl core::fmt::Display for TransformError {
                 write!(
                     f,
                     "mapped edge {edge:?} failed re-certification: {}",
-                    source.render(geom_brep::certify::Reading::Build)
+                    source.render(geom_brep::recourse::Reading::Build)
                 )
             }
             Self::NotRigid { check } => write!(
