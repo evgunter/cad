@@ -31,8 +31,9 @@
 //!
 //! A box bigger than it needs to be is free only where the box
 //! PRUNES. That is **two** of the seven doors that read a box from
-//! here; at the other five, box NON-overlap is the answer being
-//! sought, so a bigger box is a REFUSAL:
+//! here; at four of the other five, box NON-overlap is the answer being
+//! sought, so a bigger box is a REFUSAL, and at the fifth it is more
+//! exact work AND can be a refusal:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
 //!   pair's worth of exact work and can never change a verdict.
@@ -55,12 +56,19 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
-//! - `boolean::ops`'s interior-loop guard, on a cylinder pair, reads
-//!   both faces' boxes as EXTENTS: a width along the wall's axis that
-//!   an ellipse must fit in, and a ball that bounds how far the other
-//!   axis can drift. A bigger box withholds either certificate, so a
-//!   pair that could not hold an interior loop refuses as
-//!   `CurvedPairUnsupported`; it can never grant one.
+//! - `boolean::ops`'s section certificate (`section_pairs`, on both
+//!   paths) EXAMINES every pair whose two face boxes overlap, and
+//!   builds from the overlap the pair's reach, which pivots and levers
+//!   its angular margins (`section_cert`'s module docs). A bigger box
+//!   sends a separated pair through the exact classification, which
+//!   certifies it apart; and it widens the reach, which lengthens the
+//!   lever, so a nearly parallel pair decides its tilt `Zero` less
+//!   readily — onto the exact tilted arm where there is one, and into
+//!   a REFUSAL on reach where there is not (a torus pair with a
+//!   near-parallel wall). A parallel reading that survives a bigger box
+//!   is bounded by the band over a region at least as large as the
+//!   section's. A box TIGHTER than its face is the unsound direction:
+//!   its reach could miss the section.
 //! - `census`'s arm 2 clears an instance pair at its gate on a
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
@@ -2867,14 +2875,18 @@ mod tests {
     ///   face's [`edge_box`]es against the germ circle's box, the
     ///   cone/torus arm consults a [`face_box`] before refusing by
     ///   kind — reach first, kind second, as at the operand gate —
-    ///   the WALL-PAIR gate reads two [`face_box`]es, one per
-    ///   operand, on the same rule, and so does the TORUS gate (a torus
-    ///   face's box against each non-sphere face of the other operand).
-    ///   **Refuses**: whichever box fails to clear turns the pair into
-    ///   `FallbackExtentUnsupported`. The interior-loop guard's cylinder
-    ///   half reads two more [`face_box`]es, one per face of a pair, as
-    ///   the extents its certificates bound; **refuses** the same way,
-    ///   as `CurvedPairUnsupported`.
+    ///   and the section certificate's pair scan (`section_pairs`,
+    ///   both paths) reads one [`face_box`] per face of each operand:
+    ///   two that overlap put the pair through the certificate, whose
+    ///   reach — the ball about the overlap — pivots and levers its
+    ///   angular margins. **Refuses** at the extent scan: a box that
+    ///   fails to clear turns the pair into `FallbackExtentUnsupported`.
+    ///   **Examines, and can refuse,** at the pair scan: a loose box
+    ///   sends a separated pair through the classification, which
+    ///   certifies it apart, and lengthens the lever, so a near-parallel
+    ///   tilt stops deciding `Zero` and the pair takes the tilted arm or
+    ///   refuses on reach. A box TIGHTER than its face would be the
+    ///   unsound direction: its reach could miss the section.
     /// - `separation.rs` — the two separation certificates, the
     ///   placement one and the solid-pair one, on one rule.
     ///   **Refuses**, both of them and for the same reason:
@@ -2937,7 +2949,7 @@ mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 9),
+            ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("census.rs", 7),
             ("separation.rs", 2),

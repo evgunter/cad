@@ -15,7 +15,7 @@ use core::f64::consts::{FRAC_PI_2, FRAC_PI_4, PI};
 use core::num::NonZeroUsize;
 use geom_core::Bounds;
 
-use crate::shared::tol::band;
+use crate::shared::tol::{band, eps};
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::{ChartWindow, Pcurve, PcurveCache, PcurveCertifyError, chart_pcurve};
@@ -264,7 +264,7 @@ fn probe_dev1_area_enclosure_contains_a_violent_patch_oracle() {
     use geom_core::Interval;
     use geom_core::spline::KnotVector;
     let band = band();
-    let eps = 1e-9;
+    let eps = eps();
     let kv = KnotVector::unit_segment(const { NonZeroUsize::new(3).unwrap() });
     let p = |x: f64, y: f64, z: f64| [Interval::point(x), Interval::point(y), Interval::point(z)];
     // 4x4 cubic Bezier net, z warped hard (amplitude 3 on a unit

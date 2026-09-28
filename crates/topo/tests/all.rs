@@ -83,6 +83,8 @@ mod contact1_touch_cones;
 mod contact5_gate_and_beam;
 #[path = "contact7_touch_sweeps.rs"]
 mod contact7_touch_sweeps;
+#[path = "contact8_dangling_seam.rs"]
+mod contact8_dangling_seam;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]

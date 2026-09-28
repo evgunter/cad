@@ -1560,6 +1560,7 @@ pub fn naming_error_tag(err: &NamingError) -> &'static str {
         NamingError::SeamVertexPartners { .. } => "seam_vertex_partners",
         NamingError::MergedChord { .. } => "merged_chord",
         NamingError::MergedChordOffRim { .. } => "merged_chord_off_rim",
+        NamingError::MergedChordConstituents { .. } => "merged_chord_constituents",
         NamingError::SeamLineSides { .. } => "seam_line_sides",
         NamingError::MemberEdgeTied { .. } => "member_edge_tied",
         NamingError::NarrowBand { .. } => "narrow_band",

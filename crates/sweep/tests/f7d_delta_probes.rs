@@ -4,10 +4,8 @@
 //! condition measured rather than inferred.
 //!
 //! **ADOPTED** from the delta review's `verbs/f7d-probes`,
-//! authorship-preserving. They were written as review-lane probes;
-//! they ship because they are the mechanism's differential rows —
-//! D1 makes the merge-side comparison RED-CAPABLE, where the
-//! shipped `verbs_f7_collinear_seam` row only printed it.
+//! authorship-preserving; `topo`'s `f7d_delta_probes` carries the
+//! hand-built rows (D1–D4).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
