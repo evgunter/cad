@@ -2,7 +2,7 @@
 id: kernel-limit-refusals-name-loosening-without-the-bug-note
 kind: issue
 title: kernel-limit refusals say 'loosen the tolerance' without the D4 last-resort note that this may be a kernel bug
-status: dispatched
+status: review
 opened: 2026-09-28
 priority: P3
 cost: E

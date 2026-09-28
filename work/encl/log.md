@@ -1151,3 +1151,8 @@ class of 65 sites is PRED's row.
   - Siblings are routed, and the pair row is green over 4 pairs. `classify_certify` reads the same routing, fixing main's residual-as-angle defect.
   - Filed: `certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending`, and SSI's `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
   - Full review dispatched. It is the ruling's first implementation and the pattern the rollout copies.
+- 2026-09-28 — The kernel-limit lane opened PR 3363 (head `0d3966954c`).
+  - Adds a shared tail, `geom_core::KERNEL_LIMIT_LAST_RESORT`.
+  - offset_fit: two arms drop loosening (a real lever, split the face, remains); three keep it as the last resort, one of them (~769) missed by the row. topo `classify_offset_fit` mirrors this.
+  - PROPS' quadrature-budget sites are filed on PROPS' slate. topo flush is filed in issues. ssi evidence added.
+  - **Collision with 3351**, which adds `geom_core::LAST_RESORT_RECOURSE` (a whole sentence). Decision: 3363's tail is the one home, because it can carry a site's value. 3351's fix pass composes from it and deletes its own constant. The style review for 3363 is also checking that composition.
