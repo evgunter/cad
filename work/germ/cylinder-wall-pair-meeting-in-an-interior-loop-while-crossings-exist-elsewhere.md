@@ -129,3 +129,18 @@ and one event does not cover both unless each loop crosses a
 meridian. A seamless periodic band would void that. The clauses here
 do not rest on it, because the wall-pair clause asks for evidence on
 each branch.
+
+Under that premise the two-loop branches (the per-branch and
+four-quadrant rules) and the plane certificates are dormant defence.
+A loop that encircles an axis cannot lie wholly inside a valid face
+without an event, so those clauses decide over-refusal only, and no
+row can show them refusing. Only the saddle clause is live.
+
+One tolerance-level hazard is argued but unmeasured. In the band where
+the saddle margin is undecided (`|r_k − r_t − s| ≲ tol`), the two
+branches meet at a shallow angle, and a contact vertex within
+tolerance of both carriers can sit on the wrong side of
+`sign(m̂·(p − o_k))`. An event on one branch could then clear an
+interior loop on the other. That needs a face boundary within about
+tol of the loop that never touches it: a near-tangency, which the
+section certificate refuses as R-tan.

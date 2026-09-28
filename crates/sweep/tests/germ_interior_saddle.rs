@@ -104,6 +104,7 @@ fn refuses_at_the_cylinder_half(a: &Body<f64>, b: &Body<f64>, what: &str) {
         match r {
             Err(topo::BooleanError::CurvedPairUnsupported {
                 op: Some(o),
+                site: topo::PairRefusalSite::InteriorLoopGuard,
                 kind: geom_brep::SurfaceKind::Cylinder,
                 other_kind: geom_brep::SurfaceKind::Cylinder,
                 ..
