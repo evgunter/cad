@@ -192,6 +192,17 @@ pub enum SplitFinishError {
         /// The winding's diagnostic, when it escalated.
         diag: Option<geom_core::Indeterminate>,
     },
+    /// The split plane is tangent to a curved face along the section's
+    /// boundary: the cut would leave that face meeting the section
+    /// face at material wedge 0 — a knife edge no input declared,
+    /// which D1 makes the minting op's refusal. A split has no
+    /// declaration channel, so every such edge refuses.
+    SectionCusp {
+        /// The section-boundary edge the knife edge would be.
+        edge: EdgeKey,
+        /// The operand's curved face the plane is tangent to.
+        face: FaceKey,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -251,6 +262,12 @@ impl core::fmt::Display for SplitFinishError {
                 "which side of a cut face is material cannot be read: its outline \
                  encloses no area, or has an edge with no curve. Recourse: move the \
                  split plane"
+            ),
+            Self::SectionCusp { .. } => write!(
+                f,
+                "the split plane is tangent to a curved face where it cuts, so a piece \
+                 would taper to a knife edge nobody asked for. Recourse: move the split \
+                 plane off the tangency"
             ),
         }
     }
