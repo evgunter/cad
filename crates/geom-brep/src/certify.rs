@@ -120,8 +120,9 @@ pub enum CertCheck {
     Transversality,
     /// TangentIntersection: the normal-parallelism defect at an
     /// interior sample — `sin θ` metered at the lever arm `1/κ_rel`
-    /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule,
-    /// M5 PR 9).
+    /// (D2's derived angular threshold ε·κ_rel; C7 jet schedule), or,
+    /// where the second-order margin refuses and so no such lever
+    /// exists, at the folded lever arm, as the cause of that refusal.
     TangentParallel,
     /// TangentIntersection: the second-order margin at an interior
     /// sample — the relative transverse normal curvature `|κ_rel|`
@@ -1888,12 +1889,16 @@ fn run_checks<T: Decide>(
                     }
                 }
             }
-            // The C7 jet schedule (M5 PR 9), per sample: both implicit
-            // residuals within ε; at interior samples the second-order
-            // margin definitely positive FIRST (the IFT denominator —
-            // and the parallelism lever arm's own validity gate), then
-            // normal parallelism within the derived threshold at lever
-            // arm r = 1/κ_rel (D2 verbatim, D4 ¶1).
+            // The C7 jet schedule, per sample: both implicit residuals
+            // within ε; at interior samples the second-order margin
+            // definitely positive FIRST (the IFT denominator — and the
+            // parallelism lever arm's own validity gate), then normal
+            // parallelism within the derived threshold at lever arm
+            // r = 1/κ_rel (D2 verbatim, D4 ¶1). A second-order refusal
+            // is named by a definite parallelism defect at the folded
+            // arm when there is one, so a definite first-order defect is
+            // reported as itself whatever the surfaces' order or the
+            // scalar.
             Resolved::Tangent { surf1, surf2, .. } => {
                 let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
                     let (p, tau) = spec.carrier.ders1(t);
@@ -1931,18 +1936,43 @@ fn run_checks<T: Decide>(
                     let (jet, arm) = (so.jet, so.arm);
                     match so.verdict {
                         Ok(Sign::Positive) => {}
-                        // A magnitude margin: Zero is the G2/osculating
-                        // zero-side (typed, definite); Negative is
-                        // unreachable for a true magnitude and refuses
-                        // the same conservative way.
-                        Ok(Sign::Zero | Sign::Negative) => {
-                            return Err(CertifyError::NotSecondOrderSeparated { sample: i, band });
-                        }
-                        Err(cause) => {
-                            return Err(CertifyError::Escalated {
-                                check: CertCheck::TangentSecondOrder,
-                                sample: i,
-                                cause,
+                        refused => {
+                            // No lever `1/κ_rel` exists, so the
+                            // parallelism defect is metered at the folded
+                            // arm the sagitta was read over; a DEFINITE
+                            // defect there is the refusal's cause (why
+                            // `κ_rel` alone cannot tell a crossing from an
+                            // osculating pair: `crate::TangentJet`). An
+                            // in-band or zero reading is no more definite
+                            // than the second-order one, which stands.
+                            // `topo::boolean::contact_verify`'s tangency
+                            // ladder spells the same fallback lever; the
+                            // one deliberate difference is its role here,
+                            // where it only names a refusal already made.
+                            let renamed = matches!(
+                                decide(
+                                    "tangent_normal_parallel",
+                                    Margin::levered(jet.sin_theta, arm),
+                                    band,
+                                ),
+                                Ok(Sign::Positive | Sign::Negative)
+                            );
+                            return Err(match refused {
+                                _ if renamed => CertifyError::ResidualExceeded {
+                                    check: CertCheck::TangentParallel,
+                                    sample: i,
+                                },
+                                Err(cause) => CertifyError::Escalated {
+                                    check: CertCheck::TangentSecondOrder,
+                                    sample: i,
+                                    cause,
+                                },
+                                // A magnitude margin: Zero is the
+                                // G2/osculating zero-side (typed,
+                                // definite); Negative is unreachable for
+                                // a true magnitude and refuses the same
+                                // conservative way.
+                                Ok(_) => CertifyError::NotSecondOrderSeparated { sample: i, band },
                             });
                         }
                     }

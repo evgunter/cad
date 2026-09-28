@@ -188,7 +188,7 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         // The per-chart door on the same faces, both signs.
         for d in [-T, T] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
                 Ok(()) => println!(
                     "[r1] {what} per-chart d={d}: BUILT, volume {}",
@@ -203,7 +203,7 @@ fn r1_e2e_hollow_both_frustums_from_the_consumers_seat() {
         }
         // A single band of the two-band chart: the door names the sharer.
         let mut work = body.clone();
-        let got = topo::replace_face_offset(&mut work, group[0], -T, band(), Tol::witness());
+        let got = topo::replace_face_offset(&mut work, group[0], -T, Tol::witness());
         println!(
             "[r1] {what} single band: {}",
             got.as_ref().err().map(name).unwrap_or_default()
@@ -351,7 +351,7 @@ fn r1_per_chart_cone_offset_reachability_attack() {
         println!("[r1] {what}: faces {kinds:?}");
         for (d, chosen) in [(d_door, true), (-d_door, false)] {
             let mut work = body.clone();
-            let got = topo::replace_faces_offset(&mut work, &group, d, band(), Tol::witness());
+            let got = topo::replace_faces_offset(&mut work, &group, d, Tol::witness());
             match &got {
                 Ok(()) => {
                     let v1 = volume(&work);

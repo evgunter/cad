@@ -1593,7 +1593,13 @@ fn classify_replay<T: geom_core::Decide>(
     // these arms, not that none can. Deleting them is a behaviour
     // change of its own — read (2) speaks for the log's FIRST
     // escalation where an arm speaks for the one the error carried, and
-    // those differ on a node that recovered from an earlier one — so it
+    // those differ on a node that recovered from an earlier one, and on
+    // one whose error a later definite reading renamed (the tangency
+    // certificate names a definite first-order defect after its
+    // second-order margin escalated, so the log's first escalation is
+    // `tangent_second_order` while the error is `TangentParallel`:
+    // `work/encl/driver-escalation-log-names-a-renamed-tangent-refusal-osculating.md`)
+    // — so it
     // wants its own red-first row and its own measurement, which
     // `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were

@@ -1,7 +1,7 @@
 //! Regression pin for #99: the tour's scene walk must run green at
 //! every supported tolerance row, and its certified cells (`demo-tour
 //! certified`) at the default one. **Green means exit 0, and that is
-//! the whole contract** — [`run_tour`] asserts nothing else, and
+//! the whole contract** — [`assert_green`] asserts nothing else, and
 //! nothing else is available to assert.
 //!
 //! **Why the certified cells run at one ε and not three.** #99 was a
@@ -48,9 +48,8 @@
 
 use std::process::{Command, Output};
 
-/// The scene walk into a scratch directory, then — when `certified` —
-/// the certified cells.
-fn run_tour(eps: Option<&str>, certified: bool) {
+/// The scene walk into a scratch directory.
+fn run_walk(eps: Option<&str>) {
     let outdir = std::env::temp_dir().join(format!(
         "demo-tour-eps-pin-{}-{}",
         eps.unwrap_or("default"),
@@ -61,11 +60,6 @@ fn run_tour(eps: Option<&str>, certified: bool) {
     let walk = run_demo(outdir.as_os_str(), eps);
     let _ = std::fs::remove_dir_all(&outdir);
     assert_green("<outdir>", eps, &walk);
-    if !certified {
-        return;
-    }
-    let certified = run_demo("certified".as_ref(), eps);
-    assert_green("certified", eps, &certified);
 }
 
 fn run_demo(arg: &std::ffi::OsStr, eps: Option<&str>) -> Output {
@@ -104,15 +98,25 @@ fn assert_green(arg: &str, eps: Option<&str>, output: &Output) {
 
 #[test]
 fn tour_runs_green_at_default_eps() {
-    run_tour(None, true);
+    run_walk(None);
+}
+
+/// The certified cells, as their OWN row rather than after the walk in
+/// the one above: they are the longest thing this suite runs, and as a
+/// separate test nextest runs them beside the walk instead of after it.
+#[test]
+fn certified_cells_run_green_at_default_eps() {
+    let eps = None;
+    let certified = run_demo("certified".as_ref(), eps);
+    assert_green("certified", eps, &certified);
 }
 
 #[test]
 fn tour_runs_green_at_eps_1e_6() {
-    run_tour(Some("1e-6"), false);
+    run_walk(Some("1e-6"));
 }
 
 #[test]
 fn tour_runs_green_at_eps_1e_12() {
-    run_tour(Some("1e-12"), false);
+    run_walk(Some("1e-12"));
 }

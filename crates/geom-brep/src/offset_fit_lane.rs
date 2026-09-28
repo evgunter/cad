@@ -40,13 +40,15 @@
 //! # This file is on the shell's offset chain
 //!
 //! All three doors take the run's ε as the [`Tol`] witness and no
-//! `f64` epsilon, and the SHELL-TOLERANCE-CHAIN census
+//! `f64` epsilon — nor a band beside it: the band the fit's meters
+//! read is derived from the same witness, inside the door — and the
+//! SHELL-TOLERANCE-CHAIN census
 //! (`crates/topo/tests/shell_tolerance_chain.rs`) carries this file
 //! with none declared: an `f64` tolerance parameter or an `.eps()`
 //! read here reds that census and has to be said what it is for.
 
-use geom::surfaces::{NurbsSurface, Surface};
-use geom_core::{Band, Real, Tol};
+use geom::surfaces::NurbsSurface;
+use geom_core::{Real, Tol};
 
 use crate::OffsetFitError;
 
@@ -63,7 +65,11 @@ use crate::OffsetFitError;
 #[allow(clippy::type_complexity)]
 pub struct OffsetFitLane<T: Real> {
     /// [`OffsetFitLane::mint`]'s body.
-    mint: fn(std::sync::Arc<NurbsSurface<T>>, T, Tol, Band) -> Result<Surface<T>, OffsetFitError>,
+    mint: fn(
+        std::sync::Arc<NurbsSurface<T>>,
+        T,
+        Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError>,
     /// The certifier over a `(description, fit, window)` triple:
     /// [`OffsetFitLane::remap`]'s body, and [`OffsetFitLane::recertify`]'s
     /// on a surface's own triple.
@@ -72,7 +78,6 @@ pub struct OffsetFitLane<T: Real> {
         &NurbsSurface<T>,
         geom::ApproxWindow,
         Tol,
-        Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError>,
 }
 
@@ -100,7 +105,9 @@ impl<T: Real> OffsetFitLane<T> {
     /// `sup ‖S_fit − (S + d·n)‖ ≤ ε_precision`, so verifying it means
     /// measuring against the ε this validation call runs at. The
     /// surface stores no tolerance, so there is no per-surface bound
-    /// that could stand in for the ratified one.
+    /// that could stand in for the ratified one. The band the door
+    /// meters read is derived from the same witness inside the door, so
+    /// there is no second argument that could name a different ε.
     ///
     /// # Errors
     ///
@@ -109,15 +116,8 @@ impl<T: Real> OffsetFitLane<T> {
         self,
         approx: &geom::ApproxSurface<T>,
         tol: Tol,
-        band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.certify)(
-            approx.description(),
-            approx.fit(),
-            approx.window(),
-            tol,
-            band,
-        )
+        (self.certify)(approx.description(), approx.fit(), approx.window(), tol)
     }
 
     /// Mints the certified approximating surface for a NURBS operand's
@@ -139,9 +139,8 @@ impl<T: Real> OffsetFitLane<T> {
         base: std::sync::Arc<NurbsSurface<T>>,
         d: T,
         tol: Tol,
-        band: Band,
-    ) -> Result<Surface<T>, OffsetFitError> {
-        (self.mint)(base, d, tol, band)
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
+        (self.mint)(base, d, tol)
     }
 
     /// **The certificate of an offset description's fit, re-derived on
@@ -171,9 +170,8 @@ impl<T: Real> OffsetFitLane<T> {
         fit: &NurbsSurface<T>,
         window: geom::ApproxWindow,
         tol: Tol,
-        band: Band,
     ) -> Result<geom::OffsetCertificate, OffsetFitError> {
-        (self.certify)(description, fit, window, tol, band)
+        (self.certify)(description, fit, window, tol)
     }
 }
 
@@ -208,13 +206,13 @@ mod wiring_rows {
         let lane = OffsetFitLane::fit();
         if !std::ptr::fn_addr_eq(
             lane.mint,
-            crate::offset_fit::approx_offset_surface as fn(_, _, _, _) -> _,
+            crate::offset_fit::approx_offset_surface as fn(_, _, _) -> _,
         ) {
             return Err("mint is not `offset_fit::approx_offset_surface`");
         }
         if !std::ptr::fn_addr_eq(
             lane.certify,
-            crate::offset_fit::certify_offset_over as fn(_, _, _, _, _) -> _,
+            crate::offset_fit::certify_offset_over as fn(_, _, _, _) -> _,
         ) {
             return Err("certify is not `offset_fit::certify_offset_over`");
         }

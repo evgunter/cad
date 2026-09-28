@@ -263,7 +263,7 @@ fn cavity_report(what: &str, body: &Body<f64>, t: f64) {
             .get_face(m.faces[0])
             .and_then(|f| one.get_surface(f.surface))
             .cloned();
-        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, band(), tol) {
+        match topo::replace_faces_offset(&mut one, &m.faces, m.distance, tol) {
             Ok(()) => {
                 let after = one
                     .get_face(m.faces[0])

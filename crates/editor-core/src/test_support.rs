@@ -2,8 +2,10 @@
 //! through dev-dependency edges): a literal of each dimension, a point
 //! of two lengths, the world xy frame a sketch is drawn on, the rays a
 //! pick row aims, the near-tangent candidate the certified test is
-//! probed with, the door's answer read as a list, and the uncertified
-//! determinant the review rows read the certified one against.
+//! probed with, the door's answer read as a list, the uncertified
+//! determinant the review rows read the certified one against, and the
+//! recipe walks' pass-through classification a row holds against the
+//! evaluator.
 //!
 //! One home for every reader in this crate and the crates that test
 //! against it: the unit-test modules reach it as `crate::test_support`,
@@ -180,4 +182,37 @@ pub fn det_and_conditioning(ray: &Ray, tri: &[Point3<f64>; 3]) -> (f64, f64) {
     let e2: Vec3<f64> = tri[2] - tri[0];
     let det = e1.dot(ray.dir.cross(e2));
     (det, det.abs() / (e1.norm() * e2.norm() * ray.dir.norm()))
+}
+
+// --- the recipe walks' pass-through set -----------------------------
+
+/// **Which name-carrying edge the recipe walks read a node as**: the
+/// variant of `names::VerbatimEdge`, without the operands it carries.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
+pub enum VerbatimKind {
+    /// `VerbatimEdge::Whole`: every body of the input, moved.
+    Whole,
+    /// `VerbatimEdge::Selected`: one body of the input, projected.
+    Selected,
+    /// `VerbatimEdge::Intact`: the entities a split leaves intact.
+    Intact,
+}
+
+/// **The name-carrying edge the recipe walks read `node` as, if any**:
+/// `names::verbatim_edge`, the one statement of N1's pass-through set
+/// that the product's two-roots check and the mate member walk follow,
+/// reduced to its variant.
+///
+/// Carries no oracle: it IS the classification, lifted out of the
+/// crate so a row can hold it against what evaluation publishes
+/// (`tests/names_verbatim_edge_evaluator.rs`). The match has no
+/// wildcard, so an edge kind added to `VerbatimEdge` does not compile
+/// until it is mirrored here.
+pub fn verbatim_kind<P>(node: &Node<P>) -> Option<VerbatimKind> {
+    use crate::names::VerbatimEdge;
+    Some(match crate::names::verbatim_edge(node)? {
+        VerbatimEdge::Whole { .. } => VerbatimKind::Whole,
+        VerbatimEdge::Selected { .. } => VerbatimKind::Selected,
+        VerbatimEdge::Intact => VerbatimKind::Intact,
+    })
 }

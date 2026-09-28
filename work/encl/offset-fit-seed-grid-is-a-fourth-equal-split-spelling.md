@@ -2,10 +2,13 @@
 id: offset-fit-seed-grid-is-a-fourth-equal-split-spelling
 kind: issue
 title: offset_fit::seed_direction re-spells the equal-split interior grid and a third emptiness test
-status: open
+status: closed
 opened: 2026-09-26
 priority: P1
 cost: E
+branch: encl/seed-grid-and-tol-band
+pr: 3320
+closed: 2026-09-28
 ---
 
 

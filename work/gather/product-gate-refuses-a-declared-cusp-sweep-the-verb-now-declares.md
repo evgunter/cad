@@ -16,8 +16,9 @@ unit, following the carried declarations downstream. Measured:
 `crates/editor-core/tests/m10_2_measure.rs`'s
 `a_cusp_extrude_document_refuses_at_the_product_gate` evaluates a
 document whose one root extrudes a `ProgramStep::Cusp` lune and pins
-the `ProductInvalid` / `UndeclaredCusp` refusal — this item's red-first
-row, which the fix flips to gathering.
+the `RootInvalid` / `UndeclaredCusp` refusal (it read `ProductInvalid`
+before PR 3323 moved the product gate) — this item's red-first row,
+which the fix flips to gathering.
 
 ## The mechanic
 
@@ -53,7 +54,7 @@ downstream of the verb lose it:
    `assemble_gathered`).
 
 So a document whose one root is an extrude of a `.cusp()` profile
-evaluates, and then refuses at `product` as `ProductInvalid` carrying
+evaluates, and then refuses at `product` as `RootInvalid` carrying
 `UndeclaredCusp` (measured, above) — the refusal the kernel verb no
 longer asks its own callers to cure by hand.
 

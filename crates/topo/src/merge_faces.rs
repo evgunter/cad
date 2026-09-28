@@ -2241,7 +2241,7 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// [`Body::planar_loop_winding`] at ellipse reach, in this door's
+    /// [`Body::planar_loop_winding`], in this door's
     /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
     /// an in-band margin escalates. `None` is an empty loop or a NURBS
     /// or spiric carrier. `normal` is the face's OUTWARD normal.
@@ -2251,13 +2251,13 @@ impl<T: Decide> Body<T> {
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let winding = self
-            .planar_loop_winding(l, normal, band, crate::loop_winding::LoopCarriers::Elliptic)
-            .map_err(|crate::loop_winding::TornLoop| MergeCoplanarError::Op {
+        let winding = self.planar_loop_winding(l, normal, band).map_err(
+            |crate::loop_winding::TornLoop| MergeCoplanarError::Op {
                 error: EulerOpError::StaleKey {
                     key: EntityId::Loop(l),
                 },
-            })?;
+            },
+        )?;
         match winding {
             None => Ok(None),
             Some(Ok(sign)) => Ok(Some(sign)),

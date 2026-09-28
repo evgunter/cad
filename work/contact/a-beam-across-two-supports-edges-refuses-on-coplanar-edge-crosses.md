@@ -2,10 +2,12 @@
 id: a-beam-across-two-supports-edges-refuses-on-coplanar-edge-crosses
 kind: issue
 title: A beam resting across two supports' top edges refuses: the coplanar EdgeEdgeCross findings it makes have no touch site, and the census backstop reads them as crossings
-status: open
+status: closed
 opened: 2026-09-26
 priority: P0
 cost: D
+parent: CONTACT-5
+closed: 2026-09-28
 ---
 
 
@@ -22,3 +24,12 @@ ordinary resting assembly the census cannot clear. A coplanar cross of
 two boundary edges is a touch (the two faces' planes coincide there),
 and wants the same cone analysis at the crossing point: two wedges.
 Cost D.
+
+## Closed
+
+Fixed by CONTACT-5. A coplanar `EdgeEdgeCross` is a touch site
+(`TouchSite::EdgeCross`), read through the same cone analysis as every
+other touch kind: its cones are the two edges' dihedral wedges at the
+crossing point. The beam across two supports clears, and sunk 1 mm it
+refuses. On the reviewers' 135 crossed-ridge poses and 12 coplanar
+beam poses the head has 0 mismatches (base: 90 and 4).

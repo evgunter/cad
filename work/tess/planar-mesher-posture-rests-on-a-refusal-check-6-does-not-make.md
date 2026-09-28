@@ -128,5 +128,5 @@ outline and ring — pinned in `crates/sweep/tests/m5_s10_face_sense.rs`).
 The header's sentence is now true for those faces. It is still false
 for a planar loop riding an `Ellipse`, spiric or NURBS carrier (an
 oblique cut of a cylinder, an imported cap):
-`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`. The
+`work/restfront/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`. The
 posture question stands on that narrower population.

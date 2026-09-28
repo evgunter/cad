@@ -155,39 +155,25 @@ fn vocabulary_coverage_is_total() {
         }
     }
     println!("{report}");
-    // M6-3: `Loft` is covered (`loft_prism` — the loft body
-    // assembles; the M5 PR 10 frontier retired, S9-flipped in
-    // `sweep/tests/m5_pr10_frontier.rs`). `Sweep` alone remains: its
-    // NODE lane waits on the joined-path composition lane (banked
-    // past M6), listed in `NODE_KINDS` on purpose so the coverage
-    // report shows the ZERO instead of absence reading as coverage.
-    //
-    // M5 PR 12's `Fillet` was briefly exempt alongside them, for a
-    // shallower reason: the fillet battery's clearance screen seeded
-    // its gap from `T::from_f64(f64::INFINITY)`, NaI at the Interval
-    // scalar, so `die_fillet` had to wait outside the registry that
-    // the Interval lane runs. That sentinel went at `5c8540f` and the
-    // exemption retired itself exactly as the paragraph below says it
-    // would — `die_fillet` is registered and `Fillet` is covered.
-    //
-    // `Shell` is listed and uncovered for a reason of the fillet's
-    // SHAPE rather than the sweep's: its two documents (`corpus/cup.rs`,
-    // `corpus/vessel.rs`) exist and run every row the registry would
-    // run on them in `lib_g17_shell_node.rs`, but membership here also
-    // runs every document at `Dual64` and requires it green, and a
-    // dual has no shell door (the kernel verb validates what it built
-    // with a certified claim, which a dual cannot make). The typed
-    // refusal at that scalar is pinned by name there; the exemption
-    // retires when the registry's dual row learns to name a document
-    // whose lowering has no dual lane, or the door gains one.
+    // The kinds this registry cannot cover are listed in `NODE_KINDS`
+    // on purpose, so the report shows their ZERO instead of absence
+    // reading as coverage, and exempted here from ONE home that every
+    // coverage census reads: `corpus::NEVER_EVALUATES` (no document can
+    // evaluate the kind) and `corpus::BESIDE_THE_REGISTRY` (its
+    // documents evaluate but cannot be members). Each entry's reason is
+    // at its definition.
     //
     // The exemption is EXACT and retires itself: the moment a corpus
-    // document exercises one, `missing` shrinks and this assertion
+    // document exercises one, `missing` shrinks and the assertion below
     // fires, telling you to delete the entry.
-    const FRONTIER_UNCOVERED: [&str; 2] = ["node Sweep", "node Shell"];
+    let frontier_uncovered: Vec<String> = corpus::NEVER_EVALUATES
+        .iter()
+        .chain(&corpus::BESIDE_THE_REGISTRY)
+        .map(|k| format!("node {k}"))
+        .collect();
     let still_missing: Vec<&String> = missing
         .iter()
-        .filter(|m| !FRONTIER_UNCOVERED.contains(&m.as_str()))
+        .filter(|m| !frontier_uncovered.contains(m))
         .collect();
     assert!(
         still_missing.is_empty(),
@@ -198,17 +184,18 @@ fn vocabulary_coverage_is_total() {
             .collect::<Vec<_>>()
             .join(", ")
     );
-    for exempt in FRONTIER_UNCOVERED {
+    for exempt in &frontier_uncovered {
         assert!(
-            missing.iter().any(|m| m == exempt),
-            "{exempt} is now covered — remove it from FRONTIER_UNCOVERED{report}"
+            missing.contains(exempt),
+            "{exempt} is now covered — remove it from `corpus::NEVER_EVALUATES` or \
+             `corpus::BESIDE_THE_REGISTRY`{report}"
         );
     }
     // Guard the other direction: a NEW node/edit kind must be added
     // to the tally lists (and then to the corpus) — an unlisted kind
     // would otherwise pass unnoticed.
     assert_eq!(
-        nodes.len() + FRONTIER_UNCOVERED.len(),
+        nodes.len() + frontier_uncovered.len(),
         NODE_KINDS.len(),
         "unlisted node kind covered"
     );

@@ -93,16 +93,16 @@ pub use enters::{
 };
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
-    circle_residual_extremes, curvature_lever_arm, implicit_gradient, implicit_hessian_form,
-    implicit_max_normal_curvature, implicit_outward_normal, implicit_residual,
-    min_radius_of_curvature, ring_torus,
+    circle_residual_extremes, cone_elevation, curvature_lever_arm, implicit_gradient,
+    implicit_hessian_form, implicit_max_normal_curvature, implicit_outward_normal,
+    implicit_residual, min_radius_of_curvature, ring_torus,
 };
 pub use intersect::{
     CoaxialEvidence, ConeCylinderSection, CylinderSphereSection, EqualCylinderSection, PairRoute,
     PlaneConeSection, PlaneCylinderSection, PlaneSphereSection, PlaneTorusSection, RadiusEvidence,
     Rung, SectionError, SphereSphereSection, SurfaceKind, cone_cylinder_section,
     cylinder_cylinder_section, cylinder_sphere_section, plane_cone_section, plane_cylinder_section,
-    plane_sphere_section, plane_torus_section, route, sphere_sphere_section,
+    plane_sphere_section, plane_torus_section, route, route_pose, sphere_sphere_section,
 };
 pub use keys::{CurveKey, PointKey, SurfaceKey};
 pub use mapped::{MappedCurve, SketchSegment};

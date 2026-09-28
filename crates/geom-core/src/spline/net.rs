@@ -416,8 +416,7 @@ mod tests {
     /// The refinement schedule for one direction: every nonempty span of
     /// `kv` cut into `splits` equal pieces.
     fn chain(kv: &KnotVector, splits: usize) -> Vec<crate::spline::CurvePlan> {
-        use crate::spline::algebra::{equal_split_points, refine_plan_homogeneous};
-        refine_plan_homogeneous(kv, &equal_split_points(kv, splits)).unwrap()
+        crate::spline::algebra::equal_split_plan(kv, splits).unwrap()
     }
 
     /// **Ring refinement is the per-line chain, scattered back** — each

@@ -2,11 +2,12 @@
 id: torus-onto-the-subtract-and-intersect-roster
 kind: issue
 title: Torus onto revert_arm_exists: subtract and intersect still refuse a torus operand at the front door
-status: open
+status: dispatched
 opened: 2026-09-25
 refs: [torus-operand-gate-admission]
 priority: P2
 cost: D
+branch: germ/torus-ops-and-chord
 ---
 
 ## What

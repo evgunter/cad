@@ -1238,6 +1238,10 @@ BOUND_AS = {
     "ProfilePieces": "Doc.pieces",
     "PlacementRuleFault": "EditError.variant",
     "RootFault": "EditError.variant",
+    # What a `RootInvalid` refusal lists, one per failing source body;
+    # the arm crosses as its tag word, its first failing root as
+    # `node`, and every root, output and finding in its message.
+    "SourceFinding": "ProductError.node",
     "RAD": "rad",
     "RecipeNodeId": "NodeId",
     "ResolveFault": "EvaluationError.kind",
@@ -3434,7 +3438,7 @@ MEMBERS_BOUND_AS = {
     "ProductError::RootPoisoned": "ProductError.variant",
     "ProductError::NoBodyRoots": "ProductError.variant",
     "ProductError::Graft": "ProductError.variant",
-    "ProductError::SolidInvalid": "ProductError.variant",
+    "ProductError::RootInvalid": "ProductError.variant",
     "ProductError::ProductInvalid": "ProductError.variant",
     "ProductError::ContactLineage": "ProductError.variant",
     "ReadbackError::Dangling": "ReadbackError.variant",
@@ -3545,6 +3549,8 @@ MEMBERS_BOUND_AS = {
     "ValidationError::DegenerateTorusEscalated": "ValidationFinding.variant",
     "ValidationError::PoisonedSurfaceDatum": "ValidationFinding.variant",
     "ValidationError::UnrepresentableSurfaceDatum": "ValidationFinding.variant",
+    "ValidationError::PoisonedCurveDatum": "ValidationFinding.variant",
+    "ValidationError::UnrepresentableCurveDatum": "ValidationFinding.variant",
     "ValidationError::EdgeCertification": "ValidationFinding.variant",
     "ValidationError::DescriptionNotAdjacent": "ValidationFinding.variant",
     "ValidationError::PlanarFaceResidual": "ValidationFinding.variant",
@@ -3566,6 +3572,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
+    "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",
