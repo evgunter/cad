@@ -1095,9 +1095,9 @@ pub(crate) fn section_report<
 ///
 /// Either certificate's refusal.
 #[cfg(any(test, feature = "test-support"))]
-pub(crate) fn no_crossings_certificates<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
-    a: &Body<T>,
-    b: &Body<T>,
+pub(crate) fn no_crossings_certificates(
+    a: &Body<f64>,
+    b: &Body<f64>,
     tol: Tol,
 ) -> Result<usize, BooleanError> {
     let band = Band::linear(tol)?;

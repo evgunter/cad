@@ -170,6 +170,7 @@ REGISTER=(
   "crates/topo/src/chart_region.rs|face_boundary_points||1|unaudited"
   "crates/topo/src/chart_region.rs|loop_uv_polygon||1|unaudited"
   "crates/topo/src/chord_join.rs|face_azimuth_images||1|unaudited"
+  "crates/topo/src/chord_join.rs|cone_apex_closure||1|audited: the discarded variant is answered — an outline that is not a cycle has no lift, so the closure answers Open and both callers refuse it (the cone trim as PartialConeFace, W2 as not describing)"
   "crates/topo/src/coherence.rs|traversals||1|unaudited"
   "crates/topo/src/euler.rs|find_half_edge||1|unaudited"
   "crates/topo/src/euler.rs|mef_chord||1|unaudited"
