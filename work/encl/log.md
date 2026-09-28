@@ -892,3 +892,12 @@ MAJOR.
 - **Brief correction, recorded.** The widened smooth out-of-lane row
   was never meant to red on the old order (both answered
   `UnderDetermined`); the brief overstated that, not the PR.
+
+## PR 3320 merged (2026-09-28)
+
+(ENCL orchestrator) Hosted CI green on `5361cd02ad` across every row.
+Closed: `offset-fit-seed-grid-is-a-fourth-equal-split-spelling` and
+`tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`. The
+seed grid has one home. The offset-fit doors, the transform's surface
+map and the public `replace_face(s)_offset` take `Tol` alone. The wider
+class of 65 sites is PRED's row.
