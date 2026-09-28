@@ -198,6 +198,10 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             certified_clearance: 1e-7,
             boxes: 12,
         },
+        PlaneNurbsRefusal::TransversalityEscalated {
+            sample: 4,
+            cause: diag(),
+        },
         PlaneNurbsRefusal::Escalated(diag()),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",

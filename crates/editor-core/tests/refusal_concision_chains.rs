@@ -62,6 +62,16 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/Certify",
+    // Keyed because `topo::TransformError::Certify`'s `Display` prints
+    // the mapped edge as `{edge:?}`, not because these are kernel bugs;
+    // filed on CHROME's slate:
+    // work/chrome/transform-certify-refusal-names-the-edge-by-arena-key.md
+    "Transform/Certify/Routed/transversality",
+    "Transform/Certify/Routed/not-transverse",
+    "Transform/Certify/Routed/span",
+    "Transform/Certify/Routed/invalid",
+    "Transform/Certify/Routed/endpoint",
+    "Transform/Certify/Routed/surface-residual",
     "Transform/NullScaffold",
     "Loft/Euler",
     "Loft/Pcurve",
@@ -943,8 +953,122 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain(certify_refusal_routes())
     .chain(offset_fit_routes())
     .collect()
+}
+
+/// One certification refusal per ending the certifier's typed routing
+/// gives (D4 ¶1), with that whole ending:
+/// - a sized decision's lever and the tolerance below `m/K`, on its
+///   in-band arm, and the same lever and conditional on its definite
+///   zero arm, which has no margin to quote;
+/// - the span's own lever;
+/// - a poisoned margin on a sized decision: the lever, and what it may
+///   mean;
+/// - an exact residual's kernel-defect ending;
+/// - an approximation's last resort.
+///
+/// The band is fixed rather than the run's witness band, so the rendered
+/// band numbers and the quoted `m/K` are the same at every eps row.
+fn certify_refusals() -> Vec<(&'static str, geom_brep::CertifyError, &'static str)> {
+    use geom_brep::{CertCheck, CertifyError};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+    let band = Band::new(1.0e-9, 1.0e-8).expect("a fixed, ordered band");
+    let escalated = |check, margin| CertifyError::Escalated {
+        check,
+        sample: 4,
+        cause: Indeterminate {
+            margin,
+            band,
+            predicate: Some("dihedral_wedge"),
+        },
+    };
+    let in_band = MarginDiag::Value(5.0e-9);
+    vec![
+        (
+            "transversality",
+            escalated(CertCheck::Transversality, in_band),
+            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+             angle is intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "not-transverse",
+            CertifyError::NotTransverse { sample: 4 },
+            "Recourse: move the geometry so the faces cross at a clearer angle, or, if this \
+             angle is intended, tighten the tolerance",
+        ),
+        (
+            "span",
+            escalated(CertCheck::ParamSpan, in_band),
+            "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
+             length is intended, tighten the tolerance below 5e-10 m",
+        ),
+        (
+            "invalid",
+            escalated(CertCheck::Transversality, MarginDiag::Invalid),
+            "Recourse: move the geometry so the faces cross at a clearer angle; the margin \
+             could not be read (not a number, or a lever that collapsed), which may indicate a \
+             kernel bug worth reporting",
+        ),
+        (
+            "endpoint",
+            escalated(CertCheck::EndpointStart, in_band),
+            geom_core::KERNEL_DEFECT_ENDING,
+        ),
+        (
+            "surface-residual",
+            escalated(CertCheck::Surface1Residual, in_band),
+            geom_core::KERNEL_LIMIT_RECOURSE,
+        ),
+    ]
+}
+
+/// [`certify_refusals`] as the feature tree meets them: a transform's
+/// re-certification of a mapped edge.
+fn certify_refusal_routes() -> Vec<(String, NodeErrorKind)> {
+    certify_refusals()
+        .into_iter()
+        .map(|(route, source, _)| {
+            row(
+                &format!("Transform/Certify/Routed/{route}"),
+                NodeErrorKind::Transform(topo::TransformError::Certify {
+                    edge: topo::EdgeKey::default(),
+                    source,
+                }),
+            )
+        })
+        .collect()
+}
+
+/// A certification refusal ends in the one ending its decision and
+/// verdict route it to, whole, with one recourse marker and no
+/// declaration: certification takes none.
+#[test]
+fn every_certify_refusal_ends_in_its_routed_sentence() {
+    let rows = certify_refusal_routes();
+    let routed = certify_refusals();
+    assert_eq!(rows.len(), routed.len());
+    for ((name, kind), (route, _, ending)) in rows.into_iter().zip(routed) {
+        let text = as_the_viewer_shows_it(kind);
+        assert!(text.ends_with(ending), "{name}: {text}");
+        if route == "transversality" {
+            assert_eq!(
+                text,
+                "node 5 failed: the transform op refused: mapped edge EdgeKey(null) failed \
+                 re-certification: the transversality margin at sample 4 escalated: predicate \
+                 'dihedral_wedge' indeterminate: margin 5e-9 lies inside the ambiguity band \
+                 (1e-9, 1e-8). Recourse: move the geometry so the faces cross at a clearer \
+                 angle, or, if this angle is intended, tighten the tolerance below 5e-10 m"
+            );
+        }
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            1,
+            "{name}: {text}"
+        );
+        assert!(!text.contains("declare"), "{name}: {text}");
+    }
 }
 
 /// One `Meter/Escalated` sample per ending it routes to, with that
