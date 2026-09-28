@@ -1013,3 +1013,172 @@ fn a_declaration_exempts_its_own_pair_only() {
     assert!(!ops::declares_pair(&decls, fa[0], fb[1]));
     assert!(!ops::declares_pair(&decls, fa[1], fb[0]));
 }
+
+// -------------------------------------------------------------------
+// W2 on apex-closed cone faces: the apex closure
+// -------------------------------------------------------------------
+
+/// The unit cone about `z`, apex at the origin, half-angle π/4: the
+/// rim at `z = 1` has radius 1.
+fn unit_cone() -> Surface<f64> {
+    Surface::Cone {
+        apex: p(0.0, 0.0, 0.0),
+        axis: Vec3::unit_z(),
+        half_angle: PI / 4.0,
+        u_ref: Vec3::unit_x(),
+    }
+}
+
+/// The rim point at azimuth `t`.
+fn rim_at(t: f64) -> Point3<f64> {
+    p(t.cos(), t.sin(), 1.0)
+}
+
+/// **A bow-tie**: one face of the unit cone whose outline runs through
+/// the apex twice, bounding the sectors `[π/2, 3π/4]` and `[0, π/4]`,
+/// beside the two single-sector faces cut from it. Returns the body,
+/// the bow-tie and one sector.
+fn cone_bow_tie() -> (Body<f64>, FaceKey, FaceKey) {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let seed = body.mvfs(p(0.0, 0.0, 0.0)).unwrap();
+    let cone = body
+        .set_face_surface(seed.face, FaceSurface::New(unit_cone()))
+        .unwrap();
+    let arc = |body: &mut Body<f64>, t0: f64, t1: f64| {
+        let rim_plane = body.add_surface(plane(p(0.0, 0.0, 1.0), Vec3::unit_z()));
+        EdgeCurveSpec {
+            description: EdgeDescriptionSpec::Intersection {
+                s1: cone,
+                s2: rim_plane,
+                witness: rim_at(0.5 * (t0 + t1)),
+            },
+            carrier: Curve3::Circle {
+                center: p(0.0, 0.0, 1.0),
+                axis: Vec3::unit_z(),
+                radius: 1.0,
+                u_ref: Vec3::unit_x(),
+            },
+            param_start: t0,
+            param_end: t1,
+        }
+    };
+    let e1 = body
+        .mev_line(
+            MevSite::Lone {
+                r#loop: seed.r#loop,
+            },
+            rim_at(0.0),
+            tol,
+        )
+        .unwrap();
+    let spec = arc(&mut body, 0.0, PI / 4.0);
+    let e2 = body
+        .mev(
+            MevSite::Fan {
+                he1: e1.he_minus,
+                he2: e1.he_minus,
+            },
+            rim_at(PI / 4.0),
+            spec,
+            tol,
+        )
+        .unwrap();
+    let e3 = body
+        .mev_line(
+            MevSite::Fan {
+                he1: e1.he_plus,
+                he2: e1.he_plus,
+            },
+            rim_at(PI / 2.0),
+            tol,
+        )
+        .unwrap();
+    let spec = arc(&mut body, PI / 2.0, 0.75 * PI);
+    let e4 = body
+        .mev(
+            MevSite::Fan {
+                he1: e3.he_minus,
+                he2: e3.he_minus,
+            },
+            rim_at(0.75 * PI),
+            spec,
+            tol,
+        )
+        .unwrap();
+    let sector = body
+        .mef(
+            MefSite::Chords {
+                he1: e2.he_minus,
+                he2: e3.he_plus,
+            },
+            EdgeCurveSpec::line_between(rim_at(PI / 4.0), p(0.0, 0.0, 0.0)),
+            FaceSurface::Shared(cone),
+            tol,
+        )
+        .unwrap()
+        .face;
+    body.mef(
+        MefSite::Chords {
+            he1: e4.he_minus,
+            he2: e1.he_plus,
+        },
+        EdgeCurveSpec::line_between(rim_at(0.75 * PI), p(0.0, 0.0, 0.0)),
+        FaceSurface::Shared(cone),
+        tol,
+    )
+    .unwrap();
+    (body, seed.face, sector)
+}
+
+/// **A face through the apex twice has no single lift, and does not
+/// describe.** Its two sectors' gap lies between them on the cone, and
+/// no one window can exclude it. A single sector cut from the same
+/// sheet does describe. The mutant that relaxes "exactly one apex
+/// visit" lifts the bow-tie from its first visit and clears W2 on it.
+#[test]
+fn a_bow_tie_through_the_apex_twice_does_not_describe() {
+    use crate::chord_join::{ApexClosure, cone_apex_closure};
+    let (body, bow_tie, sector) = cone_bow_tie();
+    let cone = unit_cone();
+    let crate::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(bow_tie).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the bow-tie's outline is a cycle");
+    };
+    let apex_visits = body
+        .loop_cycle(first)
+        .unwrap()
+        .into_iter()
+        .filter(|&he| {
+            let v = body.get_half_edge(he).unwrap().start;
+            (crate::readback::vertex_point_ref(&body, v).unwrap() - p(0.0, 0.0, 0.0)).norm() == 0.0
+        })
+        .count();
+    assert_eq!(
+        apex_visits, 2,
+        "the fixture's outline visits the apex twice"
+    );
+    assert_eq!(
+        cone_apex_closure(&body, &cone, bow_tie, band()).unwrap(),
+        ApexClosure::Open
+    );
+    let mut charts = ops::ChartCache::default();
+    assert!(
+        !charts.describes(Operand::A, &body, bow_tie, &cone, band()),
+        "the bow-tie must not describe"
+    );
+    assert!(
+        matches!(
+            cone_apex_closure(&body, &cone, sector, band()).unwrap(),
+            ApexClosure::Closed { .. }
+        ),
+        "one sector visits the apex once"
+    );
+    assert!(
+        charts.describes(Operand::A, &body, sector, &cone, band()),
+        "a single sector describes"
+    );
+}
