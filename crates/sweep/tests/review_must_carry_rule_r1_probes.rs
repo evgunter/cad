@@ -21,11 +21,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{EdgeDescription, MustCarryVerdict, must_carry_over_edge};
+use geom_brep::{MustCarryVerdict, must_carry_over_edge};
 use geom_core::{Band, MarginDiag, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, RevolveError, extrude, revolve};
 use topo::Body;
+
+use crate::common::contact_edges::intrinsic_edges;
 
 fn band() -> Band {
     Band::linear(Tol::witness()).expect("the run's linear band")
@@ -200,19 +202,6 @@ fn assert_in_band(source: geom_core::Indeterminate) {
     }
 }
 
-fn tangent_intersections(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
-}
-
 const STADIUM_R: f64 = 0.4;
 
 /// A stadium — two semicircles of radius [`STADIUM_R`] joined by two
@@ -246,9 +235,9 @@ fn a_stadium_strut_refuses_at_both_ends_of_the_band_and_stores_either_definite_s
         }
     }
     let positive = stadium(arm_for(STADIUM_R / 4.0, STADIUM_R)).expect("definite builds");
-    assert_eq!(tangent_intersections(&positive), 4);
+    assert_eq!(intrinsic_edges(&positive), 4);
     let zero = stadium(arm_for(band().zero() / 50.0, STADIUM_R)).expect("under-determined builds");
-    assert_eq!(tangent_intersections(&zero), 0);
+    assert_eq!(intrinsic_edges(&zero), 0);
 }
 
 const LIP_R: f64 = 0.4;
@@ -298,7 +287,7 @@ fn a_lipped_ring_refuses_at_both_ends_of_the_band_and_stores_the_definite_side()
     }
     // A wide angle: the fold saturates at the lip radius, margin r/2.
     let positive = lipped_ring(2.0 * (0.25f64).sin()).expect("definite builds");
-    assert_eq!(tangent_intersections(&positive), 1);
+    assert_eq!(intrinsic_edges(&positive), 1);
     let zero = lipped_ring(arm_for(band().zero() / 50.0, LIP_R)).expect("under-determined builds");
-    assert_eq!(tangent_intersections(&zero), 0);
+    assert_eq!(intrinsic_edges(&zero), 0);
 }

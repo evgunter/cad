@@ -36,6 +36,7 @@ use geom_brep::offset_fit::{
 use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
 use geom_core::Bounds;
+use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::Point3;
 use geom_core::spline::KnotVector;
 
@@ -544,8 +545,14 @@ fn a_cap_stop_with_a_finite_bound_names_the_cap_not_the_round_budget() {
                 "the message points at the round budget: {msg}"
             );
             assert!(
-                msg.contains(&format!("loosen the tolerance to {best_bound} m")),
-                "the repair is not sized to the best bound reached: {msg}"
+                msg.contains(&format!("best certified error was {best_bound} m")),
+                "the message does not report the best bound reached: {msg}"
+            );
+            // The cap has a geometry lever, so the message names it and
+            // advises no loosening.
+            assert!(
+                msg.contains("Recourse: split the face") && !msg.contains("loosen"),
+                "the recourse is not the split alone: {msg}"
             );
         }
         other => panic!("a cap stop with a finite bound did not name the cap: {other:?}"),
@@ -680,9 +687,10 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
         "the message says a round that rose was improving: {msg}"
     );
     assert!(
-        msg.contains(&format!("loosen the tolerance to {best} m or more"))
-            && !msg.contains(&format!("{achieved} m")),
-        "the repair is not sized to the best bound reached: {msg}"
+        msg.ends_with(&format!(
+            "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+        )) && !msg.contains(&format!("{achieved} m")),
+        "the last resort is not sized to the best bound reached: {msg}"
     );
 }
 
@@ -1210,9 +1218,10 @@ fn the_second_non_improving_round_is_the_stalls_face() {
             "saddle d={d:e}: the message does not say what was tried: {msg}"
         );
         assert!(
-            msg.contains(&format!("loosen the tolerance to {best} m or more"))
-                && !msg.contains(&format!("{achieved} m")),
-            "saddle d={d:e}: the repair is not sized to the best bound reached: {msg}"
+            msg.ends_with(&format!(
+                "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+            )) && !msg.contains(&format!("{achieved} m")),
+            "saddle d={d:e}: the last resort is not sized to the best bound reached: {msg}"
         );
     }
 }

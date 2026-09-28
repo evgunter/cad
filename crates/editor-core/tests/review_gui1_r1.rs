@@ -8,7 +8,7 @@
 //! Rows:
 //!
 //! 1. `dyadic_battery_...` (static fixture, shape 2 of
-//!    `memories/test-suite-cost.md` — no seed): rays at all 6 face
+//!    implementer-discipline §8 — no seed): rays at all 6 face
 //!    centers, down all 12 edges, into all 8 corners, and from the
 //!    interior, on dyadic geometry where every winning computation is
 //!    exact — asserting hit `t`, the resolved face (via public

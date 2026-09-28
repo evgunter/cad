@@ -20,13 +20,17 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{
     ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
+
+use crate::common::poses::poses;
+use crate::common::torus_walls::{torus_barrel, torus_belly, vessel_cavity};
+use crate::common::{TILTED_CUT_WALL_VOLUME, tilted_cut_cylinder, tilted_cut_normal};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,7 +130,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             name: "torus barrel",
-            body: crate::torax_axial::torus_barrel(),
+            body: torus_barrel(),
             truth: |p| {
                 let (r, y) = axial(p);
                 y > 0.0
@@ -138,7 +142,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             name: "torus belly",
-            body: crate::torax_axial::torus_belly(),
+            body: torus_belly(),
             truth: |p| {
                 let (r, y) = axial(p);
                 if y <= 0.0 || y >= 0.125 {
@@ -220,88 +224,8 @@ fn cases() -> Vec<Case> {
     ]
 }
 
-/// The cut cylinder's plane: tilted 0.3 rad about `y` through the axis
-/// point `(0, 0, 1.25)`.
-fn tilted_normal() -> Vec3<f64> {
-    Vec3::new(0.3f64.sin(), 0.0, 0.3f64.cos())
-}
-
 fn tilted_elevation(p: Point3<f64>) -> f64 {
-    (p - Point3::new(0.0, 0.0, 1.25)).dot(tilted_normal())
-}
-
-/// How far a cut-cylinder volume may sit from its closed form: the
-/// tilted-section wall's flux is a QUADRATURE converged to the run's ε,
-/// measured 2.2e-6 m³ off at ε = 1e-6. The volumes here only confirm
-/// the fixture is the half its truth describes, so the bound sits well
-/// above that and far below the 0.064 m³ a missed box would move.
-const TILTED_WALL_VOLUME: f64 = 1e-4;
-
-/// A unit cylinder of height 2.5 split by the tilted plane — the
-/// corpus's `cut_cylinder`, both halves. The cut face's rim is two exact
-/// `Ellipse` arcs (semi-axes `1/cos 0.3` and 1).
-fn cut_cylinder(above: bool) -> Body<f64> {
-    use topo::splitting::{SplitPart, SplitPlane, split};
-    let tall = prism(vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)], 2.5, tol());
-    let plane = SplitPlane {
-        origin: Point3::new(0.0, 0.0, 1.25),
-        normal: tilted_normal(),
-    };
-    let result = split(&tall, &plane, tol()).unwrap();
-    let part = if above { &result.above } else { &result.below };
-    let SplitPart::Body(half) = part else {
-        panic!("each half carries material");
-    };
-    let v = topo::mass_properties(half, tol()).unwrap().volume;
-    assert!(
-        (v - core::f64::consts::PI * 1.25).abs() < TILTED_WALL_VOLUME,
-        "the plane halves the cylinder: {v}"
-    );
-    assert!(
-        half.edges().any(|(_, e)| half
-            .get_curve_geom(e.curve)
-            .and_then(topo::CurveGeom::certified)
-            .is_some_and(|c| matches!(c.carrier(), geom::Curve3::Ellipse { .. }))),
-        "the cut face is bounded by ellipse arcs"
-    );
-    half.clone()
-}
-
-/// The identity, the torax row's own re-pose, and four more — two of
-/// which (a quarter turn about `x`, a turn about `y` that keeps the
-/// revolve axis) leave the schedule meeting the fixtures as it meets
-/// them unposed.
-pub(crate) fn poses() -> Vec<(&'static str, Affine3<f64>)> {
-    let about = |pivot: [f64; 3], axis: Vec3<f64>, angle: f64| {
-        Affine3::rotation_about_axis(Point3::new(pivot[0], pivot[1], pivot[2]), axis, angle)
-    };
-    vec![
-        ("identity", about([0.0; 3], Vec3::new(1.0, 0.0, 0.0), 0.0)),
-        (
-            "0.7 about x through (1/4, -1/2, 1/8)",
-            about([0.25, -0.5, 0.125], Vec3::new(1.0, 0.0, 0.0), 0.7),
-        ),
-        (
-            "0.7 about z",
-            about([0.0; 3], Vec3::new(0.0, 0.0, 1.0), 0.7),
-        ),
-        (
-            "0.3 about y through (0.1, 0.2, 0.3)",
-            about([0.1, 0.2, 0.3], Vec3::new(0.0, 1.0, 0.0), 0.3),
-        ),
-        (
-            "1.1 about (1,2,3) through (-0.2, 0.1, 0.4)",
-            about([-0.2, 0.1, 0.4], Vec3::new(1.0, 2.0, 3.0).normalize(), 1.1),
-        ),
-        (
-            "pi/2 about x",
-            about(
-                [0.0; 3],
-                Vec3::new(1.0, 0.0, 0.0),
-                core::f64::consts::FRAC_PI_2,
-            ),
-        ),
-    ]
+    (p - Point3::new(0.0, 0.0, 1.25)).dot(tilted_cut_normal())
 }
 
 /// Grid points of the fixture's box whose truth is stable under a 2%
@@ -474,7 +398,7 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
     );
     let dome = dome(1.0, tol());
     let holed = holed_plate();
-    let cut = cut_cylinder(true);
+    let cut = tilted_cut_cylinder(true);
     let axis_point = Point3::new(0.0, 0.0, 1.25);
     let on_cut = |x: f64, y: f64| {
         // The in-plane point over `(x, y)`.
@@ -583,7 +507,7 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
             "cut cylinder's cut face (two ellipse arcs)",
             &cut,
             axis_point,
-            tilted_normal(),
+            tilted_cut_normal(),
             vec![
                 (axis_point, Some(true)),
                 (on_cut(0.0, 1.0 - near), Some(true)),
@@ -619,7 +543,7 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
 #[test]
 fn a_spiric_bounded_face_refuses_only_within_its_reach() {
     let band = Band::linear(tol()).expect("the witness band");
-    let (_, cavity) = crate::spiric_rim::vessel_cavity(1.0 / 128.0);
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let spiric_face = cavity
         .faces()
         .find(|(_, f)| {
@@ -703,7 +627,7 @@ fn loop_vertex(body: &Body<f64>, lk: topo::LoopKey) -> Point3<f64> {
 /// ellipse arcs rather than refusing the face.
 #[test]
 fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
-    let half = cut_cylinder(true);
+    let half = tilted_cut_cylinder(true);
     let cavity = brick((-0.2, 0.2), (-0.2, 0.2), (1.8, 2.2), tol());
     let out = match topo::subtract(&half, &cavity, tol()) {
         Ok(topo::BooleanResult::Body(out)) => out.body,
@@ -713,7 +637,7 @@ fn a_box_inside_the_cut_cylinder_subtracts_through_the_containment_fallback() {
     let v = topo::mass_properties(&out, tol()).unwrap().volume;
     let truth = core::f64::consts::PI * 1.25 - 0.4 * 0.4 * 0.4;
     assert!(
-        (v - truth).abs() < TILTED_WALL_VOLUME,
+        (v - truth).abs() < TILTED_CUT_WALL_VOLUME,
         "volume {v}, truth {truth}"
     );
 }
@@ -757,7 +681,7 @@ fn holed_plate() -> Body<f64> {
 fn the_cut_cylinders_ellipse_face_takes_nothing_away() {
     let band = Band::linear(tol()).expect("the witness band");
     for above in [true, false] {
-        let half = cut_cylinder(above);
+        let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
             let posed = transform_rigid(&half, &map, tol()).unwrap();
             for i in 0..5 {
@@ -795,7 +719,7 @@ fn the_cut_cylinder_reads_its_truth() {
     let mut wrong = Vec::new();
     let (mut answered, mut at_infinity) = (0usize, 0usize);
     for above in [true, false] {
-        let half = cut_cylinder(above);
+        let half = tilted_cut_cylinder(above);
         for (pose, map) in poses() {
             let posed = transform_rigid(&half, &map, tol()).unwrap();
             for i in 0..5 {
@@ -853,7 +777,7 @@ fn the_cut_cylinder_reads_its_truth() {
 #[test]
 fn a_wall_point_across_the_section_is_not_on_the_upper_half() {
     let band = Band::linear(tol()).expect("the witness band");
-    let half = cut_cylinder(true);
+    let half = tilted_cut_cylinder(true);
     let at = |h: f64| Point3::new(2.8f64.cos(), 2.8f64.sin(), h);
     for (pose, map) in poses() {
         let posed = transform_rigid(&half, &map, tol()).unwrap();

@@ -2,12 +2,13 @@
 id: area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step
 kind: issue
 title: A declared area-overlap cap contact is admitted without a merge, and the F7 gate refuses the two coplanar rows at the next boolean
-status: dispatched
+status: closed
 opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: D
 parent: CONTACT-8
+closed: 2026-09-28
 ---
 
 ## What
@@ -97,3 +98,12 @@ Ev took both decisions as proposed:
 
 `docs/DESIGN.md`'s maximal-faces clause is reworded to match. The
 implementation is the next CONTACT unit.
+
+## Closed
+
+Fixed by CONTACT-8, implementing Ev's ruling on PR 3350. The merge now
+prunes a doubled edge left dangling inside a merged face, with its free
+end, at any angle and repeatedly. An isolated edge with both ends free
+goes with both ends and its empty ring. A boolean refuses a planar
+group it cannot glue. `a ∪ f` (the declared caps) publishes two
+`Merged` rows, and the next union runs.

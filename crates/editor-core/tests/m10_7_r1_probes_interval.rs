@@ -2,7 +2,7 @@
 //! claims 1, 5, 6, 8 and the required end-to-end exercise, through the
 //! public doors only.
 //!
-//! Sweep shape ([[test-suite-cost]]): static fixtures, no seed. Rows
+//! Sweep shape (implementer-discipline §8): static fixtures, no seed. Rows
 //! marked EVIDENCE-ONLY print and gate nothing.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

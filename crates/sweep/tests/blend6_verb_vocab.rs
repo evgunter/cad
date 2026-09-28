@@ -180,7 +180,7 @@ fn the_chamfers_own_arm_speaks_as_the_chamfer_once() {
 /// door reaches from the shipped fixtures, each held to the
 /// chamfer-purity claim. One test rather than one per row because
 /// every row rebuilds the same fixtures
-/// (`memories/test-suite-cost.md`); each row carries its own label.
+/// (implementer-discipline §8); each row carries its own label.
 #[test]
 fn every_reachable_chamfer_refusal_speaks_as_the_chamfer() {
     let body = cube(L, Tol::witness());

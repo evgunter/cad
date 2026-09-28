@@ -1,8 +1,8 @@
 //! The validation harness: [`validate`] (tier 1), [`validate_closed`]
 //! (tier 2), [`validate_geometric`] (tier 3 — M2 PR 3),
-//! [`validate_pseudomanifold`] (tier 3′ — tier 3 over a body's
-//! resolved contact declarations, the door a boolean result and a STEP
-//! import are gated through), and [`ValidationError`].
+//! [`validate_pseudomanifold`] (tier 3′ — tier 3 plus the coincidence
+//! census over a body's resolved contact records, the door a boolean
+//! result and a STEP import are gated through), and [`ValidationError`].
 //!
 //! Each certifying tier has a **certificate form** beside it —
 //! [`validate_geometric_certificate`] and
@@ -204,12 +204,10 @@
 //!
 //! Every public at-rest door is one of three passes × a set of forms.
 //! A form is a suffix, and the suffixes compose in one order —
-//! `_certificate`, then `_declared`, then `_structural`:
+//! `_certificate`, then `_structural`:
 //!
 //! - **`_certificate`** returns the [`crate::SignCertificate`] check 7
 //!   decided on instead of `()`.
-//! - **`_declared`** takes the body's declared contacts as an argument
-//!   (check 4's material arm reads them).
 //! - **`_structural`** holds no certified lane (H5 ruling 3): check 7
 //!   through the closed form, no plane × NURBS lane at check 2, and at
 //!   tier 3′ no chart-region door in the census. Every door without it
@@ -227,25 +225,29 @@
 //! on a door either side lacks.
 //!
 //! <!-- door-roster:begin -->
-//! | pass | plain | `_certificate` | `_declared` | `_certificate_declared` |
-//! |---|---|---|---|---|
-//! | `validate_geometric` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` | ✓ + `_structural` |
-//! | `validate_pseudomanifold` | ✓ + `_structural` | ✓ + `_structural` | — (a) | — (a) |
-//! | `contact_marks` | ✓ + `_structural` | — (b) | ✓ + `_structural` | — (b) |
+//! | pass | plain | `_certificate` |
+//! |---|---|---|
+//! | `validate_geometric` | ✓ + `_structural` | ✓ + `_structural` |
+//! | `validate_pseudomanifold` | ✓ + `_structural` | ✓ + `_structural` |
+//! | `contact_marks` | ✓ + `_structural` | — (a) |
 //! <!-- door-roster:end -->
 //!
-//! (a) The tier-3′ pass takes its declarations as the body's
-//! [`crate::boolean::ContactRecords`] — the `contacts` argument every
-//! form already has — and reads only their CURVE records into check 4,
-//! deliberately not the `Rest` patch records: a conformal declaration
-//! asserts the wrong class for a curve locus. A `_declared` form taking
-//! `DeclaredContact`s would be a second spelling of that argument and a
-//! channel for exactly the class the pass refuses to read.
-//! (b) The marks pass's product is the marks channel; the certificate
+//! (a) The marks pass's product is the marks channel; the certificate
 //! its check 7 decides on has no consumer there, and the two passes
 //! that return one are the doors a caller wanting it takes. No
 //! `contact_marks*` door has a production caller at all today — its
 //! callers are this crate's tests and probes.
+//!
+//! **Two doors sit beside the table rather than in it**, the pair
+//! [`AtRestBody`] carries: [`AtRestBody::validate`], which is
+//! [`validate_geometric`] keeping its verdict with the body, and
+//! [`AtRestBody::validate_pseudomanifold`], the tier-3′ pass over that
+//! body, which runs the census and reads the battery's half off the
+//! kept verdict. They are methods of the verdict and not forms of a
+//! pass, since the verdict is their subject. Neither has a `_structural`
+//! twin: both are bounded on the certification right, the verdict is
+//! only minted by the composed certified door, and a scalar without the
+//! right keeps no verdict to read.
 //!
 //! [`validate`] and [`validate_closed`] (tiers 1 and 2) take no form:
 //! they certify nothing and read no declaration. The measurement doors
@@ -378,7 +380,7 @@ use core::fmt;
 
 use geom::{NetState, Surface};
 use geom_brep::{
-    CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
+    CertCheck, CertifyError, DihedralClass, MaterialPairing, MaterialWedge, classify_dihedral,
     classify_material_pairing,
 };
 use geom_core::{Band, BandError, Decide, Indeterminate, Margin, Real, Sign, Tol};
@@ -391,6 +393,7 @@ use crate::contact::{ContactRefusal, DeclaredContact};
 use crate::face_normal::plane_outward_normal;
 use crate::geometry::CurveKey;
 use crate::null::CurveGeom;
+use crate::props::AtRestOutcome;
 
 use crate::entity::{
     EdgeKey, EntityId, FaceKey, GeomRef, HalfEdgeKey, LoopBoundary, LoopKey, ShellKey, SolidKey,
@@ -1091,43 +1094,17 @@ pub enum ValidationError {
         /// conventional.
         edge: EdgeKey,
     },
-    /// Tier 3 (check 4, material arm): the edge's two faces subtend a
-    /// material wedge of **0** (a cusp) or **2π** (a knife slit) and
-    /// nothing DECLARED the tangency.
-    ///
-    /// D1's ratified second-order arm (the #131 ruling): the two ends
-    /// of the wedge range are legal only where the C7 `Tangent`
-    /// contact vocabulary asserts the contact — **never** inferred
-    /// from the values, per the coincidence ladder. Discovery is not
-    /// declaration, so an undeclared cusp refuses at every ε: the
-    /// verdict does not consult the second-order margin at all, which
-    /// is also why no ε-tightening can turn this refusal into a
-    /// different one.
-    ///
-    /// The recourse is [`crate::contact::CONTACT_RECOURSE`]'s two
-    /// arms — declare the contact, or move the geometry — and never
-    /// the tolerance lever: a missing intent is not a decidability
-    /// question.
-    UndeclaredCusp {
-        /// The edge whose material wedge is 0 or 2π.
-        edge: EdgeKey,
-        /// Which end — [`MaterialWedge::Cusp`] or
-        /// [`MaterialWedge::Slit`]. The two are one another's `revert`
-        /// images and are legal together or not at all, so they refuse
-        /// through one variant carrying which it saw.
-        wedge: MaterialWedge,
-    },
     /// Tier 3 (check 4, material arm): the edge's two faces have
     /// opposed material sides along a shared tangent plane — the
     /// wedge-0/2π configuration — and their second-order jets
     /// **osculate**: κ_rel definitely collapsed.
     ///
     /// This is conformal contact along the locus, which fails the
-    /// declared arm's curve-locus condition: the surfaces do not
-    /// determine which end of the wedge range this is — there is no
-    /// crescent, only a zero-thickness sheet — and **no declaration
-    /// cures it**, because there is no certifiable curve-locus
-    /// tangency to declare.
+    /// wedge ends' jet-determinacy condition (D1's second-order arm):
+    /// the surfaces do not determine which end of the wedge range this
+    /// is — there is no crescent, only a zero-thickness sheet — and
+    /// **no contact declaration cures it**, because there is no
+    /// certifiable curve-locus tangency for one to assert.
     ///
     /// **Two different defects wear this local signature**, and the
     /// message says so rather than picking one:
@@ -1148,10 +1125,10 @@ pub enum ValidationError {
     /// reads the faces. Claiming "zero-volume" of both would be a
     /// false diagnosis attached to a true catch.
     ///
-    /// It shares no edge with [`Self::UndeclaredCusp`]: a collapsed
-    /// κ_rel yields no wedge end, so the two refusals are mutually
-    /// exclusive by construction (`MaterialArmOutcome`), not by a
-    /// precedence between them.
+    /// It is the one refusal the opposed pairing earns: a definite
+    /// κ_rel is a jet-determinate wedge end, legal at rest, and a
+    /// collapsed one yields no wedge end at all — exclusive by
+    /// construction (`MaterialArmOutcome`), not by a precedence.
     ///
     /// In-band κ_rel is NOT this: an osculation the run cannot decide
     /// escalates as [`Self::SliverDihedral`] with the
@@ -2274,12 +2251,14 @@ fn classify_band(e: &BandError) -> &'static str {
     }
 }
 
-fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
+fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
+    use geom_brep::certify::Reading;
+    use std::borrow::Cow;
     const MISMATCH: &str = "its stored description does not match its geometry";
-    const CLOSE: &str = "its faces meet too nearly tangentially to decide at this tolerance";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
-    match e {
+    // The lead is this window's own.
+    let why = match e {
         CertifyError::ChartImageUnavailable { .. }
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
@@ -2287,31 +2266,103 @@ fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
         | CertifyError::IntervalNotForward
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
-        | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => (MISMATCH, DEFECT),
-        // The DEFINITE halves of their two-tolerance pairs: the check
-        // decided, and what it decided contradicts the description.
-        CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => (
-            "its faces are tangent where its description says they cross",
-            DEFECT,
-        ),
-        CertifyError::NotSecondOrderSeparated { .. } => (
+        | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => MISMATCH,
+        CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
+            "its faces are tangent where its description says they cross"
+        }
+        CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
-             description says they do",
-            DEFECT,
-        ),
-        CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => (
+             description says they do"
+        }
+        CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => {
             "the check could not locate the curve on its spline face (the projection did not \
-             converge)",
-            NOT_YET,
-        ),
+             converge)"
+        }
         CertifyError::Unimplemented
         | CertifyError::TangentCertificateUnsupported
-        | CertifyError::PlaneNurbs(P::Unsupported { .. }) => (KIND, NOT_YET),
-        CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => (CLOSE, EDGE_CLOSE),
-        CertifyError::Escalated { cause, .. } | CertifyError::PlaneNurbs(P::Escalated(cause)) => {
-            (CLOSE, own_close(&cause.margin, EDGE_CLOSE))
+        | CertifyError::PlaneNurbs(P::Unsupported { .. }) => KIND,
+        CertifyError::PlaneNurbs(P::TubeStraddles { .. }) => {
+            "its faces are not certainly crossing along it, so they do not fix where it runs"
         }
-        CertifyError::Band(b) => (classify_band(b), TOLERANCE),
+        CertifyError::Escalated { check, .. } => certify_undecided(*check),
+        CertifyError::PlaneNurbs(P::TransversalityEscalated { .. }) => {
+            certify_undecided(CertCheck::Transversality)
+        }
+        CertifyError::PlaneNurbs(P::Escalated(_)) => {
+            certify_undecided(CertCheck::PlaneNurbsCertificate)
+        }
+        CertifyError::Band(b) => classify_band(b),
+    };
+    // The ending: a decision's refused arm ends as that decision's
+    // routing gives it at rest (`CertifyError::ending`), the one table
+    // the certifier reads too; a refusal no decision owns ends here.
+    let recourse = match e.ending(Reading::AtRest) {
+        Some(ending) => Cow::Owned(ending),
+        None => Cow::Borrowed(match e {
+            CertifyError::UnresolvedSurface { .. }
+            | CertifyError::IntersectionSameSurface { .. }
+            | CertifyError::SeamOnNonPeriodic
+            | CertifyError::IntervalNotForward
+            | CertifyError::WindingExceeded
+            | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
+            CertifyError::Unimplemented
+            | CertifyError::TangentCertificateUnsupported
+            | CertifyError::PlaneNurbs(P::FootPointInconclusive { .. } | P::Unsupported { .. }) => {
+                NOT_YET
+            }
+            CertifyError::Band(_) => TOLERANCE,
+            CertifyError::ChartImageUnavailable { .. }
+            | CertifyError::ResidualExceeded { .. }
+            | CertifyError::NotTransverse { .. }
+            | CertifyError::NotSecondOrderSeparated { .. }
+            | CertifyError::Escalated { .. }
+            | CertifyError::PlaneNurbs(
+                P::NotTransverse { .. }
+                | P::TransversalityEscalated { .. }
+                | P::Limb { .. }
+                | P::TubeStraddles { .. }
+                | P::Escalated(_),
+            ) => unreachable!("a decision's refused arm always has its decision's ending"),
+        }),
+    };
+    (why, recourse)
+}
+
+/// Why an edge's certification decision refused undecided, in the words
+/// of the decision it asks.
+fn certify_undecided(check: CertCheck) -> &'static str {
+    match check {
+        CertCheck::ParamSpan => "its length is too close to zero to decide at this tolerance",
+        CertCheck::ParamWinding => {
+            "whether its arc stays short of a full turn is too close to call at this tolerance"
+        }
+        CertCheck::Transversality => {
+            "its faces meet too nearly tangentially to decide at this tolerance"
+        }
+        CertCheck::TangentSecondOrder | CertCheck::TangentTube => {
+            "its faces curve apart too little to decide where it runs at this tolerance"
+        }
+        CertCheck::ChartImage => {
+            "where it sits on its face's parameter chart is too close to call at this tolerance"
+        }
+        CertCheck::EndpointStart
+        | CertCheck::EndpointEnd
+        | CertCheck::Surface1Residual
+        | CertCheck::Surface2Residual
+        | CertCheck::WitnessSurface1
+        | CertCheck::WitnessSurface2
+        | CertCheck::WitnessMidpoint
+        | CertCheck::TangentParallel
+        | CertCheck::TangentHull
+        | CertCheck::MappedSource
+        | CertCheck::SeamHalfplane
+        | CertCheck::SeamSide
+        | CertCheck::ChartResidual
+        | CertCheck::PlaneNurbsOnLocus
+        | CertCheck::PlaneNurbsHull
+        | CertCheck::PlaneNurbsCertificate => {
+            "whether it lies where its description says is too close to call at this tolerance"
+        }
     }
 }
 
@@ -2354,15 +2405,13 @@ fn classify_offset_fit(
             last_round: geom_brep::LastRound::Improved,
             ..
         }
-        | O::SampleCapReached { .. } => {
-            (DRIFT, "Recourse: loosen the tolerance, or split the face")
-        }
+        | O::SampleCapReached { .. } => (DRIFT, "Recourse: split the face"),
         O::BudgetExhausted {
             last_round: geom_brep::LastRound::DidNotImprove,
             ..
         }
         | O::RefinementStalled { .. }
-        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, "Recourse: loosen the tolerance"),
+        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, geom_core::KERNEL_LIMIT_RECOURSE),
         O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
@@ -2740,13 +2789,6 @@ impl fmt::Display for ValidationError {
                 f,
                 "an edge where two faces meet tangentially is stored as a sketch curve, \
                  though their surfaces determine it. {DEFECT}"
-            ),
-            Self::UndeclaredCusp { wedge, .. } => write!(
-                f,
-                "two faces meet at an edge in a {}, which is valid only where a Tangent \
-                 contact between them is declared. Recourse: declare a Tangent contact \
-                 between the two faces, or move the geometry",
-                wedge.name()
             ),
             Self::LaminaWedge { .. } => write!(
                 f,
@@ -3429,12 +3471,11 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///    **The material arm** (D1's ratified wedge table, the #131
 ///    second-order ruling) signs that classification with the faces'
 ///    material sides on the same samples: outward normals aligned is
-///    the legal π seam; opposed is the wedge-0/2π pair, legal iff a
-///    `Tangent` contact on the face pair DECLARES the tangency
-///    ([`ValidationError::UndeclaredCusp`]) and the jet is determinate
-///    — a collapsed κ_rel there is conformal contact along the locus,
-///    which the arm does not admit under any declaration
-///    ([`ValidationError::LaminaWedge`]: a true lamina, or an
+///    the legal π seam; opposed is the wedge-0/2π pair, legal iff the
+///    tangency is jet-determinate — derived from the body exactly as
+///    the seam is, never read from a declaration. A collapsed κ_rel
+///    there is conformal contact along the locus, which the arm does
+///    not admit ([`ValidationError::LaminaWedge`]: a true lamina, or an
 ///    inverted face sense on a shared surface — that error's own doc
 ///    separates them), and an in-band κ_rel is the ordinary
 ///    `SliverDihedral` escalation. Samples that DISAGREE along one
@@ -3714,7 +3755,23 @@ pub fn validate_geometric_certificate<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
-    validate_geometric_certificate_declared(body, &[], tol)
+    // The structural phase runs WITH check 2's plane x NURBS lane
+    // injected, which is what keeps this composed door re-deriving the
+    // M7-8 certificate class at rest; the public structural door,
+    // whose bound cannot name the lane, runs without it.
+    //
+    // The `?` between the two halves is the composition
+    // `validate_geometric_certified`'s privacy exists to enforce: no
+    // caller takes the certified half without the structural one, so no
+    // body is blessed by a volume claim while its geometry went
+    // unchecked. The structural phase runs without check 7, so it makes
+    // no certificate of its own to return.
+    structural_via(
+        body,
+        tol,
+        StructuralPhase::BeforeCertifiedCheck7(CertifiedLanes::<T>::held().nurbs),
+    )?;
+    validate_geometric_certified(body, tol)
 }
 
 /// **[`validate_geometric`] holding no certified lane** — the whole
@@ -3775,41 +3832,7 @@ pub fn validate_geometric_certificate_structural<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'_, T>, Vec<ValidationError>> {
-    validate_geometric_certificate_declared_structural(body, &[], tol)
-}
-
-/// [`validate_geometric_structural`] with the body's declared contacts
-/// in hand — [`validate_geometric_declared`]'s `_structural` twin.
-///
-/// # Errors
-///
-/// As [`validate_geometric_structural`].
-pub fn validate_geometric_declared_structural<
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
-    body: &Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<(), Vec<ValidationError>> {
-    validate_geometric_certificate_declared_structural(body, declarations, tol).map(|_| ())
-}
-
-/// [`validate_geometric_certificate_declared`]'s `_structural` twin —
-/// the one body of the four structural geometric doors.
-///
-/// # Errors
-///
-/// As [`validate_geometric_declared_structural`].
-pub fn validate_geometric_certificate_declared_structural<
-    'b,
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
-    body: &'b Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    structural_declared_via(body, declarations, tol, StructuralPhase::NoLane)
-        .map(certificate_of_a_clean_verdict)
+    structural_via(body, tol, StructuralPhase::NoLane).map(certificate_of_a_clean_verdict)
 }
 
 /// **Which of the two callers is running the structural battery** — the
@@ -3837,12 +3860,8 @@ enum StructuralPhase<'l, T: geom_core::Decide> {
 ///
 /// `Ok` carries check 7's certificate — `Some` exactly when the phase
 /// made it ([`certificate_of_a_clean_verdict`]'s invariant).
-fn structural_declared_via<
-    'b,
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
+fn structural_via<'b, T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &'b Body<T>,
-    declarations: &[DeclaredContact],
     tol: Tol,
     phase: StructuralPhase<'_, T>,
 ) -> Result<Option<crate::props::SignCertificate<'b, T>>, Vec<ValidationError>> {
@@ -3860,7 +3879,6 @@ fn structural_declared_via<
     let mut marks = slotmap::SecondaryMap::new();
     let (errors, certificate) = tier3_local_checks_marked(
         body,
-        declarations,
         band,
         &mut marks,
         tol,
@@ -3892,7 +3910,7 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    let quad = Some(crate::props::QuadLane::certified());
+    let quad = Some(CertifiedLanes::<T>::held().quad);
     let certificate = plus_v_by_sign(body, band, tol, quad)?;
     // Check 10, behind a clean check 7 (`shell_winding_errors`).
     let errors = shell_winding_errors(body, band, tol, quad);
@@ -4033,9 +4051,9 @@ fn certificate_of_a_clean_verdict<C>(certificate: Option<C>) -> C {
 /// **The gate that supplies the premise is tier 2, not the battery's
 /// own `if`.** Every door that reaches check 7 opens with
 /// `validate_closed(body)?`, which runs tier 1 first:
-/// `structural_declared_via` — the half [`validate_geometric`] and its
-/// `_declared` twin compose in front of `validate_geometric_certified`
-/// — `contact_marks_declared`, and `pseudomanifold_certificate_via`.
+/// `structural_via` — the half [`validate_geometric`] composes in
+/// front of `validate_geometric_certified` — `contact_marks_via`, and
+/// `pseudomanifold_certificate_via`.
 /// The battery's `if errors.is_empty()` gates check 7 on the battery's
 /// OWN checks 1–6, which is a different premise and not this one.
 fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
@@ -4255,76 +4273,6 @@ pub(crate) fn shell_role<T: Decide>(
     .and_then(|(role, _)| role)
 }
 
-/// [`validate_geometric`] with the body's **declared contacts** in
-/// hand — the door a body carrying a declared cusp or slit validates
-/// through.
-///
-/// Everything about tier 3 is unchanged except the one arm that must
-/// read a declaration: check 4's material arm, where a wedge of 0 or
-/// 2π is legal iff the C7 `Tangent` vocabulary asserts the contact on
-/// that face pair (D1's ratified second-order arm). Declarations are
-/// an INPUT here rather than body state because that is what they are
-/// — a claim a modeler makes about geometry, carried by the recipe
-/// layer and never inferred from values — and it is why
-/// [`validate_geometric`] passing an empty slice is not a shortcut:
-/// a body nobody declared anything about genuinely has an undeclared
-/// cusp if it has a cusp at all.
-///
-/// A declaration this pass does not consult costs nothing and asserts
-/// nothing: no arm reads `Rest`, and a declaration with no matching
-/// geometry is the census's business (`StaleContactDeclaration`), not
-/// this pass's.
-///
-/// # Errors
-///
-/// As [`validate_geometric`].
-pub fn validate_geometric_declared<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
-    body: &Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<(), Vec<ValidationError>> {
-    validate_geometric_certificate_declared(body, declarations, tol).map(|_| ())
-}
-
-/// [`validate_geometric_certificate`] with the body's declared
-/// contacts in hand — [`validate_geometric_declared`]'s certificate
-/// form, and the one place the two halves are composed.
-///
-/// The `?` between them is the composition
-/// [`validate_geometric_certified`]'s privacy exists to enforce: no
-/// caller takes the certified half without the structural one, so no
-/// body is blessed by a volume claim while its geometry went
-/// unchecked. Returning the certificate does not move that seam — the
-/// structural phase still runs first and still short-circuits, and it
-/// runs without check 7, so it makes no certificate of its own to
-/// return.
-///
-/// # Errors
-///
-/// As [`validate_geometric_declared`].
-pub fn validate_geometric_certificate_declared<
-    'b,
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
-    body: &'b Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
-    // The structural phase runs WITH check 2's plane x NURBS lane
-    // injected, which is what keeps this composed door re-deriving the
-    // M7-8 certificate class at rest; the public structural door,
-    // whose bound cannot name the lane, runs without it.
-    structural_declared_via(
-        body,
-        declarations,
-        tol,
-        StructuralPhase::BeforeCertifiedCheck7(&geom_brep::plane_nurbs_limbs::<T>),
-    )?;
-    validate_geometric_certified(body, tol)
-}
-
 /// Tier 3's local check battery (checks 1–6 + the +V invariant, check
 /// 7), shared verbatim between [`validate_pseudomanifold`] and
 /// [`contact_marks`] (M3 PR 6a: the tier-3′ validator runs the SAME
@@ -4349,7 +4297,6 @@ pub(crate) fn tier3_local_checks<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &'b Body<T>,
-    declarations: &[DeclaredContact],
     band: Band,
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
@@ -4361,7 +4308,6 @@ pub(crate) fn tier3_local_checks<
     let mut marks = slotmap::SecondaryMap::new();
     tier3_local_checks_marked(
         body,
-        declarations,
         band,
         &mut marks,
         tol,
@@ -4495,33 +4441,12 @@ fn plus_v_errors(solid: SolidKey, verdict: &PlusVVerdict) -> Vec<ValidationError
     }
 }
 
-/// Whether the declarations assert a **`Tangent`** contact on this
-/// (unordered) face pair — the one read the material-wedge arm makes.
-///
-/// `Rest` never answers yes, and that is D1's "the arm admits no
-/// laminae" written as code: a conformal declaration over a patch
-/// asserts the wrong class for a curve locus, so it cannot legalize a
-/// wedge end. Nor does absence ever certify anything: an empty
-/// declaration list refuses every cusp, which is what makes
-/// [`validate_geometric`]'s signature honest.
-fn declares_tangent_contact(declarations: &[DeclaredContact], a: FaceKey, b: FaceKey) -> bool {
-    declarations.iter().any(|d| {
-        d.class == crate::contact::ContactClass::Tangent
-            && ((d.a == a && d.b == b) || (d.a == b && d.b == a))
-    })
-}
-
 /// What check 4's **material arm** concluded about one edge.
 ///
 /// One value rather than a pair of flags, because the outcomes are
 /// mutually exclusive BY CONSTRUCTION and this type is where that is
 /// enforced: a collapsed κ_rel yields no end, so an edge can never
-/// earn both the lamina refusal and the undeclared-wedge refusal.
-/// (The earlier shape carried `lamina: bool` beside
-/// `material: Option<MaterialWedge>` and documented a PRECEDENCE
-/// between them — a ranking that could never fire, and a reader
-/// cannot tell a dead branch from a live one. The exclusivity is
-/// structural now, so there is no ranking left to state.)
+/// read as both a lamina and a jet-determinate wedge end.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum MaterialArmOutcome {
     /// One material wedge for the whole edge (every sample agreed).
@@ -4562,9 +4487,9 @@ pub(crate) enum MaterialArmOutcome {
 /// does exactly that.
 ///
 /// Both split states **escalate** rather than fall silent. Silence
-/// there would validate an undeclared cusp clean on an edge whose own
-/// samples disagreed about which material configuration it is — the
-/// opposite of the refusal the arm exists for. This is the same
+/// there would validate a wedge end clean on an edge whose own samples
+/// disagreed about which material configuration it is — a legality
+/// verdict the samples never established. This is the same
 /// posture the sibling decisions already take one order up
 /// (`material_wedge_side`'s unreachable `Zero` is announced as
 /// `Invalid` rather than guessed), and it is NOT the first-order
@@ -4615,14 +4540,12 @@ pub(crate) fn material_arm_outcome(
 /// can force, so the only way to pin what each one emits is to call
 /// this with it (`material_arm_error_table`).
 ///
-/// `declared` is whether the edge's face pair carries a `Tangent`
-/// contact declaration ([`declares_tangent_contact`]) — the ONE thing
-/// the wedge ends consult, and the reason `None` here is a legality
-/// verdict rather than an absence.
+/// `None` here is a legality verdict rather than an absence: every
+/// settled wedge is legal at rest, the two ends included, because the
+/// fold hands out an end only over a jet-determinate tangency.
 pub(crate) fn material_arm_error(
     outcome: Option<MaterialArmOutcome>,
     edge: EdgeKey,
-    declared: bool,
     band: Band,
 ) -> Option<ValidationError> {
     match outcome? {
@@ -4639,11 +4562,10 @@ pub(crate) fn material_arm_error(
                 predicate: Some(predicate),
             },
         }),
-        // The two ends of the wedge range are legal exactly where
-        // declared; the seam and a transverse wedge need nothing.
-        MaterialArmOutcome::Wedge(wedge) if wedge.is_declared_arm() && !declared => {
-            Some(ValidationError::UndeclaredCusp { edge, wedge })
-        }
+        // A settled wedge is legal: the seam and a transverse wedge
+        // always, and the two ends because the fold only hands one out
+        // over a jet-determinate tangency (D1's second-order arm) —
+        // derived from the body exactly as the seam is.
         MaterialArmOutcome::Wedge(_) => None,
     }
 }
@@ -4680,7 +4602,8 @@ pub fn contact_marks<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_declared(body, &[], tol)
+    let lanes = CertifiedLanes::<T>::held();
+    contact_marks_via(body, tol, Some(lanes.nurbs), Some(lanes.quad))
 }
 
 /// **[`contact_marks`] holding NO lane** — the same pass at every
@@ -4700,56 +4623,13 @@ pub fn contact_marks_structural<
     body: &Body<T>,
     tol: Tol,
 ) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_declared_structural(body, &[], tol)
-}
-
-/// [`contact_marks`] with the body's declared contacts in hand — check
-/// 4's material arm reads them, for [`validate_geometric_declared`]'s
-/// reason.
-///
-/// # Errors
-///
-/// As [`contact_marks`], with check 4's material arm reading the
-/// declarations.
-pub fn contact_marks_declared<
-    T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
->(
-    body: &Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_declared_via(
-        body,
-        declarations,
-        tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
-        Some(crate::props::QuadLane::certified()),
-    )
-}
-
-/// [`contact_marks_structural`]'s declared form.
-///
-/// # Errors
-///
-/// As [`contact_marks_structural`], with check 4's material arm reading
-/// the declarations.
-pub fn contact_marks_declared_structural<
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
-    body: &Body<T>,
-    declarations: &[DeclaredContact],
-    tol: Tol,
-) -> Result<slotmap::SecondaryMap<EdgeKey, ContactMark>, Vec<ValidationError>> {
-    contact_marks_declared_via(body, declarations, tol, None, None)
+    contact_marks_via(body, tol, None, None)
 }
 
 /// The marks pass with its two lanes as arguments — the shared body of
 /// the certified door and its `_structural` twin.
-fn contact_marks_declared_via<
-    T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
->(
+fn contact_marks_via<T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy>(
     body: &Body<T>,
-    declarations: &[DeclaredContact],
     tol: Tol,
     nurbs_lane: Option<geom_brep::NurbsLane<'_, T>>,
     quad_lane: Option<crate::props::QuadLane<T>>,
@@ -4767,7 +4647,6 @@ fn contact_marks_declared_via<
     // doors).
     let (errors, _) = tier3_local_checks_marked(
         body,
-        declarations,
         band,
         &mut marks,
         tol,
@@ -5194,7 +5073,6 @@ pub(crate) fn tier3_local_checks_marked<
     T: geom_core::Decide + geom_core::Bounds + crate::props::AtRestPolicy,
 >(
     body: &'b Body<T>,
-    declarations: &[DeclaredContact],
     band: Band,
     marks: &mut slotmap::SecondaryMap<EdgeKey, ContactMark>,
     tol: Tol,
@@ -5522,7 +5400,8 @@ pub(crate) fn tier3_local_checks_marked<
     //    vacuously Smooth). Exempt BY KIND: `Seam`-described edges
     //    (as always) and Nurbs-ADJACENT edges (M6-3 flip B — see the
     //    in-loop note: implicit-form gradients are poison on NURBS,
-    //    and the wall junction's contact class is declared, Q8/C11).
+    //    and the wall junction's contact class is fixed by the
+    //    profile's corner structure, Q8/C11).
     // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
     //    interior carrier samples are checked against each ADJACENT
     //    face's surface when that surface is a plane — the
@@ -5597,11 +5476,12 @@ pub(crate) fn tier3_local_checks_marked<
         // gradients are poison on a NURBS surface, so
         // `classify_dihedral` cannot run there, and no derived contact
         // class exists to enforce. That is not a gap being papered
-        // over — a definitional wall junction's contact class is the
-        // profile's DECLARED corner structure (Q8/C11), carried by the
+        // over — a definitional wall junction's contact class is fixed
+        // by the profile's corner structure (Q8/C11), carried by the
         // conventional `IsoCurve`/`MappedCurve` descriptions the
-        // loft/sweep builder mints; the mark stays `Unmarked` (no
-        // derived verdict, exactly the escalation posture).
+        // loft/sweep builder mints, and no wedge verdict is derivable
+        // on it; the mark stays `Unmarked` (unjudged, exactly the
+        // escalation posture — never a blessing).
         // An `Approx` face is exempt on the SAME terms and by the same
         // rule: its geometry is a spline fit, whose implicit-form
         // gradient is poison, so `classify_dihedral` cannot run there
@@ -5673,18 +5553,19 @@ pub(crate) fn tier3_local_checks_marked<
         //   outward normal at once, so it maps one end to the other
         //   and the pair is legal together or not at all.
         //
-        // The ends are legal iff the tangency is DECLARED in the C7
-        // vocabulary and jet-determinate. The second-order band has
+        // The ends are legal iff the tangency is jet-determinate —
+        // derived from the body exactly as the π seam is; whether a
+        // cusp is WANTED was declared where the tangency was created,
+        // and is not this pass's question. The second-order band has
         // three outcomes and they are three different answers:
         // definite κ_rel is the determinate contact the arm admits;
         // a definitely-collapsed κ_rel is conformal contact along the
-        // locus — a lamina, refused as `LaminaWedge` and not curable
-        // by any declaration; in-band is `SliverDihedral`, the honest
-        // escalation. A whole-edge verdict needs every sample to
-        // agree, and an edge whose samples DISAGREE — about the
-        // pairing, or about which end — escalates
-        // (`MaterialArmOutcome::Split`) rather than falling silent:
-        // silence there would validate an undeclared cusp clean on the
+        // locus — a lamina, refused as `LaminaWedge`; in-band is
+        // `SliverDihedral`, the honest escalation. A whole-edge
+        // verdict needs every sample to agree, and an edge whose
+        // samples DISAGREE — about the pairing, or about which end —
+        // escalates (`MaterialArmOutcome::Split`) rather than falling
+        // silent: silence there would validate a wedge end clean on the
         // strength of its own samples contradicting one another. That
         // is the opposite of the first-order pass's mixed
         // transverse/smooth exemption, which exempts an edge from a
@@ -5755,10 +5636,10 @@ pub(crate) fn tier3_local_checks_marked<
                     // — and on the opposed arm that is the lamina
                     // refusal for the WHOLE edge, on the strength of a
                     // single sample. Deliberate, and conservative in
-                    // the direction the ε rule cares about: the
-                    // declared arm's condition is that the surfaces
-                    // determine the locus ALONG the edge, so one place
-                    // they do not is enough to deny it (the same rule
+                    // the direction the ε rule cares about: a wedge end
+                    // is legal where the surfaces determine the locus
+                    // ALONG the edge, so one place they do not is
+                    // enough to deny it (the same rule
                     // the mark already follows — any zero-side sample
                     // marks `SmoothUnderdetermined`). ε-tightening
                     // makes zero-side verdicts RARER, so it can only
@@ -5842,12 +5723,7 @@ pub(crate) fn tier3_local_checks_marked<
         // exclusive by construction, so nothing here ranks anything).
         // `None` is an edge the arm never judged: exempt by kind, or
         // already escalated with its own error.
-        if let Some(error) = material_arm_error(
-            arm,
-            edge_key,
-            declares_tangent_contact(declarations, f_plus, f_minus),
-            band,
-        ) {
+        if let Some(error) = material_arm_error(arm, edge_key, band) {
             errors.push(error);
         }
         if mark == ContactMark::Tangent
@@ -7425,19 +7301,16 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// minted body carrying that class re-derives its certificate at rest
 /// exactly as it did at attach time, the invariant this pass has always
 /// been the home of. It is the door a certifying caller wants, and the
-/// callers in the tree take it: [`crate::AtRestPolicy`]'s `f64`,
-/// `Probe`, `Interval` and `Sym` arms, `step-import`'s aggregate gate,
+/// callers in the tree take it: [`AtRestBody::validate_pseudomanifold`]
+/// (its census over a kept verdict, the whole door over none), which
+/// is [`crate::AtRestPolicy`]'s `f64`, `Probe`, `Interval` and `Sym`
+/// arms, `step-import`'s aggregate gate,
 /// the `pncad` prelude's re-export and through it `pncad-py`'s
 /// `Body.validate_pseudomanifold` (monomorphic at `f64`) and the tour's
 /// scenes. [`validate_pseudomanifold_structural`] is the same pass holding
 /// none of the three lanes this door holds (the plane × NURBS lane, the
 /// quadrature lane and the chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
-///
-/// **No `_declared` form**: `contacts` IS this pass's declarations —
-/// its curve records are read as check 4's `Tangent` declarations — so
-/// a `_declared` form would be a second spelling of an argument every
-/// form of this door already takes.
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(
@@ -7530,13 +7403,14 @@ pub fn validate_pseudomanifold_certificate<
     contacts: &crate::boolean::ContactRecords,
     tol: Tol,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
+    let lanes = CertifiedLanes::<T>::held();
     pseudomanifold_certificate_via(
         body,
         contacts,
         tol,
-        Some(&geom_brep::plane_nurbs_limbs::<T>),
-        Some(crate::props::QuadLane::certified()),
-        Some(crate::chart_region::RegionLane::certified()),
+        Some(lanes.nurbs),
+        Some(lanes.quad),
+        Some(lanes.region),
     )
 }
 
@@ -7570,6 +7444,135 @@ pub fn validate_pseudomanifold_certificate_structural<
     pseudomanifold_certificate_via(body, contacts, tol, None, None, None)
 }
 
+/// **A body, and tier 3's verdict on it kept beside it** — so a
+/// tier-3′ pass over the same body pays the census alone.
+///
+/// [`validate_pseudomanifold`] is tier 3's whole battery followed by the
+/// census, and a caller that gated a body with [`validate_geometric`]
+/// before declaring its contacts would otherwise pay the battery twice
+/// over one body. What this type holds is the body and what the gate
+/// said about it, and nothing else can reach inside: the body is read
+/// through [`Deref`](core::ops::Deref) and never borrowed mutably, and
+/// [`AtRestBody::into_body`] hands it back only by giving up the
+/// verdict. So a kept verdict cannot be carried to any body other than
+/// the one it was derived on.
+///
+/// **Two states, the ones [`AtRestOutcome`] names.**
+/// [`AtRestOutcome::Validated`] is minted only by
+/// [`AtRestBody::validate`], which runs [`validate_geometric`] and keeps
+/// its `Ok`. [`AtRestOutcome::NotRunAtThisScalar`] is what a dual's
+/// [`crate::AtRestPolicy::gate_at_rest_kept`] carries: nothing was
+/// checked, and the dual's tier-3′ gate checks nothing either. Neither
+/// state is read off a policy's answer, so a policy cannot mint a
+/// verdict its scalar did not derive.
+///
+/// The verdict needs no tolerance beside it: [`Tol`] is the run's one
+/// committed-ε witness, so the tolerance a later door is handed is the
+/// one the gate ran at. **It does not carry the symbolic session**: at
+/// `Sym<T>` a decision reads the thread's `geom_core::sym` session,
+/// whose budget and rules decide which margins discharge as exact, so a
+/// verdict kept under one session and read under another is the first
+/// session's verdict (no caller does that today).
+#[derive(Clone, Debug)]
+pub struct AtRestBody<T: Real> {
+    body: Body<T>,
+    outcome: AtRestOutcome,
+}
+
+impl<T: Real> AtRestBody<T> {
+    /// **[`validate_geometric`] over `body`, keeping the verdict** — the
+    /// one constructor of [`AtRestOutcome::Validated`].
+    ///
+    /// # Errors
+    ///
+    /// As [`validate_geometric`], verbatim; the body is dropped with the
+    /// refusal.
+    pub fn validate(body: Body<T>, tol: Tol) -> Result<Self, Vec<ValidationError>>
+    where
+        T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    {
+        validate_geometric(&body, tol)?;
+        Ok(Self {
+            body,
+            outcome: AtRestOutcome::Validated,
+        })
+    }
+
+    /// A body carried with no verdict: a dual's
+    /// [`crate::AtRestPolicy::gate_at_rest_kept`], whose policy runs no
+    /// gate.
+    pub(crate) fn not_run(body: Body<T>) -> Self {
+        Self {
+            body,
+            outcome: AtRestOutcome::NotRunAtThisScalar,
+        }
+    }
+
+    /// What the gate said: [`AtRestOutcome::Validated`] exactly when
+    /// [`validate_geometric`] passed on this body.
+    #[must_use]
+    pub fn outcome(&self) -> AtRestOutcome {
+        self.outcome
+    }
+
+    /// The body, the verdict given up.
+    #[must_use]
+    pub fn into_body(self) -> Body<T> {
+        self.body
+    }
+
+    /// **[`validate_pseudomanifold`] over this body**, the same pass with
+    /// the same verdicts, with the local battery taken from the kept
+    /// verdict rather than run again.
+    ///
+    /// Over an [`AtRestOutcome::Validated`] body the tier-1/2 gate and
+    /// the battery are already known clean: [`validate_geometric`] passed
+    /// on these bits, and the battery [`validate_pseudomanifold`] runs is
+    /// the same ten checks through the same lanes. The two gate check 7
+    /// differently (the door roster's difference), and a gate only
+    /// decides which refusals a failing body reports: on a body every
+    /// check passes, both run every check through the lanes
+    /// [`CertifiedLanes::held`] spells once for both doors. So what is
+    /// left is the census.
+    ///
+    /// No production path hands this method an
+    /// [`AtRestOutcome::NotRunAtThisScalar`] body: only a dual keeps one,
+    /// and a dual cannot call a door bounded on the certification right.
+    /// The arm keeps the method total without trusting that, by running
+    /// [`validate_pseudomanifold`] whole; this crate's tests reach it.
+    ///
+    /// # Errors
+    ///
+    /// As [`validate_pseudomanifold`].
+    pub fn validate_pseudomanifold(
+        &self,
+        contacts: &crate::boolean::ContactRecords,
+        tol: Tol,
+    ) -> Result<(), Vec<ValidationError>>
+    where
+        T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
+    {
+        match self.outcome {
+            AtRestOutcome::Validated => census_verdict(
+                &self.body,
+                contacts,
+                linear_band(tol)?,
+                tol,
+                Some(CertifiedLanes::<T>::held().region),
+            ),
+            AtRestOutcome::NotRunAtThisScalar => validate_pseudomanifold(&self.body, contacts, tol),
+        }
+    }
+}
+
+impl<T: Real> core::ops::Deref for AtRestBody<T> {
+    type Target = Body<T>;
+
+    fn deref(&self) -> &Body<T> {
+        &self.body
+    }
+}
+
 /// The tier-3′ pass with its three lanes as arguments — the shared
 /// body of the certified door and its `_structural` twin. The region
 /// lane is the census's: `None` is the census's own typed refusal at
@@ -7589,38 +7592,62 @@ fn pseudomanifold_certificate_via<
     region: Option<crate::chart_region::RegionLane<T>>,
 ) -> Result<crate::props::SignCertificate<'b, T>, Vec<ValidationError>> {
     validate_closed(body)?;
-    let band = match Band::linear(tol) {
-        Ok(band) => band,
-        Err(error) => return Err(vec![ValidationError::Band { error }]),
-    };
-    // The tier-3 local battery, verbatim, with this body's C3
-    // curve-granularity records read as what they are: `Tangent`
-    // declarations on their face pairs (the class `CurveContact`
-    // certifies through the jet schedule). Patch records are NOT
-    // passed — a conformal declaration over a region asserts the
-    // wrong class for a curve locus, which is D1's "the arm admits no
-    // laminae" at the plumbing level. With empty records the slice is
-    // empty and 3′ is tier 3 exactly.
-    let declarations: Vec<DeclaredContact> = contacts
-        .curves
-        .iter()
-        .map(|c| DeclaredContact {
-            a: c.face_a,
-            b: c.face_b,
-            class: crate::contact::ContactClass::Tangent,
-        })
-        .collect();
-    let (mut errors, certificate) =
-        tier3_local_checks(body, &declarations, band, tol, nurbs_lane, quad_lane);
-    if errors.is_empty() {
-        errors.extend(crate::census::census_and_certify(
-            body, contacts, band, tol, region,
-        ));
+    let band = linear_band(tol)?;
+    // The tier-3 local battery, verbatim: it reads no contact record,
+    // so with empty records 3′ is tier 3 exactly. The records are the
+    // census's.
+    let (errors, certificate) = tier3_local_checks(body, band, tol, nurbs_lane, quad_lane);
+    if !errors.is_empty() {
+        return Err(errors);
     }
+    census_verdict(body, contacts, band, tol, region)?;
+    Ok(certificate_of_a_clean_verdict(certificate))
+}
+
+/// **Tier 3′'s census over a body whose battery is clean** — the one
+/// tail of both tier-3′ paths: [`pseudomanifold_certificate_via`] after
+/// its own battery, and [`AtRestBody::validate_pseudomanifold`] over a
+/// kept verdict.
+fn census_verdict<T: geom_core::Decide + geom_core::Bounds>(
+    body: &Body<T>,
+    contacts: &crate::boolean::ContactRecords,
+    band: Band,
+    tol: Tol,
+    region: Option<crate::chart_region::RegionLane<T>>,
+) -> Result<(), Vec<ValidationError>> {
+    let errors = crate::census::census_and_certify(body, contacts, band, tol, region);
     if errors.is_empty() {
-        Ok(certificate_of_a_clean_verdict(certificate))
+        Ok(())
     } else {
         Err(errors)
+    }
+}
+
+/// `Band::linear(tol)`, its refusal as the verdict vector every door
+/// returns it in.
+fn linear_band(tol: Tol) -> Result<Band, Vec<ValidationError>> {
+    Band::linear(tol).map_err(|error| vec![ValidationError::Band { error }])
+}
+
+/// **The certified lanes, spelled once**: check 2's plane × NURBS lane,
+/// the quadrature checks 7 and 10 decide through, and the chart-region
+/// door the census's two chart-region arms examine through. The
+/// certified doors read their lanes here, so the tier-3 verdict
+/// [`AtRestBody`] keeps and the tier-3′ pass that reads it hold the same
+/// lanes by construction.
+struct CertifiedLanes<T: geom_core::Decide> {
+    nurbs: geom_brep::NurbsLane<'static, T>,
+    quad: crate::props::QuadLane<T>,
+    region: crate::chart_region::RegionLane<T>,
+}
+
+impl<T: geom_core::Decide + geom_core::CertifiedBounds> CertifiedLanes<T> {
+    fn held() -> Self {
+        Self {
+            nurbs: &geom_brep::plane_nurbs_limbs::<T>,
+            quad: crate::props::QuadLane::certified(),
+            region: crate::chart_region::RegionLane::certified(),
+        }
     }
 }
 
@@ -9824,7 +9851,6 @@ mod tests {
         let check_9 = |body: &Body<f64>| -> Vec<ValidationError> {
             let (errors, _) = tier3_local_checks(
                 body,
-                &[],
                 band,
                 tol,
                 None,
@@ -9846,7 +9872,6 @@ mod tests {
         let inverted_roles = |body: &Body<f64>| -> Vec<LoopKey> {
             let (errors, _) = tier3_local_checks(
                 body,
-                &[],
                 band,
                 tol,
                 None,
@@ -9977,7 +10002,6 @@ mod tests {
     fn nesting_words(body: &Body<f64>, band: Band, tol: Tol) -> Vec<ValidationError> {
         let (errors, _) = tier3_local_checks(
             body,
-            &[],
             band,
             tol,
             None,
@@ -9999,7 +10023,6 @@ mod tests {
     fn check_9_words(body: &Body<f64>, band: Band, tol: Tol) -> Vec<ValidationError> {
         let (errors, _) = tier3_local_checks(
             body,
-            &[],
             band,
             tol,
             None,
@@ -12307,7 +12330,7 @@ mod offset_fit_door_rows {
     use geom_brep::OffsetFitLane;
     use geom_core::{Band, Tol};
 
-    use super::{DeclaredContact, PlusVCheck, ValidationError, tier3_local_checks_marked};
+    use super::{PlusVCheck, ValidationError, tier3_local_checks_marked};
     use crate::entity::FaceKey;
     use crate::fixtures::approx_faced_body;
 
@@ -12319,11 +12342,9 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (body, face) = approx_faced_body::<T>();
-        let declarations: [DeclaredContact; 0] = [];
         let mut marks = slotmap::SecondaryMap::new();
         let (errors, _) = tier3_local_checks_marked(
             &body,
-            &declarations,
             band,
             &mut marks,
             tol,
@@ -12395,10 +12416,8 @@ mod offset_fit_door_rows {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
         let (body, face) = approx_faced_body::<f64>();
-        let declarations: [DeclaredContact; 0] = [];
         let (errors, _) = super::tier3_local_checks(
             &body,
-            &declarations,
             band,
             tol,
             None,
@@ -12530,6 +12549,207 @@ mod offset_fit_door_rows {
             assert!(msg.ends_with(ending), "{msg}");
         }
     }
+
+    /// The checks window ends each refinement refusal in its routed
+    /// sentence: a loop still improving when its budget or sample cap
+    /// ran out names splitting the face and no loosening at all, and a
+    /// loop that stopped improving names loosening as the last resort,
+    /// whole, with nothing after it.
+    #[test]
+    fn a_refinement_refusal_ends_in_its_routed_sentence() {
+        use geom_brep::{BestBound, LastRound, OffsetFitError};
+        let best = BestBound {
+            bound: 1.5e-9,
+            grid: (4, 5),
+        };
+        let says = |error| {
+            ValidationError::ApproxCertification {
+                face: FaceKey::default(),
+                error,
+            }
+            .to_string()
+        };
+        let budget = |last_round| OffsetFitError::BudgetExhausted {
+            budget: 8,
+            grid: (5, 5),
+            achieved: 2e-9,
+            tolerance: 1e-9,
+            last_round,
+            best,
+        };
+        let split = [
+            says(budget(LastRound::Improved)),
+            says(OffsetFitError::SampleCapReached {
+                cap: 64,
+                rounds: 3,
+                grid: (64, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+                best,
+            }),
+        ];
+        for msg in split {
+            assert!(msg.ends_with("Recourse: split the face"), "{msg}");
+            assert!(!msg.contains("loosen"), "{msg}");
+        }
+        let last_resort = [
+            says(budget(LastRound::DidNotImprove)),
+            says(OffsetFitError::RefinementStalled {
+                rounds: 3,
+                grid: (5, 5),
+                achieved: 2e-9,
+                tolerance: 1e-9,
+                best,
+            }),
+            says(OffsetFitError::BoundNotFinite {
+                rounds: 3,
+                grid: (5, 5),
+                d: 1e-3,
+                tolerance: 1e-9,
+                best: Some(best),
+            }),
+        ];
+        for msg in last_resort {
+            assert!(msg.ends_with(geom_core::KERNEL_LIMIT_RECOURSE), "{msg}");
+        }
+    }
+}
+
+/// The checks window reads the certifier's typed routing (D4 ¶1): each
+/// undecided decision says, whole, why it refused in that decision's own
+/// words and ends in the one ending its refused arms share — its own
+/// lever and the tolerance below `m/K` for a sized decision, the file's
+/// defect ending for an exact residual or chart pick (the window reads a
+/// body at rest), and the last resort for an approximation. A definite
+/// contradiction at rest keeps the defect ending. None offers a
+/// declaration: certification takes none.
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+mod certify_escalation_rows {
+    use geom_brep::{CertCheck, CertifyError};
+    use geom_core::{Band, Indeterminate, MarginDiag};
+
+    use super::ValidationError;
+    use crate::entity::EdgeKey;
+
+    fn says(error: CertifyError) -> String {
+        ValidationError::EdgeCertification {
+            edge: EdgeKey::default(),
+            error,
+        }
+        .to_string()
+    }
+
+    /// A fixed band, so the quoted `m/K` is the same at every eps row.
+    fn escalated(check: CertCheck, margin: MarginDiag) -> String {
+        says(CertifyError::Escalated {
+            check,
+            sample: 4,
+            cause: Indeterminate {
+                margin,
+                band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                predicate: Some("a_probe"),
+            },
+        })
+    }
+
+    #[test]
+    fn a_certify_refusal_renders_its_decisions_sentence() {
+        const LEAD: &str = "an edge's stored curve does not certify against its faces: ";
+        let in_band = MarginDiag::Value(5.0e-9);
+        let rows = [
+            (
+                escalated(CertCheck::Transversality, in_band),
+                "its faces meet too nearly tangentially to decide at this tolerance. Recourse: \
+                 move the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(CertCheck::ParamSpan, in_band),
+                "its length is too close to zero to decide at this tolerance. Recourse: move \
+                 the geometry so this edge is not vanishingly short, or, if this length is \
+                 intended, tighten the tolerance below 5e-10 m",
+            ),
+            (
+                escalated(CertCheck::EndpointStart, in_band),
+                "whether it lies where its description says is too close to call at this \
+                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                 file; report it",
+            ),
+            (
+                escalated(CertCheck::Surface1Residual, MarginDiag::Invalid),
+                "whether it lies where its description says is too close to call at this \
+                 tolerance. Recourse: loosen the tolerance, as a last resort; this refusal may \
+                 indicate a kernel bug worth reporting",
+            ),
+            (
+                escalated(
+                    CertCheck::ChartImage,
+                    MarginDiag::Enclosure {
+                        lo: -2.0e-9,
+                        hi: 4.0e-9,
+                    },
+                ),
+                "where it sits on its face's parameter chart is too close to call at this \
+                 tolerance. There is no way through: this is a kernel defect or a damaged \
+                 file; report it",
+            ),
+            // A zero verdict where zero does not pass is band-decided
+            // (D4 ¶1 (i)): the lever, and the conditional tolerance.
+            (
+                says(CertifyError::NotTransverse { sample: 4 }),
+                "its faces are tangent where its description says they cross. Recourse: move \
+                 the geometry so the faces cross at a clearer angle, or, if this angle is \
+                 intended, tighten the tolerance",
+            ),
+            // A definite stored contradiction no move or loosening
+            // reaches: an approximation's residual, and the lane's limb.
+            (
+                says(CertifyError::ResidualExceeded {
+                    check: CertCheck::Surface2Residual,
+                    sample: 0,
+                }),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::Limb {
+                        limb: geom_brep::ssi::SsiLimb::OnLocus,
+                        value: 2.0e-8,
+                    },
+                )),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            // The lane's tube refusal is the transversality decision's
+            // decided Zero-or-Negative verdict: its lever alone, whatever
+            // clearance the certificate proved inside the zero band.
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
+                        certified_clearance: 0.0,
+                        boxes: 4,
+                    },
+                )),
+                "its faces are not certainly crossing along it, so they do not fix where it \
+                 runs. Recourse: move the geometry so the faces cross at a clearer angle",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(
+                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
+                        certified_clearance: 3.0e-10,
+                        boxes: 4,
+                    },
+                )),
+                "its faces are not certainly crossing along it, so they do not fix where it \
+                 runs. Recourse: move the geometry so the faces cross at a clearer angle",
+            ),
+        ];
+        for (msg, tail) in rows {
+            assert_eq!(msg, format!("{LEAD}{tail}"));
+        }
+    }
 }
 
 /// The door roster, checked against the source: the module doc's table
@@ -12565,7 +12785,7 @@ mod door_roster {
         "contact_marks",
     ];
     /// The suffixes, in the one order they compose in.
-    const SUFFIXES: [&str; 3] = ["_certificate", "_declared", "_structural"];
+    const SUFFIXES: [&str; 2] = ["_certificate", "_structural"];
 
     fn backticked(cell: &str) -> &str {
         cell.strip_prefix('`')

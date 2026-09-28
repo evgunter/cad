@@ -17,12 +17,11 @@ use geom_brep::EdgeCurveSpec;
 use geom_core::spline::KnotVector;
 use geom_core::{Point3, Vec3};
 
-use crate::contact::{ContactClass, DeclaredContact};
 use crate::euler::FaceSurface;
 use crate::fixtures::{refile_shells, test_curve};
 use crate::validate::{
     MaterialArmOutcome, ValidationError, material_arm_error, material_arm_outcome, validate,
-    validate_geometric, validate_geometric_declared,
+    validate_geometric,
 };
 use crate::{Body, MefSite, MevSite};
 use geom_brep::MaterialWedge;
@@ -1644,17 +1643,13 @@ fn adjacent_are_the_two_cylinders(body: &Body<f64>, edge: crate::entity::EdgeKey
 /// **Row: transverse, legal at the θ = ε/r margin.** The cusp prism's
 /// other eight edges are definite corners — cylinder against plane,
 /// plane against plane, cylinder against cap — and none of them earns
-/// a wedge refusal: with the kissing edge declared, the whole body is
-/// tier-3 clean.
+/// a wedge refusal: the whole body is tier-3 clean.
 #[test]
 fn transverse_wedges_stay_legal_and_earn_no_wedge_verdict() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     assert_eq!(p.body.edges().count(), 9);
-    assert_eq!(
-        validate_geometric_declared(&p.body, &kiss_declared(&p), tol),
-        Ok(())
-    );
+    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
 }
 
 /// **Row: wedge π, legal.** Two coplanar faces whose material sides
@@ -1666,8 +1661,8 @@ fn transverse_wedges_stay_legal_and_earn_no_wedge_verdict() {
 /// and the jets osculate exactly (one plane against another). It
 /// validated clean before this arm existed — the unsigned dihedral
 /// pass cannot tell it from the seam above, and that is the whole
-/// content of "unsigned" — and now refuses per edge, with no
-/// declaration able to cure it.
+/// content of "unsigned" — and now refuses per edge: the jets
+/// osculate, so the tangency is not jet-determinate.
 #[test]
 fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
     let tol = Tol::witness();
@@ -1681,95 +1676,96 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
         "{errs:?}"
     );
     assert_eq!(errs.len(), 2, "one per edge of the digon: {errs:?}");
-    // A declaration is not a cure: conformal contact is not the
-    // curve-locus tangency the declared arm admits.
-    let faces: Vec<_> = flipped.faces().map(|(k, _)| k).collect();
-    let declared = [DeclaredContact {
-        a: faces[0],
-        b: faces[1],
-        class: ContactClass::Tangent,
-    }];
-    assert_eq!(
-        validate_geometric_declared(&flipped, &declared, tol).unwrap_err(),
-        errs
-    );
 }
 
-/// **Row: wedge 0, legal iff declared.** The ruling's own figure — two
-/// kissing cylinders with one side cut away — refuses undeclared,
-/// naming the cusp; the `Tangent` declaration on the two walls
-/// legalizes exactly that edge and nothing else.
-///
-/// The two ways to get the declaration wrong are pinned beside it,
-/// because "declared" is a claim about a NAMED pair in a NAMED class:
-/// the `Rest` class asserts conformal contact and cannot legalize a
-/// curve locus, and a `Tangent` claim on a different pair is a
-/// statement about different faces.
+/// **Row: wedge 0, legal because jet-determinate.** The ruling's own
+/// figure — two kissing cylinders with one side cut away — meets along
+/// one shared edge whose faces' outward normals oppose and whose
+/// κ_rel is definite (radii 1 and 2): the tangency is determined by
+/// the body, exactly as a π seam's is, and the body is tier-3 clean
+/// with nothing declared. The kiss edge's contact mark is `Tangent`:
+/// check 4 judged a jet-determinate tangency there rather than
+/// exempting the edge. The mark alone does not say which END — a π
+/// seam is marked the same — so the row reads the end off the same
+/// sign chain the arm uses ([`material_end`]).
 #[test]
-fn an_undeclared_cusp_refuses_and_only_its_own_tangent_declaration_legalizes_it() {
+fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(validate_geometric(&p.body, tol), Ok(()));
+    let marks = crate::validate::contact_marks(&p.body, tol).expect("the cusp prism is valid");
     assert_eq!(
-        validate_geometric(&p.body, tol).unwrap_err(),
-        vec![ValidationError::UndeclaredCusp {
-            edge: kiss,
-            wedge: MaterialWedge::Cusp,
-        }]
+        marks.get(kiss),
+        Some(&crate::validate::ContactMark::Tangent)
     );
-    assert_eq!(
-        validate_geometric_declared(&p.body, &kiss_declared(&p), tol),
-        Ok(())
-    );
-    let rest = [DeclaredContact {
-        a: p.face_side[0],
-        b: p.face_side[2],
-        class: ContactClass::Rest,
-    }];
-    assert!(validate_geometric_declared(&p.body, &rest, tol).is_err());
-    let elsewhere = [DeclaredContact {
-        a: p.face_top,
-        b: p.face_bottom,
-        class: ContactClass::Tangent,
-    }];
-    assert!(validate_geometric_declared(&p.body, &elsewhere, tol).is_err());
 }
 
+/// **Row: a transverse corner beside a legal cusp still owes its
+/// intrinsic description.** A definitely-transverse edge of the cusp
+/// prism, stored in a declared conventional form, refuses
+/// `TransverseNotIntrinsic` and nothing else: the legal cusp beside it
+/// contributes no verdict of its own.
+#[test]
+fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form() {
+    let tol = Tol::witness();
+    let mut p = cusp_prism(tol);
+    // ev[1]: the vertical meridian where the outer wall meets the flat
+    // cut — a definite corner — re-stored as a line at rest in the flat
+    // face's chart.
+    let corner = p.ev[1];
+    let he = p.body.get_edge(corner).unwrap().he_plus;
+    let at = |v| {
+        *p.body
+            .get_point(p.body.get_vertex(v).unwrap().point)
+            .unwrap()
+    };
+    let start = at(p.body.get_half_edge(he).unwrap().start);
+    let end = at(p.body.half_edge_end(he).unwrap());
+    let flat_chart = p.body.get_face(p.face_side[1]).unwrap().surface;
+    let spec = EdgeCurveSpec::line_between(start, end).at_rest_in_chart(flat_chart, false);
+    p.body.set_edge_curve(corner, spec, tol).unwrap();
+    assert_eq!(
+        validate_geometric(&p.body, tol).unwrap_err(),
+        vec![ValidationError::TransverseNotIntrinsic { edge: corner }],
+        "the corner's demand refuses; the cusp beside it adds nothing"
+    );
+}
 /// **Rows: wedge 0 ↔ wedge 2π under `revert`.** Reverting negates
 /// every face's outward normal at once, which negates the material
-/// κ_rel — so the same body, same keys, same declaration reads as the
-/// knife slit, and the arm's verdict is the mirror row.
+/// κ_rel — so the same body, same keys, reads as the knife slit, and
+/// the arm's verdict is the mirror row: legal together or not at all.
 ///
 /// **Why the reverted body is not asserted wholly green**: `revert`
 /// bounds the COMPLEMENTARY volume, so tier 3's positive-volume
 /// invariant refuses every reverted bounded solid. That is a fact
 /// about `revert`, not about cusps, and the cube control row below is
 /// the evidence. What the wedge arm owes is that it contributes
-/// nothing to the reverted body's verdict once declared, and that it
-/// refuses the mirror wedge when not — both pinned here, with the
-/// SAME declaration array, which is what "bit-faithfully" buys: the
-/// reverted arenas are key-for-key the source's.
+/// nothing to the reverted body's verdict — the slit is legal on the
+/// cusp's terms — pinned here on arenas that are key-for-key the
+/// source's, which is what "bit-faithfully" buys. The validator no
+/// longer names the end it saw, so the row reads it off the arm's own
+/// sign chain ([`material_end`]).
 #[test]
-fn revert_maps_the_declared_cusp_to_the_declared_slit() {
+fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
     let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(
-        validate_geometric(&reverted, tol).unwrap_err(),
-        vec![ValidationError::UndeclaredCusp {
-            edge: kiss,
-            wedge: MaterialWedge::Slit,
-        }],
-        "the cusp's revert image is the slit, and it refuses on the same terms"
+        material_end(&reverted, kiss),
+        MaterialWedge::Slit,
+        "the cusp's revert image is the slit"
     );
     assert_eq!(
-        validate_geometric_declared(&reverted, &kiss_declared(&p), tol).unwrap_err(),
+        validate_geometric(&reverted, tol).unwrap_err(),
         vec![ValidationError::NegativeVolume {
             solid: reverted.solids().next().expect("one solid").0
         }],
-        "declared, the wedge arm contributes nothing either way"
+        "the wedge arm contributes nothing to the slit's verdict"
     );
     // That residue is `revert`'s own ratified posture — a reverted
     // body is tier-2 currency and never tier-3, failing exactly
@@ -1791,10 +1787,11 @@ fn revert_maps_the_declared_cusp_to_the_declared_slit() {
 /// margin definitely outside the band, exactly at zero, and inside the
 /// band.
 ///
-/// - determinate (radii 1 and 2) — the wedge is decided, and refuses
-///   as an undeclared cusp;
+/// - determinate (radii 1 and 2) — the wedge is decided and legal, so
+///   the only verdict left is the prefer-intrinsic demand on the
+///   conventional line both edges carry;
 /// - osculating (radii 1 and 1) — conformal along the locus, the
-///   lamina the declared arm does not admit;
+///   lamina the material arm does not admit;
 /// - in-band (κ_rel = 6ε on a unit arm, so the sagitta margin is 3ε
 ///   at every CI ε row) — the honest escalation, naming
 ///   `tangent_second_order`, and NOT a refusal: ε-tightening escalates
@@ -1803,25 +1800,22 @@ fn revert_maps_the_declared_cusp_to_the_declared_slit() {
 fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     let tol = Tol::witness();
     let eps = tol.get().eps;
-    let determinate = kissing_cylinder_pillow(tol, 2.0);
-    assert!(
-        determinate.iter().all(|e| matches!(
-            e,
-            ValidationError::UndeclaredCusp {
-                wedge: MaterialWedge::Slit,
-                ..
-            } | ValidationError::TangentNotIntrinsic { .. }
-        )),
-        "{determinate:?}"
+    let (determinate, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        determinate,
+        vec![
+            ValidationError::TangentNotIntrinsic { edge: seg },
+            ValidationError::TangentNotIntrinsic { edge: split },
+        ]
     );
-    let osculating = kissing_cylinder_pillow(tol, 1.0);
+    let (osculating, _) = kissing_cylinder_pillow(tol, 1.0);
     assert!(
         osculating
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
         "{osculating:?}"
     );
-    let in_band = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
+    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
     assert!(
         in_band.iter().all(|e| matches!(
             e,
@@ -1837,15 +1831,22 @@ fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     );
 }
 
-/// The 3′ channel: a body's own C3 curve-granularity records ARE
-/// `Tangent` declarations on their face pairs, so a declared cusp
-/// validates through [`crate::validate::validate_pseudomanifold`] on
-/// the same terms — and with no records, 3′ is tier 3 exactly,
-/// undeclared cusp included.
+/// The 3′ pass judges a wedge end exactly as tier 3 does: the local
+/// battery reads no contact record, so a jet-determinate cusp passes
+/// 3′ with no records, and a curve record naming its edge — which the
+/// census certifies on the jet schedule — changes nothing about it.
 #[test]
-fn the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are() {
+fn the_pseudomanifold_gate_judges_a_cusp_as_tier_3_does() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
+    assert_eq!(
+        crate::validate::validate_pseudomanifold(
+            &p.body,
+            &crate::boolean::ContactRecords::default(),
+            tol
+        ),
+        Ok(())
+    );
     let mut records = crate::boolean::ContactRecords::default();
     records.curves.push(crate::boolean::CurveContact {
         face_a: p.face_side[0],
@@ -1856,18 +1857,6 @@ fn the_pseudomanifold_gate_reads_curve_records_as_the_declarations_they_are() {
         crate::validate::validate_pseudomanifold(&p.body, &records, tol),
         Ok(())
     );
-    assert_eq!(
-        crate::validate::validate_pseudomanifold(
-            &p.body,
-            &crate::boolean::ContactRecords::default(),
-            tol
-        )
-        .unwrap_err(),
-        vec![ValidationError::UndeclaredCusp {
-            edge: kiss_edge(&p),
-            wedge: MaterialWedge::Cusp,
-        }]
-    );
 }
 
 /// The kissing edge of a [`cusp_prism`]: the vertical meridian at the
@@ -1876,13 +1865,34 @@ fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
     p.ev[0]
 }
 
-/// The `Tangent` declaration on that edge's face pair.
-fn kiss_declared(p: &crate::fixtures::RawPrism) -> [DeclaredContact; 1] {
-    [DeclaredContact {
-        a: p.face_side[0],
-        b: p.face_side[2],
-        class: ContactClass::Tangent,
-    }]
+/// Which END of the wedge range `edge` sits at, read at its mid sample
+/// through the sign chain check 4's material arm uses: the jet's κ_rel
+/// signed into the plus face's outward frame, positive the cusp and
+/// negative the slit. For an edge whose faces' material sides oppose
+/// and whose κ_rel is definite — the caller's fixture guarantees both.
+fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge {
+    let e = body.get_edge(edge).unwrap();
+    let curve = body
+        .get_curve_geom(e.curve)
+        .and_then(crate::CurveGeom::certified)
+        .unwrap();
+    let face = |he| body.get_face(body.face_of_half_edge(he).unwrap()).unwrap();
+    let (plus, minus) = (face(e.he_plus), face(e.he_minus));
+    let t = curve.sample_param(geom_brep::CERT_SAMPLES / 2);
+    let (point, tau) = curve.carrier().ders1(t);
+    let jet = geom_brep::tangent_jet(
+        body.get_surface(plus.surface).unwrap(),
+        body.get_surface(minus.surface).unwrap(),
+        point,
+        tau,
+    );
+    let signed = geom_brep::material_kappa_rel(jet.kappa_rel, plus.sense);
+    assert!(signed != 0.0, "a definite κ_rel is the fixture's premise");
+    if signed > 0.0 {
+        MaterialWedge::Cusp
+    } else {
+        MaterialWedge::Slit
+    }
 }
 
 /// The tier-3 verdict on a digon pillow whose two faces are cylinders
@@ -1891,7 +1901,10 @@ fn kiss_declared(p: &crate::fixtures::RawPrism) -> [DeclaredContact; 1] {
 /// arm. The body is deliberately degenerate (zero-area faces): what it
 /// is for is the SECOND-ORDER band, which needs only two tangent
 /// surfaces and an edge between them.
-fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
+fn kissing_cylinder_pillow(
+    tol: Tol,
+    r2: f64,
+) -> (Vec<ValidationError>, [crate::entity::EdgeKey; 2]) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let seg = body
@@ -1930,7 +1943,10 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
-    validate_geometric(&flipped, tol).unwrap_err()
+    (
+        validate_geometric(&flipped, tol).unwrap_err(),
+        [seg.edge, split.edge],
+    )
 }
 
 /// **The material arm's fold, state by state** — including the two
@@ -1947,9 +1963,8 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
 /// - **the end SPLIT** (`side_mixed`): the pairing agreed, the jet was
 ///   determinate, and different samples still called different ends.
 ///
-/// Both previously fell to "no verdict" — silence — which validated an
-/// undeclared cusp CLEAN on an edge whose own samples contradicted one
-/// another. They escalate now, and because no fixture can force them,
+/// Silence there would validate a wedge end CLEAN on an edge whose own
+/// samples contradicted one another. They escalate, and because no fixture can force them,
 /// calling the fold directly is the only way to pin that. The row also
 /// pins the exclusivity the outcome type exists to guarantee: no input
 /// yields both a lamina and a wedge.
@@ -2048,9 +2063,9 @@ fn material_arm_split_states_escalate_and_the_outcomes_stay_exclusive() {
 /// `Split` on the floor would keep every row green while restoring
 /// exactly the silence item 6 removed.
 ///
-/// The declaration is consulted on ONE row and only one: the wedge
-/// ends. A lamina ignores it (nothing to declare), a split ignores it
-/// (nothing was established), and the seam never needed it.
+/// Every settled wedge is legal — the two ends included, because the
+/// fold hands one out only over a jet-determinate tangency — and the
+/// lamina and both splits are what refuse.
 #[test]
 fn material_arm_error_table() {
     let band = geom_core::Band::linear(Tol::witness()).unwrap();
@@ -2060,52 +2075,37 @@ fn material_arm_error_table() {
         .next()
         .expect("the fixture has edges")
         .0;
-    let err = |outcome, declared| material_arm_error(outcome, edge, declared, band);
+    let err = |outcome| material_arm_error(outcome, edge, band);
 
     // No outcome at all: exempt by kind, or already escalated.
-    assert!(err(None, false).is_none());
-    assert!(err(None, true).is_none());
-    // The seam and a transverse wedge are legal, declared or not.
-    for wedge in [MaterialWedge::Seam, MaterialWedge::Transverse] {
-        for declared in [false, true] {
-            assert!(
-                err(Some(MaterialArmOutcome::Wedge(wedge)), declared).is_none(),
-                "{wedge:?} is legal on its own terms"
-            );
-        }
-    }
-    // The two ends: refused undeclared, legal declared — the whole
-    // content of the declared arm.
-    for wedge in [MaterialWedge::Cusp, MaterialWedge::Slit] {
-        match err(Some(MaterialArmOutcome::Wedge(wedge)), false) {
-            Some(ValidationError::UndeclaredCusp { wedge: w, .. }) => assert_eq!(w, wedge),
-            other => panic!("undeclared {wedge:?} must refuse, got {other:?}"),
-        }
+    assert!(err(None).is_none());
+    // Every settled wedge is legal on its own terms.
+    for wedge in [
+        MaterialWedge::Seam,
+        MaterialWedge::Transverse,
+        MaterialWedge::Cusp,
+        MaterialWedge::Slit,
+    ] {
         assert!(
-            err(Some(MaterialArmOutcome::Wedge(wedge)), true).is_none(),
-            "a declared {wedge:?} is legal"
+            err(Some(MaterialArmOutcome::Wedge(wedge))).is_none(),
+            "{wedge:?} is legal at rest"
         );
     }
-    // The lamina refuses whatever the declarations say.
-    for declared in [false, true] {
-        assert!(
-            matches!(
-                err(Some(MaterialArmOutcome::Lamina), declared),
-                Some(ValidationError::LaminaWedge { .. })
-            ),
-            "no declaration cures a lamina"
-        );
-    }
-    // Both splits escalate, carrying the predicate that split — and a
-    // declaration does not silence them either.
+    // The lamina refuses.
+    assert!(
+        matches!(
+            err(Some(MaterialArmOutcome::Lamina)),
+            Some(ValidationError::LaminaWedge { .. })
+        ),
+        "a lamina is refused"
+    );
+    // Both splits escalate, carrying the predicate that split.
     for predicate in ["material_wedge_side", "material_cusp_side"] {
-        for declared in [false, true] {
-            match err(Some(MaterialArmOutcome::Split { predicate }), declared) {
-                Some(ValidationError::SliverDihedral { cause, .. }) => {
-                    assert_eq!(cause.predicate, Some(predicate));
-                }
-                other => panic!("a split must escalate, got {other:?}"),
+        match err(Some(MaterialArmOutcome::Split { predicate })) {
+            Some(ValidationError::SliverDihedral { cause, .. }) => {
+                assert_eq!(cause.predicate, Some(predicate));
             }
+            other => panic!("a split must escalate, got {other:?}"),
         }
     }
 }

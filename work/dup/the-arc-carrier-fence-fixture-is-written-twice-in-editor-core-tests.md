@@ -2,11 +2,13 @@
 id: the-arc-carrier-fence-fixture-is-written-twice-in-editor-core-tests
 kind: issue
 title: The m10-p arc-carrier fixture (rocker eye and vesica lens programs) is written twice in editor-core tests
-status: open
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: E
 refs: [cert3r1-dump-is-a-print-only-replica-of-the-m10-p-fence]
+closed: 2026-09-28
+pr: 3368
 ---
 
 
@@ -45,3 +47,12 @@ door, not a construction, and is not this row.
 list as one function in `m10_p_fence.rs`, the fence and the original,
 reachable as `crate::m10_p_fence::…`, or in `tests/fixture/` with the
 viewer symlink in mind.
+
+## Closed
+
+The tint row kept `cert3r1_dump` on Ev's ruling (2026-09-28), so both
+files stay, and the program list now has one home: `m10_p_fence.rs`'s
+`fixture_walk`, part of the fence's `walk`. `cert3r1_dump` prints over
+that walk and builds no programs of its own. The dump's printed output
+is byte-identical before and after at `f64` and `Interval`, and the
+fence's digests did not move.

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # kernel-serde-free.sh — the kernel crates take NO serde dependency.
-# ONE home; ci.yml's "kernel crates are serde-free" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE RULE (DESIGN.md's serde row, the F3/G1 layering rule): geometry
 # and topology are the kernel; persistence is the document layer's job.

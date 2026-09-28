@@ -1220,7 +1220,7 @@ fn splice_in_arena_order<T: Decide>(
 ///
 /// The end-to-end rows live in `sweep`'s
 /// `mass_props_are_thread_count_invariant` — a real body, the public
-/// doors, 1 thread against 4. This one pins the rule those rows depend
+/// doors, 4 threads against the serial walk's golden. This one pins the rule those rows depend
 /// on at the site that carries it, with the refusal placed where no
 /// fixture body puts it: at a chosen slot, with a recording on every
 /// slot before and after, so a fold that spliced one face too few or
@@ -2544,16 +2544,33 @@ pub trait AtRestPolicy: Decide + geom_brep::PcurveFittedLane {
     /// it.
     fn gate_at_rest(body: &Body<Self>, tol: Tol) -> Result<AtRestOutcome, Vec<ValidationError>>;
 
-    /// The at-rest gate over a body with declared contacts — the
-    /// tier-3′ census door ([`crate::validate_pseudomanifold`] at
-    /// certifying scalars; absent at duals).
+    /// [`AtRestPolicy::gate_at_rest`] over a body the caller hands on,
+    /// keeping the verdict with it ([`crate::AtRestBody::validate`] at
+    /// certifying scalars; the body carried unvalidated at duals), so
+    /// [`AtRestPolicy::gate_at_rest_declared`] over the same body pays
+    /// the census alone.
+    ///
+    /// # Errors
+    ///
+    /// The validator's own findings, verbatim, where the scalar runs
+    /// it.
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>>;
+
+    /// The at-rest gate over a gated body with declared contacts — the
+    /// tier-3′ pass ([`crate::AtRestBody::validate_pseudomanifold`],
+    /// which is [`crate::validate_pseudomanifold`] less the battery the
+    /// kept verdict already answers, at certifying scalars; absent at
+    /// duals).
     ///
     /// # Errors
     ///
     /// The validator's own findings, verbatim, where the scalar runs
     /// it.
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>>;
@@ -2588,12 +2605,19 @@ impl AtRestPolicy for f64 {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2617,12 +2641,19 @@ impl AtRestPolicy for geom_core::Probe {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2645,12 +2676,19 @@ impl AtRestPolicy for geom_core::interval::Interval {
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2685,12 +2723,19 @@ where
         crate::validate::validate_geometric(body, tol).map(|()| AtRestOutcome::Validated)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        crate::AtRestBody::validate(body, tol)
+    }
+
     fn gate_at_rest_declared(
-        body: &Body<Self>,
+        body: &crate::AtRestBody<Self>,
         contacts: &ContactRecords,
         tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
-        crate::validate::validate_pseudomanifold(body, contacts, tol)
+        body.validate_pseudomanifold(contacts, tol)
             .map(|()| AtRestOutcome::Validated)
     }
 }
@@ -2725,8 +2770,15 @@ where
         Ok(AtRestOutcome::NotRunAtThisScalar)
     }
 
+    fn gate_at_rest_kept(
+        body: Body<Self>,
+        _tol: Tol,
+    ) -> Result<crate::AtRestBody<Self>, Vec<ValidationError>> {
+        Ok(crate::AtRestBody::not_run(body))
+    }
+
     fn gate_at_rest_declared(
-        _body: &Body<Self>,
+        _body: &crate::AtRestBody<Self>,
         _contacts: &ContactRecords,
         _tol: Tol,
     ) -> Result<AtRestOutcome, Vec<ValidationError>> {
@@ -2743,6 +2795,8 @@ mod at_rest_policy_tests {
     //! grant stays invisible to it. Each certifying (scalar, method)
     //! pair is asserted equal to its door on a body the door refuses,
     //! so `Ok(Validated)`-without-validating cannot survive these rows.
+    //! The tier-3′ arm over a kept verdict is pinned the same way, on a
+    //! subject tier 3 passes and the census refuses.
     //! The shell door is the one arm that is not a gate on that
     //! subject: it is a VALUE, so what these rows pin is the arm's
     //! answer — `ShellDoor::certified()` at a certifying scalar, `None`
@@ -2750,8 +2804,10 @@ mod at_rest_policy_tests {
     //! `wiring_rows`' pin, per scalar, beside the quadrature door's.
 
     use super::{AtRestOutcome, AtRestPolicy};
+    use crate::AtRestBody;
     use crate::body::Body;
     use crate::boolean::ContactRecords;
+    use crate::test_support_fixtures::identity_map;
     use geom_core::{Decide, Point3, Tol};
 
     /// The `mvfs` seed body: its face surface is the placeholder, which
@@ -2774,19 +2830,52 @@ mod at_rest_policy_tests {
             door.map(|()| AtRestOutcome::Validated),
             "gate_at_rest must be validate_geometric verbatim at a certifying scalar"
         );
+        assert_eq!(
+            T::gate_at_rest_kept(b.clone(), tol).map(|kept| kept.outcome()),
+            crate::validate::validate_geometric(&b, tol).map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_kept must refuse as validate_geometric at a certifying scalar"
+        );
         let contacts = ContactRecords::default();
         // The certified door, and its name is the assertion: a
         // certifying arm takes the door whose bound names the right it
         // has, so check 2 re-derives the M7-8 carrier class here.
         // `validate_pseudomanifold_structural` is the lane-free sibling
-        // a dual takes, and is not what this arm runs.
+        // a dual takes, and is not what this arm runs. A body carried
+        // with no verdict takes the whole pass.
         let door = crate::validate::validate_pseudomanifold(&b, &contacts, tol);
         assert!(door.is_err(), "the seed body must refuse the census door");
         assert_eq!(
-            T::gate_at_rest_declared(&b, &contacts, tol),
+            T::gate_at_rest_declared(&AtRestBody::not_run(b), &contacts, tol),
             door.map(|()| AtRestOutcome::Validated),
-            "gate_at_rest_declared must be validate_pseudomanifold verbatim at a certifying \
-             scalar"
+            "gate_at_rest_declared must be validate_pseudomanifold verbatim over an unvalidated \
+             body at a certifying scalar"
+        );
+        // Over a KEPT verdict the pass is the census alone, and the
+        // subject must be one the census refuses and tier 3 does not —
+        // two unit cubes overlapping by half — or a census skipped with
+        // the battery would pass here unseen.
+        let mut overlap = crate::test_support_fixtures::mapped_cube(identity_map::<T>, tol);
+        crate::test_support_fixtures::cube_into(
+            &mut overlap,
+            |x, y, z| identity_map::<T>(x + 0.5, y + 0.5, z + 0.5),
+            tol,
+        );
+        let door = crate::validate::validate_pseudomanifold(&overlap, &contacts, tol);
+        assert!(
+            door.is_err(),
+            "the overlapping pair must refuse the census door"
+        );
+        let kept = T::gate_at_rest_kept(overlap, tol).expect("tier 3 alone passes the pair");
+        assert_eq!(
+            kept.outcome(),
+            AtRestOutcome::Validated,
+            "a certifying arm keeps a Validated verdict"
+        );
+        assert_eq!(
+            T::gate_at_rest_declared(&kept, &contacts, tol),
+            door.map(|()| AtRestOutcome::Validated),
+            "gate_at_rest_declared over a kept verdict must refuse as validate_pseudomanifold, \
+             finding for finding"
         );
         // The arm's `Some` is the door's one constructor and not a
         // value spelled beside it: the `impl AtRestPolicy for …` arms
@@ -2851,9 +2940,12 @@ mod at_rest_policy_tests {
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest(&b, tol),
             Ok(AtRestOutcome::NotRunAtThisScalar)
         );
+        let kept = <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_kept(b, tol)
+            .expect("a dual keeps every body, gating none");
+        assert_eq!(kept.outcome(), AtRestOutcome::NotRunAtThisScalar);
         assert_eq!(
             <geom_core::Dual64 as AtRestPolicy>::gate_at_rest_declared(
-                &b,
+                &kept,
                 &ContactRecords::default(),
                 tol
             ),

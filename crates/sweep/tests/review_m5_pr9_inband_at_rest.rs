@@ -14,6 +14,8 @@ use profile::RawLoop;
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 
+use crate::common::contact_edges::intrinsic_edges;
+
 #[test]
 fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
     // Scale the PR's own filleted-block shape by S: fillet radius
@@ -55,14 +57,7 @@ fn an_in_band_second_order_margin_at_rest_escalates_somewhere_loud() {
             // tangent_second_order cause) — or, at minimum, the edge
             // must NOT be marked jet-determinate Tangent and must NOT
             // carry a definite TangentIntersection description.
-            let tangent_desc = body.edges().any(|(_, e)| {
-                matches!(
-                    body.get_curve_geom(e.curve)
-                        .and_then(|g| g.certified())
-                        .map(geom_brep::EdgeCurve::description),
-                    Some(geom_brep::EdgeDescription::TangentIntersection { .. })
-                )
-            });
+            let tangent_desc = intrinsic_edges(&body) > 0;
             match topo::contact_marks(&body, Tol::witness()) {
                 Err(errs) => {
                     eprintln!("IN-BAND-AT-REST: tier-3 walk escalated: {errs:?}");

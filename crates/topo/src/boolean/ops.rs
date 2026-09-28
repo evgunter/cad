@@ -209,8 +209,8 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Merge groups the output stage did NOT glue, as outside the
-    /// never-elide inventory (M4 PR 5), and declared surface pairs
+    /// Curved merge groups the output stage did NOT glue, as outside
+    /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
     /// the door has no rung for (a non-planar carrier) — the record's
     /// faces plus the typed
     /// [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
@@ -423,11 +423,11 @@ pub fn boolean_op_with<
     // `Cone`/`Torus` germ pairs have no join arm for ∖ or ∩ (PR 9c
     // deviation 1 lineage) and NURBS faces have no crossing layer
     // (deviation 5). Behind this door the no-crossings fallback is
-    // guarded per class: the sphere is extent-certified, and a cylinder
-    // wall pair or a torus face that may meet the other operand refuses
-    // typed there (`cylinder_extent_gate`, `torus_extent_gate`) — so a
-    // union, which the torus does reach, is never answered by the
-    // vertex probe across a torus face it could not see into.
+    // guarded per class: the sphere is extent-certified, and every
+    // torus, cylinder and cone pair is section-certified or refused
+    // typed there (`section_extent_pass`) — so a union, which the torus
+    // does reach, is never answered by the vertex probe across a face
+    // pair it could not see into.
     //
     // Up front and PAIR-SCOPED: the kinds are read exactly, and the
     // question of whether a kind can matter to this operation is
@@ -523,6 +523,10 @@ fn boolean_op_recut<
             let (a2, b2) = apply_recuts(a, b, &recuts, tol)?;
             return boolean_op_recut(op, &a2, &b2, decls, strategy, false, tol);
         }
+        // The curved kinds the extent scan leaves: every torus,
+        // cylinder and cone face's pairs, certified per pair by the
+        // section certificate or refused typed.
+        section_extent_pass(a, b, band)?;
         return fallback(op, &red, a, b, decls, band, tol);
     }
 
@@ -654,54 +658,26 @@ fn boolean_op_recut<
     }))
 }
 
-/// **The crossings path's guard for the interior-loop class.**
+/// **The crossings path's guard for the interior-loop class: the
+/// section certificate, per pair** ([`super::section_cert`], whose
+/// module docs carry the argument).
 ///
-/// A face can meet a face of the other operand in a closed loop
-/// interior to both — a loop that touches no edge of either body. On
-/// the crossings path nothing sees it: no edge event marks it, the
-/// join cuts nothing along it, and face-region propagation carries the
-/// face's side across it from the regions the crossings elsewhere did
-/// cut. The result is a valid body that is wrong: the overlap counted
-/// twice under ∪, dropped under ∩ and ∖. The no-crossings fallback has
-/// its own gates ([`torus_extent_gate`], [`sphere_extent_scan`]); this
-/// is the same question on the other path, per kind.
+/// Every undeclared cross-operand pair whose certified boxes overlap,
+/// where either face is a torus, a sphere, a cylinder or a cone, is
+/// classified and certified. A DECLARED pair is exempt: its contact is
+/// the verified carrier the declared rungs walk along its edges. The
+/// first refusing pair, in arena order (A's faces, then B's), refuses
+/// the operation as the operand gate refuses a pair with no arm —
+/// [`BooleanError::CurvedPairUnsupported`] with the op named — and its
+/// `face` is the pair's A face when that face is curved, else its B
+/// face.
 ///
-/// - **Torus: refused on reach.** A torus face can meet a partner in a
-///   loop whatever else the pair does — a plane section of a tube can
-///   have two components, so an event on one says nothing of the
-///   other. Boxes are supersets of loci, so a torus face whose box
-///   clears every UNDECLARED face box of the other operand meets it
-///   only in declared pairs, whose contact is the verified carrier the
-///   declared rungs walk along its edges; a pair whose CARRIERS are
-///   certified apart ([`carriers_apart`]) cannot meet either. Anything
-///   else refuses, including torus faces whose loci stand apart while
-///   their carriers do not; the certificate that separates those (each
-///   overlapping pair's section, enumerated) is not built.
-/// - **Sphere: refused per PAIR, where the pair has no event.** A
-///   sphere face's section with a plane or another sphere is ONE
-///   circle; with a cylinder a loop that stays off every cylinder edge
-///   cannot encircle the axis (an encircling loop crosses the wall's
-///   seam lines), and a non-encircling section is one component. So
-///   when an undeclared overlapping pair has an edge event, that event
-///   lies on the pair's one closed section curve — or, for a cylinder
-///   with two encircling components, each component crosses a seam —
-///   and nothing interior to both faces escapes it. With NO event the
-///   pair is cleared only by a certificate: its carriers do not meet
-///   at all ([`carriers_apart`]), or, against a plane, the section
-///   circle lies outside one of the two faces
-///   ([`circle_misses_a_face`]). Anything else refuses, and a sphere
-///   face against any other partner kind refuses on reach.
-///
-/// An event of the pair `(F, G)` is a contact the reduction recorded
-/// between a vertex on `F`'s boundary and `G` (vertex on face or
-/// vertex on vertex), or the same the other way round: the sweep
-/// examines every box-overlapping edge × face pair, so a section curve
-/// that reaches either face's boundary inside the other face leaves
-/// one.
-///
-/// It refuses as the operand gate refused a pair with no arm:
-/// [`BooleanError::CurvedPairUnsupported`], with the op named.
-fn interior_loop_verdict<T: Decide + Bounds>(
+/// Decided on the unmutated reduction and raised only where a body
+/// would be returned (the call site), so every refusal the pipeline
+/// meets first stands verbatim.
+fn interior_loop_verdict<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
     op: BooleanOp,
     a: &Body<T>,
     b: &Body<T>,
@@ -709,209 +685,357 @@ fn interior_loop_verdict<T: Decide + Bounds>(
     decls: &BooleanDeclarations,
     band: Band,
 ) -> Result<(), BooleanError> {
-    let declared = |operand: Operand, face: FaceKey, other: FaceKey| {
-        decls.coincident_faces.iter().any(|d| match operand {
-            Operand::A => d.a == face && d.b == other,
-            Operand::B => d.b == face && d.a == other,
-        })
-    };
-    let refuse = |p: super::reduce::UnsupportedPair| BooleanError::CurvedPairUnsupported {
-        op: Some(op),
-        site: super::PairRefusalSite::InteriorLoopGuard,
-        operand: p.operand,
-        face: p.face,
-        kind: p.kind,
-        other_face: p.other_face,
-        other_kind: p.other_kind,
-    };
-    if let Some(p) = super::reduce::first_unsupported_pair(
-        a,
-        b,
-        band,
-        |s| !matches!(s, geom::Surface::Torus { .. }),
-        |operand, face, other| {
-            declared(operand, face, other) || carriers_apart(operand, face, other, a, b, band)
-        },
-    )? {
-        return Err(refuse(p));
-    }
-    // The sphere half: the pairs with an event, as (A face, B face).
     let events = event_pairs(red)?;
-    let clear = |operand: Operand, face: FaceKey, other: FaceKey| -> bool {
-        if declared(operand, face, other) {
-            return true;
-        }
-        let (fa, fb) = match operand {
-            Operand::A => (face, other),
-            Operand::B => (other, face),
-        };
-        if events.contains(&(fa, fb)) {
-            return matches!(
-                partner_kind(operand, other, a, b),
-                Some(
-                    geom_brep::SurfaceKind::Plane
-                        | geom_brep::SurfaceKind::Sphere
-                        | geom_brep::SurfaceKind::Cylinder
-                )
-            );
-        }
-        carriers_apart(operand, face, other, a, b, band)
-            || circle_misses_a_face(operand, face, other, a, b, band)
-    };
-    if let Some(p) = super::reduce::first_unsupported_pair(
+    let pairs = section_pairs(
         a,
         b,
         band,
-        |s| !matches!(s, geom::Surface::Sphere { .. }),
-        clear,
-    )? {
-        return Err(refuse(p));
+        SectionPath::Crossings,
+        |fa, fb| declares_pair(decls, fa, fb),
+        |fa, fb| events.contains(&(fa, fb)),
+        true,
+    )?;
+    match pairs.iter().find(|p| p.verdict.is_err()) {
+        None => Ok(()),
+        Some(p) => {
+            let (operand, face, kind, other_face, other_kind) = p.named();
+            Err(BooleanError::CurvedPairUnsupported {
+                op: Some(op),
+                site: super::PairRefusalSite::InteriorLoopGuard,
+                operand,
+                face,
+                kind,
+                other_face,
+                other_kind,
+            })
+        }
     }
-    Ok(())
 }
 
-/// The kind of the face `other` of the operand opposite `operand`.
-fn partner_kind<T: Real>(
-    operand: Operand,
-    other: FaceKey,
-    a: &Body<T>,
-    b: &Body<T>,
-) -> Option<geom_brep::SurfaceKind> {
-    let (_, other_body) = own_and_other(operand, a, b);
-    Some(geom_brep::SurfaceKind::of(face_surface(other_body, other)?))
+/// Does a declaration speak for EXACTLY the pair `(A face, B face)`?
+/// A declaration covers its own pair and no other: a face declared
+/// against one partner meets every other partner undeclared.
+pub(crate) fn declares_pair(decls: &BooleanDeclarations, fa: FaceKey, fb: FaceKey) -> bool {
+    decls
+        .coincident_faces
+        .iter()
+        .any(|d| d.a == fa && d.b == fb)
 }
 
-/// Does a certificate put the two faces' CARRIERS apart? `face` (of
-/// `operand`) is a sphere or a torus; the partner is a plane, a
-/// sphere, a cylinder or (for a sphere) a torus. Each test is an exact
-/// separation of the two surfaces as point sets, decided on the band:
-///
-/// - a ball against a plane: the centre's distance to the plane
-///   exceeds the radius;
-/// - two balls: the centres are farther apart than the radii sum, or
-///   one ball is strictly nested in the other;
-/// - a ball against a cylinder: the centre's distance to the axis
-///   clears the radius sum, or the ball sits strictly inside the tube;
-/// - a torus against a plane: the torus's support in the plane's
-///   normal, `R·|n⊥| + r`, is less than the centre's distance to the
-///   plane;
-/// - a torus against a ball: the ball's centre is farther from the core
-///   circle than the two radii sum.
-///
-/// Any other pair, and any undecided margin, is not a certificate.
-fn carriers_apart<T: Decide>(
-    operand: Operand,
+/// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
+/// operand as well as the face: the two operands' arenas mint their
+/// keys independently, so A's face and B's face can share a key. (The
+/// map keys the operand as "is B", `Operand` carrying no order.)
+#[derive(Default)]
+pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
+
+impl ChartCache {
+    /// Does `operand`'s `face` of `body` describe
+    /// ([`crate::pcurves::chart_boundary`] answers `Ok`)?
+    pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
+        &mut self,
+        operand: Operand,
+        body: &Body<T>,
+        face: FaceKey,
+        surface: &geom::Surface<T>,
+        band: Band,
+    ) -> bool {
+        *self
+            .0
+            .entry((operand == Operand::B, face))
+            .or_insert_with(|| crate::pcurves::chart_boundary(body, face, surface, band).is_ok())
+    }
+}
+
+/// Which path a section scan serves; the two differ in which pairs
+/// they examine.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum SectionPath {
+    /// The crossings path: every pair with a torus, sphere, cylinder or
+    /// cone face.
+    Crossings,
+    /// The no-crossings fallback: every pair with a torus, cylinder or
+    /// cone face and no sphere face — a sphere's pairs are the extent
+    /// scan's ([`sphere_extent_scan`]), which runs first and keeps its
+    /// re-cut.
+    Fallback,
+}
+
+impl SectionPath {
+    fn scope<T: Real>(self, x: &geom::Surface<T>, y: &geom::Surface<T>) -> bool {
+        use geom::Surface as S;
+        let curved = |s: &geom::Surface<T>| match self {
+            Self::Crossings => matches!(
+                s,
+                S::Torus { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Cone { .. }
+            ),
+            Self::Fallback => matches!(s, S::Torus { .. } | S::Cylinder { .. } | S::Cone { .. }),
+        };
+        let sphere = |s: &geom::Surface<T>| matches!(s, S::Sphere { .. });
+        (curved(x) || curved(y)) && !(self == Self::Fallback && (sphere(x) || sphere(y)))
+    }
+
+    /// Is `s` a face this path's refusal names?
+    fn names<T: Real>(self, s: &geom::Surface<T>) -> bool {
+        self.scope(s, s)
+    }
+}
+
+/// One pair's certificate outcome.
+#[derive(Clone, Debug)]
+pub(crate) struct PairVerdict {
+    /// The pair's face of A.
+    pub a_face: FaceKey,
+    /// Its kind.
+    pub a_kind: geom_brep::SurfaceKind,
+    /// The pair's face of B.
+    pub b_face: FaceKey,
+    /// Its kind.
+    pub b_kind: geom_brep::SurfaceKind,
+    /// A's face is one the path names in its refusal.
+    pub a_named: bool,
+    /// Each component's witness, or the pair's refusal.
+    pub verdict: Result<Vec<super::section_cert::Cleared>, super::section_cert::Refusal>,
+}
+
+impl PairVerdict {
+    /// `(operand, face, kind, other_face, other_kind)`, the named face
+    /// first.
+    fn named(
+        &self,
+    ) -> (
+        Operand,
+        FaceKey,
+        geom_brep::SurfaceKind,
+        FaceKey,
+        geom_brep::SurfaceKind,
+    ) {
+        if self.a_named {
+            (
+                Operand::A,
+                self.a_face,
+                self.a_kind,
+                self.b_face,
+                self.b_kind,
+            )
+        } else {
+            (
+                Operand::B,
+                self.b_face,
+                self.b_kind,
+                self.a_face,
+                self.a_kind,
+            )
+        }
+    }
+}
+
+/// Does the face carry a lone-vertex loop?
+fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> Result<bool, BooleanError> {
+    let corrupt = || BooleanError::ClassificationInvariant {
+        what: "section certificate: a face loop is lost",
+    };
+    let fd = body.get_face(face).ok_or_else(corrupt)?;
+    for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
+        if matches!(
+            body.get_loop(l).ok_or_else(corrupt)?.boundary,
+            LoopBoundary::Empty { .. }
+        ) {
+            return Ok(true);
+        }
+    }
+    Ok(false)
+}
+
+/// Places a witness point in one face: `contfp` on a plane, the chart
+/// trim on a curved face. A point the trim puts definitely OFF the
+/// carrier is no verdict — the witness was built on the carrier, so
+/// that answer contradicts its construction rather than placing it.
+pub(crate) fn place_witness<T: Decide>(
+    body: &Body<T>,
     face: FaceKey,
-    other: FaceKey,
+    surface: &geom::Surface<T>,
+    p: Point3<T>,
+    band: Band,
+) -> Option<FaceContainment> {
+    match *surface {
+        geom::Surface::Plane { normal, .. } => contfp(body, face, normal, p, band).ok(),
+        _ => match super::contain::curved_face_placement(body, face, p, band) {
+            Ok(super::contain::CurvedPlacement::Trim(v)) => v,
+            _ => None,
+        },
+    }
+}
+
+/// **The section certificate over every in-scope pair** of `a` × `b`
+/// whose certified boxes overlap and which `skip` does not exempt, in
+/// arena order. `evented` says whether the reduction recorded an event
+/// on the pair `(A face, B face)`. With `stop` the scan returns at the
+/// first refusing pair.
+///
+/// `chart_boundary` is asked once per face and cached; the pair's
+/// reach — the ball about the two boxes' overlap, which pivots and
+/// levers the angular margins — is built here
+/// ([`super::section_cert`]'s module docs).
+///
+/// # Errors
+///
+/// [`BooleanError::ClassificationInvariant`] for a face whose surface
+/// or loops do not resolve, and the box builder's own errors.
+pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
     a: &Body<T>,
     b: &Body<T>,
     band: Band,
-) -> bool {
-    let (body, other_body) = own_and_other(operand, a, b);
-    let positive =
-        |name: &'static str, m: T| matches!(decide(name, Margin::of(m), band), Ok(Sign::Positive));
-    let unit = |v: Vec3<T>| v / v.norm();
-    // The distance from `p` to the torus core circle, and to a line.
-    let off_core = |p: Point3<T>, c: Point3<T>, axis: Vec3<T>, big_r: T| {
-        let w = p - c;
-        let h = w.dot(unit(axis));
-        let rho = (w - unit(axis) * h).norm();
-        Vec3::new(rho - big_r, h, T::zero()).norm()
+    path: SectionPath,
+    skip: impl Fn(FaceKey, FaceKey) -> bool,
+    evented: impl Fn(FaceKey, FaceKey) -> bool,
+    stop: bool,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    use super::section_cert::{Refusal, Side, certify, classify};
+    let lost = || BooleanError::ClassificationInvariant {
+        what: "section certificate: a face surface is lost",
     };
-    match (face_surface(body, face), face_surface(other_body, other)) {
-        (
-            Some(&geom::Surface::Sphere { center, radius, .. }),
-            Some(&geom::Surface::Plane { origin, normal, .. }),
-        ) => matches!(
-            ball_against_plane(center, radius, origin, normal, band),
-            Ok((Sign::Negative, _))
-        ),
-        (
-            Some(&geom::Surface::Sphere { center, radius, .. }),
-            Some(&geom::Surface::Sphere {
-                center: c2,
-                radius: r2,
-                ..
-            }),
-        ) => {
-            let d = (center - c2).norm();
-            positive("bool_interior_loop_sphere_clear", d - (radius + r2))
-                || positive("bool_interior_loop_sphere_nested", (radius - r2).abs() - d)
+    let pad = boxes::sweep_pad(band);
+    let faces =
+        |body: &Body<T>| -> Result<Vec<(FaceKey, geom::Surface<T>, bvh::Aabb)>, BooleanError> {
+            body.faces()
+                .map(|(k, fd)| {
+                    let s = body.get_surface(fd.surface).ok_or_else(lost)?.clone();
+                    Ok((k, s, boxes::face_box(body, k, pad)?))
+                })
+                .collect()
+        };
+    let (a_faces, b_faces) = (faces(a)?, faces(b)?);
+    let mut charts = ChartCache::default();
+    let mut out = Vec::new();
+    for (fa, sa, box_a) in &a_faces {
+        for (fb, sb, box_b) in &b_faces {
+            if !path.scope(sa, sb) || !box_a.overlaps(box_b) || skip(*fa, *fb) {
+                continue;
+            }
+            let verdict = if has_lone_vertex(a, *fa)? || has_lone_vertex(b, *fb)? {
+                Err(Refusal::LoneVertex)
+            } else {
+                let (lo, hi) = (
+                    Vec3::new(
+                        box_a.min_x.max(box_b.min_x),
+                        box_a.min_y.max(box_b.min_y),
+                        box_a.min_z.max(box_b.min_z),
+                    ),
+                    Vec3::new(
+                        box_a.max_x.min(box_b.max_x),
+                        box_a.max_y.min(box_b.max_y),
+                        box_a.max_z.min(box_b.max_z),
+                    ),
+                );
+                let reach = super::section_cert::Reach {
+                    centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
+                    radius: T::from_f64((hi - lo).norm() * 0.5),
+                };
+                let section = classify(sa, sb, reach, band);
+                certify(
+                    &section,
+                    evented(*fa, *fb),
+                    |side| {
+                        let (operand, body, face, surface) = match side {
+                            Side::F => (Operand::A, a, *fa, sa),
+                            Side::G => (Operand::B, b, *fb, sb),
+                        };
+                        charts.describes(operand, body, face, surface, band)
+                    },
+                    |p| {
+                        [
+                            place_witness(a, *fa, sa, p, band),
+                            place_witness(b, *fb, sb, p, band),
+                        ]
+                    },
+                )
+            };
+            let refused = verdict.is_err();
+            out.push(PairVerdict {
+                a_face: *fa,
+                a_kind: geom_brep::SurfaceKind::of(sa),
+                b_face: *fb,
+                b_kind: geom_brep::SurfaceKind::of(sb),
+                a_named: path.names(sa),
+                verdict,
+            });
+            if stop && refused {
+                return Ok(out);
+            }
         }
-        (
-            Some(&geom::Surface::Sphere { center, radius, .. }),
-            Some(&geom::Surface::Cylinder {
-                origin,
-                axis,
-                radius: rc,
-                ..
-            }),
-        ) => {
-            let d = (center - origin).cross(unit(axis)).norm();
-            positive("bool_interior_loop_cylinder_clear", d - (rc + radius))
-                || positive("bool_interior_loop_cylinder_nested", rc - d - radius)
+    }
+    Ok(out)
+}
+
+/// **The no-crossings path's section pass.** With no event anywhere,
+/// W4 never fires and the no-event decision decides every lone
+/// component, so each pair the vertex probe could not see into is
+/// either certified or refused here, typed as the fallback's extent
+/// refusal ([`BooleanError::FallbackExtentUnsupported`]) naming the
+/// pair's curved face. Declarations exempt nothing on this path: with
+/// no crossings, a declared coincident pair is exactly what the vertex
+/// probe cannot decide.
+fn section_extent_pass<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+) -> Result<(), BooleanError> {
+    let pairs = section_pairs(
+        a,
+        b,
+        band,
+        SectionPath::Fallback,
+        |_, _| false,
+        |_, _| false,
+        true,
+    )?;
+    match pairs
+        .iter()
+        .find_map(|p| p.verdict.as_ref().err().map(|r| (p, *r)))
+    {
+        None => Ok(()),
+        Some((p, refusal)) => {
+            let (operand, face, ..) = p.named();
+            Err(BooleanError::FallbackExtentUnsupported {
+                operand,
+                face,
+                what: refusal.what(),
+            })
         }
-        (
-            Some(&geom::Surface::Sphere { center, radius, .. }),
-            Some(&geom::Surface::Torus {
-                center: ct,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            }),
-        )
-        | (
-            Some(&geom::Surface::Torus {
-                center: ct,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            }),
-            Some(&geom::Surface::Sphere { center, radius, .. }),
-        ) => positive(
-            "bool_interior_loop_torus_ball_clear",
-            off_core(center, ct, axis, major_radius) - (minor_radius + radius),
-        ),
-        (
-            Some(&geom::Surface::Torus {
-                center,
-                axis,
-                major_radius,
-                minor_radius,
-                ..
-            }),
-            Some(&geom::Surface::Plane { origin, normal, .. }),
-        ) => {
-            let n = unit(normal);
-            let n_perp = (n - unit(axis) * n.dot(unit(axis))).norm();
-            positive(
-                "bool_interior_loop_torus_plane_clear",
-                (center - origin).dot(n).abs() - (major_radius * n_perp + minor_radius),
-            )
-        }
-        _ => false,
     }
 }
 
-/// `operand`'s own body first, the other operand's second — the one
-/// prelude every per-pair question here opens with.
-fn own_and_other<'a, T: Real>(
-    operand: Operand,
-    a: &'a Body<T>,
-    b: &'a Body<T>,
-) -> (&'a Body<T>, &'a Body<T>) {
-    match operand {
-        Operand::A => (a, b),
-        Operand::B => (b, a),
-    }
-}
-
-/// A face's resolved surface, or `None` for a dangling key.
-fn face_surface<T: Real>(body: &Body<T>, face: FaceKey) -> Option<&geom::Surface<T>> {
-    body.get_face(face)
-        .and_then(|fd| body.get_surface(fd.surface))
+/// **The section certificate's per-pair report, for the verdict rows:**
+/// the reduction `op` would run, and every in-scope pair's outcome on
+/// the crossings path with that reduction's events.
+///
+/// # Errors
+///
+/// The reduction's own refusals, and [`section_pairs`]'.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn section_report<
+    T: Decide + Bounds + geom_brep::PcurveFittedLane + crate::props::AtRestPolicy,
+>(
+    op: BooleanOp,
+    a: &Body<T>,
+    b: &Body<T>,
+    tol: Tol,
+) -> Result<Vec<PairVerdict>, BooleanError> {
+    let band = Band::linear(tol)?;
+    let decls = BooleanDeclarations::default();
+    let red =
+        super::boolean_reduce_declared_strategy(op, a, b, &decls, SweepStrategy::Realized, tol)?;
+    let events = event_pairs(&red)?;
+    section_pairs(
+        a,
+        b,
+        band,
+        SectionPath::Crossings,
+        |_, _| false,
+        |fa, fb| events.contains(&(fa, fb)),
+        false,
+    )
 }
 
 /// **A ball against a plane's CARRIER: the one home of that gap.**
@@ -923,9 +1047,7 @@ fn face_surface<T: Real>(body: &Body<T>, face: FaceKey) -> Option<&geom::Surface
 /// `Negative` is a ball definitely clear of the carrier, `Zero` a
 /// tangency, `Positive` a ball the carrier cuts in a circle of radius
 /// `√((r − |s|)(r + |s|))` about `centre − n̂·s`. Returns the sign and
-/// `s`. Read by the no-crossings sphere scan ([`sphere_extent_scan`])
-/// and by the crossings path's guard ([`carriers_apart`],
-/// [`circle_misses_a_face`]).
+/// `s`. Read by the no-crossings sphere scan ([`sphere_extent_scan`]).
 fn ball_against_plane<T: Decide>(
     center: Point3<T>,
     radius: T,
@@ -936,61 +1058,6 @@ fn ball_against_plane<T: Decide>(
     let s = (center - origin).dot(normal);
     let sign = decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)?;
     Ok((sign, s))
-}
-
-/// **A sphere face and a plane face with no event between them: is
-/// their section circle outside one of the two faces?**
-///
-/// With no event on the pair, the circle meets neither face's boundary
-/// inside the other face: where it crossed an edge of the sphere face
-/// inside the plane face, or a line edge of the plane face inside the
-/// sphere face, the sweep — which examines every box-overlapping edge
-/// × face pair — would have recorded the crossing. So the part of the
-/// circle lying in both faces is closed and has no boundary point: it
-/// is empty or it is the whole circle. ONE point of the circle decides
-/// which, and a point certified outside either face certifies the
-/// empty case. Anything else (the point in both, on a boundary, or a
-/// containment with no verdict) is not a certificate.
-fn circle_misses_a_face<T: Decide>(
-    operand: Operand,
-    face: FaceKey,
-    other: FaceKey,
-    a: &Body<T>,
-    b: &Body<T>,
-    band: Band,
-) -> bool {
-    let (body, other_body) = own_and_other(operand, a, b);
-    let sphere = face_surface(body, face);
-    let plane = face_surface(other_body, other);
-    let (
-        Some(&geom::Surface::Sphere { center, radius, .. }),
-        Some(&geom::Surface::Plane {
-            origin,
-            normal,
-            u_ref,
-            ..
-        }),
-    ) = (sphere, plane)
-    else {
-        return false;
-    };
-    let n = normal / normal.norm();
-    // The carrier circle exists: the ball definitely crosses the plane.
-    let Ok((Sign::Positive, d)) = ball_against_plane(center, radius, origin, normal, band) else {
-        return false;
-    };
-    let rho_sq = (radius - d) * (radius + d);
-    let along = u_ref - n * u_ref.dot(n);
-    let p = center - n * d + along / along.norm() * rho_sq.sqrt();
-    let out_of_plane_face = matches!(
-        super::contain::contfp(other_body, other, normal, p, band),
-        Ok(FaceContainment::Out)
-    );
-    out_of_plane_face
-        || matches!(
-            super::contain::curved_face_containment(body, face, p, band),
-            Ok(Some(FaceContainment::Out))
-        )
 }
 
 /// The (A face, B face) pairs the reduction recorded an event on: a
@@ -1909,10 +1976,9 @@ struct SphereRecut<T: Real> {
 /// - **Sphere**: a closed group's true extent is `center ± r`, so the
 ///   pairs it can meet are enumerable exactly, and an escape through a
 ///   plane face is repairable by a re-chart.
-/// - **Cylinder**: no exact wall-vs-face gap test is wired, so the
-///   scan has no certificate to offer and refuses typed on REACH. That
-///   is the whole of [`cylinder_extent_gate`]'s job, and its argument
-///   lives there.
+/// - **Torus, cylinder and cone**: no closed-group extent exists, so
+///   their pairs are certified per pair by the section certificate
+///   ([`section_extent_pass`]), which runs after this scan.
 ///
 /// Determinism (D9): face-arena order throughout; the first escape's
 /// normal is the alignment target.
@@ -1933,8 +1999,6 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     let pad = boxes::sweep_pad(band);
-    cylinder_extent_gate(a, b, pad)?;
-    torus_extent_gate(a, b, pad, band)?;
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         let mut seen: Vec<SurfaceKey> = Vec::new();
@@ -2291,184 +2355,6 @@ fn sphere_extent_scan<T: Decide + Bounds>(
         }
     }
     Ok(out)
-}
-
-/// **The cylinder class's no-crossings posture (D10): a typed refusal,
-/// not a certificate.**
-///
-/// The containment fallback answers "which operand contains the other"
-/// by probing VERTICES, and that answer is only sound when the two
-/// boundaries do not meet. A cylinder pair can meet with no vertex
-/// noticing and no edge event either: two walls can cross in a single
-/// closed loop that lies strictly inside both faces' interiors, leaving
-/// every rim and every seam meridian clear of the other operand. The
-/// reduction then finds nothing, the probe reports both shells outside
-/// each other, and the union is metered as two disjoint solids — the
-/// S12 silence, executed, on a wrong answer rather than a refusal.
-///
-/// **Why no certificate.** The sphere arm can certify because a closed
-/// group's extent is `center ± r`, an exact datum independent of the
-/// trim. A cylinder wall has no such datum: its reach is the trimmed
-/// patch's, and bounding it against another face needs an exact
-/// wall-vs-face gap test — plane faces through their own region, walls
-/// through the axis pair — which is not wired. Guessing is the one
-/// thing this door may not do, so it refuses.
-///
-/// **WALL AGAINST WALL, and only that.** The silence needs a closed
-/// intersection loop interior to a face on BOTH sides, and only a
-/// wall×wall pair can have one:
-///
-/// - against a PLANE face the section is a conic, and a CLOSED one
-///   encircles the wall — so it passes through every ruling, the seam
-///   meridians included, and the seam's point on the loop is an edge
-///   sitting inside the plane face. An OPEN section leaves the face
-///   through its boundary. Either way an edge event exists, and the
-///   crossing layer sees it.
-///
-///   **That step rests on a premise this codebase does not enforce:
-///   every cylinder wall face carries at least one meridian boundary
-///   edge.** It holds of both doors that mint walls — extrude lowers a
-///   circle to two arcs and revolve seams a full turn, so each mints a
-///   banded wall with seam meridians — and it is exactly what makes
-///   "the loop passes through every ruling" imply "the loop meets an
-///   edge". A SEAMLESS periodic band, one face closing on itself with
-///   no meridian at all, would void the argument and put the plane
-///   partner back in this gate's scope. Nothing in the type system
-///   forbids one; state the premise when you add a constructor that
-///   breaks it, and widen this gate in the same change. **It has a
-///   second dependent**: [`interior_loop_verdict`]'s sphere half clears
-///   a sphere × cylinder pair with an event on it because an encircling
-///   section loop crosses the wall's seam meridians — the same premise
-///   — so a seamless band voids that clause too, and it must be widened
-///   in the same change.
-/// - against a SPHERE face the scan's own sphere arm already refuses
-///   on reach, and it says so in the sphere's words rather than the
-///   cylinder's — this gate must not shadow it.
-/// - cone and NURBS partners never reach here: the operand gate refuses
-///   the pair up front, on the KIND, and nothing can cover them — the
-///   certified carrier inventory has no rung for either, so neither can
-///   survive into a declaration.
-/// - a TORUS partner reaches here: the kind is on the union's operand
-///   roster. This gate is a cylinder-wall gate and says nothing about a
-///   torus either way; [`torus_extent_gate`] is the torus's, and it
-///   refuses on reach against every partner kind but the sphere.
-///
-/// **Reach first, kind second** (the scan's cone/torus arm's rule,
-/// kept): the gate costs nothing to a wall whose certified box cannot
-/// meet the other operand's walls at all. Both boxes are supersets of
-/// their faces, so non-overlap PROVES the two loci do not meet, and a
-/// wall out of reach of the other cannot be the pair that defeats the
-/// probe. Cylinder operands standing clear of each other — the
-/// ordinary disjoint-operands fallback — are untouched.
-fn cylinder_extent_gate<T: Decide + Bounds>(
-    a: &Body<T>,
-    b: &Body<T>,
-    pad: f64,
-) -> Result<(), BooleanError> {
-    let is_wall = |body: &Body<T>, f: &crate::entity::Face| {
-        matches!(
-            body.get_surface(f.surface),
-            Some(geom::Surface::Cylinder { .. })
-        )
-    };
-    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
-        for (face, fd) in x.faces() {
-            if !is_wall(x, fd) {
-                continue;
-            }
-            let wall_box = boxes::face_box(x, face, pad)?;
-            for (yf, yfd) in y.faces() {
-                if !is_wall(y, yfd) {
-                    continue;
-                }
-                if wall_box.overlaps(&boxes::face_box(y, yf, pad)?) {
-                    return Err(BooleanError::FallbackExtentUnsupported {
-                        operand: x_is,
-                        face,
-                        what: "two cylinder walls' certified extents meet and no crossing \
-                               layer saw an event — a wall pair can cross in a closed loop \
-                               interior to both faces, which no vertex probe and no edge \
-                               event can see, and no exact wall-vs-wall gap test is wired to \
-                               rule it out",
-                    });
-                }
-            }
-        }
-    }
-    Ok(())
-}
-
-/// **The torus class's no-crossings posture: a typed refusal on reach,
-/// against EVERY partner kind but the sphere.**
-///
-/// The cylinder gate's argument, without its exemption. A torus face can
-/// meet ANY partner face in a closed loop interior to both faces: a
-/// plane slab across the outer equator cuts an oval off the tube that
-/// touches no seam, no parallel and no edge of the slab. A torus band's
-/// boundary is parallels and meridians, and a closed section of the tube
-/// need pass through neither, so the plane partner's "a closed section
-/// encircles the wall and meets its seam" argument does not port. The
-/// reduction then sees nothing, the vertex probe finds each shell
-/// outside the other, and the union would be metered as two disjoint
-/// solids.
-///
-/// The gate refuses on REACH: a torus face whose certified BOX overlaps
-/// the box of a face of the other operand, unless the two CARRIERS are
-/// certified apart — the one certificate the crossings path's guard
-/// reads too ([`carriers_apart`]: a plane beyond the torus's support, a
-/// ball clear of the tube). No test of the torus FACE against a partner
-/// face is wired, so a torus whose carrier meets the partner's while its
-/// face does not still refuses. **The known conservative refusal is a
-/// cube sitting in the donut's hole**: it touches nothing, yet the outer
-/// face's box spans the hole and the cube's planes cut the carrier.
-///
-/// **Where it differs from the crossings path's torus guard
-/// ([`interior_loop_verdict`]), and why it must:**
-///
-/// - a DECLARED pair is not exempt here. On this path there are no
-///   crossings, so a declared coincident torus pair is exactly the case
-///   the vertex probe cannot decide (every vertex it would probe lies on
-///   the other torus); on the crossings path the declared rungs walk the
-///   pair's contact along its edges.
-/// - SPHERE partners are left to the sphere arm below, which refuses on
-///   reach in its own words; this gate must not shadow it. The guard has
-///   no sphere arm behind it, so it reads the ball's certificate itself.
-fn torus_extent_gate<T: Decide + Bounds>(
-    a: &Body<T>,
-    b: &Body<T>,
-    pad: f64,
-    band: Band,
-) -> Result<(), BooleanError> {
-    for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
-        for (face, fd) in x.faces() {
-            if !matches!(x.get_surface(fd.surface), Some(geom::Surface::Torus { .. })) {
-                continue;
-            }
-            let torus_box = boxes::face_box(x, face, pad)?;
-            for (yf, yfd) in y.faces() {
-                if matches!(
-                    y.get_surface(yfd.surface),
-                    Some(geom::Surface::Sphere { .. })
-                ) {
-                    continue;
-                }
-                if torus_box.overlaps(&boxes::face_box(y, yf, pad)?)
-                    && !carriers_apart(x_is, face, yf, a, b, band)
-                {
-                    return Err(BooleanError::FallbackExtentUnsupported {
-                        operand: x_is,
-                        face,
-                        what: "a torus face's box overlaps the box of a face of the other \
-                               solid and no crossing layer saw an event — a torus can meet \
-                               any face in a closed loop interior to both, which no vertex \
-                               probe and no edge event can see, and the two carriers are not \
-                               certified apart",
-                    });
-                }
-            }
-        }
-    }
-    Ok(())
 }
 
 /// Applies the scan's re-cuts: each escaping group's shell is carved
@@ -3149,5 +3035,144 @@ mod tests {
         desc.vertices.insert(dead_vertex, live_vertex);
         let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A record citing a vertex the merge pruned drops, through the
+    /// merge's REAL outcome.** The records cannot reach this point in a
+    /// boolean by construction, so the row drives the rule itself with
+    /// a real pruning merge instead:
+    ///
+    /// - A vertex the pruning deletes is a junction of the seam the
+    ///   zip laid in the merged plane — a vertex interior to the other
+    ///   operand's coplanar face, where its cut turns. A vertex-on-face
+    ///   rest there is one the zip fused into seam structure, so it
+    ///   has already dropped as fused before the merge runs.
+    /// - A vertex-vertex record there names the other operand's vertex
+    ///   at the same point, which the zip fuses into it too, so the
+    ///   pair is one vertex and consumed.
+    ///
+    /// What is left for the merge to get wrong is the descendant
+    /// chase: a fusion row whose survivor the pruning then deletes. So
+    /// the row takes a prism whose top is split by a seam bent at an
+    /// interior vertex, runs the real `merge_coplanar_faces`, absorbs
+    /// its outcome into [`Descendants`] exactly as the boolean does,
+    /// adds the fusion row a zip would have written into the deleted
+    /// vertex, and requires every lane to drop a record citing either
+    /// key. A `Descendants` that mapped the deleted vertex to a
+    /// survivor would carry the records and turn this red.
+    #[test]
+    fn a_record_citing_a_pruned_free_end_drops() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::{ContactRecords, VfContact, VvContact};
+        use crate::entity::VertexKey;
+        use crate::{MefSite, MevSite};
+        use geom_core::Point3;
+
+        let tol = Tol::witness();
+        let p = crate::test_support_fixtures::prism_z::<f64>(
+            &[(0.0, 0.0), (2.0, 0.0), (2.0, 2.0), (0.0, 2.0)],
+            0.0,
+            1.0,
+            tol,
+        );
+        let mut body = p.body;
+        let corner = |body: &crate::Body<f64>, x: f64, y: f64| {
+            let outer = body.get_face(p.top_face).unwrap().outer;
+            let crate::LoopBoundary::Cycle { first } = body.get_loop(outer).unwrap().boundary
+            else {
+                panic!("the top is a cycle")
+            };
+            body.loop_cycle(first)
+                .unwrap()
+                .into_iter()
+                .find(|&he| {
+                    let v = body.get_half_edge(he).unwrap().start;
+                    let q = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+                    (q.x, q.y) == (x, y)
+                })
+                .unwrap()
+        };
+        let he1 = corner(&body, 0.0, 0.0);
+        let strut = body
+            .mev_line(
+                MevSite::Fan { he1, he2: he1 },
+                Point3::new(0.9, 0.6, 1.0),
+                tol,
+            )
+            .unwrap();
+        let he2 = corner(&body, 2.0, 2.0);
+        body.mef_chord(
+            MefSite::Chords {
+                he1: strut.he_minus,
+                he2,
+            },
+            tol,
+        )
+        .unwrap();
+        let bend = strut.vertex;
+
+        let merged = body
+            .merge_coplanar_faces(tol)
+            .expect("the bent seam repairs");
+        let killed: Vec<VertexKey> = merged
+            .groups
+            .iter()
+            .flat_map(|g| g.killed_vertices.iter().copied())
+            .collect();
+        assert_eq!(killed, vec![bend], "the bend is the pruned free end");
+        assert!(body.get_vertex(bend).is_none());
+
+        let mut desc = Descendants::default();
+        desc.absorb_merge(&merged);
+        // The row the zip writes when it fuses a coincident vertex
+        // into the one the merge later deletes; the fused-in key is
+        // dead (the null key, which no arena holds).
+        let fused_in = VertexKey::default();
+        let survivor = body.vertices().map(|(k, _)| k).next().unwrap();
+        let face = body.faces().map(|(k, _)| k).next().unwrap();
+        desc.vertices.insert(fused_in, bend);
+        desc.fused.insert(bend);
+        assert_eq!(
+            desc.live_vertex(&body, bend),
+            None,
+            "no survivor for {bend:?}"
+        );
+
+        let records = |v: VertexKey| ContactRecords {
+            vv: vec![VvContact { a: v, b: survivor }],
+            a_on_b: vec![VfContact { vertex: v, face }],
+            b_on_a: vec![VfContact { vertex: v, face }],
+            ..ContactRecords::default()
+        };
+        let remap =
+            |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
+        assert_eq!(
+            desc.live_vertex(&body, fused_in),
+            None,
+            "the chase ends dead"
+        );
+        for cited in [bend, fused_in] {
+            let out = remap(&records(cited));
+            assert!(out.vv.is_empty(), "{cited:?}: {:?}", out.vv);
+            assert!(out.a_on_b.is_empty(), "{cited:?}: {:?}", out.a_on_b);
+            assert!(out.b_on_a.is_empty(), "{cited:?}: {:?}", out.b_on_a);
+        }
+        // The control: the same records on a live vertex carry.
+        let other = body.vertices().map(|(k, _)| k).nth(1).unwrap();
+        let out = remap(&records(other));
+        assert_eq!(
+            out.vv,
+            vec![VvContact {
+                a: other,
+                b: survivor
+            }]
+        );
+        assert_eq!(
+            out.a_on_b,
+            vec![VfContact {
+                vertex: other,
+                face
+            }]
+        );
     }
 }

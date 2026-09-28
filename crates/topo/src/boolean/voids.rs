@@ -195,7 +195,11 @@ impl core::fmt::Display for VoidInsertError {
             Self::Revert(e) => write!(f, "cavity revert failed: {e:?}"),
             Self::Corrupt { what } => write!(f, "{what}"),
             Self::Recertify(e) => {
-                write!(f, "graft re-certification refused: {e}")
+                write!(
+                    f,
+                    "graft re-certification refused: {}",
+                    e.render(geom_brep::certify::Reading::Build)
+                )
             }
         }
     }
