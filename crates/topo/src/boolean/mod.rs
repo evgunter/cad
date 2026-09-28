@@ -769,8 +769,10 @@ pub enum BooleanError {
     /// not called there. A loop of arcs of ONE circle is the disc class
     /// and answers exactly; arc loops with three or more vertices keep
     /// the polygon walk, measured correct at the shapes reviewed (a
-    /// slot, a rounded rectangle) and unproven in general. Both
-    /// remainders are issue #1076's.
+    /// slot, a rounded rectangle) and unproven in general. The carrier
+    /// walk that reads both exists (`splitting::containment::point_in_carrier_loop`); moving
+    /// this door onto it is `work/tang/arc-aware-point-in-loop`'s
+    /// remainder.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,

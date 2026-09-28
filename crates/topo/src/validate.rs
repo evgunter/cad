@@ -3318,28 +3318,29 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   loop riding an ellipse, spiric or NURBS carrier is not examined,
 ///   so such a face's sense bit is falsified by nothing at rest;
 ///   `work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
-///   The **curved analytic**
-///   kinds' orientation half is covered by check 6's curved arm
-///   (M6-6: boundary material side vs the sense bit), and its NESTING
-///   half — a ring lying inside the outer loop of its own face — by
-///   check 9's nesting arm, on every planar face, through the parity
-///   walk that reads each outer edge on its own carrier
-///   ([`crate::splitting::containment::point_in_carrier_loop`]). What
-///   remains deferred is containment against curved surfaces and the
-///   region-bounding statement for curved faces and for the planar
-///   loops that walk has no crossing row for — the nesting arm's own
-///   residue, a `Spiric` or NURBS edge on the outer loop, enumerated
-///   at check 9's banner, sits inside that same deferral, and so does
-///   check 9's CONTACT
-///   half off a plane and on an `Ellipse`, `Spiric` or NURBS edge,
-///   where a ring crossing its outer loop at a point no vertex carries
-///   is not seen —
-///   plus the curved arm's documented residuals (the
-///   rimless sphere band; NURBS faces; the quadrature-owned
-///   conic-trimmed walls, whose boundary parse refuses typed and is
-///   therefore exempt — such a body's flips, single-face AND
-///   whole-body, certify green today; executed on the tilted-section
-///   cylinder and pinned as residual).
+///   A planar face's NESTING half — a ring lying inside the outer
+///   loop of its own face — is check 9's nesting arm, on every planar
+///   face, through the parity walk that reads each outer edge on its
+///   own carrier ([`crate::splitting::containment::point_in_carrier_loop`]).
+///   The **curved analytic** kinds' orientation half is covered by
+///   check 6's curved arm (M6-6: boundary material side vs the sense
+///   bit).
+///
+///   What remains deferred:
+///   - containment against curved surfaces, and the region-bounding
+///     statement for curved faces;
+///   - on a plane, the loops that walk has no crossing row for — a
+///     `Spiric` or NURBS edge on the outer loop, the nesting arm's own
+///     residue, enumerated at check 9's banner;
+///   - check 9's CONTACT half off a plane and on an `Ellipse`, `Spiric`
+///     or NURBS edge, where a ring crossing its outer loop at a point no
+///     vertex carries is not seen;
+///   - the curved arm's documented residuals: the rimless sphere band;
+///     NURBS faces; the quadrature-owned conic-trimmed walls, whose
+///     boundary parse refuses typed and is therefore exempt — such a
+///     body's flips, single-face AND whole-body, certify green today
+///     (executed on the tilted-section cylinder and pinned as
+///     residual).
 /// - **A shell NESTED inside another shell's cavity.** No tier reads
 ///   where one shell of a solid sits relative to another. What that
 ///   leaves unchecked is precisely a solid holding an `Outer` shell, a
@@ -6512,18 +6513,22 @@ enum RingNestingVerdict {
 /// it is [`crate::splitting::point_in_loop`] unchanged.
 ///
 /// It is also the instrument for a loop of arcs of ONE circle, which
-/// `boolean::contain`'s `disc_side` decides in one radial margin.
-/// That decide is not a better answer on the class: the walk's
-/// boundary row there is the same radial gap (levered at the
-/// radius), escalating in the same band, and off the band a ray from
-/// a point inside the circle crosses it once and one from outside
-/// crosses it an even number of times, with no margin but the
-/// crossings' own. What `disc_side` adds is cost and immunity to a
-/// graze; a graze abandons the ray for the next in the schedule, and
-/// a schedule exhausted is reported, never guessed. Keeping it would
-/// cost a second classification in front of the walk — the loop's
-/// shape, asked of `boolean::contain::loop_shape` — whose own
-/// escalation shut the arm on loops the walk reads without it.
+/// `boolean::contain`'s `disc_side` decides in one radial margin — one
+/// instrument for every class, rather than two dispatched on the
+/// loop's shape. On that class the two agree in the band as well as
+/// out of it: the walk's only point-level row there is the same radial
+/// gap (`point_in_arc_loop_conic_on`, levered at the radius), which
+/// escalates exactly where `disc_side`'s does; every other row it
+/// decides is about one RAY — a schedule member, a vertex's line, the
+/// circle's roots, an arc's ends, trimmed by distance so that no row
+/// compresses near an end — and an in-band margin there abandons that
+/// ray for the next, never the point. What `disc_side` has over it is
+/// cost and immunity to a graze, and a schedule exhausted is reported,
+/// never guessed. The corpus-wide agreement of the two was measured
+/// once, by an instrument that did not land; what holds it now is
+/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` (the shape
+/// where they once parted) and the disc-class rows here and in
+/// `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
 /// a spiric or spline carrier has no crossing row: the walk answers
@@ -9605,8 +9610,31 @@ mod tests {
                 "{name}: revert moved check 9's verdict"
             );
         }
+        // And an arc-bearing outer loop, where the walk crosses the
+        // arc on its circle: the lune ring (nested) and the ring past
+        // the arc (refused), each reverted.
+        let bowed = [
+            bowed_square_with_ring(10.5, 11.5, tol),
+            bowed_square_with_ring(13.0, 14.0, tol),
+        ];
+        for (name, (body, _)) in ["lune", "past the arc"].into_iter().zip(&bowed) {
+            let reverted = body.revert().unwrap();
+            assert_eq!(
+                shape(body),
+                shape(&reverted),
+                "{name}: revert moved check 9's verdict on an arc-bearing outer loop"
+            );
+        }
+        let arc_bodies = bowed.iter().map(|(b, f)| (b, *f));
         // And directly, both signs of the chart normal at the arm.
-        for (name, body) in [("honest", &honest), ("mutant", &mutant)] {
+        for (name, (body, face)) in ["honest", "mutant", "lune", "past the arc"]
+            .into_iter()
+            .zip(
+                [(&honest, face), (&mutant, face)]
+                    .into_iter()
+                    .chain(arc_bodies),
+            )
+        {
             let f = body.get_face(face).unwrap();
             let Some(&Surface::Plane { normal, .. }) = body.surfaces.get(f.surface) else {
                 panic!("a plane")
@@ -9665,6 +9693,37 @@ mod tests {
         }
     }
 
+    /// A 10 x 10 square lamina whose right edge is re-carried as the
+    /// arc about (5, 5) bowing out to `x = 5 + 5√2`, holding a 2-high
+    /// square ring spanning `x0..x1` at mid-height.
+    fn bowed_square_with_ring(x0: f64, x1: f64, tol: Tol) -> (Body<f64>, FaceKey) {
+        let outer = vec![
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
+        ];
+        let ring = vec![
+            Point3::new(x0, 4.0, 0.0),
+            Point3::new(x1, 4.0, 0.0),
+            Point3::new(x1, 6.0, 0.0),
+            Point3::new(x0, 6.0, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        let outer_loop = body.get_face(face).unwrap().outer;
+        let right = loop_cycle_of(&body, outer_loop)
+            .unwrap()
+            .into_iter()
+            .map(|he| body.get_half_edge(he).unwrap().edge)
+            .find(|&e| {
+                let (a, b) = edge_endpoints(&body, body.get_edge(e).unwrap().he_plus).unwrap();
+                a.x == 10.0 && b.x == 10.0
+            })
+            .expect("the square's right edge");
+        recarry_as_arc(&mut body, right, Point3::new(5.0, 5.0, 0.0), tol);
+        (body, face)
+    }
+
     /// **An arc-bearing outer loop is decided, on its own region.** The
     /// right edge of a 10 x 10 square re-carried as an arc bowing
     /// OUTWARD, to `x = 5 + 5√2`, leaves a lune between the chord
@@ -9678,34 +9737,12 @@ mod tests {
     fn an_arc_bearing_outer_loop_is_decided_on_its_own_region() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let outer = vec![
-            Point3::new(0.0, 0.0, 0.0),
-            Point3::new(10.0, 0.0, 0.0),
-            Point3::new(10.0, 10.0, 0.0),
-            Point3::new(0.0, 10.0, 0.0),
-        ];
         for (name, x0, x1, inside) in [
             ("in the lune", 10.5, 11.5, true),
             ("past the arc", 13.0, 14.0, false),
         ] {
-            let ring = vec![
-                Point3::new(x0, 4.0, 0.0),
-                Point3::new(x1, 4.0, 0.0),
-                Point3::new(x1, 6.0, 0.0),
-                Point3::new(x0, 6.0, 0.0),
-            ];
-            let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+            let (body, face) = bowed_square_with_ring(x0, x1, tol);
             let outer_loop = body.get_face(face).unwrap().outer;
-            let right = loop_cycle_of(&body, outer_loop)
-                .unwrap()
-                .into_iter()
-                .map(|he| body.get_half_edge(he).unwrap().edge)
-                .find(|&e| {
-                    let (a, b) = edge_endpoints(&body, body.get_edge(e).unwrap().he_plus).unwrap();
-                    a.x == 10.0 && b.x == 10.0
-                })
-                .expect("the square's right edge");
-            recarry_as_arc(&mut body, right, Point3::new(5.0, 5.0, 0.0), tol);
             assert!(
                 matches!(
                     crate::boolean::loop_shape(&body, outer_loop, band),
@@ -10040,7 +10077,13 @@ mod tests {
                     verdict,
                     RingNestingVerdict::Outside { ring_vertex } if ring_vertex == vertex
                 ),
-                _ => matches!(verdict, RingNestingVerdict::Undecided(_)),
+                // The walk's one point-level row on a circle — the radial
+                // gap — is the predicate that speaks, not a ray's.
+                _ => matches!(
+                    verdict,
+                    RingNestingVerdict::Undecided(ContainError::Escalated(ref d))
+                        if d.predicate == Some("point_in_arc_loop_conic_on")
+                ),
             };
             assert!(ok, "{name}: wrong verdict");
         }

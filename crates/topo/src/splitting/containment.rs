@@ -594,7 +594,8 @@ fn carrier_loop<T: Decide>(
 ///   [`ray_parity::ray_crossings`] and each arc crossed on its conic —
 ///   in the arc's unit coordinates the conic is the unit circle, the
 ///   ray a line, and a crossing a root of `|P + D·s|² = 1` inside the
-///   arc's window. The discriminant is taken in its perpendicular-offset
+///   arc's trim, decided by distance ([`arc_trim`]) so that no margin
+///   compresses near an arc's end. The discriminant is taken in its perpendicular-offset
 ///   form `1 − h²` (`h` the unit-coordinate line's distance from the
 ///   centre), which does not cancel far from a small conic. The
 ///   boundary pre-pass asks a straight edge [`ray_parity::on_segment`]
@@ -602,12 +603,16 @@ fn carrier_loop<T: Decide>(
 ///   which is not boundary. A point on an arc's conic but off the arc
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
-///   advance — abandons the ray.
+///   advance — abandons the ray, and so does an in-band margin on any
+///   row past the pre-pass: each is a fact about that ray, not about
+///   `q`. Only the pre-pass's rows, which ask where `q` stands, escalate.
 /// - **An edge on any other carrier** (a spiric, a spline): no crossing
 ///   row exists, so the loop is answered only where no crossing could
 ///   matter — `q` definitely outside a ball holding the whole loop is
-///   `Out` — and `None` everywhere else: the caller's refusal, confined
-///   to points the loop could actually bound.
+///   `Out` — and `None` everywhere else, the ball's own band included
+///   (a sufficient condition's margin says nothing about the loop): the
+///   caller's refusal, confined to points the loop could actually
+///   bound.
 ///
 /// `q` must lie in the loop's plane, whose unit normal is `normal`.
 ///
