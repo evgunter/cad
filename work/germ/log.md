@@ -271,3 +271,19 @@ ops. The fix pass moved the ring convention's one home down to `geom`, so
 `spiric` could reach it. The ∖/∩ torus roster is parked on the interior-loop
 row's section certificate. Hosted CI is re-run on the head with the stopgap
 merged in.
+
+## 2026-09-28 — the conic × plane sweep examines every root (PR 3358)
+
+- **The fix:** premise S of the section certificate now holds at `reduce.rs` `sweep_direction`'s conic lane. The first root not placed `Out` splits, and the requeued fragments find any other root.
+- **Siblings:** none carry the defect (the lane's audit is in the PR body).
+- **Rows:** 24 rows are red on the base (`UnpairedLooseEnds`) and answer their closed forms with the fix.
+- **Moved refusal:** one existing probe's refusal moved from `UnpairedLooseEnds` to the tracked full-period-wall containment limit.
+- **Tier:** orchestrator read. Merged on hosted green.
+## 2026-09-28 — the stopgap's guard rows land (PR 3349)
+
+- The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
+- The lens row checks the true union against a quadrature lens.
+- Both torus gates share the `carriers_apart` certificate. A wedge clear of the donut's carrier is now answered correctly.
+- The ball-to-plane gap has one home.
+- G1–G4 mutants are killed.
+- Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.

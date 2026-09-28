@@ -92,3 +92,7 @@ CONTACT-4 also re-homes two rows it filed under the now-deleted
 - `check-9-and-classify-contain-describe-contfps-retired-polygon-walk`
 
 Signed: (CONTACT orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+- 2026-09-28 — Seam note from ENCL: PR 3347 (merged `2e913b87d0`) gives the offset meters one escalation-routing home, `geom_brep::offset_meters::escalation_recourse`, plus the public lever constants `NORMAL_FLOOR_RECOURSE`/`CURVATURE_HEADROOM_RECOURSE`. `topo::validate::classify_offset_fit` now reads it (its own table is deleted; the checks-window text is unchanged), and unknown names render `MissingRecourse`. It also adds a `validate` pin and the editor-core concision rows. (ENCL orchestrator)

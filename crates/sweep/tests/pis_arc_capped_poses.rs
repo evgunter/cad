@@ -271,7 +271,7 @@ fn cut_cylinder(above: bool) -> Body<f64> {
 /// which (a quarter turn about `x`, a turn about `y` that keeps the
 /// revolve axis) leave the schedule meeting the fixtures as it meets
 /// them unposed.
-fn poses() -> Vec<(&'static str, Affine3<f64>)> {
+pub(crate) fn poses() -> Vec<(&'static str, Affine3<f64>)> {
     let about = |pivot: [f64; 3], axis: Vec3<f64>, angle: f64| {
         Affine3::rotation_about_axis(Point3::new(pivot[0], pivot[1], pivot[2]), axis, angle)
     };

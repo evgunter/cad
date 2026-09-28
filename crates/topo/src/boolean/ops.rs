@@ -453,6 +453,7 @@ pub fn boolean_op_with<
         )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
+                site: super::PairRefusalSite::RevertRoster,
                 operand: p.operand,
                 face: p.face,
                 kind: p.kind,
@@ -705,6 +706,7 @@ fn interior_loop_verdict<
             let (operand, face, kind, other_face, other_kind) = p.named();
             Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
+                site: super::PairRefusalSite::InteriorLoopGuard,
                 operand,
                 face,
                 kind,
@@ -996,6 +998,28 @@ pub(crate) fn section_report<
         |fa, fb| events.contains(&(fa, fb)),
         false,
     )
+}
+
+/// **A ball against a plane's CARRIER: the one home of that gap.**
+/// Decides `r − |s|` under `bool_sphere_extent_gap`, where `s` is the
+/// centre's signed distance to the plane along its stored normal, which
+/// the plane convention makes unit (and which is read as stored rather
+/// than re-normalised, because at the interval scalar a division by the
+/// normal's own norm widens `s` and moves the scan's escalations):
+/// `Negative` is a ball definitely clear of the carrier, `Zero` a
+/// tangency, `Positive` a ball the carrier cuts in a circle of radius
+/// `√((r − |s|)(r + |s|))` about `centre − n̂·s`. Returns the sign and
+/// `s`. Read by the no-crossings sphere scan ([`sphere_extent_scan`]).
+fn ball_against_plane<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<(Sign, T), geom_core::Indeterminate> {
+    let s = (center - origin).dot(normal);
+    let sign = decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)?;
+    Ok((sign, s))
 }
 
 /// The (A face, B face) pairs the reduction recorded an event on: a
@@ -1985,10 +2009,9 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         normal,
                         u_ref,
                     }) => {
-                        let s = (center - origin).dot(normal);
-                        match decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)
-                            .map_err(esc)?
-                        {
+                        let (side, s) = ball_against_plane(center, radius, origin, normal, band)
+                            .map_err(esc)?;
+                        match side {
                             // Clear of the whole carrier plane.
                             Sign::Negative => {}
                             // Tangency: a touching configuration the
