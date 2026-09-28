@@ -2,7 +2,7 @@
 //! per-solid gate.**
 //!
 //! The F8/D7 per-part policy has one home, `topo::per_part_gate_owed`,
-//! and this crate is one of its callers. This row holds that the call
+//! and this crate is its only caller. This row holds that the call
 //! is PRESENT and that the per-solid gate sits inside the block it
 //! guards: a loop that spelled its own threshold again
 //! (`instances.len() > 1`) would behave identically today and give the

@@ -1201,14 +1201,14 @@ fn a_cusp_extrude_document_refuses_at_the_product_gate() {
         matches!(ev.result(ex), Some(NodeResult::Ok(_))),
         "the cusp extrude evaluates"
     );
-    // TODAY: refuses at the aggregate gate. The gather item's red-first
-    // row flips this to `Ok`.
+    // TODAY: refuses at the at-rest gate, naming the extrude's root.
+    // The gather item's red-first row flips this to `Ok`.
     let err = editor_core::product(&doc, &ev, Tol::witness())
         .map(|b| b.solids().count())
         .expect_err("the product gate reads no declarations yet");
     let rendered = format!("{err:?}");
     assert!(
-        rendered.starts_with("ProductInvalid") && rendered.contains("UndeclaredCusp"),
+        rendered.starts_with("RootInvalid") && rendered.contains("UndeclaredCusp"),
         "{rendered}"
     );
 }

@@ -2,11 +2,12 @@
 id: curved-face-containment-lacks-a-cone-arm
 kind: issue
 title: curved_face_containment has no cone arm (the torus half rides germ/torus-doors)
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P0
 cost: D
 refs: [curved-face-containment-lacks-cone-torus, VERBS-CONE]
+branch: germ/cone-containment-and-pose-gate
 ---
 
 

@@ -23,9 +23,11 @@ WHAT IT PROVES, no wider:
   For each (consumer, primer) pair below, both jobs exist in SOME workflow
   under .github/workflows/ — not necessarily the same one, and not
   necessarily ci.yml — their
-  `env:` blocks are identical once comments and blank lines are dropped, their
-  `runs-on:` lines are the same text, and the `shared-key` on each one's
-  `Swatinem/rust-cache@v2` step is the same string; no two pairs share a key;
+  `env:` blocks are identical once comments and blank lines are dropped (a
+  job with none has an empty one), their `runs-on:` lines are the same text,
+  their rust-cache `workspaces:` lists are the same (each lockfile is in the
+  key), and the `shared-key` on each one's `Swatinem/rust-cache@v2` step is
+  the same string; no two pairs share a key;
   and no OTHER job in any workflow under .github/workflows/ uses a pair's
   key.
 
@@ -90,7 +92,7 @@ HOSTED = ".github/workflows/ci.yml"
 
 # (consumer job, primer job). The consumer restores; the primer writes the
 # entry under the default branch's scope.
-PAIRS = (("build", "cache-prime"),)
+PAIRS = (("build", "cache-prime"), ("k-lint", "k-lint-cache-prime"))
 
 JOB_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 # The environment variables rust-cache actually HASHES into its key: every name
@@ -99,7 +101,10 @@ JOB_RE = re.compile(r"^  ([A-Za-z0-9_-]+):\s*$")
 # workflow-level comparison below is restricted to this set instead of being a
 # textual equality like the job-level one.
 HASHED_ENV_RE = re.compile(r"^(CARGO|CC|CFLAGS|CXX|CMAKE|RUST)")
-SHARED_KEY_RE = re.compile(r"^\s*shared-key:\s*(\S+)\s*$")
+# The value runs to end of line: a key built from an expression
+# (`k-lint-${{ matrix.row }}`) carries spaces, and both halves of a pair
+# are compared as that same text.
+SHARED_KEY_RE = re.compile(r"^\s*shared-key:\s*(\S.*?)\s*$")
 
 
 class Bail(Exception):
@@ -171,6 +176,10 @@ def _env_block(block: list[str]) -> list[str]:
     """The job-level `env:` mapping, comments and blank lines dropped.
 
     Job-level means indent 4; a step's own `env:` is deeper and is not this.
+    A job with NO such block has an empty one — that is what the process
+    environment rust-cache hashes gets from it — so two block-less jobs
+    agree, and a block on one side only is the same drift as a changed knob.
+    (`k-lint` and its primer carry none; `build` and `cache-prime` do.)
     """
     body: list[str] = []
     seen = False
@@ -185,8 +194,6 @@ def _env_block(block: list[str]) -> list[str]:
                 if not nxt.startswith("      "):
                     break
                 body.append(nxt.strip())
-    if not seen:
-        raise Bail("no job-level `env:` block")
     return body
 
 
@@ -196,6 +203,25 @@ def _runs_on(block: list[str]) -> str:
     if len(hits) != 1:
         raise Bail(f"expected exactly one job-level `runs-on:`, found {len(hits)}")
     return hits[0]
+
+
+def _workspaces(block: list[str]) -> list[str]:
+    """The `workspaces:` list of the job's rust-cache step, one entry per line.
+
+    Each listed workspace's lockfile is hashed into the key AND names a
+    `target/` the entry carries, so a primer listing different workspaces
+    writes an entry under another key. Absent means rust-cache's default
+    (the checkout root alone), which is itself a value to compare.
+    """
+    out: list[str] = []
+    for i, line in enumerate(block):
+        if line.strip() == "workspaces: |":
+            indent = len(line) - len(line.lstrip())
+            for nxt in block[i + 1 :]:
+                if nxt.strip() == "" or len(nxt) - len(nxt.lstrip()) <= indent:
+                    break
+                out.append(nxt.strip())
+    return out
 
 
 def _shared_keys(block: list[str]) -> list[str]:
@@ -286,6 +312,15 @@ def check(root: str, pairs: tuple[tuple[str, str], ...] = PAIRS) -> list[str]:
                 f"({where[primer]}) is `{rb}`. os and arch are "
                 "components of rust-cache's key, so a primer on another runner class writes an "
                 "entry the build job cannot restore — and every other claim here would still pass"
+            )
+
+        wsa, wsb = _workspaces(jobs[consumer]), _workspaces(jobs[primer])
+        if wsa != wsb:
+            errs.append(
+                f"job `{consumer}` ({where[consumer]}) caches workspaces {wsa or '(default)'} and "
+                f"`{primer}` ({where[primer]}) caches {wsb or '(default)'}. Every listed "
+                "workspace's lockfile is hashed into rust-cache's key, so the primer writes an "
+                "entry under a key the consumer never computes"
             )
 
         ka, kb = _shared_keys(jobs[consumer]), _shared_keys(jobs[primer])
@@ -539,6 +574,26 @@ def _selftest() -> int:
     case("a second pair on the first pair's key", twin_pair_shares_key, True,
          want_msg="pair both use `shared-key: build-default`", pairs=PAIRS + TWIN)
 
+    def drift_workspaces(t):
+        # Drop one workspace from the k-lint primer's list only.
+        i = t.index("  k-lint-cache-prime:")
+        return t[:i] + t[i:].replace("            tools/tess-meter\n", "", 1)
+
+    def env_on_primer_only(t):
+        # Give the block-less k-lint primer an `env:` block the leg lacks.
+        i = t.index("  k-lint-cache-prime:")
+        head, tail = t[:i], t[i:]
+        return head + tail.replace(
+            "    runs-on: ubuntu-latest\n",
+            "    runs-on: ubuntu-latest\n    env:\n      CARGO_PROFILE_RELEASE_LTO: \"true\"\n",
+            1,
+        )
+
+    case("the primer caches a different workspace list", drift_workspaces, True,
+         want_msg="caches workspaces")
+    case("an env block on one side of a block-less pair", env_on_primer_only, True,
+         want_msg="different job-level `env:`")
+
     if failures:
         for f in failures:
             print(f"check-cache-prime-parity SELFTEST FAILED: {f}", file=sys.stderr)
@@ -550,7 +605,8 @@ def _selftest() -> int:
         "pair SPLIT across two files, which passes clean — a primer renamed away, an env knob "
         "moved, a runner class changed, and a rust-cache-hashed name set at one file's "
         "WORKFLOW level (while an unhashed one there stays quiet), a second pair on the first "
-        "pair's key (while one on its own key passes), and a workflow it cannot read"
+        "pair's key (while one on its own key passes), a primer caching a different workspace "
+        "list, an env block on one side of a pair that has none, and a workflow it cannot read"
     )
     return 0
 

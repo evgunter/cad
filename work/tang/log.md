@@ -22,7 +22,7 @@ of ATREST's P0/P1 rows**, not only of its own consumers:
   annular rim of every shelled vessel of revolution. Two of its three
   thirds (`ArcParity`, `NoWalk`) wait on #1076 outright; only the
   `Disc` class can be closed without it.
-- `work/atrest/validate-tier3-curved-boundary-containment` — the last
+- `work/restfront/validate-tier3-curved-boundary-containment` — the last
   unmarked deferral in tier 3's not-yet-checked list. Its
   region-bounding half wants the same thing: a walk that can express a
   loop's region when the loop is not a polygon.

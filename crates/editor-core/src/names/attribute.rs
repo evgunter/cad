@@ -32,10 +32,11 @@
 //!   a wrong attribution marks confidently wrong geometry and a
 //!   missing one only falls back.
 //!
-//! An op that emits no segment at all (a `Transform`, a split-intact
-//! entity) needs no arm here: it leaves the ORIGINAL minting node in
-//! [`StableName::node`] by construction, so the walk answers it
-//! without ever seeing the transform.
+//! An op that emits no segment at all (a `Transform`, a `Part`'s
+//! projection, a split-intact entity — the set `role.rs`'s
+//! `verbatim_edge` classifies) needs no arm here: it leaves the
+//! ORIGINAL minting node in [`StableName::node`] by construction, so
+//! the walk answers it without ever seeing the op.
 
 use crate::names::role::{RoleSeg, StableName, name_free_seg};
 use crate::node::RecipeNodeId;

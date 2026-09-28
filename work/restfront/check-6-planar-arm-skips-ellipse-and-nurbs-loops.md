@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P2
 cost: D
-refs: [sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts, m6-sense-gate-recorded-residuals, ATREST-13]
+refs: [3190, m6-sense-gate-recorded-residuals, 3238]
 ---
 
 

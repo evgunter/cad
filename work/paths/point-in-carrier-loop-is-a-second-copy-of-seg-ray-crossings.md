@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P2
 cost: D
-refs: [ATREST-9]
+refs: [3204]
 ---
 
 Found by the ATREST-9 dual review (PR #3204). Filed on PATHS because it
