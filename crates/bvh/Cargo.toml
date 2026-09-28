@@ -25,7 +25,7 @@ test-support = []
 
 [dev-dependencies]
 proptest = { workspace = true }
-# The ray sweep's varying seed + effort dial (memories/test-suite-cost):
+# The ray sweep's varying seed + effort dial (implementer-discipline §8):
 # a leaf crate, dev-only, same as every other sweep's harness row.
 test-utils = { path = "../test-utils" }
 # Self dev-dependency: turns `test-support` on for THIS crate's own

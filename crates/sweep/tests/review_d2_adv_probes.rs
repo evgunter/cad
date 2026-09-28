@@ -11,7 +11,7 @@
 //! and assert that every outcome is a value — `Ok` or a typed `Err`,
 //! never a panic.
 //!
-//! Shapes, per `memories/test-suite-cost.md`:
+//! Shapes, per implementer-discipline §8:
 //!
 //! - `d2_no_input_reaches_a_panic` is a **counterexample search**
 //!   (*for all sampled requests, the door returns a value*): the seed

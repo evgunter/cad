@@ -2,7 +2,8 @@
 id: a-tolerance-study-takes-ninety-minutes-at-eps-1e-12-unoptimized
 kind: issue
 title: editor-core's end-to-end tolerance study takes about 90 minutes at eps 1e-12 in the local gate, against about one second at the other eps rows
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-28
 priority: P4
 cost: M
@@ -35,3 +36,7 @@ ask which shape a test is before paying for it).
 ## Home
 
 TCOST: `crates/editor-core/tests/*` is its ground (and TINT's).
+
+**2026-09-28:** `a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

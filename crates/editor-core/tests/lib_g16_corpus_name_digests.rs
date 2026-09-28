@@ -1,7 +1,7 @@
 //! **Per-document NAME-TABLE digests over the whole corpus registry,
 //! pinned** — adopted from the LIB-G16 R2 review probe, which printed
 //! them for a cross-tree comparison and so expired with it
-//! (`memories/test-suite-cost.md`).
+//! (implementer-discipline §8).
 //!
 //! What earns it a permanent seat is the hole it fills. Two corpus-wide
 //! goldens already exist and neither is this one: `m10_p_fence` pins

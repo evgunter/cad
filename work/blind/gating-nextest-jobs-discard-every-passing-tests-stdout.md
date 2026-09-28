@@ -94,10 +94,9 @@ the claim: TINT-2 moved the marker copies behind
 `test_utils::loud_skip_marker!`, so the nine files that each stated it now
 state nothing and the macro states it once. What the grep still finds
 outside that section are the rows that argue their own posture from it
-— at this writing `crates/geom-brep/tests/m5_pr7_ssi.rs`,
-`crates/geom-brep/tests/r2_cert6_probes.rs` and
-`crates/step-import/tests/cert5_r1_import_probes.rs`, each in its own
-words because each is about a different row.
+— at this writing `crates/geom-brep/tests/m5_pr7_ssi.rs` (the
+`r2_cert6_probes.rs` and `cert5_r1_import_probes.rs` rows that also did
+were deleted in the 2026-09-28 CI-latency cut).
 
 One site is outside TINT's fence and outside this grep's crate list:
 `crates/viewer/src/lib.rs`, filed as
