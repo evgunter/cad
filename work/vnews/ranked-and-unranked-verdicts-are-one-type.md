@@ -2,11 +2,13 @@
 id: ranked-and-unranked-verdicts-are-one-type
 kind: issue
 title: A ranked verdict and a policy's verdict are the same type, so which door a call site must use is carried only by prose
-status: open
+status: closed
 opened: 2026-09-06
 refs: [2026]
 priority: P1
-cost: D
+cost: M
+branch: vnews/a-ranked-verdict-is-its-own-type
+closed: 2026-09-28
 ---
 
 Found by #2026's style review, on the unit that created the second
@@ -173,3 +175,81 @@ says nothing about either door. The finding and its searches live once,
 in `work/vnews/rank-one-discards-the-frames-other-news`'s adjudication
 section; this row cites it rather than restating it.
 
+
+## Closed 2026-09-28 (`vnews/a-ranked-verdict-is-its-own-type`)
+
+Citations re-derived against main after #3235 before building. The
+table in the adjudication had rotted again, but every claim held.
+
+**The fix.** `frame::frame_status` answers a new enum,
+`frame::LineVerdict { Keep, Clear, Show(Message) }`, and
+`frame::apply` takes that type and nothing else. `frame::StatusUpdate`
+is now only a policy's verdict, `{ Keep, Expire(Subject), Show(Message) }`,
+and `frame::deliver` is the only door that takes it.
+`pane::viewport`'s id pass now calls
+`frame::deliver(self.notices, self.status, frame::cursor_status(step))`.
+With the old `frame::apply(self.status, frame::cursor_status(step))`
+spelling, the crate fails to build with E0308. A `compile_fail,E0308`
+doctest on `frame::deliver`, paired with a twin that does compile,
+holds that fact.
+
+**The three sub-questions, decided.**
+
+1. *New enum or newtype over `Message`:* a new enum. The ranking
+   answers `Keep` and `Clear` as well as `Show`, so a newtype over
+   `Message` cannot carry its answer. The two vocabularies also differ
+   in both directions, and each type states that by what it lacks:
+   `Clear` belongs only to the ranking, `Expire` only to a policy.
+2. *`apply`'s public surface:* it stays `pub` and takes `LineVerdict`.
+   `app::ViewerApp::apply_status` (production) and two test sites need
+   it, so it cannot be made private. The cursor path, which was the
+   site this row was about, no longer reaches it.
+3. *Does `deliver`'s `Clear` arm survive:* no. The variant is gone
+   from `StatusUpdate`. Its one construction was `batch_status`'s
+   `(true, None)` arm, and that is the ranking's vocabulary, so it
+   moved to `LineVerdict`. `deliver`'s header argument (no wildcard)
+   still holds for the arms that remain.
+
+**Something the row did not name: `batch_status` is now private.** It
+was `pub` and returned the same type as `frame_status`. On either type
+it would have been a wrong door that compiles. As a `StatusUpdate` it
+would need an unreachable `Expire` arm in `frame_status`. As a public
+`LineVerdict`, `apply(status, batch_status(ops, refusal))` skips every
+notice the frame produced, which is this row's defect one level down.
+Its only production caller was `frame_status`. The integration rows
+that called it now call `frame_status(&[], ops, refusal)`, which
+returns the same answer. `frame_policy.rs`'s loop asserting
+`frame_status(&[], ..) == batch_status(..)` became a tautology and was
+deleted. The empty-batch case it covered was moved into
+`a_hover_only_batch_leaves_the_status_line_alone`.
+
+**`a-fold-row-composes-a-producer-with-a-dead-door` and its rider
+were already closed** (2026-09-20 and 2026-09-24). What this unit
+does to their subject: both dead compositions no longer compile, and
+their two rows were rewritten. `a_clean_fold_retires_the_camera_refusal_it_did_write`
+now runs the live order (`deliver`, `frame_status`, `apply`,
+`deliver`), which makes the rider's disclosure paragraph moot, so it
+was removed. `…_and_apply_overwrites_with_it` became
+`a_refused_fold_is_news_about_the_camera`. The residue that stays open
+is VDOC's crate-wide rule row,
+`work/vdoc/a-fixture-may-compose-a-dead-door-and-nothing-says-when`.
+It got an evidence section saying its instances are now zero.
+`folded-moved-true-arm-covers-a-fold-that-did-not-move`'s citation of
+the renamed row was fixed in place.
+
+**Residue, filed:**
+`work/vnews/the-status-field-is-lent-bare-so-a-pane-can-write-around-both-doors`.
+The types close the wrong-door mistake but not the field.
+`ViewerBehavior` still lends the panes a bare `Option<Message>`, and
+`LineVerdict`'s variants are public. So a pane that assigns the field,
+or builds its own `LineVerdict::Show` and hands it to `apply`, still
+bypasses the ranking. No production site does either today.
+
+**Where I disagree with the row.** The row says *"one door suffices
+for policies, and it is `deliver`"*. That is true. Its framing of
+`apply` as possibly *"private to `frame`"* was never available: the
+ranked answer is computed in `frame` but applied in `app`. The
+adjudication already said this. Separately, the row's *"Clear has
+exactly one production CONSTRUCTION"* was the decisive fact, and it
+settles the third sub-question outright rather than leaving it to
+`deliver`'s header argument.
