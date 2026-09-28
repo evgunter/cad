@@ -64,17 +64,20 @@ impl ChooserBackend {
     /// **Why no dialog can appear here**, and `None` when attempting
     /// one can possibly show it.
     ///
-    /// The value that knows the environment is the party that words
-    /// it, as [`crate::prefs::PrefsStore::unusable`] is for a store
-    /// that keeps nothing: a bare `bool` left the only party able to
-    /// say WHY unable to say it, so the sentence a reader saw was
-    /// composed beside the value rather than by it. The gate and the
-    /// reason are one answer — a disabled control is `is_some()` and
-    /// its tooltip is the `Some` — so no call site can gate on this
-    /// value and explain with another. The words are `&'static str`,
-    /// keeping the type `Copy`, because the vocabulary is closed and
-    /// its one unusable arm has one reason; a store's reason is its
-    /// backing store's own text and is not.
+    /// The sentence is composed here, on the value that holds the
+    /// fact, as [`crate::prefs::PrefsStore::unusable`] does for a
+    /// store that keeps nothing: with a bare `bool` the sentence a
+    /// reader saw was composed beside the value rather than by it.
+    /// The gate and the reason are one answer — a disabled control is
+    /// the `Some` and its tooltip is what the `Some` holds. A call
+    /// site can still split them; that the two dialog controls do not
+    /// is held by `app.rs`'s
+    /// `a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`,
+    /// not by this type. The words are a `&'static str` because this
+    /// crate writes them and they are one fixed sentence for the one
+    /// unusable arm; a store's reason is text its backing store hands
+    /// back at run time, which is why [`crate::prefs::Unusable`] owns
+    /// a `String`.
     ///
     /// The `Some` is **what the disabled dialog controls say**, and
     /// the only thing that says it: the confident half of the #1097

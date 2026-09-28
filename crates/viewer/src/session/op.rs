@@ -1487,11 +1487,13 @@ impl OpOutcome {
 /// evaluation are, and disabled rather than absent when it can do
 /// nothing.
 ///
-/// **How it says so is where the two part company.** A dialog that
-/// cannot open has no operation behind it, so its controls read their
-/// words off the environment's own value,
-/// `platform::ChooserBackend::unusable`. A cancel door has an
-/// operation, and follows [`crate::pane::create`]'s catalogue entry:
+/// **How it says so is where the two part company.** A dialog
+/// control's refusal is the environment's and comes before any
+/// operation: with no chooser backend no path is ever chosen, so the
+/// `SessionOp::Open` or `SessionOp::Save` a click would push is never
+/// built, and the control reads its words off the probe's value,
+/// `platform::ChooserBackend::unusable`. A cancel door's refusal is its
+/// operation's own, and follows [`crate::pane::create`]'s catalogue entry:
 /// *carrying the op's own refusal — read off the entry, not minted
 /// here*. So [`CancelDoor::blocked`] is a [`Refusal`] and not a
 /// sentence, and the disabled control's words are the refused

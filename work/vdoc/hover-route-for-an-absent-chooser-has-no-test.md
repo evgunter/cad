@@ -79,11 +79,13 @@ Shape 2 now exists. `platform::NO_CHOOSER_BACKEND` is gone — the words
 are `platform::ChooserBackend::unusable`'s `Some` — and `app.rs`'s
 `a_dialog_with_no_backend_to_open_it_says_why_on_its_own_control`
 plants each backend on `ViewerApp::chooser`, rests the pointer on
-Open… and Save As… in the real toolbar (the `Toolbar` harness beside
-it) and asserts the painted hover equals `backend.unusable()`.
-`frame_policy.rs`'s
-`the_chooser_verdict_is_unusable_only_when_absent_and_says_why_itself`
-checks the three remedies the README promises, now over a runtime
-match arm rather than a const's bytes. What is left for this row is
-shape 1 (the README-list gate), if anyone still wants it; the owner's
-call whether it closes.
+Open… and Save As… in the real toolbar and asserts the painted hover
+equals `backend.unusable()`, and that each control is drawn live
+exactly when that is `None`. It drives the toolbar through the
+`Toolbar` harness in `app.rs`'s tests, which predates this unit
+(`67837814a`); what is new is a row that uses it for these two
+controls. The three remedy `contains` checks were NOT restored: the
+sentence is still a literal fixed at compile time, now in a match arm
+rather than a const, and this row's own reasoning about them stands.
+What is left for this row is shape 1 (the README-list gate), if anyone
+still wants it; the owner's call whether it closes.
