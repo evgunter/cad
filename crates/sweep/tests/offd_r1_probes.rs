@@ -22,22 +22,22 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
 use crate::common;
-use crate::common::approx::band;
 use common::approx::{prism, twisted_loft};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn revolved_by(points: &[(f64, f64)], rev: Revolution<f64>) -> Body<f64> {
-    let lp = bulge_loop(points.iter().map(|(r, y)| (p2(*r, *y), 0.0)).collect());
+    let lp = bulge_loop(
+        points
+            .iter()
+            .map(|(r, y)| (Point2::new(*r, *y), 0.0))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("probe polygon is a valid profile");
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         rev,
@@ -109,7 +109,7 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
     for d in [-0.05_f64, 0.05] {
         let mut body = cone_up_tube();
         let face = cone_face(&body);
-        let e = topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, face, d, Tol::witness())
             .expect_err("the untouched cylinders cannot hold the cone's moved rims");
         assert!(
             !matches!(e, ReplaceFaceError::ApexWindow { .. }),
@@ -147,7 +147,7 @@ fn opening_nappe_small_d_passes_the_apex_predicate() {
 fn opening_nappe_apex_crossing_refuses_typed() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, -1.0, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, -1.0, Tol::witness())
         .expect_err("the shifted window crosses the apex");
     assert!(
         matches!(e, ReplaceFaceError::ApexWindow { face: f, .. } if f == face),
@@ -164,7 +164,7 @@ fn opening_nappe_apex_crossing_refuses_typed() {
 fn a_large_d_away_from_the_apex_is_not_an_apex_crossing() {
     let mut body = cone_up_tube();
     let face = cone_face(&body);
-    let e = topo::replace_face_offset(&mut body, face, 5.0, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 5.0, Tol::witness())
         .expect_err("a shift this large leaves the body undescribable somewhere");
     assert!(
         !matches!(e, ReplaceFaceError::ApexWindow { .. }),
@@ -197,7 +197,7 @@ fn the_routed_opening_cone_reaches_past_c5_and_refuses_at_the_caps() {
     let mut body = frustum_opening();
     let face = cone_face(&body);
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
         .expect_err("the caps cannot follow the cone's moved rims");
     assert!(
         !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
@@ -222,7 +222,7 @@ fn the_routed_mirror_cone_reaches_past_c5_and_refuses_at_the_caps() {
     let mut body = frustum_mirror();
     let face = cone_face(&body);
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, face, 0.01, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, face, 0.01, Tol::witness())
         .expect_err("the caps cannot follow the cone's moved rims");
     assert!(
         !matches!(e, ReplaceFaceError::NeighborPairUnroutable { .. }),
@@ -262,7 +262,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
     ];
     for (mut body, face, d) in cases {
         let before = dump(&body);
-        let e = topo::replace_face_offset(&mut body, face, d, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, face, d, Tol::witness())
             .expect_err("a planted red");
         assert_eq!(
             dump(&body),
@@ -285,7 +285,7 @@ fn every_err_path_leaves_the_body_bit_untouched() {
             .map(|(k, _)| k)
             .unwrap();
         let before = dump(&body);
-        let e = topo::replace_face_offset(&mut body, wall, d, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, wall, d, Tol::witness())
             .expect_err("the fitted boundary refuses");
         assert!(
             matches!(e, ReplaceFaceError::FittedBoundaryUnsupported { .. }),
@@ -326,7 +326,7 @@ fn a_side_wall_replacement_refuses_typed_at_the_rim_arcs() {
         .map(|(k, _)| k)
         .expect("a partial revolve has planar side walls");
     let before = dump(&body);
-    let e = topo::replace_face_offset(&mut body, side, 0.05, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut body, side, 0.05, Tol::witness())
         .expect_err("the rim arcs cannot follow a tangential wall move");
     assert!(
         matches!(
@@ -418,7 +418,7 @@ fn the_fitted_obstruction_holds_on_a_curved_fit() {
             })
             .map(|(k, _)| k)
             .unwrap_or_else(|| panic!("{name}: no spline wall"));
-        let e = topo::replace_face_offset(&mut body, wall, 5e-10, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut body, wall, 5e-10, Tol::witness())
             .expect_err("the fitted boundary refuses");
         match e {
             ReplaceFaceError::FittedBoundaryUnsupported { what, .. } => {

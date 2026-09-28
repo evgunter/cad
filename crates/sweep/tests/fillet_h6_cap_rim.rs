@@ -31,10 +31,6 @@ use sweep::test_support::sketch_from_axes;
 use sweep::{ExtrudeError, Extruded, Extrusion, extrude};
 use topo::{Body, EdgeKey, FaceKey};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(plane, loops).validate(Tol::witness()).unwrap()
 }
@@ -89,25 +85,33 @@ fn assert_every_cap_rim_transverse(name: &str, built: &Extruded<f64>) {
 }
 
 fn square() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(0.0, 2.0),
+    ])
 }
 
 /// The 6-vertex all-line L: a concave corner among convex ones.
 fn l_loop() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ])
 }
 
 /// A circle as two semicircular arcs — one cylinder wall, two
 /// near-closed rim arcs whose chord is a diameter.
 fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(cx - r, cy), 1.0),
+        (Point2::new(cx + r, cy), 1.0),
+    ])
 }
 
 /// An obround: two lines closed by two semicircular arcs, every join
@@ -116,10 +120,10 @@ fn circle_loop(cx: f64, cy: f64, r: f64) -> ProfileLoop<f64> {
 /// pair at the same rim.
 fn obround_loop() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(-1.0, -0.5), 0.0),
-        (p2(1.0, -0.5), 1.0),
-        (p2(1.0, 0.5), 0.0),
-        (p2(-1.0, 0.5), 1.0),
+        (Point2::new(-1.0, -0.5), 0.0),
+        (Point2::new(1.0, -0.5), 1.0),
+        (Point2::new(1.0, 0.5), 0.0),
+        (Point2::new(-1.0, 0.5), 1.0),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3])
 }
@@ -129,14 +133,14 @@ fn obround_loop() -> ProfileLoop<f64> {
 fn stadium_corners_loop() -> ProfileLoop<f64> {
     let q = (core::f64::consts::FRAC_PI_4 / 2.0).tan();
     bulge_loop(vec![
-        (p2(-1.0, -2.0), 0.0),
-        (p2(1.0, -2.0), q),
-        (p2(2.0, -1.0), 0.0),
-        (p2(2.0, 1.0), q),
-        (p2(1.0, 2.0), 0.0),
-        (p2(-1.0, 2.0), q),
-        (p2(-2.0, 1.0), 0.0),
-        (p2(-2.0, -1.0), q),
+        (Point2::new(-1.0, -2.0), 0.0),
+        (Point2::new(1.0, -2.0), q),
+        (Point2::new(2.0, -1.0), 0.0),
+        (Point2::new(2.0, 1.0), q),
+        (Point2::new(1.0, 2.0), 0.0),
+        (Point2::new(-1.0, 2.0), q),
+        (Point2::new(-2.0, 1.0), 0.0),
+        (Point2::new(-2.0, -1.0), q),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7])
 }
@@ -145,10 +149,10 @@ fn stadium_corners_loop() -> ProfileLoop<f64> {
 /// OUTSIDE the carrier, so the wall face carries sense `false`.
 fn concave_arc_loop() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(3.0, 0.0), 0.0),
-        (p2(3.0, 2.0), 0.0),
-        (p2(0.0, 2.0), -0.4),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(3.0, 0.0), 0.0),
+        (Point2::new(3.0, 2.0), 0.0),
+        (Point2::new(0.0, 2.0), -0.4),
     ])
 }
 
@@ -264,8 +268,8 @@ fn every_extruded_cap_rim_is_transverse() {
             validated(
                 plane,
                 vec![bulge_loop(vec![
-                    (p2(-1e4 * tol.eps(), 0.0), 100.0),
-                    (p2(1e4 * tol.eps(), 0.0), 0.0),
+                    (Point2::new(-1e4 * tol.eps(), 0.0), 100.0),
+                    (Point2::new(1e4 * tol.eps(), 0.0), 0.0),
                 ])],
             ),
             Extrusion::Distance(1.0),
@@ -357,10 +361,10 @@ fn print_the_arm_at_a_small_k() {
     let profile = validated(
         SketchPlane::xy(),
         vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(2.0, short),
-            p2(0.0, short),
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, short),
+            Point2::new(0.0, short),
         ])],
     );
     match extrude(&profile, Extrusion::Vector(w), tol) {

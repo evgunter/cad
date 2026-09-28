@@ -24,10 +24,6 @@ use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// An L-shaped (notched) prism: the only planar fixture in this file
 /// with a CONCAVE edge, which is what predicates 5 and 6's
 /// mixed-convexity rows need.
@@ -40,7 +36,11 @@ fn notched() -> Body<f64> {
         (1.0, 2.0),
         (0.0, 2.0),
     ];
-    let lp = bulge_loop(pts.into_iter().map(|(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(
+        pts.into_iter()
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
+            .collect(),
+    );
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();

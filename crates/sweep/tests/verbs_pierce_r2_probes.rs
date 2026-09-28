@@ -20,15 +20,14 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A washer: annulus (outer r, hole rh) extruded z0..z1 at the origin.
 fn washer(r: f64, rh: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let outer = profile::circle(p2(0.0, 0.0), r, tol).unwrap();
-    let hole = bulge_loop(vec![(p2(rh, 0.0), 1.0), (p2(-rh, 0.0), 1.0)]);
+    let outer = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
+    let hole = bulge_loop(vec![
+        (Point2::new(rh, 0.0), 1.0),
+        (Point2::new(-rh, 0.0), 1.0),
+    ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![outer.into(), hole])
         .validate(tol)
@@ -101,7 +100,10 @@ fn r2_a_box_through_a_lens_cap_measures_the_all_arc_remainder() {
     // a shallow arc of a DIFFERENT circle (bulge 0.35 on the return).
     // SYMMETRIC lens: equal bulges on both legs bow outward on
     // opposite sides (mirror-image circles, distinct carriers).
-    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.6),
+        (Point2::new(1.0, 0.0), 0.6),
+    ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     let a = extrude(&profile, Extrusion::Distance(2.0), tol)
@@ -158,7 +160,10 @@ fn r2_a_box_through_a_half_disc_cap_measures_the_mixed_loop_remainder() {
     let mut refused = 0;
     let mut bodies = 0;
     for bulge in [1.0, -1.0] {
-        let lp = bulge_loop(vec![(p2(1.0, 0.0), 0.0), (p2(-1.0, 0.0), bulge)]);
+        let lp = bulge_loop(vec![
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(-1.0, 0.0), bulge),
+        ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
         let a = extrude(&profile, Extrusion::Distance(2.0), tol)
@@ -226,7 +231,7 @@ fn r2_stacked_boxes_calibrate_the_cosurface_claim() {
 fn r2_a_box_buried_in_a_pancake_cylinder_attacks_the_ray_cap_trim() {
     let tol = Tol::witness();
     let cyl = {
-        let lp = profile::circle(p2(0.0, 0.0), 5.0, tol).unwrap();
+        let lp = profile::circle(Point2::new(0.0, 0.0), 5.0, tol).unwrap();
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
         extrude(&profile, Extrusion::Distance(0.4), tol)
@@ -260,17 +265,20 @@ fn r2_the_1032_declaration_measurement_reproduces() {
     // The m9_2b_r2 fixture, restated (holed plate + through-boss).
     let outer = bulge_loop(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .to_vec(),
     );
-    let hole = bulge_loop(vec![(p2(2.5, 2.0), 1.0), (p2(1.5, 2.0), 1.0)]);
+    let hole = bulge_loop(vec![
+        (Point2::new(2.5, 2.0), 1.0),
+        (Point2::new(1.5, 2.0), 1.0),
+    ]);
     let plate_profile = Profile::new(SP::xy(), vec![outer, hole])
         .validate(tol)
         .unwrap();
     let plate = extrude(&plate_profile, Extrusion::Distance(1.0), tol)
         .unwrap()
         .body;
-    let boss = three_arc_cylinder(p2(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
+    let boss = three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, -0.2, 1.6, 90.0);
 
     let mut body = plate.clone();
     let plate_faces: std::collections::BTreeSet<_> = body.faces().map(|(k, _)| k).collect();

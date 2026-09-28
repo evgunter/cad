@@ -14,13 +14,9 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
@@ -208,7 +204,7 @@ fn r1_the_cone_fixture_names_its_own_door() {
         let lp = bulge_loop(
             [(0.2, 0.0), (0.6, 0.0), (0.4, 0.6), (0.2, 0.6)]
                 .into_iter()
-                .map(|(r, y)| (p2(r, y), 0.0))
+                .map(|(r, y)| (Point2::new(r, y), 0.0))
                 .collect(),
         );
         let vp = Profile::new(SketchPlane::xy(), vec![lp])
@@ -217,7 +213,7 @@ fn r1_the_cone_fixture_names_its_own_door() {
         sweep::revolve(
             &vp,
             sweep::RevolveAxis {
-                origin: p2(0.0, 0.0),
+                origin: Point2::new(0.0, 0.0),
                 dir: geom_core::Vec2::new(0.0, 1.0),
             },
             sweep::Revolution::Full,

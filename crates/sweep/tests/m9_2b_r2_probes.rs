@@ -16,19 +16,18 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The plate with a radius-0.5 hole at (2, 2): 4x4x1, z in [0, 1];
 /// the hole is two semicircular arcs with joints at 0 and 180 deg.
 fn holed_plate() -> Body<f64> {
     let outer = bulge_loop(
         [(0.0, 0.0), (4.0, 0.0), (4.0, 4.0), (0.0, 4.0)]
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .to_vec(),
     );
-    let hole = bulge_loop(vec![(p2(2.5, 2.0), 1.0), (p2(1.5, 2.0), 1.0)]);
+    let hole = bulge_loop(vec![
+        (Point2::new(2.5, 2.0), 1.0),
+        (Point2::new(1.5, 2.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(Tol::witness())
         .unwrap();
@@ -42,7 +41,7 @@ fn holed_plate() -> Body<f64> {
 /// vertices so no vertex-vertex or vertex-on-line coincidence backs
 /// the interface by accident), z in [-0.2, 1.4].
 fn through_boss() -> Body<f64> {
-    three_arc_cylinder(p2(2.0, 2.0), 0.5, -0.2, 1.6, 90.0)
+    three_arc_cylinder(Point2::new(2.0, 2.0), 0.5, -0.2, 1.6, 90.0)
 }
 
 #[test]

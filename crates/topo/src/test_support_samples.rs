@@ -25,9 +25,9 @@
 //! and every [`Undecided`] reason, which is every `what` the
 //! cross-solid backstop can raise. One level further in, the enums
 //! `PcurveMintError::Certify`, `MassPropsError::Face` and
-//! `CertifyError::PlaneNurbs` carry are sampled whole too, as is
-//! `OffsetFitError::PatchBound`'s; the other four `OffsetFitError`
-//! wrappers carry one value each.
+//! `CertifyError::PlaneNurbs` carry are sampled whole too, as are
+//! `OffsetFitError::PatchBound`'s and `OffsetFitError::Band`'s; the
+//! other four `OffsetFitError` wrappers carry one value each.
 //!
 //! Where a raise site fills a field with prose — a `what`, a `detail`,
 //! a steer — the sample carries the prose a real run renders, and a
@@ -472,6 +472,7 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
     // Every patch-bound note is its own sentence, and the enum is
     // fieldless, so its compiler-derived roster is the sample list.
     v.extend(PatchBoundError::iter().map(OffsetFitError::PatchBound));
+    v.extend(band_errors().into_iter().map(OffsetFitError::Band));
     v
 }
 
