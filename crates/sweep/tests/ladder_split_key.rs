@@ -60,20 +60,6 @@ fn repaired_boss(up: bool) -> Body<f64> {
     b
 }
 
-/// The edges meeting `v`, once each.
-fn incident(body: &Body<f64>, v: VertexKey) -> Vec<EdgeKey> {
-    let he = body.get_vertex(v).unwrap().emanating.unwrap();
-    let mut out: Vec<EdgeKey> = body
-        .vertex_orbit(he)
-        .unwrap()
-        .into_iter()
-        .map(|h| body.get_half_edge(h).unwrap().edge)
-        .collect();
-    out.sort_unstable();
-    out.dedup();
-    out
-}
-
 /// The rim's vertices, in no particular order.
 fn rim_vertices(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<VertexKey> {
     let mut out: Vec<VertexKey> = arcs
@@ -110,7 +96,9 @@ fn rim_side_keeps_the_source_key(body: &Body<f64>, arcs: &[EdgeKey]) -> Vec<bool
     rim_vertices(body, arcs)
         .into_iter()
         .map(|v| {
-            let meridians: Vec<EdgeKey> = incident(body, v)
+            let meridians: Vec<EdgeKey> = body
+                .edges_of_vertex(v)
+                .unwrap()
                 .into_iter()
                 .filter(|e| !arcs.contains(e))
                 .collect();

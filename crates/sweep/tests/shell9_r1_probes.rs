@@ -22,7 +22,7 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ShellError, ShellRole};
 
 use super::common::latitude_seam::{collinear_cap_drum, door_cavity};
-use super::shell7_common::{face_of_he, point, polyline, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{point, polyline, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::{beside, cap, outer_and_void_of};
 use super::verbs_shell::{hollow_box, two_void_box, vessel};
 
@@ -134,7 +134,7 @@ fn dump_rows(label: &str, body: &Body<f64>) {
     let mut n = 0;
     for (he, cache) in body.pcurves() {
         n += 1;
-        let face = face_of_he(body, he);
+        let face = body.face_of_half_edge(he).unwrap();
         let kind = body
             .get_face(face)
             .and_then(|f| body.get_surface(f.surface))
@@ -211,7 +211,7 @@ fn r1_rows_corpus() {
     dump_rows("operand box beside hollow vessel", &pair_h);
     let vessel_solid = pair_h
         .solids()
-        .find(|(k, _)| pair_h.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair_h, vessel_solid);
@@ -384,7 +384,7 @@ fn r1_end_to_end() {
     let pair = beside(&block(2.0, 3.0, 4.0, Tol::witness()), &hv, 10.0);
     let vessel_solid = pair
         .solids()
-        .find(|(k, _)| pair.get_solid(*k).unwrap().shells.len() == 2)
+        .find(|(_, s)| s.shells.len() == 2)
         .map(|(k, _)| k)
         .expect("the hollow solid");
     let (_, void) = outer_and_void_of(&pair, vessel_solid);

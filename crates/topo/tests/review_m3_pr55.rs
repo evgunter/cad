@@ -48,7 +48,7 @@ fn tprism<T: Decide>(profile: &[(f64, f64)], z0: f64, z1: f64, m: [[f64; 3]; 3])
                 m[1][0] * x + m[1][1] * y + m[1][2] * z,
                 m[2][0] * x + m[2][1] * y + m[2][2] * z,
             ];
-            Point3::new(T::from_f64(w[0]), T::from_f64(w[1]), T::from_f64(w[2]))
+            Point3::new(w[0], w[1], w[2]).map(T::from_f64)
         },
         common::FaceGeometry::Certified,
         Tol::witness(),

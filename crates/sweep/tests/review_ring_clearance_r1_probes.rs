@@ -19,12 +19,12 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::Surface;
-use geom_core::{Affine3, Point2, Sign, Tol, Vec3};
+use geom_core::{Point2, Sign, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::blend::BlendError;
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
-    ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
+    ball_poled_y, ball_poled_z, bored_cylinder, boss, prism, revolved_about_y, rim_arcs_at, z_rim,
 };
 use sweep::{Extrusion, Revolution, extrude};
 use topo::boolean::{BooleanDeclarations, BooleanOp, SweepStrategy, boolean_op_with};
@@ -56,17 +56,6 @@ fn subtract(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
     .expect("the subtraction leaves a body")
     .body
     .clone()
-}
-
-/// A ball of radius `r` poled along `y` (the boss's axis), centred at
-/// `c` — so it meets a `y`-plane pole-on.
-fn ball_poled_y(r: f64, c: Vec3<f64>) -> Body<f64> {
-    let b = revolved_about_y(
-        vec![(Point2::new(0.0, -r), 1.0), (Point2::new(0.0, r), 0.0)],
-        Revolution::Full,
-        tol(),
-    );
-    topo::transform_rigid(&b, &Affine3::translation(c), tol()).unwrap()
 }
 
 /// The two faces of an edge.
@@ -370,13 +359,21 @@ fn r1_diag_cylinder_pierces() {
     try_cut(
         "cyl, y-poled ball off axis 0.75 @33.75",
         &cyl,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 0.75 * phi.sin(), 1.0)),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 0.75 * phi.sin(), 1.0),
+            tol(),
+        ),
     );
     let boss_b = repaired(true);
     try_cut(
         "repaired boss, y-poled ball off axis 0.75 @33.75",
         &boss_b,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin())),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin()),
+            tol(),
+        ),
     );
     let mut cylr = revolved_about_y(
         vec![
@@ -392,12 +389,16 @@ fn r1_diag_cylinder_pierces() {
     try_cut(
         "repaired revolve cylinder, y-poled ball on axis",
         &cylr,
-        ball_poled_y(0.16, Vec3::new(0.0, 1.0, 0.0)),
+        ball_poled_y(0.16, Vec3::new(0.0, 1.0, 0.0), tol()),
     );
     try_cut(
         "repaired revolve cylinder, y-poled ball off axis 0.75 @33.75",
         &cylr,
-        ball_poled_y(0.16, Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin())),
+        ball_poled_y(
+            0.16,
+            Vec3::new(0.75 * phi.cos(), 1.0, 0.75 * phi.sin()),
+            tol(),
+        ),
     );
 }
 

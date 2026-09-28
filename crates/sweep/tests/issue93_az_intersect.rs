@@ -86,7 +86,7 @@ const A_STENCIL: [(f64, f64); 15] = [
 fn lp<T: Decide>(poly: &[(f64, f64)]) -> ProfileLoop<T> {
     ProfileLoop::polygon(
         poly.iter()
-            .map(|&(x, y)| Point2::new(T::from_f64(x), T::from_f64(y)))
+            .map(|&(x, y)| Point2::new(x, y).map(T::from_f64))
             .collect::<Vec<_>>(),
     )
 }

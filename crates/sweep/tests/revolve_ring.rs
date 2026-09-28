@@ -18,9 +18,7 @@
 //!   decision — reduction sweep, sector classification, containment
 //!   probes — reports under that prefix), pinned through the verdict
 //!   log. Rerouting the ring through the boolean pipeline turns this
-//!   RED twice over: the probes would log `bool_point_in_solid_*`,
-//!   and the annulus ring's torus walls cannot even pass the boolean
-//!   operand gate.
+//!   RED: the probes would log `bool_point_in_solid_*`.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 

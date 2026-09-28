@@ -2,10 +2,12 @@
 id: viewer-tests-each-spell-their-own-horizontal-pick-ray
 kind: issue
 title: Seven private spellings of the horizontal axis-aligned pick ray in crates/viewer/tests
-status: open
+status: closed
+closed: 2026-09-26
 opened: 2026-09-20
 priority: P4
 cost: D
+pr: 3285
 ---
 
 
@@ -56,3 +58,34 @@ and `view` (`work.py territory`), so there is no single ground-owner to
 file it with, and the subject — one construction spelled more than once
 — is S-DUP's charter. Any of the five may claim it by `git mv`.
 
+## Closed
+
+Folded by the S-DUP `viewer-drain` lane, 2026-09-26, cut from
+`0c1932667`.
+
+- **Census re-taken** with the row's instrument (`git grep -n -A3 'Ray
+  {' -- crates/viewer/tests`, every `dir` that is a unit axis other
+  than ±z): the same seven in six files, plus one the row predates,
+  `index_memo`'s `aimed_along_y` — a standoff measured back from an
+  aimed POINT (`REACH`, an input a row compares an answer against),
+  the table-built family's shape, so not a member.
+- **The doors**, beside `down_at` / `up_at`: `common::along_x(sense,
+  y, z)` and `common::along_y(sense, x, z)`, one body (`level`) that
+  refuses a sense other than ±1. Two doors with a sign, not four
+  named ones: every site already thinks of its ray as "along x,
+  toward −x", and the sign is the one argument that varies.
+- **Routed**: all seven. `select_pick::at_the_wall` stays as the name
+  of the plate's wall, over the door.
+- The plants, and every row each one reddened, are listed below.
+
+## Plant red lists
+
+Every red row in the `viewer::all` binary (805 rows each run; passed + failed = 805; tree restored byte-exact and checked clean), grouped by suite. The instrument: a copy/restore harness over `cargo nextest run -p viewer --no-fail-fast`, reading every `FAIL` line.
+
+- **`E_level_wrong_side`**, 7 red:
+  - `mate_tool_flow`: `a_circular_pattern_copy_authors_the_masters_unrotated_frame`
+  - `review_gui2_r1`: `undo_across_the_birth_of_a_wall_pick_unresolves_and_redo_revives`
+  - `review_gui2_r2`: `picking_again_replaces_rather_than_accumulates`
+  - `review_gui4_r2`: `two_different_faces_of_one_instance_refuse_same_pick`
+  - `select_pick`: `selecting_twice_keeps_exactly_one_selection`, `two_cursors_on_one_face_agree_and_a_wall_is_a_different_face`
+  - `story_assembly`: `the_windmill_story`

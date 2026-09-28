@@ -7,9 +7,9 @@
 
 use crate::common;
 
-use common::{axis_y, ball, check_mesh_acceptance, cone, donut, p2, validated, washer, wedge};
+use common::{axis_y, ball, check_mesh_acceptance, cone, donut, validated, washer, wedge};
 use geom_core::Point3;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use mesh::validate::{MeshError, check_mesh};
 use mesh::{FacePatch, Mesh, tessellate};
 use profile::ProfileLoop;
@@ -265,14 +265,14 @@ fn survives_concentric_slit_annuli() {
     // annulus, the top plane two concentric slit annuli (separate
     // faces, same plane) — parity and seam cancellation stress.
     let lp = ProfileLoop::polygon([
-        p2(1.0, 0.0),
-        p2(4.0, 0.0),
-        p2(4.0, 1.0),
-        p2(3.0, 1.0),
-        p2(3.0, 0.5),
-        p2(2.0, 0.5),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(4.0, 0.0),
+        Point2::new(4.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 0.5),
+        Point2::new(2.0, 0.5),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
     ]);
     let body = revolve(
         &validated(vec![lp]),

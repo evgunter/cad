@@ -148,3 +148,28 @@ representation of one root. Where the sign picks WHICH root (the cylinder
 and cone near-root, `ray-wall-and-cone-near-root-cancels-over-a-small-lead`),
 it needs a frame decision instead. Any new `copysign` site in the register
 (`sym_rule_f_rows`) should be read against this.
+
+## 2026-09-26 — the torus doors land (PR 3265)
+
+Tier: dual, recorded as a `DR` row in `docs/DUAL-REVIEW-LOG.md`. Both
+reviews were NOT-MERGEABLE-AS-IS (two MAJORs, each a refusal that became a
+confident wrong answer; see the 2026-09-26 adjudication above). Then a fix
+pass, a re-check by one reviewer (APPROVE-WITH-FIXES), and a final pass.
+The gate is local and crate-scoped by Ev's authorization (hosted Actions
+was queued for hours): `topo`, `geom-brep` and `sweep` at the default eps,
+the torus rows at all three eps, clippy, `demos/tour` clippy and fmt.
+
+Closed: `torus-operand-gate-admission`,
+`torus-coincident-pair-cannot-reach-the-covered-rung`, and the torus half
+of `curved-face-containment-lacks-cone-torus`. Filed:
+- GERM: `circle-crosses-a-torus-face-with-no-root-lane`,
+  `undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`,
+  `torus-onto-the-subtract-and-intersect-roster`,
+  `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`,
+  `the-ring-torus-convention-is-checked-three-ways`;
+- ZIP: `dumbbell-joint-union-leaves-four-loose-ends`;
+- TANG: `decided-coincidence-carries-a-synthetic-invalid-margin`,
+  `torus-carrier-axis-margin-is-levered-by-one-not-the-ring`.
+
+REACH's `implicit.rs` gained `min_radius_of_curvature` (a note is on
+REACH's log).

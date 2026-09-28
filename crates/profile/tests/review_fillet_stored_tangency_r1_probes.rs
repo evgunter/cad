@@ -13,8 +13,8 @@
 
 use crate::common;
 
-use common::{p2, tol};
-use geom_core::Tol;
+use common::tol;
+use geom_core::{Point2, Tol};
 use profile::{
     ArcSweep, Center, Open, PathError, Profile, ProfileError, ProfileLoop, SketchPlane, Start,
 };
@@ -54,8 +54,8 @@ fn door_output_is_honest(what: &str, built: Result<ProfileLoop<f64>, PathError<f
 }
 
 fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -80,12 +80,12 @@ fn seam_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
     // seam side's own fit gate) and the fillet has a corner to round.
     let ux = theta.cos();
     let uy = theta.sin();
-    let a = p2(-2.0 - ux, -uy);
-    let b = p2(-2.0 - 5.0 * ux, -5.0 * uy);
-    Open.at(p2(0.0, 0.0))
+    let a = Point2::new(-2.0 - ux, -uy);
+    let b = Point2::new(-2.0 - 5.0 * ux, -5.0 * uy);
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .line(6.0, tol())?
-        .line_to(p2(6.0, 4.0), tol())?
+        .line_to(Point2::new(6.0, 4.0), tol())?
         .line_to(b, tol())?
         .line_to(a, tol())?
         .tangent()
@@ -128,8 +128,8 @@ fn report_the_seam_fillet_window() {
 /// pushing its own straight piece — the emission whose incoming joint
 /// is the leg's own already-declared end.
 fn fused_bend(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .line(2.0, tol())?
         .tangent()
@@ -165,13 +165,13 @@ fn report_the_fused_fillet_window() {
 // ------------------------------------------------------------------
 
 fn two_fillets(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let a1 = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    let a1 = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     let d2 = 2.0 * theta;
     // The second corner sits 3 m along the first fillet's outgoing ray,
     // and its arrival anchor another 3 m beyond it.
-    let k = p2(a1.x + 3.0 * theta.cos(), a1.y + 3.0 * theta.sin());
-    let a2 = p2(k.x + 3.0 * d2.cos(), k.y + 3.0 * d2.sin());
-    Open.at(p2(0.0, 0.0))
+    let k = Point2::new(a1.x + 3.0 * theta.cos(), a1.y + 3.0 * theta.sin());
+    let a2 = Point2::new(k.x + 3.0 * d2.cos(), k.y + 3.0 * d2.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(a1, tol())?
@@ -218,19 +218,19 @@ fn report_back_to_back_fillets() {
 /// corpus reads only at right angles.
 fn arc_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let arr = -std::f64::consts::FRAC_PI_2 + theta;
-    let far = p2(2.0 + 4.0 * arr.cos(), 4.0 * arr.sin());
+    let far = Point2::new(2.0 + 4.0 * arr.cos(), 4.0 * arr.sin());
     Open.arc_fillet(
         Center {
-            c: p2(0.0, 0.0),
+            c: Point2::new(0.0, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(0.0, 2.0),
+            p: Point2::new(0.0, 2.0),
         },
         radius,
         tol(),
     )?
     .toward(arr.cos(), arr.sin(), tol())?
     .to(far, tol())?
-    .line_to(p2(-6.0, -6.0), tol())?
+    .line_to(Point2::new(-6.0, -6.0), tol())?
     .line_to(Start, tol())
     .map(|c| c.loop_)
 }
@@ -272,8 +272,8 @@ fn far_bend(
     theta: f64,
     radius: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(shift + 4.0 + leg * theta.cos(), shift + leg * theta.sin());
-    Open.at(p2(shift, shift))
+    let anchor = Point2::new(shift + 4.0 + leg * theta.cos(), shift + leg * theta.sin());
+    Open.at(Point2::new(shift, shift))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -364,10 +364,10 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
         ("line x line", || line_line(0.4, R)),
         ("line x arc", || {
             let theta: f64 = 0.4;
-            let c = p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos());
-            let start = p2(c.x + 2.0 * theta.cos(), c.y + 2.0 * theta.sin());
+            let c = Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos());
+            let start = Point2::new(c.x + 2.0 * theta.cos(), c.y + 2.0 * theta.sin());
             Open.at(start)
-                .line_to(p2(0.0, 0.0), tol())?
+                .line_to(Point2::new(0.0, 0.0), tol())?
                 .toward(1.0, 0.0, tol())?
                 .fillet_arc(
                     R,
@@ -383,15 +383,15 @@ fn the_stored_form_read_costs_a_fixed_k_count_per_fillet() {
         ("arc x arc", || {
             Open.arc_fillet_arc(
                 Center {
-                    c: p2(-1.0, 0.0),
+                    c: Point2::new(-1.0, 0.0),
                     winding: ArcSweep::Ccw,
-                    p: p2(1.0, 0.0),
+                    p: Point2::new(1.0, 0.0),
                 },
                 R,
                 Center {
-                    c: p2(1.0, 0.0),
+                    c: Point2::new(1.0, 0.0),
                     winding: ArcSweep::Ccw,
-                    p: p2(-1.0, 0.0),
+                    p: Point2::new(-1.0, 0.0),
                 },
                 tol(),
             )?
@@ -491,45 +491,11 @@ fn report_the_recourse_at_a_far_scene() {
 #[test]
 fn report_the_interval_loops_with_the_door_read_suppressed() {
     use common::coverage_corpus;
-    use geom_core::{Interval, Point2, Real};
+    use geom_core::{Interval, Real};
     use profile::{
-        ArcData, ArcSweep, Center, FilletDecision, ReplayStructure, Step, Target, replay,
-        replay_guided, replay_recording,
+        ArcSweep, Center, FilletDecision, ReplayStructure, Step, replay, replay_guided,
+        replay_recording,
     };
-    fn pt(p: Point2<f64>) -> Point2<Interval> {
-        p.map(Interval::from_f64)
-    }
-    fn tgt(t: Target<f64>) -> Target<Interval> {
-        match t {
-            Target::Start => Target::Start,
-            Target::StartArriving => Target::StartArriving,
-            Target::Point(p) => Target::Point(pt(p)),
-        }
-    }
-    fn spec(s: ArcData<f64>) -> ArcData<Interval> {
-        match s {
-            ArcData::Center { c, winding, target } => ArcData::Center {
-                c: pt(c),
-                winding,
-                target: tgt(target),
-            },
-            other => panic!("unexpected arc spec {other:?}"),
-        }
-    }
-    fn embed(step: &Step<f64>) -> Step<Interval> {
-        match *step {
-            Step::ArcFilletArc {
-                spec: s,
-                radius,
-                spec2,
-            } => Step::ArcFilletArc {
-                spec: spec(s),
-                radius: Interval::from_f64(radius),
-                spec2: spec(spec2),
-            },
-            ref other => panic!("unexpected step {other:?}"),
-        }
-    }
 
     // (1) the generic corpus, restricted to the fused ArcFilletArc
     // rows (the relayed row the PR names is one of these).
@@ -537,7 +503,11 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
         if closed.program.len() != 1 || !matches!(closed.program[0], Step::ArcFilletArc { .. }) {
             continue;
         }
-        let embedded: Vec<Step<Interval>> = closed.program.iter().map(embed).collect();
+        let embedded: Vec<Step<Interval>> = closed
+            .program
+            .iter()
+            .map(|s| s.map_scalar(Interval::from_f64))
+            .collect();
         match replay::<Interval>(&embedded, tol()) {
             Err(e) => println!(
                 "R1 h corpus row {i}: replay refused: {}",
@@ -558,13 +528,13 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
     let program = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-1.0 + f64::EPSILON, 0.0),
+                c: Point2::new(-1.0 + f64::EPSILON, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -s3),
+                p: Point2::new(0.0, -s3),
             },
             0.5,
             Center {
-                c: p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -573,7 +543,10 @@ fn report_the_interval_loops_with_the_door_read_suppressed() {
         .expect("the lens constructs")
         .program;
     let (_, structure) = replay_recording(&program, tol()).expect("the lens replays at f64");
-    let lifted: Vec<Step<Interval>> = program.iter().map(embed).collect();
+    let lifted: Vec<Step<Interval>> = program
+        .iter()
+        .map(|s| s.map_scalar(Interval::from_f64))
+        .collect();
     let d = &structure.fillets[0];
     let other = ReplayStructure {
         fillets: vec![FilletDecision {
