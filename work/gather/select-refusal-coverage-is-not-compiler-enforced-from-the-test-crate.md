@@ -5,7 +5,7 @@ title: SelectRefusal is #[non_exhaustive], so its variant coverage cannot be enf
 status: open
 opened: 2026-09-15
 priority: P3
-cost: D
+cost: E
 ---
 
 

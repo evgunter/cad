@@ -5,7 +5,7 @@ title: the name-carrying edge set (Transform, Part, split pass-through) is walke
 status: open
 opened: 2026-09-24
 priority: P1
-cost: D
+cost: M
 refs: [the-solve-accepts-a-body-placed-under-two-roots, product-refuses-naming-when-one-instance-is-placed-under-two-roots]
 ---
 

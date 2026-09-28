@@ -5,7 +5,8 @@ title: the product's per-part gate counts SOLIDS but gates SOURCES, so a lone mu
 status: open
 opened: 2026-09-26
 priority: P3
-cost: D
+cost: E
+design: true
 ---
 
 

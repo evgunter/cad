@@ -5,7 +5,7 @@ title: the recipe layer drops a sweep's carried cusp declarations and the produc
 status: open
 opened: 2026-09-25
 priority: P1
-cost: D
+cost: H
 ---
 
 
