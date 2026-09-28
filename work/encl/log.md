@@ -1169,3 +1169,9 @@ class of 65 sites is PRED's row.
   - **Round 3** (delta review, approve-with-fixes): `Straddles` → `ZeroOrNegative`; validate's own endings only where `ending` is `None`; a literal classification table; `Passes` deleted.
   - **Filed:** `adoption-certification-has-no-eps-in-lever` (design fork), `validate-own-close-levers-follow-the-d4-recourse-ruling`, `certify-span-and-zero-arms-…` (extended), and ssi `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
   - Seam notes posted to iso, exch, topo, offset, shell, restfront, tcost, tint, pcert and ssi.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` put to Ev as `[ev]` PR 3380. `adoption-certification-has-no-eps-in-lever` has `needs_ev: true`.
+  - First reports: A (build D7's split) and B (delete `Reading::Adopt`, read import as at rest) split on the fix.
+  - Two reconciliation rounds brought them to one final state: read import as at rest now; build the split as filed follow-on work; ε_in is the file's coincidence distance, a lever only of interpretation refusals; an interim door-owned size decision; D4 ¶1's ε_in sentence reworded.
+  - One stated split: whether the coarse-but-correct text names the last resort.
+  - Row 6 recommendation half is committed on the `[ev]` branch. The mapping is on `analysis/design-fork/encl-adoption-eps-in`.
+  - Filing held until Ev answers: the EXCH row for the D7 rebuild stage, and the ENCL follow-through.
