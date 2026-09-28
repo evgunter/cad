@@ -17,7 +17,9 @@
 use super::*;
 use crate::boolean::ops;
 use crate::test_support_fixtures::{CylFrame, brick, cyl_wall_sheet};
-use crate::{Body, FaceKey, FaceSurface, MefSite, MevSite};
+use crate::{
+    Body, BooleanDeclarations, FaceKey, FacePairDeclaration, FaceSurface, MefSite, MevSite, Operand,
+};
 use core::f64::consts::{PI, TAU};
 use geom::{Curve3, Surface};
 use geom_brep::{EdgeCurveSpec, EdgeDescriptionSpec};
@@ -80,8 +82,18 @@ fn donut() -> Surface<f64> {
     torus(p(0.0, 0.0, 0.0), 2.0, 0.5)
 }
 
+/// The rows' reach: a ball of diameter [`LEVER`] about the origin,
+/// where every row's torus and walls stand.
 fn classify(f: &Surface<f64>, g: &Surface<f64>) -> Section<f64> {
-    super::classify(f, g, LEVER, band())
+    super::classify(
+        f,
+        g,
+        super::Reach {
+            centre: p(0.0, 0.0, 0.0),
+            radius: LEVER / 2.0,
+        },
+        band(),
+    )
 }
 
 /// `(count, single, essential on F, essential on G, unbounded)`, per
@@ -389,6 +401,14 @@ fn cylinder_pairs_every_class() {
     // Parallel walls: rulings.
     let s = classify(&a, &cylinder(p(1.2, 0.0, 0.0), Vec3::unit_z(), 0.5));
     assert_eq!(shape(&s).4, vec![true]);
+    // Coaxial walls of different radii: parallel, nothing shared.
+    let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), Vec3::unit_z(), 0.5));
+    assert_eq!(shape(&s).4, vec![true]);
+    // ONE carrier (same axis, same radius): the section is the surface
+    // itself, not a curve, so it refuses as a tangency rather than
+    // clearing as rulings.
+    let s = classify(&a, &cylinder(p(0.0, 0.0, 3.0), v(0.0, 0.0, -1.0), 1.0));
+    assert_eq!(tangent(&s), "section_cylinder_pair_coincident");
     // Apart.
     let s = classify(&a, &cylinder(p(0.0, 2.0, 0.0), Vec3::unit_x(), 0.5));
     assert_eq!(shape(&s).0, 0);
@@ -440,7 +460,11 @@ fn sphere_pairs_every_class() {
     on_both(witness(&classify(&wall, &ball)), &ball, &wall);
     // Two loops, each encircling the cylinder: essential on it.
     let s = classify(&ball, &cylinder(p(0.1, 0.0, -2.0), Vec3::unit_z(), 0.3));
-    assert_eq!(shape(&s).3, vec![true, true]);
+    assert_eq!(
+        (shape(&s).2, shape(&s).3),
+        (vec![false, false], vec![true, true]),
+        "essential on the cylinder, and NOT claimed on the sphere"
+    );
     // Viviani's pinch: tangent.
     let s = classify(&ball, &cylinder(p(0.5, 0.0, -2.0), Vec3::unit_z(), 0.5));
     assert_eq!(tangent(&s), "section_sphere_cylinder_girdle");
@@ -753,4 +777,239 @@ fn a_lone_vertex_ring_refuses_the_pair() {
         after.iter().all(|v| *v == Err(Refusal::LoneVertex)),
         "{after:?}"
     );
+}
+
+// -------------------------------------------------------------------
+// The lever's pivot: the same carrier line, whatever its stored origin
+// -------------------------------------------------------------------
+
+/// The classification of a torus pair whose region is the ball
+/// `(centre, radius)`: the overlap box's centre and half-diagonal.
+fn classify_near(
+    f: &Surface<f64>,
+    g: &Surface<f64>,
+    centre: Point3<f64>,
+    radius: f64,
+) -> Section<f64> {
+    super::classify(f, g, super::Reach { centre, radius }, band())
+}
+
+/// A carrier line through `through` with direction `d`, stored with its
+/// origin `far` metres along `d` from there.
+fn far_cylinder(through: Point3<f64>, d: Vec3<f64>, radius: f64, far: f64) -> Surface<f64> {
+    let d = d.normalize();
+    cylinder(through + d * far, d, radius)
+}
+
+/// **Case A: a pin's offset is read near the torus, not at its stored
+/// origin.** A pin of radius `0.2` whose axis passes `x = 2.7 − 8e-8`
+/// at the torus's midplane — so `ρ_min = 2.5 − 8e-8`, just inside the
+/// outer equator: one null loop, the scrape — tilted `1.9e-10` rad
+/// (decided `Zero` at the pair's lever) with its origin 1 km along the
+/// axis, where the axis has drifted `1.9e-7` further out. Read at the
+/// origin, the offset puts `ρ_min` beyond the tube and the pair would
+/// clear W0 with a true loop in it.
+#[test]
+fn a_far_origin_does_not_move_a_pins_offset() {
+    let tilt = 1.9e-10;
+    let pin = far_cylinder(p(2.7 - 8e-8, 0.0, 0.0), v(tilt, 0.0, 1.0), 0.2, 1000.0);
+    let s = classify_near(&donut(), &pin, p(2.5, 0.0, 0.0), 2.5);
+    match &s {
+        Section::Components { parts, .. } => {
+            assert!(!parts.is_empty(), "a true scrape loop cleared as apart")
+        }
+        Section::Tangent(_) | Section::Intractable => {}
+    }
+}
+
+/// **Case B: a wall's coaxiality is read near the torus.** A wall of
+/// radius `2.5 − 1e-7`, its axis tilted `1.5e-10` rad and meeting the
+/// torus axis 1000 m up, where its origin is stored: at the torus the
+/// axes stand `1.5e-7` apart, so the wall pokes out past the outer
+/// equator on one side and the section is ONE null loop. Read at the
+/// origin the pair is coaxial, and two essential parallels would clear
+/// it by W2.
+#[test]
+fn a_far_origin_does_not_make_a_wall_coaxial() {
+    let tilt = 1.5e-10;
+    let wall = cylinder(p(0.0, 0.0, 1000.0), v(-tilt, 0.0, -1.0), 2.5 - 1e-7);
+    let s = classify_near(&donut(), &wall, p(0.0, 0.0, 0.0), 3.0);
+    if let Section::Components { parts, .. } = &s {
+        assert!(
+            !(parts.len() == 2 && parts.iter().all(|c| c.essential_f && c.essential_g)),
+            "one null loop classified as two essential parallels: {s:?}"
+        );
+    }
+}
+
+// -------------------------------------------------------------------
+// The scan's per-face plumbing
+// -------------------------------------------------------------------
+
+/// The verdict of every pair of `b`'s `face` against `a`'s faces.
+fn scan_b(a: &Body<f64>, b: &Body<f64>, face: FaceKey) -> Vec<Result<Vec<Cleared>, Refusal>> {
+    ops::section_pairs(
+        a,
+        b,
+        band(),
+        ops::SectionPath::Crossings,
+        |_, _| false,
+        |_, _| false,
+        false,
+    )
+    .unwrap()
+    .into_iter()
+    .filter(|pv| pv.b_face == face)
+    .map(|pv| pv.verdict)
+    .collect()
+}
+
+/// **W2 asks the face the component is essential ON, from its own
+/// operand.** The seamless band as operand B against a slab as A: the
+/// ellipses are essential on the band (G), which does not describe, so
+/// every such pair refuses. A W2 that asked F's (the slab plane's)
+/// chart for a G claim clears them: red.
+#[test]
+fn w2_asks_the_partner_operands_face_for_a_g_claim() {
+    let (band_body, band_face) = seamless_band(-1.0, 1.0);
+    let verdicts = scan_b(&tilted_slab(), &band_body, band_face);
+    assert!(!verdicts.is_empty());
+    assert!(verdicts.contains(&Err(Refusal::Undecided)), "{verdicts:?}");
+    assert!(
+        !verdicts
+            .iter()
+            .any(|v| matches!(v, Ok(c) if c.contains(&Cleared::Essential(Side::G)))),
+        "{verdicts:?}"
+    );
+}
+
+/// **The chart cache is keyed by operand.** The two arenas mint keys
+/// independently: a describing face of A and the seamless band of B can
+/// share a key, and the band must not inherit A's answer.
+#[test]
+fn the_chart_cache_does_not_share_a_key_across_operands() {
+    let (band_body, band_face) = seamless_band(-1.0, 1.0);
+    let mut wall_body = Body::<f64>::new();
+    let _ = cyl_wall_sheet(
+        &mut wall_body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, PI),
+        (-1.0, 1.0),
+        Tol::witness(),
+    );
+    // The sheet's seed face is the band's key in its own arena.
+    assert!(wall_body.get_face(band_face).is_some(), "the keys coincide");
+    let surface = |b: &Body<f64>, f| {
+        b.get_surface(b.get_face(f).unwrap().surface)
+            .unwrap()
+            .clone()
+    };
+    let mut cache = ops::ChartCache::default();
+    assert!(cache.describes(
+        Operand::A,
+        &wall_body,
+        band_face,
+        &surface(&wall_body, band_face),
+        band()
+    ));
+    assert!(!cache.describes(
+        Operand::B,
+        &band_body,
+        band_face,
+        &surface(&band_body, band_face),
+        band()
+    ));
+}
+
+/// **A witness placed OFF a face's carrier is no verdict, never `Out`.**
+/// Every witness is built on both carriers, so a definite off-carrier
+/// answer contradicts its construction; reading it as `Out` would clear
+/// a component by W3 on a point that is not on the component at all.
+#[test]
+fn an_off_carrier_witness_places_nowhere() {
+    let mut body = Body::<f64>::new();
+    let wall = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, PI),
+        (-1.0, 1.0),
+        Tol::witness(),
+    );
+    let surface = body
+        .get_surface(body.get_face(wall).unwrap().surface)
+        .unwrap()
+        .clone();
+    assert_eq!(
+        ops::place_witness(&body, wall, &surface, p(0.0, 1.5, 0.0), band()),
+        None,
+        "0.5 off the unit wall"
+    );
+    // On the carrier and outside the half-wall's window: a real `Out`.
+    assert_eq!(
+        ops::place_witness(&body, wall, &surface, p(0.0, -1.0, 0.0), band()),
+        Some(FaceContainment::Out)
+    );
+}
+
+/// **A lone-vertex ring on operand B's face refuses too.**
+#[test]
+fn a_lone_vertex_ring_on_the_b_side_refuses_the_pair() {
+    let tol = Tol::witness();
+    let mut body = Body::<f64>::new();
+    let wall = cyl_wall_sheet(
+        &mut body,
+        CylFrame::canonical(1.0),
+        None,
+        (0.0, PI),
+        (-1.0, 1.0),
+        tol,
+    );
+    let crate::LoopBoundary::Cycle { first } = body
+        .get_loop(body.get_face(wall).unwrap().outer)
+        .unwrap()
+        .boundary
+    else {
+        panic!("the wall's outer loop is a cycle")
+    };
+    let strut = body
+        .mev_line(
+            MevSite::Fan {
+                he1: first,
+                he2: first,
+            },
+            CylFrame::canonical(1.0).at(0.5, 0.0),
+            tol,
+        )
+        .unwrap();
+    body.kemr(strut.he_plus, strut.he_minus).unwrap();
+    let verdicts = scan_b(&tilted_slab(), &body, wall);
+    assert!(!verdicts.is_empty());
+    assert!(
+        verdicts.iter().all(|v| *v == Err(Refusal::LoneVertex)),
+        "{verdicts:?}"
+    );
+}
+
+/// **A declaration speaks for its own pair only.** A face of A declared
+/// against B's face `Y` meets B's other faces undeclared, and B's `Y`
+/// meets A's other faces undeclared.
+#[test]
+fn a_declaration_exempts_its_own_pair_only() {
+    let a = brick::<f64>((0.0, 1.0), (0.0, 1.0), (0.0, 1.0), Tol::witness());
+    let b = brick::<f64>((0.0, 1.0), (0.0, 1.0), (1.0, 2.0), Tol::witness());
+    let fa: Vec<FaceKey> = a.faces().map(|(k, _)| k).collect();
+    let fb: Vec<FaceKey> = b.faces().map(|(k, _)| k).collect();
+    let decls = BooleanDeclarations {
+        coincident_faces: vec![FacePairDeclaration {
+            a: fa[0],
+            b: fb[0],
+            class: crate::contact::ContactClass::Rest,
+        }],
+        ..BooleanDeclarations::default()
+    };
+    assert!(ops::declares_pair(&decls, fa[0], fb[0]));
+    assert!(!ops::declares_pair(&decls, fa[0], fb[1]));
+    assert!(!ops::declares_pair(&decls, fa[1], fb[0]));
 }

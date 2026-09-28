@@ -98,14 +98,34 @@
 //!   whose face carries one refuses outright rather than resting an
 //!   answer on that argument.
 //!
-//! # The angular margins (the lever)
+//! # The angular margins (the lever and its pivot)
 //!
 //! Two margins are angles: the tilt between two axes, decided before a
-//! coaxial or parallel-axis arm is taken. `decide` meters in metres, so
-//! each is levered by the pair's **extent**: the diagonal of the overlap
-//! of the two faces' certified boxes, the region where the section can
-//! matter. An axis tilted by `ε` moves the section by at most `ε·extent`
-//! there.
+//! parallel or coaxial reading is taken. `decide` meters in metres, so
+//! each is levered by the distance over which the tilt can act on the
+//! section. The section matters only inside the pair's **reach**
+//! ([`Reach`]): the ball about the centre of the overlap of the two
+//! faces' certified boxes, radius its half-diagonal.
+//!
+//! - **The pivot.** An offset between two nearly parallel axes is read
+//!   at the partner axis's point nearest the reach's centre, never at
+//!   the axis's stored origin: the stored origin can stand anywhere on
+//!   the line (a kilometre away), and an axis tilted by `ε` drifts by
+//!   `ε` times that distance. Read at the pivot, the same carrier line
+//!   classifies the same way whatever origin stores it.
+//! - **The lever** is the farthest the reach stands from the pivot,
+//!   `|centre − pivot| + radius`, doubled for the two axes' share: a
+//!   tilt decided `Zero` at that lever moves the partner's axis by less
+//!   than the band anywhere the section can matter, so the parallel
+//!   reading there is the true one within the band. Between two walls,
+//!   whose tilt needs no pivot, the lever is the reach's diameter.
+//!
+//! A LOOSER box widens the reach and lengthens the lever, so a tilt
+//! decides `Zero` less readily — the tilted arm, or a refusal on reach,
+//! takes more pairs — and a parallel reading that does survive is
+//! bounded by the band over a region at least as large as the one the
+//! section occupies. A box TIGHTER than its face would be the unsound
+//! direction: its reach could miss where the section is.
 //!
 //! # What the arms say (component structure per kind pair)
 //!
@@ -163,6 +183,17 @@ pub(crate) enum Side {
     F,
     /// The pair's second face.
     G,
+}
+
+/// The region where a pair's section can matter: the ball about the
+/// centre of the overlap of the two faces' certified boxes, radius its
+/// half-diagonal (module docs, the lever and its pivot).
+#[derive(Clone, Copy, Debug)]
+pub(crate) struct Reach<T: Real> {
+    /// The overlap box's centre.
+    pub centre: Point3<T>,
+    /// Its half-diagonal.
+    pub radius: T,
 }
 
 /// One connected component of a pair's section.
@@ -337,11 +368,11 @@ fn swapped<T: Real>(s: Section<T>) -> Section<T> {
 }
 
 /// **The classifier: two carriers in, the section's components out.**
-/// Pure: surfaces, the angular lever (module docs) and the band.
+/// Pure: surfaces, the pair's reach (module docs) and the band.
 pub(crate) fn classify<T: Decide>(
     f: &geom::Surface<T>,
     g: &geom::Surface<T>,
-    lever: T,
+    reach: Reach<T>,
     band: Band,
 ) -> Section<T> {
     use geom::Surface as S;
@@ -349,9 +380,9 @@ pub(crate) fn classify<T: Decide>(
         (
             S::Torus { .. },
             S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. } | S::Torus { .. },
-        ) => torus_pair(f, g, lever, band),
+        ) => torus_pair(f, g, reach, band),
         (S::Plane { .. } | S::Sphere { .. } | S::Cylinder { .. }, S::Torus { .. }) => {
-            swapped(torus_pair(g, f, lever, band))
+            swapped(torus_pair(g, f, reach, band))
         }
         (
             &S::Cylinder {
@@ -366,7 +397,7 @@ pub(crate) fn classify<T: Decide>(
                 radius: r2,
                 ..
             },
-        ) => cylinder_cylinder(o1, unit(d1), r1, o2, unit(d2), r2, lever, band),
+        ) => cylinder_cylinder(o1, unit(d1), r1, o2, unit(d2), r2, reach, band),
         (S::Cylinder { .. }, S::Plane { .. }) => cylinder_plane(),
         (S::Plane { .. }, S::Cylinder { .. }) => swapped(cylinder_plane()),
         (&S::Sphere { center, radius, .. }, &S::Plane { origin, normal, .. }) => {
@@ -425,7 +456,7 @@ pub(crate) fn classify<T: Decide>(
 fn torus_pair<T: Decide>(
     t: &geom::Surface<T>,
     p: &geom::Surface<T>,
-    lever: T,
+    reach: Reach<T>,
     band: Band,
 ) -> Section<T> {
     let &geom::Surface::Torus {
@@ -454,7 +485,7 @@ fn torus_pair<T: Decide>(
             axis: d,
             radius: rc,
             ..
-        } => match axis_pose(c, a, origin, unit(d), lever, band) {
+        } => match axis_pose(c, a, origin, unit(d), reach, band) {
             Pose::Coaxial => {
                 // The cylinder's meridian is the line ρ = ρc against the
                 // tube circle.
@@ -482,7 +513,7 @@ fn torus_pair<T: Decide>(
             if geom::require_ring_torus(big_r2, r2, band).is_err() {
                 return Section::Intractable;
             }
-            match axis_pose(c, a, c2, unit(a2), lever, band) {
+            match axis_pose(c, a, c2, unit(a2), reach, band) {
                 Pose::Coaxial => {
                     let z2 = (c2 - c).dot(a);
                     let d = Vec3::new(big_r2 - big_r, z2, T::zero()).norm();
@@ -516,21 +547,30 @@ enum Pose<T: Real> {
     Other,
 }
 
-/// Decides the axis pose: tilt levered by the pair's extent, offset in
-/// metres. An undecided margin is not a pose any arm here claims.
+/// The partner axis's point nearest the reach's centre: where an offset
+/// between two nearly parallel axes is read (module docs).
+fn pivot<T: Real>(o: Point3<T>, d: Vec3<T>, reach: Reach<T>) -> Point3<T> {
+    o + d * (reach.centre - o).dot(d)
+}
+
+/// Decides the axis pose: the tilt levered by the reach's farthest
+/// distance from the pivot, the offset read AT the pivot, in metres.
+/// An undecided margin is not a pose any arm here claims.
 fn axis_pose<T: Decide>(
     c: Point3<T>,
     a: Vec3<T>,
     o: Point3<T>,
     d: Vec3<T>,
-    lever: T,
+    reach: Reach<T>,
     band: Band,
 ) -> Pose<T> {
+    let at = pivot(o, d, reach);
+    let lever = ((reach.centre - at).norm() + reach.radius) * T::from_f64(2.0);
     let tilt = a.cross(d).norm();
     if sign("section_axes_tilt", Margin::levered(tilt, lever), band) != Some(Sign::Zero) {
         return Pose::Other;
     }
-    let w = o - c;
+    let w = at - c;
     let perp = w - a * w.dot(a);
     let e = perp.norm();
     match sign("section_axes_offset", Margin::of(e), band) {
@@ -709,26 +749,39 @@ fn cylinder_cylinder<T: Decide>(
     o2: Point3<T>,
     d2: Vec3<T>,
     r2: T,
-    lever: T,
+    reach: Reach<T>,
     band: Band,
 ) -> Section<T> {
     let cross = d1.cross(d2);
     let sin = cross.norm();
     match sign(
         "section_cylinder_axes_tilt",
-        Margin::levered(sin, lever),
+        Margin::levered(sin, reach.radius + reach.radius),
         band,
     ) {
-        // Parallel axes: common rulings, or nothing.
+        // Parallel axes: common rulings, or nothing — unless the two
+        // walls are ONE carrier, where the section is the surface itself
+        // rather than a curve. L1 is an argument about curves, so a
+        // coincident pair refuses as the torus analog does (R-tan).
         Some(Sign::Zero) => {
-            return Section::Components {
-                parts: vec![Component {
-                    unbounded: true,
-                    essential_f: false,
-                    essential_g: false,
-                    witness: None,
-                }],
-                single: false,
+            let at = pivot(o2, d2, reach);
+            let w = at - o1;
+            let offset = (w - d1 * w.dot(d1)).norm();
+            return match sign(
+                "section_cylinder_pair_coincident",
+                Margin::of(offset + (r1 - r2).abs()),
+                band,
+            ) {
+                Some(Sign::Positive) => Section::Components {
+                    parts: vec![Component {
+                        unbounded: true,
+                        essential_f: false,
+                        essential_g: false,
+                        witness: None,
+                    }],
+                    single: false,
+                },
+                _ => Section::Tangent("section_cylinder_pair_coincident"),
             };
         }
         Some(Sign::Positive) => {}

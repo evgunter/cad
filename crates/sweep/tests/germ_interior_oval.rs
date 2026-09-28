@@ -488,3 +488,51 @@ fn the_corner_bar_never_comes_back_a_body() {
         }
     }
 }
+
+/// **A wedge clear of the donut's carrier answers although its box
+/// overlaps.** A wedge above the donut (`R = 2`, `r = 0.5` about `y`), its
+/// underside tilted along the plane `0.3x + y = 1.3`: every face's
+/// carrier plane clears the torus — the underside by its support
+/// `R·|n⊥| + r ≈ 1.075` against a distance `≈ 1.245`, the top, the ends
+/// and the caps by more — while the underside's BOX, running down to
+/// `y = 0.4` at `x = 3`, overlaps the donut faces' boxes. There are no
+/// crossings, so the fallback runs, and the section pass certifies each
+/// pair apart (W0: the torus × plane classification returns no
+/// component), so the fallback answers the two disjoint solids — `π²`
+/// (the donut, `2π²Rr²`) plus the wedge's `7.2 × 6`.
+#[test]
+fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
+    let donut = {
+        let vp = validated(vec![revolve_common::donut_profile()]);
+        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+            .expect("the donut revolves")
+            .body
+    };
+    let wedge = {
+        let lp = ProfileLoop::polygon([
+            Point2::new(-3.0, 2.2),
+            Point2::new(3.0, 0.4),
+            Point2::new(3.0, 2.5),
+            Point2::new(-3.0, 2.5),
+        ]);
+        let plane = profile::SketchPlane::new(Affine3::from_parts(
+            Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::new(0.0, 0.0, -3.0),
+        ));
+        let vp = profile::Profile::new(plane, vec![lp])
+            .validate(Tol::witness())
+            .expect("the wedge profile validates");
+        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
+            .expect("the wedge extrudes")
+            .body
+    };
+    let r = topo::union(&donut, &wedge, Tol::witness())
+        .unwrap_or_else(|e| panic!("the certified-apart pair is answered: {e:?}"));
+    let b = r.body().expect("non-empty");
+    assert_eq!(b.kind, topo::BooleanResultKind::Assembly);
+    close(
+        volume(&b.body),
+        std::f64::consts::PI.powi(2) + 7.2 * 6.0,
+        "donut ∪ wedge",
+    );
+}

@@ -691,12 +691,7 @@ fn interior_loop_verdict<
         b,
         band,
         SectionPath::Crossings,
-        |fa, fb| {
-            decls
-                .coincident_faces
-                .iter()
-                .any(|d| d.a == fa && d.b == fb)
-        },
+        |fa, fb| declares_pair(decls, fa, fb),
         |fa, fb| events.contains(&(fa, fb)),
         true,
     )?;
@@ -714,6 +709,41 @@ fn interior_loop_verdict<
                 other_kind,
             })
         }
+    }
+}
+
+/// Does a declaration speak for EXACTLY the pair `(A face, B face)`?
+/// A declaration covers its own pair and no other: a face declared
+/// against one partner meets every other partner undeclared.
+pub(crate) fn declares_pair(decls: &BooleanDeclarations, fa: FaceKey, fb: FaceKey) -> bool {
+    decls
+        .coincident_faces
+        .iter()
+        .any(|d| d.a == fa && d.b == fb)
+}
+
+/// **`chart_boundary`'s verdict per face, asked once.** Keyed by the
+/// operand as well as the face: the two operands' arenas mint their
+/// keys independently, so A's face and B's face can share a key. (The
+/// map keys the operand as "is B", `Operand` carrying no order.)
+#[derive(Default)]
+pub(crate) struct ChartCache(BTreeMap<(bool, FaceKey), bool>);
+
+impl ChartCache {
+    /// Does `operand`'s `face` of `body` describe
+    /// ([`crate::pcurves::chart_boundary`] answers `Ok`)?
+    pub(crate) fn describes<T: geom_brep::PcurveFittedLane>(
+        &mut self,
+        operand: Operand,
+        body: &Body<T>,
+        face: FaceKey,
+        surface: &geom::Surface<T>,
+        band: Band,
+    ) -> bool {
+        *self
+            .0
+            .entry((operand == Operand::B, face))
+            .or_insert_with(|| crate::pcurves::chart_boundary(body, face, surface, band).is_ok())
     }
 }
 
@@ -821,7 +851,7 @@ fn has_lone_vertex<T: Real>(body: &Body<T>, face: FaceKey) -> Result<bool, Boole
 /// trim on a curved face. A point the trim puts definitely OFF the
 /// carrier is no verdict — the witness was built on the carrier, so
 /// that answer contradicts its construction rather than placing it.
-fn place_witness<T: Decide>(
+pub(crate) fn place_witness<T: Decide>(
     body: &Body<T>,
     face: FaceKey,
     surface: &geom::Surface<T>,
@@ -843,8 +873,9 @@ fn place_witness<T: Decide>(
 /// on the pair `(A face, B face)`. With `stop` the scan returns at the
 /// first refusing pair.
 ///
-/// `chart_boundary` is asked once per face and cached; the angular
-/// lever is the diagonal of the two boxes' overlap
+/// `chart_boundary` is asked once per face and cached; the pair's
+/// reach — the ball about the two boxes' overlap, which pivots and
+/// levers the angular margins — is built here
 /// ([`super::section_cert`]'s module docs).
 ///
 /// # Errors
@@ -875,8 +906,7 @@ pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
                 .collect()
         };
     let (a_faces, b_faces) = (faces(a)?, faces(b)?);
-    // Keyed `(is B, face)`: `Operand` carries no order.
-    let mut charts: BTreeMap<(bool, FaceKey), bool> = BTreeMap::new();
+    let mut charts = ChartCache::default();
     let mut out = Vec::new();
     for (fa, sa, box_a) in &a_faces {
         for (fb, sb, box_b) in &b_faces {
@@ -886,24 +916,32 @@ pub(crate) fn section_pairs<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
             let verdict = if has_lone_vertex(a, *fa)? || has_lone_vertex(b, *fb)? {
                 Err(Refusal::LoneVertex)
             } else {
-                let extent = Vec3::new(
-                    box_a.max_x.min(box_b.max_x) - box_a.min_x.max(box_b.min_x),
-                    box_a.max_y.min(box_b.max_y) - box_a.min_y.max(box_b.min_y),
-                    box_a.max_z.min(box_b.max_z) - box_a.min_z.max(box_b.min_z),
-                )
-                .norm();
-                let section = classify(sa, sb, T::from_f64(extent), band);
+                let (lo, hi) = (
+                    Vec3::new(
+                        box_a.min_x.max(box_b.min_x),
+                        box_a.min_y.max(box_b.min_y),
+                        box_a.min_z.max(box_b.min_z),
+                    ),
+                    Vec3::new(
+                        box_a.max_x.min(box_b.max_x),
+                        box_a.max_y.min(box_b.max_y),
+                        box_a.max_z.min(box_b.max_z),
+                    ),
+                );
+                let reach = super::section_cert::Reach {
+                    centre: Point3::origin() + ((lo + hi) * 0.5).map(T::from_f64),
+                    radius: T::from_f64((hi - lo).norm() * 0.5),
+                };
+                let section = classify(sa, sb, reach, band);
                 certify(
                     &section,
                     evented(*fa, *fb),
                     |side| {
-                        let (is_b, body, face, surface) = match side {
-                            Side::F => (false, a, *fa, sa),
-                            Side::G => (true, b, *fb, sb),
+                        let (operand, body, face, surface) = match side {
+                            Side::F => (Operand::A, a, *fa, sa),
+                            Side::G => (Operand::B, b, *fb, sb),
                         };
-                        *charts.entry((is_b, face)).or_insert_with(|| {
-                            crate::pcurves::chart_boundary(body, face, surface, band).is_ok()
-                        })
+                        charts.describes(operand, body, face, surface, band)
                     },
                     |p| {
                         [
