@@ -10,13 +10,13 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use geom::{Curve3, Surface};
-use geom_brep::{
-    EdgeDescription, MustCarryVerdict, SurfaceKind, must_carry_over_edge, tangent_certificate_lane,
-};
+use geom_brep::{MustCarryVerdict, SurfaceKind, must_carry_over_edge, tangent_certificate_lane};
 use geom_core::{Band, Point2, Point3, Sign, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{ExtrudeError, Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::Body;
+
+use crate::common::contact_edges::intrinsic_edges;
 
 const MERIDIAN_R: f64 = 0.25;
 
@@ -82,19 +82,6 @@ fn bored_ring(r_bore: f64) -> Result<Body<f64>, sweep::RevolveError> {
     revolve(&profile, axis, Revolution::Full, Tol::witness()).map(|r| r.body)
 }
 
-fn tangent_intersections(body: &Body<f64>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(geom_brep::EdgeCurve::description),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
-}
-
 /// What a verb did with a smooth join at one margin, as one value the
 /// ladder rows can compare across the band.
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -155,11 +142,11 @@ fn an_extrude_strut_answers_the_whole_ladder_conventional_then_refused_then_intr
     for (margin, want) in ladder() {
         let got = match filleted_block(free_length_for(margin)) {
             Ok(body) => {
-                if tangent_intersections(&body) == 8 {
+                if intrinsic_edges(&body) == 8 {
                     Answer::Intrinsic
                 } else {
                     assert_eq!(
-                        tangent_intersections(&body),
+                        intrinsic_edges(&body),
                         0,
                         "a body's eight struts answer the rule the same way at margin {margin:e}"
                     );
@@ -184,11 +171,11 @@ fn a_revolve_latitude_join_answers_the_whole_ladder_the_same_way() {
     for (margin, want) in ladder() {
         let got = match bored_ring(free_length_for(margin)) {
             Ok(body) => {
-                if tangent_intersections(&body) == 1 {
+                if intrinsic_edges(&body) == 1 {
                     Answer::Intrinsic
                 } else {
                     assert_eq!(
-                        tangent_intersections(&body),
+                        intrinsic_edges(&body),
                         0,
                         "the one latitude join answers once at margin {margin:e}"
                     );

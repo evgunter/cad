@@ -274,3 +274,16 @@ attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
 had contradicted the code on main, and cut the hand-kept caller
 lists. Three WIRE rows filed for comments that were doing the
 code's work.
+
+## 2026-09-28 — every op that can mint a wedge end is audited (PR 3373)
+
+The audit left one hole in split and closed it: a plane tangent to a
+hole wall along a vertex ruling minted a cusp, which now refuses
+`SectionCusp`. The refusal reads the material pairing through
+`classify_material_pairing`, as tier 3 does, after the FULL review
+showed a kind test refusing a legal π seam (the rounded shoulder).
+The loft's opposite-turning joints are filed on carve as a
+self-overlap. STEP import mints nothing its file did not state: a
+designer pair found no open fork (Ev's ruling on PR 3317 covers it),
+and a round-trip row pins the admission. The shoulder's other
+orientation refusing at reduce is filed on reach.

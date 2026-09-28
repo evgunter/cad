@@ -71,7 +71,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Margin, MarginDiag, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -84,6 +84,9 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
+
+use crate::common::cavity::skewed_cavity_edges;
+use crate::common::contact_edges::intrinsic_edges;
 
 fn tol() -> Tol {
     Tol::witness()
@@ -176,21 +179,6 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         });
     }
     out
-}
-
-/// How many edges of a body store the intrinsic tangency, at any
-/// scalar.
-fn intrinsic_edges<T: Real>(body: &Body<T>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
 }
 
 /// One fixture's readings summarised per support pair: the count, how
@@ -629,9 +617,6 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     );
 
     // The slim corner arc, on the fixture its pin lives on.
-    use crate::review_contact_edge_must_carry_r1_probes::{
-        chart_contact_edges, skewed_cavity_edges,
-    };
     let scale = b.zero() / 1e-9;
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();
@@ -642,11 +627,34 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     );
     let out = fillet_edges(&body, &edges, 0.1 * r, tol())
         .unwrap_or_else(|e| panic!("the wedge at a tenth of the radius builds: {e}"));
-    assert!(
-        chart_contact_edges(&out.body) >= 4,
-        "the four corner arcs are stored as chart images, got {}",
-        chart_contact_edges(&out.body)
+    assert_eq!(
+        corner_arc_chart_images(&out),
+        4,
+        "the four corner arcs are stored as chart images"
     );
+}
+
+/// The edges between a blend face and a corner face — the corner balls'
+/// arcs, named by the faces the carve reports — that store a non-seam
+/// chart image. A count over that NAMED set, so an edge the carve did
+/// not make (a boolean's rim on the operand) cannot satisfy it.
+fn corner_arc_chart_images(out: &Filleted<f64>) -> usize {
+    let body = &out.body;
+    let face = |he| body.face_of_half_edge(he).expect("a live half-edge's face");
+    body.edges()
+        .filter(|(_, e)| {
+            let (a, b) = (face(e.he_plus), face(e.he_minus));
+            let corner_arc = (out.blend_faces.contains(&a) && out.corner_faces.contains(&b))
+                || (out.blend_faces.contains(&b) && out.corner_faces.contains(&a));
+            corner_arc
+                && matches!(
+                    body.get_curve_geom(e.curve)
+                        .and_then(|g| g.certified())
+                        .map(|c| c.description()),
+                    Some(EdgeDescription::Chart(c)) if !c.seam
+                )
+        })
+        .count()
 }
 
 /// **What the rule costs a contact edge on the K stream**: the
