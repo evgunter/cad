@@ -1144,3 +1144,10 @@ class of 65 sites is PRED's row.
   - `certify-escalation…` is set `needs_ev: false` and back to dispatched. PR 3351's lane is briefed to reshape to the rule: route by `CertCheck` with a pass set, siblings through the same entry, residuals take the defect or last-resort ending, and `classify_certify` reads the same routing.
   - Filed `offset-meters-follow-the-d4-recourse-ruling` (P3/M; the 3347 follow-up) and `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E).
 - 2026-09-28 — `[ev]` PR 3352 merged (`e31a096566`, docs-only green). Dispatched `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E) on `encl/kernel-limit-last-resort`: Opus, style review. `offset-meters-follow-the-d4-recourse-ruling` waits for 3351's reshape, whose pattern it follows.
+- 2026-09-28 — PR 3351 reshaped to the D4 ruling (head `127b991c4f`).
+  - Routing: one `certify::recourse(check, RefusedArm, Reading)` plus `CertCheck::passes()`, both exhaustive. The 45-name table, `EDGE_CLOSE_RECOURSE` and `MissingRecourse` are off this path.
+  - Checks: `ParamWinding` split out of `ParamSpan`. `PlaneNurbsRefusal::TransversalityEscalated` added.
+  - Residual families: exact constructions → defect; approximations → last resort.
+  - Siblings are routed, and the pair row is green over 4 pairs. `classify_certify` reads the same routing, fixing main's residual-as-angle defect.
+  - Filed: `certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending`, and SSI's `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Full review dispatched. It is the ruling's first implementation and the pattern the rollout copies.
