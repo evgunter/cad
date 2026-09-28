@@ -7,7 +7,6 @@ opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: D
-needs_ev: false
 ---
 
 ## What
