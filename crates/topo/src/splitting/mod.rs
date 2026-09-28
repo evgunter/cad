@@ -719,6 +719,10 @@ pub fn split<T: geom_core::Decide + geom_brep::PcurveFittedLane>(
                 vertex_pairs: naming.vertex_pairs,
             },
         }),
+        // The rerun got as far as a cut and found it would mint a
+        // knife edge: that, not the direct run's degenerate polygon,
+        // is why this split cannot be made.
+        Err(cusp @ SplitError::Finish(finish::SplitFinishError::SectionCusp { .. })) => Err(cusp),
         Err(_) => split_direct(operand, plane, tol),
     }
 }

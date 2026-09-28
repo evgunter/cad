@@ -622,24 +622,23 @@ fn describe_section_boundary<T: Decide>(
                 // legal either way since either adjacent chart
                 // certifies.
                 //
-                // No second-order ladder here (the boolean's smooth
-                // arm runs one): a determinate smooth pair at the
-                // section boundary would be the split plane tangent to
-                // a curved wall, and such a tangency's zero-width
-                // section polygon refuses typed in the JOIN stage
-                // (`SplitJoinError::DegenerateSection`), from the
-                // mirrored pinch rerun as much as the direct run —
-                // `bool1_r1_probes` / `bool1_r2_probes`' tangent
-                // cylinder rows are the measured witnesses. A STRAIGHT
-                // tangent contact that meets a real section in the
-                // rerun refuses there too, as a spur
-                // (`SplitJoinError::SectionSpur`); a CURVED one would
-                // not (the spur check decides straight tips only,
-                // `work/reach/split-section-spur-guard-skips-curved-spurs.md`),
-                // and no row has reached that case here. So no
-                // curved smooth pair reaches this arm, and a flush
-                // plane pair's exactly-zero jet is the
-                // under-determined regime.
+                // A curved face smooth against the section plane is the
+                // plane tangent to it along the cut. The piece there
+                // lies on one side of the plane, so its material wedge
+                // is at most π, and a wall bending off the plane
+                // without crossing it closes that wedge to 0: a knife
+                // edge nothing declared, which D1 makes this op's
+                // refusal. So only a flush plane pair reaches the
+                // conventional description below, and its
+                // exactly-zero jet is the under-determined regime.
+                Ok(geom_brep::DihedralClass::Smooth)
+                    if !matches!(surf_other, Surface::Plane { .. }) =>
+                {
+                    return Err(SplitFinishError::SectionCusp {
+                        edge,
+                        face: other_face,
+                    });
+                }
                 Ok(geom_brep::DihedralClass::Smooth) => {
                     let coherent = existing.as_ref().is_some_and(|c| match *c.description() {
                         // A seam image's two sides are one surface, so
