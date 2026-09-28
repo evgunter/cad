@@ -2,7 +2,8 @@
 id: offset-meters-follow-the-d4-recourse-ruling
 kind: issue
 title: the offset meters fold Zero into Negative and say 'lower the tolerance' where D4 now says 'tighten, if this size is intended'
-status: open
+status: review
+pr: 3382
 opened: 2026-09-28
 priority: P3
 cost: M
