@@ -219,3 +219,15 @@ CI was red on `main` meanwhile: a 3322 × 3331 semantic merge in
 
 Filed: TINT's `corpus-node-kinds-roster-is-hand-written`
 (`corpus::NODE_KINDS` is not welded to `Node`).
+
+## 2026-09-28 — Ev rules on the cusp: derive it (PR 3317)
+
+After four designer rounds (the fork log's row 3), Ev took C's and D's
+recommendation: a wedge-0/2π edge is legal at rest iff jet-determinate,
+derived like the π seam; intent is declared only where the tangency is
+created. D1's tier-3 bullet is rewritten on PR 3317. The cusp row is
+re-scoped to implement it (no design flag, no Ev flag), and the audit
+that replaces tier 3's backstop is filed as
+`every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one`.
+`assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate`, which
+waited on this row, now waits on its landing.
