@@ -525,4 +525,3 @@ fn a_coaxial_seam_on_the_torus_keeps_the_door() {
         "the refusal names the coaxial seam: {err:?}"
     );
 }
-

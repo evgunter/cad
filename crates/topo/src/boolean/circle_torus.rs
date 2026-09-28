@@ -1061,4 +1061,121 @@ mod tests {
             );
         }
     }
+    /// **Circles lying ON the torus refuse, whatever their pose.** `F`
+    /// is identically zero along them, so its coefficients are rounding
+    /// noise and the conditioning ratio can read anything; the pole's
+    /// own residual decision is what refuses them. Meridian circles at
+    /// several azimuths and a Villarceau circle.
+    #[test]
+    fn circles_lying_on_the_torus_are_uncertain() {
+        let mut poses = Vec::new();
+        for az in [0.0_f64, 0.7, 2.1, 4.0] {
+            let (s, c) = az.sin_cos();
+            poses.push(Pose {
+                c: [R * c, R * s, 0.0],
+                n: [-s, c, 0.0],
+                rho: RT,
+                u: [c, s, 0.0],
+            });
+        }
+        // A Villarceau circle: radius `R`, centred `r` along the `x` axis,
+        // in the bitangent plane through that axis tilted `asin(r/R)` off
+        // the midplane.
+        let tilt = (RT / R).asin();
+        poses.push(Pose {
+            c: [RT, 0.0, 0.0],
+            n: [0.0, -tilt.sin(), tilt.cos()],
+            rho: R,
+            u: [1.0, 0.0, 0.0],
+        });
+        for (i, pose) in poses.into_iter().enumerate() {
+            for (t0, t1) in [(0.0, 1.0), (2.0, 4.5)] {
+                assert!(
+                    matches!(door(pose, t0, t1), CircleTorusRoots::Uncertain),
+                    "pose {i}, arc [{t0}, {t1}]: an on-torus circle is not a root set"
+                );
+            }
+        }
+    }
+
+    /// **A nearly full arc whose antipode is ill conditioned.** The pole
+    /// then moves INTO the arc, and roots near the far end of the arc
+    /// come out of the half-angle map a whole turn away from it; they
+    /// must be reported within `π` of the arc's midpoint or they are
+    /// silently dropped from the arc.
+    #[test]
+    fn roots_are_reported_within_half_a_turn_of_the_arc() {
+        let n = {
+            let k = (0.3_f64.powi(2) + 1.0).sqrt();
+            [0.0, 0.3 / k, 1.0 / k]
+        };
+        let pose = Pose {
+            c: [0.9, 0.0, 0.1],
+            n,
+            rho: 0.5,
+            u: [1.0, 0.0, 0.0],
+        };
+        let all = oracle(pose, -core::f64::consts::PI, core::f64::consts::PI);
+        for &star in &all {
+            for delta in [1e-4, -1e-4] {
+                let mid = star + delta - core::f64::consts::PI;
+                assert_matches_oracle(
+                    &format!("antipode beside {star}, δ = {delta}"),
+                    pose,
+                    mid - 3.1,
+                    mid + 3.1,
+                    all.len(),
+                );
+            }
+        }
+    }
+
+    /// **A parallel plane above the tube is a miss**, even where the
+    /// carrier's projection spans the tube's centre circle: the plane's
+    /// depth decides it before any contour does.
+    #[test]
+    fn a_parallel_circle_above_the_tube_is_a_miss() {
+        let pose = Pose {
+            c: [0.5, 0.0, RT + 0.05],
+            n: [0.0, 0.0, 1.0],
+            rho: 1.0,
+            u: [1.0, 0.0, 0.0],
+        };
+        assert!(matches!(door(pose, -3.0, 3.0), CircleTorusRoots::Miss));
+    }
+
+    /// **The tilt a parallel pose was admitted with is charged.** The far
+    /// point's residual is 1.05e-8 m — past the band's escalation
+    /// threshold on its own — but the carrier is tilted 9e-10 m, and the
+    /// charged margin falls back into the band: the crossing pair is not
+    /// certified (a refusal: `Uncertain`, or the band's escalation).
+    #[test]
+    fn the_admitted_tilt_is_charged_against_the_bump() {
+        let h = RT - 1e-4;
+        let target = 1.05e-8;
+        let rho_max = R + (RT * RT - h * h + 2.0 * RT * target).sqrt();
+        let d = 0.5;
+        let rho = rho_max - d;
+        let a = 9e-10 / rho;
+        let pose = Pose {
+            c: [d, 0.0, h],
+            n: [0.0, -a.sin(), a.cos()],
+            rho,
+            u: [1.0, 0.0, 0.0],
+        };
+        let got = circle_torus_roots(
+            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            v3(pose.n),
+            pose.rho,
+            v3(pose.u),
+            -3.0,
+            3.0,
+            &torus(),
+            band(),
+        );
+        assert!(
+            matches!(got, Ok(CircleTorusRoots::Uncertain) | Err(_)),
+            "the charged bump is inside the band: {got:?}"
+        );
+    }
 }
