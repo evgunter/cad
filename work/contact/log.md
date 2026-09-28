@@ -313,3 +313,24 @@ Signed: (CONTACT orchestrator)
   answers.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 lands
+
+- **Orchestrator's read of the last pass (`c0b9838`).**
+  - The probe's refusals stand whenever `blocks` gives no reason, so
+    no path turns a refusal into a clear.
+  - The outer-shell argument holds: the outermost shell bounding a
+    component of the overlap has material on its bounded side, so it
+    is not a void.
+  - The relaxation (a declared-only pair's records read on their word
+    whatever its reach) is what the nineteen ratified declared seats
+    need. Reading those records refuses the seats. The residue stays
+    open at P0.
+- **DR-13** records the dual on `3af4ebc`. It has no tally candidate
+  (both MAJORs bilateral) and it is the twelfth fair pair, so the
+  protocol's first readout is owed (rule 9). The ask to Ev is an
+  `[ev]` PR from an `analysis/dual-review/` branch.
+- Landed alone. CONTACT-4 is under its delta review and follows in its
+  own PR.
+
+Signed: (CONTACT orchestrator)
