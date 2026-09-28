@@ -12,19 +12,29 @@ use crate::revolve_common;
 use core::f64::consts::{FRAC_PI_8, PI};
 use profile::RawLoop;
 
-use geom_core::Tol;
 use geom_core::Vec2;
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, RevolveAxis, RevolveError, revolve};
 
 fn washer() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])
 }
 
 #[test]
 fn vertex_across_the_axis_is_typed() {
-    let lp = ProfileLoop::polygon([p2(-1.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(-1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(-1.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(-1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::VertexCrossesAxis { .. }), "{e:?}");
@@ -35,7 +45,12 @@ fn sliver_radius_is_typed() {
     // Left edge a sliver away from the axis: r = 3ε sits inside the
     // (ε, Kε) band at every ε row — a micro-radius revolve.
     let r = 3.0 * eps();
-    let lp = ProfileLoop::polygon([p2(r, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(r, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(r, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(r, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::SliverRadius { .. }), "{e:?}");
@@ -73,13 +88,13 @@ fn full_range_partial_angles_are_typed() {
 fn degenerate_and_poisoned_axes_are_typed() {
     let vp = validated(vec![washer()]);
     let zero = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 0.0),
     };
     let e = revolve(&vp, zero, Revolution::Full, Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::DegenerateAxis), "{e:?}");
     let poison = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(f64::NAN, f64::NAN),
     };
     // A poisoned axis is a length that is not a NUMBER, and that is
@@ -107,7 +122,7 @@ fn an_axis_direction_with_no_finite_length_is_typed() {
         Vec2::new(1e200, 1e200),
     ] {
         let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir,
         };
         let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
@@ -139,7 +154,7 @@ fn an_axis_direction_whose_length_underflowed_is_typed() {
         // the witness the underflow question is asked against.
         assert_eq!(dir.norm(), 0.0, "{dir:?}");
         let axis = RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir,
         };
         let e = revolve(&vp, axis, Revolution::Full, Tol::witness()).unwrap_err();
@@ -161,7 +176,11 @@ fn an_axis_direction_whose_length_underflowed_is_typed() {
 fn isolated_axis_vertex_in_full_revolve_is_non_manifold() {
     // Triangle touching the axis at exactly one vertex: revolving
     // fully would pinch the boundary at that point.
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
     assert!(
@@ -178,14 +197,14 @@ fn two_axis_runs_in_full_revolve_are_typed() {
     // A "C" against the axis: two disjoint on-axis runs (y ∈ [0,1]
     // and y ∈ [2,3]) separated by an inward notch.
     let lp = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(1.0, 0.0),
-        p2(1.0, 3.0),
-        p2(0.0, 3.0),
-        p2(0.0, 2.0),
-        p2(0.5, 2.0),
-        p2(0.5, 1.0),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
+        Point2::new(0.0, 2.0),
+        Point2::new(0.5, 2.0),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Full, Tol::witness()).unwrap_err();
@@ -202,9 +221,9 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
     // every arc point stays at r > 0, but the carrier reaches across
     // the axis — a spindle torus, refused per D3's ring convention.
     let lp = bulge_loop(vec![
-        (p2(1.1, 0.0), FRAC_PI_8.tan()),
-        (p2(0.5, 0.6), 0.0),
-        (p2(0.5, 0.0), 0.0),
+        (Point2::new(1.1, 0.0), FRAC_PI_8.tan()),
+        (Point2::new(0.5, 0.6), 0.0),
+        (Point2::new(0.5, 0.0), 0.0),
     ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
@@ -215,7 +234,10 @@ fn axis_crossing_tube_is_an_unsupported_toroid() {
 fn arc_interior_across_the_axis_is_typed() {
     // A clockwise semicircle from (0, −1) to (0, 1) bulging through
     // (−1, 0): endpoints on the axis, apex definitely across it.
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), -1.0), (p2(0.0, 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -1.0), -1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ]);
     let vp = validated(vec![lp]);
     let e = revolve(&vp, axis_y(), Revolution::Partial(1.0), Tol::witness()).unwrap_err();
     assert!(matches!(e, RevolveError::ArcCrossesAxis { .. }), "{e:?}");

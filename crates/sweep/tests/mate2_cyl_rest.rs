@@ -42,7 +42,7 @@
 
 use crate::mate2_common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use mate2_common::*;
 use profile::{ProfileLoop, RawLoop};
 use sweep::test_support::{extruded, sketch_at};
@@ -123,7 +123,12 @@ fn seated_collar_with_a_planar_rest_unions() {
     // declared bore pair — a plate rim flush with the collar's outer
     // wall would be an undeclared cosurface touch and refuse on its
     // own account, which is a different question.
-    let plate = ProfileLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
+    let plate = ProfileLoop::polygon([
+        Point2::new(-2.0, -2.0),
+        Point2::new(2.0, -2.0),
+        Point2::new(2.0, 2.0),
+        Point2::new(-2.0, 2.0),
+    ]);
     let flange = extruded(sketch_at(0.0), vec![plate], 1.0, Tol::witness());
     let shaft = peg(0.6, 1.9);
     let seated = body_of(topo::union(&flange, &shaft, Tol::witness()).unwrap());

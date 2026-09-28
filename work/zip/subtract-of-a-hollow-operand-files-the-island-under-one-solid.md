@@ -32,3 +32,17 @@ validates. Signed (SHELL orchestrator).
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## 2026-09-24 — the shape is valid at rest (ATREST-7)
+
+The sentence above, "Tier 3 does not catch the shape (see TOPO's
+`tier-3-does-not-check-shell-roles-per-solid`), which is why it
+validates", no longer gives the reason. Tier 3 now reads the nesting
+(check 10, `ValidationError::ShellWinding`) and admits this body on the
+merits: inside the island the shells wind `+1 − 1 + 1 = 1`, so the
+island is material and the solid's shells bound winding 0 or 1
+everywhere (`crates/topo/tests/shell_winding.rs`,
+`an_island_inside_a_void_of_its_own_solid_certifies`). What this row
+asks for is the GROUPING — the island filed as a solid of its own —
+which is the boolean's output convention to pursue, not an at-rest
+invalidity.

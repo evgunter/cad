@@ -44,14 +44,6 @@ use sweep::blend::{Convexity, FILLET3_SPINE_KIND_RECOURSE};
 
 const EPS: f64 = 1e-12;
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// The signed distance from `p` to `s`, POSITIVE on the chart normal's
 /// side — each surface's own closed form, written independently of the
 /// arms so the check is a specification and not a restatement.
@@ -98,10 +90,10 @@ struct Row {
 
 fn cone(apex_y: f64, half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: p3(0.0, apex_y, 0.0),
-        axis: v3(0.0, 1.0, 0.0),
+        apex: Point3::new(0.0, apex_y, 0.0),
+        axis: Vec3::new(0.0, 1.0, 0.0),
         half_angle,
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -118,8 +110,8 @@ fn sphere(center: Point3<f64>, radius: f64) -> Surface<f64> {
     Surface::Sphere {
         center,
         radius,
-        axis: v3(0.0, 1.0, 0.0),
-        u_ref: v3(1.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     }
 }
 
@@ -138,24 +130,39 @@ fn plane(origin: Point3<f64>, normal: Vec3<f64>, u_ref: Vec3<f64>) -> Surface<f6
 /// through the same point (two unit cylinders 1.6 apart, and one of them
 /// cut by a plane through the rim containing the ruling).
 fn rows() -> Vec<Row> {
-    let up = v3(0.0, 1.0, 0.0);
-    let rim = p3(0.8, 0.6, 0.0);
+    let up = Vec3::new(0.0, 1.0, 0.0);
+    let rim = Point3::new(0.8, 0.6, 0.0);
     // The cone through the rim whose generator falls three units of
     // radius per unit of axis: apex at 0.6 + 0.8/3.
     let steep = cone(0.6 + 0.8 / 3.0, 3.0f64.atan());
     // A second cone through the same rim, opening the other way at 45°.
     let shallow = cone(0.6 - 0.8, core::f64::consts::FRAC_PI_4);
-    let unit_sphere = sphere(p3(0.0, 0.0, 0.0), 1.0);
+    let unit_sphere = sphere(Point3::new(0.0, 0.0, 0.0), 1.0);
     // The second sphere of the sphere–sphere pair: the unit sphere
     // through the same rim from the other side, centred at `(0, 1.2)`.
-    let mate_sphere = sphere(p3(0.0, 1.2, 0.0), 1.0);
-    let coaxial_cyl = cyl(p3(0.0, 0.0, 0.0), up, 0.8, v3(1.0, 0.0, 0.0));
-    let flat = plane(p3(0.0, 0.6, 0.0), up, v3(1.0, 0.0, 0.0));
-    let sheet = Some((p3(0.0, 0.6, 0.0), up));
-    let tau = v3(0.0, 0.0, 1.0);
-    let ruled_a = cyl(p3(0.0, 0.0, 0.0), tau, 1.0, v3(1.0, 0.0, 0.0));
-    let ruled_b = cyl(p3(1.6, 0.0, 0.0), tau, 1.0, v3(1.0, 0.0, 0.0));
-    let ruled_plane = plane(p3(0.0, 0.6, 0.0), up, tau);
+    let mate_sphere = sphere(Point3::new(0.0, 1.2, 0.0), 1.0);
+    let coaxial_cyl = cyl(
+        Point3::new(0.0, 0.0, 0.0),
+        up,
+        0.8,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let flat = plane(Point3::new(0.0, 0.6, 0.0), up, Vec3::new(1.0, 0.0, 0.0));
+    let sheet = Some((Point3::new(0.0, 0.6, 0.0), up));
+    let tau = Vec3::new(0.0, 0.0, 1.0);
+    let ruled_a = cyl(
+        Point3::new(0.0, 0.0, 0.0),
+        tau,
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let ruled_b = cyl(
+        Point3::new(1.6, 0.0, 0.0),
+        tau,
+        1.0,
+        Vec3::new(1.0, 0.0, 0.0),
+    );
+    let ruled_plane = plane(Point3::new(0.0, 0.6, 0.0), up, tau);
     vec![
         Row {
             arm: BlendArm::SphereConeTorus,
@@ -300,7 +307,7 @@ fn every_curved_arm_solves_the_rolling_ball_equations_in_both_configurations() {
                     let d = row.rim - o;
                     (d - k * d.dot(k)).normalize()
                 }
-                None => v3(0.0, 0.0, 0.0),
+                None => Vec3::new(0.0, 0.0, 0.0),
             };
             for (s, trim, which) in [
                 (&row.a, &blend.trim_a, "first"),
@@ -444,14 +451,14 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
     let radius = 0.05;
     // The dome's own configuration: the unit sphere's equator on a flat
     // base, material inside both.
-    let sphere_c = p3(0.0, 0.0, 0.0);
-    let rim = p3(1.0, 0.0, 0.0);
-    let n = v3(0.0, -1.0, 0.0);
+    let sphere_c = Point3::new(0.0, 0.0, 0.0);
+    let rim = Point3::new(1.0, 0.0, 0.0);
+    let n = Vec3::new(0.0, -1.0, 0.0);
     for sphere_sense in [true, false] {
         let old = plane_sphere_blend(
-            p3(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
             n,
-            v3(1.0, 0.0, 0.0),
+            Vec3::new(1.0, 0.0, 0.0),
             sphere_c,
             1.0,
             radius,
@@ -460,14 +467,17 @@ fn the_shared_reduction_agrees_with_the_plane_sphere_arm() {
             Convexity::Convex,
         );
         let sheet = Meridian {
-            origin: p3(0.0, 0.0, 0.0),
-            axis: v3(0.0, 1.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
             rim,
         };
         // The plane's stored normal IS `n` and its material side is the
         // one the outward normal already names, so its sense is `true`.
         let (tp, _) = sheet
-            .trace(&plane(p3(0.0, 0.0, 0.0), n, v3(1.0, 0.0, 0.0)), true)
+            .trace(
+                &plane(Point3::new(0.0, 0.0, 0.0), n, Vec3::new(1.0, 0.0, 0.0)),
+                true,
+            )
             .unwrap();
         let (ts, _) = sheet.trace(&sphere(sphere_c, 1.0), sphere_sense).unwrap();
         let new = sheet.blend(tp, ts, radius);
