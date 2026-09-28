@@ -40,6 +40,7 @@ use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
 use geom_brep::pcurve_cache::{FittedMagnitude, PcurveCertifyError, PcurveCheck};
 use geom_brep::props::PropsError;
+use geom_brep::recourse::{Classified, Definite, Refused};
 use geom_core::{Band, BandError, BandField, Indeterminate, MarginDiag};
 use strum::IntoEnumIterator as _;
 
@@ -195,7 +196,14 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             value: 1e-7,
         },
         PlaneNurbsRefusal::TubeStraddles {
-            certified_clearance: 1e-7,
+            verdict: Refused::Zero(Classified {
+                margin: 5e-10,
+                band: band(),
+            }),
+            boxes: 12,
+        },
+        PlaneNurbsRefusal::TubeStraddles {
+            verdict: Refused::Negative { margin: -1e-7 },
             boxes: 12,
         },
         PlaneNurbsRefusal::TransversalityEscalated {
@@ -220,7 +228,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::Unimplemented,
         CertifyError::IntersectionSameSurface { key },
         CertifyError::SeamOnNonPeriodic,
-        CertifyError::IntervalNotForward,
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Zero,
+        },
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Negative,
+        },
         CertifyError::WindingExceeded,
         CertifyError::ResidualExceeded {
             check: CertCheck::Surface1Residual,
@@ -230,6 +243,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
             band: band(),
+            verdict: Definite::Zero,
+        },
+        CertifyError::NotSecondOrderSeparated {
+            sample: 0,
+            band: band(),
+            verdict: Definite::Negative,
         },
         CertifyError::TangentCertificateUnsupported,
         CertifyError::Escalated {
@@ -364,9 +383,8 @@ fn mass_props_errors() -> Vec<MassPropsError> {
 }
 
 fn offset_fit_errors() -> Vec<OffsetFitError> {
-    use geom_brep::offset_meters::{Meter, MeterError, Refused};
+    use geom_brep::offset_meters::{Meter, MeterError};
     use geom_brep::patch_bound::PatchBoundError;
-    use geom_brep::recourse::Classified;
     let zero = |margin| {
         Refused::Zero(Classified {
             margin,

@@ -306,16 +306,16 @@ const EPS_ROWS: [(&str, f64, &str, Disposition); 30] = [
     // at 1e-12 the spans clear and the rim/sphere near-tangency
     // refuses at adoption — `poleguard.rs` holds the route argument.
     (POLEBAND, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEBAND, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
     (POLEBAND, 1e-12, "file", Refused(TANGENT_SECOND_ORDER_ZERO)),
     // The ε-relative sibling's cells mirror the twins' one band down:
     // its 5.65e-12 m span escalates exactly where the band is 1e-12
     // and certifies ZERO at both coarser bands.
-    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_NOT_FORWARD)),
-    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEBAND12, 1e-9, "file", Refused(INTERVAL_ZERO_SPAN)),
+    (POLEBAND12, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
     (POLEBAND12, 1e-12, "file", Refused(PARAM_SPAN_ESCALATED)),
     (POLEFRUSTUM, 1e-9, "file", Refused(PARAM_SPAN_ESCALATED)),
-    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_NOT_FORWARD)),
+    (POLEFRUSTUM, 1e-6, "file", Refused(INTERVAL_ZERO_SPAN)),
     (
         POLEFRUSTUM,
         1e-12,
@@ -337,8 +337,8 @@ const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
 const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// The poleguard twins' coarse-band sub-reason: the sub-band span
 /// certifies zero, and the attachment gate refuses the degenerate
-/// interval by name.
-const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward";
+/// interval by name — the span's Zero verdict, not a reversed one.
+const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door

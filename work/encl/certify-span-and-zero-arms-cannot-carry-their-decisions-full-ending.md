@@ -2,7 +2,8 @@
 id: certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending
 kind: issue
 title: geom-brep: IntervalNotForward and WindingExceeded end in no routed recourse, and the zero arms quote no margin, because their variants carry no verdict or value
-status: open
+status: review
+branch: encl/certify-span-zero-arms
 opened: 2026-09-28
 ---
 
@@ -100,3 +101,20 @@ A decided margin is spelled three ways: `recourse::Classified`
 `Classified`), and `sweep::blend::ClassifiedMargin`
 (`crates/sweep/src/blend/mod.rs` ~:241: predicate, reading, band,
 sign). The payload types should converge on one of them.
+
+## What this branch does, and what it leaves
+
+- `IntervalNotForward { verdict: recourse::Definite }` and
+  `NotSecondOrderSeparated { .., verdict }` carry the `decide` verdict;
+  each arm routes through `certify::recourse` (Zero band-decided,
+  Negative sign-certain). `WindingExceeded` is `ParamWinding`'s
+  Negative arm alone and routes as sign-certain.
+- The plane × NURBS tube carries `recourse::Refused` (moved from
+  `offset_meters`) from `ssi/certify.rs`, a ratified `Bounds` seam, so
+  its Zero arm quotes `m/K`; `RefusedArm::ZeroOrNegative` has no
+  producer left and is gone.
+- Left: the generic-scalar Zero arms cannot carry `Classified` without a
+  seam ruling (`certify-zero-arms-quote-no-margin-without-a-seam`, which
+  keeps the convergence pointer), and the collapsed-arm gates
+  (`certify-collapsed-arm-gates-route-as-the-decision-they-guard`).
+

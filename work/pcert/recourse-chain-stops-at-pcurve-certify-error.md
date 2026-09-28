@@ -107,3 +107,15 @@ is transitively sound and wants only the assertion, not a repair.
 
 The second fence is `crates/topo/src/pcurves.rs` (**TRIM's**), where the
 iso lane's `what` literals are also minted.
+
+## Evidence: `IntervalNotForward` conflates two verdicts (ENCL, 2026-09-28)
+
+`PcurveCertifyError::IntervalNotForward` is raised on
+`decide("pcurve_interval_forward", …) == Sign::Zero | Sign::Negative`
+at four sites in `pcurve_cache.rs` (~:2605, ~:3364, ~:3543, ~:3905),
+so its repair is two arms, not one: a Zero span is band-decided (a
+lever, and the conditional tolerance), a Negative one sign-certain.
+`certify`'s own `CertifyError::IntervalNotForward` now carries that
+verdict (`recourse::Definite`) and routes each through
+`certify::recourse`; the pcurve arm can follow the same shape.
+

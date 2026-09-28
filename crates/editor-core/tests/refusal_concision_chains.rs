@@ -938,7 +938,9 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
             "Certify",
             E::Certify {
                 edge: topo::EdgeKey::default(),
-                source: geom_brep::CertifyError::IntervalNotForward,
+                source: geom_brep::CertifyError::IntervalNotForward {
+                    verdict: geom_brep::recourse::Definite::Negative,
+                },
             },
         ),
         (

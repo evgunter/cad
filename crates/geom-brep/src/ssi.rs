@@ -347,10 +347,10 @@ pub enum SsiError {
     /// box: two branches pass within the band of each other. A genuine
     /// sliver (F6), not a resolution failure to retry.
     TubeStraddles {
-        /// The certified transversality margin in meters: a
-        /// dimensionless sine-like quantity already levered by the
-        /// tube scale's arm (zero when the enclosure straddles).
-        margin: f64,
+        /// The verdict on the certified transversality margin in
+        /// meters: a dimensionless sine-like quantity already levered
+        /// by the tube scale's arm (zero when the enclosure straddles).
+        verdict: crate::recourse::Refused,
         /// Boxes in the chain.
         boxes: u32,
     },
@@ -514,12 +514,13 @@ impl core::fmt::Display for SsiError {
                  enclosure, so limb 3 has nothing to decide — a structural refusal, \
                  with no margin behind it"
             ),
-            Self::TubeStraddles { margin, boxes } => write!(
+            Self::TubeStraddles { verdict, boxes } => write!(
                 f,
                 "ssi: the uniqueness tube's transversality enclosure straddles zero \
-                 over its {boxes}-box chain (margin {margin:e} m) — two branches pass \
+                 over its {boxes}-box chain (margin {:e} m) — two branches pass \
                  within the band of each other, which is a genuine sliver of the \
-                 operand pair, not a resolution to refine away"
+                 operand pair, not a resolution to refine away",
+                verdict.margin()
             ),
             Self::FootPointInconclusive { t, last_distance } => write!(
                 f,

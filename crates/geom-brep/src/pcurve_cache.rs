@@ -1510,12 +1510,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
         ),
-        E::TubeStraddles { margin, boxes } => (
+        E::TubeStraddles { verdict, boxes } => (
             Some(SsiLimb::Tube),
             "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
              operand pair — escalate, never desingularize)",
             Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: margin,
+                certified_clearance: verdict.margin(),
                 boxes,
             }),
         ),

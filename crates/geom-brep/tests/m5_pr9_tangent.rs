@@ -13,6 +13,7 @@ use crate::shared::tol::band;
 use geom::Curve3;
 use geom::Surface;
 use geom_brep::SurfaceKey;
+use geom_brep::recourse::Definite;
 use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneCylinderSection,
@@ -617,6 +618,7 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
     let osculating = CertifyError::NotSecondOrderSeparated {
         sample: 1,
         band: band(),
+        verdict: Definite::Zero,
     };
 
     let in_band = ((zero * escalate).sqrt() / length).asin();
@@ -795,6 +797,7 @@ fn a_definite_second_order_refusal_leaves_the_naming_escalation_off_the_log() {
         Some(CertifyError::NotSecondOrderSeparated {
             sample: 1,
             band: band(),
+            verdict: Definite::Zero,
         })
     );
     assert_eq!(

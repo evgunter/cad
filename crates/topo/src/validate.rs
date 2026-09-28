@@ -2253,7 +2253,7 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::recourse::Reading;
+    use geom_brep::recourse::{Definite, Reading};
     use std::borrow::Cow;
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
@@ -2263,16 +2263,31 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::SeamOnNonPeriodic
-        | CertifyError::IntervalNotForward
+        | CertifyError::IntervalNotForward {
+            verdict: Definite::Negative,
+        }
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => MISMATCH,
+        CertifyError::IntervalNotForward {
+            verdict: Definite::Zero,
+        } => "it has no length at this tolerance",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
-        CertifyError::NotSecondOrderSeparated { .. } => {
+        CertifyError::NotSecondOrderSeparated {
+            verdict: Definite::Zero,
+            ..
+        } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
              description says they do"
+        }
+        CertifyError::NotSecondOrderSeparated {
+            verdict: Definite::Negative,
+            ..
+        } => {
+            "its faces are not certainly curving apart along it, so they do not fix where it \
+             runs, which its description says they do"
         }
         CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => {
             "the check could not locate the curve on its spline face (the projection did not \
@@ -2302,8 +2317,6 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
             CertifyError::UnresolvedSurface { .. }
             | CertifyError::IntersectionSameSurface { .. }
             | CertifyError::SeamOnNonPeriodic
-            | CertifyError::IntervalNotForward
-            | CertifyError::WindingExceeded
             | CertifyError::PlaneNurbs(P::PcurveFit) => DEFECT,
             CertifyError::Unimplemented
             | CertifyError::TangentCertificateUnsupported
@@ -2313,6 +2326,8 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
             CertifyError::Band(_) => TOLERANCE,
             CertifyError::ChartImageUnavailable { .. }
             | CertifyError::ResidualExceeded { .. }
+            | CertifyError::IntervalNotForward { .. }
+            | CertifyError::WindingExceeded
             | CertifyError::NotTransverse { .. }
             | CertifyError::NotSecondOrderSeparated { .. }
             | CertifyError::Escalated { .. }
@@ -2381,7 +2396,7 @@ fn classify_offset_fit(
         O::Meter(m) => {
             // The lead says what the verdict decided: a zero verdict is
             // band-decided, so it says "may".
-            use geom_brep::offset_meters::Refused as R;
+            use geom_brep::recourse::Refused as R;
             let why = match m {
                 M::Escalated { .. } => {
                     "whether this face can be offset is too close to call at this tolerance"
@@ -12512,8 +12527,8 @@ mod offset_fit_door_rows {
     #[test]
     fn a_meter_refusal_renders_whole_at_rest() {
         use geom_brep::OffsetFitError;
-        use geom_brep::offset_meters::{Meter, MeterError, Refused};
-        use geom_brep::recourse::Classified;
+        use geom_brep::offset_meters::{Meter, MeterError};
+        use geom_brep::recourse::{Classified, Refused};
         use geom_core::{Indeterminate, MarginDiag};
         const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
         const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
@@ -12684,6 +12699,8 @@ mod offset_fit_door_rows {
 #[cfg(test)]
 #[allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 mod certify_escalation_rows {
+    use geom_brep::PlaneNurbsRefusal as P;
+    use geom_brep::recourse::{Classified, Definite, Refused};
     use geom_brep::{CertCheck, CertifyError};
     use geom_core::{Band, Indeterminate, MarginDiag};
 
@@ -12708,6 +12725,13 @@ mod certify_escalation_rows {
                 band: Band::new(1.0e-9, 1.0e-8).unwrap(),
                 predicate: Some("a_probe"),
             },
+        })
+    }
+
+    fn tube_zero(margin: f64) -> Refused {
+        Refused::Zero(Classified {
+            margin,
+            band: Band::new(1.0e-9, 1.0e-8).unwrap(),
         })
     }
 
@@ -12780,28 +12804,67 @@ mod certify_escalation_rows {
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
             ),
-            // The lane's tube refusal is the transversality decision's
-            // decided Zero-or-Negative verdict: its lever alone, whatever
-            // clearance the certificate proved inside the zero band.
+            // A zero span is band-decided; a reversed one, and a winding
+            // past a full turn, are stored contradictions at rest.
             (
-                says(CertifyError::PlaneNurbs(
-                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
-                        certified_clearance: 0.0,
-                        boxes: 4,
-                    },
-                )),
+                says(CertifyError::IntervalNotForward {
+                    verdict: Definite::Zero,
+                }),
+                "it has no length at this tolerance. Recourse: move the geometry so this edge \
+                 is not vanishingly short, or, if this length is intended, tighten the \
+                 tolerance",
+            ),
+            (
+                says(CertifyError::IntervalNotForward {
+                    verdict: Definite::Negative,
+                }),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::WindingExceeded),
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
+            ),
+            (
+                says(CertifyError::NotSecondOrderSeparated {
+                    sample: 0,
+                    band: Band::new(1.0e-9, 1.0e-8).unwrap(),
+                    verdict: Definite::Negative,
+                }),
+                "its faces are not certainly curving apart along it, so they do not fix where it \
+                 runs, which its description says they do. There is no way through: this is a \
+                 kernel defect or a damaged file; report it",
+            ),
+            // The lane's tube refusal is the transversality decision's
+            // verdict: a Zero clearance is band-decided, and quotes the
+            // tolerance below `m/K` where the certificate proved one; a
+            // Negative one is a stored contradiction.
+            (
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: tube_zero(0.0),
+                    boxes: 4,
+                })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
                  runs. Recourse: move the geometry so the faces cross at a clearer angle",
             ),
             (
-                says(CertifyError::PlaneNurbs(
-                    geom_brep::PlaneNurbsRefusal::TubeStraddles {
-                        certified_clearance: 3.0e-10,
-                        boxes: 4,
-                    },
-                )),
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: tube_zero(3.0e-10),
+                    boxes: 4,
+                })),
                 "its faces are not certainly crossing along it, so they do not fix where it \
-                 runs. Recourse: move the geometry so the faces cross at a clearer angle",
+                 runs. Recourse: move the geometry so the faces cross at a clearer angle, or, \
+                 if this angle is intended, tighten the tolerance below 3e-11 m",
+            ),
+            (
+                says(CertifyError::PlaneNurbs(P::TubeStraddles {
+                    verdict: Refused::Negative { margin: -3.0e-9 },
+                    boxes: 4,
+                })),
+                "its faces are not certainly crossing along it, so they do not fix where it \
+                 runs. There is no way through: this is a kernel defect or a damaged file; \
+                 report it",
             ),
         ];
         for (msg, tail) in rows {

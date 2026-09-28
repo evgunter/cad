@@ -117,6 +117,7 @@ use geom_core::{
 
 use crate::certify::CERT_SAMPLES;
 use crate::dihedral::decide;
+use crate::recourse::Refused;
 
 use super::enclose::{Box3, NurbsBoxes, graph_margin};
 use super::{SsiError, SsiOperand, TubeScale};
@@ -913,15 +914,10 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
     // lever arm is the caller's scalar, so the product — the number the
     // trilean classifies — is scalar-typed.
     let transversality = Margin::levered(T::from_f64(margin), arm);
-    match decide("ssi_tube_transversality", transversality, band) {
-        Ok(Sign::Positive) => {}
-        Ok(Sign::Zero | Sign::Negative) => {
-            return Err(SsiError::TubeStraddles {
-                margin: transversality.value().lo(),
-                boxes,
-            });
-        }
-        Err(diag) => return Err(SsiError::Escalated(diag)),
+    let sign =
+        decide("ssi_tube_transversality", transversality, band).map_err(SsiError::Escalated)?;
+    if let Some(verdict) = Refused::of(sign, transversality.value().lo(), band) {
+        return Err(SsiError::TubeStraddles { verdict, boxes });
     }
     Ok(SsiCertificate {
         samples: CERT_SAMPLES,

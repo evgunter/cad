@@ -2947,9 +2947,9 @@ mod tests {
 #[allow(clippy::unwrap_used)]
 mod recourse_tests {
     use super::{BestBound, LastRound, OffsetFitError, OffsetLimb};
-    use crate::offset_meters::{MeterError, Refused};
+    use crate::offset_meters::MeterError;
     use crate::patch_bound::PatchBoundError;
-    use crate::recourse::{Classified, Reading};
+    use crate::recourse::{Classified, Reading, Refused};
     use geom::curves::fit::FitError;
     use geom_core::spline::{KnotAlgebraError, SplineError};
     use geom_core::{BandError, BandField};
