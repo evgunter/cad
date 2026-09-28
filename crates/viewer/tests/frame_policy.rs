@@ -3208,7 +3208,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
         all.text(),
         "blend tool: the held edges are on feature 3 body 0, so the edge on feature 5 body 0 \
          was not taken; cancel to start on another body \u{2022} revolve tool: the profile \
-         pick (node 4) is no longer in the document; the tool dropped it \u{2022} mate tool: \
+         pick (feature 4) is no longer in the document; the tool dropped it \u{2022} mate tool: \
          no landed evaluation to derive frames from"
     );
 
@@ -3221,7 +3221,7 @@ fn a_survival_drop_rides_beside_a_refusal_and_a_declined_pick_does_not() {
     };
     assert_eq!(
         line.text(),
-        "nothing to undo \u{2022} revolve tool: the profile pick (node 4) is no longer in the \
+        "nothing to undo \u{2022} revolve tool: the profile pick (feature 4) is no longer in the \
          document; the tool dropped it"
     );
 }
