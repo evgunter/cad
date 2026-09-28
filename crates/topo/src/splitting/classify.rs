@@ -519,7 +519,14 @@ mod tests {
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::FRAC_PI_2).abs() < 1e-4);
         // In-band (margin −3ε): typed escalation, named.
-        let diag = roots_of(conic_crossing_roots(&c, 0.1, 6.0, &plane_y(1.0 + 3e-9), band())).unwrap_err();
+        let diag = roots_of(conic_crossing_roots(
+            &c,
+            0.1,
+            6.0,
+            &plane_y(1.0 + 3e-9),
+            band(),
+        ))
+        .unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_belly_graze"));
     }
 
@@ -533,7 +540,14 @@ mod tests {
         // Roots of sin θ = 0 are θ ∈ {0, π}: with span [0, 2] the θ = 0
         // root sits EXACTLY at the endpoint (skipped, Zero arm) and the
         // θ = π root is definitely interior (returned).
-        let roots = roots_of(conic_crossing_roots(&c, 0.0, 2.0 + 2.0, &plane_y(0.0), band())).unwrap();
+        let roots = roots_of(conic_crossing_roots(
+            &c,
+            0.0,
+            2.0 + 2.0,
+            &plane_y(0.0),
+            band(),
+        ))
+        .unwrap();
         assert_eq!(roots.len(), 1);
         assert!((roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // Both roots definitely interior: span (−1, 4).
@@ -542,7 +556,8 @@ mod tests {
         assert!(roots[0].abs() < 1e-12 || (roots[0] - core::f64::consts::PI).abs() < 1e-12);
         // In-band: a root 5e-9 (meters, meter = r = 1) inside the
         // span end — typed escalation, named.
-        let diag = roots_of(conic_crossing_roots(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
+        let diag =
+            roots_of(conic_crossing_roots(&c, -5e-9, 2.0, &plane_y(0.0), band())).unwrap_err();
         assert_eq!(diag.predicate, Some("split_conic_crossing_root"));
     }
 

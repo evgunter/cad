@@ -85,3 +85,22 @@ the box top refuses at the join (`split_arc_window` for an arc,
 `an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`).
 Every one refused identically with the arm reverted; none answers, so
 no refusal was added at the sweep.
+
+**Answers that changed.** The in-tree constructor this item did not
+know of is the revolved ball poled along an axis lying in a plane face:
+its seam meridian and both poles lie in the face. The poles are now
+recorded, the reduction takes the crossings path, and the join refuses
+the tilted plane×sphere section:
+
+- `cube(1) ∖ ball(0.3)` poled along `y` at `(0.5, 0.5, 1)` answered its
+  closed form through the no-crossings re-cut and now refuses
+  `Join(SectionInvariant)`. The row that used it
+  (`r2_rim_corpus_probes.rs` `r2_a_boolean_made_rims_arcs_store_one_circle`,
+  about boolean-made rims) takes the `z`-poled pip instead; the pose is
+  held in `germ_coplanar_conic.rs` and filed as
+  `sphere-seam-in-a-plane-face-loses-the-fallback-recut-to-the-tilted-section-refusal`
+  on reach's slate.
+- PR 9c's die-pips smoke shape refused `FallbackExtentUnsupported`
+  (tangency) and now refuses `Join(SectionInvariant)`; re-pinned as
+  `m5_pr9c_sphere_doors.rs`
+  `the_die_pips_shape_stops_typed_at_its_tilted_section`.

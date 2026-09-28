@@ -15,7 +15,12 @@
 //!   roster, `CurvedPairUnsupported`);
 //! - a tube whose outer wall is two faces meeting in a circle, the box
 //!   top in that circle's plane holding an arc of it, or all of it
-//!   (today every op refuses at the join).
+//!   (today every op refuses at the join);
+//! - a die pip whose ball is poled along `y`, so its seam meridian and
+//!   both poles lie in the cube's top face (today every op refuses at
+//!   the join's tilted plane×sphere section; before the sweep recorded
+//!   the poles, the no-crossings fallback re-charted the ball and ∖
+//!   answered its closed form).
 //!
 //! Each op must refuse typed or answer its closed-form volume with
 //! `point_in_solid` agreeing on its set membership at witness points.
@@ -52,9 +57,14 @@ fn boxed(x: (f64, f64), y: (f64, f64), z: (f64, f64)) -> Body<f64> {
 }
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
-    revolve(&validated(vec![lp]), axis_y(), Revolution::Full, Tol::witness())
-        .expect("the profile revolves")
-        .body
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Full,
+        Tol::witness(),
+    )
+    .expect("the profile revolves")
+    .body
 }
 
 /// The donut `R = 2`, `r = 1/2` about `y`, its meridian authored as two
@@ -77,6 +87,21 @@ fn strutted_tube() -> Body<f64> {
         Point2::new(1.0, 1.0),
         Point2::new(0.5, 1.0),
     ]))
+}
+
+/// A radius-0.3 ball poled along `y`, centred at `(0.5, 0.5, 1)`: its
+/// seam meridian lies in the plane `z = 1`.
+fn y_poled_pip() -> Body<f64> {
+    let ball = revolved(bulge_loop(vec![
+        (Point2::new(0.0, -0.3), 1.0),
+        (Point2::new(0.0, 0.3), 0.0),
+    ]));
+    topo::transform_rigid(
+        &ball,
+        &Affine3::translation(Vec3::new(0.5, 0.5, 1.0)),
+        Tol::witness(),
+    )
+    .expect("the ball moves to its pip")
 }
 
 /// `∫ √(1 − s²) ds` over `[−c, c]`.
@@ -181,6 +206,21 @@ fn fixtures() -> Vec<Fixture> {
                 ([0.0, 0.5, 0.0], false, false),
             ],
         },
+        Fixture {
+            name: "y-poled pip on the cube's top face",
+            a: sweep::test_support::cube(1.0, Tol::witness()),
+            b: y_poled_pip(),
+            vol_a: 1.0,
+            vol_b: 4.0 / 3.0 * PI * 0.027,
+            overlap: 2.0 / 3.0 * PI * 0.027,
+            abs: 1e-9,
+            witnesses: vec![
+                ([0.5, 0.5, 0.9], true, true),
+                ([0.5, 0.5, 0.5], true, false),
+                ([0.5, 0.5, 1.1], false, true),
+                ([0.5, 0.5, 1.5], false, false),
+            ],
+        },
     ]
 }
 
@@ -209,9 +249,12 @@ fn every_op_refuses_or_answers_its_closed_form() {
                 |a, b| a || b,
             ),
             ("A ∩ B", topo::intersect(a, b, tol), ov, |a, b| a && b),
-            ("A ∖ B", topo::subtract(a, b, tol), fx.vol_a - ov, |a, b| {
-                a && !b
-            }),
+            (
+                "A ∖ B",
+                topo::subtract(a, b, tol),
+                fx.vol_a - ov,
+                |a, b| a && !b,
+            ),
         ];
         for (op, r, want, member) in rows {
             let what = format!("{}: {op}", fx.name);
