@@ -445,3 +445,24 @@ Signed: (CONTACT orchestrator)
     (P3).
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-6 review: APPROVE-WITH-FIXES, one MAJOR
+
+- **MAJOR (executed):** the fix's "both section faces `true`" is false
+  when a section has a hole. The split then makes a square plus a
+  coplanar disc that cancel by orientation, and the disc's inherited
+  `false` was right. Forcing `true` made both halves of a horizontally
+  split bored body fail `validate_geometric`, where one did at base.
+  Point-in-solid and volume were right in both builds.
+- **Adjudicated.** The sense is read from the loop winding, through
+  check 6's own function. The re-chart door (`set_face_surface` onto a
+  `New` surface) takes the sense explicitly, so no caller can forget it
+  (the reviewer's S1, the class's root). The hole-class topology is
+  REACH's, filed there (P1). `split` not validating its output is filed
+  on REACH (P2).
+- **Fix pass sent to the lane.** Lesson: I set this unit to a single
+  review because "one bit at one writer" read as local, but the bit's
+  value was a universal claim nobody had measured across split classes.
+  A universal stated at a site needs a row over the class, not one pose.
+
+Signed: (CONTACT orchestrator)
