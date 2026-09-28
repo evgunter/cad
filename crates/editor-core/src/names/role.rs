@@ -1403,6 +1403,77 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
     }
 }
 
+/// **One name-carrying edge of the recipe** (N1): a node that adds no
+/// segment to the names it carries, so every name it publishes from
+/// below keeps its original minter. Which edge it is decides which of
+/// the input's names come through.
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub(crate) enum VerbatimEdge<'a> {
+    /// Every body of `input`, body `k` in to body `k` out, moved: a
+    /// [`Node::Transform`](crate::node::Node::Transform). A selection
+    /// in effect above it rides through to `input` unchanged.
+    Whole {
+        /// The value placed.
+        input: RecipeNodeId,
+    },
+    /// The one body of `of` that `select` names, projected: a
+    /// [`Node::Part`](crate::node::Node::Part).
+    Selected {
+        /// The split or pattern read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: &'a crate::node::PartSelect,
+    },
+    /// The entities of `target` the split leaves intact: a
+    /// [`Node::Split`](crate::node::Node::Split). Which ones those are
+    /// is the geometry's answer, not the recipe's.
+    Intact {
+        /// The body split.
+        target: RecipeNodeId,
+    },
+}
+
+/// **The name-carrying edge `node` is, if any** — the one statement of
+/// N1's pass-through set: a transform, a part's projection, a split's
+/// intact entities. Every other node re-mints what it carries.
+///
+/// The walks down these edges — the product's two-roots check
+/// (`product::placed_under_two_roots`) and the mate member walk
+/// (`mate::member::walk`) — read the set here and differ only in where
+/// each stops. The match is exhaustive on purpose: a new node kind does
+/// not compile until someone decides whether it passes names through,
+/// and a new kind of edge does not compile until every walk, each
+/// matching [`VerbatimEdge`] without a wildcard, decides what to do
+/// with it.
+pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+    use crate::node::Node;
+    match node {
+        Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
+        Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
+        Node::Split { target, .. } => Some(VerbatimEdge::Intact { target: *target }),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Pattern { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
+    }
+}
+
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///

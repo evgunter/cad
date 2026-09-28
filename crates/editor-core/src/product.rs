@@ -947,15 +947,19 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
 /// [`ProductError::PlacedUnderTwoRoots`]; `None` when every root places
 /// bodies no other root places.
 ///
-/// A root's chain is the run of nodes it reaches through the two
-/// verbatim-naming edges a recipe can decide on: a
-/// [`crate::Node::Transform`]'s input, which it places whole, and a
-/// [`crate::Node::Part`]'s `of`, which it narrows to one selection.
-/// The selection in effect rides down through the transforms below a
-/// part, since a transform of an `Instances` value keeps its instance
-/// order. Any other node ends the chain: every other op re-mints what
-/// it carries (N1) or, for a split's intact entities, carries a subset
-/// only its geometry decides.
+/// A root's chain is the run of nodes it reaches through the
+/// name-carrying edges ([`crate::names::verbatim_edge`]) a recipe can
+/// decide on: a [`VerbatimEdge::Whole`] edge, which places its input
+/// whole, and a [`VerbatimEdge::Selected`] edge, which narrows it to
+/// one selection. The selection in effect rides down through the whole
+/// edges below a part, since a transform of an `Instances` value keeps
+/// its instance order. Any other node ends the chain: every other op
+/// re-mints what it carries (N1), and a [`VerbatimEdge::Intact`] edge
+/// carries a subset only its geometry decides.
+///
+/// [`VerbatimEdge::Whole`]: crate::names::VerbatimEdge::Whole
+/// [`VerbatimEdge::Selected`]: crate::names::VerbatimEdge::Selected
+/// [`VerbatimEdge::Intact`]: crate::names::VerbatimEdge::Intact
 ///
 /// Neither edge mints a name (N1), so two chains that meet at one node
 /// with overlapping selections — either whole, or the same selection —
@@ -968,7 +972,8 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
 /// expressions differ but evaluate to one index are not seen here and
 /// refuse later, as [`ProductError::Naming`].
 fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
-    use crate::node::{Node, PartSelect};
+    use crate::names::VerbatimEdge;
+    use crate::node::PartSelect;
     let overlaps = |a: Option<&PartSelect>, b: Option<&PartSelect>| match (a, b) {
         (Some(a), Some(b)) => a == b,
         _ => true,
@@ -981,10 +986,13 @@ fn placed_under_two_roots<P>(doc: &Doc<P>) -> Option<ProductError> {
         let mut at = root;
         let mut select: Option<&PartSelect> = None;
         loop {
-            let (next, narrowed) = match doc.node(at) {
-                Some(Node::Transform { input, .. }) => (*input, select),
-                Some(Node::Part { of, select: s }) => (*of, Some(s)),
-                _ => break,
+            let (next, narrowed) = match doc.node(at).and_then(crate::names::verbatim_edge) {
+                Some(VerbatimEdge::Whole { input }) => (input, select),
+                Some(VerbatimEdge::Selected { of, select: s }) => (of, Some(s)),
+                // The split's intact entities are a subset only its
+                // geometry decides, so the recipe cannot say two
+                // chains through it carry one name.
+                Some(VerbatimEdge::Intact { .. }) | None => break,
             };
             if let Some(&(first, earlier)) = seen
                 .get(&next)
