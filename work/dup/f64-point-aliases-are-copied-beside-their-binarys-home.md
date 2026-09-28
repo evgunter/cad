@@ -81,7 +81,7 @@ annotated `f64`. A binding of the constructor itself —
 `must_carry_rule.rs`), `let pt = Point3::new;` — is not a definition
 and is not counted; those name the constructor and hold no body.
 
-## `sweep`: closed (2026-09-28)
+## `sweep`: closed (2026-09-28, #3312)
 
 **Inlined.** Ev (2026-09-28) leans towards deleting these wrappers and
 spelling the constructor at the call site, shared homes included, and
