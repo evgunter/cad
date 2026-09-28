@@ -422,7 +422,7 @@ Signed: (CONTACT orchestrator)
 
 ## 2026-09-28 — the area-overlap designers agree; [ev] PR #3350
 
-- **First reports**, recorded in `docs/DESIGN-FORK-LOG.md` row 3 on the
+- **First reports**, recorded in `docs/DESIGN-FORK-LOG.md` row 4 on the
   PR. They agree on both decisions:
   - fix the merge door, deleting a seam edge left dangling at any
     angle, repeatedly, by a topological test;
