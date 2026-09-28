@@ -915,3 +915,8 @@ class of 65 sites is PRED's row.
   - The fix is still real where the continuation refines before refusing: `measure` now returns the narrower of the certificate's bracket and the continuation's mixed-round fold. The lane's soundness argument: volume = (1/3)·ΣΦ_f, each term is sound at every round, and the fold is sequential so it does not depend on pool width.
   - The fixture's subject costs +20 s in debug.
   Single full review dispatched.
+- 2026-09-28 — The tangent-arm lane opened PR 3334 (head `93a6dddb28`).
+  - Measured first: three of four cells (f64 reversed order; Interval in both orders) named the osculating cause for a 90° crossing.
+  - The fix adds a first-order parallelism reading, on the refusal path only, when the second-order margin is not Positive. A definite defect renames the refusal to `TangentParallel`.
+  - The certified set does not change. K delta is 0 at every ε row across the four producers (checked with a temporary marker). No fork: C7 and D4 ¶1 decide the same things.
+  - Single full review dispatched. Its falsification targets: callers that branch on the refusal kind, and reuse of the predicate name in the census.

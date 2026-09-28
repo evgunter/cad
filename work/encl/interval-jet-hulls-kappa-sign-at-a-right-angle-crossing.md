@@ -2,7 +2,7 @@
 id: interval-jet-hulls-kappa-sign-at-a-right-angle-crossing
 kind: issue
 title: a right-angle crossing described as a tangency refuses at the second-order check (the osculating cause), not at TangentParallel, at Interval and in f64 with the band as s1
-status: dispatched
+status: review
 opened: 2026-09-25
 priority: P3
 cost: D
