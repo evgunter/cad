@@ -243,10 +243,12 @@ fn certify_errors() -> Vec<CertifyError> {
         CertifyError::NotSecondOrderSeparated {
             sample: 4,
             band: band(),
+        },
+        CertifyError::TubeNotSeparated {
+            band: band(),
             verdict: Definite::Zero,
         },
-        CertifyError::NotSecondOrderSeparated {
-            sample: 0,
+        CertifyError::TubeNotSeparated {
             band: band(),
             verdict: Definite::Negative,
         },

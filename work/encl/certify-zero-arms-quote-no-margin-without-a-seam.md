@@ -20,10 +20,9 @@ the margin gives". Four Zero arms still render it without one, through
 
 - `CertifyError::NotTransverse` (`certify.rs`, `run_checks`'s
   `classify_dihedral` arm);
-- `CertifyError::NotSecondOrderSeparated { verdict: Definite::Zero }`
-  (`tangent_second_order` per sample, and `tangent_tube_margin`);
-- `CertifyError::IntervalNotForward { verdict: Definite::Zero }` (the
-  four `interval_span_forward` decisions);
+- `CertifyError::NotSecondOrderSeparated` (`tangent_second_order` per
+  sample) and `CertifyError::TubeNotSeparated { verdict: Definite::Zero }`
+  (`tangent_tube_margin`);
 - `PlaneNurbsRefusal::NotTransverse` (`edge_nurbs.rs`,
   `plane_nurbs_transversality`), which `certify_via` re-speaks as
   `CertifyError::NotTransverse` so the door has one vocabulary.
@@ -49,6 +48,44 @@ too (`edge_nurbs.rs`, M7-8), but its value would be dropped at
 `certify_via`'s one-vocabulary mapping unless `CertifyError::NotTransverse`
 carried an optional margin, which is this same question.
 
+## Not a new channel
+
+A `Decide`-side read of a DEFINITE margin extends a channel that is
+already ratified rather than minting a new seam: `Indeterminate`
+carries `MarginDiag::Value(f64)` / `MarginDiag::Enclosure { lo, hi }`
+out of generic `T: Decide` code on every `Escalated` payload
+(`geom_core::predicate`, `Decide::sign_within` and `Indeterminate`),
+and `recourse::SizedDecision::recourse` already branches on it to
+quote `m/K` on the undecided arm. D4 ¶1 (ii), as Ev ruled on PR 3352:
+"`Indeterminate` carries data, not a recourse: its Display renders the
+payload". The fork is whether that data may also ride a definite
+verdict.
+
+## The zero span: two texts disagree
+
+D4 ¶1 (i) calls a Zero-where-Zero-fails arm band-decided (lever and
+conditional tolerance). `CertifyError::IntervalNotForward`'s own docs,
+from Ev's `e1600790f9` (M2 PR 3 fix pass, N1/N2), say "no M2
+construction mints zero-length edges … so a zero span is always a
+defect, not data". The branch keeps Ev's ruling: the span's Zero arm
+ends in the defect ending at every reading (the kernel's at a build,
+the file's too at rest and at adoption). Which text governs is part of
+this fork.
+
+The span and the tangent tube's margins are SIGNED, unlike the
+magnitude margins (`dihedral_wedge`, `tangent_second_order`,
+`plane_nurbs_transversality`): a Zero there may hide a sub-ε reversal or
+an exact zero (`fixed_zero_length_edge_refused`) that no smaller ε
+passes, so an unvalued tighten is worse on a signed arm than on a
+magnitude one.
+
+## A consumer: the [ev] import-readings fork (PR 3380)
+
+PR 3380's door-side "m ≤ ε_in" decision needs the span's margin, and
+`IntervalNotForward` carries none today; `poleband_eps12.step`
+(`crates/step-import/tests/tier_gate.rs`'s POLEBAND12 cells) is its
+witness. A ruling here decides what that door can read.
+
 ## The fork
 
 A design question for designers, then Ev: either
@@ -69,4 +106,5 @@ A decided margin is spelled three ways: `recourse::Classified`
 `sweep::blend::ClassifiedMargin` (`crates/sweep/src/blend/mod.rs`
 ~:241: predicate, reading, band, sign). `recourse::Classified` is the
 payload the other two should converge on; `recourse::Definite` is the
-verdict alone, where a site may not carry the margin.
+verdict alone, where a site may not carry the margin, and goes once the
+margins are readable.

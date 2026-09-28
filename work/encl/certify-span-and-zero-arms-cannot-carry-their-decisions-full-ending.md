@@ -105,17 +105,23 @@ sign). The payload types should converge on one of them.
 
 ## What this branch does, and what it leaves
 
-- `IntervalNotForward { verdict: recourse::Definite }` and
-  `NotSecondOrderSeparated { .., verdict }` carry the `decide` verdict;
-  each arm routes through `certify::recourse` (Zero band-decided,
-  Negative sign-certain). `WindingExceeded` is `ParamWinding`'s
-  Negative arm alone and routes as sign-certain.
-- The plane × NURBS tube carries `recourse::Refused` (moved from
-  `offset_meters`) from `ssi/certify.rs`, a ratified `Bounds` seam, so
-  its Zero arm quotes `m/K`; `RefusedArm::ZeroOrNegative` has no
-  producer left and is gone.
+- `IntervalNotForward { verdict: recourse::Definite }` carries the
+  span's `decide` verdict. Negative (reversed) routes through
+  `certify::recourse` as sign-certain; Zero keeps Ev's ruling (a zero
+  span is a defect, not data) and ends in the defect ending at every
+  reading. `WindingExceeded` is `ParamWinding`'s Negative arm alone and
+  routes as sign-certain.
+- The tangent tube is its own variant, `TubeNotSeparated { band,
+  verdict }`, routed as `CertCheck::TangentTube` with
+  `StoredDefinite::Lever`: its margin is a lower bound, so a Negative is
+  the certificate's limit and ends in the lever alone everywhere.
+  `NotSecondOrderSeparated` (per sample, a magnitude) keeps its shape.
+- The plane × NURBS tube carries `recourse::Refused` (moved to
+  `recourse` from the offset meters' module) from `ssi/certify.rs`, a
+  ratified `Bounds` seam, so its Zero arm quotes `m/K`;
+  `RefusedArm::ZeroOrNegative` has no producer left and is gone.
 - Left: the generic-scalar Zero arms cannot carry `Classified` without a
   seam ruling (`certify-zero-arms-quote-no-margin-without-a-seam`, which
-  keeps the convergence pointer), and the collapsed-arm gates
+  also holds the zero-span question and the convergence pointer), and
+  the collapsed-arm gates
   (`certify-collapsed-arm-gates-route-as-the-decision-they-guard`).
-

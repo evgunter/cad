@@ -337,8 +337,11 @@ const POLEBAND12: &str = "tests/fixtures/poleguard/poleband_eps12.step";
 const POLEFRUSTUM: &str = "tests/fixtures/poleguard/polefrustum.step";
 /// The poleguard twins' coarse-band sub-reason: the sub-band span
 /// certifies zero, and the attachment gate refuses the degenerate
-/// interval by name — the span's Zero verdict, not a reversed one.
-const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance";
+/// interval by name — the span's Zero verdict, not a reversed one — and
+/// ends it as a defect: no construction mints a zero-length edge.
+const INTERVAL_ZERO_SPAN: &str = "the stored parameter interval spans no length at this tolerance \
+     — a degenerate zero-span interval, which the forward gate refuses. There is no way through: \
+     this is a kernel defect or a damaged file; report it";
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door

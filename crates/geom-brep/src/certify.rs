@@ -315,13 +315,14 @@ pub enum CertifyError {
     /// seam exists.
     SeamOnNonPeriodic,
     /// The stored parameter interval is not forward (t₁ − t₀, metered
-    /// as arc length, is Zero or definitely negative at tolerance): the
-    /// ratified vertices-derive-bounds convention — increasing parameter
-    /// runs start → end of `he_plus` — is violated by a decreasing
-    /// interval, and a **degenerate** (zero-span) interval is refused by
-    /// the same gate: no construction mints a zero-length edge
-    /// (coincident-endpoint chords are refused as poison, and self-loop
-    /// scaffolding carries the full period).
+    /// as arc length, is definitely ≤ 0 at tolerance): the ratified
+    /// vertices-derive-bounds convention — increasing parameter runs
+    /// start → end of `he_plus` — is violated by a decreasing interval,
+    /// and a **degenerate** (zero-span) interval is refused by the same
+    /// gate (M2 PR 3 fix pass, N1/N2: no M2 construction mints
+    /// zero-length edges — coincident-endpoint chords are already
+    /// refused as poison, and self-loop scaffolding carries the full
+    /// period — so a zero span is always a defect, not data).
     IntervalNotForward {
         /// The span's verdict: `Zero` for a degenerate interval (an
         /// edge of no length at this tolerance), `Negative` for a
@@ -373,10 +374,19 @@ pub enum CertifyError {
         /// The band the margin was classified against (the
         /// two-tolerance pair's shared frame).
         band: Band,
-        /// The margin's verdict: `Zero` where the faces agree to second
-        /// order; `Negative` where the separation is certified below
-        /// zero (the uniqueness tube's, when the certified curvature
-        /// drift exceeds the sampled separation).
+    },
+    /// `TangentIntersection` only: the uniqueness tube's margin — the
+    /// sampled `|κ_rel|` less its certified drift over the spans, as a
+    /// sagitta at the folded arm — did not classify positive. The margin
+    /// is a conservative LOWER bound on a non-negative quantity, so
+    /// neither verdict is a stored contradiction: the certificate could
+    /// not prove separation along the edge.
+    TubeNotSeparated {
+        /// The band the margin was classified against.
+        band: Band,
+        /// `Zero` where the lower bound is within the zero band;
+        /// `Negative` where the drift definitely exceeds the sampled
+        /// separation.
         verdict: Definite,
     },
     /// `TangentIntersection` only: the (carrier kind, surface kinds)
@@ -480,24 +490,28 @@ impl core::fmt::Display for CertifyError {
                 "the faces meet tangentially at sample {sample}, where the \
                  edge's description says they cross"
             ),
-            Self::NotSecondOrderSeparated {
-                sample,
-                verdict: Definite::Zero,
-                ..
-            } => write!(
+            Self::NotSecondOrderSeparated { sample, .. } => write!(
                 f,
                 "the faces agree to second order at sample {sample}, so they \
                  do not fix where the edge runs, which its description says they do"
             ),
-            Self::NotSecondOrderSeparated {
-                sample,
+            Self::TubeNotSeparated {
+                verdict: Definite::Zero,
+                ..
+            } => write!(
+                f,
+                "the certified lower bound on how far the faces curve apart along the edge \
+                 is zero at this tolerance, so the certificate cannot prove they fix where \
+                 the edge runs, which its description says they do"
+            ),
+            Self::TubeNotSeparated {
                 verdict: Definite::Negative,
                 ..
             } => write!(
                 f,
-                "the faces' second-order separation at sample {sample} is certified below \
-                 zero, so they do not fix where the edge runs, which its description says \
-                 they do"
+                "the certified lower bound on how far the faces curve apart along the edge \
+                 is below zero, so the certificate cannot prove they fix where the edge \
+                 runs, which its description says they do"
             ),
             Self::TangentCertificateUnsupported => write!(
                 f,
@@ -549,14 +563,26 @@ impl CertifyError {
                 RefusedArm::Zero(None),
                 reading,
             )),
-            Self::NotSecondOrderSeparated { verdict, .. } => Some(recourse(
+            Self::NotSecondOrderSeparated { .. } => Some(recourse(
                 CertCheck::TangentSecondOrder,
-                verdict.arm(),
+                RefusedArm::Zero(None),
                 reading,
             )),
-            Self::IntervalNotForward { verdict } => {
-                Some(recourse(CertCheck::ParamSpan, verdict.arm(), reading))
+            Self::TubeNotSeparated { verdict, .. } => {
+                Some(recourse(CertCheck::TangentTube, verdict.arm(), reading))
             }
+            // No construction mints a zero-length edge, so a zero span
+            // is a defect wherever it is read (the variant's docs).
+            Self::IntervalNotForward {
+                verdict: Definite::Zero,
+            } => Some(defect_ending(reading).to_owned()),
+            Self::IntervalNotForward {
+                verdict: Definite::Negative,
+            } => Some(recourse(
+                CertCheck::ParamSpan,
+                RefusedArm::SignCertain,
+                reading,
+            )),
             Self::WindingExceeded => Some(recourse(
                 CertCheck::ParamWinding,
                 RefusedArm::SignCertain,
@@ -638,11 +664,21 @@ impl CertCheck {
                 stored: StoredDefinite::Contradiction,
                 at_zero: None,
             }),
-            Self::TangentSecondOrder | Self::TangentTube => Ending::Sized(SizedDecision {
+            Self::TangentSecondOrder => Ending::Sized(SizedDecision {
                 lever: "move the geometry so the faces curve apart more clearly where they touch",
                 size: "curvature difference",
                 passes: SizedPass::Positive,
                 stored: StoredDefinite::Contradiction,
+                at_zero: None,
+            }),
+            // The tube's margin is a conservative lower bound, so a
+            // definite refusal of it is the certificate's limit, which
+            // the lever reaches, never a stored contradiction.
+            Self::TangentTube => Ending::Sized(SizedDecision {
+                lever: "move the geometry so the faces curve apart more clearly where they touch",
+                size: "curvature difference",
+                passes: SizedPass::Positive,
+                stored: StoredDefinite::Lever,
                 at_zero: None,
             }),
             // Exact constructions: the endpoints and witness the kernel
@@ -696,10 +732,7 @@ impl CertCheck {
 ///   repairs a stored contradiction.
 #[must_use]
 pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> String {
-    let defect = match reading {
-        Reading::Build => KERNEL_DEFECT_ENDING,
-        Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
-    };
+    let defect = defect_ending(reading);
     match check.ending() {
         Ending::Sized(sized) => sized.recourse(arm, reading),
         Ending::Unsized(Unsized::Defect) => defect.to_owned(),
@@ -710,6 +743,37 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
             (Reading::AtRest, RefusedArm::Zero(_) | RefusedArm::SignCertain)
             | (Reading::Adopt, _) => defect.to_owned(),
         },
+    }
+}
+
+/// The tangent lane's uniqueness tube: the sampled `|κ_rel|` minimum less
+/// its certified drift, as a sagitta at the folded arm, must classify
+/// positive. Both refusing verdicts are reachable: the drift is a bound
+/// independent of the sampled minimum, so it can exceed it.
+fn tube_separation<T: Decide>(
+    kappa_min: T,
+    kappa_drift: T,
+    arm: T,
+    band: Band,
+) -> Result<(), CertifyError> {
+    let tube = Margin::sagitta(kappa_min - kappa_drift, arm);
+    match decide("tangent_tube_margin", tube, band).map(Definite::of) {
+        Ok(None) => Ok(()),
+        Ok(Some(verdict)) => Err(CertifyError::TubeNotSeparated { band, verdict }),
+        Err(cause) => Err(CertifyError::Escalated {
+            check: CertCheck::TangentTube,
+            sample: 0,
+            cause,
+        }),
+    }
+}
+
+/// The defect ending at `reading`: the kernel's at a build, the kernel's
+/// or the file's over stored geometry.
+fn defect_ending(reading: Reading) -> &'static str {
+    match reading {
+        Reading::Build => KERNEL_DEFECT_ENDING,
+        Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
     }
 }
 
@@ -2167,8 +2231,8 @@ fn run_checks<T: Decide>(
                         crate::tangent_second_order(surf1, surf2, p, tau, extent, band)
                     });
                     let (jet, arm) = (so.jet, so.arm);
-                    match so.verdict.map(Definite::of) {
-                        Ok(None) => geom_core::k_stats::splice(second_order),
+                    match so.verdict {
+                        Ok(Sign::Positive) => geom_core::k_stats::splice(second_order),
                         refused => {
                             // No lever `1/κ_rel` exists, so the
                             // parallelism defect is metered at the folded
@@ -2208,13 +2272,11 @@ fn run_checks<T: Decide>(
                                     sample: i,
                                     cause,
                                 },
-                                // Zero is the G2/osculating zero side.
-                                Ok(Some(verdict)) => CertifyError::NotSecondOrderSeparated {
-                                    sample: i,
-                                    band,
-                                    verdict,
-                                },
-                                Ok(None) => unreachable!("the passing verdict is matched above"),
+                                // A magnitude margin (`≥ 0`): Zero is the
+                                // G2/osculating zero side; Negative is
+                                // unreachable for a true magnitude and
+                                // refuses the same conservative way.
+                                Ok(_) => CertifyError::NotSecondOrderSeparated { sample: i, band },
                             });
                         }
                     }
@@ -2404,24 +2466,7 @@ fn run_checks<T: Decide>(
             band,
             &mut max_residual,
         )?;
-        let tube = Margin::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
-        match decide("tangent_tube_margin", tube, band).map(Definite::of) {
-            Ok(None) => {}
-            Ok(Some(verdict)) => {
-                return Err(CertifyError::NotSecondOrderSeparated {
-                    sample: 0,
-                    band,
-                    verdict,
-                });
-            }
-            Err(cause) => {
-                return Err(CertifyError::Escalated {
-                    check: CertCheck::TangentTube,
-                    sample: 0,
-                    cause,
-                });
-            }
-        }
+        tube_separation(tangent_kappa_min, bounds.kappa_drift, tangent_arm_min, band)?;
     }
 
     // ---- Intersection, plane × NURBS only (M7-8): the whole
@@ -3913,19 +3958,14 @@ mod tests {
                 ),
                 (
                     CertCheck::TangentSecondOrder,
-                    end(CertifyError::NotSecondOrderSeparated {
-                        sample: 1,
-                        band,
-                        verdict: Definite::Zero,
-                    }),
+                    end(CertifyError::NotSecondOrderSeparated { sample: 1, band }),
                     end(escalated(CertCheck::TangentSecondOrder)),
                     curve,
                     "curvature difference",
                 ),
                 (
                     CertCheck::TangentTube,
-                    end(CertifyError::NotSecondOrderSeparated {
-                        sample: 0,
+                    end(CertifyError::TubeNotSeparated {
                         band,
                         verdict: Definite::Zero,
                     }),
@@ -3948,9 +3988,14 @@ mod tests {
                 assert_eq!(zero, shared, "{reading:?}");
                 assert_eq!(in_band, valued, "{reading:?}");
                 let definite = recourse(check, RefusedArm::SignCertain, reading);
-                match reading {
-                    Reading::Build => assert_eq!(definite, lever),
-                    Reading::AtRest | Reading::Adopt => {
+                match (reading, check) {
+                    // The tube's margin is a lower bound: its definite
+                    // refusal is the certificate's limit, not a stored
+                    // contradiction.
+                    (Reading::Build, _) | (_, CertCheck::TangentTube) => {
+                        assert_eq!(definite, lever, "{reading:?} {check:?}");
+                    }
+                    (Reading::AtRest | Reading::Adopt, _) => {
                         assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{reading:?}");
                     }
                 }
@@ -3962,14 +4007,46 @@ mod tests {
         }
     }
 
+    /// The tangent tube's construction site carries the verdict its
+    /// margin classified: a sagitta inside the zero band (positive, and
+    /// exactly zero) is `Zero`, a drift past the sampled separation is
+    /// `Negative`, a clear margin passes, at `f64` and at `Interval`.
+    #[test]
+    fn the_tangent_tube_site_carries_its_verdict() {
+        use geom_core::Interval;
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let tube = |kappa_min: f64, drift: f64| {
+            let at_f64 = tube_separation(kappa_min, drift, 1.0, band);
+            let point = Interval::point;
+            let at_interval = tube_separation(point(kappa_min), point(drift), point(1.0), band);
+            assert_eq!(at_f64, at_interval, "κ_min {kappa_min:e}, drift {drift:e}");
+            at_f64
+        };
+        let refused = |verdict| Err(CertifyError::TubeNotSeparated { band, verdict });
+        // Sagitta `(κ_min − drift)·1²/2`.
+        assert_eq!(
+            tube(1e-9, 0.0),
+            refused(Definite::Zero),
+            "5e-10 m: in the zero band"
+        );
+        assert_eq!(tube(1e-9, 1e-9), refused(Definite::Zero), "exactly zero");
+        assert_eq!(
+            tube(0.0, 1.0),
+            refused(Definite::Negative),
+            "the drift swamps κ_min"
+        );
+        assert_eq!(tube(1.0, 0.0), Ok(()), "a clear margin passes");
+    }
+
     /// Each arm of a split verdict ends as its own arm, at every
-    /// reading: a Zero span or tube is band-decided (the lever, and at a
-    /// build or at rest the conditional tolerance, valued where the
-    /// variant carries the margin); a Negative one, and the winding
-    /// bound's only refusal, are sign-certain (the lever alone at a
-    /// build, the file's defect ending over stored geometry). No
-    /// Negative arm offers a tolerance, and no valued Zero arm offers
-    /// one without its value.
+    /// reading. A zero span is a defect wherever it is read (no
+    /// construction mints one); a reversed span and the winding bound's
+    /// only refusal are stored contradictions (the lever at a build, the
+    /// file's defect ending over stored geometry). The tangent tube's
+    /// Zero is band-decided and its Negative the certificate's limit,
+    /// the lever alone everywhere; the plane × NURBS tube's Zero quotes
+    /// `m/K` where its clearance is positive. No Negative arm offers a
+    /// tolerance, and no valued Zero arm offers one without its value.
     #[test]
     fn each_split_verdict_ends_as_its_own_arm() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
@@ -3981,11 +4058,7 @@ mod tests {
         let curve = "Recourse: move the geometry so the faces curve apart more clearly where \
                      they touch";
         let tube = |verdict| CertifyError::PlaneNurbs(P::TubeStraddles { verdict, boxes: 4 });
-        let separated = |verdict| CertifyError::NotSecondOrderSeparated {
-            sample: 0,
-            band,
-            verdict,
-        };
+        let separated = |verdict| CertifyError::TubeNotSeparated { band, verdict };
         let zero = |margin| Refused::Zero(Classified { margin, band });
         for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
             let tightened = |lever: &str, size: &str, below: &str| match reading {
@@ -3998,12 +4071,17 @@ mod tests {
                 Reading::Build => lever.to_owned(),
                 Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING.to_owned(),
             };
+            let defect = match reading {
+                Reading::Build => KERNEL_DEFECT_ENDING,
+                Reading::AtRest | Reading::Adopt => KERNEL_OR_FILE_DEFECT_ENDING,
+            }
+            .to_owned();
             let rows = [
                 (
                     CertifyError::IntervalNotForward {
                         verdict: Definite::Zero,
                     },
-                    tightened(span, "length", ""),
+                    defect,
                 ),
                 (
                     CertifyError::IntervalNotForward {
@@ -4016,7 +4094,7 @@ mod tests {
                     separated(Definite::Zero),
                     tightened(curve, "curvature difference", ""),
                 ),
-                (separated(Definite::Negative), definite(curve)),
+                (separated(Definite::Negative), curve.to_owned()),
                 (
                     tube(zero(5e-10)),
                     tightened(cross, "angle", " below 5e-11 m"),
@@ -4032,7 +4110,7 @@ mod tests {
                     CertifyError::IntervalNotForward {
                         verdict: Definite::Negative
                     } | CertifyError::WindingExceeded
-                        | CertifyError::NotSecondOrderSeparated {
+                        | CertifyError::TubeNotSeparated {
                             verdict: Definite::Negative,
                             ..
                         }
@@ -4240,14 +4318,15 @@ mod tests {
                 ),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            // A zero span is a defect, not data (the variant's docs): it
+            // does not read the span decision's band-decided arm.
             (
                 CertifyError::IntervalNotForward {
                     verdict: Definite::Zero,
                 }
                 .ending(Reading::AtRest)
                 .unwrap(),
-                "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
-                 length is intended, tighten the tolerance",
+                KERNEL_OR_FILE_DEFECT_ENDING,
             ),
             (
                 CertifyError::ResidualExceeded {
@@ -4292,8 +4371,9 @@ mod tests {
     /// at the kernel's tolerance, which no ε_in lever reaches yet
     /// ([`Reading::Adopt`]): no ending there names the tolerance, in either direction, or
     /// blames the kernel alone. A sign-certain refusal ends in the
-    /// ending that names the file too, and a band-decided arm of a sized
-    /// decision in its lever alone.
+    /// ending that names the file too (the tube's, a lower bound, in its
+    /// lever), and a band-decided arm of a sized decision in its lever
+    /// alone.
     #[test]
     fn an_adoption_reading_names_no_tolerance_and_no_kernel_alone() {
         let band = Band::new(1e-9, 1e-8).unwrap();
@@ -4321,7 +4401,13 @@ mod tests {
                 .map(|cause| recourse(check, RefusedArm::Undecided(cause), Reading::Adopt))
                 .collect();
             let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
-            assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
+            // The tube's definite refusal is the certificate's limit, not
+            // a stored contradiction: it keeps its lever.
+            if check == CertCheck::TangentTube {
+                assert!(definite.starts_with("Recourse: move"), "{definite}");
+            } else {
+                assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
+            }
             endings.push(definite);
             endings.push(recourse(check, RefusedArm::Zero(None), Reading::Adopt));
             for ending in endings {

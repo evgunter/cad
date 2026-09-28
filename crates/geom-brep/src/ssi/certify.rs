@@ -910,23 +910,38 @@ pub(crate) fn certify_branch<T: Decide + Bounds + CertifiedEnclosure>(
             rungs: ladder.len() as u32,
         });
     };
-    // The margin is interval arithmetic's zero-free lower bound (`f64`, C9); the
-    // lever arm is the caller's scalar, so the product — the number the
-    // trilean classifies — is scalar-typed.
-    let transversality = Margin::levered(T::from_f64(margin), arm);
-    let sign =
-        decide("ssi_tube_transversality", transversality, band).map_err(SsiError::Escalated)?;
-    if let Some(verdict) = Refused::of(sign, transversality.value().lo(), band) {
-        return Err(SsiError::TubeStraddles { verdict, boxes });
-    }
+    let transversality = tube_transversality(margin, arm, Bounds::lo, boxes, band)?;
     Ok(SsiCertificate {
         samples: CERT_SAMPLES,
         on_locus_max: on_locus,
         hull_sup,
         tube_radius: T::from_f64(radius),
-        tube_transversality: transversality.value(),
+        tube_transversality: transversality,
         tube_boxes: boxes,
     })
+}
+
+/// Limb 3's verdict on the chosen rung. `clearance` is interval
+/// arithmetic's zero-free lower bound (`f64`, C9) and `arm` the caller's
+/// scalar, so the product — the number the trilean classifies — is
+/// scalar-typed. The refusal carries the verdict and the product's lower
+/// end, read by the caller's `lo` (the seam's `Bounds::lo`). Its
+/// `Negative` arm is unreachable while `arm` is positive:
+/// `zero_free_lower_bound` never returns a negative clearance.
+fn tube_transversality<T: Decide>(
+    clearance: f64,
+    arm: T,
+    lo: impl Fn(T) -> f64,
+    boxes: u32,
+    band: Band,
+) -> Result<T, SsiError> {
+    let transversality = Margin::levered(T::from_f64(clearance), arm);
+    let sign =
+        decide("ssi_tube_transversality", transversality, band).map_err(SsiError::Escalated)?;
+    match Refused::of(sign, lo(transversality.value()), band) {
+        Some(verdict) => Err(SsiError::TubeStraddles { verdict, boxes }),
+        None => Ok(transversality.value()),
+    }
 }
 
 /// The witness of a rung-3 carrier: `carrier(mid)`, unchanged from M2
@@ -940,6 +955,47 @@ pub(crate) fn witness<T: Decide + Bounds + CertifiedEnclosure>(
 
 #[cfg(test)]
 mod tests {
+    /// **Limb 3's construction site carries the verdict and the margin
+    /// it classified.** A clearance inside the zero band refuses `Zero`
+    /// with that clearance (positive, and exactly zero), levered at the
+    /// arm, at `f64` and at `Interval`; a clear one passes. `Negative`
+    /// has no row: the clearance is never negative
+    /// (`zero_free_lower_bound`) and the arm is positive.
+    #[test]
+    #[allow(clippy::unwrap_used, clippy::panic)]
+    fn the_tube_site_carries_its_verdict_and_margin() {
+        use super::{SsiError, tube_transversality};
+        use crate::recourse::{Classified, Refused};
+        use geom_core::{Band, Bounds, Interval};
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let verdict = |got: Result<(), SsiError>| match got {
+            Err(SsiError::TubeStraddles { verdict, boxes: 4 }) => Some(verdict),
+            Ok(()) => None,
+            Err(other) => panic!("not the tube's refusal: {other}"),
+        };
+        let zero = |margin| Some(Refused::Zero(Classified { margin, band }));
+        for (clearance, arm, want) in [
+            (5e-10, 1.0, zero(5e-10)),
+            (2.5e-10, 2.0, zero(5e-10)),
+            (0.0, 1.0, zero(0.0)),
+            (1e-6, 1.0, None),
+        ] {
+            let at_f64 = tube_transversality(clearance, arm, |v: f64| v, 4, band);
+            assert_eq!(
+                verdict(at_f64.map(|_| ())),
+                want,
+                "f64: {clearance:e} at {arm}"
+            );
+            let at_interval =
+                tube_transversality(clearance, Interval::point(arm), Bounds::lo, 4, band);
+            assert_eq!(
+                verdict(at_interval.map(|_| ())),
+                want,
+                "Interval: {clearance:e} at {arm}"
+            );
+        }
+    }
+
     /// **The mignitude refuses a refusal that carries real endpoints.**
     /// This file has `Real` in scope, so `Real::is_poison` — NaI or
     /// empty only — would compile at `zero_free_lower_bound` and read

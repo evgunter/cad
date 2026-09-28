@@ -119,3 +119,10 @@ lever, and the conditional tolerance), a Negative one sign-certain.
 verdict (`recourse::Definite`) and routes each through
 `certify::recourse`; the pcurve arm can follow the same shape.
 
+The SSI tube's refusal now carries its verdict
+(`SsiError::TubeStraddles { verdict: recourse::Refused, .. }`), and
+`ssi_refusal` in `pcurve_cache.rs` flattens it back to a bare `f64`
+(`FittedMagnitude::CertifiedClearance { certified_clearance:
+verdict.margin(), .. }`): a fresh copy of the same Zero/Negative
+conflation on this carrier.
+

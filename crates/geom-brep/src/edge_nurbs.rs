@@ -146,9 +146,9 @@ pub enum PlaneNurbsRefusal {
         /// The measured bound, in meters.
         value: f64,
     },
-    /// The uniqueness tube's transversality straddles zero — a genuine
-    /// sliver of the operand pair along the locus (F6: escalate, never
-    /// guess).
+    /// The uniqueness tube's transversality is not certified clear of
+    /// the zero band — a genuine sliver of the operand pair along the
+    /// locus at this tolerance (F6: escalate, never guess).
     TubeStraddles {
         /// The verdict on the transversality enclosure's **certified
         /// clearance from zero**, levered — NOT a measurement of how far
@@ -264,10 +264,10 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             ),
             Self::TubeStraddles { verdict, boxes } => write!(
                 f,
-                "the uniqueness tube's transversality enclosure contains zero over {boxes} \
-                 boxes of the chain — a genuine sliver of the plane/NURBS pair along the \
-                 locus; the certificate's proven clearance from zero is {:e} m, which is \
-                 the bound it could prove and not the sliver's own extent",
+                "the uniqueness tube's transversality is not certified clear of the zero band \
+                 over {boxes} boxes of the chain — a sliver of the plane/NURBS pair along the \
+                 locus at this tolerance; the certificate's proven clearance from zero is {:e} \
+                 m, which is the bound it could prove and not the sliver's own extent",
                 verdict.margin()
             ),
             Self::Escalated(diag) => write!(

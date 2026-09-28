@@ -2253,7 +2253,7 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::recourse::{Definite, Reading};
+    use geom_brep::recourse::Reading;
     use std::borrow::Cow;
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
@@ -2263,31 +2263,20 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
         | CertifyError::UnresolvedSurface { .. }
         | CertifyError::IntersectionSameSurface { .. }
         | CertifyError::SeamOnNonPeriodic
-        | CertifyError::IntervalNotForward {
-            verdict: Definite::Negative,
-        }
+        | CertifyError::IntervalNotForward { .. }
         | CertifyError::WindingExceeded
         | CertifyError::ResidualExceeded { .. }
         | CertifyError::PlaneNurbs(P::PcurveFit | P::Limb { .. }) => MISMATCH,
-        CertifyError::IntervalNotForward {
-            verdict: Definite::Zero,
-        } => "it has no length at this tolerance",
         CertifyError::NotTransverse { .. } | CertifyError::PlaneNurbs(P::NotTransverse { .. }) => {
             "its faces are tangent where its description says they cross"
         }
-        CertifyError::NotSecondOrderSeparated {
-            verdict: Definite::Zero,
-            ..
-        } => {
+        CertifyError::NotSecondOrderSeparated { .. } => {
             "its faces agree to second order, so they do not fix where it runs, which its \
              description says they do"
         }
-        CertifyError::NotSecondOrderSeparated {
-            verdict: Definite::Negative,
-            ..
-        } => {
-            "its faces are not certainly curving apart along it, so they do not fix where it \
-             runs, which its description says they do"
+        CertifyError::TubeNotSeparated { .. } => {
+            "its faces are not certainly curving apart along it, so the check cannot prove they \
+             fix where it runs, which its description says they do"
         }
         CertifyError::PlaneNurbs(P::FootPointInconclusive { .. }) => {
             "the check could not locate the curve on its spline face (the projection did not \
@@ -2330,6 +2319,7 @@ fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static
             | CertifyError::WindingExceeded
             | CertifyError::NotTransverse { .. }
             | CertifyError::NotSecondOrderSeparated { .. }
+            | CertifyError::TubeNotSeparated { .. }
             | CertifyError::Escalated { .. }
             | CertifyError::PlaneNurbs(
                 P::NotTransverse { .. }
@@ -12795,15 +12785,14 @@ mod certify_escalation_rows {
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
             ),
-            // A zero span is band-decided; a reversed one, and a winding
-            // past a full turn, are stored contradictions at rest.
+            // A zero span is a defect, not data; a reversed one, and a
+            // winding past a full turn, are stored contradictions at rest.
             (
                 says(CertifyError::IntervalNotForward {
                     verdict: Definite::Zero,
                 }),
-                "it has no length at this tolerance. Recourse: move the geometry so this edge \
-                 is not vanishingly short, or, if this length is intended, tighten the \
-                 tolerance",
+                "its stored description does not match its geometry. There is no way through: \
+                 this is a kernel defect or a damaged file; report it",
             ),
             (
                 says(CertifyError::IntervalNotForward {
@@ -12817,15 +12806,16 @@ mod certify_escalation_rows {
                 "its stored description does not match its geometry. There is no way through: \
                  this is a kernel defect or a damaged file; report it",
             ),
+            // The tangent tube's margin is a lower bound: a Negative is
+            // the certificate's limit, which the lever reaches.
             (
-                says(CertifyError::NotSecondOrderSeparated {
-                    sample: 0,
+                says(CertifyError::TubeNotSeparated {
                     band: Band::new(1.0e-9, 1.0e-8).unwrap(),
                     verdict: Definite::Negative,
                 }),
-                "its faces are not certainly curving apart along it, so they do not fix where it \
-                 runs, which its description says they do. There is no way through: this is a \
-                 kernel defect or a damaged file; report it",
+                "its faces are not certainly curving apart along it, so the check cannot prove \
+                 they fix where it runs, which its description says they do. Recourse: move the \
+                 geometry so the faces curve apart more clearly where they touch",
             ),
             // The lane's tube refusal is the transversality decision's
             // verdict: a Zero clearance is band-decided, and quotes the
