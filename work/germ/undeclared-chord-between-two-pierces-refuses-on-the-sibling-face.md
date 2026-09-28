@@ -2,11 +2,12 @@
 id: undeclared-chord-between-two-pierces-refuses-on-the-sibling-face
 kind: issue
 title: The undeclared (Zero, Zero) chord between two torus pierces refuses on the sibling face, though NoInterior and two certified Elsewhere ends leave it no incidence there
-status: open
+status: dispatched
 opened: 2026-09-25
 refs: [torus-operand-gate-admission]
 priority: P1
 cost: D
+branch: germ/torus-ops-and-chord
 ---
 
 ## What

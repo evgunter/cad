@@ -206,3 +206,27 @@ of `curved-face-containment-lacks-cone-torus`. Filed:
 
 REACH's `implicit.rs` gained `min_radius_of_curvature` (a note is on
 REACH's log).
+
+## 2026-09-28 — round two: two batched lanes
+
+PR 3265 merged, gated both by a full local `ci-local.sh` and by a hosted run
+on the merged head. Per Ev (2026-09-26), related units now ride one PR each
+to spare CI.
+
+- `germ/cone-containment-and-pose-gate` carries
+  `curved-face-containment-lacks-a-cone-arm` and
+  `c5-gate-admits-every-pose-of-an-implemented-pair`: the cone ground
+  `VERBS-CONE` builds on. **Tier: single full review.** The torus arm it
+  mirrors is reviewed and merged.
+- `germ/torus-ops-and-chord` carries
+  `undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`,
+  `torus-onto-the-subtract-and-intersect-roster` and
+  `the-ring-torus-convention-is-checked-three-ways`. **Tier: dual.** It
+  admits the torus to two more ops and relaxes a reduction rule. The last
+  admission (PR 3265) turned two refusals into confident wrong answers, and
+  the class it logged binds this lane: a roster admission owes a sweep of
+  every reader of the roster's refusal.
+
+Held for the next round: `circle-crosses-a-torus-face-with-no-root-lane` and
+`torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
+(both H), and `VERBS-CONE`, behind the cone lane.
