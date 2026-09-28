@@ -8,10 +8,10 @@
 //! `C(θ) = C₀ + ρ(û cos θ + v̂ sin θ)`, `v̂ = n̂ × û`, the torus
 //! `(c, â, R, r)` is the zero set of
 //! `F = (|q|² + R² − r²)² − 4R²(|q|² − (q·â)²)`. Both `S = |q|²` and
-//! `h = q·â` are FIRST harmonics in `θ` (the cross term `2ρ(C₀ − c)·(û
-//! cos θ + v̂ sin θ)` is the only `θ`-dependence of `S`, since `|û cos θ
-//! + v̂ sin θ| = 1`), so `F` is a trigonometric polynomial of degree
-//! TWO. The tangent half-angle `t = tan(φ/2)` therefore turns
+//! `h = q·â` are FIRST harmonics in `θ` (with `e(θ) = û cos θ +
+//! v̂ sin θ`, the cross term `2ρ(C₀ − c)·e(θ)` is the only
+//! `θ`-dependence of `S`, since `|e(θ)| = 1`), so `F` is a
+//! trigonometric polynomial of degree TWO. The tangent half-angle `t = tan(φ/2)` therefore turns
 //! `F·(1 + t²)²` into a polynomial of degree FOUR in `t` — Bézout's
 //! eight for a conic against a quartic surface loses four to the
 //! circular points at infinity, through which both the circle and the
@@ -284,7 +284,8 @@ mod tests {
     fn point(pose: Pose, theta: f64) -> Point3<f64> {
         let (n, u) = (v3::<f64>(pose.n), v3::<f64>(pose.u));
         let v = n.cross(u);
-        Point3::new(pose.c[0], pose.c[1], pose.c[2]) + (u * theta.cos() + v * theta.sin()) * pose.rho
+        Point3::new(pose.c[0], pose.c[1], pose.c[2])
+            + (u * theta.cos() + v * theta.sin()) * pose.rho
     }
 
     /// The torus's own implicit `F` at a point — the oracle's function.
@@ -353,7 +354,11 @@ mod tests {
         let (count, ts) = in_arc(pose, t0, t1);
         let want = oracle(pose, t0, t1);
         assert_eq!(count, want_count, "{label}: certified count over the turn");
-        assert_eq!(ts.len(), want.len(), "{label}: roots in the arc {ts:?} vs {want:?}");
+        assert_eq!(
+            ts.len(),
+            want.len(),
+            "{label}: roots in the arc {ts:?} vs {want:?}"
+        );
         for (a, b) in ts.iter().zip(&want) {
             assert!((a - b).abs() < 1e-9, "{label}: root {a} vs oracle {b}");
             assert!(big_f(point(pose, *a)).abs() < 1e-9, "{label}: F at {a}");

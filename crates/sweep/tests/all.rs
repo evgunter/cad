@@ -507,10 +507,10 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
-#[path = "germ_cone_doors.rs"]
-mod germ_cone_doors;
 #[path = "germ_circle_torus.rs"]
 mod germ_circle_torus;
+#[path = "germ_cone_doors.rs"]
+mod germ_cone_doors;
 #[path = "germ_conic_plane_roots.rs"]
 mod germ_conic_plane_roots;
 #[path = "germ_interior_oval.rs"]

@@ -991,9 +991,10 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// bound), so a definitely one-sided arc clears. What definitely MEETS
 /// the face is split by kind, and the third paragraph below is the
 /// statement of record: a LINE carrier against a CYLINDER wall or a
-/// TORUS is routed through the certified roots and pierces; everything
-/// else —
-/// a tangency, a CIRCLE carrier, a sphere face, an undeclared
+/// TORUS, and a CIRCLE carrier against a TORUS, are routed through the
+/// certified roots and pierce; everything else —
+/// a tangency, a circle against a cylinder or sphere, a sphere face, an
+/// undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
 /// in-band clearance escalates (F6, the same margin's other half).
@@ -1066,9 +1067,17 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// frontier is everything the roots do not cover: a TANGENCY (an
 /// in-band discriminant, or a torus root count the quartic cannot
 /// certify, is not a crossing at any order this lane sees), a CIRCLE
-/// carrier against a wall (a degree-2 trigonometric residual with no
-/// root lane in this tree), a SPHERE face, and a trim the chart door
-/// declines to express.
+/// carrier against a cylinder wall (a degree-2 trigonometric residual
+/// with no root lane in this tree), a SPHERE face, and a trim the chart
+/// door declines to express.
+///
+/// **A CIRCLE against a TORUS takes the same arms as a line**
+/// ([`super::circle_torus`]): its residual is a degree-2 trigonometric
+/// polynomial, a quartic in the tangent half-angle, and the ray lane's
+/// certified ladder answers it. It reaches those arms only from the
+/// circle rung, after the enclosures failed to clear the arc, and never
+/// through a declared-cover arm — those rest on a line's separation
+/// story.
 ///
 /// **What a successful wall pierce reaches next is a typed door, not
 /// a body**: a ring minted in a cylinder face has no join arm (#1291),
@@ -1637,8 +1646,8 @@ fn curved_face_arm<T: Decide>(
                         // that sent us here could only ever have said
                         // "maybe".
                         SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
-                    Ok(CurvedEvent::None)
-                }
+                            Ok(CurvedEvent::None)
+                        }
                         // **`Constant` is NOT a clearance here.** It
                         // reports that the axis-parallel test —
                         // `|d_perp|²/2r`, a SQUARED transverse
@@ -1729,7 +1738,7 @@ fn on_declared_rest_carrier<T: Decide>(
     .any(|pf| declared.verified_one_carrier(x_is, pf, x_is.other(), face))
 }
 
-/// What the certified line × wall roots say about ONE edge span.
+/// What the certified carrier × wall roots say about ONE edge span.
 #[derive(Debug, Clone, Copy)]
 enum SpanVerdict<T: geom_core::Real> {
     /// A definite crossing strictly inside the span, which the trim
@@ -1743,9 +1752,11 @@ enum SpanVerdict<T: geom_core::Real> {
     /// torus), none of them STRICTLY INSIDE the span on this face: each
     /// lies outside the span, sits at one of its ends, or lands on the
     /// carrier outside the face's trim. Distinct certified roots also
-    /// certify that the line does not LIE on the carrier (not a ruling
-    /// of a wall; no line lies on a torus), which is what separates a
-    /// chord from an on-carrier edge. What the
+    /// certify that the edge does not LIE on the carrier (a line: not a
+    /// ruling of a wall, and no line lies on a torus; a circle: a
+    /// certified count needs a pole definitely off the torus, which a
+    /// circle lying on it has nowhere), which is what separates a chord
+    /// from an on-carrier edge. What the
     /// absence of an interior crossing licenses depends on the
     /// endpoints, so the caller decides — an endpoint incidence is
     /// still an event, it is just not an interior one.
@@ -1773,10 +1784,11 @@ enum SpanVerdict<T: geom_core::Real> {
     Unsettled,
 }
 
-/// The line × curved-wall crossing route: solve the certified roots —
-/// the quadratic on a cylinder wall, the quartic on a torus — keep the
-/// roots the EDGE's span carries strictly inside, and place the landing
-/// point in the face's trim.
+/// The curved-wall crossing route: solve the certified roots — a
+/// line's quadratic on a cylinder wall, its quartic on a torus, a
+/// circle's half-angle quartic on a torus — keep the roots the EDGE's
+/// span carries strictly inside, and place the landing point in the
+/// face's trim.
 ///
 /// **Roots at the span's ends are deliberately NOT interior.** A root
 /// the band cannot separate from an endpoint is that endpoint's own

@@ -210,7 +210,11 @@ fn the_lily_seams_cross_each_others_carriers_only_outside_the_windows() {
                 .filter(|(e, f)| seam.contains(e) && walls.contains(f))
                 .count()
         };
-        assert_eq!(pairs(&trace.examined), walls.len(), "{label}: examined against every wall face");
+        assert_eq!(
+            pairs(&trace.examined),
+            walls.len(),
+            "{label}: examined against every wall face"
+        );
         assert_eq!(pairs(&trace.accepted), 0, "{label}: and no event on any");
     }
 }
@@ -271,4 +275,3 @@ fn a_coaxial_circle_clear_of_the_tube_is_no_event() {
     assert!(!seams.is_empty(), "the coaxial seams exist");
     assert!(accepted_against_torus(&a, &b, &seams).is_empty());
 }
-

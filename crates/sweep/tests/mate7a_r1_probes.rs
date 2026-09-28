@@ -132,7 +132,10 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The selection here is by POSITION, not by flushness: it picks the
 /// caps at the fork and lets the op verify them, which is why it is
 /// not a second spelling of the detector's decisions.
-pub(crate) fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
+pub(crate) fn weld_declarations(
+    stem: &Body<f64>,
+    arch: &Body<f64>,
+) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
     let mut decls = BooleanDeclarations::none();
     let mut pairs = 0;

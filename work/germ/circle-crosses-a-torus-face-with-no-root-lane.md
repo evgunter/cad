@@ -2,7 +2,8 @@
 id: circle-crosses-a-torus-face-with-no-root-lane
 kind: issue
 title: A circle edge against a torus face has no root lane: the lily's stem seam refuses CurvedPierceUnsupported at the arch's torus wall
-status: open
+status: review
+branch: germ/circle-torus-root-lane
 opened: 2026-09-26
 priority: P1
 cost: H
@@ -24,3 +25,47 @@ maps the arc into the stem's chart.
 
 GERM: the torus operand lane. `wall_crossing` answers line×torus since
 PR 3265, and this is the circle×torus crossing beside it.
+
+## The lane (branch `germ/circle-torus-root-lane`)
+
+**Measured first.** On the base the lily's stem glue refused
+`CurvedPierceUnsupported { operand: A }` at the stem's INNER equator
+seam (radius 4.94 about `(-5, 0, 0)`) against the arch's tube wall —
+not the arch's outer seam this item's prose names. Once that pair had a
+lane, the next refusal was the arch's outer equator seam (radius 1.152)
+against the stem's wall: the pair this item describes, a STRADDLE (one
+end inside the stem's tube at the weld, one far outside) whose one
+crossing lies on the stem's carrier past the stem face's 22° window.
+
+**The polynomial is a quartic.** `|q|²` and `q·â` are first harmonics
+along a circle, so the torus's implicit `F` composed with the circle is
+a degree-2 trigonometric polynomial; the tangent half-angle gives a
+QUARTIC (Bézout's eight loses four to the circular points). It is
+solved by the ray lane's certified ladder, factored out of
+`solid_contain::line_torus_roots` as `depressed_quartic_roots` with its
+own predicate rows (`bool_circle_torus_*`), in
+`topo::boolean::circle_torus`. The half-angle pole is anchored at the
+arc's antipode and certified off the torus (`bool_circle_torus_pole`),
+which makes the monic division sound and certifies the one unreachable
+parameter is not a root; a coaxial carrier is decided first, in metres.
+`wall_crossing` takes the circle's roots and meters its end gaps as
+arc length; every root is examined.
+
+**The certificate chosen: the roots, not an arc-to-chart map.** The
+chart map cannot clear either lily pair: both arcs END at the weld,
+exactly on the partner face's window edge. The roots sit well clear of
+it (1.7° and 6.5° along the stem seam), and each is placed `Out` by the
+face's own trim — the negative certificate, read through the chart,
+root by root.
+
+**The straddle.** A straddle whose every interior root is placed `Out`,
+with no root at an end, is now no event (`SpanVerdict::Elsewhere`);
+before, the straddle arm read it as a contradiction. That arm is shared
+with lines, so a line straddle moves too: the merged teapot cup's
+subtract now reaches the join (evidence on ZIP's
+`an-edge-lying-in-a-cutter-face-past-its-end-wall-leaves-loose-ends-unpaired`).
+
+**What the lily does now**: wall 1 refuses
+`GermFrameUnsupported { Plane, Torus }` at the join — the stem's weld
+cap against the arch's wall (evidence on CURVED's
+`c5-plane-torus-cone-cylinder-arms`). No body, so nothing to measure.

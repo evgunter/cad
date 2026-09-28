@@ -4083,11 +4083,7 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
         - T::from_f64(27.0) * q_hat.powi(4)
         + T::from_f64(16.0) * p.powi(4) * s
         - four * p.powi(3) * q_hat.powi(2);
-    let disc_sign = decide(
-        rows.disc,
-        Margin::over_lever(disc, lever.powi(11)),
-        band,
-    )?;
+    let disc_sign = decide(rows.disc, Margin::over_lever(disc, lever.powi(11)), band)?;
     let count = match disc_sign {
         Sign::Negative => 2usize,
         Sign::Zero => return Ok(TorusRoots::Uncertain),
@@ -4116,64 +4112,52 @@ pub(super) fn depressed_quartic_roots<T: Decide>(
     // The two quadratic factors of the depressed quartic, as
     // `(y² + α y + β)(y² − α y + γ)`. The biquadratic arm is the
     // `α = 0` one and is taken on its own closed form.
-    let (f0, f1) = if decide(
-        rows.odd,
-        Margin::over_lever(q_hat, lever.powi(2)),
-        band,
-    )? == Sign::Zero
-    {
-        // `y⁴ + p y² + s`: with `α = 0` the factorization's own
-        // relations collapse to `β + γ = p` and `βγ = s`, so the two
-        // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
-        // `X² − pX + s`. Those are the NEGATIVES of the roots of the
-        // quadratic in `y²`, which is the sign this arm is easy to get
-        // backwards and which no in-band case would have caught.
-        let inner = p.powi(2) - four * s;
-        match decide(
-            rows.split,
-            Margin::over_lever(inner, lever.powi(3)),
-            band,
-        )? {
-            Sign::Positive => {}
-            // A repeated `y²`, or none at all with a count that says
-            // otherwise: neither is a certified pair of factors.
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let root = inner.max(T::zero()).sqrt();
-        ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
-    } else {
-        // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
-        // whose constant term is negative, so its LARGEST real root is
-        // positive — the one root whose square root splits the quartic
-        // over the reals. On four real quartic roots the resolvent has
-        // three and the largest is at least a third of their sum; on two
-        // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
-        // (a ray all but perpendicular to the axis), which is where
-        // `cubic_largest_real_root`'s conditioning has to come from its
-        // own construction rather than from the choice. The resolvent
-        // shares the quartic's discriminant, so the branch is the sign
-        // already decided above rather than a second decision.
-        let z = cubic_largest_real_root(
-            two * p,
-            p.powi(2) - four * s,
-            T::zero() - q_hat.powi(2),
-            disc_sign == Sign::Positive,
-        );
-        match decide(
-            rows.split_lead,
-            Margin::over_lever(z, lever),
-            band,
-        )? {
-            Sign::Positive => {}
-            Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
-        }
-        let alpha = z.max(T::zero()).sqrt();
-        let half_gap = q_hat / alpha;
-        (
-            (alpha, (p + z - half_gap) / two),
-            (T::zero() - alpha, (p + z + half_gap) / two),
-        )
-    };
+    let (f0, f1) =
+        if decide(rows.odd, Margin::over_lever(q_hat, lever.powi(2)), band)? == Sign::Zero {
+            // `y⁴ + p y² + s`: with `α = 0` the factorization's own
+            // relations collapse to `β + γ = p` and `βγ = s`, so the two
+            // factors are `y² + β` and `y² + γ` with `β`, `γ` the roots of
+            // `X² − pX + s`. Those are the NEGATIVES of the roots of the
+            // quadratic in `y²`, which is the sign this arm is easy to get
+            // backwards and which no in-band case would have caught.
+            let inner = p.powi(2) - four * s;
+            match decide(rows.split, Margin::over_lever(inner, lever.powi(3)), band)? {
+                Sign::Positive => {}
+                // A repeated `y²`, or none at all with a count that says
+                // otherwise: neither is a certified pair of factors.
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let root = inner.max(T::zero()).sqrt();
+            ((T::zero(), (p + root) / two), (T::zero(), (p - root) / two))
+        } else {
+            // Ferrari: `z = α²` is a root of `z³ + 2p z² + (p² − 4s) z − q̂²`,
+            // whose constant term is negative, so its LARGEST real root is
+            // positive — the one root whose square root splits the quartic
+            // over the reals. On four real quartic roots the resolvent has
+            // three and the largest is at least a third of their sum; on two
+            // it has exactly ONE, and that one can be as small as `≈ q̂²/c1`
+            // (a ray all but perpendicular to the axis), which is where
+            // `cubic_largest_real_root`'s conditioning has to come from its
+            // own construction rather than from the choice. The resolvent
+            // shares the quartic's discriminant, so the branch is the sign
+            // already decided above rather than a second decision.
+            let z = cubic_largest_real_root(
+                two * p,
+                p.powi(2) - four * s,
+                T::zero() - q_hat.powi(2),
+                disc_sign == Sign::Positive,
+            );
+            match decide(rows.split_lead, Margin::over_lever(z, lever), band)? {
+                Sign::Positive => {}
+                Sign::Zero | Sign::Negative => return Ok(TorusRoots::Uncertain),
+            }
+            let alpha = z.max(T::zero()).sqrt();
+            let half_gap = q_hat / alpha;
+            (
+                (alpha, (p + z - half_gap) / two),
+                (T::zero() - alpha, (p + z + half_gap) / two),
+            )
+        };
     // Each factor `y² + a y + c` contributes its own two roots when its
     // discriminant is definitely positive, none when definitely
     // negative. A ZERO discriminant is a double root, which contradicts
