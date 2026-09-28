@@ -532,7 +532,9 @@ pub struct CheckFinding {
 // meaningless for a shell-volume sign, and a kernel arena key names
 // nothing a document user can act on — so that arm renders the
 // margin-payload view (name + numbers, no recourse tail, no key) and
-// states the check's own recourse. StaleExpectation's recourse is
+// ends in the escalating decision's own ending
+// ([`ShellClassifyError::ending`]), or in none where the source is not
+// that decision's. StaleExpectation's recourse is
 // pinned prose riding the story's own "; " joint, so it too answers
 // "" rather than growing a second tail. The subject is the finding's
 // (root, output) attribution.
@@ -643,9 +645,7 @@ impl crate::finding::Finding for CheckFinding {
                  or an instance placed nowhere; if it is deliberate, state the expected count \
                  in ChecksConfig::expected_components"
             }
-            CheckEvidence::Escalated { .. } => {
-                "Recourse: thicken or remove the degenerate geometry, or lower the tolerance"
-            }
+            CheckEvidence::Escalated { source } => source.ending().unwrap_or(""),
             CheckEvidence::NotSeparated { .. } => {
                 "Recourse: usually a feature left dangling as a second product root, so \
                  delete it or feed it downstream; roots meant to TOUCH want a mate, and \

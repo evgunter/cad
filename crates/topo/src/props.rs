@@ -1932,6 +1932,38 @@ impl fmt::Display for ShellClassifyError {
     }
 }
 
+impl ShellClassifyError {
+    /// The one ending of the shell-role decision's refusal
+    /// (`chk_shell_volume_sign`, D4 ¶1 (i)), for the site that reports
+    /// it to append; `None` where this refusal is not that decision's.
+    ///
+    /// The decision passes on either definite sign — positive is an
+    /// outer boundary, negative a void — so it selects a form and
+    /// measures no size a smaller tolerance could decide: its refused
+    /// arms, in band and zero alike, name its geometry lever alone, at
+    /// every reading. A margin that could not be read keeps the lever
+    /// and says what it may mean. A flux refusal ends in its own
+    /// payload's recourse, and a band failure is the run's
+    /// configuration, not this decision.
+    #[must_use]
+    pub fn ending(&self) -> Option<&'static str> {
+        match self {
+            Self::Escalated { source, .. }
+                if matches!(source.margin, geom_core::MarginDiag::Invalid) =>
+            {
+                Some(
+                    "Recourse: thicken or remove the degenerate geometry; an unreadable or \
+                     collapsed margin may indicate a kernel bug worth reporting",
+                )
+            }
+            Self::Escalated { .. } | Self::ZeroVolume { .. } => {
+                Some("Recourse: thicken or remove the degenerate geometry")
+            }
+            Self::Props { .. } | Self::Band { .. } => None,
+        }
+    }
+}
+
 impl std::error::Error for ShellClassifyError {}
 
 /// Per-shell signed volume and outer/void role for every shell of

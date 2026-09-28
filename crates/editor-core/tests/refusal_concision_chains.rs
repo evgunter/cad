@@ -2995,8 +2995,71 @@ fn every_check_finding_renders_within_the_budget() {
     }
 }
 
+/// **The checks window's escalated evidence ends in the decision that
+/// escalated** (D4 ¶1 (i)): the shell-role sign selects a form and
+/// measures no size, so each of its refused arms ends in its lever and
+/// names no tolerance. A source that is not that decision's gets no
+/// ending from the window — only its own payload's — rather than an
+/// invented lever. No row the window writes itself advises lowering the tolerance.
+#[test]
+fn every_escalated_check_finding_ends_in_its_decisions_recourse() {
+    use editor_core::{CheckEvidence, CheckFinding, CheckId};
+    const LEVER: &str = "Recourse: thicken or remove the degenerate geometry";
+    let pinned = [
+        ("Escalated", LEVER.to_owned()),
+        ("Escalated(zero volume)", LEVER.to_owned()),
+        (
+            "Escalated(invalid margin)",
+            format!(
+                "{LEVER}; an unreadable or collapsed margin may indicate a kernel bug worth \
+                 reporting"
+            ),
+        ),
+    ];
+    let rows = check_findings();
+    for (name, finding) in &rows {
+        let text = finding.to_string();
+        // The separation arm forwards the Boolean's own sentence, whose
+        // coincidence ending is `geom_core::COINCIDENCE_RECOURSE`'s to
+        // repair (work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md).
+        if !name.starts_with("SeparationUnavailable/") {
+            assert!(!text.contains("lower"), "{name}: {text}");
+        }
+        if let Some((_, ending)) = pinned.iter().find(|(row, _)| row == name) {
+            assert!(text.ends_with(ending.as_str()), "{name}: {text}");
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&text),
+                1,
+                "{name}: {text}"
+            );
+            assert!(!text.contains("tighten"), "{name}: {text}");
+        }
+    }
+    let seen = pinned
+        .iter()
+        .filter(|(row, _)| rows.iter().any(|(name, _)| name == row))
+        .count();
+    assert_eq!(seen, pinned.len(), "every pinned escalated row is rendered");
+    // A band failure is the run's configuration, not the shell-role
+    // decision: the finding forwards its payload and adds no lever.
+    let band = payloads::band_error();
+    let unowned = CheckFinding {
+        check: CheckId::Connectedness,
+        root: RecipeNodeId(4),
+        output_ix: 0,
+        evidence: CheckEvidence::Escalated {
+            source: topo::ShellClassifyError::Band { error: band },
+        },
+    }
+    .to_string();
+    assert!(unowned.ends_with(&band.to_string()), "{unowned}");
+    assert!(!unowned.contains("thicken"), "{unowned}");
+    assert!(!unowned.contains("lower"), "{unowned}");
+}
+
 fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
     use editor_core::{CheckEvidence as E, CheckFinding, CheckId};
+    use geom_core::{Indeterminate, MarginDiag};
     use payloads::*;
     use topo::{
         BooleanError, CoherenceCondition, CoherenceFinding, EdgeKey, FaceKey, LoopKey,
@@ -3054,6 +3117,21 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
                 CheckId::Connectedness,
                 E::Escalated {
                     source: ShellClassifyError::ZeroVolume { shell },
+                },
+            ),
+        ),
+        (
+            "Escalated(invalid margin)",
+            finding(
+                CheckId::Connectedness,
+                E::Escalated {
+                    source: ShellClassifyError::Escalated {
+                        shell,
+                        source: Indeterminate {
+                            margin: MarginDiag::Invalid,
+                            ..diag()
+                        },
+                    },
                 },
             ),
         ),
