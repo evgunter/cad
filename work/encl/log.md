@@ -1043,3 +1043,14 @@ class of 65 sites is PRED's row.
   - The predicate-name constants are used at the `decide` sites. The chains row now wants one marker on every arm.
   - Four sibling rows filed (encl certify, iso, pcert, props); the pcert one disputes pcert's "delegates soundly" reading.
   - Style review dispatched. The encl sibling `certify-escalation-renders-the-coincidence-menu-unlabelled` arrives with the merge and gets priced then.
+- 2026-09-28 — The PR 3347 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the routing is byte-identical, and the rows go red on the swap, override and whole-render mutations.
+  - Taken:
+    - the new pub name-keyed table's default arm speaks for any name; it moves to explicit arms plus `MissingRecourse`, per BLEND-15 precedent;
+    - the checks window's routes are unpinned;
+    - an unrealistic sample predicate and a leftover probe name;
+    - the pcert dispute recorded on the disputed row;
+    - the lever sentences hoisted to one home;
+    - the CHROME-section claim tempered;
+    - the ~60-field deferral turned into a filed row.
+  - Fix pass sent back to the lane.
