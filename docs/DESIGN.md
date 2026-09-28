@@ -666,9 +666,14 @@ Five commitments:
    approximation limit — an offset fit that stalls, a quadrature budget
    spent, a built curve's residual) names loosening the tolerance as a
    last resort and says the refusal may indicate a kernel bug worth
-   reporting. At adoption the lever is the import's own ε_in (D7),
-   phrased by the import door, and a change to a document's ε reports
-   what it flips at the change itself. The
+   reporting. At adoption, certification runs at ε and a refusal reads
+   as at rest. ε_in is the file's own coincidence distance (D7): it
+   governs interpretation — what the file's data is evidence of, where
+   healing may move geometry by up to O(ε_in) — and its refusals are
+   the import door's, named in ε_in with the value the margin gives; a
+   size below ε_in is not one the file intends, so no refusal offers to
+   keep it. A change to a document's ε reports what it flips at the
+   change itself. The
    three-arm sentence (declare the coincidence / move the geometry /
    tighten the tolerance) is thus the recourse of a decision whose
    refused side is a declarable coincidence; a contact site, whose
