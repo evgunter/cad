@@ -34,26 +34,28 @@ use topo::{Body, ValidationError};
 const PRODUCT: &str = include_str!("../src/product.rs");
 
 /// **A successful gather runs the at-rest gate once.** The gate is
-/// called in exactly two places: on the aggregate, and inside
-/// `attribute_at_rest`, which is called only from the block that the
-/// aggregate's refusal enters. A per-source pass re-inserted before the
-/// graft would be a third call, and one moved out of the refusal block
-/// would leave the block; either reds here. No behavioural row can see
-/// this: an extra pass on the same geometry changes no verdict.
+/// called in exactly two places: on the aggregate (the verdict-keeping
+/// form), and inside `attribute_at_rest`, which is called only from the
+/// arm that the aggregate's refusal enters. A per-source pass
+/// re-inserted before the graft would be a third call, and one moved out
+/// of the refusal arm would leave the arm; either reds here. No
+/// behavioural row can see this: an extra pass on the same geometry
+/// changes no verdict.
 #[test]
 fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
     let what = "editor-core/src/product.rs (code view)";
-    let gates = required_matches(&code, what, "T::gate_at_rest(");
+    let gates = required_matches(&code, what, "T::gate_at_rest");
     assert_eq!(gates.len(), 2, "{what}: the gate is called in two places");
-    let on_aggregate = required_matches(
-        &code,
-        what,
-        "if let Err(errors) = T::gate_at_rest(&aggregate",
-    );
+    let on_aggregate = required_matches(&code, what, "match T::gate_at_rest_kept(aggregate");
     assert_eq!(on_aggregate.len(), 1, "{what}: one aggregate gate");
-    let ItemBody::Body(refusal) = item_body(&code, on_aggregate[0]) else {
-        panic!("{what}: the aggregate gate's `if let` has no block");
+    let ItemBody::Body(arms) = item_body(&code, on_aggregate[0]) else {
+        panic!("{what}: the aggregate gate's `match` has no arms");
+    };
+    let refusal_arm = required_matches(&code[arms.clone()], what, "Err(errors) =>");
+    assert_eq!(refusal_arm.len(), 1, "{what}: one refusal arm");
+    let ItemBody::Body(refusal) = item_body(&code, arms.start + refusal_arm[0]) else {
+        panic!("{what}: the aggregate gate's refusal arm has no block");
     };
     let attribute = required_matches(&code, what, "fn attribute_at_rest");
     assert_eq!(attribute.len(), 1, "{what}: one attribution fn");
@@ -63,8 +65,7 @@ fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
     assert!(
         gates
             .iter()
-            .all(|at| *at == on_aggregate[0] + "if let Err(errors) = ".len()
-                || attribution.contains(at)),
+            .all(|at| *at == on_aggregate[0] + "match ".len() || attribution.contains(at)),
         "{what}: a gate call sits outside the aggregate gate and the attribution fn"
     );
     let calls: Vec<usize> = required_matches(&code, what, "attribute_at_rest(")
@@ -73,7 +74,7 @@ fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
         .collect();
     assert!(
         calls.len() == 1 && refusal.contains(&calls[0]),
-        "{what}: `attribute_at_rest` is called once, from the aggregate's refusal block"
+        "{what}: `attribute_at_rest` is called once, from the aggregate's refusal arm"
     );
 }
 

@@ -96,3 +96,19 @@ provenance-based, and the kernel's docs refuse that.
 So this needs a ruling on the canonical form before it is a unit. The
 owner of the choice is ZIP, with EMIT consulted on the naming
 consequence.
+
+## The collinearity licence is gone (CONTACT-8, 2026-09-28)
+
+`Body::redundant_subdivision_vertex` and its straight-seam gate no
+longer exist. The merge now deletes a vertex only as the free end of a
+shared edge the glue left dangling inside the merged face, at any
+angle, decided by topology alone (`merge_group` in
+`crates/topo/src/merge_faces.rs`). The vertices this row is about are
+BOUNDARY vertices of the merged face (valence 2 between two live edges
+on the slab's bottom and the merged wall), so the pruning does not
+touch them, and the ratified maximal-faces clause in `docs/DESIGN.md`
+now says the merge never removes a vertex from a face's boundary. The
+"collinearity, not provenance" argument quoted under *The design
+question in the fix* has no site left; the question stands as a
+canonical-form ruling, and any boundary-vertex elision it chose would
+re-open the record-carriage class that clause names.

@@ -52,3 +52,31 @@ S-MATE's `keep_out` names this issue's remaining halves — the boolean-routing 
 **Adopted by CURVED** at its opening for dispatch (2026-09-04, Ev's
 in-chat direction): the plan's lane that carries this item is in
 `work/curved/plan.md`.
+
+## Evidence from the wedge-end door audit (2026-09-28)
+
+From `work/gather/every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one.md`,
+executed on its branch. Item 3 is now where the boolean's wedge-end
+door has to go: since PR 3362, tier 3 passes a jet-determinate cusp
+nobody declared, so the refusal has to be the op's.
+
+- **Declared kisses still reach the pierce frontier.** Two unit
+  cylinders kissing externally (`(0,0)` and `(2,0)`), unioned with
+  each side-face pair declared `Tangent`, return
+  `CurvedPierceUnsupported` for every pair. A cylinder kissing a box
+  face along a ruling, declared `Tangent` on the right pair, gives the
+  same result. The declaration verifies and the crossing layer then
+  refuses.
+- **An internal kiss has no declaration.** A subtract of an internally
+  tangent cylinder (`(0,1) r 1` out of `(0,2) r 2`) would leave the
+  profile's lune as a solid. Declared `Tangent` on each of the four
+  side-face pairs, it refuses `ContactContradicted` every time: the
+  C4 `Tangent` table's opposed-senses test admits external kisses
+  only. When item 3 lands, the boolean form of a crescent has no
+  declaration to route through. The profile's `.cusp()` is its only
+  author.
+- The undeclared rows are pinned in
+  `crates/sweep/tests/wedge_end_doors.rs`
+  (`a_boolean_that_would_kiss_a_curved_face_refuses_typed_at_the_op`).
+  That row names the frontier's refusal kinds, so it will go red when
+  this item lands and has to move to the undeclared-tangency refusal.

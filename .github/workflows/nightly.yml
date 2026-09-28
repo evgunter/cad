@@ -365,12 +365,16 @@ jobs:
     needs: gate
     if: needs.gate.outputs.run == 'true'
     timeout-minutes: 180
+    # opt-level 2: this job is execution-bound (the whole suite three times),
+    # and on the hosted runner opt-2 beat opt-1 over build + execution
+    # (docs/perf-data/opt-level, 2026-09-27: 1859 s against 2053 s). The PR
+    # gate stays at opt-1, where the build dominates.
     env:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "2"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "2"
     steps:
       - uses: actions/checkout@v4
         with:
@@ -380,8 +384,7 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build-default
-          save-if: false
+          shared-key: nightly-opt2
       - name: read the nextest pin from ci.yml
         id: nextest
         run: echo "version=$(scripts/ci-pin.py NEXTEST_VERSION)" >> "$GITHUB_OUTPUT"
@@ -600,6 +603,55 @@ jobs:
       - name: clippy (benches — its own cargo root)
         if: '!cancelled()'
         run: cd benches && cargo clippy --benches --examples -- -D warnings
+  ci-latency:
+    name: PR CI latency (alarm)
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+    env:
+      # The alarm: the median wall-clock of the last day's completed PR runs
+      # of ci.yml, queue included, from creation to completion. Raise it
+      # deliberately, with the reason, if the gate has to grow.
+      MAX_MEDIAN_MIN: "20"
+    steps:
+      - name: median PR CI wall-clock over the last 24 h
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+        run: |
+          python3 - <<'PY'
+          import datetime as dt, json, os, statistics, sys, urllib.request
+          now = dt.datetime.now(dt.timezone.utc)
+          since = (now - dt.timedelta(hours=24)).strftime("%Y-%m-%dT%H:%M:%SZ")
+          def get(page):
+              url = (f"https://api.github.com/repos/{os.environ['REPO']}/actions/workflows/ci.yml/runs"
+                     f"?event=pull_request&status=completed&created=%3E%3D{since}&per_page=100&page={page}")
+              req = urllib.request.Request(url, headers={
+                  "Authorization": f"Bearer {os.environ['GH_TOKEN']}",
+                  "Accept": "application/vnd.github+json"})
+              return json.load(urllib.request.urlopen(req))["workflow_runs"]
+          runs, page = [], 1
+          while batch := get(page):
+              runs += batch
+              page += 1
+          t = lambda s: dt.datetime.fromisoformat(s.replace("Z", "+00:00"))
+          mins = sorted((t(r["updated_at"]) - t(r["created_at"])).total_seconds() / 60
+                        for r in runs if r["conclusion"] in ("success", "failure"))
+          limit = float(os.environ["MAX_MEDIAN_MIN"])
+          if not mins:
+              print("no completed PR runs in the last 24 h; nothing to judge")
+              sys.exit(0)
+          med = statistics.median(mins)
+          p90 = mins[min(len(mins) - 1, int(0.9 * len(mins)))]
+          line = f"PR CI wall-clock, last 24 h: n={len(mins)} median={med:.1f} min p90={p90:.1f} min (alarm at median > {limit:g})"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as f:
+              f.write(line + "\n")
+          if med > limit:
+              print(f"::error::median PR CI wall-clock {med:.1f} min exceeds {limit:g} min: "
+                    "look at what the gate runs and at the queue (work/ciw/latency-cut.md)")
+              sys.exit(1)
+          PY
   record:
     name: record that the nightly ran
     runs-on: ubuntu-latest

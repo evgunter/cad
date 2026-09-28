@@ -793,8 +793,11 @@ impl core::error::Error for AssemblyError {}
 /// through, fed the records the mates declared. The door is reached
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
-/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
-/// structurally absent, and its success arm says so
+/// [`topo::validate_pseudomanifold`]'s verdict, reading tier 3's half of
+/// it off the verdict the gather kept on the product's body
+/// ([`topo::AtRestBody::validate_pseudomanifold`]), so the local battery
+/// runs once per aggregate and the census is what this gate adds; at a
+/// dual the gate is structurally absent, and its success arm says so
 /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
 ///
 /// **The pairing obligation (DL3), stated at this door**: at a
@@ -896,7 +899,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     }
     match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(_) => Ok(Assembly {
-            body,
+            body: body.into_body(),
             names,
             contacts,
             minted,

@@ -1163,3 +1163,22 @@ class of 65 sites is PRED's row.
     - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
     - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
     - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.
+- 2026-09-28 — PR 3351 merged (`e39a5c4cc4`, head `a4ef46c0ec`, hosted green). Row closed.
+  - **Round 1** (full review): M1 door-owned reading and `Reading::Adopt`; M2 sign-gated tighten; minors.
+  - **Round 2** (full re-review): MJ-1, a band-decided Zero arm is never "no way through" (only SignCertain is a defect, at rest and at adoption). validate routes through `ending(AtRest)`. Per-reading pair pins. Endings verified by mutation.
+  - **Round 3** (delta review, approve-with-fixes): `Straddles` → `ZeroOrNegative`; validate's own endings only where `ending` is `None`; a literal classification table; `Passes` deleted.
+  - **Filed:** `adoption-certification-has-no-eps-in-lever` (design fork), `validate-own-close-levers-follow-the-d4-recourse-ruling`, `certify-span-and-zero-arms-…` (extended), and ssi `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Seam notes posted to iso, exch, topo, offset, shell, restfront, tcost, tint, pcert and ssi.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` put to Ev as `[ev]` PR 3380. `adoption-certification-has-no-eps-in-lever` has `needs_ev: true`.
+  - First reports: A (build D7's split) and B (delete `Reading::Adopt`, read import as at rest) split on the fix.
+  - Two reconciliation rounds brought them to one final state: read import as at rest now; build the split as filed follow-on work; ε_in is the file's coincidence distance, a lever only of interpretation refusals; an interim door-owned size decision; D4 ¶1's ε_in sentence reworded.
+  - One stated split: whether the coarse-but-correct text names the last resort.
+  - Row 6 recommendation half is committed on the `[ev]` branch. The mapping is on `analysis/design-fork/encl-adoption-eps-in`.
+  - Filing held until Ev answers: the EXCH row for the D7 rebuild stage, and the ENCL follow-through.
+- 2026-09-28 — Dispatched `offset-meters-follow-the-d4-recourse-ruling` (P3/M) on `encl/offset-meters-d4-recourse`, following 3351's pattern. Opus, full review.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` opened on `adoption-certification-has-no-eps-in-lever`. The question: what lever a band-decided certification refusal names at STEP adoption, since the ladder certifies at the kernel ε, not ε_in; plus `TierInvalid`'s reading and an undecided approximation at adoption. Blinding byte is on `analysis/design-fork/encl-adoption-eps-in` (protocol `bb10a4cdd4`). Two designers dispatched concurrently with the same problem statement.
+- 2026-09-28 — PR 3382 merged (`9bf495c768`, head `00fcc7df1a`, hosted green). Row `offset-meters-follow-the-d4-recourse-ruling` closed.
+  - **Design:** shared `geom_brep::recourse` (`SizedDecision`, `StoredDefinite`, `Classified`), with certify delegating to it. The meters use a closed `Meter` type and carry a `Refused::{Zero(Classified), Negative}` verdict.
+  - **Full review:** approve-with-fixes. It checked D4 conformance on every arm, and certify byte-identical over 660 rows apart from the disclosed note.
+  - **Fix pass:** verdict-keyed at-rest leads; a report clause on the zero floor (`at_zero`); the "unreadable or collapsed" note; pins that tell floor from thinness; wider escalation pins; the D4 paraphrase in rows replaced by a pointer.
+  - **Filed on other slates:** contact, paths, band, ssi, props, plus encl `checks-escalated-evidence-says-lower-the-tolerance`. Seam notes posted.

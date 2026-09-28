@@ -940,26 +940,31 @@ fn name_boolean_edges<T: Decide>(
     // A face's descent for CHORD purposes: a plain face descends as
     // itself; a MERGED face (M4 PR 5, N3 live) reads through to its
     // unique constituent on side `want` — the seam's mint-time operand
-    // identity survives the glue. Several same-side constituents
-    // refuse.
-    let chord_descent = |f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
-        let Some(ds) = merged_descents.get(&f) else {
-            return descend_face(f);
+    // identity survives the glue. Several same-side constituents are a
+    // legal body no rule reads — a declared union's merge can glue
+    // faces of two members of one assembly into one face — and refuse
+    // as the missing rule (`NamingError::MergedChordConstituents`).
+    let chord_descent =
+        |e: EdgeKey, f: FaceKey, want: topo::Operand| -> Result<OpSide<FaceKey>, NamingError> {
+            let Some(ds) = merged_descents.get(&f) else {
+                return descend_face(f);
+            };
+            // Constituent fragments of ONE operand face share a
+            // descent — dedup before the uniqueness demand.
+            let mut hits: Vec<OpSide<FaceKey>> =
+                ds.iter().filter(|d| d.operand() == want).copied().collect();
+            hits.sort_unstable();
+            hits.dedup();
+            match hits.as_slice() {
+                [] => Err(bug("merged face lacks the needed operand-side constituent")),
+                [one] => Ok(*one),
+                several => Err(NamingError::MergedChordConstituents {
+                    edge: e,
+                    face: f,
+                    several: several.len(),
+                }),
+            }
         };
-        // Constituent fragments of ONE operand face share a
-        // descent — dedup before the uniqueness demand.
-        let mut hits: Vec<OpSide<FaceKey>> =
-            ds.iter().filter(|d| d.operand() == want).copied().collect();
-        hits.sort_unstable();
-        hits.dedup();
-        match hits.as_slice() {
-            [] => Err(bug("merged face lacks the needed operand-side constituent")),
-            [one] => Ok(*one),
-            _ => Err(bug(
-                "merged face has several same-side constituents at a seam edge",
-            )),
-        }
-    };
     // **A chord between two MERGED faces.** Each face has a constituent
     // on both sides, so neither face says which side to read through
     // to. `own` is the side the chord's own key descends to, and the
@@ -1040,19 +1045,19 @@ fn name_boolean_edges<T: Decide>(
             (false, false) => (descend_face(faces[0])?, descend_face(faces[1])?),
             (true, false) => {
                 let d1 = descend_face(faces[1])?;
-                (chord_descent(faces[0], d1.operand().other())?, d1)
+                (chord_descent(e, faces[0], d1.operand().other())?, d1)
             }
             (false, true) => {
                 let d0 = descend_face(faces[0])?;
-                (d0, chord_descent(faces[1], d0.operand().other())?)
+                (d0, chord_descent(e, faces[1], d0.operand().other())?)
             }
             (true, true) => {
                 let Some(side) = own else {
                     return Err(NamingError::MergedChord { edge: e });
                 };
                 let (d0, d1) = (
-                    chord_descent(faces[0], side)?,
-                    chord_descent(faces[1], side)?,
+                    chord_descent(e, faces[0], side)?,
+                    chord_descent(e, faces[1], side)?,
                 );
                 let (op, f0) = d0.of(a, b);
                 let (_, f1) = d1.of(a, b);

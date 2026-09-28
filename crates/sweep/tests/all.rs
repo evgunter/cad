@@ -513,6 +513,8 @@ mod germ_cone_doors;
 mod germ_conic_plane_roots;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]
@@ -750,6 +752,9 @@ mod census_containment_cause;
 
 #[path = "wire_loft_end_profile_lift.rs"]
 mod wire_loft_end_profile_lift;
+
+#[path = "wedge_end_doors.rs"]
+mod wedge_end_doors;
 
 #[path = "review_recourse_roster_r1_probes.rs"]
 mod review_recourse_roster_r1_probes;

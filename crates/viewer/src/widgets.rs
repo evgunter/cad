@@ -373,9 +373,8 @@ pub(crate) fn number_text(value: f64, decimals: core::ops::RangeInclusive<usize>
 /// [`install_number_formatter`], which can carry the render as a
 /// context default and cannot carry this, because `egui::Style` has a
 /// `number_formatter` and no parser. There is no such site:
-/// `scripts/gates/viewer-numeric-field-door.sh` refuses one, and this
-/// file is its one home because the constructor and the rows that
-/// hold what it adds are both here.
+/// `roster_tests::no_numeric_field_bypasses_the_door` refuses one
+/// anywhere in the crate outside this file.
 pub(crate) fn number_field<Num: egui::emath::Numeric>(
     value: &mut Num,
     speed: f64,
@@ -444,7 +443,7 @@ pub(crate) fn number_field<Num: egui::emath::Numeric>(
 /// is the row that pins what the difference IS.
 ///
 /// **So the twelfth site is refused rather than relied on**:
-/// `scripts/gates/viewer-numeric-field-door.sh` reds on a bare
+/// `roster_tests::no_numeric_field_bypasses_the_door` reds on a bare
 /// `egui::DragValue` anywhere under `crates/viewer/src` outside this
 /// file. The floor stays — it is what makes a site that slips past a
 /// gate revision show the right text anyway — but *every numeric
@@ -1719,6 +1718,34 @@ mod roster_tests {
              paragraph name these files; a call site that is not here, or one \
              that reached the name through a `use` rather than the qualified \
              path, makes both stale"
+        );
+    }
+
+    /// **Every numeric field goes through [`super::number_field`].** A bare
+    /// `egui::DragValue` shows the right text but commits its own render
+    /// back when a click leaves it; the door carries the precision rule
+    /// and the echo veto (`field_tests::a_bare_field_commits_a_render_the_door_would_refuse`
+    /// pins the difference). This file is the door's home and holds its
+    /// harness's bare fields, so it is the one file not scanned. Code only,
+    /// test modules included; `egui::Slider` is not matched (the crate has
+    /// none).
+    #[test]
+    fn no_numeric_field_bypasses_the_door() {
+        let src = test_utils::source::crate_dir(env!("CARGO_MANIFEST_DIR")).join("src");
+        let bare: Vec<String> = test_utils::source::rust_sources(&src)
+            .into_iter()
+            .filter(|path| *path != src.join("widgets.rs"))
+            .filter(|path| {
+                let text = test_utils::source::code_only(
+                    &std::fs::read_to_string(path).expect("a source file"),
+                );
+                text.contains("DragValue::new") || text.contains("DragValue::from_get_set")
+            })
+            .map(|path| path.display().to_string())
+            .collect();
+        assert!(
+            bare.is_empty(),
+            "a bare egui::DragValue outside widgets.rs; build it with widgets::number_field: {bare:?}"
         );
     }
 }
