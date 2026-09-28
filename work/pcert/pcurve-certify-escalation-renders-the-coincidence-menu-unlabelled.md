@@ -28,7 +28,8 @@ offer "declare the coincidence", while `topo::validate`'s
 C::Escalated { cause, .. }`) through
 `own_close(&cause.margin, "Recourse: lower the tolerance")` — the
 boundary's own fit, where a declaration has no object — and a poisoned
-margin to the defect ending.
+margin to the defect ending. Both arms also open with the stage prefix
+`pcurve certification:`.
 `recourse-chain-stops-at-pcurve-certify-error` counts these two arms as
 "delegating soundly" because they carry the menu; that reading is the
 one this row disputes.
