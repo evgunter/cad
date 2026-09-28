@@ -401,7 +401,7 @@ which is what actually moves the number.
 | boolean/contain.rs (`boundary_pre_pass`, a conic's `End`) | bool_contact_arc_end_vertex | the distance from a conic edge's carrier end to a stored vertex — any in-band value escalates, and a definite one escalates too (a body certified at a coarser band carries up to that band's ε) | m | OK (CONTACT-4) |
 | boolean/contain.rs (`boundary_pre_pass`, through `splitting::containment::LoopEdge::contact`) | bool_contact_arc_span / bool_contact_arc / bool_contact_arc_end / bool_contact_arc_trim | `(τ − w)` levered by the smaller semi-axis. A CIRCLE: the distance from the circle `√(((ρ − 1)·r)² + axial²)` (the quantity `point_on_circle` meters under this name), the unit-circle chord to either end and the chordal-defect sum, each levered by the radius — exact. An ELLIPSE: the distance bounded on both sides, `on` decided on the upper bound (a point of the ellipse one Newton step and a radial snap from `q`) for ON and on the lower bound `2|F|/(g + √(g² + 4|F|/b²))` for OFF; `end` the exact distance from `q` to the end point; `trim` the chordal defect of the foot levered by the LARGER semi-axis, so it bounds the arc length to the nearer end from above | m | OK (CONTACT-4) |
 | boolean/insert.rs:197 | bool_strut_order | (unit germ dir diff)·(unit e_dir) × min sector arm | m | FIXED (was dimensionless); verified CODE-READ + suites-green only — the rare germ-fan lane fires in none of the unit's live twin/probe configs (review MINOR-2, stated) |
-| boolean/insert.rs:262 | bool_germ_line | sin(n̂_a,n̂_b) × min sector arm | m | OK |
+| boolean/insert.rs (`germ_dir`) | bool_germ_line | sin(n̂_a,n̂_b) × the farther reach of the two sectors' bounds (a line edge's chord, a curved edge's extent, a bisector's arm) | m | FIXED (CONTACT-9; was the shorter sector arm, which called a pair `pair_search` had found not coplanar coplanar) |
 | boolean/join.rs:567/803 | bool_join_chord | germ-site chord LENGTH (the degeneracy gate: Zero ⇒ coincident sites, no polygon edge) | m | OK |
 | boolean/join.rs:603/817 | bool_join_nearest | a DIFFERENCE of two chord lengths (nearest-candidate selection) | m | OK |
 | boolean/join.rs:743/744 | bool_join_facing | unit germ dir · chord (cos × separation) | m | FIXED (was bare cosine, `/dist`) |
@@ -414,14 +414,16 @@ which is what actually moves the number.
 | boolean/plane_eq.rs:174/233 | bool_plane_parallel | sin(n̂1,n̂2) × arm | m | OK |
 | boolean/plane_eq.rs:190/252 | bool_plane_orient | cos(n̂1,n̂2) × arm | m | FIXED (was bare cosine) |
 | boolean/plane_eq.rs:203/265 | bool_plane_offset | signed-offset difference | m | OK |
-| boolean/recl.rs:224–748 | side_code / bool_dir_same / bool_ee_collinear | cos/sin × sector arms | m | OK |
+| boolean/recl.rs:224–748 | side_code / bool_dir_same / bool_ee_collinear | side_code as in the sectors.rs row (`flank_key`, edge-edge membership); cos/sin × sector arms for the rest | m | OK |
+| boolean/recl.rs (`resolve_bisector_graze`) | bool_sector_bisector_side | refusal only: a grazing bisector between keys definitely on one side, reachable only at K ≤ 2 (argument at `vtxfac`'s on-edge resolution) | — | OK (CONTACT-9) |
 | boolean/reduce.rs:548–802 | bool_vertex_face_side / circle & line clearances | plane residuals, /2r residual extremes, sagitta dips | m | OK |
 | boolean/reduce.rs (`bool_circle_curved_clearance`'s ARC half) | bool_circle_curved_clearance | `geom_brep::circle_arc_residual_range`: a hull of `implicit_residual` samples (m) widened by the chord-dip charge `f2·h²/8`, `f2` in **m/rad²** and `h` in rad — a residual's second derivative with respect to an ANGLE, so the product is a length and the comparand stays a length | m | OK |
 | geom-brep/implicit.rs (`circle_residual_curvature_bound`, `circle_arc_residual_range`) | — (no funnel call; the comparand is built here and decided at the row above) | `f2` is `|(d²)″|/2r`: `(d²)″` is m²/rad² over the `2r` linearization, giving **m/rad²**; the returned range is m | m/rad² and m | OK |
 | boolean/rest.rs:401 | bool_join_chord | germ-site chord LENGTH | m | OK |
 | boolean/rest.rs:411/413 | bool_join_facing | unit dir · chord | m | FIXED (was bare cosine) |
 | boolean/rest.rs:421 | bool_join_nearest | a DIFFERENCE of two chord lengths | m | OK |
-| boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel / side_code | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified) | m | OK |
+| boolean/sectors.rs:342–433 | bool_sector_within / bool_dir_* / bool_faces_parallel | sin/cos × sector arm (arm = shorter bounding chord, m; every caller passes unit dirs — verified); `bool_faces_parallel` only proposes coplanar, which also needs all four side codes On | m | OK |
+| boolean/sectors.rs (`side_code`) | bool_chord_side / enters_material / bool_pierce_sector_side_curved | a LINE bound: its far vertex's signed distance from the plane through the base vertex (`sector_shape::point_side`); a curved bound: cos × its own extent; a bisector: cos × its sector's arm; the curvature charge first-order minus sagitta at the arm or at the reach | m | FIXED (CONTACT-9; every bound was cos × the shorter sector arm, so a long line edge read On while its far end stood hundreds of bands off) |
 | boolean/solid_contain.rs:438 | bool_wall_trim_period | (τ−width)·radius | m | OK |
 | boolean/solid_contain.rs:462 | bool_wall_trim (cone term) | (cosΔ−cos h)·radius — effective arm sin(h)·r, collapses for narrow windows | m | FLAG F8 |
 | boolean/solid_contain.rs (`wall_outline`) | bool_wall_iso_meridian / bool_wall_iso_rim / bool_wall_section_tilt | sin or cos of unit vectors × radius; radius and off-axis differences | m | OK |
@@ -438,7 +440,8 @@ which is what actually moves the number.
 | boolean/solid_contain.rs:763 | bool_ray_cylinder_disc | disc/(2r)² (self-documented, F3 of PR 9c) | dimensionless | FLAG F2 |
 | boolean/solid_contain.rs:792 | bool_point_in_solid_denom (cylinder hit-outward — the pre-migration row mislabeled it "sphere"; the sphere lane reads outward structurally and its disc is over_lever at :850) | (unit·radial)/radius | dimensionless | FLAG F2 |
 | boolean/solid_contain.rs:850/903 | bool_ray_sphere_disc / at_infinity | disc/2r (over_lever); volume/area (V/A mean thickness, over_lever — a genuine containment decision, not a backstop) | m | OK |
-| boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | cos/sin × sector arm | m | OK |
+| boolean/vtxfac.rs:106/113/453 | side_code / bool_sector_coplanar / bool_germ_line | side_code as in the sectors.rs row; sin × sector arm, which only proposes coplanar (both bounds must also read On) | m | OK |
+| boolean/vtxfac.rs (on-edge resolution) | bool_sector_bisector_side | refusal only: a bisector reading On between two readings definitely on one side, reachable only at K ≤ 2 | — | OK (CONTACT-9) |
 | census.rs:313–599 | pm_census_vv/ve/vf/ef gaps, spans, residuals | point/line/plane distances and spans (unit dirs verified) | m | OK |
 | census.rs:614–746 | pm_census_span_* / ee_gap / ee_span / ee_overlap | span arithmetic (m) | m | OK |
 | census.rs:666 | pm_census_ee_parallel | sin(unit dirs) × min(edge lengths) | m | FIXED (was bare sine) |

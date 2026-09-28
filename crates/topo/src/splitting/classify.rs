@@ -85,7 +85,7 @@ pub(super) fn classify_vertices<T: Decide>(
         let p = *body
             .get_point(vertex.point)
             .ok_or(SplitReduceError::CorruptOperand { vertex: vertex_key })?;
-        let margin = Margin::of((p - plane.origin).dot(plane.normal));
+        let margin = crate::sector_shape::point_side(plane.origin, plane.normal, p);
         let side = match decide("split_vertex_side", margin, band) {
             Ok(Sign::Negative) => PlaneSide::Below,
             Ok(Sign::Positive) => PlaneSide::Above,

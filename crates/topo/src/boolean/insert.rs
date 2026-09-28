@@ -338,8 +338,14 @@ fn germ_dir<T: Decide>(
     band: Band,
 ) -> Result<Vec3<T>, BooleanError> {
     let int = sa.normal.vec().cross(sb.normal.vec());
-    let arm = sa.arm.min(sb.arm);
-    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), arm), band) {
+    // Levered at the farther reach of the two sectors: the displacement
+    // their planes' tilt implies where the sectors' own geometry ends.
+    // A pair that `pair_search` found not coplanar has a bound reading
+    // definitely off the other plane at its reach, and that reading is
+    // at most `|n_a × n_b|` times the reach, so this gate agrees with
+    // it; the shorter arm would call such a pair coplanar here.
+    let reach = sa.span().max(sb.span());
+    match crate::validate::decide("bool_germ_line", Margin::levered(int.norm(), reach), band) {
         Ok(Sign::Positive) => {}
         Ok(_) => {
             return Err(BooleanError::ClassificationInvariant {
@@ -675,6 +681,8 @@ mod tests {
                     end,
                     start_edge: true,
                     end_edge: true,
+                    start_reach: crate::boolean::sectors::Reach::Bisector(1.0),
+                    end_reach: crate::boolean::sectors::Reach::Bisector(1.0),
                     face: crate::entity::FaceKey::default(),
                     normal,
                     arm: 1.0,

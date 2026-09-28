@@ -82,6 +82,8 @@ struct Entry {
     he: HalfEdgeKey,
     is_edge: bool,
     class: SideCode,
+    /// The class is Delta 2's lump, not this bound's own reading.
+    lumped: bool,
 }
 
 /// Classifies `contact.vertex` (in the piercing body) against
@@ -175,7 +177,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         entries.push(Entry {
             he: s.he,
             is_edge: s.end_edge,
-            class: side_code(s.end, n_pierced, s.arm, pierced_lever, band)?,
+            class: side_code(s.end, s.end_reach, n_pierced, s.arm, pierced_lever, band)?,
+            lumped: false,
         });
     }
 
@@ -183,12 +186,23 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
     // "Coplanar" is against the pierced face's TANGENT plane at `p`,
     // whose normal is `n_pierced` — the same vector `face_plane` hands
     // back on a planar face, so the planar lane's margin is unmoved.
+    //
+    // The normals' parallelism at the arm only PROPOSES coplanarity:
+    // lumping overwrites both bounds' readings, so both must read On
+    // too, each at its reach — a line bound at its far vertex, in
+    // metres. A face whose normal agrees at the shorter chord can
+    // still stand thousands of bands off at a long edge's far end,
+    // and its own readings then say so.
+    let read: Vec<SideCode> = entries.iter().map(|e| e.class).collect();
     for (k, s) in sectors.iter().enumerate() {
         let m = Margin::levered(s.normal.vec().cross(n_pierced.vec()).norm(), s.arm);
         match decide("bool_sector_coplanar", m, band) {
             Ok(Sign::Zero) => {}
             Ok(_) => continue,
             Err(diag) => return Err(BooleanError::Escalated { diag }),
+        }
+        if read[k] != SideCode::On || read[(k + 1) % n] != SideCode::On {
+            continue;
         }
         let class = declared.class_of(piercing, s.face, pierced_op, contact.face);
         // Declared-`Tangent` (distinct carriers touching): the lump
@@ -211,6 +225,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             )?;
             entries[k].class = lump;
             entries[(k + 1) % n].class = lump;
+            entries[k].lumped = true;
+            entries[(k + 1) % n].lumped = true;
             continue;
         }
         // The conformal (carrier) lump. The sector's oriented carrier
@@ -314,6 +330,8 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
         let lump = eq15_3_lump(op, piercing, rel);
         entries[k].class = lump;
         entries[(k + 1) % n].class = lump;
+        entries[k].lumped = true;
+        entries[(k + 1) % n].lumped = true;
     }
 
     // On-edge resolution (module docs; the deliberate divergence).
@@ -324,12 +342,41 @@ pub(super) fn classify_vertex_on_face<T: Decide>(
             });
         }
     }
+    //
+    // An edge entry's On is a real one: a line chord's far vertex is
+    // within the band of the plane (`side_code`, `Reach::Chord`), so
+    // the edge lies in it to the tolerance and every resolution below
+    // is ε-true of it.
+    //
+    // A bisector entry's On is a direction's, levered at its sector's
+    // arm, and it is resolved only where its code changes no topology.
+    // Its two neighbours are its physical sector's real bounds. Mixed,
+    // the bisector's code only picks which twin of that one sector
+    // holds the transition; the fan it moves crosses no edge. Both
+    // definitely on one side S (readings, not Delta 2 lumps), the
+    // bisector cannot read Zero when K > 2: with `a` the arm, which is
+    // the shorter bound's length, and `s` that bound's slope, the
+    // bound's own reading gives `s·a ≥ K·zero`. A reflex bisector
+    // `−(â + b̂)/|â + b̂|` then reads at least `(s_a + s_b)·a/2 ≥
+    // K·zero/2`. A straight-band one, `n × b̂`, reads at least `a·cos δ`
+    // (δ, the deviation from π, has `sin δ·a` inside the band). So a
+    // Zero there is the ambiguity band's (K ≤ 2), and the reflex case
+    // would read the wrong side. It refuses, typed, rather than resolve.
     for k in 0..n {
         if entries[k].class != SideCode::On {
             continue;
         }
-        let prev = entries[(k + n - 1) % n].class;
-        let next = entries[(k + 1) % n].class;
+        let (before, after) = (&entries[(k + n - 1) % n], &entries[(k + 1) % n]);
+        let (prev, next) = (before.class, after.class);
+        if !entries[k].is_edge && !before.lumped && !after.lumped && prev == next {
+            return Err(BooleanError::Escalated {
+                diag: geom_core::Indeterminate {
+                    margin: geom_core::MarginDiag::Invalid,
+                    band,
+                    predicate: Some("bool_sector_bisector_side"),
+                },
+            });
+        }
         entries[k].class = match (prev, next) {
             (SideCode::Out, SideCode::Out) => SideCode::Out,
             _ => SideCode::In,

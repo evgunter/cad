@@ -376,9 +376,14 @@ fn flank_key<T: Decide>(
     band: Band,
 ) -> Result<SideCode, BooleanError> {
     let s = &own[idx];
-    let bound = if key_from_start { s.start } else { s.end };
+    let (bound, reach) = if key_from_start {
+        (s.start, s.start_reach)
+    } else {
+        (s.end, s.end_reach)
+    };
     side_code(
         bound,
+        reach,
         ref_normal,
         s.arm,
         super::sectors::NO_CURVATURE(),
@@ -604,6 +609,9 @@ pub(super) fn recl_edges<T: Decide>(
     Ok(())
 }
 
+/// A flanker's representative direction and the reach behind it.
+type Rep<T> = (Vec3<T>, super::sectors::Reach<T>);
+
 /// Edge-edge coincidence — the DERIVED membership rule (subsumes TOG's
 /// angular sort and its Table I ties): around the common line, each
 /// solid's material occupies the dihedral wedge between its two
@@ -640,9 +648,18 @@ fn resolve_edge_edge<T: Decide>(
     let fb_e = (fb_s + 1) % n_b;
     let axis = a_sectors[fa_s].start.normalize();
     let arm = a_sectors[fa_s].arm.min(b_sectors[fb_s].arm);
-    let rep = |s: &BoolSector<T>, other_is_end: bool| -> Vec3<T> {
-        let v = if other_is_end { s.end } else { s.start };
-        (v - axis * v.dot(axis)).normalize()
+    // A flanker's representative: its noncoplanar bound projected ⊥
+    // the common line, with the bound's reach — a line bound's side of
+    // the other solid's flanking plane is its far vertex's, in metres
+    // (`side_code`); that plane holds the common line, so the far
+    // vertex's side is the projected direction's.
+    let rep = |s: &BoolSector<T>, other_is_end: bool| -> Rep<T> {
+        let (v, reach) = if other_is_end {
+            (s.end, s.end_reach)
+        } else {
+            (s.start, s.start_reach)
+        };
+        ((v - axis * v.dot(axis)).normalize(), reach)
     };
     let a_fl = [
         (fa_s, rep(&a_sectors[fa_s], true)),
@@ -656,8 +673,8 @@ fn resolve_edge_edge<T: Decide>(
     // Membership of one flanker's rep inside the other solid's wedge.
     let membership = |own_is_a: bool,
                       own_idx: usize,
-                      w: Vec3<T>,
-                      other: &[(usize, Vec3<T>)]|
+                      (w, reach): Rep<T>,
+                      other: &[(usize, Rep<T>)]|
      -> Result<bool, BooleanError> {
         let (own_secs, other_secs): (&[BoolSector<T>], &[BoolSector<T>]) = if own_is_a {
             (a_sectors, b_sectors)
@@ -670,9 +687,10 @@ fn resolve_edge_edge<T: Decide>(
             (b_body, a_body)
         };
         let mut inside = true;
-        for &(oi, ow) in other {
+        for &(oi, (ow, _)) in other {
             match side_code(
                 w,
+                reach,
                 other_secs[oi].normal,
                 arm,
                 super::sectors::NO_CURVATURE(),
@@ -936,6 +954,22 @@ fn resolve_bisector_graze<T: Decide>(
     };
     let k1 = flank_key(own_secs, f_s, false, ref_sector.normal, band)?;
     let k2 = flank_key(own_secs, f_e, true, ref_sector.normal, band)?;
+    // Both outer keys definitely on one side: the grazing bisector
+    // cannot read Zero when K > 2 (the argument at `vtxfac`'s on-edge
+    // resolution — the keys are the physical sector's own bounds, read
+    // at their far vertices, and the bisector at the sector's arm), and
+    // a reflex sector with both bounds on one side does cross the
+    // plane. So this Zero is the ambiguity band's, and it refuses
+    // rather than read "not crossed".
+    if k1 == k2 && k1 != SideCode::On {
+        return Err(BooleanError::Escalated {
+            diag: geom_core::Indeterminate {
+                margin: geom_core::MarginDiag::Invalid,
+                band,
+                predicate: Some("bool_sector_bisector_side"),
+            },
+        });
+    }
     let crossing = matches!(
         (k1, k2),
         (SideCode::In, SideCode::Out) | (SideCode::Out, SideCode::In)

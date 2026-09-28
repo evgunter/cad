@@ -236,7 +236,11 @@ pub enum SplitJoinError {
         ring: LoopKey,
     },
     /// Loose ends survived the sweep — the null-edge set does not
-    /// close into section polygons (kernel bug or corrupt reduction).
+    /// close into section polygons. Every line bound's side is read at
+    /// its far vertex, so a vertex's germs agree with the sections that
+    /// reach it; what can still disagree is a curved edge whose
+    /// departure is read to first order (a tangency at a vertex), a
+    /// corrupt reduction, or a kernel defect.
     UnpairedLooseEnds {
         /// How many halves remained.
         count: usize,
@@ -424,7 +428,7 @@ impl SplitJoinError {
             ),
             Self::UnpairedLooseEnds { count } => write!(
                 f,
-                "{count} loose null-edge halves survived the join sweep (kernel bug)"
+                "{count} section ends found no partner: what was read at a vertex does                  not close into section polygons. Where a curved edge touches the other                  solid tangentially at a vertex, its side is read to first order and may                  be the cause; otherwise this is a kernel defect"
             ),
             Self::SectionLoopMixed { face } => write!(
                 f,
