@@ -1072,3 +1072,4 @@ class of 65 sites is PRED's row.
     - two trivial efficiency items.
   - Declined: import-style taste.
   - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
+- 2026-09-28 — PR 3347 merged (`2e913b87d0`), hosted all green on `695e7a39e6`. Closed `offset-meter-escalation-renders-the-coincidence-menu-unlabelled`. Seam notes posted on the restfront, tcost and tint logs.
