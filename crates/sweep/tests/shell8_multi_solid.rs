@@ -22,10 +22,11 @@ use topo::{Body, ShellError, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume as v;
+use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{
     beside, bits, deep_dump, edge_rows, outer_and_void_of, points, solid_of, tol, top_chart, volume,
 };
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Row 2 — two disjoint boxes in one body

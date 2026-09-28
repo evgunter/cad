@@ -21,9 +21,9 @@ use topo::{Body, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::pcurve_rows::rows;
+use crate::common::shell_operands::{tube, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, tol};
-use crate::shell9_rows::rows;
-use crate::verbs_shell::{tube, vessel};
 
 fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

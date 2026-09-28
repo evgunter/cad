@@ -21,8 +21,9 @@ use topo::{
     Body, FaceKey, ShellError, ShellKey, ShellRole, VoidContainment, VoidEvidence, insert_void,
 };
 
-use crate::verbs_shell::{prism, roles_by_solid, v};
-use sweep::test_support::brick;
+use crate::common::oracles::box_volume as v;
+use crate::common::shell_operands::roles_by_solid;
+use sweep::test_support::{brick, corners, prism};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -214,7 +215,7 @@ fn r1p3_diagonal_voids_refuse_at_the_grown_footprint_gate() {
 #[test]
 fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
     let s_bend = prism(
-        &[
+        corners(&[
             (0.0, 0.0),
             (1.0, 0.0),
             (1.0, 0.2),
@@ -223,8 +224,9 @@ fn r1p3_outer_shell_s_bend_refuses_above_the_wall_and_builds_below_it() {
             (0.8, 0.5),
             (0.8, 0.3),
             (0.0, 0.3),
-        ],
+        ]),
         1.0,
+        tol(),
     );
     let (shell, _) = s_bend.shells().next().unwrap();
     let riser_r = face_on(&s_bend, shell, (1.0, 0.0, 0.0), 1.0); // x = 1, y ∈ [0, 0.2]

@@ -13,16 +13,12 @@ use sweep::Revolution;
 use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
+use super::common::bulge;
 use super::common::charts::hollow_moves;
 use super::common::latitude_seam::two_arc_sphere;
+use super::common::shell_operands::vessel;
 use super::shell7_common::{drum, polyline, revolved, tol};
 use super::shell8_common::beside;
-use super::verbs_shell::vessel;
-
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
 
 /// `sf2b_axial`'s sphere-zone vase.
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {

@@ -85,6 +85,9 @@ fn cone_face(body: &Body<f64>) -> FaceKey {
         .expect("the fixture has a cone face")
 }
 
+/// The body's whole `Debug`, for an equality between two builds.
+/// NOT `common::bitdump::dump`, which writes a curated bit-faithful
+/// subset for a file diff.
 fn dump(body: &Body<f64>) -> String {
     format!("{body:?}")
 }

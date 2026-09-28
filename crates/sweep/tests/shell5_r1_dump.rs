@@ -113,7 +113,7 @@ fn dump(label: &str, out: &Result<topo::Shelled<f64>, topo::ShellError<f64>>) {
                 "[dump] {label}: tier3={:?}",
                 topo::validate_geometric(b, Tol::witness())
             );
-            super::shell9_rows::print_rows(label, b);
+            crate::common::pcurve_rows::print_rows(label, b);
         }
     }
 }

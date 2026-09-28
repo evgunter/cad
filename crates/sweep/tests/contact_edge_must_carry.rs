@@ -71,7 +71,7 @@ use geom_brep::{
     CERT_SAMPLES, EdgeDescription, MustCarryVerdict, SurfaceKind, edge_extent,
     must_carry_over_edge, sample_param, tangent_certificate_lane, tangent_second_order,
 };
-use geom_core::{Band, Margin, MarginDiag, Real, Sign, Tol, Vec3};
+use geom_core::{Band, Margin, MarginDiag, Sign, Tol, Vec3};
 use sweep::Revolution;
 use sweep::blend::{
     BlendError, BlendRefusal, BlendSite, FILLET3_CONTACT_RECOURSE, Filleted, fillet_edges,
@@ -84,6 +84,9 @@ use sweep::test_support::{
 use topo::boolean::BooleanOp;
 use topo::query::{self, SurfaceKindSet};
 use topo::{Body, EdgeKey};
+
+use crate::common::cavity::skewed_cavity_edges;
+use crate::common::contact_edges::{chart_contact_edges, intrinsic_edges};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -176,21 +179,6 @@ fn contact_readings(body: &Body<f64>) -> Vec<ContactReading> {
         });
     }
     out
-}
-
-/// How many edges of a body store the intrinsic tangency, at any
-/// scalar.
-fn intrinsic_edges<T: Real>(body: &Body<T>) -> usize {
-    body.edges()
-        .filter(|(_, e)| {
-            matches!(
-                body.get_curve_geom(e.curve)
-                    .and_then(|g| g.certified())
-                    .map(|c| c.description()),
-                Some(EdgeDescription::TangentIntersection { .. })
-            )
-        })
-        .count()
 }
 
 /// One fixture's readings summarised per support pair: the count, how
@@ -629,9 +617,6 @@ fn the_contact_recourse_is_followable_at_each_site_kind() {
     );
 
     // The slim corner arc, on the fixture its pin lives on.
-    use crate::review_contact_edge_must_carry_r1_probes::{
-        chart_contact_edges, skewed_cavity_edges,
-    };
     let scale = b.zero() / 1e-9;
     let r = 8.7e-5 * scale;
     let theta = (1.5 * b.escalate() / r).sqrt();

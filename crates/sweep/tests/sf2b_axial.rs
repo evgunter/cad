@@ -13,6 +13,7 @@
 
 use core::f64::consts::PI;
 
+use crate::common::bulge;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -36,12 +37,6 @@ fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
 }
 
 /// **The sphere-zone vase**: a belly on a sphere centred on the axis,

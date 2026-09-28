@@ -18,13 +18,14 @@
 use core::f64::consts::TAU;
 
 use geom::{Curve3, Surface};
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
-use profile::path::{Open, Start};
-use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
+use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
+use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
 use crate::common::charts::hollow_moves;
+use crate::common::poses::torax_pose;
+use crate::common::torus_walls::{vessel_cavity, vessel_quarter};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -53,67 +54,6 @@ fn klein_elbow(r: f64) -> Body<f64> {
     )
     .expect("the elbow revolves")
     .body
-}
-
-/// The tour's torus-walled vessel meridian (`demos/tour/src/torusvessel.rs`,
-/// the BELLIED centre), spelled from the same stations so the sectioned
-/// vessel's door is measured here on the scene's own body.
-fn vessel_quarter() -> Body<f64> {
-    let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
-    let (y_foot, y_shoulder, y_mouth) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0);
-    let (h_tube, r_bellied) = (8.0 / 64.0, 6.0 / 64.0);
-    let lp: ProfileLoop<f64> = Open
-        .at(Point2::new(0.0, 0.0))
-        .line_to(Point2::new(r_foot, 0.0), tol())
-        .expect("the base disc")
-        .line_to(Point2::new(r_foot, y_foot), tol())
-        .expect("the foot")
-        .line_to(Point2::new(r_band, y_foot), tol())
-        .expect("the lower shoulder")
-        .arc_to(
-            Center {
-                c: Point2::new(r_bellied, h_tube),
-                winding: ArcSweep::Ccw,
-                p: Point2::new(r_band, y_shoulder),
-            },
-            tol(),
-        )
-        .expect("the band")
-        .line_to(Point2::new(r_neck, y_shoulder), tol())
-        .expect("the upper shoulder")
-        .line_to(Point2::new(r_neck, y_mouth), tol())
-        .expect("the neck")
-        .line_to(Point2::new(0.0, y_mouth), tol())
-        .expect("the mouth disc")
-        .line_to(Start, tol())
-        .expect("the axis closes the meridian")
-        .into();
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(tol())
-        .expect("the meridian validates");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Partial(core::f64::consts::FRAC_PI_2),
-        tol(),
-    )
-    .expect("the meridian revolves")
-    .body
-}
-
-/// The sectioned vessel's cavity through the axial door — the body
-/// `shell` builds and stops on at tier 3, taken BEFORE tier 3 so its
-/// carriers can be read.
-pub(crate) fn vessel_cavity(t: f64) -> (Body<f64>, Body<f64>) {
-    let quarter = vessel_quarter();
-    let mut cavity = quarter.clone();
-    let band = Band::linear(tol()).expect("band");
-    topo::offset_charts_together(&mut cavity, &hollow_moves(&quarter, t), band, tol())
-        .expect("the vessel's corners solve and its rims mint");
-    (quarter, cavity)
 }
 
 /// Every spiric carrier of a body with its span.
@@ -306,11 +246,7 @@ fn the_box_contains_every_sample_of_the_minted_rim() {
 #[test]
 fn the_minted_rim_survives_a_rigid_re_pose() {
     let (quarter, cavity) = vessel_cavity(1.0 / 128.0);
-    let map = Affine3::rotation_about_axis(
-        Point3::new(0.25, -0.5, 0.125),
-        Vec3::new(1.0, 0.0, 0.0),
-        0.7,
-    );
+    let map = torax_pose();
     // The cavity is sound short of check 7, which it reaches and cannot
     // pass at any door (the vessel row below): the `_structural` door's
     // only finding is the closed form's typed refusal there.

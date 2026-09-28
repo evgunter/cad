@@ -20,13 +20,16 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Band, Point2, Point3, Tol, Vec2, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::{
     ROD_FLAT, ROD_L, ROD_R, brick, dome, hemisphere_on_flat_base, prism, rod_d_profile_at,
 };
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, PointInSolidError, SolidContainment, point_in_solid, transform_rigid};
+
+use crate::common::poses::poses;
+use crate::common::torus_walls::{torus_barrel, torus_belly, vessel_cavity};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -126,7 +129,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             name: "torus barrel",
-            body: crate::torax_axial::torus_barrel(),
+            body: torus_barrel(),
             truth: |p| {
                 let (r, y) = axial(p);
                 y > 0.0
@@ -138,7 +141,7 @@ fn cases() -> Vec<Case> {
         },
         Case {
             name: "torus belly",
-            body: crate::torax_axial::torus_belly(),
+            body: torus_belly(),
             truth: |p| {
                 let (r, y) = axial(p);
                 if y <= 0.0 || y >= 0.125 {
@@ -265,43 +268,6 @@ fn cut_cylinder(above: bool) -> Body<f64> {
         "the cut face is bounded by ellipse arcs"
     );
     half.clone()
-}
-
-/// The identity, the torax row's own re-pose, and four more — two of
-/// which (a quarter turn about `x`, a turn about `y` that keeps the
-/// revolve axis) leave the schedule meeting the fixtures as it meets
-/// them unposed.
-pub(crate) fn poses() -> Vec<(&'static str, Affine3<f64>)> {
-    let about = |pivot: [f64; 3], axis: Vec3<f64>, angle: f64| {
-        Affine3::rotation_about_axis(Point3::new(pivot[0], pivot[1], pivot[2]), axis, angle)
-    };
-    vec![
-        ("identity", about([0.0; 3], Vec3::new(1.0, 0.0, 0.0), 0.0)),
-        (
-            "0.7 about x through (1/4, -1/2, 1/8)",
-            about([0.25, -0.5, 0.125], Vec3::new(1.0, 0.0, 0.0), 0.7),
-        ),
-        (
-            "0.7 about z",
-            about([0.0; 3], Vec3::new(0.0, 0.0, 1.0), 0.7),
-        ),
-        (
-            "0.3 about y through (0.1, 0.2, 0.3)",
-            about([0.1, 0.2, 0.3], Vec3::new(0.0, 1.0, 0.0), 0.3),
-        ),
-        (
-            "1.1 about (1,2,3) through (-0.2, 0.1, 0.4)",
-            about([-0.2, 0.1, 0.4], Vec3::new(1.0, 2.0, 3.0).normalize(), 1.1),
-        ),
-        (
-            "pi/2 about x",
-            about(
-                [0.0; 3],
-                Vec3::new(1.0, 0.0, 0.0),
-                core::f64::consts::FRAC_PI_2,
-            ),
-        ),
-    ]
 }
 
 /// Grid points of the fixture's box whose truth is stable under a 2%
@@ -619,7 +585,7 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
 #[test]
 fn a_spiric_bounded_face_refuses_only_within_its_reach() {
     let band = Band::linear(tol()).expect("the witness band");
-    let (_, cavity) = crate::spiric_rim::vessel_cavity(1.0 / 128.0);
+    let (_, cavity) = vessel_cavity(1.0 / 128.0);
     let spiric_face = cavity
         .faces()
         .find(|(_, f)| {

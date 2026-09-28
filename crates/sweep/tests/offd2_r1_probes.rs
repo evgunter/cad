@@ -6,6 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
+use crate::common::shell_operands::vessel;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::block;
@@ -21,29 +22,6 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     extrude(&profile, Extrusion::Distance(h), Tol::witness())
         .expect("polygon extrudes")
         .body
-}
-
-fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), 0.0),
-        (Point2::new(0.0, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("meridian profile");
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .expect("meridian revolves")
-    .body
 }
 
 fn plane_face_at(body: &Body<f64>, z: f64) -> FaceKey {

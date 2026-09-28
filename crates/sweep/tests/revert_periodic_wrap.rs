@@ -67,6 +67,8 @@ fn half_drum() -> Body<f64> {
 
 /// Every stored row of `body`, keyed by its half-edge, as `Debug`
 /// text: image, interval and certificate, bit for bit.
+/// NOT `common::pcurve_rows::rows`, which omits the certificate and
+/// the key this suite compares by.
 fn rows(body: &Body<f64>) -> Vec<(HalfEdgeKey, String)> {
     body.pcurves()
         .map(|(he, cache)| (he, format!("{cache:?}")))

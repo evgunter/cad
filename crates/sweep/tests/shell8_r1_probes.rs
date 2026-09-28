@@ -19,8 +19,9 @@ use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume as v;
+use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{beside, deep_dump, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Claim 1 — the AXIAL door, scoped

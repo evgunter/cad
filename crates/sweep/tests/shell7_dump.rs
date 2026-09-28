@@ -6,8 +6,8 @@
 //! crate's own vocabulary and of the tour's two torus vessels, plus
 //! the full-period tori the unit is about. The same file compiled at
 //! the merge base and at the head is diffed line by line; it asserts
-//! nothing beyond "the fixture builds", the diff is the verdict. Kept
-//! free of every symbol the unit adds, so it compiles on both trees.
+//! nothing beyond "the fixture builds", the diff is the verdict, so
+//! it reads only what both trees of the differential hold.
 //!
 //! Run with `--no-capture`, grep `[dump]`, diff across trees.
 
@@ -22,7 +22,9 @@ use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::Body;
 
+use crate::common::bulge;
 use crate::common::charts::hollow_moves;
+use crate::common::torus_walls::{torus_barrel, torus_belly};
 
 fn tol() -> Tol {
     Tol::witness()
@@ -90,7 +92,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::print_rows(label, body);
+    crate::common::pcurve_rows::print_rows(label, body);
 }
 
 fn shelled(label: &str, body: &Body<f64>, t: f64) -> Option<Body<f64>> {
@@ -143,49 +145,6 @@ fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
         bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect()),
         turn,
-    )
-}
-
-/// The bulge (`tan(θ/4)`) of the arc from `a` to `b` about `c`.
-fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
-    let (u, v) = (a - c, b - c);
-    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
-}
-
-// ---- torax_axial's fixtures ----
-
-fn torus_barrel() -> Body<f64> {
-    let c = Point2::new(6.0 / 64.0, 1.0 / 16.0);
-    let (lo, hi) = (
-        Point2::new(3.0 / 64.0, 0.0),
-        Point2::new(3.0 / 64.0, 8.0 / 64.0),
-    );
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (Point2::new(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
-    )
-}
-
-fn torus_belly() -> Body<f64> {
-    let c = Point2::new(7.0 / 64.0, 5.0 / 64.0);
-    let (lo, hi) = (
-        Point2::new(4.0 / 64.0, 1.0 / 64.0),
-        Point2::new(3.0 / 64.0, 8.0 / 64.0),
-    );
-    revolved(
-        bulge_loop(vec![
-            (Point2::new(0.0, 0.0), 0.0),
-            (Point2::new(4.0 / 64.0, 0.0), 0.0),
-            (lo, bulge(lo, hi, c)),
-            (hi, 0.0),
-            (Point2::new(0.0, 8.0 / 64.0), 0.0),
-        ]),
-        Revolution::Full,
     )
 }
 
@@ -245,6 +204,8 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
 
 // ---- the tour's torus vessels, their meridian spelled with a bulge ----
 
+/// NOT `common::torus_walls::vessel_quarter`: the full revolve,
+/// its band spelled as a bulge about either tour centre.
 fn torus_vessel(centre_rho: f64) -> Body<f64> {
     let (r_foot, r_band, r_neck) = (5.0 / 64.0, 9.0 / 64.0, 7.0 / 64.0);
     let (y_foot, y_shoulder, y_mouth, h_tube) = (4.0 / 64.0, 12.0 / 64.0, 24.0 / 64.0, 8.0 / 64.0);

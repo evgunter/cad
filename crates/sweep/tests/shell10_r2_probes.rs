@@ -30,8 +30,9 @@ use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume as v;
+use crate::common::shell_operands::{tube, vessel};
 use crate::shell8_common::{beside, cap, deep_dump, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{tube, v, vessel};
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {

@@ -664,7 +664,7 @@ fn the_steep_face_sweeps_clean_from_the_band_out() {
 /// ball within the band and are abandoned, and the rest answer.
 #[test]
 fn an_in_band_ball_clearance_skips_the_ray() {
-    let (_, cavity) = crate::spiric_rim::vessel_cavity(1.0 / 128.0);
+    let (_, cavity) = crate::common::torus_walls::vessel_cavity(1.0 / 128.0);
     let mut asked = 0;
     for (fk, f) in cavity.faces() {
         let Some(&Surface::Plane { normal, .. }) = cavity.get_surface(f.surface) else {

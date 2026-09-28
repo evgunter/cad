@@ -39,6 +39,22 @@
 //! - [`sphere_recut`] — the certified sphere-recut fixture and the one
 //!   measurement taken of it, a group two suites' rows name (body
 //!   authoring, same routing);
+//! - [`shell_operands`] — the `shell` verb's operands and the two role
+//!   readers its rows run over them (body authoring plus readers that
+//!   evaluate no surface, as [`latitude_seam`]);
+//! - [`torus_walls`] — the torus-walled revolves the offset-axial door
+//!   is measured on, and the cavity it carves in one (body authoring,
+//!   same routing);
+//! - [`cert_corpus`] — the valid and corrupt bodies the certified doors
+//!   and their `_structural` twins are walked over (body authoring,
+//!   same routing);
+//! - [`pcurve_rows`], [`bitdump`] and [`contact_edges`] — what a suite
+//!   reads OFF a body it built to diff or count it: every stored pcurve
+//!   row as text, the whole body bit for bit, and how its contact edges
+//!   are described. Readers of stored data that evaluate nothing, so
+//!   they route beside [`cap_rims`] rather than into [`orient`];
+//! - [`poses`] — the rigid poses a re-posed row asks its question at:
+//!   what a suite drives a door WITH, as [`charts`];
 //! - `revolve_common` — the revolve suites' own, and the place `eps`
 //!   presently lives despite belonging to no verb.
 //!
@@ -150,6 +166,43 @@ pub mod oracles;
 /// suites' rows run as one fixture. Body authoring, so it routes here.
 pub mod sphere_recut;
 
+/// The `shell` verb's operands — the vessel, the tube, the hollow box
+/// and the two-void box — and the two role readers every shell suite
+/// runs over them. Body authoring plus readers that evaluate no
+/// surface, so it routes here.
+pub mod shell_operands;
+
+/// The torus-walled revolves — the barrel, the teapot's belly and the
+/// sectioned vessel's cavity through the axial door — which the axial
+/// door's suites and the `point_in_solid` suites build as one fixture.
+/// Body authoring, so it routes here.
+pub mod torus_walls;
+
+/// The certification corpus — valid bodies, their reverted twins and
+/// the `f64`-only corrupt constructions — which three suites walk the
+/// certified/`_structural` door pairs over. Body authoring, so it
+/// routes here.
+pub mod cert_corpus;
+
+/// Every stored pcurve row of a body as text: the bit-for-bit form two
+/// bodies' rows are compared by, and the dump form a base/head diff
+/// reads. What a suite CHECKS of a body, so it routes here.
+pub mod pcurve_rows;
+
+/// The reviewer bit-identity dump and the `BITDUMP_DIR` channel that
+/// arms it. What a suite reads off a body, so it routes here.
+pub mod bitdump;
+
+/// The counts of a carved body's contact-edge descriptions — intrinsic
+/// tangency, or chart image. What a suite CHECKS of a body, so it
+/// routes here.
+pub mod contact_edges;
+
+/// The rigid poses a re-posed row asks its question at: the torax
+/// rows' one re-pose and the six-pose set. What a suite drives a door
+/// WITH, so it routes here.
+pub mod poses;
+
 use geom::NurbsCurve3;
 use geom_core::linalg::frame::path_start_frame;
 use geom_core::{Affine3, Point2, Point3, Tol, Vec3};
@@ -244,6 +297,21 @@ pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f6
         (at(first + 120.0), b120),
         (at(first + 240.0), b120),
     ])
+}
+
+/// **The bulge of the minor arc from `a` to `b` about `c`**:
+/// `tan(θ/4)`, `θ` the signed angle `a − c` turns through to `b − c`
+/// (counter-clockwise positive, `|θ| ≤ π`). The profile vocabulary a
+/// suite spells an off-axis meridian arc in — a torus wall's — when
+/// what it knows is the arc's centre.
+///
+/// Not `profile::bulge_from_center`, which takes the winding as
+/// an argument and reduces the angle by another chain: the fixtures
+/// that spell their arcs this way are pinned at this computation's
+/// bits, and a body built from the other would be a different body.
+pub fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
+    let (u, v) = (a - c, b - c);
+    (u.perp_dot(v).atan2(u.dot(v)) / 4.0).tan()
 }
 
 /// **Runs `run` on a pool of exactly `threads` threads**, and answers

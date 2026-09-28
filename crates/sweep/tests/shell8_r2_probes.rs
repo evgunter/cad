@@ -20,8 +20,9 @@ use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, Void
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_inward};
+use crate::common::oracles::box_volume as v;
+use crate::common::shell_operands::{hollow_box, outer_and_void, vessel};
 use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
     body.vertices()
@@ -360,7 +361,7 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let (t1, t) = (0.1, 0.02);
     let hv = topo::shell(&vessel(1.0, 2.0), t1, tol()).unwrap().body;
-    let (_, void) = crate::verbs_shell::outer_and_void(&hv);
+    let (_, void) = outer_and_void(&hv);
     let ceiling = cap(&hv, void, y, 2.0 - t1);
 
     let alone = topo::shell_open(&hv, t, &ceiling, tol()).expect("the void ceiling opens");

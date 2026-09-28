@@ -10,61 +10,15 @@
 
 use std::fmt::Write as _;
 
-use geom_core::{Point2, Tol, Vec2};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
+use geom_core::Tol;
 use sweep::test_support::block;
-use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::euler_counts;
 use topo::{Body, FaceKey, LoopBoundary};
 
+use crate::common::shell_operands::{tube, vessel};
+
 fn dump_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("SHELLFIX_BITDUMP_DIR").map(Into::into)
-}
-
-fn vessel(r: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(r, 0.0), 0.0),
-        (Point2::new(r, h), 0.0),
-        (Point2::new(0.0, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
-}
-
-fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![
-        (Point2::new(ri, 0.0), 0.0),
-        (Point2::new(ro, 0.0), 0.0),
-        (Point2::new(ro, h), 0.0),
-        (Point2::new(ri, h), 0.0),
-    ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    revolve(
-        &profile,
-        RevolveAxis {
-            origin: Point2::new(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Full,
-        Tol::witness(),
-    )
-    .unwrap()
-    .body
 }
 
 fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
@@ -81,8 +35,8 @@ fn plane_face_at_z(body: &Body<f64>, z: f64) -> FaceKey {
 }
 
 /// Bit-faithful dump in key iteration order (identical op sequences
-/// produce identical key orders) — the `bitdump.rs` shape, re-derived
-/// here so this file also compiles at the merge base unmodified.
+/// produce identical key orders). NOT `common::bitdump::dump`: a
+/// different dump (Euler counts, each loop's points, props as bits).
 fn dump(body: &Body<f64>) -> String {
     let mut s = String::new();
     let counts = euler_counts(body);
