@@ -5,7 +5,7 @@ title: Twenty-two sweep suites import a fixture from another suite rather than f
 status: open
 opened: 2026-09-28
 priority: P4
-cost: D
+cost: M
 ---
 
 

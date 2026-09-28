@@ -60,18 +60,17 @@ where
 fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str, T)) {
     use geom_core::Point2;
     use profile::{ArcSweep, Center, Open, Start, Step};
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
     let tip = 0.75_f64.sqrt();
     let programs = [
         Open.arc_fillet_arc(
             Center {
-                c: p2(-0.5, 0.0),
+                c: Point2::new(-0.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -tip),
+                p: Point2::new(0.0, -tip),
             },
             0.35,
             Center {
-                c: p2(0.5, 0.0),
+                c: Point2::new(0.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -79,13 +78,13 @@ fn fixture_walk<T: profile::ArcCarrierScalar>(lane: &str, scalar: &impl Fn(&str,
         ),
         Open.arc_fillet_arc(
             Center {
-                c: p2(-1.0, 0.0),
+                c: Point2::new(-1.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -3.0_f64.sqrt()),
+                p: Point2::new(0.0, -3.0_f64.sqrt()),
             },
             0.5,
             Center {
-                c: p2(1.0, 0.0),
+                c: Point2::new(1.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
