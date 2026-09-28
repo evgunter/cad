@@ -156,3 +156,41 @@ measurements (branch `gather/cusp-sweep-gate` holds the probes); this
 one may go to Ev, so its blinding byte is on
 `analysis/design-fork/sweep-cusp-declarations` (drawn after dispatch,
 before any report; disclosed there).
+
+## 2026-09-28 — the product gates its aggregate once (PR 3323)
+
+`product-per-part-gate-counts-solids-but-gates-sources` closed on PR
+3323, implementing the design the two designers converged on. The
+product gates the aggregate once, after every graft and before every
+naming refusal. On refusal it re-gates every grafted source and refuses
+`RootInvalid`, naming each failing root and output index with its own
+findings. `SolidInvalid` retired. `ProductInvalid` is only the
+graft-defect arm now. The product no longer calls
+`topo::per_part_gate_owed`; STEP import is its only caller.
+PERF-SCAN-2026-08 item 16 is marked resolved, with a source guard that
+the gather gates once on success and re-gates only on refusal.
+
+Single FULL review, verdict mergeable after fixes. All six claims held
+under probe: a pattern's instances 0 and 2 are named, and a `.take(1)`
+mutation reddens the cascade row. The fix pass took every item:
+- rows pinning non-zero output indices;
+- the r2_m10 `ProductInvalid` widening reverted;
+- one skip rule instead of two;
+- a header that counts roots;
+- the stale "two callers" prose made true;
+- the body-wide-stop argument given one home;
+- the gate-once guard;
+- the PR body now states the `SolidInvalid` → `Graft` class change for
+  malformed sources.
+
+CI was red at the first head on `test-utils`'s reader census. The
+ledger named the renamed `per_part_gate_policy.rs`, and the lane had
+not run the `test-utils` tests. The fix pass re-pointed the ledger.
+
+Left as they are, noted: three near-parallel (root, output) attribution
+shapes (`SourceFinding`, `SolidOrigin`, `CheckFinding`); Python binding
+only the first failing root as `node`.
+
+Filed by the lane and priced here: `assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate`
+(P3, M), which waits on the cusp row. The cusp row's pin now reads
+`RootInvalid`.

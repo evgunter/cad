@@ -4,6 +4,9 @@ kind: issue
 title: assemble runs the tier-3 local battery twice on one aggregate: once in the product gather's gate, again inside tier 3′
 status: open
 opened: 2026-09-28
+priority: P3
+cost: M
+refs: [product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares, product-per-part-gate-counts-solids-but-gates-sources]
 ---
 
 Found by the sweep of `gather/per-part-aggregate-gate`, which removed
