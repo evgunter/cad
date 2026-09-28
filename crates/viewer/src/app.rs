@@ -3296,7 +3296,9 @@ mod properties_pane_tests {
                 events,
                 ..Default::default()
             };
-            let Self { ctx, app, frame, .. } = self;
+            let Self {
+                ctx, app, frame, ..
+            } = self;
             let mut output = ctx.run_ui(input, |ui| {
                 eframe::App::ui(app, ui, frame);
             });
@@ -3411,7 +3413,11 @@ mod properties_pane_tests {
             .slot_unit_refusal(EXTRUDE, SlotId::Distance, pncad::prelude::M.def())
             .expect("SetSlotUnit refuses a computed slot")
             .to_string();
-        assert_eq!(gained, vec![said.clone()], "the hover is the op's own sentence");
+        assert_eq!(
+            gained,
+            vec![said.clone()],
+            "the hover is the op's own sentence"
+        );
         // Planted, not only compared with the one home: the words a
         // reader gets for this row.
         assert_eq!(
@@ -3493,7 +3499,11 @@ mod properties_pane_tests {
         let cm = pncad::prelude::CM.def();
         assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::X)).unit, Some(cm));
         assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Y)).unit, Some(cm));
-        assert_eq!(pane.row(FRAME, SlotId::Origin(Axis3::Z)), z, "z is not the pick's");
+        assert_eq!(
+            pane.row(FRAME, SlotId::Origin(Axis3::Z)),
+            z,
+            "z is not the pick's"
+        );
         let after = pane.quiet();
         assert!(
             !after.iter().any(|(run, _)| run.contains("is computed")),

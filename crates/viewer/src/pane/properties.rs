@@ -824,15 +824,18 @@ impl ViewerBehavior<'_> {
                 None => writable.push((row, shown)),
             }
         }
-        let agreed = |units: &mut dyn Iterator<Item = Option<UnitDef>>| {
-            let first = units.next().flatten();
-            units.all(|unit| unit == first).then_some(first).flatten()
-        };
-        let common = if writable.is_empty() {
-            agreed(&mut rows.iter().map(|row| props::rendering_unit(row.dimension, row.unit)))
+        let shown: Vec<Option<UnitDef>> = if writable.is_empty() {
+            rows.iter()
+                .map(|row| props::rendering_unit(row.dimension, row.unit))
+                .collect()
         } else {
-            agreed(&mut writable.iter().map(|(_, shown)| *shown))
+            writable.iter().map(|(_, shown)| *shown).collect()
         };
+        let common = shown
+            .iter()
+            .all(|unit| *unit == shown[0])
+            .then_some(shown[0])
+            .flatten();
         let label = common.as_ref().map_or("mixed", UnitDef::symbol);
         // The refusals render themselves; nothing here composes words.
         let said: Vec<String> = refused.iter().map(ToString::to_string).collect();
