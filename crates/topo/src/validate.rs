@@ -6368,36 +6368,27 @@ fn meet_at<T: Decide>(
     open.map_or(EdgePair::Apart, EdgePair::Unsure)
 }
 
+/// Check 9's rows for [`crate::splitting::containment::arc_trim`].
+const RING_OUTER_ARC_TRIM: crate::splitting::containment::ArcTrimRows =
+    crate::splitting::containment::ArcTrimRows {
+        end: "ring_outer_arc_end",
+        trim: "ring_outer_arc_trim",
+    };
+
 /// Whether `p`, a point on `segment`'s carrier, lies inside its trim —
 /// an end included, since arm 5 runs only once no vertex arm has
 /// spoken ([`ring_outer_meeting`]).
 ///
 /// A line's trim is its two signed spans from its ends, each a length
-/// at unit speed. An arc's is decided as DISTANCES, in two steps, and
-/// never through the radial band: `p` is a point on the carrier (or a
-/// candidate whose distance from it the caller has already decided),
-/// so its distance from the circle says nothing about the trim, and
-/// deciding it first let an in-band radius escalate a point half a
-/// turn away from the arc.
-///
-/// 1. **At an end**: `p` within the band of either end point,
-///    measured as `|p − end|`, is inside. That is the ONLY way an
-///    endpoint neighbourhood counts: an angular window compresses
-///    arc length near an end by `sin(w/2)`, so on a short arc (and by
-///    `sin` of the complement on a near-full one) its `Zero` reaches
-///    `ε / sin(w/2)` along the carrier, a hundred times `ε` at
-///    `w = 0.02`.
-/// 2. **Otherwise, which side of the ends**: the sum of two chordal
-///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
-///    is an end, `m` the arc's apex and `m′` its complement's. Chord
-///    length is monotone in angular distance up to a half turn, so
-///    each term is positive exactly on the arc; near an end they
-///    move as `cos(w/4)` and `sin(w/4)` times the arc length, whose
-///    sum is at least 1, so the margin is never compressed below the
-///    distance it measures — on a short arc, a near-full one, or a
-///    whole circle (where `m′` is the end and every point is inside).
-///    Its `Zero` is therefore within the band of an end, which step 1
-///    has already answered, and reads inside.
+/// at unit speed. An arc's is decided as DISTANCES, never through the
+/// radial band: `p` is a point on the carrier (or a candidate whose
+/// distance from it the caller has already decided), so its distance
+/// from the circle says nothing about the trim, and deciding it first
+/// let an in-band radius escalate a point half a turn away from the
+/// arc. The rule, and why its margin never compresses near an end, is
+/// [`crate::splitting::containment::arc_trim`]'s — the one home the
+/// arc-bearing containment walk shares; here the lever is 1 (metres)
+/// and an end's neighbourhood reads inside.
 fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Band) -> Window {
     match segment {
         MeetSegment::Line { a, b } => {
@@ -6429,23 +6420,16 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
                 radius,
                 u_ref,
             };
-            let (a, b) = (carrier.eval(t0), carrier.eval(t1));
-            let ends = [
-                decide("ring_outer_arc_end", Margin::of((p - a).norm()), band),
-                decide("ring_outer_arc_end", Margin::of((p - b).norm()), band),
-            ];
-            if ends.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
-                return Window::In;
-            }
-            if let Some(source) = ends.iter().find_map(|e| e.err()) {
-                return Window::Unsure(source);
-            }
             let mid = (t0 + t1) * T::from_f64(0.5);
-            let apex = carrier.eval(mid);
-            let anti = carrier.eval(mid + T::pi());
-            let margin =
-                ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm());
-            match decide("ring_outer_arc_trim", Margin::of(margin), band) {
+            match crate::splitting::containment::arc_trim(
+                p,
+                [carrier.eval(t0), carrier.eval(t1)],
+                carrier.eval(mid),
+                carrier.eval(mid + T::pi()),
+                T::one(),
+                &RING_OUTER_ARC_TRIM,
+                band,
+            ) {
                 Ok(Sign::Positive | Sign::Zero) => Window::In,
                 Ok(Sign::Negative) => Window::Out,
                 Err(source) => Window::Unsure(source),
@@ -9816,6 +9800,53 @@ mod tests {
                     "{name}: a lone vertex inside the region is no finding"
                 );
             }
+        }
+    }
+
+    /// **Near an arc's end the walk decides what the radial row does.**
+    /// A circle of radius 10 split at −0.01, 0.01 and π — one circle,
+    /// so `boolean::loop_shape` reads the `Disc` class — and a query
+    /// just below the short arc's end at angle 0.01, at 20ε to 80ε
+    /// from the ray line through it (ε = 1e-9, K = 10). The radial
+    /// margin is ten metres; only the rays are ever near anything. The
+    /// ray toward that end crosses the circle 20ε–80ε from a window's
+    /// end, where an angular window margin compresses by `sin(w/2)`
+    /// into the band: the walk must abandon THAT RAY, not the point.
+    #[test]
+    fn a_query_near_a_short_arcs_end_is_placed_not_escalated() {
+        let tol = Tol::witness();
+        let band = Band::new(1e-9, 1e-8).expect("ε = 1e-9, K = 10");
+        let r = 10.0;
+        let outer: Vec<Point3<f64>> = [-0.01_f64, 0.01, core::f64::consts::PI]
+            .iter()
+            .map(|t| Point3::new(r * t.cos(), r * t.sin(), 0.0))
+            .collect();
+        let ring = vec![
+            Point3::new(-5.5, -0.5, 0.0),
+            Point3::new(-4.5, -0.5, 0.0),
+            Point3::new(-4.5, 0.5, 0.0),
+            Point3::new(-5.5, 0.5, 0.0),
+        ];
+        let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+        let outer_loop = body.get_face(face).unwrap().outer;
+        recarry_loop(&mut body, outer_loop, Point3::new(0.0, 0.0, 0.0), tol);
+        assert!(
+            matches!(
+                crate::boolean::loop_shape(&body, outer_loop, band),
+                Ok(crate::boolean::LoopShape::Disc(_))
+            ),
+            "three arcs of one circle are the disc class"
+        );
+        let normal = nesting_normal(&body, body.get_face(face).unwrap().surface).unwrap();
+        for delta in [2e-7, 5e-7, 8e-7] {
+            let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
+            let got = crate::splitting::containment::point_in_carrier_loop(
+                &body, outer_loop, normal, q, band,
+            );
+            assert!(
+                matches!(got, Ok(Some(crate::splitting::LoopContainment::In))),
+                "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
+            );
         }
     }
 
