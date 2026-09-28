@@ -1,0 +1,5 @@
+fork: the-chart-partition-has-a-topo-src-home-and-a-test-home (dup)
+dispatched: 2026-09-28
+byte: none drawn (protocol rule 3 deviation: labels assigned by delivery order, A = first report delivered)
+mapping: A=opus B=fable
+blinding: BROKEN before the PR opened. The orchestrator's chat to Ev named the model of report A ("the Opus designer has reported ... (b3)") and of report B.
