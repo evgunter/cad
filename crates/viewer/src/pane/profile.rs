@@ -127,12 +127,13 @@ impl ViewerBehavior<'_> {
 /// would get. `None` is "no preview was taken" (the first frame a
 /// form is on screen, or a form at rest), and holds nothing.
 ///
-/// Every verdict is a sentence drawn through
-/// [`crate::widgets::message_toned`] in the tone its value states
-/// ([`ProfilePreview::tone`], [`PreviewError::tone`]), so how loud a
-/// verdict is gets decided once, on the value, for both doors. The
-/// loop count under a preview with nothing to say is a number, not a
-/// verdict, and stays a weak label.
+/// Every verdict is a sentence the VALUE says and a tone the value
+/// states, both read off one partition of it ([`ProfilePreview::hold`]
+/// for a drawn preview, [`PreviewError`] for a refusal) and drawn
+/// through [`crate::widgets::message_toned`] — so what the editor says
+/// and how loud it says it are decided once, on the value, for both
+/// doors. A drawn, valid preview holds nothing and has no verdict; the
+/// loop count under it is state, and stays a weak label.
 pub(crate) fn preview_verdict(
     ui: &mut egui::Ui,
     theme: Theme,
@@ -146,18 +147,8 @@ pub(crate) fn preview_verdict(
         return false;
     };
     let (sentence, tone) = match preview {
-        // **Drawn, and still not committable.** The chain is in the
-        // viewport (`sketch::preview` walks it under a provisional
-        // close) so the shape can be looked at while it is written;
-        // what it is not yet is a loop, and the commit door refuses a
-        // program that does not close. Saying which of the two this is
-        // beats a disabled button with a lattice refusal beside it.
-        Ok(drawn) if drawn.has_open_chain() => (
-            "the chain does not close yet — its last step has to target the start".to_owned(),
-            drawn.tone(),
-        ),
-        Ok(drawn) => match &drawn.invalid {
-            Some(invalid) => (format!("does not validate: {invalid}"), drawn.tone()),
+        Ok(drawn) => match drawn.hold() {
+            Some(hold) => (hold.to_string(), hold.tone()),
             None => {
                 ui.weak(format!(
                     "{} loop(s), drawn in the viewport",
@@ -439,12 +430,16 @@ mod tests {
     use eframe::egui;
     use pncad::document::{Doc, Node, ProfileProgram};
     use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::Step;
+    use pncad::profile::{ProfileError, SketchPlane, Step, Target, Verb};
 
+    use super::preview_verdict;
     use crate::app::{GLYPH_DOWN, GLYPH_REMOVE, GLYPH_UP};
     use crate::drafts::Drafts;
-    use crate::pane::headless::painted_while_hovering;
-    use crate::sketch;
+    use crate::pane::headless::{
+        Landed, Voices, find, find_opening, landed_voiced, painted_while_hovering,
+    };
+    use crate::sketch::{self, PreviewError, PreviewLoop, ProfilePreview, ProfileShape};
+    use crate::theme::Theme;
     use crate::test_support::{inserted, try_inserted, xy_frame};
 
     /// **Drawing the editor never rewrites a document value.** A
@@ -734,23 +729,6 @@ mod tests {
         );
         assert!(!moved.contains("nothing to revert"), "{moved}");
     }
-}
-
-#[cfg(test)]
-mod verdict_tests {
-    // Panicking is a test's failure mechanism (workspace lint note).
-    #![allow(clippy::expect_used)]
-    #![allow(clippy::panic)]
-
-    use pncad::document::{EvalError, SlotId};
-    use pncad::geom_core::{Point2, Tol};
-    use pncad::profile::{SketchPlane, Step, Target, TipState, Verb};
-
-    use super::preview_verdict;
-    use crate::frame::Tone;
-    use crate::pane::headless::{Landed, Voices, find, find_opening, landed_voiced};
-    use crate::sketch::{self, PreviewError, ProfilePreview, ProfileShape};
-    use crate::theme::Theme;
 
     /// A chord fine enough that nothing here is short of points.
     const CHORD: f64 = 1.0e-4;
@@ -887,47 +865,34 @@ mod verdict_tests {
         assert!(!held, "a valid preview holds nothing");
     }
 
-    /// **Every refusal's tone, by arm** — the mapping itself, over a
-    /// value planted per arm. The two `Transition`s differ only in
-    /// whether a verb was written, which is the whole rule.
+    /// **A preview that is open AND invalid says the open chain,
+    /// quietly** — one sentence and one tone off one partition of the
+    /// value. `sketch::preview` never builds this value; a sentence
+    /// and a tone read off two partitions would draw the open chain's
+    /// words in the invalid profile's colour.
     #[test]
-    fn a_preview_refusal_is_loud_unless_it_only_says_the_chain_is_unfinished() {
-        let lowering = path(vec![at(f64::NAN, 0.0)]).expect_err("NaN is not a coordinate");
-        assert!(matches!(lowering, PreviewError::Lowering(_)), "{lowering}");
-        let transition = |verb| PreviewError::Transition {
-            loop_: 0,
-            step: 1,
-            state: TipState::PlainPoint,
-            verb,
-        };
-        for (error, tone) in [
-            (transition(None), Tone::Advisory),
-            (transition(Some(Verb::Tangent)), Tone::Actionable),
-            (lowering, Tone::Actionable),
-            (
-                PreviewError::Resolve {
-                    slot: SlotId::Count,
-                    source: EvalError::CountExprInContinuousEval,
-                },
-                Tone::Actionable,
-            ),
-            (
-                PreviewError::Unflattenable {
-                    loop_: 0,
-                    vertex: 1,
-                },
-                Tone::Actionable,
-            ),
-            (
-                PreviewError::Geometry {
-                    loop_: 0,
-                    step: 1,
-                    rendered: String::new(),
-                },
-                Tone::Actionable,
-            ),
-        ] {
-            assert_eq!(error.tone(), tone, "{error:?}");
-        }
+    fn an_open_and_invalid_preview_says_the_open_chain_quietly() {
+        let planted = Ok(ProfilePreview {
+            plane: SketchPlane::xy(),
+            loops: vec![PreviewLoop {
+                points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
+                vertices: vec![0, 1, 2],
+                closed: false,
+            }],
+            invalid: Some(ProfileError::EmptyProfile),
+        });
+        let (painted, voices, held) = drawn(&planted);
+        assert_eq!(
+            find_opening(&painted, "the chain does not close yet").ink,
+            Some(voices.weak)
+        );
+        assert!(
+            !painted
+                .iter()
+                .any(|landed| landed.text.starts_with("does not validate")),
+            "{:?}",
+            painted.iter().map(|l| &l.text).collect::<Vec<_>>()
+        );
+        assert!(held, "an open chain holds the commit");
     }
 }

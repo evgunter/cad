@@ -72,39 +72,50 @@ live, is AUTHOR's, CHROME's and VGEOM's — a crossing to announce.
 
 ## Closed (2026-09-25): the tone lives on the preview's values
 
-**`PreviewError::tone()`** and **`ProfilePreview::tone()`**
-(`crates/viewer/src/sketch.rs`), total like `Standing::tone`.
-`PreviewError::tone` is exhaustive over the enum with no wildcard, so an
-arm the preview grows has to answer it: `Transition { verb: None, .. }`
-— a chain that ended without closing, the state every chain passes
-through while it is written — is `Advisory`; every other arm blames
-something somebody wrote and is `Actionable`. `ProfilePreview::tone` is
-`Actionable` exactly when `invalid` is `Some`, and `Advisory` for an
-open chain and a valid drawing. The argument the pane's comment carried
-("unfinished is not wrong") is now the doc of the method that decides
-it; the two tones agree that a chain being written is quiet whether or
-not it could be drawn.
+**A refusal: `PreviewError::is_unfinished()` and `PreviewError::tone()`**
+(`crates/viewer/src/sketch.rs`). `is_unfinished` is the one spelling
+of "a chain that ended without closing" — exhaustive over the enum, so
+an arm the preview grows has to answer it — and its doc is the one
+home of the argument ("unfinished is not wrong"). `preview` reads it
+to decide which refusals to retry under a provisional close, and
+`tone` reads it: unfinished is `Advisory`, every other refusal
+`Actionable`. An unfinished chain reaches the editor as a refusal
+whenever that provisional close is itself refused (a close that would
+enclose nothing, as a one- or two-point chain's does; a tip with a
+direction and no position; an arc arrival waiting for a binder).
 
-**The pane.** `pane::profile::preview_verdict` picks the SENTENCE per
-arm and reads the tone off the value it drew it from (`drawn.tone()`,
-`error.tone()`), then draws once through `widgets::message_toned`. The
-loop count under a valid preview stays a `ui.weak` label — a count, not
-a verdict, as `a-verdict-drawn-outside-a-tone-has-no-value-to-read`
-records it.
+**A drawn preview: `ProfilePreview::hold()` → `Option<PreviewHold>`.**
+One partition of the value: an open chain first (`OpenChain`), then a
+failed validation (`Invalid`), else `None`. `PreviewHold` carries its
+own sentence (`Display`) and its own tone (`OpenChain` `Advisory`,
+`Invalid` `Actionable`) — the shape `pane::create::Held` has with
+`words`/`tone`. A value that is open AND invalid, which `preview`
+never builds but whose fields are public, is the open chain: quiet,
+in the open chain's words. A valid drawing has no hold and no tone.
+
+**The pane.** `pane::profile::preview_verdict` only draws: the
+sentence and tone off `drawn.hold()` or off the refusal, through
+`widgets::message_toned`. The loop count under a valid preview stays a
+`ui.weak` label — state, not a verdict, as
+`a-verdict-drawn-outside-a-tone-has-no-value-to-read` records it, and
+now nothing on the value claims a tone for it either.
 
 **Crossing.** `sketch.rs` is AUTHOR's, CHROME's and VGEOM's; the change
-there is two additive methods and one `use crate::frame::Tone`, the
-same dependency `parts.rs` and `session/refuse.rs` (also vocabulary
-modules) already carry.
+there is the new `PreviewHold`, three methods, a restructured retry arm
+in `preview` reading `is_unfinished` instead of re-spelling the match,
+and one `use crate::frame::Tone` — the dependency `parts.rs` and
+`session/refuse.rs` (also vocabulary modules) already carry.
 
-**Receipts.** `pane::profile::verdict_tests`: three rows read the ink
-`preview_verdict` painted (`pane::headless::Landed::ink`) against fixed
-`Voices`, over previews produced by `sketch::preview` itself (a drawn
-open chain, a one-point chain, an ill-typed `tangent`, two crossing
-circles, a closed square) plus a planted `Geometry`, and check whether
-each holds the commit; a fourth plants one `PreviewError` per arm and
-holds `tone()` against a fixed `Tone`. The mutation runs are in the
-batch PR body.
+**Receipts.** `sketch::tests` holds the mappings beside the methods
+from planted values: `PreviewHold` for all four combinations of open ×
+invalid (open-and-invalid included), and one `PreviewError` per arm
+against a fixed `Tone` and `is_unfinished`. `pane::profile::tests`
+reads the ink `preview_verdict` painted (`pane::headless::Landed::ink`)
+against fixed `Voices`: previews built by `sketch::preview` (a drawn
+open chain, a one-point chain, an ill-typed `tangent`, crossing
+circles, a closed square), a planted `Geometry`, and a planted
+open-and-invalid preview, each with whether it holds the commit. The
+mutation runs are in the batch PR body.
 
 **Sweep.** Every `Tone::Advisory` / `Tone::Actionable` literal and every
 hand-drawn `theme.unresolved` / `.weak(` under `crates/viewer/src` at
@@ -114,6 +125,6 @@ and states are the populations `resolution-and-standing-pick-their-tone-
 by-hand` and `a-verdict-drawn-outside-a-tone-has-no-value-to-read`
 already dispose of. Blind spot: a tone chosen by drawing through
 `widgets::message` (the body colour) versus `message_toned` per arm —
-grep `widgets::message(` sites, checked: every one is a tool's prompt, a
+`widgets::message(` sites, checked: every one is a tool's prompt, a
 fixed instruction or a label, except the status line and the checks
 window's findings, which are already items 1 and 2 of that row.
