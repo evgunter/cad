@@ -30,7 +30,7 @@ fn deg(d: f64) -> f64 {
 /// numbers: root at the origin heading +z (in the xz-plane), left turn
 /// of 22 degrees on a 5 m ring — so the ring centre is (-5, 0, 0), the
 /// start radial +x, the axis -y (`tube_arc`'s left-turn sense).
-fn stem() -> Body<f64> {
+pub(crate) fn stem() -> Body<f64> {
     tube_along_arc(
         tube_frame(
             Point3::new(-STEM_RING, 0.0, 0.0),
@@ -53,15 +53,15 @@ fn stem() -> Body<f64> {
 /// The fork point (the stem's end / the arch's start), its tangent,
 /// the arch's ring centre and start radial — the turtle math of
 /// `lily.rs` (`Turtle::arc`), reproduced independently.
-struct ArchFrame {
-    fork: Point3<f64>,
-    center: Point3<f64>,
-    radial: Vec3<f64>,
+pub(crate) struct ArchFrame {
+    pub(crate) fork: Point3<f64>,
+    pub(crate) center: Point3<f64>,
+    pub(crate) radial: Vec3<f64>,
     /// The arch's END point (the far cap's centre).
-    far: Point3<f64>,
+    pub(crate) far: Point3<f64>,
 }
 
-fn arch_frame() -> ArchFrame {
+pub(crate) fn arch_frame() -> ArchFrame {
     let a = deg(22.0);
     // at_fork (xz): p = stem centre + 5·rot((1,0), 22°); t = rot((0,1), 22°).
     let fork2 = (-STEM_RING + STEM_RING * a.cos(), STEM_RING * a.sin());
@@ -86,7 +86,7 @@ fn arch_frame() -> ArchFrame {
 
 /// The lily's arch, continuing G1 from the stem's end: 170 degrees on
 /// a 1.1 m ring, tube 0.052.
-fn arch() -> Body<f64> {
+pub(crate) fn arch() -> Body<f64> {
     let f = arch_frame();
     tube_along_arc(
         tube_frame(
@@ -132,7 +132,7 @@ fn torus_faces(body: &Body<f64>) -> Vec<FaceKey> {
 /// The selection here is by POSITION, not by flushness: it picks the
 /// caps at the fork and lets the op verify them, which is why it is
 /// not a second spelling of the detector's decisions.
-fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
+pub(crate) fn weld_declarations(stem: &Body<f64>, arch: &Body<f64>) -> (BooleanDeclarations, usize) {
     let fork = arch_frame().fork;
     let mut decls = BooleanDeclarations::none();
     let mut pairs = 0;

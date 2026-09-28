@@ -1450,7 +1450,7 @@ fn curved_face_arm<T: Decide>(
                 SpanVerdict::Constant | SpanVerdict::Miss | SpanVerdict::Unsettled => {
                     Err(frontier())
                 }
-                SpanVerdict::NoInterior => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     // UNDECLARED: the undeclared `NoInterior` rule
                     // ([`Placement::undeclared_no_interior`]), over this
                     // span's one ON end.
@@ -1489,7 +1489,7 @@ fn curved_face_arm<T: Decide>(
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
-                SpanVerdict::NoInterior => {
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere => {
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
                     Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
@@ -1500,14 +1500,26 @@ fn curved_face_arm<T: Decide>(
         // **A definite surface crossing: the pierce RING lane.** The
         // endpoints straddle the carrier, so a root exists in the span;
         // `wall_crossing` finds it exactly and the trim decides whether
-        // it lands in this face. `NoInterior` CONTRADICTS the straddle,
-        // so it keeps the door rather than reporting no event — a
-        // contradiction between two certified predicates is exactly
-        // what must not be resolved by picking one.
+        // it lands in this face. A root set that ACCOUNTS for the
+        // straddle off this face ([`SpanVerdict::Elsewhere`]) is no
+        // event here; a `NoInterior` that does not — no root inside the
+        // span, or one at an end the endpoint signs call definite —
+        // CONTRADICTS the straddle, so it keeps the door rather than
+        // reporting no event: a contradiction between two certified
+        // predicates is exactly what must not be resolved by picking
+        // one.
         (Sign::Positive, Sign::Negative) | (Sign::Negative, Sign::Positive) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
+                // The straddle's crossing, found and certified OFF this
+                // face: every root inside the span is on the carrier
+                // outside the trim, and both ends are definitely off the
+                // carrier, so the span meets this face nowhere. Where the
+                // crossing's incidence lives — a sibling face on the same
+                // carrier, or no face of this operand — is that face's
+                // pair, not this one.
+                SpanVerdict::Elsewhere => Ok(CurvedEvent::None),
                 _ => Err(frontier()),
             }
         }
@@ -1529,7 +1541,9 @@ fn curved_face_arm<T: Decide>(
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::Pierce { t, p, at } => Ok(CurvedEvent::Pierce { t, p, at }),
-                SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
+                    Ok(CurvedEvent::None)
+                }
                 SpanVerdict::Constant | SpanVerdict::Unsettled => Err(frontier()),
             }
         }
@@ -1622,7 +1636,9 @@ fn curved_face_arm<T: Decide>(
                         // definitely clear, and exactly so — the bound
                         // that sent us here could only ever have said
                         // "maybe".
-                        SpanVerdict::NoInterior | SpanVerdict::Miss => Ok(CurvedEvent::None),
+                        SpanVerdict::NoInterior | SpanVerdict::Elsewhere | SpanVerdict::Miss => {
+                    Ok(CurvedEvent::None)
+                }
                         // **`Constant` is NOT a clearance here.** It
                         // reports that the axis-parallel test —
                         // `|d_perp|²/2r`, a SQUARED transverse
@@ -1734,6 +1750,16 @@ enum SpanVerdict<T: geom_core::Real> {
     /// endpoints, so the caller decides — an endpoint incidence is
     /// still an event, it is just not an interior one.
     NoInterior,
+    /// The [`Self::NoInterior`] case with its crossing ACCOUNTED FOR: at
+    /// least one root lies strictly inside the span, every such root
+    /// was placed on the carrier and definitely OUTSIDE this face's
+    /// trim, and no root sits at either end. It is `NoInterior` in every
+    /// respect a caller that accepts `NoInterior` reads; what it adds is
+    /// for the straddling span, whose endpoint signs PROMISE a crossing
+    /// — here the promise is kept, on the carrier, off this face. A
+    /// `NoInterior` with no such root cannot keep it, and that
+    /// contradiction still keeps the door.
+    Elsewhere,
     /// The line is parallel to the axis, so its residual is CONSTANT
     /// along the span. Nothing about the span's interior differs from
     /// its endpoints — which makes it a clearance answer for a caller
@@ -1817,9 +1843,15 @@ fn wall_crossing<T: Decide>(
         Err(verdict) => return Ok(verdict),
     };
     let ts = &roots[..count];
+    // Whether some root sits at an end of the span, and whether some
+    // root strictly inside it was placed outside this face's trim: the
+    // two facts that tell [`SpanVerdict::Elsewhere`] from
+    // [`SpanVerdict::NoInterior`].
+    let mut at_end = false;
+    let mut crossed_elsewhere = false;
     for &t in ts {
-        // `t` is arc length in metres (a `Line` carrier's `dir` is
-        // unit), so both gaps are lengths and take `Margin::of`.
+        // Each gap is a length: `metres_per_param` turns a carrier
+        // parameter difference into arc length.
         let mut interior = true;
         for gap in [t - t0, t1 - t] {
             match decide(
@@ -1828,7 +1860,11 @@ fn wall_crossing<T: Decide>(
                 band,
             ) {
                 Ok(Sign::Positive) => {}
-                Ok(Sign::Negative | Sign::Zero) => interior = false,
+                Ok(Sign::Zero) => {
+                    interior = false;
+                    at_end = true;
+                }
+                Ok(Sign::Negative) => interior = false,
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
         }
@@ -1855,7 +1891,7 @@ fn wall_crossing<T: Decide>(
             // On the carrier and definitely outside THIS face's trim:
             // the carrier is crossed, but not here. The other roots may
             // still land in the face, so the loop continues.
-            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => {}
+            Ok(CurvedPlacement::Trim(Some(FaceContainment::Out))) => crossed_elsewhere = true,
             Ok(CurvedPlacement::Trim(Some(at))) => return Ok(SpanVerdict::Pierce { t, p, at }),
             Err(super::contain::ContainError::Escalated(diag)) => {
                 return Err(BooleanError::Escalated { diag });
@@ -1869,7 +1905,11 @@ fn wall_crossing<T: Decide>(
             Err(_) => return Ok(SpanVerdict::Unsettled),
         }
     }
-    Ok(SpanVerdict::NoInterior)
+    Ok(if crossed_elsewhere && !at_end {
+        SpanVerdict::Elsewhere
+    } else {
+        SpanVerdict::NoInterior
+    })
 }
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
