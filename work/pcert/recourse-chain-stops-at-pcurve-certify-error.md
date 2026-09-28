@@ -23,6 +23,9 @@ soundly: `FittedEscalated` and `Escalated` carry
 `COINCIDENCE_RECOURSE`, `Band` carries `BandError`, which has its own
 row. `ChartRow` delegates to `SplineError`, which HAS a row as of this
 unit — that arm is now transitively sound and wants only the assertion.
+(Disputed, 2026-09-28: the two escalation arms' menu is unlabelled and
+offers a declaration the boundary's own fit has no object for — see
+`pcurve-certify-escalation-renders-the-coincidence-menu-unlabelled`.)
 Four arms already name a repair and rewriting them would be a loss:
 `FittedLaneUnsupported` (three scalars to replay at), `FittedMateMissing`
 (supply the mate face's surface), `AzimuthPeriodExceeded` (split the
