@@ -650,6 +650,7 @@ fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm
 
 /// `certify_line_at` at `Interval`, inside a verdict-log bracket: the
 /// certificate's answer and what the frame recorded beside it.
+/// `editor_core::drive`'s unit rows re-spell it as `tangent_log`.
 fn certify_line_at_interval(
     x: f64,
     s1: Surface<f64>,
@@ -683,7 +684,7 @@ fn certify_line_at_interval(
 }
 
 /// The cylinder of radius `r` about z, tangent-adjacent to the line
-/// `(r, 0, z)`.
+/// `(r, 0, z)`. `editor_core::drive`'s `tangent_log` re-spells it.
 fn cylinder_of(r: f64) -> Surface<f64> {
     Surface::Cylinder {
         origin: Point3::new(0.0, 0.0, 0.0),
@@ -696,6 +697,7 @@ fn cylinder_of(r: f64) -> Surface<f64> {
 /// The radius whose sagitta `R/2` over its own folded arm `R` sits
 /// wholly inside the band, `0.8·Kε`, while a steep enough tilt still
 /// meters a definite defect there (`sin θ · R > Kε` for `sin θ > 5/8`).
+/// `editor_core::drive`'s unit rows carry the same constant.
 fn sliver_radius() -> f64 {
     1.6 * band().escalate()
 }

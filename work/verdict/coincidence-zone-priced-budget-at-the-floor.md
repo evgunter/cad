@@ -87,3 +87,21 @@ at offset 3.367 and never reaches the containment inversion beyond
 10.2; a 2x2 plate with a square hole whose centre is a parameter
 certifies NOTHING at any seed down to `±1e-7` (that second observation
 is its own row, `parametric-polygon-loop-certifies-nothing`).
+
+## The tangency certificate's definite refusals join the class (PR 3343, 2026-09-28)
+
+This is a second kernel refusal in the class. `geom_brep::certify`'s
+tangent arm refuses definitely in two ways: `ResidualExceeded {
+TangentParallel }` when a definite parallelism defect at the folded
+arm renames a second-order refusal, and `NotSecondOrderSeparated`
+when the second-order margin is a definite `Zero`. The escalation log
+now carries nothing for either (`k_stats::splice_superseded`). On the
+sliver-shaped box of `m5_pr9_tangent`'s
+`a_renamed_refusal_leaves_no_second_order_escalation_on_the_log` (a
+cylinder `R = 1.6·Kε`, sagitta `0.8·Kε`), such a node therefore reaches
+`classify_replay`'s `_ => Bisect` and is priced `Budget` at the floor.
+Before PR 3343 it was a terminal `SliverTerminal` under a cause the
+node did not refuse for. For `NotSecondOrderSeparated` the refusal is
+stable on every sub-box. For the renamed refusal no sub-box certifies
+whenever K > 2 and neither surface is a fat torus (the argument is at
+the arm). The terminal name this row asks for would cover both.

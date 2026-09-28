@@ -1898,8 +1898,7 @@ fn run_checks<T: Decide>(
             // is named by a definite parallelism defect at the folded
             // arm when there is one, so a definite first-order defect is
             // reported as itself whatever the surfaces' order or the
-            // scalar — in the returned error and on the frame's
-            // escalation log alike.
+            // scalar.
             Resolved::Tangent { surf1, surf2, .. } => {
                 let (p, tau) = if i > 0 && i < CERT_SAMPLES - 1 {
                     let (p, tau) = spec.carrier.ders1(t);
@@ -1934,19 +1933,24 @@ fn run_checks<T: Decide>(
                     // sagitta under the same predicate name, or the
                     // stored set and the certified set are two sets.
                     //
-                    // Both readings are taken detached, because which
-                    // escalation the refusal RESTS on is known only once
-                    // the naming reading has spoken, and the frame's
-                    // escalation log must carry exactly that one — the
-                    // escalation the returned error carries, or none for
-                    // a definite refusal. Two escalations are superseded
-                    // (`k_stats::splice_superseded`): a renamed refusal's
-                    // second-order one, because the definite defect that
-                    // renames it is definite on every sub-box too, and
-                    // the naming reading's own in-band one, because that
-                    // reading never refuses — it only names a refusal
-                    // the second-order reading already made. Their
-                    // verdicts and samples are spliced as recorded.
+                    // The frame's escalation log carries exactly the
+                    // escalation the returned error carries, so both
+                    // readings run detached and two are spliced without
+                    // theirs (`k_stats::splice_superseded`):
+                    // - the naming reading's: it never refuses, it only
+                    //   names a refusal already made;
+                    // - a renamed refusal's second-order one: no sub-box
+                    //   can certify. The defect is definite at the folded
+                    //   arm on every sub-box, and where a sub-box's
+                    //   sagitta resolves, its lever `1/|κ_rel|` is at
+                    //   least half that arm (`|κ_rel| ≤ κ₁ + κ₂`, each
+                    //   `κᵢ ≤ 1/curvature_lever_arm`), so the defect there
+                    //   is above `K/2 · ε > ε`. Two premises are not
+                    //   invariants: K > 2 is the ratified K = 10 (`Tol`
+                    //   asks only K > 1), and `κᵢ ≤ 1/curvature_lever_arm`
+                    //   fails on a fat torus (R < 2r). Where they fail,
+                    //   a sub-box could certify, and the drop is still
+                    //   safe: a failed node with an empty log bisects.
                     let (so, second_order) = geom_core::k_stats::detached(|| {
                         crate::tangent_second_order(surf1, surf2, p, tau, extent, band)
                     });

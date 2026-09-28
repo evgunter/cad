@@ -127,11 +127,12 @@
 //! [`decide_invariant`] and the gate doors below. [`check_unlogged`] is
 //! the deliberate exception and records neither channel (its own docs
 //! say why), so "every escalation this funnel produces" would be one
-//! door too wide. And an escalation reaches the caller's frame only if
-//! the op's outcome still rests on it: a [`detached`] reading whose
-//! escalation a definite outcome superseded is spliced back with
-//! [`splice_superseded`], which carries its verdicts and samples and
-//! leaves the escalation out.
+//! door too wide. A site whose escalation a definite outcome of the same
+//! op superseded splices that reading with [`splice_superseded`], which
+//! carries its verdicts and samples and leaves the escalation out. The
+//! tangency certificate (`geom_brep::certify`) does; `topo`'s contact
+//! ladder does not yet
+//! (`work/contact/contact-verify-logs-a-second-order-escalation-its-outcome-overruled.md`).
 //!
 //! A predicate's own indeterminacy is produced here too. A predicate
 //! whose question is only validly posed under a condition on the margin
@@ -153,9 +154,8 @@
 //! recording is simply dropped — [`splice`] says the same for a
 //! detached run. Four shipped sites open a frame at all
 //! (`editor_core`'s per-node evaluator and its part-cache shield, and
-//! two in `topo::props`), plus the [`detached`] runs in
-//! `editor_core::names::discriminate`, `mesh::tessellate` and the
-//! tangency certificate's second-order arm (`geom_brep::certify`). So a log
+//! two in `topo::props`), plus the runs detached under a frame of their
+//! own, which are the callers of [`detached`] and [`map_detached`]. So a log
 //! is a per-bracket SIDE channel and never a second copy of an op's
 //! error: every other consumer of a deciding op — the exporters, the
 //! importers, `verbs`, `pncad`, the viewer, the demos, any library
@@ -952,8 +952,10 @@ pub fn splice(recording: Detached) {
 /// outcome of the same op has superseded, so the escalation no longer
 /// decides anything the op returns.
 ///
-/// The one reader that acts on the escalation channel (the subdivision
-/// driver) takes an escalation on a node's log as the reason the node
+/// The escalation channel has two readers. `editor_core::eval`'s memo-hit
+/// assert compares two runs of the same code, so it sees this door on
+/// both sides. The one that acts on it, the subdivision driver, takes an
+/// escalation on a node's log as the reason the node
 /// did not decide: its enclosure is the cue to refine or, wholly in the
 /// band, a terminal sliver NAMED by that predicate. That reading is
 /// wrong for an escalation the op went on to overrule — a refusal

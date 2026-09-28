@@ -1595,7 +1595,7 @@ fn classify_replay<T: geom_core::Decide>(
     // escalation where an arm speaks for the one the error carried, and
     // those differ on a node that recovered from an earlier one — so it
     // wants its own red-first row and its own measurement, which
-    // `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+    // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
@@ -2135,6 +2135,8 @@ mod tests {
     /// between a cylinder of radius `r` about z (as `s1`) and a plane
     /// through the line tilted by `tilt` — at `Interval`, the driver's
     /// lane — and the escalation log a node bracket would have kept.
+    /// Re-spells `certify_line_at_interval` and `cylinder_of` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`, whose rows pin these logs.
     fn tangent_log(r: Option<f64>, x: f64, tilt: f64) -> Vec<Escalation> {
         let lift = Interval::from_f64;
         let s1 = r.map_or(
@@ -2184,7 +2186,8 @@ mod tests {
     }
 
     /// The sliver radius: its sagitta `R/2` over its own arm is `0.8·Kε`,
-    /// wholly in the band.
+    /// wholly in the band. The same constant as `sliver_radius` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`.
     fn sliver_radius() -> f64 {
         1.6 * band().escalate()
     }

@@ -4,23 +4,25 @@ kind: issue
 title: contact_verify's tangency ladder leaves its early second-order escalation on the node log when a definite parallelism defect refuses, or a declaration bridges it
 status: open
 opened: 2026-09-28
+priority: P3
+cost: M
 ---
 
 
 ## Finding
 
-This is the same shape as the tangency certificate's renamed refusal,
-which the encl branch `encl/driver-log-renamed-refusal` fixed there
-through `geom_core::k_stats::splice_superseded`. It was found by that
-branch's sweep and has not been fixed.
+This is the same shape as the renamed refusal in `geom_brep::certify`'s
+tangent arm, which is fixed there through
+`geom_core::k_stats::splice_superseded`. It was found by the sweep of
+that fix and has not been fixed here.
 
 `crates/topo/src/boolean/contact_verify.rs`, the tangency ladder
 (steps (3) and (4), ~386–455), decides
 `"contact_tangent_second_order"` through the logged funnel FIRST and
 acts on it LAST. An in-band reading is pushed onto the innermost open
 bracket's escalation log right away (`geom_core::k_stats`
-`classify_in` → `record_escalation`). Two outcomes then overrule it
-without taking it off the log:
+`classify_in` → `record_escalation`). Three outcomes then disagree with
+the log, which keeps the second-order escalation first:
 
 - **A definite parallelism defect.** `contact_tangent_parallel`
   decides `Positive | Negative` and the ladder returns
@@ -29,6 +31,12 @@ without taking it off the log:
 - **A declared contact.** An in-band second-order reading is the
   bridged residue. With `declared` the ladder returns `Ok(Bridged)`,
   but the escalation stays on the log.
+- **An in-band parallelism reading.** With the second-order reading in
+  band and `contact_tangent_parallel` in band too, the ladder returns
+  `ContactRefusal::Escalated { diag }` carrying the PARALLEL reading.
+  The log's first escalation is still the second-order one, so the
+  driver names `contact_tangent_second_order` for a refusal whose error
+  names `contact_tangent_parallel`.
 
 `crates/editor-core/src/drive.rs` `classify_replay` read (2) lets the
 node log's FIRST escalation speak, for a node that built as much as
@@ -47,12 +55,13 @@ defect.
 - Whether a bridged node SHOULD refine. A declaration carries the
   residue by design (CONTACT-DESIGN, the #175 clause). If the driver is
   meant to treat a bridged node as undecided, the second bullet above
-  is intended and only the first is a defect.
+  is intended and only the first and third are defects.
 
 ## Fix shape
 
 The same fix as the certificate: take the second-order reading
 `detached`, and use `splice_superseded` for it once a definite outcome
-overrules it. A red-first row brackets `tangent_locus_relation` at `Interval` on
+overrules it, or once the parallel reading's own escalation becomes the
+refusal. A red-first row brackets `tangent_locus_relation` at `Interval` on
 a pair whose second-order enclosure is in band and whose defect is
 definite, then asserts that the log is empty.
