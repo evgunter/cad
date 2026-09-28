@@ -1443,7 +1443,7 @@ impl PickIndex {
     /// TIE where the kernel refuses to name one of them.
     ///
     /// The door the GPU id buffer's cross-check reads
-    /// (`crate::idpass::disagreement`): that comparison's subject is the
+    /// (`crate::idpass::compare`): that comparison's subject is the
     /// PATCH under the cursor, because a patch id is the only thing an
     /// id buffer can answer, so the ray side has to answer the same
     /// question. The hover cannot stand in for it — once the priority

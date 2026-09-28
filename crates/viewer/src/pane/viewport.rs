@@ -193,12 +193,15 @@ struct RayQuestion<'a> {
     display: &'a DisplayView,
 }
 
-/// **What the cursor comparison says this frame**: the two picking
-/// paths' disagreement, the ray path's refusal, or nothing.
+/// **What the cursor comparison says this frame**, in the order it
+/// happened: the ray path's refusal when nobody else said it, then
+/// what the id answer amounts to ([`idpass::IdNews`]) — the two
+/// picking paths' disagreement, or, beside a refusal, an id the
+/// picture has no name for. Empty when there is nothing to say.
 ///
-/// The ray answer travels to [`idpass::disagreement`] typed, because a
-/// refusal is not a miss: that function reads a refused ray path as no
-/// verdict rather than as "the ray named nothing".
+/// The ray answer travels to [`idpass::compare`] typed, because a
+/// refusal is not a miss: that function compares nothing against a
+/// refused ray path rather than reading it as "the ray named nothing".
 ///
 /// **A refusal no pick action said this frame is said here.** The
 /// refusal is the ray path's news, and it has words already
@@ -211,13 +214,18 @@ struct RayQuestion<'a> {
 /// loop's own record of that ([`ray_asked_at`]), which is what keeps
 /// the refusal said exactly once a frame: by the pick path when it
 /// asked, here when it did not.
+///
+/// **The refusal does not take the id's place.** Both are news, about
+/// different paths, and the frame joins its notices into one line, so
+/// an id the picture has no name for rides after the refusal whoever
+/// said it.
 fn cursor_news(
     index: &PickIndex,
     question: RayQuestion<'_>,
     answer: u64,
     outstanding: Option<u32>,
     ray_asked: bool,
-) -> Option<frame::Message> {
+) -> Vec<frame::Message> {
     let RayQuestion {
         eval,
         camera,
@@ -228,11 +236,13 @@ fn cursor_news(
     let from_ray: Result<Vec<StableName>, PickError> = index
         .faces_under_cursor(eval, camera, viewport, cursor, display)
         .map(|faces| faces.into_iter().map(|face| face.name).collect());
-    match &from_ray {
+    let refusal = match &from_ray {
         Err(refusal) if !ray_asked => Some(frame::pick_refusal(refusal)),
-        _ => idpass::disagreement(index, answer, outstanding, from_ray.as_deref())
-            .map(|report| report.notice()),
-    }
+        _ => None,
+    };
+    let id_news = idpass::compare(index, display, answer, outstanding, from_ray.as_deref())
+        .map(|news| news.notice());
+    refusal.into_iter().chain(id_news).collect()
 }
 
 /// Direction the light travels, world space; a unit vector over the
@@ -856,7 +866,7 @@ impl ViewerBehavior<'_> {
         };
 
         // The two paths' agreement, compared BY NAME
-        // (`idpass::disagreement` says why ids are the wrong currency,
+        // (`idpass::compare` says why ids are the wrong currency,
         // and records the ray-authoritative role inversion against
         // GQ6-RESURVEY §3). Reported, never resolved.
         //
@@ -869,7 +879,7 @@ impl ViewerBehavior<'_> {
         // questions on every frame the cursor came within
         // `EDGE_PICK_RADIUS_PX` of an edge. So the faces are re-derived
         // through `faces_under_cursor`, and only where there is a fresh
-        // answer waiting for them — `disagreement` still owns the
+        // answer waiting for them — `compare` still owns the
         // freshness rule, this only declines to do the work when no
         // question is outstanding at all. A ray path that could not be
         // asked — no evaluation to ask it of — is no comparison either.
@@ -882,17 +892,15 @@ impl ViewerBehavior<'_> {
                 cursor: cursor_px?,
                 display: self.display,
             };
-            cursor_news(
+            Some(cursor_news(
                 on_screen?,
                 question,
                 self.id_answer.load(Ordering::Relaxed),
                 outstanding,
                 ray_asked,
-            )
+            ))
         });
-        if let Some(news) = said {
-            self.notices.push(news);
-        }
+        self.notices.extend(said.into_iter().flatten());
 
         // **The pane's own numbers at the same seam the matrix just
         // crossed.** The size the renderer is told and the point
@@ -1464,19 +1472,20 @@ mod tests {
 
         let serial = 7u32;
         let nothing = (u64::from(serial) << 32) | u64::from(IdMap::NOTHING);
-        let report = idpass::disagreement(
-            &index,
-            nothing,
-            Some(serial),
-            Ok(std::slice::from_ref(&named)),
-        )
-        .expect("nothing-under-the-cursor against a named face is a disagreement");
         assert_eq!(
-            report.from_gpu,
-            idpass::IdAnswer::Nothing,
-            "the id pass answered nothing"
+            idpass::compare(
+                &index,
+                &DisplayView::none(),
+                nothing,
+                Some(serial),
+                Ok(std::slice::from_ref(&named)),
+            ),
+            Some(idpass::IdNews::Disagreement(idpass::Disagreement {
+                from_gpu: idpass::IdAnswer::Nothing,
+                from_ray: vec![named],
+            })),
+            "nothing-under-the-cursor against a named face is a disagreement"
         );
-        assert_eq!(report.from_ray, vec![named], "the ray answered a face");
 
         assert!(
             drawn_index(Some(&index), None).is_none(),
@@ -1564,17 +1573,18 @@ mod tests {
             "the planted refusal is the kernel declining: {refusal:?}"
         );
         let (index, answer, serial) = (&fixture.index, fixture.answer, Some(fixture.serial));
+        let view = &DisplayView::none();
         assert_eq!(
-            idpass::disagreement(index, answer, serial, Err(&refusal)),
+            idpass::compare(index, view, answer, serial, Err(&refusal)),
             None,
             "a refused ray path is compared against nothing"
         );
         assert_eq!(
-            idpass::disagreement(index, answer, serial, Ok(&[])),
-            Some(idpass::Disagreement {
+            idpass::compare(index, view, answer, serial, Ok(&[])),
+            Some(idpass::IdNews::Disagreement(idpass::Disagreement {
                 from_gpu: idpass::IdAnswer::Named(fixture.named),
                 from_ray: Vec::new(),
-            }),
+            })),
             "while a ray path that answered nothing is contradicted by the face"
         );
     }
@@ -1634,7 +1644,7 @@ mod tests {
         };
         assert_eq!(
             cursor_news(&fixture.index, asked, answer, log.outstanding(), true),
-            None,
+            Vec::new(),
             "the pick path said this refusal; the comparison adds nothing"
         );
 
@@ -1663,7 +1673,7 @@ mod tests {
             .expect_err("the moved ray is refused");
         assert_eq!(
             cursor_news(&fixture.index, unasked, answer, log.outstanding(), false),
-            Some(frame::pick_refusal(&refusal)),
+            vec![frame::pick_refusal(&refusal)],
             "the comparison says the refusal in the pick path's own words"
         );
     }
@@ -1680,7 +1690,7 @@ mod tests {
     /// each ask one of those cursors.
     fn unassigned_id_news(
         wanted: impl Fn(&[StableName]) -> bool,
-    ) -> (u32, Vec<StableName>, Option<frame::Message>) {
+    ) -> (u32, Vec<StableName>, Vec<frame::Message>) {
         let tol = Tol::witness();
         let (doc, _extrude) = scene::plate_with_hole(tol).expect("the plate authors");
         let mut session = DocSession::inline(doc, tol);
@@ -1743,14 +1753,14 @@ mod tests {
         let (id, _, news) = unassigned_id_news(<[StableName]>::is_empty);
         assert_eq!(
             news,
-            Some(frame::Message::new(
+            vec![frame::Message::new(
                 frame::Subject::Cursor,
                 format!(
                     "picking paths disagree at the cursor: id buffer id {id}, \
                      which no patch of this picture draws, ray nothing"
                 ),
                 frame::Retold::Again,
-            )),
+            )],
         );
     }
 
@@ -1762,14 +1772,178 @@ mod tests {
         let named = from_ray
             .first()
             .expect("the helper returns the one-face answer it was asked for");
+        let texts: Vec<&str> = news.iter().map(frame::Message::text).collect();
         assert_eq!(
-            news.expect("an unassigned id against a named face is a disagreement")
-                .text(),
-            format!(
+            texts,
+            [format!(
                 "picking paths disagree at the cursor: id buffer id {id}, \
                  which no patch of this picture draws, ray {named} ({:?})",
                 named.path
+            )],
+            "an unassigned id against a named face is a disagreement, said once"
+        );
+    }
+
+    /// **An id the index never assigned is said beside a refused ray**,
+    /// through the pane's wiring, on both frames the refusal can be
+    /// said on: after the pick path's own refusal when it asked the
+    /// ray, and after the comparison's when it did not. A refused ray
+    /// makes no claim for the id to contradict, and the id needs none:
+    /// no patch of this picture is drawn under it.
+    #[test]
+    fn an_unassigned_id_beside_a_refused_ray_is_said_as_that_id() {
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let display = DisplayView::none();
+        let unassigned = fixture
+            .index
+            .ids()
+            .ids()
+            .max()
+            .expect("the plate draws patches")
+            + 1;
+        assert!(
+            fixture.index.name_of(unassigned).is_none(),
+            "an id past the last assigned one is no entry of this index"
+        );
+        let refusal = fixture
+            .index
+            .faces_under_cursor(
+                foreign,
+                &fixture.camera,
+                fixture.pane,
+                fixture.cursor,
+                &display,
+            )
+            .expect_err("an evaluation of another document is refused");
+        let mut log = idpass::IdQueryLog::new();
+        let subject = idpass::IdSubject {
+            revision: 1,
+            generation: Some(fixture.index.generation()),
+        };
+        let serial = match log.step(Some(fixture.cursor), subject) {
+            IdStep::Ask { serial } => Some(serial),
+            IdStep::Hold | IdStep::Void => None,
+        }
+        .expect("a cursor arriving is a new question");
+        let answer = (u64::from(serial) << 32) | u64::from(unassigned);
+        let question = RayQuestion {
+            eval: foreign,
+            camera: &fixture.camera,
+            viewport: fixture.pane,
+            cursor: fixture.cursor,
+            display: &display,
+        };
+        let said = frame::Message::new(
+            frame::Subject::Cursor,
+            format!(
+                "id buffer at the cursor: id {unassigned}, which no patch of this picture draws"
             ),
+            frame::Retold::Again,
+        );
+        assert_eq!(
+            cursor_news(&fixture.index, question, answer, log.outstanding(), true),
+            vec![said.clone()],
+            "the pick path said the refusal; the comparison says the id"
+        );
+        assert_eq!(
+            cursor_news(&fixture.index, question, answer, log.outstanding(), false),
+            vec![frame::pick_refusal(&refusal), said],
+            "nobody else said the refusal, so the comparison says it, and the id after it"
+        );
+    }
+
+    /// **An id-buffer word that lands on a hidden root's patch is an id
+    /// this picture does not draw**, not the face the index names it:
+    /// the index keeps a hidden part's ids and names them, and the
+    /// picture draws none of them, so reading the word as that name
+    /// would say the id buffer saw a face that is not on screen. Driven
+    /// through the pane's wiring beside a ray that answered, and at the
+    /// comparison beside one that refused.
+    #[test]
+    fn a_hidden_roots_patch_id_is_said_as_an_id_this_picture_does_not_draw() {
+        let tol = Tol::witness();
+        let (doc, extrude) = scene::plate_with_hole(tol).expect("the plate authors");
+        let mut session = DocSession::inline(doc, tol);
+        session.pump();
+        let index = plate_index(&session, a_delta(0.5));
+        let eval = session.evaluation().expect("the plate lands");
+        let id = *index
+            .ids_of_node(extrude)
+            .first()
+            .expect("the plate's root draws patches");
+        let named = index
+            .name_of(id)
+            .expect("an id of this index has an entry")
+            .as_ref()
+            .expect("and the plate's patches name cleanly")
+            .clone();
+        let hidden = DisplayView {
+            hidden_roots: std::collections::BTreeSet::from([extrude]),
+            ..DisplayView::none()
+        };
+        let camera = framed();
+        let pane = ViewportSize {
+            width_px: 1600.0,
+            height_px: 900.0,
+        };
+        let cursor = [800.0, 450.0];
+        assert!(
+            index
+                .faces_under_cursor(eval, &camera, pane, cursor, &hidden)
+                .expect("the plate's ray path answers")
+                .is_empty(),
+            "with its only root hidden the plate is out of the ray path's answer"
+        );
+
+        let serial = 7u32;
+        let answer = (u64::from(serial) << 32) | u64::from(id);
+        assert_eq!(
+            idpass::compare(&index, &DisplayView::none(), answer, Some(serial), Ok(&[])),
+            Some(idpass::IdNews::Disagreement(idpass::Disagreement {
+                from_gpu: idpass::IdAnswer::Named(named),
+                from_ray: Vec::new(),
+            })),
+            "shown, the same word is the face the index names"
+        );
+
+        let question = RayQuestion {
+            eval,
+            camera: &camera,
+            viewport: pane,
+            cursor,
+            display: &hidden,
+        };
+        assert_eq!(
+            cursor_news(&index, question, answer, Some(serial), true),
+            vec![frame::Message::new(
+                frame::Subject::Cursor,
+                format!(
+                    "picking paths disagree at the cursor: id buffer id {id}, \
+                     which no patch of this picture draws, ray nothing"
+                ),
+                frame::Retold::Again,
+            )],
+            "hidden, it is an id this picture does not draw"
+        );
+
+        let fixture = refused_ray();
+        let foreign = fixture
+            .foreign
+            .evaluation()
+            .expect("the other document lands");
+        let refusal = index
+            .faces_under_cursor(foreign, &camera, pane, cursor, &hidden)
+            .expect_err("an evaluation of another document is refused");
+        assert_eq!(
+            idpass::compare(&index, &hidden, answer, Some(serial), Err(&refusal)),
+            Some(idpass::IdNews::BesideRefusal(idpass::IdAnswer::Undrawn {
+                id
+            })),
+            "and beside a refused ray it is still said"
         );
     }
 

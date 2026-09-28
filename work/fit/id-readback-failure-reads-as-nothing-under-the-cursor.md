@@ -36,10 +36,10 @@ it as a fresh, valid reply.
 
 ## It is not silent, which is worse than it sounds
 
-`crate::idpass::disagreement` reads that word back and compares the
+`crate::idpass::compare` reads that word back and compares the
 two picking paths by name. `id == IdMap::NOTHING` gives `from_gpu =
 IdAnswer::Nothing` (`idpass::IdAnswer::of`); a ray that DID find a
-face then does not contain it (`disagreement`'s `agrees` is
+face then does not contain it (`compare`'s `agrees` is
 `from_ray.is_empty()` for that arm), and the frame pushes
 `Disagreement { from_gpu: IdAnswer::Nothing, from_ray: vec![name] }`
 onto the status line as *"id buffer nothing"*. `IdAnswer::Nothing`'s
@@ -47,7 +47,7 @@ doc now cites this row: the arm holds a failed readback as well as
 empty space until the channel word tells them apart. So a device that could not answer is reported to the
 reader as **the id pass and the ray disagreeing about the picture** —
 a sentence about the model, blaming the half of the crate that was
-working. The GUI0 role inversion recorded at `disagreement` makes the
+working. The GUI0 role inversion recorded at `compare` makes the
 ray authoritative precisely so the id pass can contradict it out loud;
 contradicting it because a readback failed is the one thing that
 argument does not cover.

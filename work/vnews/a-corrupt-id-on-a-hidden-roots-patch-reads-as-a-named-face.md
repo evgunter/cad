@@ -2,10 +2,12 @@
 id: a-corrupt-id-on-a-hidden-roots-patch-reads-as-a-named-face
 kind: issue
 title: An id-buffer word that lands on a hidden root's patch id reads as a named face, not as an id this picture does not draw
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+branch: vnews/every-id-is-said
+closed: 2026-09-28
 ---
 
 Filed by `vnews/an-unnamed-id-is-not-nothing` (PR #3249), which made
@@ -41,3 +43,18 @@ count as drawn.
 
 `crates/viewer/src/idpass.rs` (CHROME, VGEOM) and `cursor_news` in
 `crates/viewer/src/pane/viewport.rs`.
+
+## Closed
+
+Fixed on `vnews/every-id-is-said`. `IdAnswer::of` takes the
+`DisplayView` the picture was drawn under, and the arm that was
+`Unassigned` is now `IdAnswer::Undrawn`: an id the index never
+assigned, or one it assigned to a part whose root the view hides
+(read through `IdMap::key_of`'s node, the same test `scene_focused`
+drops a part by). Whether an id is drawn is asked before what it is
+named, so a hidden part's id is `Undrawn` even when the naming layer
+refused its name. `idpass::compare` and `cursor_news` pass the view
+the ray is asked under, which is the same view.
+`a_hidden_roots_patch_id_is_said_as_an_id_this_picture_does_not_draw`
+hides the plate's root and asserts the sentence through `cursor_news`,
+with the unhidden reading (the named face) as its control.

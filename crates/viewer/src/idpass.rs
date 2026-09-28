@@ -16,8 +16,10 @@
 //! can be replayed. Everything here exists because it REMEMBERS.
 //! [`IdQueryLog`] holds the question, [`IdSubject`] decides what
 //! counts as the same question, [`IdStep`] is the verdict about this
-//! frame, and [`Disagreement`] is what the two picking paths amount to
-//! once an answer has been matched to the question it answers.
+//! frame, and [`IdNews`] is what an answer amounts to once it has been
+//! matched to the question it answers: the two picking paths'
+//! [`Disagreement`], or an id the picture has no name for beside a
+//! ray path that refused.
 //!
 //! **The failure mode the memory exists for is an answer outliving its
 //! question**, and it does not look like a fault: a matched-but-stale
@@ -32,6 +34,7 @@
 use pncad::prelude::StableName;
 use pncad::select::HitTestError;
 
+use crate::display::DisplayView;
 use crate::frame::{Message, Retold, Subject};
 use crate::generation::Generation;
 use crate::pickindex::{IdMap, PickError, PickIndex};
@@ -149,13 +152,13 @@ impl IdQueryLog {
 }
 
 /// **What the id buffer said at the cursor**, read through the index
-/// that drew the picture.
+/// that drew the picture and the display view it drew it under.
 ///
 /// Four answers, because the channel word is an id and not a name:
 /// the index turns it into a name, or says it has none for a patch it
-/// draws, or has never assigned it at all. The last two are not the
-/// clear value, and reading either as *nothing* publishes a claim the
-/// id buffer did not make.
+/// draws, or the picture draws no patch under it at all. The last two
+/// are not the clear value, and reading either as *nothing* publishes
+/// a claim the id buffer did not make.
 #[derive(Clone, Debug, PartialEq)]
 pub enum IdAnswer {
     /// [`IdMap::NOTHING`], the id buffer's clear value.
@@ -175,11 +178,16 @@ pub enum IdAnswer {
         /// Why the patch has no name.
         error: HitTestError,
     },
-    /// An id the index never assigned, so no patch of this picture is
-    /// drawn under it. The picture is the one this index drew (the
+    /// An id no patch of this picture is drawn under: one the index
+    /// never assigned, or one it assigned to a part whose root the
+    /// display view hides. [`PickIndex::scene_for`] keeps a hidden
+    /// part's ids and draws none of them, so the index NAMES such an
+    /// id and the picture does not show it, and reading it as that
+    /// name would say the id buffer saw a face that is not on screen.
+    /// The picture is the one this index drew under this view (the
     /// viewport compares against no other), so the word itself is
     /// wrong: the symptom of a corrupt readback.
-    Unassigned {
+    Undrawn {
         /// The id the id buffer read back.
         id: u32,
     },
@@ -188,7 +196,7 @@ pub enum IdAnswer {
 impl core::fmt::Display for IdAnswer {
     /// Each arm in the words of the layer that raised it: a name
     /// through [`name_and_path`], an unnamed patch through its own
-    /// refusal's `Display`, and an unassigned id as the picture's own
+    /// refusal's `Display`, and an undrawn id as the picture's own
     /// fact. The id is `id N` in every arm that carries one, because
     /// it is one `u32` read out of the id buffer, whatever it turns out
     /// to denote.
@@ -197,7 +205,7 @@ impl core::fmt::Display for IdAnswer {
             Self::Nothing => f.write_str("nothing"),
             Self::Named(name) => f.write_str(&name_and_path(name)),
             Self::Unnamed { id, error } => write!(f, "id {id}, a drawn patch: {error}"),
-            Self::Unassigned { id } => write!(f, "id {id}, which no patch of this picture draws"),
+            Self::Undrawn { id } => write!(f, "id {id}, which no patch of this picture draws"),
         }
     }
 }
@@ -210,18 +218,34 @@ fn name_and_path(name: &StableName) -> String {
 }
 
 impl IdAnswer {
-    /// The answer the id `id` denotes in `index`.
-    pub fn of(index: &PickIndex, id: u32) -> Self {
+    /// The answer the id `id` denotes in `index`'s picture under
+    /// `display`.
+    ///
+    /// **Whether the id is drawn is asked before what it is named**:
+    /// the index names every part's ids, hidden or not, so a name is
+    /// no evidence the picture shows the patch. A hidden part's id is
+    /// [`IdAnswer::Undrawn`] whatever its name, including a name the
+    /// naming layer refused, because the picture drawing no patch
+    /// under it is the fact about the id buffer's word.
+    pub fn of(index: &PickIndex, display: &DisplayView, id: u32) -> Self {
         if id == IdMap::NOTHING {
             return Self::Nothing;
         }
+        // The id map is derived from the same windows as the name
+        // table, so an id with a name has a patch, and the patch's node
+        // is the root the display view hides or not.
+        let hidden = index
+            .ids()
+            .key_of(id)
+            .is_some_and(|patch| display.hidden_roots.contains(&patch.node));
         match index.name_of(id) {
+            None => Self::Undrawn { id },
+            Some(_) if hidden => Self::Undrawn { id },
             Some(Ok(name)) => Self::Named(name.clone()),
             Some(Err(error)) => Self::Unnamed {
                 id,
                 error: error.clone(),
             },
-            None => Self::Unassigned { id },
         }
     }
 }
@@ -238,7 +262,7 @@ pub struct Disagreement {
     /// faces the arithmetic cannot order, and the rasterizer cannot
     /// either — the pixel there falls to depth rounding, so the id
     /// pass naming ONE of them is not a disagreement
-    /// ([`disagreement`]).
+    /// ([`compare`]).
     pub from_ray: Vec<StableName>,
 }
 
@@ -300,6 +324,51 @@ impl Disagreement {
     }
 }
 
+/// **What one fresh id answer has to say**, beside the ray path's
+/// answer or refusal at the same cursor ([`compare`]).
+#[derive(Clone, Debug, PartialEq)]
+pub enum IdNews {
+    /// The two paths both answered, and the answers differ.
+    Disagreement(Disagreement),
+    /// The ray path refused, so there is no ray answer to compare, and
+    /// the id buffer answered an id this picture has no name for:
+    /// [`IdAnswer::Undrawn`] or [`IdAnswer::Unnamed`], the answers no
+    /// ray answer could agree with ([`compare`] raises it for nothing
+    /// else). Such an id is wrong without a ray to contradict it, so a
+    /// refusal beside it does not excuse it.
+    BesideRefusal(IdAnswer),
+}
+
+impl core::fmt::Display for IdNews {
+    /// A disagreement in its own words; an id beside a refusal as what
+    /// the id buffer read at the cursor, in [`IdAnswer`]'s words for
+    /// it. The ray's refusal is not in the sentence: it is the ray
+    /// path's news and is said in its own words ([`compare`]).
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::Disagreement(disagreement) => disagreement.fmt(f),
+            Self::BesideRefusal(from_gpu) => write!(f, "id buffer at the cursor: {from_gpu}"),
+        }
+    }
+}
+
+impl IdNews {
+    /// This news as a message for the status line, on
+    /// [`Disagreement::notice`]'s terms for either arm:
+    /// [`Subject::Cursor`], because it is a claim about what lies under
+    /// THIS cursor over THIS picture, and [`Retold::Again`], because
+    /// the same hover says it again while the id buffer still answers
+    /// it.
+    pub fn notice(&self) -> Message {
+        match self {
+            Self::Disagreement(disagreement) => disagreement.notice(),
+            Self::BesideRefusal(_) => {
+                Message::new(Subject::Cursor, self.to_string(), Retold::Again)
+            }
+        }
+    }
+}
+
 /// Compare the id pass's answer against the ray path's, **by name**.
 ///
 /// # Why names and not ids
@@ -331,20 +400,27 @@ impl Disagreement {
 /// names a face outside the set, nothing where the ray named
 /// something, or something where the ray named nothing — and
 /// whenever it answers an id the index cannot name
-/// ([`IdAnswer::Unnamed`], [`IdAnswer::Unassigned`]; below).
+/// ([`IdAnswer::Unnamed`], [`IdAnswer::Undrawn`]; below).
 ///
-/// # A refused ray path is no verdict
+/// # A refused ray path is no comparison
 ///
 /// `from_ray` is the ray path's answer OR its refusal
 /// ([`crate::pickindex::PickIndex::faces_under_cursor`]'s own
 /// `Result`), because an empty answer and a refusal are different
 /// facts: the first says nothing is under the cursor, the second says
 /// nothing about the cursor at all. A refused path made no claim for
-/// the id pass to contradict, so the two are not compared — the same
-/// answer this function gives when the id pass has no fresh claim of
-/// its own. Reading the refusal as an empty set would publish *ray
-/// nothing* on exactly the cursors the kernel declines, which are the
-/// ones the id pass is likeliest to answer with a face.
+/// the id pass to contradict, so the two are not compared. Reading the
+/// refusal as an empty set would publish *ray nothing* on exactly the
+/// cursors the kernel declines, which are the ones the id pass is
+/// likeliest to answer with a face.
+///
+/// **Except an id the picture has no name for**, which needs no ray to
+/// be wrong: it is said on its own beside the refusal
+/// ([`IdNews::BesideRefusal`]), for the reason the next section gives
+/// for saying it at all. *Nothing* and a name are claims about the
+/// cursor that only a ray answer could contradict, and a refused ray
+/// gives them no verdict — the same answer this function gives when
+/// the id pass has no fresh claim of its own.
 ///
 /// Declining to compare is not dropping the refusal: it is the ray
 /// path's news, not the comparison's, and it is said in the ray path's
@@ -357,40 +433,53 @@ impl Disagreement {
 /// # An id the index cannot name is not nothing
 ///
 /// The id side is read as an [`IdAnswer`], not as a name, because the
-/// id buffer can answer an id the index has no name for: a patch whose
-/// name the naming layer refused ([`IdAnswer::Unnamed`]), or an id the
-/// index never assigned ([`IdAnswer::Unassigned`]). Neither AGREES
-/// with any ray answer. Agreement is a shared name, and these have
+/// id buffer can answer an id the picture has no name for: a patch
+/// whose name the naming layer refused ([`IdAnswer::Unnamed`]), or an
+/// id no patch of this picture is drawn under ([`IdAnswer::Undrawn`]:
+/// never assigned, or assigned to a hidden root's part, which the
+/// index would otherwise name). `display` is the view the picture and
+/// the ray were both drawn and asked under. Neither AGREES with any
+/// ray answer. Agreement is a shared name, and these have
 /// none, so silence here would claim an agreement nobody can check.
 /// Nor is either said anywhere else. This comparison is the id
 /// answer's only reader, so the notice is where each is said, with
 /// the id, which is what issue #1097 §4 asks an operator to record.
-/// The ray path's own brush with an unnamed face is a refusal, and
-/// that is no verdict (above).
+/// The ray path's own brush with an unnamed face is a refusal, which
+/// is no ray answer (above), and the id beside it is still the id
+/// buffer's to say.
 ///
 /// `answer` is the raw channel word (`serial << 32 | id`); `expected`
-/// is [`IdQueryLog::outstanding`]. `None` means "no verdict": no query
-/// outstanding, a stale answer, a refused ray path, or the two agree.
-pub fn disagreement(
+/// is [`IdQueryLog::outstanding`]. `None` means "nothing to say": no
+/// query outstanding, a stale answer, a refused ray path beside
+/// *nothing* or a name, or the two agree.
+pub fn compare(
     index: &PickIndex,
+    display: &DisplayView,
     answer: u64,
     expected: Option<u32>,
     from_ray: Result<&[StableName], &PickError>,
-) -> Option<Disagreement> {
+) -> Option<IdNews> {
     if expected? != (answer >> 32) as u32 {
         return None;
     }
+    let from_gpu = IdAnswer::of(index, display, answer as u32);
     let Ok(from_ray) = from_ray else {
-        return None;
+        return match from_gpu {
+            IdAnswer::Nothing | IdAnswer::Named(_) => None,
+            IdAnswer::Unnamed { .. } | IdAnswer::Undrawn { .. } => {
+                Some(IdNews::BesideRefusal(from_gpu))
+            }
+        };
     };
-    let from_gpu = IdAnswer::of(index, answer as u32);
     let agrees = match &from_gpu {
         IdAnswer::Nothing => from_ray.is_empty(),
         IdAnswer::Named(name) => from_ray.contains(name),
-        IdAnswer::Unnamed { .. } | IdAnswer::Unassigned { .. } => false,
+        IdAnswer::Unnamed { .. } | IdAnswer::Undrawn { .. } => false,
     };
-    (!agrees).then(|| Disagreement {
-        from_gpu,
-        from_ray: from_ray.to_vec(),
+    (!agrees).then(|| {
+        IdNews::Disagreement(Disagreement {
+            from_gpu,
+            from_ray: from_ray.to_vec(),
+        })
     })
 }

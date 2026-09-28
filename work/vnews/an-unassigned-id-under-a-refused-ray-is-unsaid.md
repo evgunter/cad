@@ -2,10 +2,12 @@
 id: an-unassigned-id-under-a-refused-ray-is-unsaid
 kind: issue
 title: An id the drawn index never assigned goes unsaid on a cursor where the ray path refuses
-status: open
+status: closed
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+branch: vnews/every-id-is-said
+closed: 2026-09-28
 ---
 
 Filed by `vnews/an-unnamed-id-is-not-nothing`, which closed
@@ -50,3 +52,28 @@ still sees the id everywhere the ray answers.
 `crates/viewer/src/idpass.rs` (CHROME, VGEOM) and `cursor_news` in
 `crates/viewer/src/pane/viewport.rs`. Nearest sibling:
 `rank-one-discards-the-frames-other-news`.
+
+## Closed
+
+Fixed on `vnews/every-id-is-said`. `crates/viewer/src/idpass.rs`'s
+comparison is now `compare`, and it returns an `IdNews`: the two
+paths' `Disagreement`, or `IdNews::BesideRefusal(IdAnswer)` when the
+ray path refused and the id buffer answered an id this picture has no
+name for. That arm says *"id buffer at the cursor: id N, which no patch
+of this picture draws"*, in `IdAnswer`'s own words, and leaves the
+refusal to the path that raised it. *Nothing* and a name beside a
+refusal are still no verdict, because only a ray answer could
+contradict them.
+
+`IdAnswer::Unnamed` (a drawn patch the naming layer could not name)
+rides the same arm. It agrees with no ray answer and has no other
+reader either, so leaving it out would have been this row's defect
+again with the other arm. No document can plant the naming layer's
+bug arm, so that half is held by the exhaustive match in `compare`
+and not by a test.
+
+`crates/viewer/src/pane/viewport.rs`'s `cursor_news` returns every
+notice it has, in order: the refusal when the pick path did not say
+it, then the id news. The frame joins them into one line.
+`an_unassigned_id_beside_a_refused_ray_is_said_as_that_id` drives both
+frames through `cursor_news`.
