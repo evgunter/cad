@@ -557,3 +557,21 @@ Signed: (CONTACT orchestrator)
   - A single full review is dispatched.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 review: no MAJOR; fix pass
+
+- S1 held under the reviewer's 22 unions (8 at an oblique pose), and
+  every mutant was caught.
+- Three MINORs, adjudicated:
+  - **The plugged hole now glues rather than refusing.** An isolated
+    doubled edge with both ends free goes with both ends, and its empty
+    ring goes too. Both are free ends of a dangling seam edge, which is
+    inside the ratified clause.
+  - **S3 gets a real-pipeline row**, or a pin on `absorb_merge` with a
+    real pruning's `Descendants`.
+  - **Stale prose** in `m4_pr5_declare`, `KERNEL-VERBS.md` and
+    `work/topo/D262.md`.
+- Filed: `a-curved-merge-group-with-a-dangling-seam-refuses-as-period-closure`
+  (P3).
+
+Signed: (CONTACT orchestrator)
