@@ -322,3 +322,12 @@ writes the certificate's DERIVATION before any code:
 
 `VERBS-CONE` and `circle-crosses-a-torus-face-with-no-root-lane` wait behind
 these two. The ∖/∩ torus roster is parked on (b).
+
+## 2026-09-28 — the measurement lane: a live wrong answer on the cylinder
+
+The measurement lane (`germ/interior-loop-measurements`, merged here, no PR) found:
+
+- **P0 on main:** the interior-loop class on the cylinder. Two cylinder walls meet in a saddle loop interior to both faces, and a pin supplies crossings elsewhere. Every op returns a valid wrong body; ∩ keeps only the pin. Filed as `cylinder-wall-pair-meeting-in-an-interior-loop-while-crossings-exist-elsewhere`. The stopgap gates only torus and sphere faces, so it is the same class the stopgap was built for, missed because the cylinder was assumed to be covered by the no-crossings extent gate. Dispatched `germ/cylinder-interior-loop-guard`: a stopgap on the model of the sphere half (a per-pair certificate or refuse), with a single Opus review. It runs in parallel with `germ/interior-loop-guard-rows`, and whichever lands second merges the other.
+- **The backstop's tilted rod is this class:** the pre-backstop body drops the lens. The backstop fires only because the closed-form lane lacks ellipse arcs, so the guard is the real barrier.
+- **Cone preview (throwaway admission):** every op is wrong, both with and without crossings. The cone needs a half in the guard AND an arm in the no-crossings extent gates before `VERBS-CONE` admits it. These are now in the spec lane's scope and on `VERBS-CONE`.
+- **Sphere × cylinder with two components:** every fixture refuses earlier, at `CurvedPierceUnsupported`. No escape, but also no evidence for the guard's sphere clause.

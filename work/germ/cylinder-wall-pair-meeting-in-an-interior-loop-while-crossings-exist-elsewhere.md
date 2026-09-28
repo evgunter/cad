@@ -2,7 +2,7 @@
 id: cylinder-wall-pair-meeting-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
 title: Two cylinder walls meeting in a saddle loop interior to both faces, while crossings exist elsewhere, come back as a valid wrong body under every op
-status: open
+status: dispatched
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 opened: 2026-09-28
 priority: P0
