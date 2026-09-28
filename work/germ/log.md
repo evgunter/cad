@@ -246,3 +246,19 @@ The fix pass took all of it. Hosted run 36391755202 is green on
 carries the reviewer's argument that the aperture guards are policy, not
 numerical necessity. `VERBS-CONE` now carries the list of `reduce.rs` sites
 that have no cone arm.
+
+## 2026-09-28 — the stopgap lands (PR 3336)
+
+The live wrong answer is closed: `union(half_donut, bracket)` refuses, and
+so does the sphere analogue, which was wrong under every op on main and
+predates PR 3265. The torus is gated per op (a per-pair gate is unsound: one
+plane cuts a tube in two loops); the sphere per pair (its sections have one
+component, or components that cross a seam). Tier: single full review,
+APPROVE-WITH-FIXES, with no soundness break. With the guard off both wrong
+answers return; with it on it fires only in the new rows. **Merged ahead of
+its row-hygiene fixes, because it closes a live wrong answer.** The fixes
+(the ∩ row passes through the revert roster rather than the guard; the lens
+row's threshold is monotone in the wrong direction; stale variant docs; two
+near-parallel torus reach gates) are an immediate follow-up. DR-11 carries
+the escape line. Filed:
+`union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`.
