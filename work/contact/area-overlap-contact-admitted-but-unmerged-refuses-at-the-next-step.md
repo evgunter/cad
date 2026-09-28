@@ -2,11 +2,12 @@
 id: area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step
 kind: issue
 title: A declared area-overlap cap contact is admitted without a merge, and the F7 gate refuses the two coplanar rows at the next boolean
-status: open
+status: dispatched
 opened: 2026-09-07
 refs: [2073, 2073]
 priority: P0
 cost: D
+parent: CONTACT-8
 ---
 
 ## What
