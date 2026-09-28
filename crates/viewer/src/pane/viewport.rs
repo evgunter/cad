@@ -555,9 +555,11 @@ impl ViewerBehavior<'_> {
         // still describes this cursor and this picture; a message
         // about what was under the cursor is stale on exactly that
         // judgement, so `frame::cursor_status` reads it. It only ever
-        // expires — what the cursor has to SAY is raised below, where
-        // the two picking paths are compared.
-        frame::apply(self.status, frame::cursor_status(step));
+        // expires today — what the cursor has to SAY is raised below,
+        // where the two picking paths are compared — and it goes
+        // through the policies' door all the same, because that is the
+        // only door a policy's verdict fits.
+        frame::deliver(self.notices, self.status, frame::cursor_status(step));
 
         // The cursor path: actions in, session operations out. Every
         // step of it — the un-projection, the ray service, the miss

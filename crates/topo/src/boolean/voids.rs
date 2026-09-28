@@ -198,7 +198,7 @@ impl core::fmt::Display for VoidInsertError {
                 write!(
                     f,
                     "graft re-certification refused: {}",
-                    e.render(geom_brep::certify::Reading::Build)
+                    e.render(geom_brep::recourse::Reading::Build)
                 )
             }
         }

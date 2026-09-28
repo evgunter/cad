@@ -47,8 +47,8 @@ remain in `crates/geom-brep/src/certify.rs`:
   decision proper, and a definite non-positive verdict escalates as
   `MarginDiag::Invalid`. Certification reports that escalation under
   the decision it guards (`Transversality`, `ParamSpan`), so it ends in
-  that decision's lever plus the unreadable-margin note ("could not be
-  read (not a number, or a lever that collapsed)"). The question those
+  that decision's lever plus the unreadable-margin note ("an unreadable
+  or collapsed margin may indicate a kernel bug worth reporting"). The question those
   gates ask — is there an arm, is there a metered extent — is a
   decision of its own, with its own verdict and its own ending, and
   routing it as the guarded decision's poisoned margin is a stand-in.
@@ -81,3 +81,22 @@ Split the tube's definite arm as the span's (Zero to
 `NotSecondOrderSeparated`, Negative to a sign-certain arm). Give the
 collapsed-arm gates a `CertCheck` of their own (or carry the gate's
 verdict on the escalation) so `recourse` routes them as themselves.
+
+## Note (from the offset-meters reshape)
+
+The shared table now takes a valued zero arm:
+`geom_brep::recourse::RefusedArm::Zero(Some(Classified { margin, band }))`
+ends in the conditional tighten below `m/K` when `m > 0`, and otherwise
+in the lever alone (plus `SizedDecision::at_zero` where the decision has
+one). The offset meters use it. certify's zero arms pass `Zero(None)`
+because their variants carry no margin. The repair here is for the
+variants to carry `(margin, band)`. Once they do, delete `Zero(None)`,
+the `Option` in `RefusedArm::Zero`, and `SizedDecision::recourse`'s
+`tighten(None)` (the unvalued conditional arm): nothing else produces
+them.
+
+A decided margin is spelled three ways: `recourse::Classified`
+(margin, band), `offset_meters::Refused` (the verdict carrying a
+`Classified`), and `sweep::blend::ClassifiedMargin`
+(`crates/sweep/src/blend/mod.rs` ~:241: predicate, reading, band,
+sign). The payload types should converge on one of them.
