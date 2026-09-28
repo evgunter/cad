@@ -30,8 +30,8 @@
 //! # Which way LOOSENESS runs is the door's property, not the box's
 //!
 //! A box bigger than it needs to be is free only where the box
-//! PRUNES. That is **two** of the six doors that read a box from
-//! here; at the other four, box NON-overlap is the answer being
+//! PRUNES. That is **two** of the seven doors that read a box from
+//! here; at the other five, box NON-overlap is the answer being
 //! sought, so a bigger box is a REFUSAL:
 //!
 //! - `boolean::reduce`'s C10 tree PRUNES. Loose costs a candidate
@@ -55,6 +55,12 @@
 //!   ball's certified extent CLEARS the face's box, so a bigger box
 //!   turns a separated cyl×sphere pair into
 //!   `FallbackExtentUnsupported`.
+//! - `boolean::ops`'s interior-loop guard, on a cylinder pair, reads
+//!   both faces' boxes as EXTENTS: a width along the wall's axis that
+//!   an ellipse must fit in, and a ball that bounds how far the other
+//!   axis can drift. A bigger box withholds either certificate, so a
+//!   pair that could not hold an interior loop refuses as
+//!   `CurvedPairUnsupported`; it can never grant one.
 //! - `census`'s arm 2 clears an instance pair at its gate on a
 //!   definitely negative margin against a CONTAINING box and sends
 //!   every other pair to the material test, so over-width would cost
@@ -65,10 +71,10 @@
 //!   (`bool4r1_probes::probe_d`).
 //!
 //! So nothing here may say "loose is free" about a BOX. It is a claim
-//! about a door, and the door has to be named. The six are not
+//! about a door, and the door has to be named. The seven are not
 //! recited: `every_door_that_reads_a_box_is_inventoried` below walks
 //! `topo/src` and pins them per file — both rules, face and edge — so
-//! a seventh door cannot land unargued. **It pins WHERE the doors are
+//! an eighth door cannot land unargued. **It pins WHERE the doors are
 //! and not which way each reads**, which is the column that carries
 //! the argument above; that gap is `S234` and has an owner rather
 //! than a disclosure.
@@ -2865,7 +2871,10 @@ mod tests {
     ///   operand, on the same rule, and so does the TORUS gate (a torus
     ///   face's box against each non-sphere face of the other operand).
     ///   **Refuses**: whichever box fails to clear turns the pair into
-    ///   `FallbackExtentUnsupported`.
+    ///   `FallbackExtentUnsupported`. The interior-loop guard's cylinder
+    ///   half reads two more [`face_box`]es, one per face of a pair, as
+    ///   the extents its certificates bound; **refuses** the same way,
+    ///   as `CurvedPairUnsupported`.
     /// - `separation.rs` — the two separation certificates, the
     ///   placement one and the solid-pair one, on one rule.
     ///   **Refuses**, both of them and for the same reason:
@@ -2928,7 +2937,7 @@ mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 7),
+            ("boolean/ops.rs", 9),
             ("boolean/reduce.rs", 5),
             ("census.rs", 7),
             ("separation.rs", 2),

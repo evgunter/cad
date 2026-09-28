@@ -512,6 +512,8 @@ mod m9_3_wall_door;
 mod germ_cone_doors;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]

@@ -98,7 +98,7 @@
 
 use geom_core::{Band, Bounds, Decide, Margin, MarginDiag, Point3, Real, Sign, Tol, Vec3};
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::BTreeMap;
 
 use super::boxes;
 use super::combine::{GraftMap, graft_solid};
@@ -690,6 +690,14 @@ fn boolean_op_recut<
 ///   circle lies outside one of the two faces
 ///   ([`circle_misses_a_face`]). Anything else refuses, and a sphere
 ///   face against any other partner kind refuses on reach.
+/// - **Cylinder: refused per PAIR.** Sphere and torus partners are the
+///   halves above's. Against a PLANE the section is one ellipse or
+///   rulings, so an event covers it; with no event the ellipse is
+///   cleared only by a certificate ([`ellipse_misses_a_face`]). Against
+///   another WALL the section is one saddle loop or two loops about the
+///   thinner axis, and each loop is cleared by an event on it or one of
+///   its points outside a face ([`wall_pair_clear`]); parallel axes
+///   clear only on reach. Any other partner kind refuses on reach.
 ///
 /// An event of the pair `(F, G)` is a contact the reduction recorded
 /// between a vertex on `F`'s boundary and `G` (vertex on face or
@@ -743,7 +751,7 @@ fn interior_loop_verdict<T: Decide + Bounds>(
             Operand::A => (face, other),
             Operand::B => (other, face),
         };
-        if events.contains(&(fa, fb)) {
+        if events.contains_key(&(fa, fb)) {
             return matches!(
                 partner_kind(operand, other, a, b),
                 Some(
@@ -761,6 +769,50 @@ fn interior_loop_verdict<T: Decide + Bounds>(
         b,
         band,
         |s| !matches!(s, geom::Surface::Sphere { .. }),
+        clear,
+    )? {
+        return Err(refuse(p));
+    }
+    // The cylinder half. Sphere and torus partners were settled by the
+    // halves above, in their own words.
+    let pad = boxes::sweep_pad(band);
+    let clear = |operand: Operand, face: FaceKey, other: FaceKey| -> bool {
+        if declared(operand, face, other) {
+            return true;
+        }
+        let (fa, fb) = match operand {
+            Operand::A => (face, other),
+            Operand::B => (other, face),
+        };
+        let pair_events = events.get(&(fa, fb)).map_or(&[][..], Vec::as_slice);
+        // The two faces' certified boxes, `face`'s first.
+        let pair_boxes = || {
+            let (body, other_body) = match operand {
+                Operand::A => (a, b),
+                Operand::B => (b, a),
+            };
+            (
+                boxes::face_box(body, face, pad).ok(),
+                boxes::face_box(other_body, other, pad).ok(),
+            )
+        };
+        match partner_kind(operand, other, a, b) {
+            Some(geom_brep::SurfaceKind::Sphere | geom_brep::SurfaceKind::Torus) => true,
+            Some(geom_brep::SurfaceKind::Plane) => {
+                !pair_events.is_empty()
+                    || ellipse_misses_a_face(operand, face, other, a, b, band, pair_boxes())
+            }
+            Some(geom_brep::SurfaceKind::Cylinder) => {
+                wall_pair_clear(operand, face, other, a, b, pair_events, band, pair_boxes())
+            }
+            _ => false,
+        }
+    };
+    if let Some(p) = super::reduce::first_unsupported_pair(
+        a,
+        b,
+        band,
+        |s| !matches!(s, geom::Surface::Cylinder { .. }),
         clear,
     )? {
         return Err(refuse(p));
@@ -971,38 +1023,377 @@ fn circle_misses_a_face<T: Decide>(
         )
 }
 
-/// The (A face, B face) pairs the reduction recorded an event on: a
-/// vertex-on-face contact pairs every face the vertex bounds with the
-/// face it lies on, and a vertex-on-vertex contact pairs every face
-/// each vertex bounds.
-fn event_pairs<T: Real>(
-    red: &BooleanReduction<T>,
-) -> Result<BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
+/// A cylinder face's carrier: its axis point, UNIT axis and radius.
+fn wall_carrier<T: Real>(
+    body: &Body<T>,
+    face: FaceKey,
+) -> Option<(Point3<T>, Vec3<T>, T, Vec3<T>)> {
+    match body
+        .get_face(face)
+        .and_then(|fd| body.get_surface(fd.surface))?
+    {
+        &geom::Surface::Cylinder {
+            origin,
+            axis,
+            radius,
+            u_ref,
+        } => Some((origin, axis / axis.norm(), radius, u_ref)),
+        _ => None,
+    }
+}
+
+/// A face's certified box (`boxes::face_box`, `None` where it could not
+/// be built) as `(centre, half-diagonal, extents)`: every point of the
+/// face lies within the half-diagonal of the centre. `None` for a
+/// missing or poison box.
+fn box_ball<T: Real>(bx: Option<bvh::Aabb>) -> Option<(Point3<T>, T, Vec3<T>)> {
+    let bx = bx?;
+    let spans = [
+        (bx.min_x, bx.max_x),
+        (bx.min_y, bx.max_y),
+        (bx.min_z, bx.max_z),
+    ];
+    if spans
+        .iter()
+        .any(|&(lo, hi)| !(lo.is_finite() && hi.is_finite()))
+    {
+        return None;
+    }
+    let lift = |(lo, hi): (f64, f64)| (T::from_f64(lo), T::from_f64(hi));
+    let [(x0, x1), (y0, y1), (z0, z1)] = spans.map(lift);
+    let half = T::from_f64(0.5);
+    let extents = Vec3::new(x1 - x0, y1 - y0, z1 - z0);
+    let centre = Point3::new((x0 + x1) * half, (y0 + y1) * half, (z0 + z1) * half);
+    Some((centre, extents.norm() * half, extents))
+}
+
+/// The width of a face's box along the unit direction `d`.
+fn box_width<T: Real>(bx: Option<bvh::Aabb>, d: Vec3<T>) -> Option<T> {
+    let (_, _, e) = box_ball(bx)?;
+    Some(d.x.abs() * e.x + d.y.abs() * e.y + d.z.abs() * e.z)
+}
+
+/// Is `p` — a point certified onto the face's carrier by construction —
+/// outside the cylinder face's trim? Only the trim's own `Out` counts:
+/// an off-carrier verdict would be the construction's rounding, not a
+/// certificate.
+fn outside_wall<T: Decide>(body: &Body<T>, face: FaceKey, p: Point3<T>, band: Band) -> bool {
+    matches!(
+        super::contain::curved_face_placement(body, face, p, band),
+        Ok(super::contain::CurvedPlacement::Trim(Some(
+            FaceContainment::Out
+        )))
+    )
+}
+
+/// **A cylinder face and a plane face with no event between them: can
+/// their section hold a closed component interior to both?**
+///
+/// The carriers meet in an ellipse, in up to two rulings (the plane
+/// parallel to the axis), or not at all. With no event on the pair the
+/// section meets neither face's boundary inside the other face — the
+/// sweep examines every box-overlapping edge × face pair — so each
+/// component of the section lies in both faces wholly or not at all. A
+/// ruling is unbounded and the faces are not, so only the ellipse can
+/// lie wholly in both. Two certificates put it outside:
+///
+/// - **it does not fit.** The ellipse's extent along the axis is
+///   `2r·|n⊥| / |n·â|` (`t(θ) = (n·(p₀ − o) − r·n·e(θ)) / (n·â)` and
+///   `n·e(θ)` sweeps `±|n⊥|`), and a face that holds it spans at least
+///   that along the axis. So `2r·|n⊥| > |n·â|·w`, with `w` either face
+///   box's width along the axis, rules the ellipse out of that face. A
+///   plane parallel to the axis passes at `2r > 0`: it has no ellipse.
+/// - **one point of it is outside a face.** With the plane transverse
+///   (`n·â` decided), any one point of the ellipse decides the whole
+///   curve, as [`circle_misses_a_face`] argues for the sphere. Four are
+///   tried, on the rulings a quarter turn apart from the seam's
+///   neighbour, since one of them may sit on a face's boundary where the
+///   curve only touches it.
+///
+/// Anything else is not a certificate.
+#[allow(clippy::too_many_arguments)]
+fn ellipse_misses_a_face<T: Decide>(
+    operand: Operand,
+    face: FaceKey,
+    other: FaceKey,
+    a: &Body<T>,
+    b: &Body<T>,
+    band: Band,
+    boxes: (Option<bvh::Aabb>, Option<bvh::Aabb>),
+) -> bool {
+    let (body, other_body) = match operand {
+        Operand::A => (a, b),
+        Operand::B => (b, a),
+    };
+    let Some((o, axis, r, u_ref)) = wall_carrier(body, face) else {
+        return false;
+    };
+    let Some(&geom::Surface::Plane {
+        origin: p0, normal, ..
+    }) = other_body
+        .get_face(other)
+        .and_then(|fd| other_body.get_surface(fd.surface))
+    else {
+        return false;
+    };
+    let n = normal / normal.norm();
+    let na = n.dot(axis);
+    let n_perp = (n - axis * na).norm();
+    let two = T::from_f64(2.0);
+    let fits_not = |w: Option<T>| {
+        w.is_some_and(|w| {
+            matches!(
+                decide(
+                    "bool_interior_loop_ellipse_span",
+                    Margin::of(two * r * n_perp - na.abs() * w),
+                    band
+                ),
+                Ok(Sign::Positive)
+            )
+        })
+    };
+    if fits_not(box_width(boxes.0, axis)) || fits_not(box_width(boxes.1, axis)) {
+        return true;
+    }
+    if !matches!(
+        decide(
+            "bool_interior_loop_ellipse_transverse",
+            Margin::levered(na, r),
+            band
+        ),
+        Ok(Sign::Positive | Sign::Negative)
+    ) {
+        return false;
+    }
+    let e = axis.cross(u_ref);
+    let e = e / e.norm();
+    let f = e.cross(axis);
+    [e, f, -e, -f].into_iter().any(|dir| {
+        let base = o + dir * r;
+        let p = base + axis * (n.dot(p0 - base) / na);
+        matches!(
+            contfp(other_body, other, normal, p, band),
+            Ok(FaceContainment::Out)
+        ) || outside_wall(body, face, p, band)
+    })
+}
+
+/// **Two cylinder faces: can their section hold a closed component
+/// interior to both that no event marks?** `events` are the pair's
+/// event points ([`event_pairs`]).
+///
+/// **The section, for skew or crossing axes** (`σ = |â₁ × â₂| > 0`).
+/// Let `n̂` be the common perpendicular, `s` the axes' distance along it,
+/// and parametrize the THINNER wall (`r_t ≤ r_k`) by its angle `θ` from
+/// the ruling nearest the thicker axis. Moving along the thin ruling
+/// leaves the `n̂` component of the offset from the thick axis fixed, at
+/// `w(θ) = r_t·cos θ − s`, and moves the in-plane component at rate `σ`.
+/// So the ruling at `θ` meets the thick wall exactly when
+/// `|w(θ)| ≤ r_k`, in two points (one each side, the BRANCHES,
+/// `sign(m̂·(p − o_k))`, `m̂` the unit part of `â_t` normal to `â_k`)
+/// joining where `|w| = r_k`. The `cos θ` window has length
+/// `2r_k/r_t ≥ 2`, so it is ONE arc or the whole turn:
+///
+/// - `s > r_k − r_t`: one arc, one closed loop that encircles neither
+///   axis (the saddle). Any event of the pair lies on it, so it is not
+///   interior to both; with no event it is wholly in both faces or in
+///   neither, and one of its points outside either face certifies the
+///   second.
+/// - `s < r_k − r_t`: the whole turn, two loops, one per branch, each
+///   encircling the thin axis (the thin wall passes through). Each
+///   branch is cleared on its own: an event on it, or one of its points
+///   outside a face.
+/// - between the two (the margin undecided) the curve is one loop, the
+///   two branches, or the two touching; the per-branch rule is sound in
+///   each, since each component carries both branches' evidence or
+///   holds one whole branch.
+///
+/// The per-branch rule needs the thin wall decided. With equal radii
+/// the curve near `s = 0` can split either way, about either axis, so
+/// each of the four branch pairs `(β_t, β_k)` must carry an event: any
+/// component of any split then holds one.
+///
+/// **Parallel axes** are not classified here: the section is rulings or
+/// empty, but a pair within the band of parallel can be a very long
+/// loop. They clear only on the reach test below, which holds at every
+/// angle.
+///
+/// **Reach, at any angle.** A point `p` of face `F` lies within the
+/// half-diagonal `h` of `F`'s box centre `c`, so its foot `f` on `F`'s
+/// axis lies within `h` of `c`'s foot `f₀`, and the other axis's
+/// distance from `f` is within `h·σ` of its distance `g₀` from `f₀`.
+/// On both carriers `|dist(p, ℓ₂) − dist(f, ℓ₂)| ≤ |p − f| = r₁`, so
+/// `dist(f, ℓ₂) ∈ [r₂ − r₁, r₂ + r₁]`; `g₀ + hσ < r₂ − r₁` or
+/// `g₀ − hσ > r₁ + r₂` puts every point of `F` off the other carrier.
+///
+/// Anything else is not a certificate.
+#[allow(clippy::too_many_arguments)]
+fn wall_pair_clear<T: Decide>(
+    operand: Operand,
+    face: FaceKey,
+    other: FaceKey,
+    a: &Body<T>,
+    b: &Body<T>,
+    events: &[Point3<T>],
+    band: Band,
+    boxes: (Option<bvh::Aabb>, Option<bvh::Aabb>),
+) -> bool {
+    type Wall<T> = (Point3<T>, Vec3<T>, T, Vec3<T>);
+    let (body, other_body) = match operand {
+        Operand::A => (a, b),
+        Operand::B => (b, a),
+    };
+    let (Some(f), Some(g)) = (wall_carrier(body, face), wall_carrier(other_body, other)) else {
+        return false;
+    };
+    let sign = |name: &'static str, m: Margin<T>| decide(name, m, band).ok();
+    let positive = |name: &'static str, m: Margin<T>| sign(name, m) == Some(Sign::Positive);
+    let off_reach = |bx: Option<bvh::Aabb>, (o1, a1, r1, _): Wall<T>, (o2, a2, r2, _): Wall<T>| {
+        let Some((c, h, _)) = box_ball(bx) else {
+            return false;
+        };
+        let foot = o1 + a1 * (c - o1).dot(a1);
+        let off = foot - o2;
+        let g0 = (off - a2 * off.dot(a2)).norm();
+        let slack = h * a1.cross(a2).norm();
+        positive(
+            "bool_interior_loop_walls_nested_near",
+            Margin::of(r2 - r1 - g0 - slack),
+        ) || positive(
+            "bool_interior_loop_walls_clear_near",
+            Margin::of(g0 - slack - (r1 + r2)),
+        )
+    };
+    if off_reach(boxes.0, f, g) || off_reach(boxes.1, g, f) {
+        return true;
+    }
+    let cross = f.1.cross(g.1);
+    let sigma = cross.norm();
+    if !positive(
+        "bool_interior_loop_walls_skew",
+        Margin::levered(sigma, f.2 + g.2),
+    ) {
+        return false;
+    }
+    let thinner = sign("bool_interior_loop_walls_thinner", Margin::of(g.2 - f.2));
+    let ((ot, at, rt, _), (ok, ak, rk, _)) = match thinner {
+        Some(Sign::Negative) => (g, f),
+        _ => (f, g),
+    };
+    let n0 = cross / sigma;
+    let s_signed = (ok - ot).dot(n0);
+    let n = match sign("bool_interior_loop_walls_side", Margin::of(s_signed)) {
+        Some(Sign::Negative) => -n0,
+        _ => n0,
+    };
+    let s = s_signed.abs();
+    if positive("bool_interior_loop_walls_clear", Margin::of(s - (rt + rk))) {
+        return true;
+    }
+    let unit_perp = |x: Vec3<T>, y: Vec3<T>| {
+        let v = x - y * x.dot(y);
+        v / v.norm()
+    };
+    let m = unit_perp(at, ak);
+    let beta_t = |p: Point3<T>| sign("bool_interior_loop_wall_branch", Margin::of(m.dot(p - ok)));
+    let out_either = |p: Point3<T>| {
+        outside_wall(body, face, p, band) || outside_wall(other_body, other, p, band)
+    };
+    // The section point on the thin ruling nearest the thick axis, on
+    // the branch `plus`: `y = σz` solves `y² + 2by + c = 0` with
+    // `b = m̂·v₀⊥`, `c = |v₀⊥|² − r_k²`, and `b + y = ±√(b² − c)` is
+    // the branch value.
+    let point = |plus: bool| -> Option<Point3<T>> {
+        let p0 = ot + n * rt;
+        let v0 = p0 - ok;
+        let v0p = v0 - ak * v0.dot(ak);
+        let bq = v0p.dot(m);
+        let disc = bq * bq - (v0p.dot(v0p) - rk * rk);
+        if !positive("bool_interior_loop_wall_point", Margin::of(disc / rk)) {
+            return None;
+        }
+        let root = disc.sqrt();
+        let y = if plus { root - bq } else { -root - bq };
+        Some(p0 + at * (y / sigma))
+    };
+    if positive(
+        "bool_interior_loop_walls_saddle",
+        Margin::of(s - (rk - rt).abs()),
+    ) {
+        return !events.is_empty() || point(true).is_some_and(out_either);
+    }
+    match thinner {
+        Some(Sign::Positive | Sign::Negative) => [(true, Sign::Positive), (false, Sign::Negative)]
+            .into_iter()
+            .all(|(plus, branch)| {
+                events.iter().any(|&p| beta_t(p) == Some(branch))
+                    || point(plus).is_some_and(out_either)
+            }),
+        _ => {
+            let m_k = unit_perp(ak, at);
+            let beta_k = |p: Point3<T>| {
+                sign(
+                    "bool_interior_loop_wall_branch",
+                    Margin::of(m_k.dot(p - ot)),
+                )
+            };
+            [Sign::Positive, Sign::Negative].into_iter().all(|bt| {
+                [Sign::Positive, Sign::Negative].into_iter().all(|bk| {
+                    events
+                        .iter()
+                        .any(|&p| beta_t(p) == Some(bt) && beta_k(p) == Some(bk))
+                })
+            })
+        }
+    }
+}
+
+/// The (A face, B face) pairs the reduction recorded an event on, each
+/// with the points of its events: a vertex-on-face contact pairs every
+/// face the vertex bounds with the face it lies on, and a
+/// vertex-on-vertex contact pairs every face each vertex bounds. The
+/// point is the contact vertex's own (the A-side vertex's, for a
+/// vertex-on-vertex contact).
+fn event_pairs<T: Real>(red: &BooleanReduction<T>) -> Result<EventPairs<T>, BooleanError> {
     let a_faces = faces_by_vertex(&red.a)?;
     let b_faces = faces_by_vertex(&red.b)?;
     let around = |m: &BTreeMap<VertexKey, Vec<FaceKey>>, v: VertexKey| {
         m.get(&v).cloned().unwrap_or_default()
     };
-    let mut out = BTreeSet::new();
+    let at = |body: &Body<T>, v: VertexKey| {
+        body.get_vertex(v)
+            .and_then(|vd| body.get_point(vd.point))
+            .copied()
+            .ok_or(BooleanError::JoinDesync {
+                what: "interior-loop guard: a contact vertex has no point",
+            })
+    };
+    let mut out: EventPairs<T> = BTreeMap::new();
     for c in &red.contacts.a_on_b {
+        let p = at(&red.a, c.vertex)?;
         for fa in around(&a_faces, c.vertex) {
-            out.insert((fa, c.face));
+            out.entry((fa, c.face)).or_default().push(p);
         }
     }
     for c in &red.contacts.b_on_a {
+        let p = at(&red.b, c.vertex)?;
         for fb in around(&b_faces, c.vertex) {
-            out.insert((c.face, fb));
+            out.entry((c.face, fb)).or_default().push(p);
         }
     }
     for c in &red.contacts.vv {
+        let p = at(&red.a, c.a)?;
         for fa in around(&a_faces, c.a) {
             for fb in around(&b_faces, c.b) {
-                out.insert((fa, fb));
+                out.entry((fa, fb)).or_default().push(p);
             }
         }
     }
     Ok(out)
 }
+
+/// The event points of each (A face, B face) pair ([`event_pairs`]).
+type EventPairs<T> = BTreeMap<(FaceKey, FaceKey), Vec<Point3<T>>>;
 
 /// Every face each vertex bounds, from the faces' own loops.
 fn faces_by_vertex<T: Real>(
