@@ -2,10 +2,11 @@
 id: driver-escalation-log-names-a-renamed-tangent-refusal-osculating
 kind: issue
 title: the driver's escalation log still names the second-order cause for a tangent refusal the certificate renamed to TangentParallel
-status: review
+status: closed
 opened: 2026-09-28
 priority: P3
 cost: M
+closed: 2026-09-28
 ---
 
 

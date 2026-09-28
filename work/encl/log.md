@@ -1015,3 +1015,4 @@ class of 65 sites is PRED's row.
 - 2026-09-28 — PR 3343 fix pass landed at `0eb6236870`.
   - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
   - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
+- 2026-09-28 — PR 3343 merged (`f5390b0605`), hosted all green on `0eb6236870`. Closed `driver-escalation-log-names-a-renamed-tangent-refusal-osculating`. Seam notes posted on the props, verdict, tcost and tint logs.
