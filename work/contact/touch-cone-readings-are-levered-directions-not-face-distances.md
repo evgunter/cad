@@ -2,10 +2,11 @@
 id: touch-cone-readings-are-levered-directions-not-face-distances
 kind: issue
 title: The census's touch analysis decides a face's side of a candidate plane by a unit-direction reading times a lever, not by the face's own distance from the plane — an obtuse sector reads a dipping face as on the plane
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: H
+parent: CONTACT-7
 ---
 
 

@@ -2,11 +2,13 @@
 id: the-unit-picker-is-offered-on-a-slot-whose-notation-is-not-the-users
 kind: issue
 title: the slot unit picker is enabled on a driven slot and SetSlotUnit refuses the pick
-status: open
+status: closed
 opened: 2026-09-20
 refs: [a-disabled-control-says-why-in-four-shapes, the-hide-toggle-is-drawn-over-a-refusal-the-op-will-give]
 priority: P3
 cost: E
+branch: vnews/the-unit-picker-reads-its-refusal
+closed: 2026-09-25
 ---
 
 Found by the sweep of `vnews/properties-controls-read-their-refusals`
@@ -71,3 +73,40 @@ VNEWS's: `crates/viewer/src/pane/properties.rs`, double-claimed with
 VGEOM and written on both sides, so a change there announces. The
 refusal's words already have one home (`SlotUnitFault`'s `Display`);
 nothing in `props.rs` needs to move.
+
+## Closed
+
+`slot_unit_ui` now asks each component what `SetSlotUnit` refuses that
+slot with whatever unit is picked (`DocSession::slot_unit_refusal`, over
+`props::slot_literal`, which `props::slot_unit_edit` runs first). Before
+this, it drew the combo unconditionally. The session-wide
+`GestureInFlight` gate is not read here: that is a class across the
+gated controls, filed as `a-gated-control-does-not-read-the-held-gesture-refusal`.
+
+The vector case is decided as **write the components it can, and say
+which it skipped**. It does not refuse the family. A computed component
+shows its expression, not a number in a unit, so the one-picker
+reasoning ("three components of a point are written in one unit") is
+about the literal components, and a driven z does not make x's and y's
+notation any less the user's to choose. Refusing the whole family would
+repeat this row's defect in mirror image: a control disabled where the
+op it pushes would accept. So:
+
+- every component refused (a driven scalar, or an all-driven vector):
+  the combo reads `computed` and is drawn disabled, and its disabled
+  hover is the refusals' own `Display`, one per line;
+- some refused: the combo is live, a pick pushes `SetSlotUnit` for the
+  writable components only, and its hover says which components a pick
+  writes and which it skips, followed by the skipped components'
+  refusals;
+- the selected text is the unit the writable components agree on. A
+  driven component's canonical rendering (`m`) used to count towards
+  `mixed`, so `(10 mm, 5 mm, =expr)` read `mixed` even though every
+  written number was in millimetres.
+
+The one-picker comment stays, re-scoped to the written components.
+Four whole-app rows in `app.rs`'s `properties_pane_tests` pin it (a
+driven scalar, a literal control, a vector with a driven z, and an
+all-driven vector), and each one hovers and clicks the real pane. A
+vector pick is still one history action per component. That predates
+this branch and is filed as `a-vector-unit-pick-is-one-undo-per-component`.

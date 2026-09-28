@@ -648,6 +648,23 @@ impl<T: Real> BooleanReduction<T> {
     }
 }
 
+/// Which site raised [`BooleanError::CurvedPairUnsupported`]. The three
+/// share one meaning — this pair of face kinds has no sound lane under
+/// this op — and differ in when it is known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PairRefusalSite {
+    /// The operand gate, up front: a kind with no wired arm whose box
+    /// may meet an undeclared face of the other operand.
+    OperandGate,
+    /// The ∖/∩ front door, up front: a kind with no revert seam lane
+    /// whose box may meet a face of the other operand.
+    RevertRoster,
+    /// The crossings path's interior-loop guard, after the reduction: a
+    /// torus or sphere face that may meet a face of the other operand in
+    /// a closed loop no edge event marks.
+    InteriorLoopGuard,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -1030,7 +1047,16 @@ pub enum BooleanError {
     ///   (deviation 5), and the fallback's extent test is unwritable
     ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
     ///
-    /// These are refused UP FRONT because their downstream failure is
+    /// **Three sites raise it, and [`PairRefusalSite`] says which.** The
+    /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
+    /// operands' kinds and boxes. The crossings path's interior-loop
+    /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
+    /// would have answered: a torus or sphere face that may meet a face
+    /// of the other operand in a loop no edge event marks (the reduction
+    /// saw crossings elsewhere, and the join and face-region propagation
+    /// cannot see the loop).
+    ///
+    /// The up-front refusals exist because their downstream failure is
     /// **silent, not typed**: with no crossings found the pipeline
     /// falls through to vertex-probed containment, and a curved face
     /// can leave the other solid between its vertices without any
@@ -1044,9 +1070,13 @@ pub enum BooleanError {
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
     CurvedPairUnsupported {
-        /// The op this refusal is specific to (never `Union`), or
-        /// `None` when the kind has no arm under any op.
+        /// The op this refusal is specific to, or `None` when the kind
+        /// has no arm under any op. `Union` is named only by the
+        /// interior-loop guard ([`PairRefusalSite::InteriorLoopGuard`]).
         op: Option<BooleanOp>,
+        /// Which site refused: the operand gate, the revert roster, or
+        /// the crossings path's interior-loop guard.
+        site: PairRefusalSite,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,
         /// That face — the first such in face-arena order.
@@ -1562,6 +1592,27 @@ impl core::fmt::Display for BooleanError {
                  the Boolean refuses it. Recourse: merge those faces first \
                  (merge_coplanar_faces)",
                 operand_word(*operand),
+            ),
+            Self::CurvedPairUnsupported {
+                site: PairRefusalSite::InteriorLoopGuard,
+                op,
+                operand,
+                kind,
+                other_kind,
+                ..
+            } => write!(
+                f,
+                "the {} operand's {} face may meet the {} operand's {} face along a closed \
+                 curve that crosses no edge of either solid, and the Boolean{} cannot yet \
+                 see such a meeting, so it refuses rather than guess. Recourse: move the \
+                 parts so every place they meet crosses an edge of one of them, or so the \
+                 {} face stays clear of the other solid",
+                operand_word(*operand),
+                kind_word(*kind),
+                operand_word(operand.other()),
+                kind_word(*other_kind),
+                op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
+                kind_word(*kind),
             ),
             Self::CurvedPairUnsupported {
                 op,
@@ -2855,9 +2906,19 @@ mod tests {
             },
             BooleanError::CurvedPairUnsupported {
                 op: None,
+                site: PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
                 kind: geom_brep::SurfaceKind::Cone,
+                other_face: face,
+                other_kind: geom_brep::SurfaceKind::Plane,
+            },
+            BooleanError::CurvedPairUnsupported {
+                op: Some(BooleanOp::Union),
+                site: PairRefusalSite::InteriorLoopGuard,
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Torus,
                 other_face: face,
                 other_kind: geom_brep::SurfaceKind::Plane,
             },

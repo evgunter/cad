@@ -2873,6 +2873,11 @@ pub(crate) mod staleness_posture {
                  reaches a pcurve",
             ),
             ("set_face_sense", Neither, "writes one `bool`"),
+            (
+                "set_face_surface_and_sense",
+                Transfers,
+                "`set_face_surface`, which it calls, plus one `bool`",
+            ),
             ("set_surface_source", Neither, "GeomSource metadata"),
             ("set_curve_source", Neither, "GeomSource metadata"),
             ("set_point_source", Neither, "GeomSource metadata"),

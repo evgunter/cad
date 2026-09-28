@@ -103,6 +103,8 @@ mod p1b_r1_probes;
 mod pcurve_p1b_r2_probes;
 #[path = "pis_arc_capped_poses.rs"]
 mod pis_arc_capped_poses;
+#[path = "pis_cut_cavity.rs"]
+mod pis_cut_cavity;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -510,6 +512,8 @@ mod m9_3_wall_door;
 
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_interior_oval.rs"]
+mod germ_interior_oval;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]

@@ -142,7 +142,9 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
-use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
+use geom_core::{
+    Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag, MissingRecourse, Sign, SupSpeed,
+};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
@@ -212,10 +214,34 @@ pub enum MeterError {
     },
     /// A meter escalated: the margin landed in the ambiguity band or
     /// was poisoned (escalate-never-guess, D4 ¶3).
+    ///
+    /// It renders the classifier's payload without `Indeterminate`'s
+    /// shared coincidence tail — a meter decides one face's own normal
+    /// or curvature, so "declare the coincidence" has no object — and
+    /// ends in [`escalation_recourse`] for an undecided margin, or
+    /// [`KERNEL_DEFECT_ENDING`] for a poisoned one. A name no meter
+    /// raises renders the classifier's own `Display` whole and then
+    /// [`MissingRecourse`], which names the hole in the table.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
     },
+}
+
+/// The normal floor's lever, as a literal for `concat!`: every repair
+/// that splits off a degeneracy composes it.
+macro_rules! split_lever {
+    () => {
+        "Recourse: split the face clear of any pole, cusp or pinch"
+    };
+}
+
+/// The curvature meter's lever, as a literal for `concat!`: every
+/// repair that shrinks the offset distance composes it.
+macro_rules! distance_lever {
+    () => {
+        "Recourse: use an offset distance of smaller magnitude"
+    };
 }
 
 impl core::fmt::Display for MeterError {
@@ -227,22 +253,73 @@ impl core::fmt::Display for MeterError {
                 f,
                 "the face's surface normal cannot be proved non-zero (smallest normal \
                  length {floor} m² per unit parameter area, parameter speed {speed_lever} m), \
-                 so it has no offset. Recourse: split the face clear of any pole, cusp or \
-                 pinch; if it has none, report these numbers"
+                 so it has no offset. {NORMAL_FLOOR_RECOURSE}; if it has none, report these \
+                 numbers"
             ),
             Self::CurvatureHeadroom { reach, .. } => write!(
                 f,
                 "the offset distance's magnitude reaches the face's radius of curvature on \
                  the side it bends toward ({reach} m), so the offset would fold over itself. \
-                 Recourse: use an offset distance of magnitude below {reach} m, or offset to \
-                 the other side"
+                 {} (below {reach} m), or offset to the other side",
+                distance_lever!()
             ),
-            Self::Escalated { source } => write!(
-                f,
-                "whether the face can be offset is too close to call: \
-                 {source}"
-            ),
+            Self::Escalated { source } => {
+                let lead = "whether the face can be offset is too close to call";
+                match (source.margin, escalation_recourse(source.predicate)) {
+                    (MarginDiag::Invalid, _) => {
+                        write!(f, "{lead}: {}. {KERNEL_DEFECT_ENDING}", source.payload())
+                    }
+                    (_, Some(recourse)) => write!(f, "{lead}: {}. {recourse}", source.payload()),
+                    // A name no meter raises: the table has nothing
+                    // for it, and the refusal says so after the
+                    // classifier's own advice.
+                    (_, None) => {
+                        write!(f, "{lead}: {source}; {}", MissingRecourse(source.predicate))
+                    }
+                }
+            }
         }
+    }
+}
+
+/// The repair for a face whose normal is certifiably degenerate
+/// ([`MeterError::NormalFloor`]): split off the degeneracy.
+pub const NORMAL_FLOOR_RECOURSE: &str = split_lever!();
+
+/// The repair for an offset that certifiably folds
+/// ([`MeterError::CurvatureHeadroom`]): a smaller distance, or the
+/// side the face does not bend toward.
+pub const CURVATURE_HEADROOM_RECOURSE: &str =
+    concat!(distance_lever!(), ", or offset to the other side");
+
+/// The predicate name [`offset_normal_floor`] attaches to its
+/// escalation.
+pub const NORMAL_FLOOR_PREDICATE: &str = "offset_normal_floor";
+
+/// The predicate name [`offset_curvature_headroom`] attaches to its
+/// escalation.
+pub const CURVATURE_HEADROOM_PREDICATE: &str = "offset_curvature_headroom";
+
+/// The labelled repair for a meter margin the band could not decide,
+/// routed by the meter that escalated: the one table every surface
+/// that renders [`MeterError::Escalated`] reads (its own `Display`,
+/// and `topo::validate`'s checks-window classifier).
+///
+/// Each meter's own lever, plus the tolerance, which is what put the
+/// margin in the band. `None` for any other name (or none): the table
+/// holds nothing for it, and the caller says so with
+/// [`MissingRecourse`] rather than asserting a lever over a decision
+/// it does not know. A poisoned margin is not routed here: it is not a
+/// number the user can move, so each surface ends it in the
+/// kernel-defect ending its own subject calls for.
+#[must_use]
+pub fn escalation_recourse(predicate: Option<&str>) -> Option<&'static str> {
+    match predicate {
+        Some(NORMAL_FLOOR_PREDICATE) => Some(concat!(split_lever!(), ", or lower the tolerance")),
+        Some(CURVATURE_HEADROOM_PREDICATE) => {
+            Some(concat!(distance_lever!(), ", or lower the tolerance"))
+        }
+        _ => None,
     }
 }
 
@@ -549,7 +626,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
-    match decide("offset_normal_floor", margin, band)
+    match decide(NORMAL_FLOOR_PREDICATE, margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
         Sign::Positive => Ok(()),
@@ -784,8 +861,12 @@ pub enum MeterResult {
 /// at or below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(), MeterError> {
-    match decide("offset_curvature_headroom", Margin::of(coll.headroom), band)
-        .map_err(|source| MeterError::Escalated { source })?
+    match decide(
+        CURVATURE_HEADROOM_PREDICATE,
+        Margin::of(coll.headroom),
+        band,
+    )
+    .map_err(|source| MeterError::Escalated { source })?
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(MeterError::CurvatureHeadroom {
@@ -797,9 +878,8 @@ pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(),
 }
 
 #[cfg(test)]
-#[allow(clippy::unwrap_used)]
+#[allow(clippy::unwrap_used, clippy::expect_used)]
 mod tests {
-    use geom_core::MarginDiag;
     use geom_core::predicate::COINCIDENCE_RECOURSE;
 
     use super::*;
@@ -807,11 +887,9 @@ mod tests {
     /// Every meter refusal names what the caller changes, not only the
     /// number that refused.
     ///
-    /// `Escalated` renders the classifier's [`Indeterminate`] whole and
-    /// contributes three words of its own, so it is asserted
-    /// TRANSITIVELY — at every `MarginDiag` arm, because that Display's
-    /// three arms are three different sentences and picking one would
-    /// prove the chain at one payload.
+    /// `Escalated` is asserted at each meter's predicate crossed with
+    /// every `MarginDiag` arm: the predicate picks the lever, and the
+    /// poisoned margin replaces it with the kernel-defect ending.
     #[test]
     fn every_meter_error_arm_names_a_recourse() {
         // A vocabulary, not a part-of-speech test: an arm that names
@@ -842,7 +920,7 @@ mod tests {
                 source: Indeterminate {
                     margin: MarginDiag::Value(5e-9),
                     band,
-                    predicate: Some("offset_meter_recourse_probe"),
+                    predicate: Some(NORMAL_FLOOR_PREDICATE),
                 },
             },
         ];
@@ -850,18 +928,38 @@ mod tests {
         for arm in &arms {
             match arm {
                 MeterError::Escalated { .. } => {
-                    for margin in margins {
-                        let source = Indeterminate {
-                            margin,
-                            band,
-                            predicate: Some("offset_meter_recourse_probe"),
-                        };
-                        let msg = MeterError::Escalated { source }.to_string();
-                        assert!(
-                            msg.contains(&source.to_string()),
-                            "carrier not rendered whole: {msg}"
-                        );
-                        assert!(msg.contains(COINCIDENCE_RECOURSE), "no recourse in: {msg}");
+                    let predicates = [
+                        (NORMAL_FLOOR_PREDICATE, "split the face clear"),
+                        (CURVATURE_HEADROOM_PREDICATE, "offset distance of smaller"),
+                    ];
+                    for (predicate, lever) in predicates {
+                        for margin in margins {
+                            let source = Indeterminate {
+                                margin,
+                                band,
+                                predicate: Some(predicate),
+                            };
+                            let msg = MeterError::Escalated { source }.to_string();
+                            assert!(
+                                msg.contains(&source.payload().to_string()),
+                                "payload not rendered: {msg}"
+                            );
+                            assert!(
+                                !msg.contains(COINCIDENCE_RECOURSE),
+                                "a face's meter offers a declaration: {msg}"
+                            );
+                            let ending = match margin {
+                                MarginDiag::Invalid => KERNEL_DEFECT_ENDING,
+                                _ => escalation_recourse(Some(predicate))
+                                    .expect("each meter's name is routed"),
+                            };
+                            assert!(msg.ends_with(ending), "{predicate}: {msg}");
+                            assert_eq!(
+                                msg.contains(lever),
+                                !matches!(margin, MarginDiag::Invalid),
+                                "{predicate}: {msg}"
+                            );
+                        }
                     }
                 }
                 _ => {
@@ -872,6 +970,43 @@ mod tests {
                     );
                 }
             }
+        }
+    }
+
+    /// **A name the table does not route names the hole, and asserts
+    /// nothing else.** Neither meter's lever is a statement about a
+    /// decision the table does not know, so an unknown name — or none —
+    /// renders the classifier's own advice and then
+    /// [`MissingRecourse`], the one sentence every predicate-routed
+    /// table's fall-through composes.
+    #[test]
+    fn an_unknown_name_names_the_hole() {
+        let unknown = "roster_unknown_probe";
+        assert!(
+            ![NORMAL_FLOOR_PREDICATE, CURVATURE_HEADROOM_PREDICATE].contains(&unknown),
+            "the probe name must be one no meter raises"
+        );
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for predicate in [Some(unknown), None] {
+            assert_eq!(escalation_recourse(predicate), None, "{predicate:?}");
+            let source = Indeterminate {
+                margin: MarginDiag::Value(5e-9),
+                band,
+                predicate,
+            };
+            let msg = MeterError::Escalated { source }.to_string();
+            assert!(
+                msg.ends_with(&MissingRecourse(predicate).to_string()),
+                "the refusal names the hole: {msg}"
+            );
+            assert!(
+                msg.contains(&source.to_string()),
+                "the classifier's own advice precedes the hole: {msg}"
+            );
+            assert!(
+                !msg.contains("split the face") && !msg.contains("offset distance"),
+                "a meter's lever asserted over an unknown name: {msg}"
+            );
         }
     }
 }

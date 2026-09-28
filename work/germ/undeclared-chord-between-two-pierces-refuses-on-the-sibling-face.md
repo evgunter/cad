@@ -2,12 +2,14 @@
 id: undeclared-chord-between-two-pierces-refuses-on-the-sibling-face
 kind: issue
 title: The undeclared (Zero, Zero) chord between two torus pierces refuses on the sibling face, though NoInterior and two certified Elsewhere ends leave it no incidence there
-status: dispatched
+status: closed
 opened: 2026-09-25
 refs: [torus-operand-gate-admission]
 priority: P1
 cost: D
 branch: germ/torus-ops-and-chord
+closed: 2026-09-28
+pr: 3330
 ---
 
 ## What
@@ -38,7 +40,11 @@ The rule is written for every curved kind. On a cylinder or sphere
 split by a plane through its axis, the chord's box never meets the
 other half's box (both pierces lie in one half-space and the chord is
 straight), so the sweep never tests the pair. A cylinder-handle control
-was measured and never reached the arm. A torus's two revolve faces are
+was measured and never reached the arm, but that holds only for a
+two-face wall: the GERM torus-ops PR measured a THREE-face cylinder
+(seams at 0°, 120°, 240°, a rod pierced at 60° and 180°) whose chord
+reaches the arm against the third face on main
+(`a_cylinder_chord_passes_the_wall_face_it_does_not_meet`). A torus's two revolve faces are
 its inner and outer halves, and neither half's box excludes the other
 half's chords, so the torus reaches the arm on ordinary transverse
 poses.
@@ -59,3 +65,7 @@ torus-doors unit did not make it.
 
 GERM: `reduce.rs`'s crossing layer, the lane the torus doors run
 through.
+
+## Closed (PR 3330, 2026-09-28)
+
+Landed after a dual review (DR-14), both APPROVE-WITH-FIXES, the fix pass taken whole. See the PR body.
