@@ -155,7 +155,7 @@ the PR, with the blind spot and a second pass shaped at it
 ## Out of scope
 
 Whether `drive::classify_replay`'s error-enum arms are load-bearing
-(`work/props/should-classify-replays-error-enum-arms-be-deleted.md`,
+(`work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`,
 PROPS's question). The edit door's own admission (`admit_mate`)
 records into the caller's frame, as every door does; this unit
 changes the evaluator's pre-pass, not the doors.

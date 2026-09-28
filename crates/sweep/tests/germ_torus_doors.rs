@@ -514,33 +514,219 @@ fn a_segment_through_the_tube_is_pierced_at_both_quartic_roots() {
     );
 }
 
-/// **A chord across the hole is pierced, not passed.** The bar runs
+/// **A chord across the hole is pierced, not passed, and the chord
+/// between the pierces passes the face it does not meet.** The bar runs
 /// along `z` through the hole with both ends INSIDE the tube: a
 /// `(Negative, Negative)` span, which a convex residual would clear at
-/// its endpoints and a torus's does not — the line leaves the tube, runs
-/// through the hole and re-enters. The quartic splits it; what then
-/// refuses is the fragment between the two pierces, a chord with both
-/// ends on the carrier tested against the donut's OTHER face, where the
-/// undeclared `(Zero, Zero)` arm keeps its strict rule (only a recorded
-/// end counts). That rule is kind-generic and is the next door this
-/// lane meets (`work/germ/undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`);
-/// the row pins that the refusal names a FRAGMENT, which a passed chord
-/// never mints.
+/// its endpoints and a torus's does not — the line leaves the tube,
+/// runs through the hole and re-enters, both times through the donut's
+/// INNER face. The quartic splits each long edge at both roots, so the
+/// sweep mints eight fragments.
+///
+/// The middle fragment of each edge is a chord with both ends on the
+/// carrier, and it is also tested against the donut's OUTER face, whose
+/// box spans the hole. There the undeclared `(Zero, Zero)` arm gets
+/// `NoInterior` from the quartic and both ends certified `Elsewhere` by
+/// the chart trim: the chord meets the outer face nowhere, so it is no
+/// event there. Nothing lands on the outer face — a chord recorded
+/// against it would be an incidence that does not exist.
+///
+/// What the union meets next is the curved-sector sagitta charge, the
+/// door every line×torus pierce stops at.
 #[test]
 fn a_chord_across_the_hole_is_pierced_not_passed() {
     let d = donut();
     let b = bar((-0.1, 0.1), (-0.1, 0.1), (-2.0, 2.0));
     let original: Vec<_> = b.edges().map(|(k, _)| k).collect();
-    let err = topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
-        .expect_err("the chord between the pierces refuses on the sibling face");
-    let BooleanError::CurvedPierceUnsupported { operand, edge, .. } = err else {
-        panic!("the undeclared chord arm's frontier: {err:?}");
-    };
-    assert_eq!(operand, topo::Operand::B);
-    assert!(
-        !original.contains(&edge),
-        "the refused edge is a fragment the pierce minted: {edge:?}"
+    let (_, b_on_d) =
+        topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
+            .expect("the chord between the pierces is no event on the face it misses");
+    let mut minted: Vec<_> = b_on_d
+        .accepted
+        .iter()
+        .map(|&(e, _)| e)
+        .filter(|e| !original.contains(e))
+        .collect();
+    minted.sort();
+    minted.dedup();
+    assert_eq!(
+        minted.len(),
+        8,
+        "two pierces on each of four edges: {b_on_d:?}"
     );
+    // The inner face holds the point of the tube nearest the axis, a
+    // quarter-turn off the seam meridian.
+    let inner: Vec<_> = faces_where(&d, is_torus)
+        .into_iter()
+        .filter(|&f| {
+            topo::curved_face_containment(&d, f, Point3::new(0.0, 0.0, 1.5), band())
+                .is_ok_and(|c| c == Some(FaceContainment::In))
+        })
+        .collect();
+    assert_eq!(inner.len(), 1, "the donut has one inner face");
+    let pierced: std::collections::BTreeSet<_> = b_on_d.accepted.iter().map(|&(_, f)| f).collect();
+    assert_eq!(
+        pierced,
+        inner.iter().copied().collect(),
+        "every event lands on the inner face; the chords record nothing on the outer one"
+    );
+    let err = topo::union(&d, &b, Tol::witness())
+        .expect_err("the pierce vertices meet the sagitta charge");
+    assert!(
+        matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+        "past the chord, the union stops at the sagitta charge: {err:?}"
+    );
+}
+
+/// **A chord whose ends are the bar's own corners records on the face
+/// that holds them, and on no other.** A `0.2`-square bar across the
+/// hole, cut to the length that puts all eight corners ON the donut's
+/// inner face (by the torus's `x ↦ −x`, `y ↦ −y` symmetry, one corner
+/// on the tube puts all of them there). Every edge of the bar is then a
+/// `(Zero, Zero)` span: the long edges cross the hole; of the end
+/// squares' edges, the two along `x` dip toward the axis, out of the
+/// tube into the hole, and the two along `y` keep a constant `ρ` and run
+/// INSIDE the tube; and no quartic root lies strictly inside any of
+/// them. (The lens those inside edges bound is what the union cannot
+/// yet see: `work/germ/torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`.) Against the inner face each edge's
+/// corners are `In`, so every edge records there, and those records are
+/// the only place the corners' incidences come from. Against the outer
+/// face every corner is certified `Elsewhere`, so nothing lands there.
+#[test]
+fn a_bar_with_its_corners_on_the_inner_face_records_there_and_nowhere_else() {
+    let d = donut();
+    let (half_w, big_r, r) = (0.1_f64, 2.0_f64, 0.5_f64);
+    // ρ at a corner is the inner equator's side of the tube at height
+    // `y = ±half_w`: `(ρ − R)² + half_w² = r²`.
+    let rho = big_r - (r * r - half_w * half_w).sqrt();
+    let z = (rho * rho - half_w * half_w).sqrt();
+    let b = bar((-half_w, half_w), (-half_w, half_w), (-z, z));
+    let inner: Vec<_> = faces_where(&d, is_torus)
+        .into_iter()
+        .filter(|&f| {
+            topo::curved_face_containment(&d, f, Point3::new(0.0, 0.0, 1.5), band())
+                .is_ok_and(|c| c == Some(FaceContainment::In))
+        })
+        .collect();
+    assert_eq!(inner.len(), 1, "the donut has one inner face");
+    let (_, b_on_d) =
+        topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
+            .expect("a chord between two corners on the inner face is no event on the outer");
+    let recorded: std::collections::BTreeSet<_> = b_on_d.accepted.iter().map(|&(e, _)| e).collect();
+    assert_eq!(
+        recorded,
+        b.edges().map(|(k, _)| k).collect(),
+        "every edge of the bar records its corners: {b_on_d:?}"
+    );
+    assert!(
+        b_on_d.accepted.iter().all(|&(_, f)| f == inner[0]),
+        "every record lands on the inner face: {b_on_d:?}"
+    );
+}
+
+/// **The chord rule is kind-generic, and a cylinder reaches it too.** A
+/// wall split into THREE faces (seams at 0°, 120° and 240°) and a thin
+/// rod through it at mid-height, pierced at 60° and at 180°: the two
+/// pierces land in two different faces, and the chord between them is
+/// tested against the THIRD, whose box it grazes along the 180°
+/// diameter. Both ends are outside that face's window, and the
+/// quadratic's two roots are the pierces themselves, so the chord meets
+/// the third face nowhere: no event there, and nothing recorded on it.
+#[test]
+fn a_cylinder_chord_passes_the_wall_face_it_does_not_meet() {
+    let cyl = three_face_cylinder();
+    let walls = faces_where(&cyl, |s| matches!(s, geom::Surface::Cylinder { .. }));
+    assert_eq!(walls.len(), 3, "the wall is split into three faces");
+    let at = |deg: f64| {
+        let t = deg.to_radians();
+        Point3::new(t.cos(), t.sin(), 1.0)
+    };
+    let third: Vec<_> = walls
+        .iter()
+        .copied()
+        .filter(|&f| {
+            topo::curved_face_containment(&cyl, f, at(300.0), band())
+                .is_ok_and(|c| c == Some(FaceContainment::In))
+        })
+        .collect();
+    assert_eq!(third.len(), 1, "one wall face holds 300°");
+    let (p60, p180) = (at(60.0), at(180.0));
+    let rod = framed_bar(p60, p180 - p60, -0.5, 2.2, 0.02);
+    let (_, rod_on_cyl) = topo::sweep_traces(
+        &cyl,
+        &rod,
+        topo::SweepStrategy::Realized,
+        None,
+        Tol::witness(),
+    )
+    .expect("the chord is no event on the face it misses");
+    let pierced: std::collections::BTreeSet<_> =
+        rod_on_cyl.accepted.iter().map(|&(_, f)| f).collect();
+    assert_eq!(
+        pierced.len(),
+        2,
+        "the rod is pierced in the two faces holding 60° and 180°: {rod_on_cyl:?}"
+    );
+    assert!(
+        !pierced.contains(&third[0]),
+        "nothing lands on the wall face the rod never meets: {rod_on_cyl:?}"
+    );
+    assert!(
+        rod_on_cyl.examined.iter().any(|&(_, f)| f == third[0]),
+        "the third face must be examined, or this row tests nothing: {rod_on_cyl:?}"
+    );
+}
+
+/// **The relaxation opens no cylinder body.** The same rod through the
+/// three-face wall, under every op: the chord is no event on the third
+/// face now, and what each op meets next is a typed door, never a body.
+/// Measured: every op stops at the curved-sector sagitta charge, where
+/// the rod's pierce vertices sit on a wall — the door the torus pierces
+/// stop at too.
+#[test]
+fn a_three_face_cylinder_rod_union_reaches_a_typed_door_not_a_body() {
+    let cyl = three_face_cylinder();
+    let at = |deg: f64| {
+        let t = deg.to_radians();
+        Point3::new(t.cos(), t.sin(), 1.0)
+    };
+    let (p60, p180) = (at(60.0), at(180.0));
+    let rod = framed_bar(p60, p180 - p60, -0.5, 2.2, 0.02);
+    for (what, r) in [
+        ("∪", topo::union(&cyl, &rod, Tol::witness())),
+        ("∩", topo::intersect(&cyl, &rod, Tol::witness())),
+        ("cyl ∖ rod", topo::subtract(&cyl, &rod, Tol::witness())),
+        ("rod ∖ cyl", topo::subtract(&rod, &cyl, Tol::witness())),
+    ] {
+        let err = r.expect_err(what);
+        assert!(
+            matches!(err, BooleanError::CurvedSectorSideUnsupported { .. }),
+            "{what}: {err:?}"
+        );
+    }
+}
+
+/// A radius-1 cylinder about `z`, two metres tall, its wall split into
+/// three faces by seams at 0°, 120° and 240°.
+fn three_face_cylinder() -> Body<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let bulge = (std::f64::consts::PI / 6.0).tan();
+    let s = 3f64.sqrt() / 2.0;
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, 0.0), bulge),
+        (Point2::new(-0.5, s), bulge),
+        (Point2::new(-0.5, -s), bulge),
+    ]);
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
+        Vec3::new(0.0, 0.0, 0.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the three-arc circle validates");
+    sweep::extrude(&vp, sweep::Extrusion::Distance(2.0), Tol::witness())
+        .expect("the cylinder extrudes")
+        .body
 }
 
 // -------------------------------------------------------------------
@@ -898,4 +1084,100 @@ fn a_cube_in_the_donuts_hole_is_the_extent_gates_conservative_refusal() {
         matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
         "{err:?}"
     );
+}
+
+// -------------------------------------------------------------------
+// ∖ and ∩ against an oval no crossing can see.
+// -------------------------------------------------------------------
+
+/// The donut's profile revolved by `π` about `y`: the half with `z ≤ 0`,
+/// capped by two planar discs in `z = 0`.
+fn half_donut() -> Body<f64> {
+    let vp = validated(vec![revolve_common::donut_profile()]);
+    revolve(
+        &vp,
+        axis_y(),
+        Revolution::Partial(std::f64::consts::PI),
+        Tol::witness(),
+    )
+    .expect("the half donut revolves")
+    .body
+}
+
+/// A C-shaped bracket, `0.6` thick in `y`: a pin through the half
+/// donut's `x > 0` cap (`x ∈ [1.95, 2.05]`, down to `z = −0.1`, inside
+/// the tube), a bridge and an upright standing clear of the ring, and a
+/// foot along `x` whose top face `z = −2.45` cuts an oval off the outer
+/// equator's crown (`z = −2.5`). The oval touches no edge of either
+/// body; the pin's crossings are elsewhere.
+fn bracket() -> Body<f64> {
+    use geom_core::{Affine3, Mat3, Vec3};
+    let lp = ProfileLoop::polygon(
+        [
+            (1.95, -0.1),
+            (2.05, -0.1),
+            (2.05, 0.8),
+            (3.0, 0.8),
+            (3.0, -2.45),
+            (-1.0, -2.45),
+            (-1.0, -2.8),
+            (3.2, -2.8),
+            (3.2, 1.0),
+            (1.95, 1.0),
+        ]
+        .map(|(x, z)| Point2::new(x, z)),
+    );
+    let plane = profile::SketchPlane::new(Affine3::from_parts(
+        Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
+        Vec3::new(0.0, 0.3, 0.0),
+    ));
+    let vp = profile::Profile::new(plane, vec![lp])
+        .validate(Tol::witness())
+        .expect("the bracket profile validates");
+    sweep::extrude(&vp, sweep::Extrusion::Distance(0.6), Tol::witness())
+        .expect("the bracket extrudes")
+        .body
+}
+
+/// **∖ and ∩ refuse the oval, both operand orders.** The bracket's foot
+/// meets the half donut's outer face in a closed oval interior to both
+/// faces, while the pin crosses the cap elsewhere, so the op has
+/// crossings and never reaches the no-crossings extent gate; the join
+/// and the face-region propagation cannot see an oval no edge crosses
+/// (`work/germ/torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`).
+/// The revert roster refusing the torus face is what keeps ∖ and ∩ off
+/// that path: with the torus admitted, the intersection came back a
+/// valid body missing the oval's lens (the point `(0, 0, −2.47)`, inside
+/// both operands, read `Out` of it).
+#[test]
+fn subtract_and_intersect_refuse_an_oval_their_crossings_cannot_see() {
+    let (h, c) = (half_donut(), bracket());
+    let q = Point3::new(0.0, 0.0, -2.47);
+    let band = band();
+    for (name, body) in [("half donut", &h), ("bracket", &c)] {
+        assert!(
+            matches!(
+                topo::point_in_solid(body, q, band, Tol::witness()),
+                Ok(topo::SolidContainment::In)
+            ),
+            "the witness point is inside the {name}"
+        );
+    }
+    for (op, r) in [
+        ("h ∖ c", topo::subtract(&h, &c, Tol::witness())),
+        ("c ∖ h", topo::subtract(&c, &h, Tol::witness())),
+        ("h ∩ c", topo::intersect(&h, &c, Tol::witness())),
+    ] {
+        let err = r.expect_err(op);
+        assert!(
+            matches!(
+                err,
+                BooleanError::CurvedPairUnsupported {
+                    kind: geom_brep::SurfaceKind::Torus,
+                    ..
+                }
+            ),
+            "{op}: {err:?}"
+        );
+    }
 }

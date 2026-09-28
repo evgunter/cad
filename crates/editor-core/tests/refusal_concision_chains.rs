@@ -258,6 +258,45 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
+/// Every offset-fit refusal the feature tree shows ends exactly once,
+/// on every route: a labelled repair, or the shared dead end. The
+/// carrier the fit forwards whole (`PatchBoundError`) labels its own
+/// repair, so a wrapper that added one of its own would read here as
+/// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
+/// forwarded: the kernel chose their samples and knots, so a builder's
+/// repair would name nothing the user supplied, and those rows end in
+/// the kernel-defect ending instead.
+///
+/// `Meter/Escalated` ends zero times: it forwards `Indeterminate`'s
+/// shared menu, which is unlabelled and offers a declaration a single
+/// face's meter has no object for; filed on ENCL's slate
+/// (`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`).
+/// The row holds that at zero so its repair has to come back here.
+#[test]
+fn every_offset_fit_refusal_ends_exactly_once() {
+    let rows = offset_fit_routes();
+    assert!(!rows.is_empty(), "the offset-fit roster is empty");
+    for (name, kind) in rows {
+        let text = as_the_viewer_shows_it(kind);
+        let want = usize::from(!name.contains("/Meter/Escalated"));
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            want,
+            "{name}: {text}"
+        );
+        let arm = name
+            .strip_prefix("Shell/Face/Fit/")
+            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
+            .expect("every offset-fit row is on one of the two routes");
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "{name}: {text}"
+            );
+        }
+    }
+}
+
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
 fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     let mut rows = own_arms();

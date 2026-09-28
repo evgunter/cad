@@ -97,15 +97,20 @@ use std::ops::RangeInclusive;
 
 use geom::surfaces::NurbsSurface;
 use geom_core::interval::Interval;
-use geom_core::spline::algebra::equal_split_points;
+use geom_core::spline::algebra::{equal_split_plan, equal_split_points};
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{CurvePlan, KnotVector};
 
 /// The fixed refinement schedule of the RATIONAL arm: every nonempty
 /// span of every direction splits into this many equal pieces before
 /// the per-cell assembly. A CONSTANT (D9: structure, never a
-/// data-dependent iteration) — the `RATIONAL_METER_SPLITS = 16`
-/// precedent of `geom::curves`' rational speed meter, mirrored. Knot
+/// data-dependent iteration), and this arm's own: `geom::curves`'
+/// rational speed meter refines by a count of the same value, but that
+/// count prices one curve bound against the refusal frontier its own
+/// tests pin, while this one prices the per-cell partial hulls every
+/// [`patch_cells`] consumer reads (against the insertion rounding
+/// below), and `mesh::chords`' rational carrier `sup‖C″‖` bound
+/// through [`rational_split_points`]. Neither follows the other. Knot
 /// insertion is evaluation-invariant in ℝ, so it changes no geometry;
 /// it only shrinks every hull the bound is assembled from, which is
 /// what keeps the `sup‖S − c‖·sup|w_dd|` cross terms cell-sized.
@@ -172,32 +177,35 @@ impl PatchBoundError {
         match self {
             Self::DegreeZero => {
                 "NURBS face of degree 0 in one direction, which is a step rather than a \
-                 surface: describe that direction at degree 1 or above"
+                 surface. Recourse: describe that direction at degree 1 or above"
             }
             Self::Degree1Crease => {
-                "NURBS face of degree 1 with a sharp crease inside it: split the face at \
-                 the crease"
+                "NURBS face of degree 1 with a sharp crease inside it. Recourse: split the \
+                 face at the crease"
             }
             Self::Crease => {
-                "NURBS face with a sharp crease inside it: split the face at the crease"
+                "NURBS face with a sharp crease inside it. Recourse: split the face at the \
+                 crease"
             }
             Self::NonPositiveWeight => {
                 "rational NURBS face with a non-positive or non-finite weight, which \
-                 describes no valid surface: supply strictly positive, finite weights"
+                 describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
             Self::RefinedWeightLostPositivity => {
                 "rational NURBS face whose weights are too small to refine without one \
-                 rounding to zero: describe the face with every weight scaled up by one \
-                 constant, which is the same surface"
+                 rounding to zero. Recourse: describe the face with every weight scaled up \
+                 by one constant, which is the same surface"
             }
-            Self::RefinementFailed => {
+            Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
-                 always allows: report the face's description"
-            }
-            Self::DerivedKnots => {
+                 always allows. ",
+                geom_core::kernel_defect_ending!()
+            ),
+            Self::DerivedKnots => concat!(
                 "NURBS face whose derivative could not be formed, which a valid face always \
-                 allows: report the face's description"
-            }
+                 allows. ",
+                geom_core::kernel_defect_ending!()
+            ),
         }
     }
 }
@@ -323,11 +331,10 @@ pub fn patch_cells_refined(
 }
 
 /// The refinement schedule of one direction and the knot vector it
-/// lands on: the plan chain that cuts every nonempty span into `splits`
-/// equal pieces, built from STRUCTURE alone
-/// ([`geom_core::spline::algebra::refine_plan_homogeneous`] — the
-/// homogeneous nets this module refines are polynomial, so their weights
-/// are unit).
+/// lands on: [`geom_core::spline::algebra::equal_split_plan`], the plan
+/// chain that cuts every nonempty span into `splits` equal pieces,
+/// built from STRUCTURE alone (the homogeneous nets this module refines
+/// are polynomial, so their weights are unit).
 ///
 /// One schedule, two arithmetics: this is the same plan the `f64`
 /// surface refinement applies through
@@ -344,9 +351,7 @@ fn refine_chain(
     kv: &KnotVector,
     splits: usize,
 ) -> Result<(KnotVector, Vec<CurvePlan>), PatchBoundError> {
-    let plans =
-        geom_core::spline::algebra::refine_plan_homogeneous(kv, &equal_split_points(kv, splits))
-            .map_err(|_| PatchBoundError::RefinementFailed)?;
+    let plans = equal_split_plan(kv, splits).map_err(|_| PatchBoundError::RefinementFailed)?;
     let refined = plans
         .last()
         .map_or_else(|| kv.clone(), |p| p.knots().clone());
@@ -943,6 +948,19 @@ mod tests {
         for arm in arms {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
+            // One ending: a labelled repair, or on the two arms only a
+            // kernel defect reaches, the shared dead end.
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one ending: {msg}"
+            );
+            if matches!(
+                arm,
+                PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
+            ) {
+                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_ENDING), "{msg}");
+            }
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),
