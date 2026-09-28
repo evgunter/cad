@@ -53,6 +53,22 @@ remain in `crates/geom-brep/src/certify.rs`:
   decision of its own, with its own verdict and its own ending, and
   routing it as the guarded decision's poisoned margin is a stand-in.
 
+- **The plane × NURBS lane's tube conflates them too.**
+  `certify_rung3` (`crates/geom-brep/src/ssi/certify.rs` ~:916-921)
+  raises `SsiError::TubeStraddles` on
+  `decide("ssi_tube_transversality", …) == Ok(Sign::Zero |
+  Sign::Negative)`, and `edge_nurbs::refusal` forwards it as
+  `PlaneNurbsRefusal::TubeStraddles`, whose `certified_clearance` can
+  be positive inside the zero band. PR 3351 routes it through
+  `RefusedArm::ZeroOrNegative` (the transversality lever alone at every
+  reading), which holds for both halves but gives neither its own
+  ending.
+
+Until their verdicts are split, `IntervalNotForward` and
+`WindingExceeded` can route the same way, through
+`RefusedArm::ZeroOrNegative` on `ParamSpan` / `ParamWinding` — the
+lever alone — rather than ending in no recourse at all.
+
 ## Repair shape
 
 Give `IntervalNotForward` its verdict (or split it) and route both span

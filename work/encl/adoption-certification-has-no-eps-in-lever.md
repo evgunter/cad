@@ -17,10 +17,11 @@ reading of a certification refusal
 (`geom_brep::certify::Reading::Adopt`, rendered by
 `StepImportError::Adoption` and `::Assembly` in
 `crates/step-import/src/error.rs`). A band-decided arm of a sized
-decision (span, winding, transversality, second order) — in band, at
-Zero where Zero does not pass, or straddling — names its geometry
-lever alone; a sign-certain arm, and every residual, ends in the
-kernel-or-file defect ending.
+decision (span, winding, transversality, second order) — in band
+(an enclosure straddling zero included), or at Zero where Zero does
+not pass — names its geometry lever alone, as does a decided verdict
+that conflates Zero and Negative; a sign-certain arm, and every
+residual, ends in the kernel-or-file defect ending.
 
 It names no ε_in lever because none would be true. The ladder
 certifies each candidate through `Body::set_edge_curve_nurbs_lane(…,
@@ -41,6 +42,15 @@ text for the adopted body, so an at-rest certification refusal there
 can still name "tighten the tolerance below …" — the kernel's ε, at
 an import door. Which reading that door should take is part of the
 same question.
+
+A third reading at adoption may overclaim. A last-resort decision's
+(an approximation: a fitted carrier's surface residual, the
+certificate) undecided arm ends at adoption in the kernel-or-file
+defect ending, because the last resort — loosening the tolerance — is
+not an adoption lever. For an in-band margin that says more than is
+known: the file may be fine and the approximation merely unable to
+decide at this band. What an undecided approximation at adoption
+should say, when no lever exists, is part of the same question.
 
 ## Repair shape
 

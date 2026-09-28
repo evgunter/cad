@@ -393,9 +393,11 @@ const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample
      indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
 /// transversality precondition fails, and the ladder says which. A zero
-/// verdict is band-decided (the same file imports at a finer band), so
-/// at adoption it names its decision's lever alone, and the attempt ends
-/// there (the `;` before the next rung).
+/// verdict is band-decided — at a finer ambient band the coincidence
+/// predicates no longer fire here, and a different check refuses the
+/// file (`SEAM_HALFPLANE_DEFINITE` at 1e-12) — so at adoption it names
+/// its decision's lever alone, and the attempt ends there (the `;`
+/// before the next rung).
 const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
      description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it

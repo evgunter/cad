@@ -554,24 +554,6 @@ impl CertifyError {
     }
 }
 
-/// What a certification decision passes on: the verdict set that
-/// accepts the edge. The rest of the verdicts refuse, and which of them
-/// a user can decide with a smaller tolerance follows from this (D4 ¶1
-/// (i)).
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub enum Passes {
-    /// A definitely positive margin: a length, a clearance, an angle.
-    Positive,
-    /// A positive or zero margin: headroom that may be used up exactly.
-    NonNegative,
-    /// A margin coincident with zero: a residual, whose refused margin
-    /// is a miss, not a size.
-    Zero,
-    /// Any definite sign: the decision selects a form, and only an
-    /// undecided margin refuses.
-    AnySign,
-}
-
 /// Where a certification refusal is read: the door that reports it,
 /// which decides the ending (D4 ¶1 (i)).
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -597,7 +579,7 @@ pub enum Reading {
 /// The pass set of a decision on a size the user may intend: one that
 /// passes on a nonzero sign, the only kind a smaller tolerance can
 /// decide passing (D4 ¶1 (i)).
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum SizedPass {
     /// A definitely positive margin.
     Positive,
@@ -613,25 +595,14 @@ impl SizedPass {
             Self::NonNegative => true,
         }
     }
-
-    /// Whether a tolerance below `v`'s own size decides `v` passing: `v`
-    /// is a nonzero margin on the side the decision accepts. Either pass
-    /// set accepts every positive margin, and a zero one leaves no size
-    /// to tighten below.
-    fn tightens(self, v: f64) -> bool {
-        match self {
-            Self::Positive | Self::NonNegative => v > 0.0,
-        }
-    }
 }
 
-impl From<SizedPass> for Passes {
-    fn from(p: SizedPass) -> Self {
-        match p {
-            SizedPass::Positive => Self::Positive,
-            SizedPass::NonNegative => Self::NonNegative,
-        }
-    }
+/// Whether a tolerance below `v`'s own size decides `v` passing a sized
+/// decision: `v` is a nonzero margin on the side the decision accepts.
+/// Both sized pass sets accept every positive margin, and a zero one
+/// (either sign of it) leaves no size to tighten below.
+fn tightens(v: f64) -> bool {
+    v > 0.0
 }
 
 /// The refused arm of a decision a refusal reports.
@@ -643,15 +614,19 @@ pub enum RefusedArm<'a> {
     /// The margin classified as zero where zero does not pass. The
     /// variants that report this arm carry no margin value.
     Zero,
-    /// The margin's enclosure straddles zero, and the variant that
-    /// reports it carries no enclosure to quote: undecided, and decided
-    /// by no tolerance.
-    Straddles,
+    /// A DECIDED verdict that conflates Zero and Negative: the variant
+    /// that reports it does not say which. Its Zero half is band-decided
+    /// and its Negative half sign-certain, so it takes the one ending
+    /// both halves bear out — the lever alone, at every reading: no
+    /// tolerance offer (the Negative half would be misled by one), and
+    /// no defect ending (the Zero half is band-decided).
+    ZeroOrNegative,
     /// The margin classified with a definite sign that refuses.
     SignCertain,
 }
 
 /// A decision's recourse when no size the user chose decides it.
+#[derive(Debug, PartialEq, Eq)]
 enum Unsized {
     /// The kernel built what it claims exactly, so a miss is a defect.
     Defect,
@@ -660,17 +635,8 @@ enum Unsized {
     LastResort,
 }
 
-/// The pass set of a decision with no size to tighten below.
-#[derive(Clone, Copy)]
-enum UnsizedPass {
-    /// A residual: passes only at zero.
-    Zero,
-    /// A form selection: passes on any definite sign.
-    AnySign,
-}
-
-/// How one decision's refusals end, and what it passes on: the one
-/// table both [`CertCheck::passes`] and [`recourse`] read.
+/// How one decision's refusals end: the one table [`recourse`] reads.
+#[derive(Debug)]
 enum Ending {
     /// A decision on a size the user may intend: its own geometry lever,
     /// and on a band-decided arm the tolerance that decides it.
@@ -682,34 +648,14 @@ enum Ending {
         /// What it passes on.
         passes: SizedPass,
     },
-    /// A residual or a form selection: no size to tighten below.
-    Unsized {
-        /// How its refusals end.
-        ends: Unsized,
-        /// What it passes on.
-        passes: UnsizedPass,
-    },
+    /// A residual (passes only at zero) or a form selection (passes on
+    /// any definite sign): no size to tighten below.
+    Unsized(Unsized),
 }
 
 impl CertCheck {
-    /// The verdicts this decision passes on.
-    #[must_use]
-    pub fn passes(self) -> Passes {
-        match self.ending() {
-            Ending::Sized { passes, .. } => passes.into(),
-            Ending::Unsized {
-                passes: UnsizedPass::Zero,
-                ..
-            } => Passes::Zero,
-            Ending::Unsized {
-                passes: UnsizedPass::AnySign,
-                ..
-            } => Passes::AnySign,
-        }
-    }
-
-    /// How this decision's refusals end: its own lever where it passes
-    /// on a nonzero sign ([`CertCheck::passes`]), and otherwise the way
+    /// How this decision's refusals end: its own lever, and what it
+    /// passes on, where it passes on a nonzero sign; otherwise the way
     /// its definite refusal ends.
     fn ending(self) -> Ending {
         match self {
@@ -746,14 +692,8 @@ impl CertCheck {
             | Self::MappedSource
             | Self::SeamHalfplane
             | Self::SeamSide
-            | Self::ChartResidual => Ending::Unsized {
-                ends: Unsized::Defect,
-                passes: UnsizedPass::Zero,
-            },
-            Self::ChartImage => Ending::Unsized {
-                ends: Unsized::Defect,
-                passes: UnsizedPass::AnySign,
-            },
+            | Self::ChartResidual => Ending::Unsized(Unsized::Defect),
+            Self::ChartImage => Ending::Unsized(Unsized::Defect),
             // Approximations: a fitted intersection carrier on its
             // surfaces, a certified sag bound, and the plane × NURBS
             // lane's fitted image and rung-3 certificate. The surface
@@ -766,10 +706,7 @@ impl CertCheck {
             | Self::TangentHull
             | Self::PlaneNurbsOnLocus
             | Self::PlaneNurbsHull
-            | Self::PlaneNurbsCertificate => Ending::Unsized {
-                ends: Unsized::LastResort,
-                passes: UnsizedPass::Zero,
-            },
+            | Self::PlaneNurbsCertificate => Ending::Unsized(Unsized::LastResort),
         }
     }
 }
@@ -789,7 +726,10 @@ impl CertCheck {
 ///   at zero, or straddling zero is passed by no smaller tolerance and
 ///   names the lever alone, and a margin that could not be read keeps
 ///   the lever and says what it may mean. At adoption no arm names a
-///   tolerance ([`Reading::Adopt`]).
+///   tolerance ([`Reading::Adopt`]). A decided verdict that conflates
+///   Zero and Negative ([`RefusedArm::ZeroOrNegative`]) names the lever
+///   alone at every reading: neither the tolerance nor the defect ending
+///   holds for both its halves.
 /// - Its sign-certain arm names the lever alone at a build. Read over
 ///   stored geometry (at rest, or at adoption) it is a contradiction no
 ///   move of the geometry reaches, and ends in the ending that names the
@@ -827,7 +767,7 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
             match arm {
                 RefusedArm::Zero if passes.passes_zero() => alone(),
                 RefusedArm::Zero => tighten(None),
-                RefusedArm::Straddles => alone(),
+                RefusedArm::ZeroOrNegative => alone(),
                 RefusedArm::SignCertain => match reading {
                     Reading::Build => alone(),
                     Reading::AtRest | Reading::Adopt => defect.to_owned(),
@@ -835,10 +775,8 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
                 RefusedArm::Undecided(cause) => {
                     let k = cause.band.escalate() / cause.band.zero();
                     match cause.margin {
-                        MarginDiag::Value(m) if passes.tightens(m) => tighten(Some(m / k)),
-                        MarginDiag::Enclosure { lo, hi }
-                            if passes.tightens(lo) && passes.tightens(hi) =>
-                        {
+                        MarginDiag::Value(m) if tightens(m) => tighten(Some(m / k)),
+                        MarginDiag::Enclosure { lo, hi } if tightens(lo) && tightens(hi) => {
                             tighten(Some(lo.min(hi) / k))
                         }
                         MarginDiag::Value(_) | MarginDiag::Enclosure { .. } => alone(),
@@ -851,21 +789,16 @@ pub fn recourse(check: CertCheck, arm: RefusedArm<'_>, reading: Reading) -> Stri
                 }
             }
         }
-        Ending::Unsized {
-            ends: Unsized::Defect,
-            ..
-        } => defect.to_owned(),
-        Ending::Unsized {
-            ends: Unsized::LastResort,
-            ..
-        } => match (reading, arm) {
-            (Reading::Build, _)
-            | (Reading::AtRest, RefusedArm::Undecided(_) | RefusedArm::Straddles) => {
+        Ending::Unsized(Unsized::Defect) => defect.to_owned(),
+        Ending::Unsized(Unsized::LastResort) => match (reading, arm) {
+            (Reading::Build, _) | (Reading::AtRest, RefusedArm::Undecided(_)) => {
                 KERNEL_LIMIT_RECOURSE.to_owned()
             }
-            (Reading::AtRest, RefusedArm::Zero | RefusedArm::SignCertain) | (Reading::Adopt, _) => {
-                defect.to_owned()
-            }
+            (
+                Reading::AtRest,
+                RefusedArm::Zero | RefusedArm::ZeroOrNegative | RefusedArm::SignCertain,
+            )
+            | (Reading::Adopt, _) => defect.to_owned(),
         },
     }
 }
@@ -4033,8 +3966,9 @@ mod tests {
     /// The pairs: `NotTransverse` with the transversality check's
     /// escalation, the lane's `NotTransverse` with its per-sample
     /// escalation, `NotSecondOrderSeparated` with the second-order and
-    /// tube checks'. The lane's straddling tube is the transversality
-    /// decision's straddle, and names that lever alone everywhere.
+    /// tube checks'. The lane's `TubeStraddles` is the transversality
+    /// decision's decided Zero-or-Negative verdict, and names that lever
+    /// alone everywhere.
     #[test]
     fn each_two_tolerance_pair_ends_in_one_recourse() {
         use crate::edge_nurbs::PlaneNurbsRefusal as P;
@@ -4110,14 +4044,18 @@ mod tests {
                     assert!(!msg.contains("declare"), "{msg}");
                 }
             }
-            assert_eq!(
-                lane(P::TubeStraddles {
-                    certified_clearance: 0.0,
-                    boxes: 4,
-                }),
-                cross,
-                "{reading:?}"
-            );
+            // A decided Zero-or-Negative verdict, whatever clearance the
+            // certificate proved inside the zero band.
+            for certified_clearance in [0.0, 3e-10] {
+                assert_eq!(
+                    lane(P::TubeStraddles {
+                        certified_clearance,
+                        boxes: 4,
+                    }),
+                    cross,
+                    "{reading:?}"
+                );
+            }
         }
     }
 
@@ -4301,6 +4239,11 @@ mod tests {
                 ),
                 KERNEL_OR_FILE_DEFECT_ENDING,
             ),
+            // The routing's own arm, pinned directly: no `CertifyError`
+            // reaches it today — `IntervalNotForward` conflates the span's
+            // Zero and Negative verdicts and returns no ending (`work/encl/
+            // certify-span-and-zero-arms-cannot-carry-their-decisions-full-
+            // ending.md`).
             (
                 recourse(CertCheck::ParamSpan, RefusedArm::Zero, Reading::AtRest),
                 "Recourse: move the geometry so this edge is not vanishingly short, or, if this \
@@ -4380,7 +4323,7 @@ mod tests {
             let definite = recourse(check, RefusedArm::SignCertain, Reading::Adopt);
             assert_eq!(definite, KERNEL_OR_FILE_DEFECT_ENDING, "{check:?}");
             endings.push(definite);
-            for arm in [RefusedArm::Zero, RefusedArm::Straddles] {
+            for arm in [RefusedArm::Zero, RefusedArm::ZeroOrNegative] {
                 endings.push(recourse(check, arm, Reading::Adopt));
             }
             for ending in endings {
@@ -4403,16 +4346,61 @@ mod tests {
         );
     }
 
-    /// A pass set is what separates the two kinds of decision: every
-    /// check that passes on a nonzero sign names a lever, and every
-    /// other one names none.
+    /// Every decision's class, pinned against a table written out by
+    /// hand (D4 ¶1 (i)): a decision that passes on a nonzero sign is
+    /// sized, with its pass set; an exact construction ends as a defect;
+    /// an approximation ends in the last resort. The table is the
+    /// independent side, so a decision `ending()` misfiles fails here.
     #[test]
-    fn a_lever_is_named_exactly_where_a_nonzero_sign_passes() {
+    fn each_decision_is_classified_as_the_table_says() {
+        #[derive(Debug, PartialEq, Eq)]
+        enum Class {
+            Sized(SizedPass),
+            Defect,
+            LastResort,
+        }
+        use Class::{Defect, LastResort, Sized};
+        use SizedPass::{NonNegative, Positive};
+        let table = [
+            (CertCheck::EndpointStart, Defect),
+            (CertCheck::EndpointEnd, Defect),
+            (CertCheck::ParamSpan, Sized(Positive)),
+            (CertCheck::ParamWinding, Sized(NonNegative)),
+            (CertCheck::Surface1Residual, LastResort),
+            (CertCheck::Surface2Residual, LastResort),
+            (CertCheck::WitnessSurface1, Defect),
+            (CertCheck::WitnessSurface2, Defect),
+            (CertCheck::WitnessMidpoint, Defect),
+            (CertCheck::Transversality, Sized(Positive)),
+            (CertCheck::TangentSecondOrder, Sized(Positive)),
+            (CertCheck::TangentParallel, Defect),
+            (CertCheck::TangentHull, LastResort),
+            (CertCheck::TangentTube, Sized(Positive)),
+            (CertCheck::MappedSource, Defect),
+            (CertCheck::SeamHalfplane, Defect),
+            (CertCheck::SeamSide, Defect),
+            (CertCheck::ChartResidual, Defect),
+            (CertCheck::ChartImage, Defect),
+            (CertCheck::PlaneNurbsOnLocus, LastResort),
+            (CertCheck::PlaneNurbsHull, LastResort),
+            (CertCheck::PlaneNurbsCertificate, LastResort),
+        ];
+        assert_eq!(table.len(), ALL_CHECKS.len());
         for check in ALL_CHECKS {
+            let (_, want) = table
+                .iter()
+                .find(|(c, _)| *c == check)
+                .unwrap_or_else(|| panic!("{check:?} is missing from the table"));
+            let got = match check.ending() {
+                Ending::Sized { passes, .. } => Sized(passes),
+                Ending::Unsized(Unsized::Defect) => Defect,
+                Ending::Unsized(Unsized::LastResort) => LastResort,
+            };
+            assert_eq!(&got, want, "{check:?}");
+            // A lever is named exactly where the decision is sized.
             let named = recourse(check, RefusedArm::SignCertain, Reading::Build)
                 .starts_with("Recourse: move the geometry");
-            let nonzero = matches!(check.passes(), Passes::Positive | Passes::NonNegative);
-            assert_eq!(named, nonzero, "{check:?}");
+            assert_eq!(named, matches!(want, Sized(_)), "{check:?}");
         }
     }
 }

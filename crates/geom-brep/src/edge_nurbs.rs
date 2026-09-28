@@ -213,11 +213,13 @@ impl PlaneNurbsRefusal {
                 reading,
             )),
             // The tube's margin is the lane's transversality over the
-            // chain (`ssi_tube_transversality`), and an enclosure of it
-            // that contains zero is undecided on that decision.
+            // chain (`ssi_tube_transversality`), and this refusal is its
+            // DECIDED Zero-or-Negative verdict, which the variant does
+            // not split (`certified_clearance` may be positive inside
+            // the zero band).
             Self::TubeStraddles { .. } => Some(recourse(
                 CertCheck::Transversality,
-                RefusedArm::Straddles,
+                RefusedArm::ZeroOrNegative,
                 reading,
             )),
             Self::Escalated(diag) => Some(recourse(

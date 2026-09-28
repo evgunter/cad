@@ -38,11 +38,15 @@ kernel-defect ending. It needs its own arm (or the limb, as below) for
 the routing to see that.
 
 The tube's definite refusal is already routed by its own decision.
-`PlaneNurbsRefusal::TubeStraddles` is the uniqueness tube's
-transversality enclosure containing zero (`ssi_tube_transversality`
-in `certify_rung3`), so PR 3351 routes it as
-`CertCheck::Transversality`'s straddling arm
-(`RefusedArm::Straddles`): the lever alone, at every reading. What
+`PlaneNurbsRefusal::TubeStraddles` is raised when
+`decide("ssi_tube_transversality", …)` returns `Ok(Sign::Zero |
+Sign::Negative)` (`certify_rung3`, `crates/geom-brep/src/ssi/certify.rs`
+~:916) — a DECIDED verdict that conflates Zero and Negative, whose
+`certified_clearance` may be positive inside the zero band — so PR
+3351 routes it as `CertCheck::Transversality`'s
+`RefusedArm::ZeroOrNegative`: the lever alone, at every reading. The
+split of that verdict is on
+`work/encl/certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending.md`. What
 stays on the certificate's ending is `PlaneNurbsRefusal::Limb` (the
 on-locus and hull limbs' definite miss) and the undecided
 `Escalated`, until the limb rides the escalation.
