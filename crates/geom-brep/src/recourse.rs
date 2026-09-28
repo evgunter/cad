@@ -9,7 +9,7 @@
 //! (`crate::certify::recourse`) and the offset meters
 //! (`crate::offset_meters::Meter`) both end their sized decisions here.
 
-use geom_core::{Band, Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag};
+use geom_core::{Band, Indeterminate, KERNEL_OR_FILE_DEFECT_ENDING, MarginDiag, Sign};
 
 /// Where a refusal is read: the door that reports it, which decides the
 /// ending (D4 ¶1 (i)).
@@ -42,6 +42,83 @@ pub struct Classified {
     pub band: Band,
 }
 
+/// A decision's decided refusal, carrying the margin it classified: the
+/// verdict of a decision that passes on a positive sign, reported where
+/// the margin is an `f64` the reporting site may echo.
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub enum Refused {
+    /// Within the zero band — band-decided: a smaller tolerance may
+    /// decide a positive margin passing.
+    Zero(Classified),
+    /// Definitely negative — sign-certain.
+    Negative {
+        /// The classified margin, in metres.
+        margin: f64,
+    },
+}
+
+impl Refused {
+    /// The verdict `sign` gives `margin` at `band`, or `None` for the
+    /// positive sign that passes.
+    pub(crate) fn of(sign: Sign, margin: f64, band: Band) -> Option<Self> {
+        match sign {
+            Sign::Positive => None,
+            Sign::Zero => Some(Self::Zero(Classified { margin, band })),
+            Sign::Negative => Some(Self::Negative { margin }),
+        }
+    }
+
+    /// The classified margin, in metres.
+    #[must_use]
+    pub fn margin(self) -> f64 {
+        match self {
+            Self::Zero(Classified { margin, .. }) | Self::Negative { margin } => margin,
+        }
+    }
+
+    /// The refused arm this verdict is.
+    #[must_use]
+    pub fn arm(self) -> RefusedArm<'static> {
+        match self {
+            Self::Zero(classified) => RefusedArm::Zero(Some(classified)),
+            Self::Negative { .. } => RefusedArm::SignCertain,
+        }
+    }
+}
+
+/// [`Refused`] without its margin, for a decision taken at a generic
+/// `T: Decide` scalar: a margin derived there is no refusal payload
+/// outside a ratified seam (`geom_core::real`'s `Bounds` scope rule), so
+/// the variant that reports the verdict keeps the verdict alone.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Definite {
+    /// Within the zero band — band-decided.
+    Zero,
+    /// Definitely negative — sign-certain.
+    Negative,
+}
+
+impl Definite {
+    /// The verdict `sign` gives, or `None` for the positive sign that
+    /// passes.
+    pub(crate) fn of(sign: Sign) -> Option<Self> {
+        match sign {
+            Sign::Positive => None,
+            Sign::Zero => Some(Self::Zero),
+            Sign::Negative => Some(Self::Negative),
+        }
+    }
+
+    /// The refused arm this verdict is.
+    #[must_use]
+    pub fn arm(self) -> RefusedArm<'static> {
+        match self {
+            Self::Zero => RefusedArm::Zero(None),
+            Self::Negative => RefusedArm::SignCertain,
+        }
+    }
+}
+
 /// The refused arm of a decision a refusal reports.
 #[derive(Clone, Copy, Debug)]
 pub enum RefusedArm<'a> {
@@ -49,15 +126,9 @@ pub enum RefusedArm<'a> {
     /// diagnostic carries it.
     Undecided(&'a Indeterminate),
     /// The margin classified as zero where zero does not pass, with the
-    /// margin and its band where the reporting variant carries them.
+    /// margin and its band where the reporting variant may carry them
+    /// ([`Definite`] says where it may not).
     Zero(Option<Classified>),
-    /// A DECIDED verdict that conflates Zero and Negative: the variant
-    /// that reports it does not say which. Its Zero half is band-decided
-    /// and its Negative half sign-certain, so it takes the one ending
-    /// both halves bear out — the lever alone, at every reading: no
-    /// tolerance offer (the Negative half would be misled by one), and
-    /// no defect ending (the Zero half is band-decided).
-    ZeroOrNegative,
     /// The margin classified with a definite sign that refuses.
     SignCertain,
 }
@@ -164,8 +235,7 @@ impl SizedDecision {
     ///   on a zero verdict, [`SizedDecision::at_zero`] where the
     ///   decision has one); a margin that could not be read keeps the
     ///   lever and adds [`UNREADABLE_MARGIN_NOTE`]. At adoption no arm
-    ///   names a tolerance ([`Reading::Adopt`]). A decided
-    ///   Zero-or-Negative verdict names the lever alone.
+    ///   names a tolerance ([`Reading::Adopt`]).
     /// - The sign-certain arm names the lever alone at a build. Read
     ///   over stored geometry it ends as [`SizedDecision::stored`] says.
     #[must_use]
@@ -198,7 +268,6 @@ impl SizedDecision {
                 Some(note) => format!("Recourse: {lever}; {note}"),
                 None => alone(),
             },
-            RefusedArm::ZeroOrNegative => alone(),
             RefusedArm::SignCertain => match (reading, stored) {
                 (Reading::Build, _) | (Reading::AtRest | Reading::Adopt, StoredDefinite::Lever) => {
                     alone()
@@ -227,6 +296,48 @@ impl SizedDecision {
 #[allow(clippy::unwrap_used)]
 mod tests {
     use super::*;
+
+    /// Over every sized decision's shape and every reading: a Negative
+    /// verdict, valued or not, offers no tolerance (no smaller one
+    /// passes it), and a valued Zero verdict offers one only with the
+    /// value its margin gives (D4 ¶1 (i)).
+    #[test]
+    fn a_negative_verdict_never_tightens_and_a_valued_zero_quotes_its_value() {
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        for passes in [
+            SizedPass::Positive,
+            SizedPass::NonNegative,
+            SizedPass::NonZero,
+        ] {
+            for stored in [StoredDefinite::Contradiction, StoredDefinite::Lever] {
+                for at_zero in [None, Some("a note")] {
+                    let decision = SizedDecision {
+                        lever: "move it",
+                        size: "size",
+                        passes,
+                        stored,
+                        at_zero,
+                    };
+                    for reading in [Reading::Build, Reading::AtRest, Reading::Adopt] {
+                        let end = |arm| decision.recourse(arm, reading);
+                        for margin in [-1.0, -5e-9] {
+                            let got = end(Refused::Negative { margin }.arm());
+                            assert!(!got.contains("tighten"), "{decision:?} {reading:?}: {got}");
+                        }
+                        let got = end(Definite::Negative.arm());
+                        assert!(!got.contains("tighten"), "{decision:?} {reading:?}: {got}");
+                        for margin in [-5e-10, -0.0, 0.0, 5e-10, 1e-9] {
+                            let got = end(Refused::Zero(Classified { margin, band }).arm());
+                            assert!(
+                                !got.contains("tighten") || got.contains(" below "),
+                                "{decision:?} {reading:?} {margin:e}: {got}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 
     /// `K = 10`: a margin `m` is decided at every tolerance below `|m|/10`.
     fn band() -> Band {

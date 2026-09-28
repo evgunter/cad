@@ -700,20 +700,21 @@ pub enum PcurveCheck {
 /// or worse, onto [`geom_core::MarginDiag::Value`], which additionally
 /// claims the classifier judged it and found it in the band — loses
 /// the only thing a reader needs: what the number means. Naming each
-/// follows `edge_nurbs`' `certified_clearance` precedent, where the
-/// same SSI errors are translated into that lane's vocabulary.
+/// follows `edge_nurbs`' `TubeStraddles` precedent, where the same SSI
+/// errors are translated into that lane's vocabulary and the clearance
+/// rides a named verdict (`recourse::Refused`).
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum FittedMagnitude {
     /// A certificate limb exceeded ε: the limb's own residual bound in
     /// metres, as projected from its enclosure when the limb refused.
     /// A definite refusal's quantity — not a classified margin.
     LimbResidual(f64),
-    /// Limb 3's uniqueness tube straddled zero. The number is a
-    /// **certified clearance**, not a measured extent: it is exactly
-    /// zero whenever the enclosure contains zero, so `0` here reads
-    /// "not certifiably zero-free", never "measured zero". The box
-    /// count is the informative companion (the `edge_nurbs` precedent
-    /// carries the same pair).
+    /// Limb 3's uniqueness tube did not classify clear of the zero band.
+    /// The number is a **certified clearance**, not a measured extent:
+    /// it is exactly zero whenever the enclosure contains zero, so `0`
+    /// here reads "not certifiably zero-free", never "measured zero".
+    /// The box count is the informative companion (`edge_nurbs`'
+    /// `TubeStraddles` carries the same pair, with the verdict).
     CertifiedClearance {
         /// The certified zero-free clearance in metres (0 = none).
         certified_clearance: f64,
@@ -1510,12 +1511,12 @@ fn ssi_refusal(e: crate::ssi::SsiError) -> PcurveCertifyError {
             "a certificate limb exceeded ε",
             Some(FittedMagnitude::LimbResidual(value)),
         ),
-        E::TubeStraddles { margin, boxes } => (
+        E::TubeStraddles { verdict, boxes } => (
             Some(SsiLimb::Tube),
-            "the uniqueness tube's transversality straddles zero (a genuine sliver of the \
-             operand pair — escalate, never desingularize)",
+            "the uniqueness tube's transversality is not certified clear of zero (a genuine \
+             sliver of the operand pair — escalate, never desingularize)",
             Some(FittedMagnitude::CertifiedClearance {
-                certified_clearance: margin,
+                certified_clearance: verdict.margin(),
                 boxes,
             }),
         ),
