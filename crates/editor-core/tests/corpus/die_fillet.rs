@@ -16,7 +16,7 @@
 //!
 //! This document is listed in `corpus/mod.rs::documents()`, so it
 //! carries the full registry battery, INTERVAL lane included
-//! (`m4_pr8_corpus_interval.rs`, `m4_pr6_roundtrip_interval.rs`), and
+//! (`m4_pr8_corpus_interval.rs`), and
 //! `Fillet` is a COVERED node kind in the vocabulary tally.
 //!
 //! It spent PR 12 outside that registry, deliberately, because the
