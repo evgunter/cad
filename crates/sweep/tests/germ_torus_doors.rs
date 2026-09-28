@@ -681,9 +681,9 @@ fn three_face_cylinder() -> Body<f64> {
     let bulge = (std::f64::consts::PI / 6.0).tan();
     let s = 3f64.sqrt() / 2.0;
     let lp = bulge_loop(vec![
-        (p2(1.0, 0.0), bulge),
-        (p2(-0.5, s), bulge),
-        (p2(-0.5, -s), bulge),
+        (Point2::new(1.0, 0.0), bulge),
+        (Point2::new(-0.5, s), bulge),
+        (Point2::new(-0.5, -s), bulge),
     ]);
     let plane = profile::SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
@@ -1093,7 +1093,7 @@ fn bracket() -> Body<f64> {
             (3.2, 1.0),
             (1.95, 1.0),
         ]
-        .map(|(x, z)| p2(x, z)),
+        .map(|(x, z)| Point2::new(x, z)),
     );
     let plane = profile::SketchPlane::new(Affine3::from_parts(
         Mat3::from_cols(Vec3::unit_x(), Vec3::unit_z(), -Vec3::unit_y()),
