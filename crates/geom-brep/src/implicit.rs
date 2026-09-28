@@ -107,6 +107,43 @@ fn axial_radial<T: Real>(p: Point3<T>, anchor: Point3<T>, axis: Vec3<T>) -> (T, 
     (h, w)
 }
 
+/// **A point's elevation off a cone, in metres — the ONE home of the
+/// cone's residual.** `ρ·cos α − s·sin α`, with `ρ` the point's distance
+/// from the axis and `s` its axial height above the apex taken toward
+/// the nappe asked about:
+///
+/// - `None` — the whole DOUBLE cone, the [`Surface::Cone`] carrier as
+///   its implicit form states it: `s = |h|`, the nearer nappe. This is
+///   [`implicit_residual`]'s cone arm.
+/// - `Some(nappe)` — one nappe: `s = h` on [`crate::Nappe::Opening`]
+///   (`v > 0`), `−h` on [`crate::Nappe::Mirror`].
+///
+/// **What it measures.** In the point's meridian half-plane the asked
+/// nappe is a ray from the apex, and the expression is the point's
+/// signed perpendicular offset from that ray's LINE (positive on the
+/// axis-far side). Where `s ≥ 0` the foot of that perpendicular lies on
+/// the ray itself, so the value is the exact signed distance to the
+/// nappe; with `None` that is every point. Where `s < 0` — a point
+/// behind the apex, asked about one nappe — it is a strictly positive
+/// LOWER bound on the distance `√(ρ² + s²)` (Cauchy–Schwarz), which is
+/// all a carrier verdict needs: definitely off stays definitely off.
+pub fn cone_elevation<T: Real>(
+    apex: Point3<T>,
+    axis: Vec3<T>,
+    half_angle: T,
+    nappe: Option<crate::Nappe>,
+    p: Point3<T>,
+) -> T {
+    let (s_a, c_a) = half_angle.sin_cos();
+    let (h, w) = axial_radial(p, apex, axis);
+    let s = match nappe {
+        None => h.abs(),
+        Some(crate::Nappe::Opening) => h,
+        Some(crate::Nappe::Mirror) => T::zero() - h,
+    };
+    w.norm() * c_a - s * s_a
+}
+
 /// The linearized implicit residual of `p` against `s`, in meters (the
 /// module-doc table). Zero on the surface; agrees with the signed
 /// distance to first order near it. Total: poison in, poison out;
@@ -133,11 +170,7 @@ pub fn implicit_residual<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
             axis,
             half_angle,
             ..
-        } => {
-            let (s_a, c_a) = half_angle.sin_cos();
-            let (h, w) = axial_radial(p, apex, axis);
-            w.norm() * c_a - h.abs() * s_a
-        }
+        } => cone_elevation(apex, axis, half_angle, None, p),
         Surface::Torus {
             center,
             axis,

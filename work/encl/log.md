@@ -651,7 +651,7 @@ local run cannot complete, one hosted run covers the batch.
 - **`BoundNotFinite { best: None }`** through schedule exhaustion was
   shown unconstructible, and the variant's doc says why.
 
-Filed: `work/atrest/validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`.
+Filed: `work/dup/validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`.
 The lane's plain `cargo doc -D warnings` reports private-item links, but
 the repo's doc gate runs with `-A rustdoc::private_intra_doc_links`, so
 the batch's local gate decides it. Ready for the batch with 3292; 3295

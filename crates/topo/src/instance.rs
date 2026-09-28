@@ -127,8 +127,7 @@ pub fn graft_disjoint<T: geom_core::Decide>(
 /// two grafts of one source produce two disjoint key ranges. Validity
 /// remains the caller's to establish — this is a raw transplant, and a
 /// multi-solid source's solids are gated by the same at-rest validator
-/// as any other body's: each part on its own when
-/// [`per_part_gate_owed`] says so, then the aggregate.
+/// as any other body's.
 ///
 /// # Errors
 ///
@@ -156,12 +155,15 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 
 /// **Whether an aggregate of `aggregate_solids` solids owes its parts
 /// the at-rest gate one by one** (F8/D7) — the one statement of that
-/// policy. A caller that gathers parts into one body and gates it asks
-/// here rather than spelling the threshold itself.
+/// policy. A caller that gates each part BEFORE the aggregate asks here
+/// rather than spelling the threshold itself; a caller that gates only
+/// the aggregate and re-gates parts to attribute a refusal
+/// (`editor_core::product_recorded`) does not ask, because it owes no
+/// part a gate on the success path.
 ///
-/// Such an aggregate is gated at rest for two subjects: each part on
-/// its own body, so a refusal names the part it is about and arrives
-/// before the part is grafted, and then the aggregate. `docs/DESIGN.md`
+/// A caller that asks gates for two subjects: each part on its own
+/// body, so a refusal names the part it is about and arrives before the
+/// part is grafted, and then the aggregate. `docs/DESIGN.md`
 /// import step 4 states why each part is asked: whole-body sums letting
 /// an inside-out part cancel against its neighbour. Whether that still
 /// holds now that check 7 reads each solid's sign on its own faces
@@ -174,27 +176,17 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// geometry. It is skipped as an IDENTITY, never as an exemption: the
 /// aggregate gate still runs, on that same solid.
 ///
-/// **The count is over the aggregate's SOLIDS**, and the two callers
-/// do not mean the same thing by a part:
+/// **The count is over the aggregate's SOLIDS.** Its one caller,
+/// `step_import::import_step`, gates each placed instance, which is one
+/// solid, with tier 3; its aggregate gate is tier 3′, the
+/// declared-contact census, which is where the cross-part structure is
+/// checked. Its instance count IS its solid count, and it says why at
+/// the call. A caller that counts something else owes the reason its
+/// count IS the solid count, at the call.
 ///
-/// - `step_import::import_step` gates each placed instance, which is one
-///   solid, with tier 3; its aggregate gate is tier 3′, the
-///   declared-contact census, which is where the cross-part structure
-///   is checked. Its instance count IS its solid count, and it says why
-///   at the call.
-/// - `editor_core::product_recorded` gates each SOURCE body whole, and a
-///   source may carry several solids; its aggregate gate is tier 3,
-///   with the cross-part census left to the assembly gate above it. So
-///   a lone source of several solids is gated twice on the same
-///   geometry, as a part and as the aggregate. Whether that caller
-///   should count its sources instead is an open question
-///   (`work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`).
-///
-/// A caller that counts something else owes the reason its count IS
-/// the solid count, at the call. The two callers above are held to
-/// consulting this function by a source-reading guard in each crate
-/// (`tests/per_part_gate_policy.rs`); a new caller is held to it by
-/// convention only.
+/// That caller is held to consulting this function by a source-reading
+/// guard (`step-import`'s `tests/per_part_gate_policy.rs`); a new caller
+/// is held to it by convention only.
 #[must_use]
 pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {
     aggregate_solids > 1

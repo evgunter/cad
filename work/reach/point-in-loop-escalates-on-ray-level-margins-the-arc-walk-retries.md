@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-27
 priority: P2
 cost: M
-refs: [ATREST-12]
+refs: [3288]
 ---
 
 Filed by ATREST-12's delta review (PR #3288, MINOR-A), on REACH's
