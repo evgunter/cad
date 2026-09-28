@@ -337,10 +337,10 @@ fn interrogate_error_display_names_its_content_not_its_struct() {
 /// six ordinary enums. Only ADDITION is unchecked, and the wildcard
 /// below does not repair it: reaching the panic needs a case that
 /// constructs the new variant, which is the vacuity this file exists to
-/// close. The real home is a unit test beside the enum, inside the
-/// crate where the attribute does not apply
-/// (`work/wire/select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`);
-/// the other six are not weakened to match this one.
+/// close. Addition is held instead by the census beside the enum,
+/// inside the crate where the attribute does not apply
+/// (`crates/editor-core/src/names/geompred.rs`, `mod census`); the
+/// other six are not weakened to match this one.
 fn select_refusal_is_exhaustive(e: &SelectRefusal) {
     match e {
         SelectRefusal::InBand { .. }
