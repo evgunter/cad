@@ -1129,3 +1129,5 @@ class of 65 sites is PRED's row.
     - the sliver overflow reassociated so it is exact;
     - the sweep table completed.
   - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
+  - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.
