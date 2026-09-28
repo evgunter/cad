@@ -4665,11 +4665,7 @@ pub(crate) fn tier3_local_checks_marked<
                     ..
                 } = surface
                 {
-                    match decide(
-                        "ring_torus_convention",
-                        Margin::of(*major_radius - *minor_radius),
-                        band,
-                    ) {
+                    match geom_brep::ring_torus(*major_radius, *minor_radius, band) {
                         Ok(Sign::Positive) => {}
                         Ok(Sign::Zero | Sign::Negative) => {
                             errors.push(ValidationError::DegenerateTorus { face: face_key });

@@ -2697,14 +2697,23 @@ fn certified_arms<T: Decide + Bounds>(
             }
             Ok((gate(radius * v_abs.cos(), "sphere")?, radius))
         }
+        // The ring premise is the convention's own predicate; `R − r`
+        // is then the inner equator's radius, the least distance from
+        // the axis, which is the azimuth's stretch floor.
         Surface::Torus {
             major_radius,
             minor_radius,
             ..
-        } => Ok((
-            gate(major_radius - minor_radius, "torus")?,
-            gate(minor_radius, "torus")?,
-        )),
+        } => match geom_brep::ring_torus(major_radius, minor_radius, band) {
+            Ok(Sign::Positive) => Ok((
+                gate(major_radius - minor_radius, "torus")?,
+                gate(minor_radius, "torus")?,
+            )),
+            Ok(Sign::Zero | Sign::Negative) => {
+                Err(ChartRegionError::ArmUnbounded { chart: "torus" })
+            }
+            Err(diag) => Err(ChartRegionError::Escalated(diag)),
+        },
         Surface::Cone { half_angle, .. } => {
             // Branch-free `min |v|` over the window, zero exactly when
             // the window straddles the apex.

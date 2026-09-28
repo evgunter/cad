@@ -249,3 +249,36 @@ fn the_four_versus_none_split_is_exercised_both_ways() {
         })
     );
 }
+
+/// **The trim door reads the ring from the convention's one home.** A
+/// spindle (`R < r`) reaching the torus trim is refused at entry under
+/// `ring_torus_convention`, before either window is levered by a radial
+/// that can vanish — even for a query point well clear of the axis,
+/// where the frame's own `ρ` guard would pass. A ring torus with the
+/// same windows and point answers.
+#[test]
+fn the_torus_trim_refuses_a_spindle_under_the_ring_convention() {
+    let windows = (Some((0.1, 1.0)), Some((0.1, 1.0)));
+    let p = Point3::new(0.8, 0.1, 0.0);
+    let ask = |major: f64, minor: f64| {
+        point_on_torus_in_face(
+            FaceKey::default(),
+            centre(),
+            axis(),
+            major,
+            minor,
+            Vec3::new(1.0, 0.0, 0.0),
+            windows.0,
+            windows.1,
+            p,
+            band(),
+        )
+    };
+    match ask(0.2, 0.3) {
+        Err(PointInSolidError::Escalated { diag, .. }) => {
+            assert_eq!(diag.predicate, Some("ring_torus_convention"));
+        }
+        other => panic!("a spindle must refuse at the ring check: {other:?}"),
+    }
+    assert!(ask(R_MAJOR, R_MINOR).is_ok(), "a ring torus answers");
+}

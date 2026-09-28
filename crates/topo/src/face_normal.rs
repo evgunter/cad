@@ -184,12 +184,8 @@ pub(crate) fn face_outward_normal_at<T: Decide>(
             major_radius,
             minor_radius,
             ..
-        } if decide(
-            "bool_pierce_normal_ring_torus",
-            Margin::of(*major_radius - *minor_radius),
-            band,
-        )
-        .map_err(NormalAtError::Escalated)?
+        } if geom_brep::ring_torus(*major_radius, *minor_radius, band)
+            .map_err(NormalAtError::Escalated)?
             != Sign::Positive =>
         {
             Ok(None)

@@ -1793,7 +1793,7 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
-    match decide("pt_ring_guard", Margin::of(big_r - r), band).map_err(SectionError::Escalated)? {
+    match crate::implicit::ring_torus(big_r, r, band).map_err(SectionError::Escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }

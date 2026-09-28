@@ -1529,6 +1529,21 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
     band: Band,
 ) -> Result<Option<bool>, PointInSolidError> {
     let escalate = |diag| PointInSolidError::Escalated { face, diag };
+    // **Both windows lean on the ring, so the ring is CHECKED here
+    // rather than premised.** The ring convention is enforced at REST by
+    // tier-3 check 1, and this door does not run the validator; three
+    // doors mint a torus (revolve, step-import, the blend lane), and a
+    // spindle arriving from any of them would lever the azimuth by a
+    // vanishing radial and hand the trim a poison direction. It takes
+    // the typed refusal instead, read from the convention's one home.
+    if geom_brep::ring_torus(major_radius, minor_radius, band).map_err(escalate)? != Sign::Positive
+    {
+        return Err(escalate(geom_core::Indeterminate {
+            margin: geom_core::MarginDiag::Invalid,
+            band,
+            predicate: Some("ring_torus_convention"),
+        }));
+    }
     let w = p - center;
     let h = w.dot(axis);
     let radial = w - axis * h;
@@ -1554,15 +1569,13 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
         }
     }
     if let Some(mv) = v_win {
-        // **The meridian frame needs `ρ > 0`, and it is CHECKED here
-        // rather than premised.** On a ring torus `ρ ≥ R − r > 0`
-        // everywhere on the surface, so this never fires — but the ring
-        // convention is enforced at REST by tier-3 check 1, and this
-        // door does not run the validator. Three doors mint a torus
-        // (revolve, step-import, the blend lane), and a spindle arriving
-        // from any of them would divide by a vanishing radial here and
-        // hand the trim a poison direction. It takes the typed refusal
-        // instead.
+        // **The meridian frame divides by `ρ`.** The ring was decided
+        // above, and on a ring torus every SURFACE point has
+        // `ρ ≥ R − r > 0`, so this is not a second statement of the
+        // convention. It guards the division for a point this door
+        // does not certify onto the surface: a query far off the tube
+        // can sit on the axis, and it takes the typed refusal rather
+        // than a poison direction.
         match decide("bool_torus_frame_radius", Margin::of(rho), band).map_err(escalate)? {
             Sign::Positive => {}
             Sign::Zero | Sign::Negative => {
