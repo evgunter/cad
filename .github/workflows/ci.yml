@@ -205,8 +205,8 @@ jobs:
       CARGO_PROFILE_DEV_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_DEBUG: line-tables-only
       CARGO_PROFILE_TEST_STRIP: debuginfo
-      CARGO_PROFILE_DEV_OPT_LEVEL: "1"
-      CARGO_PROFILE_TEST_OPT_LEVEL: "1"
+      CARGO_PROFILE_DEV_OPT_LEVEL: "0"
+      CARGO_PROFILE_TEST_OPT_LEVEL: "0"
     steps:
       - uses: actions/checkout@v4
       - name: prune local-only tooling (hosted CI may not depend on it)
@@ -214,8 +214,8 @@ jobs:
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          shared-key: build-default
-          save-if: false
+          shared-key: build-opt0-experiment
+          save-if: true
       - name: install cargo-nextest (pinned, official prebuilt)
         uses: ./.github/actions/install-nextest
         with:
@@ -255,6 +255,12 @@ jobs:
           pkgs="$(echo "$SEEDS" | tr ',' '\n' | sed 's/.*/package(&)/' | paste -sd'|')"
           cargo nextest run --profile ci --ignore-default-filter ${{ needs.filter.outputs.cargo_scope }} \
             -E "($pkgs) & $slow${TEST_FILTER:+ & ($TEST_FILTER)}" --no-fail-fast --no-tests=pass
+      - name: EXPERIMENT (opt-0) — slow set of editor-core, topo, sweep
+        if: '!cancelled()'
+        run: |
+          slow="$(python3 -c "import tomllib; f = tomllib.load(open('.config/nextest.toml', 'rb'))['profile']['ci']['default-filter'].strip(); print(f[4:])")"
+          cargo nextest run --profile ci --ignore-default-filter --workspace \
+            -E "(package(editor-core) | package(topo) | package(sweep)) & $slow" --no-fail-fast --no-tests=pass
       - name: doc-tests
         if: '!cancelled()'
         run: cargo test --doc ${{ needs.filter.outputs.cargo_scope }}
