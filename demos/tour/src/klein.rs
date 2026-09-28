@@ -101,15 +101,15 @@
 //!    improvement rather than a workaround (Ev, 2026-08-16). An arc
 //!    in the profile is a CONSTRUCTED part of the wall and answers to
 //!    no rolling ball; a post-hoc roll of the same size cannot exist.
-//! 4. **No boolean may touch a Cone or a Torus face THAT CAN REACH
-//!    THE OTHER OPERAND** (walls 3, 4). The operand gate is
-//!    pair-scoped: a kind with no wired arm disqualifies an operation
-//!    only where its BOX may meet a face of the other body, so both
-//!    refusals now name the germ PAIR and both faces, and they are
-//!    DIFFERENT pairs. `union` refuses
-//!    `CurvedPairUnsupported { kind: Torus, other_kind: Torus }` — the
-//!    first pair in arena order whose boxes may meet, a tube wall of
-//!    the bulb against one of the loop's, and NOT the coincident
+//! 4. **No boolean may touch a Cone face THAT CAN REACH THE OTHER
+//!    OPERAND** (walls 3, 4). The operand gate is pair-scoped: a kind
+//!    with no wired arm disqualifies an operation only where its BOX
+//!    may meet a face of the other body, so both refusals name the
+//!    germ PAIR and both faces. The torus is on the union's roster,
+//!    so the bulb's tube walls no longer gate the union: `union`
+//!    refuses `CurvedPairUnsupported { kind: Cone, other_kind: Plane }`
+//!    — the flare against a planar face of the loop, the first pair
+//!    in arena order whose boxes may meet, and NOT the coincident
 //!    annular mate the model cares about. `subtract` refuses
 //!    `{ op: Some(Subtract), kind: Torus, other_kind: Torus }` — the
 //!    bulb's own tube wall against the descending neck's, which IS
@@ -809,9 +809,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
 
     // Wall 3: the bottle is ONE surface. Its three bodies meet on
     // coincident annular faces — the declared REST mate — and the
-    // union refuses at a pair that is NOT that mate: a TORUS wall of
-    // the bulb against a torus wall of the loop. The gate is
-    // pair-scoped, so the refusal names the two faces whose boxes may
+    // union refuses at a pair that is NOT that mate: the bulb's CONE
+    // flare against a planar face of the loop (the torus walls are on
+    // the union's roster and gate nothing). The gate is pair-scoped,
+    // so the refusal names the two faces whose boxes may
     // meet, and this is the first such pair in arena order — which
     // the bodies' minting order decides, and with it which of the
     // several reaching pairs is named. It is a MAY: box overlap
@@ -827,8 +828,8 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             )
@@ -1135,12 +1136,13 @@ mod verbs_gate_r1_probes {
                 BooleanError::CurvedPairUnsupported {
                     op: None,
                     operand: Operand::A,
-                    kind: SurfaceKind::Torus,
-                    other_kind: SurfaceKind::Torus,
+                    kind: SurfaceKind::Cone,
+                    other_kind: SurfaceKind::Plane,
                     ..
                 }
             ),
-            "wall 3 must name a tube wall of the bulb against one of the loop's: {joined:?}"
+            "wall 3 must name the bulb's flare against a planar face of the loop — the \
+             tube walls are on the union's roster: {joined:?}"
         );
 
         let trimmed = pncad::topo::subtract(&bulb_body, &into, tol)

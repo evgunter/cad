@@ -493,7 +493,6 @@ fn carve_hole(
 #[test]
 fn independent_genus_one_and_two_builds_with_hand_ledger() {
     let tol = Tol::witness();
-    let pt = Point3::new;
     let mut body = Body::<f64>::new();
     let b = build_box(&mut body, tol);
     let mut l = EulerCounts {
@@ -514,8 +513,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         he_front_ab,
         b.f_front.face,
         b.f_back.face,
-        &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-        &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+        &[
+            Point3::new(0.5, 0.0, 0.5),
+            Point3::new(1.5, 0.0, 0.5),
+            Point3::new(1.0, 0.0, 1.5),
+        ],
+        &[
+            Point3::new(0.5, 2.0, 0.5),
+            Point3::new(1.5, 2.0, 0.5),
+            Point3::new(1.0, 2.0, 1.5),
+        ],
         &mut l,
         0,
         tol,
@@ -570,16 +577,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         b.seed.face,
         b.f_bottom.face,
         &[
-            pt(0.5, 0.5, 2.0),
-            pt(1.5, 0.5, 2.0),
-            pt(1.5, 1.5, 2.0),
-            pt(0.5, 1.5, 2.0),
+            Point3::new(0.5, 0.5, 2.0),
+            Point3::new(1.5, 0.5, 2.0),
+            Point3::new(1.5, 1.5, 2.0),
+            Point3::new(0.5, 1.5, 2.0),
         ],
         &[
-            pt(0.5, 0.5, 0.0),
-            pt(1.5, 0.5, 0.0),
-            pt(1.5, 1.5, 0.0),
-            pt(0.5, 1.5, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+            Point3::new(1.5, 0.5, 0.0),
+            Point3::new(1.5, 1.5, 0.0),
+            Point3::new(0.5, 1.5, 0.0),
         ],
         &mut l,
         1,
@@ -708,8 +715,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         he_front_ab2,
         b2.f_front.face,
         b2.f_back.face,
-        &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-        &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+        &[
+            Point3::new(0.5, 0.0, 0.5),
+            Point3::new(1.5, 0.0, 0.5),
+            Point3::new(1.0, 0.0, 1.5),
+        ],
+        &[
+            Point3::new(0.5, 2.0, 0.5),
+            Point3::new(1.5, 2.0, 0.5),
+            Point3::new(1.0, 2.0, 1.5),
+        ],
         &mut l2,
         0,
         tol,
@@ -723,16 +738,16 @@ fn independent_genus_one_and_two_builds_with_hand_ledger() {
         b2.seed.face,
         b2.f_bottom.face,
         &[
-            pt(0.5, 0.5, 2.0),
-            pt(1.5, 0.5, 2.0),
-            pt(1.5, 1.5, 2.0),
-            pt(0.5, 1.5, 2.0),
+            Point3::new(0.5, 0.5, 2.0),
+            Point3::new(1.5, 0.5, 2.0),
+            Point3::new(1.5, 1.5, 2.0),
+            Point3::new(0.5, 1.5, 2.0),
         ],
         &[
-            pt(0.5, 0.5, 0.0),
-            pt(1.5, 0.5, 0.0),
-            pt(1.5, 1.5, 0.0),
-            pt(0.5, 1.5, 0.0),
+            Point3::new(0.5, 0.5, 0.0),
+            Point3::new(1.5, 0.5, 0.0),
+            Point3::new(1.5, 1.5, 0.0),
+            Point3::new(0.5, 1.5, 0.0),
         ],
         &mut l2,
         1,
@@ -2013,7 +2028,6 @@ fn kfmrh_and_ring_move_error_paths_are_atomic() {
 #[test]
 fn failing_ring_ops_leave_lineage_pure() {
     let tol = Tol::witness();
-    let pt = Point3::new;
     let build = |inject: bool| -> (Body<f64>, Vec<String>) {
         let mut body = Body::<f64>::new();
         let b = build_box(&mut body, tol);
@@ -2039,8 +2053,16 @@ fn failing_ring_ops_leave_lineage_pure() {
             he_front_ab,
             b.f_front.face,
             b.f_back.face,
-            &[pt(0.5, 0.0, 0.5), pt(1.5, 0.0, 0.5), pt(1.0, 0.0, 1.5)],
-            &[pt(0.5, 2.0, 0.5), pt(1.5, 2.0, 0.5), pt(1.0, 2.0, 1.5)],
+            &[
+                Point3::new(0.5, 0.0, 0.5),
+                Point3::new(1.5, 0.0, 0.5),
+                Point3::new(1.0, 0.0, 1.5),
+            ],
+            &[
+                Point3::new(0.5, 2.0, 0.5),
+                Point3::new(1.5, 2.0, 0.5),
+                Point3::new(1.0, 2.0, 1.5),
+            ],
             &mut l,
             0,
             tol,
@@ -2080,7 +2102,7 @@ fn failing_ring_ops_leave_lineage_pure() {
                     he1: b.e_ab.he_minus,
                     he2: b.e_ab.he_minus,
                 },
-                pt(3.0, 0.0, 0.0),
+                Point3::new(3.0, 0.0, 0.0),
                 tol,
             )
             .unwrap();

@@ -45,20 +45,16 @@ use profile::{
     test_support::bulge_loop,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A table only the fixture helpers can spell: arcs of both signs, a
 /// semicircle, a signed zero, declarations duplicated and out of
 /// order, then the whole thing reversed (so the joints are remapped).
 fn awkward() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, -0.0), 0.3),
-        (p2(2.0, 0.0), -0.5),
-        (p2(2.0, 2.0), 1.0),
-        (p2(1.0, 3.0), 0.0),
-        (p2(0.0, 2.0), 0.123_456_789_012_3),
+        (Point2::new(0.0, -0.0), 0.3),
+        (Point2::new(2.0, 0.0), -0.5),
+        (Point2::new(2.0, 2.0), 1.0),
+        (Point2::new(1.0, 3.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.123_456_789_012_3),
     ])
     .with_tangent_joints(vec![4, 1, 1, 0])
     .reversed()
@@ -161,8 +157,8 @@ fn r1_embed_is_both_former_walks_at_f64_bit_for_bit() {
 #[test]
 fn r1_embed_is_total_on_a_poisoned_table() {
     let src = bulge_loop(vec![
-        (p2(f64::INFINITY, 0.0), f64::NAN),
-        (p2(1.0, f64::NEG_INFINITY), -0.0),
+        (Point2::new(f64::INFINITY, 0.0), f64::NAN),
+        (Point2::new(1.0, f64::NEG_INFINITY), -0.0),
     ])
     .with_tangent_joints(vec![usize::MAX]);
     let door: ProfileLoop<f64> = src.map_scalar(<f64 as Real>::from_f64);
@@ -201,13 +197,13 @@ fn r1_embed_is_both_former_walks_at_interval() {
 /// every joint declared, authored through the lattice.
 fn stadium() -> ProfileLoop<f64> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)
@@ -274,8 +270,11 @@ fn r1_the_all_declared_loop_lifts_at_every_seam() {
 /// The chain form seams at 0 and closes with the tangent arrival.
 #[test]
 fn r1_a_two_arc_circle_with_both_joints_declared_lifts() {
-    let circle =
-        bulge_loop(vec![(p2(0.0, 0.0), 1.0), (p2(2.0, 0.0), 1.0)]).with_tangent_joints(vec![0, 1]);
+    let circle = bulge_loop(vec![
+        (Point2::new(0.0, 0.0), 1.0),
+        (Point2::new(2.0, 0.0), 1.0),
+    ])
+    .with_tangent_joints(vec![0, 1]);
     let outcome = lift_checked(&circle, Tol::witness());
     match &outcome {
         LiftOutcome::Lifted {
@@ -303,10 +302,10 @@ fn r1_a_two_arc_circle_with_both_joints_declared_lifts() {
 #[test]
 fn r1_a_declared_closing_joint_false_within_the_band_lifts_bit_identical() {
     let loop_ = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(1.0, 1.0),
-        p2(0.5, 0.5 + 1e-13),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.5, 0.5 + 1e-13),
     ])
     .with_tangent_joints(vec![3]);
     match lift_checked(&loop_, Tol::witness()) {

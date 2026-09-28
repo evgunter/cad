@@ -19,27 +19,23 @@ use geom_core::{Point2, Tol};
 use profile::{Open, Start};
 use std::f64::consts::FRAC_PI_2;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Ev's D-shape, whose closing leg declares BOTH facts.
 fn d_shape() -> Vec<profile::Step<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(FRAC_PI_2, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .arc_to(
             profile::Bulge {
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
                 b: 1.0,
             },
             t,
         )
         .unwrap()
-        .line_to(p2(0.0, -1.0), t)
+        .line_to(Point2::new(0.0, -1.0), t)
         .unwrap()
         .continue_to(Start.arrives_tangent(), t)
         .unwrap()
@@ -49,13 +45,13 @@ fn d_shape() -> Vec<profile::Step<f64>> {
 /// The stadium, whose closing cap declares the G1 arrival.
 fn stadium() -> Vec<profile::Step<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(2.0, t)
         .unwrap()
         .tangent()
-        .tangent_arc_to(p2(2.0, 2.0), t)
+        .tangent_arc_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .tangent()
         .line(2.0, t)

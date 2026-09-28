@@ -27,7 +27,7 @@
 
 use crate::common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::RawLoop;
 use profile::{ProfileLoop, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, extrude, revolve};
@@ -544,12 +544,12 @@ fn consumer_e2e_vase_and_bracket() {
     .body;
     // Bracket: L-plate with two round bolt holes.
     let outer = ProfileLoop::polygon([
-        common::p2(0.0, 0.0),
-        common::p2(3.0, 0.0),
-        common::p2(3.0, 1.0),
-        common::p2(1.0, 1.0),
-        common::p2(1.0, 3.0),
-        common::p2(0.0, 3.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(3.0, 0.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
     ]);
     let hole = |cx: f64, cy: f64, r: f64| {
         bulge_loop(vec![
@@ -612,9 +612,9 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
             "frustum",
             revolve(
                 &common::validated(vec![ProfileLoop::polygon([
-                    common::p2(1.0, 0.0),
-                    common::p2(2.0, 0.0),
-                    common::p2(1.0, 1.0),
+                    Point2::new(1.0, 0.0),
+                    Point2::new(2.0, 0.0),
+                    Point2::new(1.0, 1.0),
                 ])]),
                 common::axis_y(),
                 Revolution::Full,
@@ -627,12 +627,12 @@ fn review_shapes_mesh_volume_within_3_delta_area() {
             "cup",
             revolve(
                 &common::validated(vec![ProfileLoop::polygon([
-                    common::p2(0.0, 0.0),
-                    common::p2(2.0, 0.0),
-                    common::p2(2.0, 2.0),
-                    common::p2(1.5, 2.0),
-                    common::p2(1.5, 0.5),
-                    common::p2(0.0, 0.5),
+                    Point2::new(0.0, 0.0),
+                    Point2::new(2.0, 0.0),
+                    Point2::new(2.0, 2.0),
+                    Point2::new(1.5, 2.0),
+                    Point2::new(1.5, 0.5),
+                    Point2::new(0.0, 0.5),
                 ])]),
                 common::axis_y(),
                 Revolution::Full,

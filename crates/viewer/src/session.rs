@@ -3051,12 +3051,11 @@ mod tests {
     fn square() -> (Doc<ProfileProgram>, RecipeNodeId) {
         let tol = Tol::witness();
         let (doc, plane) = inserted(&Doc::empty_derived("order", tol), xy_frame(), tol);
-        let pt = Point2::new;
         let steps = vec![
-            Step::At(pt(0.0, 0.0)),
-            Step::LineTo(Target::Point(pt(1.0, 0.0))),
-            Step::LineTo(Target::Point(pt(1.0, 1.0))),
-            Step::LineTo(Target::Point(pt(0.0, 1.0))),
+            Step::At(Point2::new(0.0, 0.0)),
+            Step::LineTo(Target::Point(Point2::new(1.0, 0.0))),
+            Step::LineTo(Target::Point(Point2::new(1.0, 1.0))),
+            Step::LineTo(Target::Point(Point2::new(0.0, 1.0))),
             Step::LineTo(Target::Start),
         ];
         let loops = vec![

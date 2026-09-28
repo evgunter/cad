@@ -1190,6 +1190,37 @@ pub(super) fn torus_chart_trim<T: Decide>(
     {
         return Ok((None, None, group.representative));
     }
+    let (u, v) = torus_face_windows(body, face, major_radius, minor_radius, band)?;
+    Ok((u, v, face))
+}
+
+/// **One torus face's own chart windows** — the windowed class of
+/// [`torus_chart_trim`], answered for the face whatever group it sits
+/// in. `(major window, minor window)`, each `None` where the face wraps
+/// that coordinate.
+///
+/// The solid door reads it only for a face OUTSIDE a closed group,
+/// because there the group's union is the question and its
+/// representative answers for every member. A face-scoped caller asks
+/// the other question — which chart points does THIS face hold — and a
+/// closed group's member has windows of its own that answer it (the
+/// donut's two faces each wrap the major azimuth and split the minor
+/// angle between them). Every guard below is a property of the face's
+/// own boundary walk, so nothing in it depends on the group.
+///
+/// # Errors
+///
+/// As [`torus_chart_trim`]: [`PointInSolidError::CorruptFace`],
+/// [`PointInSolidError::PartialTorusFace`] for a face whose own windows
+/// the walk cannot pin, [`PointInSolidError::Escalated`].
+#[allow(clippy::type_complexity)] // the two windows of one face
+pub(super) fn torus_face_windows<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(Option<(T, T)>, Option<(T, T)>), PointInSolidError> {
     let Some((u, v)) = torus_chart_windows(body, face, band)? else {
         return Err(PointInSolidError::PartialTorusFace { face });
     };
@@ -1216,14 +1247,16 @@ pub(super) fn torus_chart_trim<T: Decide>(
     )?;
     let v = window("bool_torus_trim_minor_period", v, minor_radius)?;
     // A face that wraps BOTH coordinates covers the whole chart, and a
-    // face covering the whole chart has every boundary edge shared with
-    // a member of its own group — which the closed scan above did not
-    // find. The two claims cannot both hold, so the face is refused
-    // rather than served on the weaker of them.
+    // face covering the whole chart has no boundary against anything —
+    // no window can be read FROM it, which is why the solid door serves
+    // a closed torus through its group class instead. A walk that
+    // reports both wraps therefore describes no face this reader can
+    // answer for, and the face is refused rather than served as the
+    // whole chart.
     if u.is_none() && v.is_none() {
         return Err(PointInSolidError::PartialTorusFace { face });
     }
-    Ok((u, v, face))
+    Ok((u, v))
 }
 
 /// The face's `(major, minor)` chart windows, walked over its outer
@@ -1446,6 +1479,24 @@ fn torus_chart_windows<T: Decide>(
         }
     }
     Ok(acc)
+}
+
+/// **A point's elevation off a ring torus's tube**: `√((ρ − R)² + h²) − r`,
+/// the exact signed distance to the surface (negative inside the tube).
+/// Every door that asks "is this point ON the torus" reads this one
+/// expression, so the solid door, the face door and their rows cannot
+/// disagree about which points lie on the tube.
+pub(super) fn torus_elevation<T: Decide>(
+    center: Point3<T>,
+    axis: Vec3<T>,
+    major_radius: T,
+    minor_radius: T,
+    p: Point3<T>,
+) -> T {
+    let w = p - center;
+    let h = w.dot(axis);
+    let rho = (w - axis * h).norm();
+    ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius
 }
 
 /// Is the ON-TORUS point `p` within the torus face's chart trim?
@@ -2647,10 +2698,7 @@ fn point_in_faces<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let w = q - center;
-                let h = w.dot(axis);
-                let rho = (w - axis * h).norm();
-                let elev = ((rho - major_radius).powi(2) + h.powi(2)).sqrt() - minor_radius;
+                let elev = torus_elevation(center, axis, major_radius, minor_radius, q);
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {
@@ -3736,11 +3784,17 @@ fn cast_ray<T: Decide>(
                         None => return Ok(None), // trim-boundary hit: graze
                         Some(true) => {}
                     }
-                    let wp = p - center;
-                    let hp = wp.dot(axis);
-                    let rad = wp - axis * hp;
-                    let rho = rad.norm();
-                    let n_chart = (rad / rho * (rho - major_radius) + axis * hp) / minor_radius;
+                    // The tube's chart normal, from the one home it has.
+                    let n_chart = geom_brep::implicit_gradient(
+                        &Surface::Torus {
+                            center,
+                            axis,
+                            major_radius,
+                            minor_radius,
+                            u_ref,
+                        },
+                        p,
+                    );
                     let outward = oriented(
                         decide(
                             "bool_ray_torus_incidence",

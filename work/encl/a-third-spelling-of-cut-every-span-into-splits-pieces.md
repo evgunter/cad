@@ -6,8 +6,11 @@ status: closed
 opened: 2026-09-22
 priority: P1
 cost: D
+<<<<<<< HEAD
 branch: encl/equal-split-points-home
 pr: 3292
+=======
+>>>>>>> origin/main
 closed: 2026-09-26
 ---
 

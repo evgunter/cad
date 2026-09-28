@@ -9,8 +9,8 @@
 
 use crate::common;
 
-use common::{axis_y, ball, cone, donut, p2, validated, washer};
-use geom_core::Tol;
+use common::{axis_y, ball, cone, donut, validated, washer};
+use geom_core::{Point2, Tol};
 use mesh::{TessellateError, tessellate};
 use profile::ProfileLoop;
 use profile::{RawLoop, test_support::bulge_loop};
@@ -61,7 +61,10 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
     let extreme_torus = {
         // R ≫ r: the conservative (~24×) torus bound at its most
         // stressed relative to the grid heuristic.
-        let lp = bulge_loop(vec![(p2(10.0, -0.05), 1.0), (p2(10.0, 0.05), 1.0)]);
+        let lp = bulge_loop(vec![
+            (Point2::new(10.0, -0.05), 1.0),
+            (Point2::new(10.0, 0.05), 1.0),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -74,7 +77,11 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
     let flat_cone = {
         // Nearly flat cone (half-angle → π/2) — cosα·sinα maximal
         // sensitivity region for the cone bound.
-        let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(4.0, 0.2), p2(0.0, 0.2)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(4.0, 0.2),
+            Point2::new(0.0, 0.2),
+        ]);
         revolve(
             &validated(vec![lp]),
             axis_y(),
@@ -101,7 +108,10 @@ fn survives_certificate_exceeded_unreachable_over_body_sweep() {
 fn survives_torus_wedge_outside_pole_window() {
     // Torus faces carry no poles: the θ ∈ (3π/2, 2π) pole-junction
     // window must NOT affect a partial donut.
-    let lp = bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ]);
     let body = revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -118,7 +128,12 @@ fn survives_self_intersecting_profile_never_reaches_spade() {
     // The crossing-constraint panic is pre-checked in-crate; the only
     // way to feed spade crossing segments would be a self-intersecting
     // boundary, which profile validation refuses upstream — typed.
-    let bowtie = ProfileLoop::polygon([p2(0.5, 0.0), p2(2.0, 1.0), p2(2.0, 0.0), p2(0.5, 1.0)]);
+    let bowtie = ProfileLoop::polygon([
+        Point2::new(0.5, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(0.5, 1.0),
+    ]);
     let res = profile::Profile::new(profile::SketchPlane::xy(), vec![bowtie])
         .validate(geom_core::Tol::witness());
     assert!(res.is_err(), "self-intersecting profile must be refused");

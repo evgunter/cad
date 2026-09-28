@@ -3,9 +3,11 @@
 //! `geom_brep::must_carry_over_edge` is the one home of the rule a
 //! constructor applies to a definitely-smooth join: gate on the jet
 //! certificate's lane, read the certification schedule's interior
-//! stations, and answer one of three ways — jet-determinate (store the
-//! intrinsic `TangentIntersection`), under-determined (store the
-//! conventional chart image), in-band (refuse TYPED). These rows hold
+//! stations — each first-order before second-order — and answer
+//! jet-determinate (store the intrinsic `TangentIntersection`),
+//! under-determined (store the conventional chart image), in-band
+//! (refuse TYPED) or transverse (the join is a corner, not the smooth
+//! join the caller took it for). These rows hold
 //! the extrude strut arm and the revolve latitude join to that ONE
 //! answer, on the same one-parameter family of geometry, so a verb
 //! that grows its own policy again shows up here as a disagreement
@@ -409,6 +411,193 @@ fn out_of_lane_triple() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
         dir,
     };
     (plane, cone, carrier)
+}
+
+// ---------------------------------------------------------------
+// The first-order gate, in both surface orders.
+// ---------------------------------------------------------------
+
+/// The rule's verdict on one pair asked in BOTH argument orders, with
+/// the carrier, interval and extent held fixed.
+fn both_orders(
+    s1: &Surface<f64>,
+    s2: &Surface<f64>,
+    carrier: &Curve3<f64>,
+    t1: f64,
+    extent: f64,
+) -> (MustCarryVerdict, MustCarryVerdict) {
+    (
+        must_carry_over_edge(s1, s2, carrier, 0.0, t1, extent, band()),
+        must_carry_over_edge(s2, s1, carrier, 0.0, t1, extent, band()),
+    )
+}
+
+/// A cylinder resting in the plane `y = 0`, tangent along its ruling
+/// through the origin, and that ruling as the carrier.
+fn resting_cylinder() -> (Surface<f64>, Surface<f64>, Curve3<f64>) {
+    let plane = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let cylinder = Surface::Cylinder {
+        origin: Point3::new(0.0, MERIDIAN_R, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: MERIDIAN_R,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let ruling = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    (plane, cylinder, ruling)
+}
+
+/// **One geometric fact, one answer, whatever the argument order.**
+///
+/// A plane crossing a cylinder at a right angle along a circle — the
+/// ruled band's cut-off arc against its cap — is a corner, and the rule
+/// says so in both orders. Its second-order jet read in either order
+/// is an artefact of the order (`κ_rel = 1/r` along the cylinder's own
+/// normal with the plane first, `0` along the flat ruling with the
+/// cylinder first), and without the first-order gate the two orders
+/// answered jet-determinate and under-determined. The same holds one
+/// band down: planes crossing at a sliver angle are in-band in both
+/// orders, never the conventional answer.
+///
+/// Over an extent above the band's escalation threshold the gate moves
+/// nothing where the jet IS the question: a genuine tangency reads
+/// jet-determinate in both orders, and the same tangency over an arm
+/// too short to subtend ε reads under-determined in both. At or below
+/// that threshold the first-order arm itself collapses, which is
+/// `a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders`'s
+/// row.
+#[test]
+fn the_rule_answers_one_pair_the_same_way_in_both_surface_orders() {
+    // The right-angle crossing: the plane z = 0 and the cylinder about
+    // the z axis, along their quarter circle of intersection. A Circle
+    // carrier on a plane/cylinder pair is inside the lane, so this pair
+    // reaches the stations rather than the lane gate.
+    let cap = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 0.0, 1.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let band_wall = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: MERIDIAN_R,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let arc = Curve3::Circle {
+        center: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: MERIDIAN_R,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    assert!(
+        geom_brep::tangent_certificate_lane(&arc, &cap, &band_wall)
+            && geom_brep::tangent_certificate_lane(&arc, &band_wall, &cap),
+        "the crossing is inside the lane in both orders, so the stations decide"
+    );
+    assert_eq!(
+        both_orders(
+            &cap,
+            &band_wall,
+            &arc,
+            core::f64::consts::FRAC_PI_2,
+            MERIDIAN_R
+        ),
+        (MustCarryVerdict::Transverse, MustCarryVerdict::Transverse),
+        "a right-angle crossing is a corner in both surface orders"
+    );
+
+    // The sliver crossing: two planes through the z axis at an angle
+    // whose wedge margin `sin θ · extent` is the band's geometric mean.
+    let extent = MERIDIAN_R;
+    let sin_theta = in_band_margin() / extent;
+    let cos_theta = (1.0 - sin_theta * sin_theta).sqrt();
+    let flat = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(0.0, 1.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let tilted = Surface::Plane {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        normal: Vec3::new(-sin_theta, cos_theta, 0.0),
+        u_ref: Vec3::new(cos_theta, sin_theta, 0.0),
+    };
+    let axis_line = Curve3::Line {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (a, b) = both_orders(&flat, &tilted, &axis_line, extent, extent);
+    for (order, verdict) in [("flat first", a), ("tilted first", b)] {
+        match verdict {
+            MustCarryVerdict::InBand(source) => assert_eq!(
+                source.predicate,
+                Some("dihedral_wedge"),
+                "{order}: the sliver is the first-order wedge's escalation"
+            ),
+            other => panic!("{order}: a sliver crossing must escalate in band, not {other:?}"),
+        }
+    }
+
+    // The genuine tangency, determinate and under-determined.
+    let (plane, cylinder, ruling) = resting_cylinder();
+    assert_eq!(
+        both_orders(&plane, &cylinder, &ruling, MERIDIAN_R, MERIDIAN_R),
+        (
+            MustCarryVerdict::JetDeterminate,
+            MustCarryVerdict::JetDeterminate
+        ),
+        "a cylinder on its tangent plane determines the locus in both orders"
+    );
+    let short = free_length_for(definite_zero_margin());
+    assert_eq!(
+        both_orders(&plane, &cylinder, &ruling, short, short),
+        (
+            MustCarryVerdict::UnderDetermined,
+            MustCarryVerdict::UnderDetermined
+        ),
+        "the same tangency over a sub-ε sagitta is under-determined in both orders"
+    );
+}
+
+/// **A tangency whose extent is no longer than the band's escalation
+/// threshold escalates at the first-order arm, in both orders.** The
+/// folded lever arm of a plane and a resting cylinder is the extent
+/// once the extent is shorter than the radius, and `classify_dihedral`
+/// classifies that arm before any angle: an in-band arm escalates
+/// in-band, a definitely-zero arm escalates `Invalid` (the question was
+/// never validly posed there). Either way the rule answers
+/// `InBand` under `"dihedral_arm"`, never the conventional
+/// `UnderDetermined` a sagitta over such an arm would read.
+#[test]
+fn a_tangency_over_a_collapsed_arm_escalates_at_the_arm_in_both_orders() {
+    let (plane, cylinder, ruling) = resting_cylinder();
+    for (extent, in_band) in [(in_band_margin(), true), (definite_zero_margin(), false)] {
+        let (a, b) = both_orders(&plane, &cylinder, &ruling, extent, extent);
+        for (order, verdict) in [("plane first", a), ("cylinder first", b)] {
+            let MustCarryVerdict::InBand(source) = verdict else {
+                panic!(
+                    "{order}, extent {extent:e}: a collapsed arm must escalate, not {verdict:?}"
+                );
+            };
+            assert_eq!(
+                source.predicate,
+                Some("dihedral_arm"),
+                "{order}, extent {extent:e}: the escalation is the first-order arm's"
+            );
+            assert_eq!(
+                matches!(source.margin, MarginDiag::Value(_)),
+                in_band,
+                "{order}, extent {extent:e}: an in-band arm carries its margin, a \
+                 definitely-zero arm is Invalid; got {:?}",
+                source.margin
+            );
+        }
+    }
 }
 
 /// **The lane gate over what the two verbs actually mint.** The lane

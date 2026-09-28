@@ -738,3 +738,28 @@ tests), and hosted CI was idle. So the batch merged main and opened as
 **PR 3313 without `[skip ci]`**: the hosted run on the merged head is
 the gate, and a fresh 4½-hour local run would have been slower. 3295 is
 closed, pointing at 3313.
+## Batch PR: 3292 + 3294 + 3295 (2026-09-26)
+
+(ENCL orchestrator) Per the user's CI-load direction, the three reviewed
+units land as ONE PR from `encl/batch-split-loop-mustcarry`. It merges
+their final heads: 3292 `c569ae153d`, 3294 `062a8a091b`, 3295
+`62d912e77a`. All three merged cleanly over main. Rows closed:
+- the equal-split home and its rider;
+- the three offset-fit loop rows;
+- the must-carry row.
+
+`must-carry-lane-gate-hides-a-transverse-out-of-lane-pair` is priced
+P1/D. 3295's fix pass added `SmoothJoinRefuted` to `ExtrudeError` and
+`RevolveError`: an unreachable-but-reported public variant, so that all
+three callers refuse the same event alike. It is accepted and announced
+on LIB's log. The gate is one full `ci-local.sh` run with
+`CARGO_INCREMENTAL=0` and `CARGO_PROFILE_{DEV,TEST}_DEBUG=line-tables-only`.
+
+## PR 3313 merged (2026-09-28)
+
+(ENCL orchestrator) Hosted CI went green on `483502453d` across every row
+(all three ε rows, k-lint, `corrupt input`, render lanes, python), 23
+minutes from push. The must-carry first-order gate and its `m10_9` pin
+fix are on main; the row is closed. The SYM drift row (P1) is on SYM's
+slate. Now dispatchable: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`
+(P1/D).

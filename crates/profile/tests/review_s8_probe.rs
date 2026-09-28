@@ -42,9 +42,6 @@ test_utils::gated_to!["crates/profile/src/", "crates/geom-core/src/tolerance.rs"
 use geom_core::Point2;
 use geom_core::Tol;
 use profile::{ArcSweep, Center, Open, Start};
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 #[allow(clippy::too_many_arguments)]
 fn check(
@@ -62,15 +59,15 @@ fn check(
     let lp = Open
         .arc_fillet_arc(
             Center {
-                c: p2(o1.0, o1.1),
+                c: Point2::new(o1.0, o1.1),
                 winding: s1,
-                p: p2(far1.0, far1.1),
+                p: Point2::new(far1.0, far1.1),
             },
             r,
             Center {
-                c: p2(o2.0, o2.1),
+                c: Point2::new(o2.0, o2.1),
                 winding: s2,
-                p: p2(far2.0, far2.1),
+                p: Point2::new(far2.0, far2.1),
             },
             Tol::witness(),
         )
@@ -90,8 +87,8 @@ fn check(
         let t = (v.0 * d.0 + v.1 * d.1) / len2;
         let foot = (o1.0 + t * d.0, o1.1 + t * d.1);
         (
-            p2(corner.0, corner.1),
-            p2(2.0 * foot.0 - corner.0, 2.0 * foot.1 - corner.1),
+            Point2::new(corner.0, corner.1),
+            Point2::new(2.0 * foot.0 - corner.0, 2.0 * foot.1 - corner.1),
         )
     };
     let (dc, dm) = (

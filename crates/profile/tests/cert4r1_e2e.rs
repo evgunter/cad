@@ -19,22 +19,18 @@ use common::{tol, try_replay_at};
 use geom_core::Point2;
 use profile::{ArcSweep, Center, Open, Step};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// My own fused tangency: 3-4-5 carriers, fillet radius 2/5.
 fn my_eye() -> Vec<Step<f64>> {
     let loop_ = Open
         .arc_fillet_arc(
             Center {
-                c: p2(-1.5, 0.0),
+                c: Point2::new(-1.5, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
             },
             0.4,
             Center {
-                c: p2(1.5, 0.0),
+                c: Point2::new(1.5, 0.0),
                 winding: ArcSweep::Ccw,
                 p: profile::Start,
             },
@@ -101,13 +97,13 @@ fn cert4r1_the_enclosure_width_scales_with_the_profile() {
     fn eye_at(s: f64) -> Vec<Step<f64>> {
         Open.arc_fillet_arc(
             Center {
-                c: p2(-1.5 * s, 0.0),
+                c: Point2::new(-1.5 * s, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -2.0 * s),
+                p: Point2::new(0.0, -2.0 * s),
             },
             0.4 * s,
             Center {
-                c: p2(1.5 * s, 0.0),
+                c: Point2::new(1.5 * s, 0.0),
                 winding: ArcSweep::Ccw,
                 p: profile::Start,
             },

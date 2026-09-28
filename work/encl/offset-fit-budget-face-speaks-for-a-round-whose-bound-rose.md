@@ -7,7 +7,10 @@ opened: 2026-09-25
 priority: P3
 cost: E
 branch: encl/offset-fit-loop-faces
+<<<<<<< HEAD
 pr: 3294
+=======
+>>>>>>> origin/main
 closed: 2026-09-26
 ---
 
