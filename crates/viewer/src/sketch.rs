@@ -61,6 +61,8 @@ use pncad::profile::{
 };
 use pncad::quantity::{self, AngleUnit, LengthUnit, WrittenLength};
 
+use crate::frame::Tone;
+
 /// One loop of the add-profile door: a template shape, or a PATH
 /// authored verb by verb.
 ///
@@ -785,6 +787,76 @@ impl ProfilePreview {
     pub fn has_open_chain(&self) -> bool {
         self.loops.iter().any(|drawn| !drawn.closed)
     }
+
+    /// **What this drawn preview holds the commit for**, when it holds
+    /// it — the one partition of the value that both the sentence a
+    /// surface draws ([`PreviewHold`]'s `Display`) and its salience
+    /// ([`PreviewHold::tone`]) are read from.
+    ///
+    /// An open chain is asked FIRST and answers whatever
+    /// [`Self::invalid`] says. [`preview`] never validates while a
+    /// chain is open, so a value it built is never both; a value built
+    /// otherwise that is both still gets the open chain's answer,
+    /// because a verdict on loops that have not closed is not one.
+    ///
+    /// `None` is a drawn, valid preview: it holds nothing and has no
+    /// verdict to say. What a surface shows under it — the loop count
+    /// — is state, not a verdict, and has no tone.
+    #[must_use]
+    pub fn hold(&self) -> Option<PreviewHold<'_>> {
+        if self.has_open_chain() {
+            Some(PreviewHold::OpenChain)
+        } else {
+            self.invalid.as_ref().map(PreviewHold::Invalid)
+        }
+    }
+}
+
+/// **Why a drawn preview holds the commit** — [`ProfilePreview::hold`]'s
+/// answer, carrying its own sentence (`Display`) and its own tone.
+#[derive(Clone, Copy, Debug)]
+pub enum PreviewHold<'a> {
+    /// A chain has not closed yet. It is in the viewport, drawn under
+    /// the provisional close, so the shape can be looked at while it
+    /// is written; what it is not yet is a loop, and the commit door
+    /// refuses a program that does not close. Its sentence says which
+    /// of the two this is, rather than leaving a disabled button with
+    /// a lattice refusal beside it.
+    OpenChain,
+    /// The loops closed and validation refused them.
+    Invalid(&'a ProfileError),
+}
+
+impl PreviewHold<'_> {
+    /// **How loud a surface draws this hold** — the salience read off
+    /// the value, as [`crate::session::Standing::tone`] reads it off a
+    /// selection.
+    ///
+    /// [`Self::OpenChain`] is [`Tone::Advisory`]: it is unfinished,
+    /// not wrong ([`PreviewError::is_unfinished`] states why), the
+    /// same voice [`PreviewError::tone`] gives an unfinished chain
+    /// that could not be drawn. [`Self::Invalid`] is
+    /// [`Tone::Actionable`]: the loops cross, or a hole is not inside
+    /// its outer, and the commit door refuses the profile until the
+    /// reader moves a step they wrote.
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        match self {
+            Self::OpenChain => Tone::Advisory,
+            Self::Invalid(_) => Tone::Actionable,
+        }
+    }
+}
+
+impl core::fmt::Display for PreviewHold<'_> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        match self {
+            Self::OpenChain => f.write_str(
+                "the chain does not close yet — its last step has to target the start",
+            ),
+            Self::Invalid(invalid) => write!(f, "does not validate: {invalid}"),
+        }
+    }
 }
 
 /// Why a preview could not be drawn at all.
@@ -900,6 +972,53 @@ impl core::fmt::Display for PreviewError {
 
 impl core::error::Error for PreviewError {}
 
+impl PreviewError {
+    /// **Whether this refusal says only that a chain is unfinished** —
+    /// the one spelling of that predicate, read by [`preview`] (which
+    /// retries exactly these under a provisional close) and by
+    /// [`Self::tone`].
+    ///
+    /// **Unfinished is not wrong.** [`Self::Transition`] with no verb
+    /// says only that a chain has no closing verb yet, which is the
+    /// state every chain passes through while it is being written.
+    /// Every other refusal blames something somebody actually wrote —
+    /// a field that is not a number, an expression that will not
+    /// resolve, an ill-typed verb, a leg with no geometry, a point
+    /// whose numbers put it out of reach.
+    #[must_use]
+    pub fn is_unfinished(&self) -> bool {
+        match self {
+            Self::Transition { verb, .. } => verb.is_none(),
+            Self::Lowering(_)
+            | Self::Resolve { .. }
+            | Self::Unflattenable { .. }
+            | Self::Geometry { .. } => false,
+        }
+    }
+
+    /// **How loud a surface draws this refusal** — read off the value,
+    /// as [`PreviewHold::tone`] reads a drawn preview's.
+    ///
+    /// An unfinished chain ([`Self::is_unfinished`]) is
+    /// [`Tone::Advisory`]. It reaches a surface as a refusal rather
+    /// than as a drawn [`PreviewHold::OpenChain`] whenever the
+    /// provisional close [`preview`] retries it under is itself
+    /// refused, for whatever reason — a close that would enclose
+    /// nothing, as a one- or two-point chain's does; a tip with a
+    /// direction and no position; an arc arrival still waiting for a
+    /// binder — and it is the same state either
+    /// way, so it is the same voice. Every other refusal is
+    /// [`Tone::Actionable`].
+    #[must_use]
+    pub fn tone(&self) -> Tone {
+        if self.is_unfinished() {
+            Tone::Advisory
+        } else {
+            Tone::Actionable
+        }
+    }
+}
+
 /// **Replay the loops a form is holding and flatten them for
 /// drawing.**
 ///
@@ -924,16 +1043,17 @@ impl core::error::Error for PreviewError {}
 /// (this module's, never recorded) and the resulting
 /// [`PreviewLoop`] is marked `closed: false`, which tells the consumer
 /// not to draw the leg back to the start. Every other replay refusal
-/// blames a step somebody actually wrote and is still reported.
+/// is still reported ([`PreviewError::is_unfinished`] says which are
+/// which).
 ///
 /// # Errors
 ///
 /// [`PreviewError`], per arm — everything that leaves no geometry to
 /// draw. A profile that replays and fails VALIDATION is a success
 /// here, carrying its refusal in [`ProfilePreview::invalid`]. An
-/// unclosed chain whose provisional close is itself ill-typed — a tip
-/// with a direction and no position, an arc arrival still waiting for
-/// a binder — reports the ORIGINAL end-of-program refusal, never one
+/// unclosed chain whose provisional close is itself refused — a close
+/// that would enclose nothing, a tip with a direction and no position,
+/// an arc arrival still waiting for a binder — reports the ORIGINAL end-of-program refusal, never one
 /// belonging to the appended step. A loop that replays and has a
 /// point no picture can put anywhere is
 /// [`PreviewError::Unflattenable`] — the one refusal here that is
@@ -979,12 +1099,11 @@ pub fn preview(
             // until the last step landed, which is precisely when a
             // person no longer needs to see it.
             //
-            // The end-of-program arm (`verb: None`) is the only one
-            // that means "unfinished" rather than "wrong": every other
-            // refusal blames a step that was authored. So that arm,
-            // and only it, is retried under a PROVISIONAL closing leg
-            // — `line_to Start`, appended here and never recorded
-            // anywhere — which is enough to make the driver hand back
+            // Only an UNFINISHED refusal is retried
+            // (`PreviewError::is_unfinished` says which, and why every
+            // other one blames an authored step), under a PROVISIONAL
+            // closing leg — `line_to Start`, appended here and never
+            // recorded anywhere — which is enough to make the driver hand back
             // the geometry it already walked. The leg itself is not
             // drawn: it contributes no vertex, so a consumer that
             // declines to wrap an open polyline draws exactly the legs
@@ -992,11 +1111,16 @@ pub fn preview(
             //
             // Nothing about the lattice is re-implemented to do it.
             // The provisional close goes through the same `replay` as
-            // everything else, and when it is ill-typed at the tip
-            // (a bound direction with no position, an arc arrival
-            // still waiting for a binder) the ORIGINAL refusal is
+            // everything else, and when it is refused (a close that
+            // would enclose nothing, a bound direction with no
+            // position, an arc arrival still waiting for a binder) the
+            // ORIGINAL refusal is
             // reported — never one belonging to a step nobody wrote.
-            Err(error) if matches!(error.kind, ReplayErrorKind::Transition { verb: None, .. }) => {
+            Err(error) => {
+                let refused = refusal(index, &error);
+                if !refused.is_unfinished() {
+                    return Err(refused);
+                }
                 let mut provisional = steps.clone();
                 provisional.push(Step::LineTo(Target::Start));
                 match replay(&provisional, tol) {
@@ -1004,10 +1128,9 @@ pub fn preview(
                         loops.push(replayed);
                         closed_flags.push(false);
                     }
-                    Err(_) => return Err(refusal(index, &error)),
+                    Err(_) => return Err(refused),
                 }
             }
-            Err(error) => return Err(refusal(index, &error)),
         }
     }
     let open = closed_flags.iter().any(|closed| !closed);
@@ -1529,7 +1652,11 @@ pub fn heading(points: &[[f64; 2]], at: usize, closed: bool) -> Option<[f64; 2]>
 
 #[cfg(test)]
 mod tests {
-    use super::arc_points;
+    use pncad::document::{EvalError, SlotId};
+    use pncad::profile::{ProfileError, SketchPlane, TipState, Verb};
+
+    use super::{PreviewError, PreviewHold, PreviewLoop, ProfilePreview, arc_points};
+    use crate::frame::Tone;
 
     /// **A count the arithmetic could not compute is not a count.**
     ///
@@ -1578,5 +1705,101 @@ mod tests {
         // All three pairs. A set of three has three of them, and
         // checking the two adjacent ones leaves this one unread.
         assert_ne!(floor, cap, "the floor and the cap");
+    }
+
+    /// A drawn loop over three points, `closed` as asked.
+    fn drawn_loop(closed: bool) -> PreviewLoop {
+        PreviewLoop {
+            points: vec![[0.0, 0.0], [0.01, 0.0], [0.01, 0.01]],
+            vertices: vec![0, 1, 2],
+            closed,
+        }
+    }
+
+    /// A preview over one loop, `closed` and `invalid` as planted —
+    /// every combination of the two, including the one [`super::preview`]
+    /// never builds (open AND invalid).
+    fn planted(closed: bool, invalid: Option<ProfileError>) -> ProfilePreview {
+        ProfilePreview {
+            plane: SketchPlane::xy(),
+            loops: vec![drawn_loop(closed)],
+            invalid,
+        }
+    }
+
+    /// **A drawn preview's hold, by partition** — the open chain asked
+    /// first, so a value that is open AND invalid is the open chain,
+    /// quiet; an invalid closed profile is loud; a valid one holds
+    /// nothing.
+    #[test]
+    fn a_drawn_previews_hold_is_read_off_one_partition() {
+        let open_and_invalid = planted(false, Some(ProfileError::EmptyProfile));
+        let hold = open_and_invalid.hold();
+        assert!(matches!(hold, Some(PreviewHold::OpenChain)), "{hold:?}");
+        assert_eq!(hold.map(|hold| hold.tone()), Some(Tone::Advisory));
+
+        let open = planted(false, None);
+        assert!(matches!(open.hold(), Some(PreviewHold::OpenChain)));
+        assert_eq!(open.hold().map(|hold| hold.tone()), Some(Tone::Advisory));
+
+        let invalid = planted(true, Some(ProfileError::EmptyProfile));
+        assert!(matches!(invalid.hold(), Some(PreviewHold::Invalid(_))));
+        assert_eq!(
+            invalid.hold().map(|hold| hold.tone()),
+            Some(Tone::Actionable)
+        );
+
+        let valid = planted(true, None);
+        assert!(valid.hold().is_none(), "{:?}", valid.hold());
+    }
+
+    /// **Every refusal's tone, by arm** — the mapping itself, over a
+    /// value planted per arm. The two `Transition`s differ only in
+    /// whether a verb was written, which is the whole rule.
+    #[test]
+    fn a_preview_refusal_is_loud_unless_it_only_says_the_chain_is_unfinished() {
+        let transition = |verb| PreviewError::Transition {
+            loop_: 0,
+            step: 1,
+            state: TipState::PlainPoint,
+            verb,
+        };
+        for (error, tone) in [
+            (transition(None), Tone::Advisory),
+            (transition(Some(Verb::Tangent)), Tone::Actionable),
+            (
+                PreviewError::Lowering(pncad::document::RecordedProgramError::CarrierInChain),
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Resolve {
+                    slot: SlotId::Count,
+                    source: EvalError::CountExprInContinuousEval,
+                },
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Unflattenable {
+                    loop_: 0,
+                    vertex: 1,
+                },
+                Tone::Actionable,
+            ),
+            (
+                PreviewError::Geometry {
+                    loop_: 0,
+                    step: 1,
+                    rendered: String::new(),
+                },
+                Tone::Actionable,
+            ),
+        ] {
+            assert_eq!(error.tone(), tone, "{error:?}");
+            assert_eq!(
+                error.is_unfinished(),
+                tone == Tone::Advisory,
+                "{error:?}"
+            );
+        }
     }
 }
