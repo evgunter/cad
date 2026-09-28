@@ -997,7 +997,9 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 /// undeclared
 /// on-carrier edge, a trim with no verdict — refuses typed at the named
 /// frontier door ([`BooleanError::CurvedPierceUnsupported`]). An
-/// in-band clearance escalates (F6, the same margin's other half).
+/// in-band clearance escalates (F6, the same margin's other half) —
+/// except a circle's against a torus, where the certified roots decide
+/// what the enclosures could not.
 /// Ellipse/NURBS carriers keep the unconditional M5 door. Never a
 /// silent fallback.
 ///
@@ -1344,8 +1346,11 @@ fn curved_face_arm<T: Decide>(
                 // conclude rests on the carrier being straight; the
                 // declared-cover arms below, which do rest on a line's
                 // separation story, are closed to a circle by their
-                // guards.
-                Ok(Sign::Zero | Sign::Negative)
+                // guards. An ESCALATED clearance goes the same way: the
+                // enclosures are a shortcut in front of the roots, and a
+                // margin in their escalation gap says only that the
+                // shortcut did not decide — the roots still can.
+                Ok(Sign::Zero | Sign::Negative) | Err(_)
                     if matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
                 Err(diag) => return Err(BooleanError::Escalated { diag }),

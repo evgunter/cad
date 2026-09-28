@@ -53,16 +53,24 @@
 //!   (`bool_circle_torus_coaxial_tilt`, `_offset`, both metres), and
 //!   answered [`CircleTorusRoots::Coaxial`]: the residual is constant
 //!   along the carrier, and the caller decides what that means.
+//! - **Parallel axes** (the circle's plane perpendicular to `â`, off
+//!   the axis — the lily's pose): `h` is constant, the plane meets the
+//!   tube in two contour circles, and the crossings are circle ×
+//!   contour intersections in closed form, decided on LENGTHS
+//!   ([`parallel_axes_roots`]). The quartic does not degenerate here,
+//!   but its discriminant is the wrong instrument: it also measures the
+//!   separation of the COMPLEX roots, so a carrier passing a few
+//!   millimetres clear of a contour reads as a tangency at a coarse
+//!   band (measured on the lily at ε = 1e-6: the arch's outer seam,
+//!   8 mm inside the stem's outer contour).
 //! - **The circle lies ON the torus** (a rim, meridian or Villarceau
-//!   circle): `F ≡ 0`, so the pole is on the torus at every anchor and
+//!   circle, none of them parallel-axes except the rims, which are
+//!   coaxial): `F ≡ 0`, so the pole is on the torus at every anchor and
 //!   the answer is `Uncertain` — which is what keeps an undeclared
 //!   on-carrier circle away from every recording arm.
-//! - **Parallel axes** (the circle's plane perpendicular to `â`, off
-//!   the axis): `h` is constant and `F` is a quadratic in the first
-//!   harmonic `S`. Nothing degenerates — the quartic factors into two
-//!   real quadratics, which the ladder solves like any other.
 //! - **A tangency** — the carrier grazing the tube, a double root — is
-//!   the ladder's own `Uncertain`, anywhere on the carrier.
+//!   the ladder's own `Uncertain` (or a contour-reach margin in band),
+//!   anywhere on the carrier.
 
 use geom_core::{Band, Decide, Indeterminate, Margin, Point3, Sign, Vec3};
 
@@ -154,19 +162,37 @@ pub(super) fn circle_torus_roots<T: Decide>(
     // plane perpendicular to `â`), and the carrier centre's distance
     // from the torus axis.
     let tilt = radius * axis.cross(t_axis).norm();
-    let offset = (w0 - t_axis * w0.dot(t_axis)).norm();
-    let coaxial = matches!(
+    let h0 = w0.dot(t_axis);
+    let w_perp = w0 - t_axis * h0;
+    let offset = w_perp.norm();
+    let parallel = matches!(
         decide("bool_circle_torus_coaxial_tilt", Margin::of(tilt), band),
         Ok(Sign::Zero)
-    ) && matches!(
-        decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band),
-        Ok(Sign::Zero)
     );
-    if coaxial {
-        return Ok(CircleTorusRoots::Coaxial);
+    let mid = (t0 + t1) / two;
+    if parallel {
+        return match decide("bool_circle_torus_coaxial_offset", Margin::of(offset), band) {
+            Ok(Sign::Zero) => Ok(CircleTorusRoots::Coaxial),
+            Ok(Sign::Positive) => parallel_axes_roots(
+                ParallelPose {
+                    radius,
+                    u_ref,
+                    v_ref,
+                    w_perp,
+                    offset,
+                    h0,
+                    major_radius,
+                    minor_radius,
+                    mid,
+                },
+                band,
+            ),
+            // A negative length is not an answer; an in-band one is a
+            // near-coaxial pose neither arm can stand behind.
+            Ok(Sign::Negative) | Err(_) => Ok(CircleTorusRoots::Uncertain),
+        };
     }
 
-    let mid = (t0 + t1) / two;
     // The pole's room off the arc: a quarter of the carrier the arc
     // does not occupy either side of the antipode. Zero for a full turn,
     // where every candidate is the same one.
@@ -237,6 +263,112 @@ pub(super) fn circle_torus_roots<T: Decide>(
         );
     }
     Ok(CircleTorusRoots::Uncertain)
+}
+
+/// The parallel-axes pose's data ([`parallel_axes_roots`]).
+struct ParallelPose<T: geom_core::Real> {
+    radius: T,
+    u_ref: Vec3<T>,
+    v_ref: Vec3<T>,
+    /// The carrier centre's offset from the torus axis, perpendicular
+    /// to it (in the carrier's plane), and its length.
+    w_perp: Vec3<T>,
+    offset: T,
+    /// The carrier plane's height along the torus axis.
+    h0: T,
+    major_radius: T,
+    minor_radius: T,
+    /// The arc's midpoint: roots are reported within `π` of it.
+    mid: T,
+}
+
+/// **The parallel-axes pose, in closed form and in metres.** A carrier
+/// whose axis is parallel to the torus's lies in a plane at constant
+/// height `h₀`, which meets the tube in the two CONTOUR circles
+/// `ρ± = R ± √(r² − h₀²)` about the torus axis. The carrier's distance
+/// from that axis is `ρ(θ)² = d² + ρc² + 2ρc·d·cos(θ − θ₀)`, which
+/// sweeps `[|ρc − d|, ρc + d]`, so the carrier crosses a contour
+/// exactly when `|ρc − d| < ρ± < ρc + d` — two roots at
+/// `θ₀ ± acos((ρ±² − d² − ρc²)/(2ρc·d))`.
+///
+/// Every decision is a LENGTH, and that is why the pose has its own arm
+/// rather than the quartic's: the quartic's discriminant also measures
+/// the COMPLEX roots' separation, so a carrier that passes a few
+/// millimetres clear of a contour (a near-double complex pair, no
+/// crossing at all) reads as a tangency once the band is coarse. Here
+/// that pose is the definite length `ρc + d − ρ±`, and only a real
+/// graze — a margin in band — is `Uncertain`:
+///
+/// - `r² − h₀²` over `r` (`bool_circle_torus_plane_height`): negative,
+///   the plane misses the tube; in band, it touches the tube's top or
+///   bottom circle; positive, two contours;
+/// - per contour, `ρ± − (ρc − d)`, `ρ± − (d − ρc)` and `ρc + d − ρ±`
+///   (`bool_circle_torus_contour_reach`): all positive, two crossings;
+///   any negative, none; otherwise a graze.
+fn parallel_axes_roots<T: Decide>(
+    pose: ParallelPose<T>,
+    band: Band,
+) -> Result<CircleTorusRoots<T>, Indeterminate> {
+    let ParallelPose {
+        radius,
+        u_ref,
+        v_ref,
+        w_perp,
+        offset,
+        h0,
+        major_radius,
+        minor_radius,
+        mid,
+    } = pose;
+    let two = T::from_f64(2.0);
+    let depth = minor_radius.powi(2) - h0.powi(2);
+    match decide(
+        "bool_circle_torus_plane_height",
+        Margin::over_lever(depth, minor_radius),
+        band,
+    )? {
+        Sign::Negative => return Ok(CircleTorusRoots::Miss),
+        Sign::Zero => return Ok(CircleTorusRoots::Uncertain),
+        Sign::Positive => {}
+    }
+    let half = depth.max(T::zero()).sqrt();
+    // The direction of the torus axis's foot, seen from the carrier
+    // centre, is `−w_perp`; `θ₀` is where the carrier is FARTHEST from
+    // the axis, along `+w_perp`.
+    let theta0 = w_perp.dot(v_ref).atan2(w_perp.dot(u_ref));
+    let mut thetas = [T::zero(); 4];
+    let mut count = 0usize;
+    for contour in [major_radius + half, major_radius - half] {
+        let mut signs = [Sign::Zero; 3];
+        for (slot, reach) in signs.iter_mut().zip([
+            contour - (radius - offset),
+            contour - (offset - radius),
+            radius + offset - contour,
+        ]) {
+            *slot = decide("bool_circle_torus_contour_reach", Margin::of(reach), band)?;
+        }
+        if signs.contains(&Sign::Negative) {
+            continue;
+        }
+        if signs.contains(&Sign::Zero) {
+            return Ok(CircleTorusRoots::Uncertain);
+        }
+        // Inside `[-1, 1]` by the three decisions above; the clamp is
+        // the rounding guard, not a decision.
+        let c = ((contour.powi(2) - offset.powi(2) - radius.powi(2)) / (two * radius * offset))
+            .max(T::zero() - T::one())
+            .min(T::one());
+        let spread = c.acos();
+        for theta in [theta0 + spread, theta0 - spread] {
+            thetas[count] = mid + (theta - mid).reduce_periodic_centred(T::tau());
+            count += 1;
+        }
+    }
+    Ok(if count == 0 {
+        CircleTorusRoots::Miss
+    } else {
+        CircleTorusRoots::Certified { count, thetas }
+    })
 }
 
 #[cfg(test)]
@@ -487,19 +619,67 @@ mod tests {
 
     /// The pole lands ON the torus at the arc's antipode: the first
     /// anchor is refused and a shifted one answers, with the same roots.
+    /// A tilted pose, so the quartic arm (not the parallel one) answers.
     #[test]
     fn a_pole_on_the_torus_moves_the_anchor() {
+        let s = 0.5_f64.sqrt();
         let pose = Pose {
-            c: [1.0, 0.0, 0.0],
-            n: [0.0, 0.0, 1.0],
-            rho: 1.0,
+            c: [1.3, 0.1, 0.05],
+            n: [0.0, s, s],
+            rho: 0.4,
             u: [1.0, 0.0, 0.0],
         };
-        // The carrier meets the outer equator where |C(θ)| = 1.25;
-        // centre the arc on the antipode of that root.
-        let root = oracle(pose, 0.0, 3.0)[0];
-        let mid = root - core::f64::consts::PI;
-        assert_matches_oracle("pole on the torus", pose, mid - 0.5, mid + 0.5, 4);
+        let all = oracle(pose, -3.1, 3.1);
+        let mid = all[0] - core::f64::consts::PI;
+        assert_matches_oracle("pole on the torus", pose, mid - 0.5, mid + 0.5, all.len());
+    }
+
+    /// A meridian-plane circle touching the tube's cross-section from
+    /// outside: a tangency on the QUARTIC arm (the parallel arm's own
+    /// graze is `a_tangent_circle_is_uncertain`).
+    #[test]
+    fn a_tangent_circle_off_the_parallel_pose_is_uncertain() {
+        let pose = Pose {
+            c: [R + 2.0 * RT, 0.0, 0.0],
+            n: [0.0, 1.0, 0.0],
+            rho: RT,
+            u: [1.0, 0.0, 0.0],
+        };
+        assert!(matches!(door(pose, 2.0, 4.0), CircleTorusRoots::Uncertain));
+    }
+
+    /// The parallel pose passing a few millimetres INSIDE a contour's
+    /// reach (the lily's arch seam): a definite miss of that contour at
+    /// every band, where the quartic's discriminant would read the
+    /// near-double complex pair as a graze.
+    #[test]
+    fn a_parallel_circle_just_short_of_a_contour_is_decided() {
+        // Reaches ρ ≤ 0.5 + 0.742 = 1.242 < R + r = 1.25 (8 mm short),
+        // and crosses the inner contour twice.
+        let pose = Pose {
+            c: [0.5, 0.0, 0.0],
+            n: [0.0, 0.0, 1.0],
+            rho: 0.742,
+            u: [1.0, 0.0, 0.0],
+        };
+        for eps in [1e-9, 1e-6] {
+            let got = circle_torus_roots(
+                Point3::new(0.5, 0.0, 0.0),
+                v3(pose.n),
+                pose.rho,
+                v3(pose.u),
+                -3.0,
+                3.0,
+                &torus(),
+                Band::new(eps, 10.0 * eps).unwrap(),
+            )
+            .unwrap();
+            let CircleTorusRoots::Certified { count, .. } = got else {
+                panic!("ε {eps}: a certified count, got {got:?}");
+            };
+            assert_eq!(count, 2, "ε {eps}: the inner contour only");
+        }
+        assert_matches_oracle("just short", pose, -3.0, 3.0, 2);
     }
 
     /// The interval lane: the same poses, and every certified root
