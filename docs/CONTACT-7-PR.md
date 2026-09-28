@@ -135,6 +135,13 @@ no side exceeds 180°. The same holds of the complement when every edge
 is reflex. So a reflex corner always comes with a saddle's mixed edges.
 The argument is at `Star::shape`.
 
+The old reading's in-band arm refused, and the delta review asked
+whether dropping it admits a Rest. It does not. Beside edges that are
+all decided one way, the polygon is convex, so every corner is at most
+180°. A corner within ε of straight is one such a polygon allows (a
+lune's side). Where an edge is in band, the class is already a saddle
+in band. The sentence is in the proof.
+
 ### S4: a rest has one door
 
 `TouchVerdict::Rest(rest::Rest)`. `Rest` has a private field in
@@ -158,9 +165,15 @@ Two guards stand against a sixth round of the lever class:
   every `decide` call lies inside `mod metric` (exactly one
   `Margin::of`) or `touch_candidates` (exactly one `Margin::levered`,
   the span test, where a Zero only skips a candidate). It holds that the
-  unit-normal classifier is called only from `pairing`, that nothing
-  reads a bare sign (`sign_within`), and that `Distance`'s field is
-  private.
+  unit-normal classifier is called only from `pairing`, and that
+  nothing reads a bare sign: no `sign_within`, `classify_dihedral`,
+  `< T::zero()`, `> T::zero()`, `is_sign_negative`, `is_sign_positive`,
+  `signum`, `partial_cmp` or `total_cmp`, with no exemption needed
+  today. It holds that `Distance` is built in exactly one place:
+  `mod metric` has exactly one `Self(`, inside `Distance::of`, and no
+  `Distance(`, and `of` is its only function returning a `Distance`
+  (the last pass's addition, after the delta review executed a second
+  constructor that left the row green).
 - Minting a rest outside `certify` does not compile.
 
 The row states what it cannot see: `Distance::of` takes its normal on
@@ -328,6 +341,9 @@ rows were run under nextest.
 | MAJOR restored (no behind-`p` skip) | `a_brick_on_a_u_channel_rests_past_an_edge_behind_the_touch`, `a_brick_on_a_comb_rests_past_edges_behind_the_touch` |
 | a `Margin::over_lever` in `within` | `the_touch_analysis_decides_only_through_its_doors` |
 | `decide(…, Margin::of(x·k), …)` in `within` | `the_touch_analysis_decides_only_through_its_doors` |
+| a second `Distance` constructor (`raw`) used in `within` (delta review) | `the_touch_analysis_decides_only_through_its_doors` |
+| a `geom_brep::classify_dihedral` reference in `within` | `the_touch_analysis_decides_only_through_its_doors` |
+| `x < T::zero()` or `.signum()` on a reading in `within` | does not compile: `Real` has no comparisons and no `signum`. The row bans the spellings too, for a site on a concrete scalar |
 | each face read whole, not through its piece | 9 rows: `a_notched_bracket_rests_against_the_wall`, `a_holed_block_rests_beside_a_brick`, `every_touch_kind_reads_rest_and_crossing`, `ordinary_rests_stay_rests`, four `contact1_touch_cones` rows, and a `contact7` sweep |
 
 ## The first build, and why the spec was amended
@@ -345,8 +361,8 @@ designers then amended the spec: read each face through its piece
 
 Each sweep counts wrong clears (materials overlap, no placement
 finding) and false refusals (no overlap, a placement finding), head
-against base (the merge base with `origin/main`, `afaf7fec3`, for the
-fix pass). The same committed rows were run on both sides, at ε unset,
+against base: `afaf7fec3` for the fix pass, then `7ee2d0374` after the
+last merge of main. The same committed rows were run on both sides, at ε unset,
 1e-6 and 1e-12, and all three rows gave the same numbers on each side.
 
 | sweep | poses | base: wrong clears / false refusals | head: wrong clears / false refusals |
@@ -443,29 +459,27 @@ now calls it under its own predicate name.
 
 ## Local results
 
-These are for the fix pass's head, all under nextest with the lane's own
-target directory:
-- `-p topo -p sweep`: 3304 of 3304 at ε unset, 1e-6 and 1e-12.
-- `-p editor-core`, the whole crate: 2269 of 2269 at ε unset, 1e-6 and
+These results are on the merged head, with `origin/main` at `7ee2d0374`
+merged in. Everything ran under nextest with the lane's own target
+directory:
+- `-p topo -p sweep`: 3312 of 3312 at ε unset, 1e-6 and 1e-12.
+- `-p editor-core`, the whole crate: 2272 of 2272 at ε unset, 1e-6 and
   1e-12. No `perf12` golden moved, and `docm6` and the concision rows
   pass.
-- `-p test-utils`: 79 of 79. `-p geom-brep`: 766 of 766.
-- The Python suite, as `ci.yml` runs it: `maturin build` of
+- `-p test-utils`: 79 of 79. `-p geom-brep`: 770 of 770.
+- Python suite, as `ci.yml` runs it: `maturin build` of
   `crates/pncad-py`, installed into a fresh venv with `ty==0.0.39`, then
-  `unittest discover`. It ran 857, all OK.
-- `cargo clippy -p topo -p geom-brep --all-targets --all-features -- -D
-  warnings` is clean, and so is `cargo clippy -p pncad-py --features
-  python --all-targets -- -D warnings`.
+  `unittest discover`. 857 ran, all OK.
+- Clippy with `-D warnings` is clean for `-p topo -p geom-brep
+  --all-targets --all-features` and for `-p pncad-py --features python
+  --all-targets`.
 - rustdoc (`-D warnings -A rustdoc::private_intra_doc_links`, `-p topo
   --document-private-items --all-features`) is clean.
-- Every `scripts/gates/*.sh` passes. `interval-square-allowlist` first
-  caught an `x * x` in `candidate_plane`, now `powi(2)`.
-  `python3 scripts/work.py lint`: 0 problems.
-- The mutant table above: each mutant was applied alone and turns its
-  rows red.
-- The last two edits were that `powi(2)` spelling and the sweep file's
-  clippy type aliases, and neither touches a decision. After them, the
-  census and contact rows were re-run (106 of 106), and so were the
-  `contact7` sweeps.
+- Every `scripts/gates/*.sh` passes, and `python3 scripts/work.py lint`
+  reports 0 problems.
+- The `contact7_touch_sweeps` rows and the brick grid match the table
+  above on the merged head and on base `7ee2d0374`, at all three ε.
+- The mutant table above lists each mutant; each was applied alone and
+  turns its rows red.
 
 The hosted run is the record.
