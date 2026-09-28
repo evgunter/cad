@@ -5645,7 +5645,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transverse_not_intrinsic",
             "uncertifiable_surface",
             "undeclared_contact",
-            "undeclared_cusp",
             "unreachable_half_edge",
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",

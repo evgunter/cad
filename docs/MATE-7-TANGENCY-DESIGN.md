@@ -37,9 +37,11 @@ it, and the #966 thread left two candidate shapes:
 ## What changed since #966: the wedge table is live
 
 MATE-3 (PR #1423) landed the #131 ruling's material-wedge verdict
-table in tier 3, reading C3 `CurveContact` records as `Tangent`
-claims: transverse and π legal; wedge 0/2π legal iff declared and
-jet-determinate; in-band κ_rel escalates. So the vocabulary that
+table in tier 3: transverse and π legal; wedge 0/2π legal iff
+jet-determinate, derived from the body as the π seam is (D1 tier 3 —
+the intent is declared where the tangency is created, which for a
+rim is the boolean's `Tangent` operand declaration); in-band κ_rel
+escalates. So the vocabulary that
 DECIDES what a rim contact is — smooth seam vs cusp pair — now
 exists and is enforced, which the #966-era conversation did not
 have.
