@@ -9803,6 +9803,129 @@ mod tests {
         }
     }
 
+    /// Re-carries `edge` of a lamina on the plane `z = k·x` as the arc,
+    /// under a half turn, of the ellipse that plane cuts from the unit
+    /// cylinder about `z` (`cylinder`, a surface of `body`) — an exact
+    /// `Ellipse` carrier, described as the two surfaces' intersection.
+    fn recarry_as_ellipse_arc(
+        body: &mut Body<f64>,
+        edge: EdgeKey,
+        plane: crate::geometry::SurfaceKey,
+        cylinder: crate::geometry::SurfaceKey,
+        k: f64,
+        tol: Tol,
+    ) {
+        let stored = body.get_edge(edge).unwrap().clone();
+        let (start, end) = edge_endpoints(body, stored.he_plus).unwrap();
+        let m = (1.0 + k * k).sqrt();
+        let u_ref = geom_core::Vec3::new(1.0, 0.0, k) / m;
+        let (axis, t0, t1) = [1.0, -1.0]
+            .into_iter()
+            .find_map(|z| {
+                let axis = geom_core::Vec3::new(-k, 0.0, 1.0) * (z / m);
+                let v = axis.cross(u_ref);
+                let angle = |q: Point3<f64>| {
+                    let w = q - Point3::origin();
+                    w.dot(v).atan2(w.dot(u_ref) / m)
+                };
+                let t0 = angle(start);
+                let t1 = t0 + (angle(end) - t0).rem_euclid(std::f64::consts::TAU);
+                (t1 - t0 < std::f64::consts::PI).then_some((axis, t0, t1))
+            })
+            .expect("one sense of the ellipse is the short arc");
+        let carrier = geom::Curve3::Ellipse {
+            center: Point3::origin(),
+            axis,
+            major: m,
+            minor: 1.0,
+            u_ref,
+        };
+        let spec = geom_brep::EdgeCurveSpec {
+            description: geom_brep::EdgeDescriptionSpec::Intersection {
+                s1: plane,
+                s2: cylinder,
+                witness: carrier.eval((t0 + t1) * 0.5),
+            },
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        };
+        let surfaces = |key| body.surfaces.get(key).cloned();
+        let curve =
+            geom_brep::EdgeCurve::certify(spec, start, end, surfaces, Band::linear(tol).unwrap())
+                .expect("the ellipse arc certifies");
+        *body.curves.get_mut(stored.curve).unwrap() = CurveGeom::Certified(curve);
+    }
+
+    /// **An outer loop of ellipse arcs is decided, in both directions.**
+    /// The plane `z = 0.4·x` cuts the unit cylinder in an ellipse; a
+    /// lamina on that plane whose outer loop is three exact `Ellipse`
+    /// arcs of it holds a ring. The walk reads each arc on its conic:
+    /// a ring inside certifies, a ring outside is refused by name. The
+    /// no-crossing premise is ASSUMED on such a loop — check 9's meeting
+    /// arms have no row for an ellipse edge — and these rings are far
+    /// from the ellipse, so the row does not lean on it. The role
+    /// inversion of the nested body, whose ring is the ellipse, is
+    /// refused too.
+    #[test]
+    fn an_ellipse_bearing_outer_loop_is_decided_both_ways() {
+        let tol = Tol::witness();
+        let band = Band::linear(tol).expect("the run's band");
+        let k = 0.4;
+        let on_plane = |x: f64, y: f64| Point3::new(x, y, k * x);
+        let outer: Vec<Point3<f64>> = [0.0, 1.0, 2.0]
+            .iter()
+            .map(|i| {
+                let t = i * std::f64::consts::TAU / 3.0;
+                on_plane(t.cos(), t.sin())
+            })
+            .collect();
+        for (name, cx, inside) in [("inside", 0.0, true), ("outside", 3.0, false)] {
+            let ring = vec![
+                on_plane(cx - 0.2, -0.2),
+                on_plane(cx + 0.2, -0.2),
+                on_plane(cx + 0.2, 0.2),
+                on_plane(cx - 0.2, 0.2),
+            ];
+            let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
+            let cylinder =
+                body.add_surface(crate::test_support_fixtures::CylFrame::canonical(1.0).surface());
+            let f = body.get_face(face).unwrap();
+            let (plane, outer_loop, ring_loop) = (f.surface, f.outer, f.rings[0]);
+            let edges: Vec<EdgeKey> = loop_cycle_of(&body, outer_loop)
+                .unwrap()
+                .into_iter()
+                .map(|he| body.get_half_edge(he).unwrap().edge)
+                .collect();
+            for e in edges {
+                recarry_as_ellipse_arc(&mut body, e, plane, cylinder, k, tol);
+            }
+            let got = nesting_words(&body, band, tol);
+            if inside {
+                assert!(
+                    got.is_empty(),
+                    "{name}: the ellipse's region holds the ring: {got:?}"
+                );
+                let inverted = check_9_words(&invert_roles(&body, face), band, tol);
+                assert!(
+                    inverted
+                        .iter()
+                        .any(|e| matches!(e, ValidationError::RingOutsideOuter { .. })),
+                    "{name}: the role inversion is refused; got {inverted:?}"
+                );
+            } else {
+                assert!(
+                    got.iter().any(|e| matches!(
+                        e,
+                        ValidationError::RingOutsideOuter { face: fk, ring, .. }
+                            if *fk == face && *ring == ring_loop
+                    )),
+                    "{name}: must be refused by name; got {got:?}"
+                );
+            }
+        }
+    }
+
     /// **Near an arc's end the walk decides what the radial row does.**
     /// A circle of radius 10 split at −0.01, 0.01 and π — one circle,
     /// so `boolean::loop_shape` reads the `Disc` class — and a query
