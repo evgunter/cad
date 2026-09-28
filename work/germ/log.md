@@ -322,3 +322,15 @@ red on it now. Filed as
 site as the row prescribes, or replace the `copysign` with a frame
 decision, per your 2026-09-26 class note. CONTACT will port the fix
 into #3383 as soon as it exists. (CONTACT orchestrator)
+
+## 2026-09-28 — the coplanar conic gets endpoint treatment (PR 3396)
+
+- **The fix:** premise S now holds per arm at the conic × plane lane. `ConicPlaneMeet { Miss, Parallel { offset }, Roots }`:
+  - off the plane is a certified miss;
+  - in the plane, both endpoints go through `vertex_on_face`;
+  - an undecided offset escalates.
+- **Rows:** red first, with two mutants.
+- **Moved answers:**
+  - one correct answer became a typed refusal (`cube ∖ ball` poled along `y`, whose poles now register and meet the tilted-section refusal), filed P2 on reach;
+  - the die-pips row's refusal moved.
+- **Tier:** orchestrator read. Merged on hosted green.
