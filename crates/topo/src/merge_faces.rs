@@ -57,7 +57,10 @@ use crate::validate::{ValidationError, validate_closed};
 /// One merged run: the surviving face and what was consumed into it.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct MergedGroup {
-    /// The surviving face (the group's first face in face-arena order).
+    /// The surviving face: the group's first face in face-arena order
+    /// that lies in no other member's hole (`outermost_survivor`) —
+    /// the arena-first face, unless that face plugs a hole of another
+    /// member.
     pub kept: FaceKey,
     /// The absorbed faces (dead keys), in kill order.
     pub absorbed: Vec<FaceKey>,
@@ -1042,7 +1045,8 @@ impl<T: Decide> Body<T> {
     /// on any refusal `self` is untouched; on success the staged body
     /// replaces `self` wholesale. All scans are arena-order; the
     /// surviving face of each group is its first face in face-arena
-    /// order; edges die in edge-arena order. Composite Euler delta per
+    /// order that lies in no other member's hole
+    /// ([`MergedGroup::kept`]); edges die in edge-arena order. Composite Euler delta per
     /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face `kemr`
     /// kills, and `v −1` for each pruning `kev` (which is what
     /// keeps χ conserved when a ring is NOT minted: `kemr` trades an
@@ -1345,7 +1349,8 @@ impl<T: Decide> Body<T> {
         // the run commit. A placeholder run has no regime and no
         // surgery: it is set aside here, its faces already named.
         let mut work = self.clone();
-        for (rep, rest) in groups {
+        for (seed, members) in groups {
+            let (rep, rest) = work.outermost_survivor(seed, members)?;
             let (regime, kind) = match Self::group_contract(rep, &rest, &kinds)? {
                 GroupContract::Runs { regime, kind } => (regime, kind),
                 GroupContract::SetAside => continue,
@@ -1514,6 +1519,89 @@ impl<T: Decide> Body<T> {
             .vertex_orbit(toward)
             .ok_or(EulerOpError::OrbitBroken { he: toward })?;
         Ok(orbit.len() == 1)
+    }
+
+    /// The group's survivor: its first member in face-arena order that
+    /// lies in no other member's HOLE, with the rest of the members.
+    ///
+    /// A member lies in another's hole when that member's ring borders
+    /// it — a coplanar face plugging a hole of a group face. The
+    /// absorption keeps the survivor and kills every other member with
+    /// `kef` across a shared edge, after re-homing the dying face's
+    /// rings onto the survivor; a survivor inside the dying face's ring
+    /// would receive that very ring, leave both halves of the shared
+    /// edge on itself, and `kef` could not kill anything (`SameFace`).
+    /// The outermost member has no such ring around it, so every other
+    /// member dies into it. `seed`, the arena-first member, is the
+    /// survivor whenever it is not nested, which is every group without
+    /// a plug; a group whose every member is nested (not a planar region
+    /// a merge can reach) keeps `seed`, and the absorption refuses as
+    /// before.
+    ///
+    /// # Errors
+    ///
+    /// [`MergeCoplanarError::Op`] carrying an unresolved reference.
+    fn outermost_survivor(
+        &self,
+        seed: FaceKey,
+        members: Vec<FaceKey>,
+    ) -> Result<(FaceKey, Vec<FaceKey>), MergeCoplanarError> {
+        let in_group = |f: FaceKey| f == seed || members.contains(&f);
+        let mut nested: std::collections::BTreeSet<FaceKey> = std::collections::BTreeSet::new();
+        for f in core::iter::once(seed).chain(members.iter().copied()) {
+            let face = self
+                .get_face(f)
+                .ok_or(DanglingRef::Entity(EntityId::Face(f)))?;
+            for &ring in &face.rings {
+                let first = match self
+                    .get_loop(ring)
+                    .ok_or(DanglingRef::Entity(EntityId::Loop(ring)))?
+                    .boundary
+                {
+                    crate::entity::LoopBoundary::Cycle { first } => first,
+                    // A lone-vertex ring borders no face.
+                    crate::entity::LoopBoundary::Empty { vertex: _lone } => continue,
+                };
+                let cycle = self
+                    .loop_cycle(first)
+                    .ok_or(EulerOpError::LoopCycleBroken { r#loop: ring })?;
+                for he in cycle {
+                    let edge = self
+                        .get_half_edge(he)
+                        .ok_or(DanglingRef::Entity(EntityId::HalfEdge(he)))?
+                        .edge;
+                    let e = self
+                        .get_edge(edge)
+                        .ok_or(DanglingRef::Entity(EntityId::Edge(edge)))?;
+                    let mate = if e.he_plus == he {
+                        e.he_minus
+                    } else {
+                        e.he_plus
+                    };
+                    let (_, facts) = self.edge_halves(he, mate)?;
+                    if facts.face != f && in_group(facts.face) {
+                        nested.insert(facts.face);
+                    }
+                }
+            }
+        }
+        if !nested.contains(&seed) {
+            return Ok((seed, members));
+        }
+        let survivor = self
+            .faces()
+            .map(|(k, _)| k)
+            .find(|&k| in_group(k) && !nested.contains(&k));
+        Ok(match survivor {
+            Some(kept) => {
+                let rest = core::iter::once(seed)
+                    .chain(members)
+                    .filter(|&f| f != kept)
+                    .collect();
+                (kept, rest)
+            }
+            None => (seed, members),
+        })
     }
 
     /// One group's [`GroupContract`]: whether it runs, and under which
@@ -1819,7 +1907,7 @@ impl<T: Decide> Body<T> {
         Some((pb - pa).norm())
     }
 
-    /// Merges one group into `rep`, its arena-first member (see the
+    /// Merges one group into `rep`, its survivor (see the
     /// public op's docs for order and refusals). Runs on the staged
     /// clone.
     ///
@@ -2688,39 +2776,49 @@ mod tests {
         );
     }
 
-    /// **A declared planar group the merge cannot glue refuses the
-    /// call.** The same nesting with the inner face arena-FIRST, so
-    /// the door's own group seed picks it as the survivor, and the
-    /// group licensed by declared pairs alone: the absorption's `kef`
-    /// reads one face on both sides, and the door refuses with that
-    /// refusal, the body untouched. Recording it instead would ship
-    /// two unglued coplanar neighbours, which no boolean accepts as an
-    /// operand and no declaration can cover.
+    /// **A face plugging a hole of a coplanar neighbour merges into
+    /// it, whichever of the two is arena-first.** The nested fixture
+    /// with the inner face (the membrane) arena-FIRST, licensed by
+    /// declared pairs alone. Kept as the survivor, the membrane would
+    /// receive the top face's ring in the absorption's drain and leave
+    /// `kef` one face on both sides (`SameFace`,
+    /// `kef_reports_same_face_on_an_untorn_nested_group`); the door
+    /// keeps the OUTER face instead, absorbs the membrane across its
+    /// rim, and the hole's rim — a doubled cycle — is cut off as a ring
+    /// and pruned away. One face, no ring, tier 2 green.
     #[test]
-    fn a_declared_planar_group_the_merge_cannot_glue_refuses_the_call() {
+    fn a_face_plugging_a_neighbours_hole_merges_into_it() {
         let tol = Tol::witness();
-        let (mut body, _membrane) = cube_with_arena_first_membrane(tol);
-        let declared = declare_planes_pairwise(&mut body);
+        let (mut body, membrane) = cube_with_arena_first_membrane(tol);
+        let first = body.faces().map(|(k, _)| k).next().expect("faces");
+        assert_eq!(first, membrane, "the plug is arena-first");
+        // Every face on its own plane key; ONE pair declared: the plug
+        // against the face whose ring it fills.
+        let host = body
+            .faces()
+            .find(|(_, f)| !f.rings.is_empty())
+            .map(|(k, _)| k)
+            .expect("a face carries the ring");
+        let mut declared = declare_planes_pairwise(&mut body);
+        let host_key = surface_of(&body, host);
+        declared.retain(|&(_, k)| k == host_key);
+        assert_eq!(declared.len(), 1);
         assert_eq!(validate_closed(&body), Ok(()));
-        assert_eq!(contract_of(&body), PLANAR);
-        let before = crate::fixtures::deep_snapshot(&body);
-        let refusal = body
+        let outcome = body
             .merge_coplanar_faces_declared(&declared, tol)
-            .expect_err("a declared planar group that cannot glue refuses");
+            .expect("the plug merges into the face it plugs");
+        let [group] = &outcome.groups[..] else {
+            panic!("one group: {:?}", outcome.groups)
+        };
+        assert_eq!(group.kept, host, "the outer face survives");
+        assert_eq!(group.absorbed, vec![membrane]);
+        assert!(group.absorbed.contains(&membrane), "{group:?}");
+        assert!(outcome.skipped.is_empty(), "{:?}", outcome.skipped);
         assert!(
-            matches!(
-                refusal,
-                MergeCoplanarError::Op {
-                    error: EulerOpError::SameFace { .. }
-                }
-            ),
-            "{refusal:?}"
+            body.get_face(group.kept).expect("live").rings.is_empty(),
+            "the hole is gone"
         );
-        assert!(
-            !refusal.is_arena_fault(),
-            "an inventory refusal, not a torn arena"
-        );
-        assert_eq!(crate::fixtures::deep_snapshot(&body), before);
+        assert_eq!(validate_closed(&body), Ok(()));
     }
 
     /// The membrane fixture with the inner face arena-first: a `kef`

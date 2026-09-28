@@ -309,3 +309,27 @@ fn an_oversized_plug_merges_to_whole_caps() {
     let plug = brick::<f64>((0.5, 2.5), (0.25, 1.75), (0.0, 2.0), Tol::witness());
     assert_plug_merges(plug, 12.0, "oversized plug");
 }
+
+/// **The plug as the FIRST operand.** The result arena is `A`'s, so the
+/// plug's caps are arena-first in their cap groups and each lies in the
+/// block's hole. The merge keeps the block's cap, the face with the
+/// hole, and absorbs the plug's into it; kept the other way round, the
+/// plug's cap would receive the block's ring and `kef` would find one
+/// face on both sides of the rim.
+#[test]
+fn a_plug_folded_first_merges_into_the_face_it_plugs() {
+    let tol = Tol::witness();
+    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol);
+    let block = holed();
+    let decls = flush_declarations(&plug, &block, tol);
+    let bb =
+        unwrap_body(union_with(&plug, &block, &decls, tol).expect("the plug folded first merges"));
+    assert!(
+        bb.naming.merge_skipped.is_empty(),
+        "{:?}",
+        bb.naming.merge_skipped
+    );
+    assert_eq!(bb.body.faces().count(), 6);
+    assert_eq!(mass_properties(&bb.body, tol).unwrap().volume, 12.0);
+    assert_green(&bb, "plug ∪ block");
+}
