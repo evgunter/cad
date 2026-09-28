@@ -6,7 +6,7 @@
 
 use core::fmt;
 
-use geom_brep::certify::Reading;
+use geom_brep::recourse::Reading;
 
 /// One rung of the D7 edge-adoption ladder, as data: which intensional
 /// interpretation was attempted, and the kernel gate's typed refusal.
@@ -15,7 +15,7 @@ pub struct AdoptionAttempt {
     /// The interpretation attempted.
     pub candidate: AdoptionCandidate,
     /// The certification/attachment gate's refusal, rendered at the
-    /// adoption reading (`geom_brep::certify::Reading::Adopt`).
+    /// adoption reading (`geom_brep::recourse::Reading::Adopt`).
     pub refusal: topo::EulerOpError,
 }
 

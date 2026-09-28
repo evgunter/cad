@@ -606,11 +606,12 @@ impl ViewerBehavior<'_> {
                         ui.weak(axis.label());
                         self.slot_value_ui(ui, node, row);
                     }
-                    // ONE picker for the vector: three components of a
-                    // point are written in one unit or the user is
-                    // being told something they did not mean to say.
-                    // The picker reports a disagreement rather than
-                    // hiding it (`slot_unit_ui`'s mixed arm).
+                    // ONE picker for the vector: the components of a
+                    // point that are written at all are written in one
+                    // unit, or the user is being told something they
+                    // did not mean to say. The picker reports a
+                    // disagreement rather than hiding it, and skips a
+                    // computed component out loud (`slot_unit_ui`).
                     self.slot_unit_ui(ui, node, rows.as_slice());
                     ui.weak(family.dimension().to_string());
                 });
@@ -763,12 +764,44 @@ impl ViewerBehavior<'_> {
     ///
     /// **"How do I want this number written" is an edit, not a view
     /// setting** — the unit is stored per literal and persists — so the
-    /// picker emits `SessionOp::SetSlotUnit`, one per component.
+    /// picker emits `SessionOp::SetSlotUnit`, one per component it
+    /// writes.
     ///
-    /// A vector whose components disagree shows `mixed` and is not
-    /// quietly normalized: the document says what it says until someone
-    /// picks. Choosing a unit then writes it to every component, which
-    /// is the only reading of a single picker over three slots.
+    /// **Each component is gated on the op's own slot admission**
+    /// ([`crate::session::DocSession::slot_unit_refusal`]), which is
+    /// what `SetSlotUnit` refuses a slot with whatever unit is picked. A
+    /// component driven by an expression has no written notation, and
+    /// the op refuses it with `SlotUnitFault::NotALiteral`. The picker
+    /// reads that refusal, not the row's driver, and carries its words
+    /// rather than composing its own. Two answers of the op are not read
+    /// here. A held value gesture refuses every `SetSlotUnit` in
+    /// `DocSession::perform` before this admission runs, and a pick made
+    /// then is refused loudly there. A unit that does not measure the
+    /// slot is the op's to refuse at the pick, and every option offered
+    /// comes off the slot's own dimension's table.
+    ///
+    /// **Over a vector, the picker writes the components that HAVE a
+    /// notation and says which it skips.** A computed component shows
+    /// its expression, not a number in some unit, so "the components
+    /// of a point are written in one unit" is a statement about the
+    /// literal ones; one driven component does not make that notation
+    /// any less the user's to choose. So:
+    ///
+    /// - every component refused: the picker reads `computed` and is
+    ///   drawn disabled, with the refusals' own sentences on its
+    ///   disabled hover;
+    /// - some refused: the picker is live over the rest, a pick writes
+    ///   the rest, and its hover says which components a pick writes
+    ///   and which it skips, followed by the skipped components'
+    ///   refusals, before the pick is made;
+    /// - none refused: the picker writes all of them.
+    ///
+    /// The selected text is the unit the WRITABLE components agree on,
+    /// else `mixed` — a disagreement is reported rather than quietly
+    /// normalized, and the document says what it says until someone
+    /// picks. A driven component's canonical rendering is not a
+    /// notation anyone chose, so it plays no part in that agreement.
+    /// A picker with no writable component therefore shows no unit.
     ///
     /// Nothing is drawn at all for a dimension with no units (`Scalar`,
     /// `Count`) — there is no notation to offer for a number that is
@@ -781,39 +814,81 @@ impl ViewerBehavior<'_> {
         if options.is_empty() {
             return;
         }
-        let written: Vec<Option<UnitDef>> = rows
+        // Each component with the unit it is shown in, or with what
+        // `SetSlotUnit` would refuse it with.
+        let mut writable: Vec<(&SlotRow, Option<UnitDef>)> = Vec::new();
+        let mut refused: Vec<(&SlotRow, Refusal)> = Vec::new();
+        for row in rows {
+            match self.session.slot_unit_refusal(node, row.slot) {
+                Some(refusal) => refused.push((row, refusal)),
+                None => writable.push((row, props::rendering_unit(row.dimension, row.unit))),
+            }
+        }
+        let first_unit = writable.first().and_then(|(_, unit)| *unit);
+        let common = writable
             .iter()
-            .map(|row| props::rendering_unit(row.dimension, row.unit))
-            .collect();
-        let common = written
-            .iter()
-            .all(|unit| *unit == written[0])
-            .then_some(written[0])
+            .all(|(_, unit)| *unit == first_unit)
+            .then_some(first_unit)
             .flatten();
-        let label = common.as_ref().map_or("mixed", UnitDef::symbol);
-        // `id_salt` off the first component's slot: two vectors on one
-        // node (a plane's origin and its normal) draw two pickers, and
-        // egui identifies a popup by its id.
-        egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
-            .selected_text(label)
-            // The pickers' one width (`widgets::UNIT_PICKER_WIDTH`):
-            // this combo draws the same table's symbols and cannot be
-            // narrower than they are.
-            .width(UNIT_PICKER_WIDTH)
-            .show_ui(ui, |ui| {
-                for option in options {
-                    let picked = common == Some(option);
-                    if ui.selectable_label(picked, option.symbol()).clicked() && !picked {
-                        for row in rows {
-                            self.ops.push(SessionOp::SetSlotUnit {
-                                node,
-                                slot: row.slot,
-                                unit: option,
-                            });
+        let label = match (common, writable.is_empty()) {
+            (_, true) => "computed",
+            (Some(unit), false) => unit.symbol(),
+            (None, false) => "mixed",
+        };
+        // The refusals render themselves; what is composed here is
+        // only which components a pick writes and which it skips.
+        let refusals: Vec<String> = refused
+            .iter()
+            .map(|(_, refusal)| refusal.to_string())
+            .collect();
+        let refusals = refusals.join("\n");
+        let written: Vec<String> = writable.iter().map(|(row, _)| row.slot.label()).collect();
+        let skipped: Vec<String> = refused.iter().map(|(row, _)| row.slot.label()).collect();
+        let skips = format!(
+            "a pick writes {} and skips {}:\n{refusals}",
+            written.join(", "),
+            skipped.join(", "),
+        );
+        let picker = ui.add_enabled_ui(!writable.is_empty(), |ui| {
+            // `id_salt` off the first component's slot: two vectors on
+            // one node (a plane's origin and its normal) draw two
+            // pickers, and egui identifies a popup by its id.
+            egui::ComboBox::from_id_salt((node.0, format!("{:?}", first.slot), "unit"))
+                .selected_text(label)
+                // The pickers' one width (`widgets::UNIT_PICKER_WIDTH`):
+                // this combo draws the same table's symbols and cannot
+                // be narrower than they are.
+                .width(UNIT_PICKER_WIDTH)
+                .show_ui(ui, |ui| {
+                    let mut picked = None;
+                    for option in options {
+                        let selected = common == Some(option);
+                        if ui.selectable_label(selected, option.symbol()).clicked() && !selected {
+                            picked = Some(option);
                         }
                     }
-                }
-            });
+                    picked
+                })
+        });
+        let combo = picker.inner;
+        if !refused.is_empty() {
+            // Disabled, the hover is why; live, it is what a pick does
+            // and skips. egui reads exactly one of the two hooks.
+            let _ = combo
+                .response
+                .clone()
+                .on_disabled_hover_text(&refusals)
+                .on_hover_text(&skips);
+        }
+        if let Some(unit) = combo.inner.flatten() {
+            for (row, _) in &writable {
+                self.ops.push(SessionOp::SetSlotUnit {
+                    node,
+                    slot: row.slot,
+                    unit,
+                });
+            }
+        }
     }
 
     /// What a slot has to SAY, under its row ([`slot_notes`]), with the

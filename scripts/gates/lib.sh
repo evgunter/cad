@@ -344,7 +344,7 @@ GATE_CFG_TEST_NOT_RE='#\[cfg\([^]]*(any|not)\('
 #   --window N     one record per CODE line, joined with the next N-1 of
 #                  them, whitespace collapsed — for a needle that spans
 #                  a construct rather than ending at a delimiter
-#                  (`signed-zero-one-home.sh`'s `== 0.0 { 0.0 }`).
+#                  (e.g. `== 0.0 { 0.0 }` across a line break).
 #
 # A LINE THAT CARRIES NO CODE IS NOT A RECORD, in any of the three, and
 # a line holding only a comment is such a line: what survives the strip
@@ -873,9 +873,7 @@ gate_record_text() { gate_record_column text; }
 #   * no `^` — any path ENDING in the home, such as a vendored sub-tree
 #     that repeats the crate layout.
 #
-# Narrow, not empty: a `:` is legal in a path here and in git. All
-# three are planted, and confirmed exempt before the fix, in
-# `signed-zero-one-home.sh`'s three anchor planters.
+# Narrow, not empty: a `:` is legal in a path here and in git.
 #
 # The escaping is one rule over path and text alike — the TEXT half is
 # where it bites, since a ratified line carries `+`, `.` and brackets —
