@@ -41,10 +41,6 @@ use topo::{Body, BooleanDeclarations, BooleanError};
 // Fixtures and helpers (the S12 suite's, radius-generalized).
 // ---------------------------------------------------------------------
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn slack() -> f64 {
     (1e3 * Tol::witness().get().eps).max(1e-9)
 }
@@ -365,7 +361,10 @@ fn trimmed_sphere_group_operand_assembles_with_a_clear_partner() {
 /// answers.
 #[test]
 fn cylinder_near_sphere_refuses_typed_at_the_scan() {
-    let disc = bulge_loop(vec![(p2(0.35, 0.0), 1.0), (p2(-0.35, 0.0), 1.0)]);
+    let disc = bulge_loop(vec![
+        (Point2::new(0.35, 0.0), 1.0),
+        (Point2::new(-0.35, 0.0), 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();
@@ -389,7 +388,10 @@ fn cylinder_near_sphere_refuses_typed_at_the_scan() {
 /// `FallbackExtentUnsupported`.
 #[test]
 fn a_ball_above_the_cylinders_cap_is_certified_separated() {
-    let disc = bulge_loop(vec![(p2(0.35, 0.0), 1.0), (p2(-0.35, 0.0), 1.0)]);
+    let disc = bulge_loop(vec![
+        (Point2::new(0.35, 0.0), 1.0),
+        (Point2::new(-0.35, 0.0), 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![disc])
         .validate(Tol::witness())
         .unwrap();

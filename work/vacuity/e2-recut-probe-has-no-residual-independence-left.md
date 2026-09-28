@@ -33,8 +33,8 @@ Two things have happened to that argument, neither of them E2's doing:
    was absorbed. (The file's header still described the old ceiling-only
    form until 2026-09-19.)
 2. **The fixture and the constant are now single-sourced.** E2 builds
-   its operands from `m5_s12_curved_ops_interval::certified::{plate,
-   recut_ball}` and reads that module's constant. That was done to
+   its operands from `common::sphere_recut::{plate, recut_ball}` and
+   reads that module's constant, as the shipped row does. That was done to
    repair a real defect — the fold had left a prose sentence as the only
    thing holding two hand-copied constants together — but it also
    removes the last axis on which E2 could differ.
