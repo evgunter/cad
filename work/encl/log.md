@@ -1182,3 +1182,7 @@ class of 65 sites is PRED's row.
   - **Full review:** approve-with-fixes. It checked D4 conformance on every arm, and certify byte-identical over 660 rows apart from the disclosed note.
   - **Fix pass:** verdict-keyed at-rest leads; a report clause on the zero floor (`at_zero`); the "unreadable or collapsed" note; pins that tell floor from thinness; wider escalation pins; the D4 paraphrase in rows replaced by a pointer.
   - **Filed on other slates:** contact, paths, band, ssi, props, plus encl `checks-escalated-evidence-says-lower-the-tolerance`. Seam notes posted.
+- 2026-09-28 — Triaged the three rows the rollout filed:
+  - `certify-span-and-zero-arms-…` (P3/M) is dispatched on `encl/certify-span-zero-arms`.
+  - `checks-escalated-evidence-says-lower-the-tolerance` (P3/E) is dispatched on `encl/checks-escalated-evidence`.
+  - `validate-own-close-levers-…` (P3/M) is held until certify-span lands, because both touch `validate.rs`'s certify and own-close endings.

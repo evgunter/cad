@@ -2,8 +2,10 @@
 id: certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending
 kind: issue
 title: geom-brep: IntervalNotForward and WindingExceeded end in no routed recourse, and the zero arms quote no margin, because their variants carry no verdict or value
-status: open
+status: dispatched
 opened: 2026-09-28
+priority: P3
+cost: M
 ---
 
 
