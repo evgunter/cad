@@ -510,7 +510,7 @@ pub struct StableName {
     /// module docs).
     pub kind: EntityKind,
     /// The recipe node whose operation minted the entity (for
-    /// pass-through ops — Transform, split-intact entities — the
+    /// pass-through ops — the set `verbatim_edge` states — the
     /// ORIGINAL minting node: those ops contribute no segment).
     pub node: RecipeNodeId,
     /// The role path within that operation.
@@ -1443,13 +1443,12 @@ pub(crate) enum VerbatimEdge<'a> {
 /// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
 /// of edge does not compile until each decides what to do with it.
 ///
-/// What is NOT held: that this classification agrees with what the
-/// evaluator actually passes through (`eval::wire`'s `wire_transform`,
-/// `wire_part`, `wire_split`). A node whose evaluation returns its
-/// input's table unchanged but is filed under `None` here compiles,
-/// and both walks stop at it
-/// (`work/gather/verbatim-edge-is-not-tied-to-the-evaluator`). Code
-/// outside this crate cannot read it either.
+/// What the compiler cannot hold — that this classification agrees
+/// with what the evaluator actually passes through (`eval::wire`'s
+/// `wire_transform`, `wire_part`, `wire_split`) — is held at runtime
+/// by `tests/names_verbatim_edge_evaluator.rs`: over a corpus that
+/// evaluates every node kind that can evaluate, a node publishes a
+/// name headed by another node exactly when this answers `Some`.
 pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
     use crate::node::Node;
     match node {
