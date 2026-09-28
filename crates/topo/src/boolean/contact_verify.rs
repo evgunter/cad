@@ -406,6 +406,11 @@ pub fn tangent_locus_relation<T: Decide>(
         // to the ordinary angular door: the defect metered at the
         // extent over which the verdict is consumed. Both spellings
         // answer the same question and carry the same predicate name.
+        // `geom_brep::certify`'s tangent arm spells the same fallback
+        // lever; the one deliberate difference is its role there, where
+        // it reads only after the second-order margin has refused and
+        // only a definite defect names that refusal, while here it is
+        // the first-order verdict itself, so an in-band reading escalates.
         let parallel = if second_order_definite == Some(true) {
             Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs())
         } else {

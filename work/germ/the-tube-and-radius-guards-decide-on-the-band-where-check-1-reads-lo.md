@@ -48,6 +48,28 @@ because NaN and `±∞` become NaI and are refused. A datum COMPUTED at
 interval type can. This is stated at the check (`poisoned_datums`'s
 docs), and it belongs to whichever answer this row reaches.
 
+**Two more on the band side (2026-09-28, the C5 pose-gate unit,
+PR 3322).** `plane_cone_section` now decides `pn_aperture_sin` /
+`pn_aperture_cos` the way `cone_cylinder_section` decides
+`coc_aperture_*`, and `intersect.rs`'s module docs state the file's
+band posture on the cone's convention.
+
+**The review's argument against a numerical reading of those guards,
+recorded as evidence.** The PR first justified them as "a divisor
+within ε of zero carries no relative accuracy". That is not so for a
+STORED `α`: `sin α` of a stored datum is relatively exact (the same PR
+says so of `ConeOffset`), and the two red-first outputs are close to
+correct for the datums as stored — at `fl(π/2)` the axis-normal circle
+of radius `≈ 3e16·h` is the true section of that (nearly flat) cone,
+and at `α = 1e-300` the apex lane's tangent generator is, to within the
+band, the axis itself. So the guards are a POSTURE (the band side of
+this row's question), not a numerical necessity, and they refuse cones
+that tier-3 check 1 passes. They stay pending this row's ruling; the
+PR's rationale now says so. One consequence the review also found, and
+the PR fixed: because the guards run ahead of the pose trileans,
+`route_pose` must read their refusal as an UNclassified pose, not a
+served one.
+
 ## What must be decided
 
 One of three answers:

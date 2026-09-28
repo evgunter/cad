@@ -906,16 +906,19 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   the chart rectangle it fitted) and `Band` (below). The loop's own
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
-///   and `NonFiniteSample` reach the user by this route only. Its
-///   wrapper still opens with a stage prefix and names the face by key;
+///   and `NonFiniteSample` reach the user by this route and by the
+///   transform's re-fit. Its wrapper still opens with a stage prefix and names the face by key;
 ///   both are SHELL's and filed
 ///   (`work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`),
 ///   so [`FILED_NAMESPACES`] admits exactly that label and that key on
 ///   these rows and nothing else.
-/// - **The transform op's re-certification** (`Transform/ApproxRecertify/…`):
-///   `certify_offset_over` runs the meters and the certificate limbs on
-///   a fit it did not make, so it raises `Meter`, `PatchBound`,
-///   `WindowUnsupported`, `Limb` and `Elevation`.
+/// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
+///   certifier's arms on the image — `certify_offset_over` runs the
+///   meters and the certificate limbs on a fit it did not make, so
+///   `Meter`, `PatchBound`, `WindowUnsupported`, `Limb` and
+///   `Elevation` — and the mint's arms on a re-fit, when a sound face's
+///   image refuses a limb and the map fits the mapped description
+///   afresh: every arm the shell route raises. So every arm but `Band`.
 ///
 /// `Band` reaches neither route. The door derives the run's band from
 /// the witness, and both ops derive the same band before they reach the
@@ -977,14 +980,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
-        let certify = matches!(
-            source,
-            O::Meter(_)
-                | O::PatchBound(_)
-                | O::WindowUnsupported { .. }
-                | O::Limb { .. }
-                | O::Elevation(_)
-        );
+        let transform = !matches!(source, O::Band(_));
         if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
@@ -997,7 +993,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
                 })),
             ));
         }
-        if certify {
+        if transform {
             rows.push(row(
                 &format!("Transform/ApproxRecertify/{arm}"),
                 NodeErrorKind::Transform(topo::TransformError::ApproxRecertify { source }),
@@ -2904,6 +2900,10 @@ fn check_findings() -> Vec<(String, editor_core::CheckFinding)> {
         (
             "EdgeCarrierUnsupported",
             PointInSolidError::EdgeCarrierUnsupported { face },
+        ),
+        (
+            "WallOutlineUnsupported",
+            PointInSolidError::WallOutlineUnsupported { face },
         ),
         (
             "NoSuchSolid",
