@@ -249,7 +249,7 @@ mod tests {
     //! red on the pose that reaches it.
 
     use super::*;
-    use geom_core::{Bounds, Interval, Tol};
+    use geom_core::{Bounds, Interval, Real, Tol};
 
     const R: f64 = 1.0;
     const RT: f64 = 0.25;
@@ -304,7 +304,8 @@ mod tests {
                 t0 + (t1 - t0) * f64::from(i) / f64::from(n),
                 t0 + (t1 - t0) * f64::from(i + 1) / f64::from(n),
             );
-            if f(a) * f(b) > 0.0 {
+            // A root on a grid point is counted in the cell it ends.
+            if !(f(a) * f(b) < 0.0 || f(b) == 0.0) {
                 continue;
             }
             for _ in 0..80 {
@@ -371,8 +372,10 @@ mod tests {
             u: [1.0, 0.0, 0.0],
         };
         assert_matches_oracle("full turn", pose, -3.0, 3.0, 4);
-        // An arc holding only the two inner-equator crossings.
-        let (_, ts) = in_arc(pose, 1.0, 3.0);
+        // An arc holding only an inner-equator crossing (`ρ = 2|cos θ/2|`
+        // meets `R − r` at `θ ≈ 2.37`, the outer equator at `≈ 1.79`).
+        let (_, ts) = in_arc(pose, 2.0, 3.0);
+        assert_eq!(ts.len(), 1, "one inner-equator root on the arc");
         for t in &ts {
             let p = point(pose, *t);
             assert!(
