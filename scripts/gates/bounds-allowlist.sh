@@ -463,8 +463,12 @@ BOUNDS_ALLOWLIST=(
   # kinds — `sphere_extent_scan`, `cylinder_extent_gate` and
   # `torus_extent_gate` (the torus doors, PR 3265) — each reading the
   # certified face boxes the sweep built and deciding on them, the
-  # amendment's funnel shape; the third is why the count is 12.
-  'crates/topo/src/boolean/ops.rs 12 2026-07-29 (M5 PR 8), the driver amendment'
+  # amendment's funnel shape; the third is why the count was 12. The
+  # crossings path's interior-loop guard, `interior_loop_verdict`, is the
+  # same check on the other path (the interior-oval stopgap): it reads
+  # the same certified face boxes through `first_unsupported_pair` and
+  # decides on them, so the count is 13.
+  'crates/topo/src/boolean/ops.rs 13 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE
