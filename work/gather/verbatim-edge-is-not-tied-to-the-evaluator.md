@@ -2,12 +2,14 @@
 id: verbatim-edge-is-not-tied-to-the-evaluator
 kind: issue
 title: verbatim_edge classifies the name pass-through set by node kind, and nothing ties it to what eval::wire actually passes through
-status: review
+status: closed
 opened: 2026-09-28
 priority: P1
 cost: M
 branch: gather/verbatim-edge-evaluator-guard
 refs: [three-walks-over-the-name-carrying-edges]
+closed: 2026-09-28
+pr: 3335
 ---
 
 Recorded from PR 3321's review (S1/S5 residue), filed by the GATHER
