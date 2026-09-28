@@ -508,3 +508,19 @@ Signed: (CONTACT orchestrator)
   amendment.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — Ev ruled on #3350; CONTACT-6 landed (#3357); CONTACT-8 dispatched
+
+- **CONTACT-6** merged as `545ae86a9`.
+- **#3350: Ev took both decisions** ("sounds good!"). The second
+  commit filled in the design-fork row's decision and A/B mapping
+  (byte 58, A = Opus, B = Fable), and cleared `needs_ev`. GATHER's row
+  reached main first, so this fork is row 4. Merged as `d3a962cdb`.
+- **CONTACT-8** carries the ratified implementation, with a single full
+  review (the risk is record carriage).
+- **Process slip, fixed.** Twice a `work.py lint | tail -1 && git
+  commit` committed through a lint failure, because the pipe returns
+  `tail`'s status. My shell now runs `set -o pipefail`, and lane briefs
+  say the same.
+
+Signed: (CONTACT orchestrator)
