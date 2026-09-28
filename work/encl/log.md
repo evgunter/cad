@@ -1016,3 +1016,97 @@ class of 65 sites is PRED's row.
   - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
   - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
 - 2026-09-28 — PR 3343 merged (`f5390b0605`), hosted all green on `0eb6236870`. Closed `driver-escalation-log-names-a-renamed-tangent-refusal-osculating`. Seam notes posted on the props, verdict, tcost and tint logs.
+- 2026-09-28 — The kernel-defect lane opened PR 3346 (head `ab7c781ba1`).
+  - Two constants in `geom_core::predicate`, the kernel defect and the kernel-or-file defect, defined through `#[macro_export]` macros for `concat!` callers.
+  - Forwarded carriers are labelled `Recourse:` about 27 times: `note()`, `FitError`, `SplineError`, `KnotVectorIssue`.
+  - Three more sites folded in. Six rows filed across encl, reach, shell, chart, props and issues. Evidence added to CHROME's checker row.
+  - The scope grew past the brief (macros, the rewording of `ResultVolumeImplausible`, many owners' files). The review stays a style review, pointed at the macro surface, the consistency of the labelling ruling, double labels, and the new rows.
+- 2026-09-28 — PR 3346's style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the macros are least-surface (the `&'static str` callers are real), there are no double labels, and the chains row holds `Meter/Escalated`.
+  - The main fix: `OffsetFitError::Fit`/`Structure` now show a builder's repair, labelled `Recourse:`, to a user who didn't build the spline. They will render as `Elevation` does (the refusal plus the kernel-defect ending). The same class at other owners' sites (step-import, ssi, skin and others) becomes one row.
+  - Also taken:
+    - five missed endings, filed per owner;
+    - `ScaffoldingOperand`'s fold dropped, since `mev_null` is pub and "kernel defect" is not established;
+    - wording fixes;
+    - `#[doc(hidden)]` on the macros;
+    - constants renamed `*_ENDING`, since a dead end is not a recourse;
+    - `file:line` citations in the rows;
+    - a CHROME checker note on the lowercase marker and on "no way through yet".
+  - Kept as is: the A/B operand naming (outside this unit).
+- 2026-09-28 — Sequencing decisions (no Ev needed; both recommended):
+  - Parked `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters` on SHELL's `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`. The row is latent: no body the tree can move carries a curved `Approx` face with edges, and lofted bodies are refused earlier at their seam carriers. A two-designer fork now would weigh a problem no caller reaches. It runs when that row lands and a lofted body can be moved. Alternative considered: run the designers now. Not taken, because the cost is spent on an unreachable case and the answer may depend on how SHELL resolves the seam carriers.
+  - Dispatched `domain-uniform-refinement-grid-is-spelled-three-times` (P4) on `encl/domain-uniform-grid`, Opus, style review. The sites are PROPS/SSI/NURBS/Q territory, so seam notes follow at merge.
+- 2026-09-28 — PR 3346 merged (`fb0ec473b8`), hosted all green on `1f358a3519`. Closed `kernel-defect-endings-and-repair-labels-have-no-shared-home`. Seam notes posted on the props, nurbs, restfront, contact, tcost and tint logs.
+- 2026-09-28 — Priced `offset-meter-escalation-renders-the-coincidence-menu-unlabelled` (filed by the 3346 lane) at P3/E and dispatched it on `encl/meter-escalation-recourse`, Opus, style review. Its files (offset_meters, the editor-core chains row) are disjoint from the grid lane's.
+- 2026-09-28 — The meter-escalation lane opened PR 3347 (head `7ab8eadc13`).
+  - One routing home, `offset_meters::escalation_recourse`, read by both the Display and `classify_offset_fit`, whose copy is deleted. The checks-window text is unchanged.
+  - The predicate-name constants are used at the `decide` sites. The chains row now wants one marker on every arm.
+  - Four sibling rows filed (encl certify, iso, pcert, props); the pcert one disputes pcert's "delegates soundly" reading.
+  - Style review dispatched. The encl sibling `certify-escalation-renders-the-coincidence-menu-unlabelled` arrives with the merge and gets priced then.
+- 2026-09-28 — The PR 3347 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the routing is byte-identical, and the rows go red on the swap, override and whole-render mutations.
+  - Taken:
+    - the new pub name-keyed table's default arm speaks for any name; it moves to explicit arms plus `MissingRecourse`, per BLEND-15 precedent;
+    - the checks window's routes are unpinned;
+    - an unrealistic sample predicate and a leftover probe name;
+    - the pcert dispute recorded on the disputed row;
+    - the lever sentences hoisted to one home;
+    - the CHROME-section claim tempered;
+    - the ~60-field deferral turned into a filed row.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — The grid lane opened PR 3348 (head `a3f01666d4`).
+  - Adds `algebra::domain_grid_points` with `GridSkip{BitEqual, WithinUlps}`. It is homed at `refine_dir`, `bezier_blocks`, ssi `refined` and edge_nurbs `localized`; the skip guard and cut-off stay per caller.
+  - Pinning rows were added on main first and pass unchanged after the refactor.
+  - `knot_aligned_cuts` is not homed: it is a different function (trim-rectangle range, and it clears the ends).
+  - Filed SSI's `chart-uniform-breaks-lean-on-exact-dedup`. edge_nurbs is ISO's by territory, not SSI/Q's.
+  - Style review dispatched.
+- 2026-09-28 — The PR 3348 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: bits are unchanged at every site (by reading and executing), and the guard mutant turns four rows red.
+  - Taken:
+    - `WithinUlps(f64)` becomes `u32`, fixing a fail-quiet NaN/∞/negative hazard, with the clearance const made public beside `GridSkip`;
+    - the helper uses the typed `interior_knots()`; the other hand filters are recorded, not swept;
+    - a non-dyadic grid-arithmetic pin, since today no row catches an evaluation-order mutant;
+    - SSI row accuracy and pricing;
+    - one encl row recording the declined `knot_aligned_cuts` and the residual spellings;
+    - a hairline-row update;
+    - two trivial efficiency items.
+  - Declined: import-style taste.
+  - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
+- 2026-09-28 — PR 3347 merged (`2e913b87d0`), hosted all green on `695e7a39e6`. Closed `offset-meter-escalation-renders-the-coincidence-menu-unlabelled`. Seam notes posted on the restfront, tcost and tint logs.
+- 2026-09-28 — Priced `certify-escalation-renders-the-coincidence-menu-unlabelled` at P3/E and dispatched it on `encl/certify-escalation-recourse`, Opus, style review. The brief carries 3347's lessons: one routing home shared with `validate::classify_certify`, explicit arms plus `MissingRecourse` (no default arm), and pins on both surfaces.
+- 2026-09-28 — PR 3348 merged (`95b59b9361`), hosted all green on `10a32dfb5c`. Closed `domain-uniform-refinement-grid-is-spelled-three-times`, and posted seam notes on the program logs.
+  - On item 6 of the fix pass, the lane named three pinning rows for the hairline row, not four. That is correct: the review's fourth red row was `bezier_blocks`, which already uses the clearance guard.
+  - The residue row `domain-grid-homing-residue` (P4/E) is open.
+- 2026-09-28 — The certify-escalation lane opened PR 3351 (head `3dde3336d1`).
+  - One routing home, `certify::escalation_recourse`, with 45 explicit names and `MissingRecourse`. It is shared with `classify_certify` and its PlaneNurbs arm. The constants are hoisted across pcert, iso and ssi files.
+  - Checks-window text is unchanged for known names. An unknown name now reads "no recourse … recorded" where it used to read EDGE_CLOSE.
+  - Tier raised from style to a single full review. The table's completeness is load-bearing: a missed name regresses a live refusal to "no recourse".
+  - Filed `certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle` (encl), and added evidence to the issues and chrome rows.
+- 2026-09-28 — PR 3351 is red at `test (eps = 1e-12, 2/2)` on its own new row `every_certify_escalation_ends_in_its_routed_sentence`; everything else passes. It is this PR's failure, and the lane is reproducing it at 1e-12 now. The review's findings will follow into the same fix pass.
+- 2026-09-28 — **Design fork opened: escalation recourse vs D4 ¶1.** PR 3351's full review found a MAJOR, and its provenance checks out.
+  - The ratified two-tolerance principle (Ev, #129, `68c72a257c`; clause (iv) in Ev's `24e67b85ee`) binds a decision's definite and in-band arms to ONE recourse. It names that recourse as the three-arm sentence, and names certify `NotTransverse` vs `Escalated` as a pair.
+  - PR 3351 forks that pair (`Escalated` goes to the edge lever, the definite halves stay on the three-arm sentence) and deleted the S6 pin.
+  - Merged PR 3347 keeps its pairs together but replaced the three-arm sentence with site-specific levers at the meters. The checks window's `classify_*` already did that at many sites.
+  - Whether a site whose question has no declarable coincidence may carry its own lever is a change to what ratified text decides, so it is Ev's.
+  - Actions taken:
+    - 3351 is held from merging. Its lane does the CI fix and the fixes that don't depend on the ruling, and restores a pair-agreement pin that is red until the ruling.
+    - Two designers (Opus, Fable) dispatched concurrently with one problem statement. The blinding byte is on `analysis/design-fork/encl-escalation-recourse` (protocol `bb10a4cdd4`).
+    - The `[ev]` PR follows once they reconcile.
+  - 3347 is recorded as having landed ahead of the ruling. Whether it stands is part of the question put to Ev.
+- 2026-09-28 — Design fork `encl-escalation-recourse`: first reports recorded (A/B only; the full summaries are kept for the row).
+  - Both recommend the same final-state shape:
+    - the recourse belongs to the decision, with a typed-enum key rather than name strings;
+    - `Indeterminate` carries no recourse;
+    - the pair shares one recourse by construction;
+    - the three-arm sentence only where a door takes a declaration;
+    - the checks window may end a definite at-rest contradiction as a defect;
+    - D4 (i)/(ii) change (their agent-written parts), and (iv) stays.
+  - Both rejected the framing: the "three-arm at every site" scope is agent text.
+  - They split on one point, which arms carry "lower the tolerance". A: every band-decided arm. B: only where lowering ε moves toward a pass, since it is backwards on residuals.
+  - Reconciliation round 1: each designer was handed the other's For-Ev section.
+- 2026-09-28 — `[ev]` PR 3352 opened: D4 ¶1, one recourse per decision.
+  - Round 1 reconciliation converged both designers. The recourse is owned by the decision and keyed by a closed type, and the tolerance arm is derived from the decision's pass set and verdict: "lower" only where lowering ε can pass it, never on residuals. `Indeterminate` is data-only. (iv) gains the at-rest defect rider.
+  - One stated split, for Ev: whether a residual offers "loosen the tolerance" (B) or no tolerance arm at all (A, which the diff takes).
+  - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
+  - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
+  - Subscribed to 3352 for Ev's answer.
