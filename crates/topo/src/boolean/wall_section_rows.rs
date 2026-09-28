@@ -400,3 +400,69 @@ fn a_hit_between_a_junctions_pieces_escalates() {
         other => panic!("{other:?}"),
     }
 }
+
+/// The cosine-window construction's sites, collected from the source
+/// by their marks (a call to `chart_azimuth_margin`,
+/// `narrower_than_period` or `chart_dir`, or the period guard's
+/// `T::tau() -`) and named: the list at [`point_on_wall_in_face`] is
+/// this set, and a site added or removed without the list turns this red.
+#[test]
+fn the_window_construction_sites_are_the_ones_listed() {
+    fn sites(src: &str) -> std::collections::BTreeSet<String> {
+        const MARKS: [&str; 4] = [
+            "chart_azimuth_margin(",
+            "narrower_than_period(",
+            "chart_dir(",
+            "T::tau() -",
+        ];
+        let mut current = String::new();
+        let mut out = std::collections::BTreeSet::new();
+        for line in src.lines() {
+            let t = line.trim_start();
+            if t.starts_with("//") {
+                continue;
+            }
+            if let Some(at) = t.find("fn ") {
+                let head = &t[..at];
+                if head.is_empty() || head.ends_with("pub ") || head.ends_with(") ") {
+                    let name: String = t[at + 3..]
+                        .chars()
+                        .take_while(|c| c.is_alphanumeric() || *c == '_')
+                        .collect();
+                    current = name;
+                    continue;
+                }
+            }
+            if MARKS.iter().any(|m| t.contains(m)) {
+                out.insert(current.clone());
+            }
+        }
+        out
+    }
+    let named = |names: &[&str]| names.iter().map(|n| (*n).to_string()).collect();
+    assert_eq!(
+        sites(include_str!("solid_contain.rs")),
+        named(&[
+            // the construction's own homes
+            "chart_azimuth_margin",
+            "narrower_than_period",
+            // shared
+            "point_on_wall_in_face",
+            "point_on_chart_wall",
+            "wall_hit",
+            "wall_hit_outside_reach",
+            "wall_outline",
+            "point_on_cone_in_face",
+            "point_on_torus_in_face",
+            // restated
+            "point_on_sphere_in_face",
+            "sphere_chart_trim",
+            "cone_chart_trim",
+            "torus_face_windows",
+        ])
+    );
+    assert_eq!(
+        sites(include_str!("contain.rs")),
+        named(&["point_on_arc", "curved_face_placement"])
+    );
+}

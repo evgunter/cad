@@ -964,8 +964,15 @@ impl Cut {
 /// The unit cylinder of height 2.5 cut down to the side of every plane
 /// in `cuts` below it, through the split door.
 fn cut_by(cuts: &[Cut]) -> Body<f64> {
+    cut_from(
+        prism(vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)], 2.5, tol()),
+        cuts,
+    )
+}
+
+/// `body` cut down to the side of every plane in `cuts` below it.
+fn cut_from(mut body: Body<f64>, cuts: &[Cut]) -> Body<f64> {
     use topo::splitting::{SplitPart, SplitPlane, split};
-    let mut body = prism(vec![pv(-1.0, 0.0, 1.0), pv(1.0, 0.0, 1.0)], 2.5, tol());
     for cut in cuts {
         let result = split(
             &body,
@@ -1065,6 +1072,37 @@ fn tilted_cut_cases() -> Vec<CutCase> {
             Cut::at([0.0, 0.0, 1.25], [0.0, -(0.3f64.sin()), 0.3f64.cos()]),
         ],
     );
+    // A V through the axis, two ways, with the prism's seams turned to
+    // just past ±π/2, where the V's crease meets the wall: the VALLEY
+    // keeps what is above both planes, the RIDGE what is below both.
+    let turn = core::f64::consts::FRAC_PI_2 + 0.05;
+    for (tilt, valley, ridge) in [
+        (0.4, "valley at tilt 0.4", "ridge at tilt 0.4"),
+        (1.1, "valley at tilt 1.1", "ridge at tilt 1.1"),
+    ] {
+        let planes = [
+            Cut::at([0.0, 0.0, 1.25], [f64::sin(tilt), 0.0, f64::cos(tilt)]),
+            Cut::at([0.0, 0.0, 1.25], [-f64::sin(tilt), 0.0, f64::cos(tilt)]),
+        ];
+        for (name, cuts) in [
+            (valley, planes.map(Cut::flip).to_vec()),
+            (ridge, planes.to_vec()),
+        ] {
+            let turned = prism(
+                vec![
+                    pv(turn.cos(), turn.sin(), 1.0),
+                    pv(-turn.cos(), -turn.sin(), 1.0),
+                ],
+                2.5,
+                tol(),
+            );
+            cases.push(CutCase {
+                name,
+                body: cut_from(turned, &cuts),
+                truth: region(cuts),
+            });
+        }
+    }
     // Through the subtract door: the cut cylinder (below the cut) minus a
     // box inside it. Its walls keep the tilted section.
     let cut = Cut::tilted(1.25, 0.3);
@@ -1099,13 +1137,50 @@ fn tilted_cut_cases() -> Vec<CutCase> {
 /// owns, and an escalation: at a coarse ε a probe's ray can land within
 /// the band of a boundary edge, and that is a typed refusal, not an
 /// answer.
+/// An escalation this row admits: a trim row's margin strictly inside
+/// the band's gap `(ε, K·ε)` — a probe's ray landing within the band of
+/// a boundary edge, which is a typed refusal and not an answer. Two rows
+/// only: the wall's own (`bool_wall_trim`), and a planar face's arc
+/// window (`point_in_arc_loop_conic_window`, which the cuts' ellipse
+/// faces reach). Each shape's count is capped at what was measured.
+fn in_the_trim_band(diag: &geom_core::Indeterminate) -> bool {
+    let (eps, k) = (tol().eps(), tol().k());
+    matches!(
+        diag.predicate,
+        Some("bool_wall_trim" | "point_in_arc_loop_conic_window")
+    ) && matches!(diag.margin, geom_core::MarginDiag::Value(v) if v.abs() > eps && v.abs() < k * eps)
+}
+
+/// Each shape's answered-count floor and escalation cap. The floor is
+/// the fewest answers measured over the three ε rows, less a slack of
+/// 2; the cap is the most in-band escalations measured. A change that
+/// turned chart-wall hits into refusals falls through the floor.
+fn answered_floor_and_escalation_cap(name: &str) -> (usize, usize) {
+    match name {
+        "cut 0.3 (below)" => (332, 0),
+        "cut 0.3 (above)" => (398, 0),
+        "corner clip" => (677, 1),
+        "corner clip (the chip)" => (21, 1),
+        "tilt 0.9 (below)" => (303, 0),
+        "tilt 0.9 (above)" => (454, 0),
+        "slab at tilt 1.0" => (384, 0),
+        "wedge" => (520, 0),
+        "lens" => (59, 0),
+        "valley at tilt 0.4" => (313, 0),
+        "ridge at tilt 0.4" => (300, 0),
+        "valley at tilt 1.1" => (231, 1),
+        "ridge at tilt 1.1" => (212, 0),
+        "cut 0.3 minus a box (subtract)" => (196, 0),
+        other => panic!("no floor for {other}"),
+    }
+}
+
 #[test]
 fn every_tilted_cut_wall_reads_its_truth() {
     let band = Band::linear(tol()).expect("the witness band");
     let mut problems = Vec::new();
     for case in tilted_cut_cases() {
-        let (mut answered, mut wrong) = (0usize, 0usize);
-        let mut refused: std::collections::BTreeMap<String, usize> = Default::default();
+        let (mut answered, mut wrong, mut at_infinity, mut escalated) = (0, 0, 0, 0);
         for (pose, map) in poses() {
             let posed = transform_rigid(&case.body, &map, tol()).unwrap();
             for i in 0..5 {
@@ -1131,13 +1206,16 @@ fn every_tilted_cut_wall_reads_its_truth() {
                                         .push(format!("{} | {pose} | {p:?}: {got:?}", case.name));
                                 }
                             }
+                            Err(PointInSolidError::VolumeUncertified) => at_infinity += 1,
+                            Err(PointInSolidError::Escalated { diag, .. })
+                            | Err(PointInSolidError::Loop(topo::PointInLoopError::Escalated {
+                                diag,
+                                ..
+                            })) if in_the_trim_band(&diag) => {
+                                escalated += 1;
+                            }
                             Err(e) => {
-                                let kind = format!("{e:?}");
-                                let kind = kind.split([' ', '{', '(']).next().unwrap_or("");
-                                *refused.entry(kind.to_string()).or_default() += 1;
-                                if !matches!(kind, "VolumeUncertified" | "Escalated") {
-                                    problems.push(format!("{} | {pose} | {p:?}: {e:?}", case.name));
-                                }
+                                problems.push(format!("{} | {pose} | {p:?}: {e:?}", case.name));
                             }
                         }
                     }
@@ -1145,11 +1223,16 @@ fn every_tilted_cut_wall_reads_its_truth() {
             }
         }
         eprintln!(
-            "MEASURE {}: answered {answered}, wrong {wrong}, refused {refused:?}",
+            "MEASURE {}: answered {answered}, wrong {wrong}, at-infinity {at_infinity}, \
+             escalated {escalated}",
             case.name
         );
-        if answered == 0 {
-            problems.push(format!("{}: no probe answered", case.name));
+        let (floor, cap) = answered_floor_and_escalation_cap(case.name);
+        if answered < floor {
+            problems.push(format!("{}: answered {answered}, floor {floor}", case.name));
+        }
+        if escalated > cap {
+            problems.push(format!("{}: escalated {escalated}, cap {cap}", case.name));
         }
     }
     assert!(problems.is_empty(), "{}", problems.join("\n"));

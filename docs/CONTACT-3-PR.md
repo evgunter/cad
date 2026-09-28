@@ -73,10 +73,17 @@ handled as follows:
 - **Strictly inside the meridian run's height span:** it is on the
   meridian, so it grazes.
 - **Otherwise:** it must be definitely on one side of both incident
-  pieces' planes. A definite margin exceeds the band, and crossing the
-  band moves the point less than that, so the region is constant across
-  it. The hit is therefore read as just past the junction: a piece counts
-  iff its `lo` end is active.
+  pieces' planes. What makes that exact is parity invariance. When both
+  sides agree at `p`, the count does not depend on which of the two
+  pieces covers `p`'s ruling:
+  - where the loop passes through the junction, exactly one covers, and
+    it counts the same either way;
+  - where the loop turns there, both cover or neither does, adding 0 or
+    2, which is even.
+
+  So any consistent reading of the band gives the true parity. The arm
+  reads it as just past the junction: a piece counts iff its `lo` end is
+  active.
 - **Anything else escalates:** incident pieces that disagree, a piece
   with both ends active, or a piece window in band with neither end
   active (only the cosine construction's narrow-window collapse produces
@@ -84,12 +91,21 @@ handled as follows:
 
 ## Where it refuses, and how that is confined
 
-`Unsupported` is now only a ring, or an edge that is none of the three
-kinds: a non-planar curve, an off-axis or mis-seated ellipse, or null
-scaffolding. A hit definitely outside the face's azimuth window is a
-miss. So is a hit definitely outside a ball holding the outer loop, but
-only for a face with no ring (F6a). A seamless band's outer loop is one
-rim and does not hold the face, so a ringed face trusts only its window.
+`Unsupported` has exactly these paths, and the variant's doc names them:
+
+- a ring;
+- an edge that is not a meridian, rim or planar section of the wall
+  (including a failed seat check, and a plane parallel to the axis);
+- a loop the chart walk declines (not a cycle, or a walk error other
+  than an escalation);
+- images that do not chain half-edge to half-edge (null scaffolding);
+- a meridians-only loop;
+- a piece whose azimuth extent decides Zero.
+
+A hit definitely outside the face's azimuth window is a miss. So is a
+hit definitely outside a ball holding the outer loop, but only for a
+face with no ring (F6a). A seamless band's outer loop is one rim and does
+not hold the face, so a ringed face trusts only its window.
 
 Class resolution is lazy (F5). `face_geo` no longer resolves the class;
 `wall_hit` does, after the hit's window test. A wall no ray reaches is
@@ -124,17 +140,65 @@ The iso walls are bit-identical to base. A digest of every answer over
 2 × 4374 probes (plain cylinder, quarter sector) matched at the first
 pass, and the rectangle arm is unchanged since.
 
-**The V-cut cannot be built through any door on this tree:**
+**The V-cut through two splits.** An earlier version of this record said
+the V could not be built through any door. That was wrong: two `split`s
+build it. The VALLEY keeps what is above both planes and the RIDGE what
+is below both, with the prism's seams turned to π/2 + 0.05, near where
+the crease meets the wall. Both are rows at tilts 0.4 and 1.1; their
+counts are under "Floors and caps".
+
+The notch-tool routes still fail:
 
 - `subtract` of a notch tool is refused (`CurvedSectorSideUnsupported`)
-  with the seams at 0/π.
-- With the seams under the ridge it fails with an internal
-  `Euler(StaleKey)`, filed as `work/issues/subtract-v-notch-from-seam-aligned-cylinder-escalates-stale-halfedge`.
-- The union of two differently cut halves is refused
+  with the seams at 0/π, and fails with an internal `Euler(StaleKey)`
+  with the seams under the ridge (filed,
+  `work/issues/subtract-v-notch-from-seam-aligned-cylinder-escalates-stale-halfedge`);
+- the union of two differently cut halves is refused
   (`CurvedPierceUnsupported`).
 
-Its outline, two section pieces meeting at a concave vertex, is the
-wedge's with the other concavity, and parity has no concavity case.
+## Floors and caps
+
+`every_tilted_cut_wall_reads_its_truth` fails a shape if any of these
+hold:
+
+- any answer is wrong;
+- any refusal is outside two kinds: `VolumeUncertified`, or an
+  escalation whose predicate is `bool_wall_trim` or
+  `point_in_arc_loop_conic_window` (a planar ellipse face's arc window)
+  with its margin strictly inside `(ε, K·ε)`;
+- the admitted escalations exceed its cap;
+- its answers fall below its floor.
+
+The floor is the fewest answers over the ε rows unset, 1e-6 and 1e-12,
+less 2. A change that turned chart-wall hits into refusals falls
+through it.
+
+| shape | answered (unset / 1e-6 / 1e-12) | floor | escalation cap |
+|---|---|---|---|
+| cut 0.3, below | 334 / 334 / 334 | 332 | 0 |
+| cut 0.3, above | 400 / 400 / 400 | 398 | 0 |
+| corner clip | 680 / 679 / 680 | 677 | 1 |
+| corner clip, the chip | 24 / 23 / 24 | 21 | 1 |
+| tilt 0.9, below | 305 / 305 / 305 | 303 | 0 |
+| tilt 0.9, above | 456 / 456 / 456 | 454 | 0 |
+| slab at tilt 1.0 | 386 / 386 / 386 | 384 | 0 |
+| wedge | 522 / 522 / 522 | 520 | 0 |
+| lens | 61 / 61 / 61 | 59 | 0 |
+| valley at tilt 0.4 | 315 / 315 / 315 | 313 | 0 |
+| ridge at tilt 0.4 | 302 / 302 / 302 | 300 | 0 |
+| valley at tilt 1.1 | 233 / 233 / 233 | 231 | 1 |
+| ridge at tilt 1.1 | 214 / 214 / 214 | 212 | 0 |
+| cut 0.3 minus a box (subtract) | 198 / 198 / 198 | 196 | 0 |
+
+The three admitted escalations are all at ε = 1e-6:
+
+- the clip and the chip each have one: probe (0.8, 0.4, 2.25), pose "0.7
+  about z", `bool_wall_trim`, margin 3.83e-6;
+- the valley at tilt 1.1 has one: probe (0.4, −0.4, 0.25), pose "1.1
+  about (1,2,3)", `point_in_arc_loop_conic_window` on the cut face's
+  ellipse arc, margin 6.4e-6.
+
+All valley and ridge rows answer with 0 wrong.
 
 ## Cone and sphere (S3)
 
@@ -168,10 +232,22 @@ levels) is filed too, citing both reviewers.
     `cyl_wall_sheet` resolves to `Rectangle`; with its radius put in
     band it escalates when asked, and a query that never reaches it
     still answers.
-- The textual call-site count row is deleted (F6i). The cosine-window
-  inventory at `point_on_wall_in_face` is a named list, and the period
-  guard now has one home (`narrower_than_period`), so the fourth
-  restated site is gone.
+- The textual call-site count row is gone. The cosine-window inventory
+  at `point_on_wall_in_face` names every site. Each is marked in its
+  text: a call to `chart_azimuth_margin`, `narrower_than_period` or
+  `chart_dir`, or the period guard's `T::tau() −`.
+  `the_window_construction_sites_are_the_ones_listed` collects the
+  enclosing functions of those marks in `solid_contain.rs` and
+  `contain.rs`, and compares them with the list. It cannot see a site
+  that restates the algebra without any of the four marks, and the
+  inventory says so.
+- The completed list now includes `wall_outline`'s own period guard
+  (kept, because the parity argument's premise is checked where the
+  class is resolved), `sphere_chart_trim`'s meridian span, and the
+  class-question guards in `cone_chart_trim` and `torus_face_windows`.
+  The three remaining written-out chart directions (`point_on_arc`,
+  `point_on_sphere_in_face`, `sphere_chart_trim`) go through
+  `chart_dir`.
 
 ## Mutation table
 
@@ -182,7 +258,7 @@ build real bodies through the split and subtract doors), then reverted.
 | mutant | rows that go red |
 |---|---|
 | M1: sides swapped (count covering pieces ABOVE the hit) | none. **Equivalent**: at a generic ruling the covering count is even, so above-count and below-count have the same parity. Parity carries no side datum, so there is nothing to swap |
-| M1b: junction read as just BEFORE instead of just after | none. **Equivalent**: the argument shows the region is constant across the junction's band on both sides, so either reading is exact |
+| M1b: junction read as just BEFORE instead of just after | none. **Equivalent**: when both incident pieces are on one side of `p`, their parity contribution is the same whichever covers `p`'s ruling, so either reading is exact |
 | M3: every in-class wall read as `Rectangle` | `every_tilted_cut_wall_reads_its_truth`, `the_cut_cylinder_reads_its_truth`, `a_wall_point_across_the_section_is_not_on_the_upper_half` |
 | M4: the `Unsupported` confinement answers every hit a miss | `an_unreadable_outline_refuses_only_within_its_reach`, `a_ringed_outline_trusts_only_its_window` (unit rows only: no door on this tree mints an out-of-class wall) |
 | M6: only the first two covering pieces counted | `every_tilted_cut_wall_reads_its_truth`, `a_stepped_outline_reads_its_notch`, `a_hit_on_a_junction_azimuth_is_decided_at_the_junction` |
@@ -232,31 +308,22 @@ range.
 
 ## Local verification
 
-No `ci-local.sh` and no doc-gate; `CARGO_INCREMENTAL=0`, own target.
+No `ci-local.sh` and no doc-gate; `CARGO_INCREMENTAL=0`, own target. The
+branch has origin/main merged in, including #3304's typed `SCHEDULE`,
+and resolves `contain.rs` onto main's `CurvedPlacement` door.
 
-- `cargo test -p topo --no-fail-fast`: 1512 passed, 0 failed, at
+- `cargo test -p topo --no-fail-fast`: 1540 passed, 0 failed, at
   `CAD_TOLERANCE_EPS` unset, 1e-6 and 1e-12.
-- `cargo test -p sweep --no-fail-fast`: 1673 passed, 0 failed, 7
-  ignored, at unset and 1e-12. At 1e-6 the battery found one failure
-  in `every_tilted_cut_wall_reads_its_truth`: one probe of the corner
-  clip and its chip escalated (`bool_wall_trim`, margin 3.8e-6 inside
-  the 1e-6 run's band). That is a ray landing within the band of a
-  piece's edge, which is a typed refusal and not an answer. The row
-  now admits `Escalated` beside `VolumeUncertified`, and still forbids
-  `WallOutlineUnsupported`, every other refusal and every wrong answer.
-  The pinned suite was re-run green at all three rows after that.
+- sweep, as `cargo nextest run -p sweep --partition count:k/3`, k = 1..3
+  (the whole suite does not fit the build slot's express budget on a
+  shared box): 1698 passed, 0 failed, at each of the three rows.
 - `cargo clippy -p topo -p sweep --all-targets -- -D warnings`: clean.
-- rustdoc on topo:
-  - With the doc gate's own flags (`-D warnings -A
-    rustdoc::private_intra_doc_links`, `--document-private-items
-    --all-features`): clean.
-  - Bare `RUSTDOCFLAGS='-D warnings' cargo doc -p topo --no-deps`: red,
-    and equally red on origin/main. It reports pre-existing private and
-    unresolved links (`attach.rs`, `body.rs`, `boolean/mod.rs`'s
-    `SweepStrategy::Idealized`, …), which
-    `work/ciw/rustdoc-d-warnings-breakages-outside-the-doc-gate` already
-    catalogues.
+- rustdoc on topo with the doc gate's flags (`-D warnings -A
+  rustdoc::private_intra_doc_links`, `--document-private-items
+  --all-features`): clean. A bare `-D warnings` run is red on origin/main
+  too, over links `work/ciw/rustdoc-d-warnings-breakages-outside-the-doc-gate`
+  catalogues.
 - Every `scripts/gates/*.sh`, `--selftest` and real pass, plus
   `probe-suite-census.sh --citations`: all 0.
 - `work.py lint`: ok. `fmt-all.sh --check`: ok.
-- The editor-core concision suites were not built locally (disk).
+- The editor-core concision suites were not built locally.

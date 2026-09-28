@@ -299,8 +299,20 @@ pub enum PointInSolidError {
     },
     /// A ray's hit on a `Cylinder` wall face could land inside it, and
     /// the wall's outline is outside the class the walk reads exactly
-    /// ([`wall_outline`]): a ring, or a boundary edge that is not a
-    /// meridian, a rim or a planar section of the wall.
+    /// ([`wall_outline`]). Every path there:
+    ///
+    /// - the face has a ring;
+    /// - a boundary edge is not a meridian, a rim or a planar section of
+    ///   the wall (including one whose carrier fails a seat check, and a
+    ///   plane parallel to the axis);
+    /// - the chart walk declines the loop: a loop that is not a cycle,
+    ///   or a walk error other than an escalation (an edge with no
+    ///   closed-form chart image);
+    /// - the walk's images do not chain half-edge to half-edge (null
+    ///   scaffolding sits between them);
+    /// - the loop is meridians alone, which bounds nothing;
+    /// - a piece whose azimuth extent decides Zero, which is no graph
+    ///   over the azimuth.
     ///
     /// Confined the way [`Self::EdgeCarrierUnsupported`] is. A hit
     /// definitely outside the face's azimuth window is a miss; so is one
@@ -1078,12 +1090,17 @@ enum WallEdge<T: geom_core::Real> {
 /// - within a meridian run's height span, strictly, it is on the
 ///   meridian: a graze;
 /// - otherwise it must be definitely on ONE side of both incident
-///   pieces' planes. If so, the region is constant across the band of
-///   azimuths around the junction at the hit's height (a definite
-///   margin exceeds the band, and moving through the band moves the
-///   point less than that), so the verdict is the one just past the
-///   junction: a piece counts iff its `lo` end is active. If not, the
-///   hit escalates.
+///   pieces' planes, or it escalates. When both sides agree at `p`, the
+///   parity does not depend on which of the two pieces covers `p`'s
+///   ruling. Where the loop passes through the junction (one piece
+///   left of it, one right), exactly one of them covers, and it counts
+///   the same whichever it is, since both lie on the same side of `p`.
+///   Where the loop turns there (both pieces on one side), both cover
+///   or neither does, and they add 0 or 2, which is even either way. So
+///   any consistent reading of the band gives the true parity; the arm
+///   reads it as just past the junction (a piece counts iff its `lo`
+///   end is active). A meridian run between the pieces changes neither
+///   case, because the hit is outside its span.
 ///
 /// A piece whose two ends are both active is narrower than the band and
 /// escalates. So does a piece whose sub-window the hit is in band of
@@ -2075,30 +2092,52 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// to any of it is a change to every site below. The shared sites
 /// cannot drift; the restated ones must be edited by hand.
 ///
-/// Shared, through [`chart_azimuth_margin`] (the window test) and
-/// [`narrower_than_period`] (its period guard, which
-/// [`chart_azimuth_margin`] asks first):
-/// - this arm — a cylinder wall's window, both classes, and
-///   [`point_on_chart_wall`]'s per-piece sub-windows;
-/// - [`wall_hit`], the same window asked before the class is resolved;
-/// - [`wall_hit_outside_reach`], the window of a wall the arm cannot
-///   read, asked for a miss only when the guard says it can exclude
-///   anything;
+/// **The list is held by a test that names each site's function**
+/// (`wall_section_rows::the_window_construction_sites_are_the_ones_listed`).
+/// Every site is marked in its text: it calls [`chart_azimuth_margin`],
+/// [`narrower_than_period`] or [`chart_dir`] (the one spelling of the
+/// window's mid direction), or it writes the period guard
+/// `Margin::levered(T::tau() − width, …)`. The test collects the
+/// enclosing functions of those marks in this file and in
+/// `contain.rs`, and compares them with this list. A new site that
+/// restates the algebra WITHOUT any of the four marks is the one thing
+/// it cannot see.
+///
+/// Shared, through [`chart_azimuth_margin`] (the window test, whose
+/// period guard is [`narrower_than_period`] and whose mid direction is
+/// [`chart_dir`]):
+/// - this arm — a cylinder wall's window, both classes;
+/// - [`point_on_chart_wall`] — each piece's sub-window, and each
+///   junction's ruling through [`chart_dir`];
+/// - [`wall_hit`] — the same window, asked before the class is resolved;
+/// - [`wall_hit_outside_reach`] — the window of a wall the arm cannot
+///   read, asked for a miss only when [`narrower_than_period`] says it
+///   can exclude anything;
+/// - [`wall_outline`] — [`narrower_than_period`] alone, the parity
+///   argument's premise, checked where the class is resolved (its
+///   callers have asked it too; the class does not lean on them);
 /// - [`point_on_cone_in_face`] (a cone wall's, same lane);
 /// - [`point_on_torus_in_face`], twice — the major azimuth on the axis
 ///   frame, and the minor angle on the meridian frame `(r̂, â)`, which
 ///   is an azimuth in exactly this sense and needs no restatement.
 ///
-/// Restated:
-/// - [`point_on_sphere_in_face`] — the same `mid`/`m̂`/`cos(w/2)`
-///   algebra written out inline, because its window is optional and is
-///   guarded by a POLE test that skips it entirely; the control flow
-///   differs even though the margin does not;
+/// Restated (the mid direction through [`chart_dir`], the comparison or
+/// the guard written out):
+/// - [`point_on_sphere_in_face`] — the same `m̂`/`cos(w/2)` comparison
+///   inline, because its window is optional and is guarded by a POLE
+///   test that skips it entirely; the control flow differs even though
+///   the margin does not;
+/// - [`sphere_chart_trim`] — a meridian edge's own span: the period
+///   guard as a class question, then the comparison run with `r̂ = ±â`
+///   to find a pole inside the edge;
+/// - [`cone_chart_trim`] and [`torus_face_windows`] — the period guard
+///   as a class question (a window a period wide is the wrapped class,
+///   not an escalation);
 /// - [`super::contain::point_on_arc`] (a rim ARC's own angular span,
 ///   boundary walk);
-/// - [`super::contain::curved_face_containment`] (the same period
-///   guard asked as a chart-form question, which is why its answer is
-///   `None` where this one escalates).
+/// - [`super::contain::curved_face_placement`] (the same period guard
+///   asked as a chart-form question, which is why its answer is `None`
+///   where this one escalates).
 #[allow(clippy::too_many_arguments)] // one internal lane, each a named datum
 pub(super) fn point_on_wall_in_face<T: Decide>(
     face: FaceKey,
@@ -2192,15 +2231,19 @@ fn point_on_chart_wall<T: Decide>(
     let mut active = vec![false; junctions.len()];
     for (j, junction) in junctions.iter().enumerate() {
         let m_hat = chart_dir(axis, u_ref, junction.az);
-        if !matches!(
-            decide(
-                "bool_wall_junction",
-                Margin::levered(r_hat.dot(m_hat), radius),
-                band
-            ),
-            Ok(Sign::Positive)
+        match decide(
+            "bool_wall_junction",
+            Margin::levered(r_hat.dot(m_hat), radius),
+            band,
         ) {
-            continue;
+            Ok(Sign::Positive) => {}
+            // The rulings are a quarter turn or more apart: not active.
+            Ok(Sign::Zero | Sign::Negative) => continue,
+            // An in-band COSINE is not an escalation here: it puts the
+            // rulings near a quarter turn apart, where the sine is near
+            // ±1, so the junction is definitely not active whatever the
+            // cosine's sign. The indeterminate is discarded on purpose.
+            Err(_near_a_quarter_turn) => continue,
         }
         let offset = Margin::levered(axis.dot(m_hat.cross(r_hat)), radius);
         if decide("bool_wall_junction", offset, band).map_err(escalate)? != Sign::Zero {
@@ -2357,7 +2400,7 @@ fn narrower_than_period<T: Decide>(
 /// `u_ref·cos u + (â × u_ref)·sin u`. The one spelling of the chart's
 /// azimuth frame, shared by the window construction and the junction
 /// test.
-fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<T> {
+pub(super) fn chart_dir<T: Decide>(axis: Vec3<T>, u_ref: Vec3<T>, u: T) -> Vec3<T> {
     let (s, c) = u.sin_cos();
     u_ref * c + axis.cross(u_ref) * s
 }
@@ -2702,9 +2745,7 @@ pub(super) fn sphere_chart_trim<T: Decide>(
                 // and has no angular gate to test: out of the class.
                 Sign::Zero | Sign::Negative => return Ok(None),
             }
-            let mid = (t0 + t1) * half;
-            let (s_m, c_m) = mid.sin_cos();
-            let m_hat = u_c * c_m + n_c.cross(u_c) * s_m;
+            let m_hat = chart_dir(n_c, u_c, (t0 + t1) * half);
             let (_, c_h) = (width * half).sin_cos();
             for pole in [axis, axis * (T::zero() - T::one())] {
                 match decide(
@@ -2991,10 +3032,7 @@ pub(super) fn point_on_sphere_in_face<T: Decide>(
     .collect();
     if let Some((w_min, w_max)) = trim.az {
         let width = w_max - w_min;
-        let mid = (w_min + w_max) * half;
-        let (s_m, c_m) = mid.sin_cos();
-        let v_ref = axis.cross(u_ref);
-        let m_hat = u_ref * c_m + v_ref * s_m;
+        let m_hat = chart_dir(axis, u_ref, (w_min + w_max) * half);
         let (_, c_h) = (width * half).sin_cos();
         // The azimuth direction is the radial one, and at a POLE there
         // is none: every azimuth meets there, so the window cannot

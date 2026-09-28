@@ -606,10 +606,7 @@ pub(super) fn point_on_arc<T: Decide>(
         return Ok(Some(false));
     };
     // On the carrier: the angular window decides which arc of it.
-    let mid = (t0 + t1) * half;
-    let (s_m, c_m) = mid.sin_cos();
-    let v_ref = axis.cross(u_ref);
-    let m_hat = u_ref * c_m + v_ref * s_m;
+    let m_hat = super::solid_contain::chart_dir(axis, u_ref, (t0 + t1) * half);
     let (_, c_h) = (width * half).sin_cos();
     let r_hat = radial / r_norm;
     match decide(
