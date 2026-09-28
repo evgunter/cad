@@ -1138,3 +1138,8 @@ class of 65 sites is PRED's row.
   - Loosening lives at the import door (ε_in, D7) and at an ε change. A found that `Edit::SetTolerance` already reports the predicates it flips.
   - One sub-choice is left for Ev: whether kernel-limit sites that say "loosen" today (offset-fit stall, mass-props budget, built-curve residual) become "no way through yet" (B leans that way, unsure) or keep "loosen" as a last resort. A did not weigh it.
   - D4 (i) on the `[ev]` branch updated to match (`7b494764a7`). Replied on 3352 with both round-2 For-Ev sections verbatim as A/B. The fork-log row's round-2 entry goes in with Ev's answer.
+- 2026-09-28 15:12 — **Ev ruled on `[ev]` PR 3352.** Ev took the recommendation. Sub-choice: kernel-limit sites with no other recourse keep "loosen the tolerance" as a last resort, saying it may indicate a kernel bug to report.
+  - D4 (i) updated (`8b30f7d6c7`). Fork-log row 5 decision half filled in: round 2, Ev's decision, match (converged; the sub-choice matched neither lean), and A/B = byte 235, A=Fable, B=Opus. The row was renumbered from 3 after main's rows 3–4.
+  - (The tool classifier was down 15:13–~16:00, which delayed this.)
+  - `certify-escalation…` is set `needs_ev: false` and back to dispatched. PR 3351's lane is briefed to reshape to the rule: route by `CertCheck` with a pass set, siblings through the same entry, residuals take the defect or last-resort ending, and `classify_certify` reads the same routing.
+  - Filed `offset-meters-follow-the-d4-recourse-ruling` (P3/M; the 3347 follow-up) and `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E).
