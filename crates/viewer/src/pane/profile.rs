@@ -789,7 +789,7 @@ mod verdict_tests {
     /// hold the commit.
     #[test]
     fn an_unfinished_chain_is_quiet_and_holds_the_commit() {
-        let open = path(vec![at(0.0, 0.0), line_to(0.01, 0.0)]);
+        let open = path(vec![at(0.0, 0.0), line_to(0.01, 0.0), line_to(0.01, 0.01)]);
         assert!(
             matches!(&open, Ok(drawn) if drawn.has_open_chain()),
             "a fixture that draws an open chain: {open:?}"
