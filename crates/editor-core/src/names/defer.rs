@@ -8,24 +8,26 @@
 //! refuses a second row under a name it already carries
 //! (`DuplicateName`, whose contract is "the no-silent-aliasing bug"),
 //! and the members of an `Entry::Tied` row all carry the SAME name. So
-//! a row whose name descends from a tie is DEFERRED here, and so is
-//! every candidate of a tie an op mints itself ([`mint_candidates`]);
-//! both are flushed as a set at a stage boundary.
+//! rows are written by one of three routes, decided by how the row's
+//! name relates to its operand's:
 //!
-//! Rows that do not descend from a tie keep going through `insert`
-//! directly, so a genuine aliasing bug is still a typed `Duplicate` —
-//! and so is a tie-descended name colliding with a strict one, since
-//! the flush inserts into the same table. "Descends from a tie" is the
-//! operand row's `Tied` entry for an emitter that wraps names.
+//! - **A name the op mints strict**, wrapping an operand name that is
+//!   not tied: straight through `insert`, so a genuine aliasing bug is a
+//!   typed `Duplicate`.
+//! - **A name the op mints under a tie** — wrapping a tied operand name
+//!   (B1), or several equally admissible candidates of its own (A2,
+//!   [`mint_candidates`]): DEFERRED, and flushed at a stage boundary
+//!   through [`mint_into`], which numbers the candidates afresh as the
+//!   name is fresh.
+//! - **The operand's own name, carried VERBATIM** — a split's intact
+//!   pass-through, every row of the product gather: DEFERRED with the
+//!   [`Candidate`] the operand row gave the entity (N4, "A tie's
+//!   candidates keep their identity"), under [`TieRows::carry`]'s one
+//!   rule, a (name, candidate) pair carried at most once, and flushed
+//!   through [`narrow_into`], which keeps each number.
 //!
-//! **A verbatim carry keeps the candidate** (N4, "A tie's candidates
-//! keep their identity"). A row carried under its operand's own name —
-//! a split's intact pass-through, every row of the product gather — is
-//! deferred with the [`Candidate`] its operand row gave the entity, and
-//! [`TieRows::carry`] holds the one rule: a (name, candidate) pair is
-//! carried at most once. Different candidates of one tie merge back
-//! into the tie ([`narrow_into`]). A wrapped name is a new name, so the
-//! flush numbers its candidates afresh ([`mint_into`]).
+//! Every flush inserts into the same table as the strict route, so a
+//! deferred name colliding with a strict one is a typed `Duplicate` too.
 //!
 //! **One implementation, not a shape to copy.** This module exists
 //! because `emit_fillet` was written without the deferral and #708

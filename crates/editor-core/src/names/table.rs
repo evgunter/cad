@@ -416,12 +416,15 @@ impl NameTable {
                 name: Box::new((*name).clone()),
             });
         }
-        let ks = (0..ents.len()).map(u32::try_from).collect::<Result<_, _>>();
-        let Ok(ks) = ks else {
-            return Err(DuplicateName {
-                name: Box::new((*name).clone()),
-            });
-        };
+        // Each candidate is a distinct live entity, so a tie of more
+        // than `u32::MAX` of them needs that many entities in memory at
+        // once, which no evaluation can hold.
+        let ks = (0..ents.len())
+            .map(|k| {
+                u32::try_from(k)
+                    .unwrap_or_else(|_| unreachable!("a tie of more than u32::MAX live candidates"))
+            })
+            .collect();
         self.write_candidates(name, ents, ks)
     }
 
@@ -831,5 +834,94 @@ mod tests {
             "a clone re-seals, so a row it gained is stamped"
         );
         every_pair_agrees(&handles(&grown));
+    }
+}
+
+#[cfg(test)]
+mod carrying_door {
+    //! **The carrying door's own invariant**: a (name, candidate) pair
+    //! names one entity, whichever writer hands the list in. The
+    //! product gather refuses a repeat before it reaches here (and names
+    //! the root that carried it); this door is what holds the invariant
+    //! for every other writer — a split's flush, `project`.
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use super::{Candidate, EntityKey, EntityRef, Entry, NameTable};
+    use crate::names::role::{EntityKind, NameRef, RoleSeg, StableName};
+    use crate::node::RecipeNodeId;
+    use Candidate::{Of, Only};
+
+    fn name() -> NameRef {
+        NameRef::new(StableName {
+            kind: EntityKind::Face,
+            node: RecipeNodeId(3),
+            path: vec![RoleSeg::OutputBody],
+        })
+    }
+
+    fn face(i: u64) -> EntityRef {
+        EntityRef {
+            body: 0,
+            key: EntityKey::Face(topo::FaceKey::from(slotmap::KeyData::from_ffi(i))),
+        }
+    }
+
+    fn write(pairs: Vec<(Candidate, EntityRef)>) -> Option<NameTable> {
+        let mut t = NameTable::new();
+        t.insert_candidates_ref(name(), pairs).ok().map(|()| t)
+    }
+
+    #[test]
+    fn the_carrying_door_refuses_what_would_name_one_pair_twice() {
+        let refused = [
+            ("no candidate at all", vec![]),
+            (
+                "one candidate twice",
+                vec![(Of(1), face(1)), (Of(1), face(2))],
+            ),
+            ("one entity twice", vec![(Of(0), face(1)), (Of(1), face(1))]),
+            (
+                "a strict name twice",
+                vec![(Only, face(1)), (Only, face(2))],
+            ),
+            (
+                "strict, then a candidate",
+                vec![(Only, face(1)), (Of(0), face(2))],
+            ),
+            (
+                "a candidate, then strict",
+                vec![(Of(0), face(1)), (Only, face(2))],
+            ),
+            (
+                "an edge under a face name",
+                vec![(
+                    Of(0),
+                    EntityRef {
+                        body: 0,
+                        key: EntityKey::Edge(topo::EdgeKey::from(slotmap::KeyData::from_ffi(1))),
+                    },
+                )],
+            ),
+        ];
+        for (what, pairs) in refused {
+            assert!(write(pairs).is_none(), "{what} must refuse");
+        }
+    }
+
+    #[test]
+    fn the_carrying_door_keeps_each_number() {
+        let one = write(vec![(Of(4), face(1))]).expect("one carried candidate");
+        assert!(matches!(one.entry_of(&name()), Some(Entry::Unique(_))));
+        assert_eq!(one.candidate_of(&name(), &face(1)), Some(Of(4)));
+
+        let strict = write(vec![(Only, face(1))]).expect("a strict row");
+        assert_eq!(strict.candidate_of(&name(), &face(1)), Some(Only));
+
+        // Handed in out of entity order: the numbers follow their
+        // entities, not the stored order.
+        let tie = write(vec![(Of(0), face(9)), (Of(1), face(2))]).expect("two candidates");
+        assert!(matches!(tie.entry_of(&name()), Some(Entry::Tied(es)) if es.len() == 2));
+        assert_eq!(tie.candidate_of(&name(), &face(9)), Some(Of(0)));
+        assert_eq!(tie.candidate_of(&name(), &face(2)), Some(Of(1)));
     }
 }
