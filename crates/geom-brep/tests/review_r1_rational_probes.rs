@@ -1030,7 +1030,7 @@ fn probe_determinism_bits() {
 /// with the independent evaluator.
 #[test]
 fn diag_refine_half_circle() {
-    use geom_core::spline::algebra::refine_plan;
+    use geom_core::spline::algebra::{GridSkip, domain_grid_points, refine_plan_homogeneous};
     let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
     let pts = [(1.0, 0.0), (1.0, 1.0), (0.0, 1.0), (-1.0, 1.0), (-1.0, 0.0)];
     let ws = [1.0, W2, 1.0, W2, 1.0];
@@ -1040,11 +1040,8 @@ fn diag_refine_half_circle() {
         .zip(&ws)
         .map(|((x, y), w)| [x * w, y * w, *w])
         .collect();
-    let add: Vec<f64> = (1..16)
-        .map(|k| k as f64 / 16.0)
-        .filter(|t| !kv.knots().contains(t))
-        .collect();
-    let plans = refine_plan(&kv, &vec![1.0; 5], &add).unwrap();
+    let add = domain_grid_points(&kv, 16, GridSkip::BitEqual);
+    let plans = refine_plan_homogeneous(&kv, &add).unwrap();
     let mut cur_kv = kv.clone();
     for plan in &plans {
         hom = plan.apply_points(&hom, [f64::NAN; 3], |x, y, l| {

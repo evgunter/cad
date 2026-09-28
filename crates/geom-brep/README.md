@@ -338,7 +338,8 @@ consumer's, discharged at `topo::offset_nappe::face_nappe` for every
 door that needs it). Refusals are named predicates over the *realized*
 stored float,
 decided before any mint: `offset_radius_floor` (margin `radius + d`;
-`OffsetError::RadiusFloor`) and `offset_torus_ring` (margin
+`OffsetError::RadiusFloor`) and `ring_torus_convention` (`geom::ring_torus`,
+the convention's one home, on the realized minor: margin
 `major − (minor + d)`; `TorusRing`). The cone has no door predicate
 because nothing stored degenerates; whether a face's `v`-window crosses
 the shifted apex is the consumer's question (`offset_apex_window` in

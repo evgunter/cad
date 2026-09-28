@@ -262,3 +262,12 @@ row's threshold is monotone in the wrong direction; stale variant docs; two
 near-parallel torus reach gates) are an immediate follow-up. DR-11 carries
 the escape line. Filed:
 `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`.
+
+## 2026-09-28 — the chord rule and the ring convention land (PR 3330)
+
+A dual review (DR-14): both APPROVE-WITH-FIXES, no MAJOR, tally 0, fair.
+The chord relaxation's soundness argument held under about 2,300 adversarial
+ops. The fix pass moved the ring convention's one home down to `geom`, so
+`spiric` could reach it. The ∖/∩ torus roster is parked on the interior-loop
+row's section certificate. Hosted CI is re-run on the head with the stopgap
+merged in.

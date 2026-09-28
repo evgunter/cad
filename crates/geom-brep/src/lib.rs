@@ -91,6 +91,10 @@ pub use edge_nurbs::{PlaneNurbsLimbs, PlaneNurbsRefusal, plane_nurbs_limbs};
 pub use enters::{
     EntersMaterial, OutwardNormal, ReferenceNormal, enters_material, enters_material_order2,
 };
+/// The ring-torus convention's one home is `geom` (below this crate, so
+/// the spiric carrier's constructor reads it too); re-exported so the
+/// doors above read it by the name they already use.
+pub use geom::ring_torus;
 pub use implicit::{
     ARC_RESIDUAL_SAMPLES, circle_arc_residual_range, circle_residual_curvature_bound,
     circle_residual_extremes, cone_elevation, curvature_lever_arm, implicit_gradient,
