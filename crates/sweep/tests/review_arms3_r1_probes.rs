@@ -430,6 +430,8 @@ fn a_chamfer_patch_vertex_keeps_its_n_edge_vertex_refusal() {
 
 /// A barrel whose wall is a TORUS (an off-axis profile arc revolved),
 /// capped by plane annuli. Its rims are torus×plane — no arm.
+/// NOT `common::torus_walls::torus_barrel`: an annular barrel of another
+/// size, this suite's own.
 fn torus_barrel() -> Body<f64> {
     let c = Point2::new(0.9 - 0.0325f64.sqrt(), 0.3);
     let lo = Point2::new(0.9, 0.0);
