@@ -1,8 +1,10 @@
-//! **Every op that could mint a wedge-0/2π edge, at its door** (D1
-//! tier 3). A cusp or slit is legal at rest iff jet-determinate, so
-//! tier 3 no longer refuses one nobody declared: the op that could
-//! mint it owns that refusal, and the intent is declared where the
-//! tangency is created. The audit that places each door is
+//! **The wedge-end doors that need a curved body** (D1 tier 3): the
+//! split's `SectionCusp` refusal and its counter-rows, the curved
+//! boolean's refusals of an undeclared kiss, and the blend and shell
+//! consumers of a declared cusp body. A cusp or slit is legal at rest
+//! iff jet-determinate, so tier 3 no longer refuses one nobody
+//! declared: the op that could mint it owns that refusal. The audit
+//! that places every op's door, including those pinned elsewhere, is
 //! `work/gather/every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one.md`.
 //!
 //! The split and boolean doors are `topo`'s; their rows live here
@@ -173,6 +175,56 @@ fn a_split_through_the_hole_or_across_a_declared_cusp_still_cuts() {
             "{side}: the tangent edge is the declared strut, {tangent:?}"
         );
     }
+}
+
+/// **A π seam at the cut is not a wedge end, and cuts.** The rounded
+/// shoulder: a quarter arc centred at the origin runs from the corner
+/// `(0,1)` down to `(-1,0)`, so `y = 1` is tangent to its wall along
+/// the vertex ruling — the hole-wall row's shape exactly — but here the
+/// wall's material and the section's lie on the SAME side (aligned
+/// normals): the piece below meets the cut in a smooth seam. Only the
+/// material pairing tells the two apart, and this row fails a door
+/// that decides by surface kind.
+#[test]
+fn a_split_tangent_to_a_rounded_shoulder_cuts_at_a_seam() {
+    let bulge = (std::f64::consts::PI / 8.0).tan();
+    let shoulder = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 2.0), 0.0),
+        (Point2::new(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 1.0), bulge),
+    ]);
+    let body = extruded(vec![shoulder], 0.0, 1.0).body;
+    let on_the_ruling = |p: &Point3<f64>| p.x.abs() < 1e-9 && (p.y - 1.0).abs() < 1e-9;
+    // Normal `+y` refuses earlier, at the reduction
+    // (`ConsecutiveOnSectors`), for a reason of its own:
+    // `work/reach/split-shoulder-refuses-one-orientation-at-the-reduction.md`.
+    let plane = SplitPlane {
+        origin: Point3::new(0.0, 1.0, 0.0),
+        normal: Vec3::new(0.0, -1.0, 0.0),
+    };
+    let halves = topo::split(&body, &plane, tol())
+        .unwrap_or_else(|e| panic!("a seam at the cut must cut, got {e:?}"));
+    let mut seams = 0;
+    for (side, part) in [("above", &halves.above), ("below", &halves.below)] {
+        let piece = part
+            .body()
+            .unwrap_or_else(|| panic!("material {side} y = 1"));
+        assert_eq!(
+            topo::validate_geometric(piece, tol()),
+            Ok(()),
+            "{side} is tier-3 valid"
+        );
+        for (_, ends) in tangent_edges(piece) {
+            assert!(
+                ends.iter().all(on_the_ruling),
+                "{side}: a tangent edge off the ruling, {ends:?}"
+            );
+            seams += 1;
+        }
+    }
+    assert_eq!(seams, 1, "the one seam the cut mints");
 }
 
 // ---------------------------------------------------------------------

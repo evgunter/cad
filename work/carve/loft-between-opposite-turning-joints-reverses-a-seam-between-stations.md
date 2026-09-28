@@ -1,7 +1,7 @@
 ---
 id: loft-between-opposite-turning-joints-reverses-a-seam-between-stations
 kind: issue
-title: A loft whose sections turn one joint opposite ways reverses that seam between stations, minting an undeclared wedge end, and tier 3 says Ok
+title: A loft whose sections turn one joint opposite ways folds that seam through wedge 0 between stations (a self-overlap), and tier 3 says Ok
 status: open
 opened: 2026-09-28
 priority: P2
@@ -14,8 +14,12 @@ refs: [every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one, self-overla
 Found by the GATHER wedge-end door audit
 (`work/gather/every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one.md`).
 D1 tier 3 makes an op that could mint a wedge-0/2π edge its inputs
-never declared own that refusal. The loft can mint one, and it has no
-door.
+never declared own that refusal. The witness below is a loft seam
+whose wedge passes through 0 and on to 2π between stations. That is a
+fold, and the mid-station section is not simple, so it is a
+self-overlap rather than a jet-determinate cusp. **It may belong with
+`self-overlapping-spines-build-and-validate`**, since both are a loft
+that builds a self-overlapping body and validates.
 
 ## The witness
 
@@ -68,6 +72,14 @@ Executed on the audit's branch.
   wedge varies along it. The retired `Lofted::declared_contacts`
   docs (PR 3362) named that case too.
 
-Related: `self-overlapping-spines-build-and-validate` is the same
-family (a loft that builds a self-overlapping body and validates).
-This row is the wedge-end instance, which D1 assigns to the op.
+## A witness that stays simple at every station: not found
+
+I tried to design one and did not find it. The attempt: arc edges
+instead of lines, so that the mid-station reversal would be a
+line–arc cusp rather than overlapping lines. It fails because a joint
+that goes from convex (a spike, material inside the thin wedge) to
+reflex (a notch, material wrapped round the joint) needs the rest of
+the loop on opposite sides of the joint in the two sections. The
+interpolated loop then crosses itself somewhere between them. So a
+jet-determinate cusp minted by the loft, with every station simple,
+is unwitnessed. Only the self-overlapping fold is witnessed.
