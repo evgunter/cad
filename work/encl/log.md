@@ -1143,3 +1143,4 @@ class of 65 sites is PRED's row.
   - (The tool classifier was down 15:13–~16:00, which delayed this.)
   - `certify-escalation…` is set `needs_ev: false` and back to dispatched. PR 3351's lane is briefed to reshape to the rule: route by `CertCheck` with a pass set, siblings through the same entry, residuals take the defect or last-resort ending, and `classify_certify` reads the same routing.
   - Filed `offset-meters-follow-the-d4-recourse-ruling` (P3/M; the 3347 follow-up) and `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E).
+- 2026-09-28 — `[ev]` PR 3352 merged (`e31a096566`, docs-only green). Dispatched `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E) on `encl/kernel-limit-last-resort`: Opus, style review. `offset-meters-follow-the-d4-recourse-ruling` waits for 3351's reshape, whose pattern it follows.
