@@ -575,3 +575,23 @@ Signed: (CONTACT orchestrator)
   (P3).
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — container restart; CONTACT-8 landing check red
+
+- **A container restart** stopped the CONTACT-7 fix-pass lane (its
+  clone survived clean at its merge of main) and my CONTACT-8 landing
+  run. The lane was resumed, and the run restarted.
+- **CONTACT-8's landing check went red on four `editor-core` rows** the
+  lane's subset runs never ran. Caps that used to be skipped now merge,
+  so document unions go further: three rows hit a naming-emission error
+  ("merged face has several same-side constituents at a seam edge"),
+  and the three-neighbour star now fuses where it refused. The lane is
+  back on it, to root-cause each and fix at its home or re-sign with
+  ground truth.
+- **Lesson** (third time today, after CONTACT-3's concision row): a
+  unit that changes kernel behaviour runs ALL of `editor-core`, not a
+  subset. Briefs now say so.
+- **CONTACT-7's dual** is coded (byte 143, odd: A = R2), with no tally
+  candidate; the pair advances the found-a-MAJOR count to 5 at merge.
+
+Signed: (CONTACT orchestrator)
