@@ -260,7 +260,7 @@
 use core::fmt;
 
 use geom::Surface;
-use geom_brep::certify::Reading;
+use geom_brep::recourse::Reading;
 use geom_brep::{CertifyError, EdgeCurve, EdgeCurveSpec};
 use geom_core::{Band, Decide, Point3, Real, Tol};
 

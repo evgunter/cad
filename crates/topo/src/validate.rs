@@ -597,9 +597,9 @@ pub enum CensusUnsupportedCause {
     /// The census asks [`contfp`](crate::boolean::contfp) whether a
     /// vertex, an edge midpoint or a crossing point lies inside a
     /// planar face. Three of that door's arms carry no measured
-    /// quantity at all — an arc-bearing loop no walk expresses, an
-    /// exhausted parity schedule, unwalkable topology — and the census
-    /// used to answer all three with
+    /// quantity at all — a spiric or spline edge within the point's
+    /// reach, an exhausted parity schedule, unwalkable topology — and
+    /// the census used to answer all three with
     /// [`ValidationError::CensusEscalated`] over an
     /// [`Indeterminate`] it MINTED: predicate `pm_census_containment`,
     /// margin [`MarginDiag::Invalid`](geom_core::MarginDiag::Invalid).
@@ -2253,7 +2253,7 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::certify::Reading;
+    use geom_brep::recourse::Reading;
     use std::borrow::Cow;
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
@@ -2370,37 +2370,41 @@ fn classify_offset_fit(
     e: &geom_brep::OffsetFitError,
 ) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::OffsetFitError as O;
-    use geom_brep::offset_meters::{
-        CURVATURE_HEADROOM_RECOURSE, MeterError as M, NORMAL_FLOOR_RECOURSE, escalation_recourse,
-    };
+    use geom_brep::offset_meters::MeterError as M;
     // Each recourse is the one the fit's own message names for the same
     // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
     const DRIFT: &str =
         "the fitted surface does not stay within the tolerance of the one it stands for";
     let (why, recourse) = match e {
-        // The meters' escalation reads their own routing table; a name
-        // the table does not hold says so rather than borrowing a lever.
-        O::Meter(M::Escalated { source }) => {
-            let recourse = match escalation_recourse(source.predicate) {
-                Some(lever) => own_close(&source.margin, lever).into(),
-                None if source.margin == geom_core::MarginDiag::Invalid => DEFECT.into(),
-                None => geom_core::MissingRecourse(source.predicate)
-                    .to_string()
-                    .into(),
+        // Each meter's refusal ends as its decision gives its verdict,
+        // read at rest: the one table the fit's own message reads.
+        O::Meter(m) => {
+            // The lead says what the verdict decided: a zero verdict is
+            // band-decided, so it says "may".
+            use geom_brep::offset_meters::Refused as R;
+            let why = match m {
+                M::Escalated { .. } => {
+                    "whether this face can be offset is too close to call at this tolerance"
+                }
+                M::NormalFloor {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the face's surface normal may degenerate, so it may have no offset",
+                M::NormalFloor {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the face's surface normal degenerates, so it has no offset",
+                M::CurvatureHeadroom {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the offset may fold over itself on this face",
+                M::CurvatureHeadroom {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the offset folds over itself on this face",
             };
-            return (
-                "whether this face can be offset is too close to call at this tolerance",
-                recourse,
-            );
+            return (why, m.ending(geom_brep::recourse::Reading::AtRest).into());
         }
-        O::Meter(M::NormalFloor { .. }) => (
-            "the face's surface normal degenerates, so it has no offset",
-            NORMAL_FLOOR_RECOURSE,
-        ),
-        O::Meter(M::CurvatureHeadroom { .. }) => (
-            "the offset folds over itself on this face",
-            CURVATURE_HEADROOM_RECOURSE,
-        ),
         O::BudgetExhausted {
             last_round: geom_brep::LastRound::Improved,
             ..
@@ -2522,10 +2526,9 @@ fn classify_contain(e: &ContainError) -> (&'static str, &'static str) {
         ),
         ContainError::Corrupt => ("its boundary could not be walked", DEFECT),
         ContainError::ArcLoopUnsupported { .. } => (
-            "its boundary is arcs over fewer than three corners, which the check cannot \
-             read as a region",
-            "Recourse: split an arc so the boundary has three corners, or draw the region \
-             as one circle",
+            "its boundary has a spiric or spline edge near a point the check asked about, \
+             which the check cannot yet read across",
+            "Recourse: model the boundary with lines, circles or ellipses",
         ),
     }
 }
@@ -4244,10 +4247,9 @@ pub(crate) fn shell_vertices<'b, T: Real>(
         .filter_map(move |v| vertex_point(body, v))
 }
 
-/// One shell's role, from its own sign walk through `quad` decided by
-/// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
-/// or `None` where the walk refuses or the sign is still undecided when
-/// the schedule runs out.
+/// One shell's role, from its own sign walk through `quad` read by
+/// check 7's [`plus_v_read`], or `None` where the walk refuses or the
+/// sign is still undecided when the schedule runs out.
 pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -4255,18 +4257,13 @@ pub(crate) fn shell_role<T: Decide>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Option<crate::props::ShellRole> {
-    use crate::props::ShellRole;
     crate::props::sign_walk(
         body,
         faces,
         band,
         tol,
         quad,
-        |e| match plus_v_decide(e, band) {
-            PlusVOutcome::Pass => Some(Some(ShellRole::Outer)),
-            PlusVOutcome::Refuse => Some(Some(ShellRole::Void)),
-            PlusVOutcome::Undecided => None,
-        },
+        |e| plus_v_read(e, band).map(Some),
         |_| None,
     )
     .ok()
@@ -4388,26 +4385,39 @@ pub(crate) enum PlusVVerdict {
     Uncomputable(crate::props::MassPropsError),
 }
 
+/// Check 7's reading of one enclosure, as the role
+/// [`crate::props::ShellRole::decided_at`] gives it: the high end under
+/// `positive_volume` first, and the low end under
+/// `positive_volume_enclosure` only when the high end decides nothing.
+fn plus_v_read<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> Option<crate::props::ShellRole> {
+    use crate::props::{BracketEnd, ShellRole};
+    let lever = enclosure.surface_area;
+    let role_at = |end, name, volume| {
+        decide(name, Margin::over_lever(volume, lever), band)
+            .ok()
+            .and_then(|sign| ShellRole::decided_at(end, sign))
+    };
+    role_at(BracketEnd::High, "positive_volume", enclosure.volume_hi).or_else(|| {
+        role_at(
+            BracketEnd::Low,
+            "positive_volume_enclosure",
+            enclosure.volume_lo,
+        )
+    })
+}
+
 fn plus_v_decide<T: geom_core::Decide>(
     enclosure: crate::props::VolumeEnclosure<T>,
     band: Band,
 ) -> PlusVOutcome {
-    let lever = enclosure.surface_area;
-    if let Ok(Sign::Negative) = decide(
-        "positive_volume",
-        Margin::over_lever(enclosure.volume_hi, lever),
-        band,
-    ) {
-        return PlusVOutcome::Refuse;
+    match plus_v_read(enclosure, band) {
+        Some(crate::props::ShellRole::Outer) => PlusVOutcome::Pass,
+        Some(crate::props::ShellRole::Void) => PlusVOutcome::Refuse,
+        None => PlusVOutcome::Undecided,
     }
-    if let Ok(Sign::Positive) = decide(
-        "positive_volume_enclosure",
-        Margin::over_lever(enclosure.volume_lo, lever),
-        band,
-    ) {
-        return PlusVOutcome::Pass;
-    }
-    PlusVOutcome::Undecided
 }
 
 /// **What an enclosure reading means once there is nothing left to
@@ -6117,9 +6127,8 @@ pub(crate) fn tier3_local_checks_marked<
     // `point_in_loop_*` and which this arm pools as a fourth consumer
     // the way `boolean::contfp` and the solid-containment sweep
     // already pool; an arc-bearing loop's rows are
-    // `point_in_arc_loop_*`, pooled with `solid_contain`'s in-face
-    // walk. `ring_nesting`'s doc says why the one-circle class gets no
-    // second instrument (`boolean::contain`'s `disc_side`).
+    // `point_in_arc_loop_*`, pooled with `boolean::contfp` and
+    // `solid_contain`'s in-face walk.
     //
     // The queries are the ring's VERTICES, exact whatever curve joins
     // them, so an arc-bearing RING is decided as readily as a
@@ -7066,25 +7075,11 @@ enum RingNestingVerdict {
 /// loop carries and however many vertices it has. On a loop of lines
 /// it is [`crate::splitting::point_in_loop`] unchanged.
 ///
-/// It is also the instrument for a loop of arcs of ONE circle, which
-/// `boolean::contain`'s `disc_side` decides in one radial margin — one
-/// instrument for every class, rather than two dispatched on the
-/// loop's shape. On that class the two share their band: the walk's
-/// only point-level row there is the radial gap
-/// (`point_in_arc_loop_conic_on`, levered at the radius), the same
-/// quantity as `disc_side`'s margin — computed differently, so the two
-/// can part by an ulp at the band's edge, and no further. Every other
-/// row it decides is about one RAY — a schedule member, a vertex's
-/// line, the circle's roots, an arc's ends, trimmed by distance so that
-/// no row compresses near an end — and an in-band margin there abandons
-/// that ray for the next, never the point (the soundness argument is
-/// at the ray loop of [`crate::splitting::containment::point_in_carrier_loop`]). What `disc_side` has over it is
-/// cost and immunity to a graze, and a schedule exhausted is reported,
-/// never guessed. The corpus-wide agreement of the two was measured
-/// once, by an instrument that did not land; what holds it now is
-/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` (the shape
-/// where they once parted) and the disc-class rows here and in
-/// `topo_ring_nesting`.
+/// It is the walk `boolean::contfp` places a point on a face with, so
+/// check 9 and the census read one loop through one instrument. The
+/// one-circle class is held by
+/// `a_query_near_a_short_arcs_end_is_placed_not_escalated` and the
+/// disc-class rows here and in `topo_ring_nesting`.
 ///
 /// **What the walk cannot read**, and what that costs. An outer edge on
 /// a spiric or spline carrier has no crossing row: the walk answers
@@ -12497,56 +12492,110 @@ mod offset_fit_door_rows {
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 
-    /// The checks window reads the meters' escalation table too, and
-    /// ends each route in its own sentence: the normal floor's split, the
-    /// curvature meter's distance, a poisoned margin's defect ending
-    /// (the file's, since the window reads a body at rest), and the
-    /// named hole for a name no meter raises.
+    /// The checks window renders every meter refusal whole at rest: a
+    /// lead that says what the verdict decided ("may" on a zero
+    /// verdict, which is band-decided), and the ending the meter's own
+    /// decision gives that verdict, the table the fit's message reads
+    /// too — the lever always; the conditional tighten, valued, on a
+    /// band-decided arm with a positive margin; the report clause on a
+    /// zero floor; the lever alone on a sign-certain arm and on a
+    /// straddling margin; and a poisoned margin keeps the lever.
     #[test]
-    fn a_meter_escalation_ends_in_its_routed_sentence() {
+    fn a_meter_refusal_renders_whole_at_rest() {
         use geom_brep::OffsetFitError;
-        use geom_brep::offset_meters::{
-            CURVATURE_HEADROOM_PREDICATE, MeterError, NORMAL_FLOOR_PREDICATE,
-        };
+        use geom_brep::offset_meters::{Meter, MeterError, Refused};
+        use geom_brep::recourse::Classified;
         use geom_core::{Indeterminate, MarginDiag};
-        let says = |predicate, margin| {
+        const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
+        const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
+        const DISTANCE: &str =
+            "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let says = |error| {
             ValidationError::ApproxCertification {
                 face: FaceKey::default(),
-                error: OffsetFitError::Meter(MeterError::Escalated {
-                    source: Indeterminate {
-                        margin,
-                        band: Band::linear(Tol::witness()).unwrap(),
-                        predicate: Some(predicate),
-                    },
-                }),
+                error: OffsetFitError::Meter(error),
             }
             .to_string()
         };
+        let escalated = |meter: Meter, margin| MeterError::Escalated {
+            meter,
+            source: Indeterminate {
+                margin,
+                band,
+                predicate: Some(meter.predicate()),
+            },
+        };
+        let close = "whether this face can be offset is too close to call at this tolerance";
         let wide = MarginDiag::Enclosure {
             lo: -2.0e-9,
             hi: 4.0e-9,
         };
         let rows = [
             (
-                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Value(5.0e-9)),
-                "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
-                 tolerance",
+                says(escalated(Meter::NormalFloor, MarginDiag::Value(5.0e-9))),
+                format!(
+                    "{LEAD}: {close}. {SPLIT}, or, if this thinness is intended, tighten the \
+                     tolerance below 5e-10 m"
+                ),
             ),
             (
-                says(CURVATURE_HEADROOM_PREDICATE, wide),
-                "Recourse: use an offset distance of smaller magnitude, or lower the tolerance",
+                says(escalated(Meter::CurvatureHeadroom, wide)),
+                format!("{LEAD}: {close}. {DISTANCE}"),
             ),
             (
-                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Invalid),
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                says(escalated(Meter::NormalFloor, MarginDiag::Invalid)),
+                format!(
+                    "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
+                     kernel bug worth reporting"
+                ),
             ),
             (
-                says("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
-                "no recourse specific to predicate 'roster_unknown_probe' is recorded",
+                says(MeterError::NormalFloor {
+                    floor: 1.0e-9,
+                    speed_lever: 2.0,
+                    verdict: zero(5.0e-10),
+                }),
+                format!(
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::NormalFloor {
+                    floor: 0.0,
+                    speed_lever: 2.0,
+                    verdict: zero(0.0),
+                }),
+                format!(
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}; if it has none, this may indicate a kernel bug worth reporting"
+                ),
+            ),
+            (
+                says(MeterError::CurvatureHeadroom {
+                    reach: 0.5,
+                    kappa: (2.0, 0.5),
+                    verdict: zero(5.0e-10),
+                }),
+                format!(
+                    "{LEAD}: the offset may fold over itself on this face. {DISTANCE}, or, if \
+                     this clearance is intended, tighten the tolerance below 5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::CurvatureHeadroom {
+                    reach: 0.5,
+                    kappa: (2.0, 0.5),
+                    verdict: Refused::Negative { margin: -0.1 },
+                }),
+                format!("{LEAD}: the offset folds over itself on this face. {DISTANCE}"),
             ),
         ];
-        for (msg, ending) in rows {
-            assert!(msg.ends_with(ending), "{msg}");
+        for (msg, want) in rows {
+            assert_eq!(msg, want);
         }
     }
 

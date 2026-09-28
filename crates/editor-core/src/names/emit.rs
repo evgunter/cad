@@ -265,6 +265,26 @@ pub enum NamingError {
         /// The rim the read-through offered, in that operand's body.
         rim: EdgeKey,
     },
+    /// A boolean's chord from a MERGED face that holds SEVERAL
+    /// constituents on the side the chord reads through to — the third
+    /// case the merged-chord rules do not cover, a sibling word because
+    /// its subject is the merged face's constituents, not a rim.
+    ///
+    /// A chord between a merged face and an unmerged one is read
+    /// through to the merged face's one constituent on the other side.
+    /// A declared union can merge several faces of ONE operand into one
+    /// face — two members of an assembly glued across a declared wall,
+    /// say — and then nothing says which of them the chord lies on. The
+    /// body is sound; what is missing is a rule that picks the
+    /// constituent (a geometric one, as `chord_on_rim` is for a rim).
+    MergedChordConstituents {
+        /// The result-body edge.
+        edge: EdgeKey,
+        /// The merged face, a result-body key.
+        face: FaceKey,
+        /// How many distinct constituents it holds on that side.
+        several: usize,
+    },
     /// A chain along a seam line whose direction cannot be read: the
     /// two faces of the seam edge, as `node`'s table names them, do not
     /// settle which of them is the `a` side of the pair the edge's name
@@ -480,6 +500,16 @@ impl core::fmt::Display for NamingError {
                 f,
                 "{UNRULED_FRAMING}: seam chord {edge:?} lies between two merged faces and is \
                  the join's own edge, so neither face nor key says which operand's rim it is"
+            ),
+            Self::MergedChordConstituents {
+                edge,
+                face,
+                several,
+            } => write!(
+                f,
+                "{UNRULED_FRAMING}: seam chord {edge:?} borders merged face {face:?}, which \
+                 holds {several} faces of the operand the chord reads through to, and no rule \
+                 picks the one it lies on"
             ),
             Self::SeamLineSides { node, edge } => write!(
                 f,
@@ -1689,6 +1719,14 @@ mod display_tests {
                 vec!["31", "each side of its recorded pair"],
             ),
             (
+                NamingError::MergedChordConstituents {
+                    edge: two_edges().0,
+                    face: FaceKey::default(),
+                    several: 2,
+                },
+                vec!["merged face", "holds 2 faces", "no rule picks"],
+            ),
+            (
                 NamingError::MemberEdgeTied {
                     member: RecipeNodeId(37),
                     edge: Box::new(StableName {
@@ -1753,6 +1791,7 @@ mod display_tests {
                 | NamingError::SharedRim { .. }
                 | NamingError::MergedChord { .. }
                 | NamingError::MergedChordOffRim { .. }
+                | NamingError::MergedChordConstituents { .. }
                 | NamingError::SeamLineSides { .. }
                 | NamingError::MemberEdgeTied { .. } => Some(UNRULED_FRAMING),
                 NamingError::Band(_)
@@ -1778,6 +1817,7 @@ mod display_tests {
                 NamingError::SeamLineSides { .. } => 13,
                 NamingError::MemberEdgeTied { .. } => 14,
                 NamingError::NarrowBand { .. } => 15,
+                NamingError::MergedChordConstituents { .. } => 16,
             }
         };
         let covered: std::collections::BTreeSet<usize> =
