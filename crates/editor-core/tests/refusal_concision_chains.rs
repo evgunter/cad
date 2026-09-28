@@ -267,23 +267,34 @@ fn every_node_refusal_renders_within_the_budget() {
 /// repair would name nothing the user supplied, and those rows end in
 /// the kernel-defect ending instead.
 ///
-/// `Meter/Escalated` ends zero times: it forwards `Indeterminate`'s
-/// shared menu, which is unlabelled and offers a declaration a single
-/// face's meter has no object for; filed on ENCL's slate
-/// (`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`).
-/// The row holds that at zero so its repair has to come back here.
+/// `Meter/Escalated` routes its ending by the meter that escalated and
+/// by whether the margin was a number at all; each route's row ends in
+/// its own repair, never the coincidence menu (a face's meter has
+/// nothing to declare).
 #[test]
 fn every_offset_fit_refusal_ends_exactly_once() {
     let rows = offset_fit_routes();
     assert!(!rows.is_empty(), "the offset-fit roster is empty");
+    let routed = meter_escalations();
+    let mut pinned = 0;
     for (name, kind) in rows {
         let text = as_the_viewer_shows_it(kind);
-        let want = usize::from(!name.contains("/Meter/Escalated"));
         assert_eq!(
             test_utils::refusal::recourse_markers(&text),
-            want,
+            1,
             "{name}: {text}"
         );
+        assert!(
+            !text.contains(geom_core::COINCIDENCE_RECOURSE),
+            "{name}: {text}"
+        );
+        if let Some((_, _, ending)) = routed
+            .iter()
+            .find(|(route, _, _)| name.ends_with(&format!("/Meter/Escalated/{route}")))
+        {
+            assert!(text.ends_with(ending), "{name}: {text}");
+            pinned += 1;
+        }
         let arm = name
             .strip_prefix("Shell/Face/Fit/")
             .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
@@ -295,6 +306,8 @@ fn every_offset_fit_refusal_ends_exactly_once() {
             );
         }
     }
+    // Both routes raise `Meter`, so every routed ending has two rows.
+    assert_eq!(pinned, 2 * routed.len(), "a routed meter row went missing");
 }
 
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
@@ -933,6 +946,46 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     .collect()
 }
 
+/// One `Meter/Escalated` sample per ending it routes to, with that
+/// ending: each meter's lever on an undecided margin (in band, and an
+/// enclosure too wide to classify), and the dead end on a poisoned one —
+/// on the curvature meter, whose lever it must override.
+fn meter_escalations() -> Vec<(&'static str, geom_brep::OffsetFitError, &'static str)> {
+    use geom_brep::offset_meters::{
+        CURVATURE_HEADROOM_PREDICATE as CURVATURE, MeterError, NORMAL_FLOOR_PREDICATE as FLOOR,
+    };
+    use geom_core::{Indeterminate, MarginDiag};
+    const DISTANCE: &str =
+        "Recourse: use an offset distance of smaller magnitude, or lower the tolerance";
+    const SPLIT: &str =
+        "Recourse: split the face clear of any pole, cusp or pinch, or lower the tolerance";
+    let escalated = |predicate, margin| {
+        geom_brep::OffsetFitError::Meter(MeterError::Escalated {
+            source: Indeterminate {
+                margin,
+                band: payloads::band(),
+                predicate: Some(predicate),
+            },
+        })
+    };
+    let in_band = MarginDiag::Value(5.0e-9);
+    let wide = MarginDiag::Enclosure {
+        lo: -2.0e-9,
+        hi: 4.0e-9,
+    };
+    vec![
+        ("curvature", escalated(CURVATURE, in_band), DISTANCE),
+        ("curvature-enclosure", escalated(CURVATURE, wide), DISTANCE),
+        ("floor", escalated(FLOOR, in_band), SPLIT),
+        ("floor-enclosure", escalated(FLOOR, wide), SPLIT),
+        (
+            "invalid",
+            escalated(CURVATURE, MarginDiag::Invalid),
+            geom_core::KERNEL_DEFECT_ENDING,
+        ),
+    ]
+}
+
 /// Every `geom_brep::OffsetFitError` arm, through each feature-tree
 /// route that can raise it.
 ///
@@ -967,11 +1020,13 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 /// The roster is `topo`'s: every `OffsetFitError` sample
 /// `validation_error_samples` carries, which `topo`'s coverage row holds
 /// complete over the enum's variants, over `MeterError`'s and (by
-/// `strum`) over `PatchBoundError`'s.
+/// `strum`) over `PatchBoundError`'s. `Meter/Escalated` routes its
+/// ending by predicate and margin, so the rows add one per route
+/// ([`meter_escalations`]).
 fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     use geom_brep::OffsetFitError as O;
     use topo::{FaceKey, ReplaceFaceError, ShellError};
-    let roster: Vec<(String, O)> = topo::test_support::validation_error_samples()
+    let mut roster: Vec<(String, O)> = topo::test_support::validation_error_samples()
         .into_iter()
         .filter_map(|(_, e)| match e {
             topo::ValidationError::ApproxCertification { error, .. } => Some(error),
@@ -1016,6 +1071,11 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
             "the roster carries {have} OffsetFitError::{arm} sample(s), under {samples}"
         );
     }
+    roster.extend(
+        meter_escalations()
+            .into_iter()
+            .map(|(route, source, _)| (format!("Meter/Escalated/{route}"), source)),
+    );
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
