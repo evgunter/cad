@@ -1593,15 +1593,9 @@ fn classify_replay<T: geom_core::Decide>(
     // these arms, not that none can. Deleting them is a behaviour
     // change of its own — read (2) speaks for the log's FIRST
     // escalation where an arm speaks for the one the error carried, and
-    // those differ on a node that recovered from an earlier one, and on
-    // one whose error a later definite reading renamed (the tangency
-    // certificate names a definite first-order defect after its
-    // second-order margin escalated, so the log's first escalation is
-    // `tangent_second_order` while the error is `TangentParallel`:
-    // `work/encl/driver-escalation-log-names-a-renamed-tangent-refusal-osculating.md`)
-    // — so it
+    // those differ on a node that recovered from an earlier one — so it
     // wants its own red-first row and its own measurement, which
-    // `work/props/should-classify-replays-error-enum-arms-be-deleted.md`
+    // `work/verdict/should-classify-replays-error-enum-arms-be-deleted.md`
     // holds. What HAS been discharged is the precondition the arms were
     // kept for: the log now carries the op-minted escalations too.
     // ITERATION ORDER IS NODE ID, and where a leaf carries several
@@ -1639,8 +1633,8 @@ fn classify_replay<T: geom_core::Decide>(
             return LeafVerdict::Refused(RefusalReason::MeasureRefused { node, class });
         }
         // (2) The escalation log.
-        if let Some(first) = escalations.first() {
-            return indeterminate(&first.source);
+        if let Some(verdict) = log_read(escalations) {
+            return verdict;
         }
         // (3) The error-enum arms.
         let Some(err) = failure else {
@@ -1714,6 +1708,15 @@ fn classify_replay<T: geom_core::Decide>(
             structure: structure_flips,
         }),
     })
+}
+
+/// Read (2) of [`classify_replay`]: what a node's escalation log makes
+/// of the leaf — its FIRST escalation speaks — or `None` for an empty
+/// log, which leaves the node to read (3).
+fn log_read(escalations: &[geom_core::k_stats::Escalation]) -> Option<LeafVerdict> {
+    escalations
+        .first()
+        .map(|first| indeterminate(&first.source))
 }
 
 /// What one escalation makes of a leaf: a terminal sliver when its
@@ -2110,5 +2113,131 @@ fn box_independent_measure_class(kind: &NodeErrorKind) -> Option<&'static str> {
             }
         }
         _ => None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
+
+    use geom::{Curve3, Surface};
+    use geom_brep::{EdgeCurve, EdgeCurveSpec, EdgeDescriptionSpec, SurfaceKey};
+    use geom_core::k_stats::{Bracket, Escalation};
+    use geom_core::{Band, Point3, Real, Vec3};
+
+    use super::*;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).expect("the run's linear band")
+    }
+
+    /// A tangency certificate of the line `(x, 0, z)`, `z ∈ [0, 1]`,
+    /// between a cylinder of radius `r` about z (as `s1`) and a plane
+    /// through the line tilted by `tilt` — at `Interval`, the driver's
+    /// lane — and the escalation log a node bracket would have kept.
+    /// Re-spells `certify_line_at_interval` and `cylinder_of` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`, whose rows pin these logs.
+    fn tangent_log(r: Option<f64>, x: f64, tilt: f64) -> Vec<Escalation> {
+        let lift = Interval::from_f64;
+        let s1 = r.map_or(
+            Surface::Plane {
+                origin: Point3::new(x, 0.0, 0.0),
+                normal: Vec3::new(1.0, 0.0, 0.0),
+                u_ref: Vec3::new(0.0, 0.0, 1.0),
+            },
+            |radius| Surface::Cylinder {
+                origin: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 0.0, 1.0),
+                radius,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            },
+        );
+        let (sin, cos) = tilt.sin_cos();
+        let s2 = Surface::Plane {
+            origin: Point3::new(x, 0.0, 0.0),
+            normal: Vec3::new(cos, sin, 0.0),
+            u_ref: Vec3::new(0.0, 0.0, 1.0),
+        };
+        let mut arena: slotmap::SlotMap<SurfaceKey, Surface<Interval>> =
+            slotmap::SlotMap::with_key();
+        let k1 = arena.insert(s1.map_scalar(lift));
+        let k2 = arena.insert(s2.map_scalar(lift));
+        let carrier = Curve3::Line {
+            origin: Point3::new(x, 0.0, 0.0),
+            dir: Vec3::new(0.0, 0.0, 1.0),
+        }
+        .map_scalar(lift);
+        let (t0, t1) = (lift(0.0), lift(1.0));
+        let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+        let spec = EdgeCurveSpec {
+            description: EdgeDescriptionSpec::TangentIntersection {
+                s1: k1,
+                s2: k2,
+                witness: carrier.eval(lift(0.5)),
+            },
+            carrier,
+            param_start: t0,
+            param_end: t1,
+        };
+        let bracket = Bracket::open();
+        let refused = EdgeCurve::certify(spec, p0, p1, |k| arena.get(k).cloned(), band()).is_err();
+        assert!(refused, "the configuration is not a tangency");
+        bracket.finish().escalations
+    }
+
+    /// The sliver radius: its sagitta `R/2` over its own arm is `0.8·Kε`,
+    /// wholly in the band. The same constant as `sliver_radius` in
+    /// `geom-brep/tests/m5_pr9_tangent.rs`.
+    fn sliver_radius() -> f64 {
+        1.6 * band().escalate()
+    }
+
+    /// **A refusal the certificate renamed to `TangentParallel` reads as
+    /// the definite refusal it is, not as an osculating sliver.** The
+    /// second-order enclosure is wholly in band and the parallelism
+    /// defect at the folded arm is definite (`sin θ = 0.9`): the log is
+    /// empty, so read (2) passes the node to read (3), which reads the
+    /// error the same way whatever order the certificate's readings took.
+    #[test]
+    fn a_renamed_tangent_refusal_is_not_a_second_order_sliver() {
+        let r = sliver_radius();
+        let log = tangent_log(Some(r), r, 0.9f64.asin());
+        assert!(
+            log_read(&log).is_none(),
+            "the log named a cause the error does not: {log:?}"
+        );
+    }
+
+    /// **A definite second-order refusal is not a parallelism sliver.**
+    /// Two planes through one line refuse `NotSecondOrderSeparated`
+    /// definitely; the naming reading's in-band defect at the extent
+    /// only names, so it is not on the log.
+    #[test]
+    fn a_definite_second_order_refusal_is_not_a_parallelism_sliver() {
+        let b = band();
+        let in_band = (b.zero() * b.escalate()).sqrt().asin();
+        let log = tangent_log(None, 1.0, in_band);
+        assert!(
+            log_read(&log).is_none(),
+            "the naming reading's escalation spoke for the node: {log:?}"
+        );
+    }
+
+    /// The control: where the in-band second-order reading IS the
+    /// refusal (`sin θ = 0.3`, a defect in band too), the same cylinder
+    /// is a terminal sliver named by `tangent_second_order`.
+    #[test]
+    fn an_in_band_second_order_refusal_is_a_second_order_sliver() {
+        let r = sliver_radius();
+        let log = tangent_log(Some(r), r, 0.3f64.asin());
+        assert!(
+            matches!(
+                log_read(&log),
+                Some(LeafVerdict::Refused(RefusalReason::SliverTerminal {
+                    predicate: "tangent_second_order"
+                }))
+            ),
+            "the in-band second-order refusal is a sliver: {log:?}"
+        );
     }
 }
