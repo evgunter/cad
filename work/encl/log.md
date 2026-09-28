@@ -991,3 +991,10 @@ class of 65 sites is PRED's row.
   - Fix pass sent back to the lane.
 - 2026-09-28 — PR 3338's `f2f5740dc3` went red on `topo … the_window_construction_sites_are_the_ones_listed`. The cause is not this PR: main's base `930a59dbd1` carried the site-census drift from the semantic merge of #3322 and #3331, and #3337 fixes it on main. I ported the fix by merging main into the branch (`00e326acbc`, exit 0). The census test passes locally (15 of 15). I commented once on the PR, and hosted CI is re-running.
 - 2026-09-28 — PR 3338 merged (`b3e5937b8e`), hosted all green on `00e326acbc`. Closed `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times`. `C23` has the answer appended and CHORD is notified on its log; the close is left to CHORD.
+- 2026-09-28 — The driver-log lane opened PR 3343 (head `bb5feee20a`).
+  - A new `k_stats::splice_superseded` door splices verdicts and samples without escalations. certify's tangent arm uses it, so the log holds exactly the escalation the typed error carries.
+  - Rejected: the driver reading the typed error first (it would see through about 40 wrappers), certify reordering (it moves populations and is against C7), and a later-verdict-wins rule.
+  - All 12 K CSVs are byte-identical to main.
+  - Filed CONTACT's `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`.
+  - Territory: `k_stats.rs` belongs to props and verdict, and `drive.rs` to props; seam notes follow at merge.
+  - Full review dispatched. Its focus: every reader of the escalation log, not just the driver.
