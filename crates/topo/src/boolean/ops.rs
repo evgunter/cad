@@ -824,7 +824,7 @@ fn carriers_apart<T: Decide>(
         let w = p - c;
         let h = w.dot(unit(axis));
         let rho = (w - unit(axis) * h).norm();
-        ((rho - big_r).powi(2) + h.powi(2)).sqrt()
+        Vec3::new(rho - big_r, h, T::zero()).norm()
     };
     match (surface(body, face), surface(other_body, other)) {
         (
@@ -948,7 +948,7 @@ fn circle_misses_a_face<T: Decide>(
     };
     let n = normal / normal.norm();
     let d = (center - origin).dot(n);
-    let rho_sq = radius * radius - d * d;
+    let rho_sq = (radius - d) * (radius + d);
     // The carrier circle exists (a clear pair was certified above).
     if decide(
         "bool_interior_loop_circle_exists",
@@ -1014,12 +1014,18 @@ fn faces_by_vertex<T: Real>(
     let mut out: BTreeMap<VertexKey, Vec<FaceKey>> = BTreeMap::new();
     for (face, fd) in body.faces() {
         for l in core::iter::once(fd.outer).chain(fd.rings.iter().copied()) {
-            let LoopBoundary::Cycle { first } = body.get_loop(l).ok_or_else(corrupt)?.boundary
-            else {
-                continue;
+            // A lone-vertex loop's vertex bounds the face as much as a
+            // cycle's do.
+            let vertices = match body.get_loop(l).ok_or_else(corrupt)?.boundary {
+                LoopBoundary::Empty { vertex } => vec![vertex],
+                LoopBoundary::Cycle { first } => body
+                    .loop_cycle(first)
+                    .ok_or_else(corrupt)?
+                    .into_iter()
+                    .map(|he| body.get_half_edge(he).map(|h| h.start).ok_or_else(corrupt))
+                    .collect::<Result<Vec<_>, _>>()?,
             };
-            for he in body.loop_cycle(first).ok_or_else(corrupt)? {
-                let v = body.get_half_edge(he).ok_or_else(corrupt)?.start;
+            for v in vertices {
                 let faces = out.entry(v).or_default();
                 if !faces.contains(&face) {
                     faces.push(face);
