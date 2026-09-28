@@ -975,14 +975,12 @@ and the angle slot bound.
    geometry (or lower the tolerance)". The margin rides the payload
    as data; the message never forks on exactly-on vs in-band.
    Within ε_input of the REVERSE direction refuses as a cusp (the
-   reverse-tangent class).
+   reverse-tangent class), and the refusal names the authoring door:
+   `.cusp()`, the cusp analogue of `.tangent()`, authors the
+   reverse-tangent junction exactly and emits the declaration.
    Declared cusps are legal kernel geometry (D1 tier 3's
    second-order wedge arm: legal at rest iff jet-determinate, the
-   intent declared where the tangency is created), but the
-   authoring door — a cusp analogue of `.tangent()` that authors
-   the reverse-tangent junction exactly and emits the declaration
-   — is unbuilt (#941); until it ships the junction refuses, and
-   the refusal names the absent verb.
+   intent declared where the tangency is created).
 2. **No tangency without declaration**: tangency enters only via
    `.tangent()` or fillet construction; the lowering emits the
    declared flags — declaration by construction, never inference.
@@ -1409,8 +1407,8 @@ runtime but unreachable through the surface.
 Decided during review (details in #124): mixed authoring is OUT —
 a loop is authored either in the algebra or as a raw vertex+bulge
 chain, never both (representation uniqueness); declared cusps are
-legal at the kernel (D1 tier 3's second-order wedge arm) with the authoring verb banked at #941 —
-cusps refuse here until it ships; there is no
+legal at the kernel (D1 tier 3's second-order wedge arm) and are
+authored through `.cusp()`; there is no
 path-concatenation operator (builder functions instead).
 
 **PQ4 — mid-carrier seams: REVISED (Ev, in-chat, 2026-09-01,

@@ -46,8 +46,10 @@ fn r1_cusp_profile_extrudes_and_the_cusp_is_legal_at_rest() {
         (6, 9, 5),
         "the PR's claimed v/e/f for the extruded lune"
     );
-    // The at-rest gate passes it, and it does so by READING the cusp:
-    // exactly one edge is a jet-determinate tangency, and it is a strut.
+    // The at-rest gate passes it, and check 4 JUDGED the strut rather
+    // than exempting it: exactly one edge carries a `Tangent` mark, and
+    // it is the strut standing on the kiss (x = y = 0) — the cusp
+    // joint's, since a `Tangent` mark alone would also fit a π seam.
     assert_eq!(topo::validate_geometric(body, tol), Ok(()));
     let marks = topo::contact_marks(body, tol).expect("the cusp solid is valid");
     let tangent: Vec<_> = marks
@@ -55,11 +57,22 @@ fn r1_cusp_profile_extrudes_and_the_cusp_is_legal_at_rest() {
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .collect();
-    let [cusp] = tangent.as_slice() else {
-        panic!("one cusp edge, and it is the only tangency: {tangent:?}");
+    let [marked] = tangent.as_slice() else {
+        panic!("one Tangent mark: {tangent:?}");
     };
     assert!(
-        built.strut_edges.iter().flatten().any(|e| e == cusp),
-        "the tangency is the strut the cusp joint swept"
+        built.strut_edges.iter().flatten().any(|e| e == marked),
+        "the marked edge is a strut"
     );
+    let he = body.get_edge(*marked).unwrap().he_plus;
+    for v in [
+        body.get_half_edge(he).unwrap().start,
+        body.half_edge_end(he).unwrap(),
+    ] {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        assert!(
+            p.x.abs() < 1e-9 && p.y.abs() < 1e-9,
+            "the marked strut stands on the kiss: {p:?}"
+        );
+    }
 }

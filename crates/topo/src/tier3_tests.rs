@@ -1683,14 +1683,17 @@ fn the_seam_is_legal_and_the_same_geometry_flipped_is_a_lamina() {
 /// one shared edge whose faces' outward normals oppose and whose
 /// κ_rel is definite (radii 1 and 2): the tangency is determined by
 /// the body, exactly as a π seam's is, and the body is tier-3 clean
-/// with nothing declared. The material arm still READS it as a cusp —
-/// the contact mark is `Tangent` — so this is a verdict, not an
-/// exemption.
+/// with nothing declared. The kiss edge's contact mark is `Tangent`:
+/// check 4 judged a jet-determinate tangency there rather than
+/// exempting the edge. The mark alone does not say which END — a π
+/// seam is marked the same — so the row reads the end off the same
+/// sign chain the arm uses ([`material_end`]).
 #[test]
 fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
     let kiss = kiss_edge(&p);
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
     assert_eq!(validate_geometric(&p.body, tol), Ok(()));
     let marks = crate::validate::contact_marks(&p.body, tol).expect("the cusp prism is valid");
     assert_eq!(
@@ -1699,13 +1702,13 @@ fn a_jet_determinate_cusp_is_legal_at_rest_with_nothing_declared() {
     );
 }
 
-/// **Row: deriving the wedge ends moved no other refusal.** Beside the
-/// legal cusp, a definitely-transverse edge of the same prism stored in
-/// a declared conventional form still refuses `TransverseNotIntrinsic`
-/// and nothing else, and the flipped coplanar pillow's two osculating
-/// edges still refuse `LaminaWedge` — the exact vectors, edge by edge.
+/// **Row: a transverse corner beside a legal cusp still owes its
+/// intrinsic description.** A definitely-transverse edge of the cusp
+/// prism, stored in a declared conventional form, refuses
+/// `TransverseNotIntrinsic` and nothing else: the legal cusp beside it
+/// contributes no verdict of its own.
 #[test]
-fn a_transverse_demand_and_a_lamina_still_refuse_exactly_as_before() {
+fn a_transverse_corner_beside_a_legal_cusp_still_refuses_its_conventional_form() {
     let tol = Tol::witness();
     let mut p = cusp_prism(tol);
     // ev[1]: the vertical meridian where the outer wall meets the flat
@@ -1728,23 +1731,7 @@ fn a_transverse_demand_and_a_lamina_still_refuse_exactly_as_before() {
         vec![ValidationError::TransverseNotIntrinsic { edge: corner }],
         "the corner's demand refuses; the cusp beside it adds nothing"
     );
-
-    let (body, split) = coplanar_pillow(tol);
-    let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
-    let mut edges: Vec<_> = flipped.edges().map(|(e, _)| e).collect();
-    edges.sort();
-    let mut refused: Vec<_> = validate_geometric(&flipped, tol)
-        .unwrap_err()
-        .into_iter()
-        .map(|e| match e {
-            ValidationError::LaminaWedge { edge } => edge,
-            other => panic!("only the lamina refuses: {other:?}"),
-        })
-        .collect();
-    refused.sort();
-    assert_eq!(refused, edges, "one LaminaWedge per osculating edge");
 }
-
 /// **Rows: wedge 0 ↔ wedge 2π under `revert`.** Reverting negates
 /// every face's outward normal at once, which negates the material
 /// κ_rel — so the same body, same keys, reads as the knife slit, and
@@ -1757,19 +1744,28 @@ fn a_transverse_demand_and_a_lamina_still_refuse_exactly_as_before() {
 /// the evidence. What the wedge arm owes is that it contributes
 /// nothing to the reverted body's verdict — the slit is legal on the
 /// cusp's terms — pinned here on arenas that are key-for-key the
-/// source's, which is what "bit-faithfully" buys.
+/// source's, which is what "bit-faithfully" buys. The validator no
+/// longer names the end it saw, so the row reads it off the arm's own
+/// sign chain ([`material_end`]).
 #[test]
 fn revert_maps_the_legal_cusp_to_the_legal_slit() {
     let tol = Tol::witness();
     let p = cusp_prism(tol);
+    let kiss = kiss_edge(&p);
     let reverted = p.body.revert().unwrap();
     assert_eq!(validate(&reverted), Ok(()));
+    assert_eq!(material_end(&p.body, kiss), MaterialWedge::Cusp);
+    assert_eq!(
+        material_end(&reverted, kiss),
+        MaterialWedge::Slit,
+        "the cusp's revert image is the slit"
+    );
     assert_eq!(
         validate_geometric(&reverted, tol).unwrap_err(),
         vec![ValidationError::NegativeVolume {
             solid: reverted.solids().next().expect("one solid").0
         }],
-        "the cusp's revert image is the slit, and the wedge arm contributes nothing either way"
+        "the wedge arm contributes nothing to the slit's verdict"
     );
     // That residue is `revert`'s own ratified posture — a reverted
     // body is tier-2 currency and never tier-3, failing exactly
@@ -1804,22 +1800,22 @@ fn revert_maps_the_legal_cusp_to_the_legal_slit() {
 fn the_second_order_band_has_three_outcomes_and_they_are_three_answers() {
     let tol = Tol::witness();
     let eps = tol.get().eps;
-    let determinate = kissing_cylinder_pillow(tol, 2.0);
-    assert!(
-        !determinate.is_empty()
-            && determinate
-                .iter()
-                .all(|e| matches!(e, ValidationError::TangentNotIntrinsic { .. })),
-        "{determinate:?}"
+    let (determinate, [seg, split]) = kissing_cylinder_pillow(tol, 2.0);
+    assert_eq!(
+        determinate,
+        vec![
+            ValidationError::TangentNotIntrinsic { edge: seg },
+            ValidationError::TangentNotIntrinsic { edge: split },
+        ]
     );
-    let osculating = kissing_cylinder_pillow(tol, 1.0);
+    let (osculating, _) = kissing_cylinder_pillow(tol, 1.0);
     assert!(
         osculating
             .iter()
             .all(|e| matches!(e, ValidationError::LaminaWedge { .. })),
         "{osculating:?}"
     );
-    let in_band = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
+    let (in_band, _) = kissing_cylinder_pillow(tol, 1.0 / (1.0 - 6.0 * eps));
     assert!(
         in_band.iter().all(|e| matches!(
             e,
@@ -1869,13 +1865,46 @@ fn kiss_edge(p: &crate::fixtures::RawPrism) -> crate::entity::EdgeKey {
     p.ev[0]
 }
 
+/// Which END of the wedge range `edge` sits at, read at its mid sample
+/// through the sign chain check 4's material arm uses: the jet's κ_rel
+/// signed into the plus face's outward frame, positive the cusp and
+/// negative the slit. For an edge whose faces' material sides oppose
+/// and whose κ_rel is definite — the caller's fixture guarantees both.
+fn material_end(body: &Body<f64>, edge: crate::entity::EdgeKey) -> MaterialWedge {
+    let e = body.get_edge(edge).unwrap();
+    let curve = body
+        .get_curve_geom(e.curve)
+        .and_then(crate::CurveGeom::certified)
+        .unwrap();
+    let face = |he| body.get_face(body.face_of_half_edge(he).unwrap()).unwrap();
+    let (plus, minus) = (face(e.he_plus), face(e.he_minus));
+    let t = curve.sample_param(geom_brep::CERT_SAMPLES / 2);
+    let (point, tau) = curve.carrier().ders1(t);
+    let jet = geom_brep::tangent_jet(
+        body.get_surface(plus.surface).unwrap(),
+        body.get_surface(minus.surface).unwrap(),
+        point,
+        tau,
+    );
+    let signed = geom_brep::material_kappa_rel(jet.kappa_rel, plus.sense);
+    assert!(signed != 0.0, "a definite κ_rel is the fixture's premise");
+    if signed > 0.0 {
+        MaterialWedge::Cusp
+    } else {
+        MaterialWedge::Slit
+    }
+}
+
 /// The tier-3 verdict on a digon pillow whose two faces are cylinders
 /// kissing along the shared chord — radius 1 against `r2` — with the
 /// second face's material side flipped so the pair is the wedge-0/2π
 /// arm. The body is deliberately degenerate (zero-area faces): what it
 /// is for is the SECOND-ORDER band, which needs only two tangent
 /// surfaces and an edge between them.
-fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
+fn kissing_cylinder_pillow(
+    tol: Tol,
+    r2: f64,
+) -> (Vec<ValidationError>, [crate::entity::EdgeKey; 2]) {
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let seg = body
@@ -1914,7 +1943,10 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
-    validate_geometric(&flipped, tol).unwrap_err()
+    (
+        validate_geometric(&flipped, tol).unwrap_err(),
+        [seg.edge, split.edge],
+    )
 }
 
 /// **The material arm's fold, state by state** — including the two

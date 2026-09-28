@@ -217,11 +217,6 @@
 //!   whole structural phase, checks 8 and 9 included — the gate the
 //!   tier-3′ and marks passes have always had.
 //!
-//! No form takes contact declarations for the tier-3 battery: check 4's
-//! material arm derives a wedge end's legality from the body (D1's
-//! second-order arm), so there is no declaration for it to read. The
-//! tier-3′ pass's `contacts` argument is the census's, not check 4's.
-//!
 //! The table between the `door-roster` markers IS the roster — the one
 //! spelling of it. The census `door_roster_is_the_exported_set` derives
 //! the door set from its cells (a cell `✓ + _structural` is the column's
@@ -5325,7 +5320,8 @@ pub(crate) fn tier3_local_checks_marked<
     //    vacuously Smooth). Exempt BY KIND: `Seam`-described edges
     //    (as always) and Nurbs-ADJACENT edges (M6-3 flip B — see the
     //    in-loop note: implicit-form gradients are poison on NURBS,
-    //    and the wall junction's contact class is declared, Q8/C11).
+    //    and the wall junction's contact class is fixed by the
+    //    profile's corner structure, Q8/C11).
     // 5. Planar-boundary containment (M2 PR 3 fix pass, S3): the same
     //    interior carrier samples are checked against each ADJACENT
     //    face's surface when that surface is a plane — the
@@ -5560,10 +5556,10 @@ pub(crate) fn tier3_local_checks_marked<
                     // — and on the opposed arm that is the lamina
                     // refusal for the WHOLE edge, on the strength of a
                     // single sample. Deliberate, and conservative in
-                    // the direction the ε rule cares about: the
-                    // declared arm's condition is that the surfaces
-                    // determine the locus ALONG the edge, so one place
-                    // they do not is enough to deny it (the same rule
+                    // the direction the ε rule cares about: a wedge end
+                    // is legal where the surfaces determine the locus
+                    // ALONG the edge, so one place they do not is
+                    // enough to deny it (the same rule
                     // the mark already follows — any zero-side sample
                     // marks `SmoothUnderdetermined`). ε-tightening
                     // makes zero-side verdicts RARER, so it can only
@@ -7233,7 +7229,6 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// none of the three lanes this door holds (the plane × NURBS lane, the
 /// quadrature lane and the chart-region door), and is the door a
 /// [`Dual`](geom_core::Dual) body goes through the tier-3′ pass by.
-///
 pub fn validate_pseudomanifold<
     T: geom_core::Decide + geom_core::CertifiedBounds + crate::props::AtRestPolicy,
 >(

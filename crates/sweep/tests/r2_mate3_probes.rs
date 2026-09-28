@@ -36,8 +36,8 @@ fn lune() -> profile::ClosedLoop<f64> {
 }
 
 /// **The reachability chain, executed.** Nothing on it proceeds
-/// silently: the body passes at rest because check 4 READ the cusp strut
-/// as a jet-determinate tangency, not because it skipped it.
+/// silently: the body passes at rest, and check 4 marked the strut on
+/// the kiss `Tangent` — a tangency it judged, not one it skipped.
 #[test]
 fn r2_cusp_profile_extrudes_and_passes_at_rest() {
     let tol = Tol::witness();
@@ -56,13 +56,23 @@ fn r2_cusp_profile_extrudes_and_passes_at_rest() {
         "the extruded cusp solid is legal at rest"
     );
     let marks = topo::contact_marks(body, tol).expect("valid");
-    let tangent = marks
-        .values()
-        .filter(|m| **m == topo::ContactMark::Tangent)
-        .count();
-    assert_eq!(
-        tangent, 1,
-        "exactly one tangency — the cusp strut: {marks:?}"
+    let on_the_kiss = |v| {
+        let p = body.get_point(body.get_vertex(v).unwrap().point).unwrap();
+        p.x.abs() < 1e-9 && p.y.abs() < 1e-9
+    };
+    let marked: Vec<_> = marks
+        .iter()
+        .filter(|(_, m)| **m == topo::ContactMark::Tangent)
+        .map(|(e, _)| e)
+        .collect();
+    let [edge] = marked.as_slice() else {
+        panic!("exactly one Tangent mark: {marks:?}");
+    };
+    let he = body.get_edge(*edge).unwrap().he_plus;
+    assert!(
+        on_the_kiss(body.get_half_edge(he).unwrap().start)
+            && on_the_kiss(body.half_edge_end(he).unwrap()),
+        "the one Tangent mark is the strut on the kiss"
     );
 }
 

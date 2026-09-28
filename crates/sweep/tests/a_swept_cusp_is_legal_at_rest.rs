@@ -14,7 +14,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use geom_core::{Affine3, Point2, Tol, Vec2, Vec3};
+use geom_core::{Affine3, Point2, Point3, Tol, Vec2, Vec3};
 use profile::test_support::bulge_loop;
 use profile::{Open, Profile, ProfileLoop, RawLoop, SketchPlane, Start, ValidatedProfile};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
@@ -42,7 +42,8 @@ fn lune() -> ProfileLoop<f64> {
 /// A crescent between the unit circle (centre on the revolve axis
 /// `x = 0`) and its tangent line at 45°, `.cusp()` at the tangency: the
 /// revolve sweeps a sphere zone and a cone meeting at a cusp rim. Off
-/// the axis, so a revolve of it is the lamina case.
+/// the axis, so its full revolve sweeps one full-period band with no
+/// axis contact.
 fn sphere_cone_crescent() -> ProfileLoop<f64> {
     let tol = Tol::witness();
     let h = std::f64::consts::FRAC_1_SQRT_2;
@@ -86,10 +87,17 @@ fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 }
 
 /// The row every analytic-walled verb answers: the body is tier-3
-/// valid, and check 4 READ exactly `cusps` jet-determinate tangencies —
-/// the cusp edges, since the fixtures' other joints are corners.
-/// Returns them.
-fn legal_cusps(body: &Body<f64>, cusps: usize) -> Vec<EdgeKey> {
+/// valid, and check 4 marked exactly `cusps` edges `Tangent` — a
+/// jet-determinate tangency it JUDGED rather than exempted — every one
+/// of them with both endpoints where the profile's cusp joint swept
+/// to (`at`). The mark alone does not say "cusp" (a π seam is marked
+/// the same); the location does, since the profile's other joints are
+/// corners. Returns the marked edges.
+fn tangent_marks_at_the_cusp(
+    body: &Body<f64>,
+    at: impl Fn(&Point3<f64>) -> bool,
+    cusps: usize,
+) -> Vec<EdgeKey> {
     let tol = Tol::witness();
     assert_eq!(
         topo::validate_geometric(body, tol),
@@ -97,13 +105,37 @@ fn legal_cusps(body: &Body<f64>, cusps: usize) -> Vec<EdgeKey> {
         "the jet-determinate cusp is legal at rest"
     );
     let marks = topo::contact_marks(body, tol).expect("the body is valid");
+    let point = |v| *body.get_point(body.get_vertex(v).unwrap().point).unwrap();
     let tangent: Vec<EdgeKey> = marks
         .iter()
         .filter(|(_, m)| **m == ContactMark::Tangent)
         .map(|(e, _)| e)
         .collect();
     assert_eq!(tangent.len(), cusps, "{marks:?}");
+    for &e in &tangent {
+        let he = body.get_edge(e).unwrap().he_plus;
+        let ends = [
+            point(body.get_half_edge(he).unwrap().start),
+            point(body.half_edge_end(he).unwrap()),
+        ];
+        assert!(
+            ends.iter().all(&at),
+            "a Tangent mark off the cusp: {ends:?}"
+        );
+    }
     tangent
+}
+
+/// On the lune's kiss line `x = y = 0`.
+fn on_the_kiss(p: &Point3<f64>) -> bool {
+    p.x.abs() < 1e-9 && p.y.abs() < 1e-9
+}
+
+/// On the circle the crescent's cusp joint `(h, h)` revolves to about
+/// the sketch's y axis: height `h`, radius `h`.
+fn on_the_rim(p: &Point3<f64>) -> bool {
+    let h = std::f64::consts::FRAC_1_SQRT_2;
+    (p.y - h).abs() < 1e-9 && (p.x.hypot(p.z) - h).abs() < 1e-9
 }
 
 #[test]
@@ -111,7 +143,7 @@ fn a_cusp_extrude_is_legal_either_way_it_extrudes() {
     let profile = validated(vec![lune()]);
     for d in [1.0, -1.0] {
         let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
-        let cusps = legal_cusps(&built.body, 1);
+        let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         assert!(
             built.strut_edges[0].contains(&cusps[0]),
             "the tangency is the strut the cusp joint swept"
@@ -129,7 +161,7 @@ fn a_hole_cusp_extrudes_to_a_legal_slit() {
     ]);
     let profile = validated(vec![plate, lune()]);
     let built = extrude(&profile, Extrusion::Distance(1.0), Tol::witness()).unwrap();
-    let cusps = legal_cusps(&built.body, 1);
+    let cusps = tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
     assert!(built.strut_edges[1].contains(&cusps[0]), "the hole's strut");
 }
 
@@ -142,7 +174,7 @@ fn a_cusp_revolve_is_legal_partial_and_full() {
     };
     for revolution in [Revolution::Partial(1.0), Revolution::Full] {
         let built = revolve(&profile, axis, revolution, Tol::witness()).unwrap();
-        let cusps = legal_cusps(&built.body, 1);
+        let cusps = tangent_marks_at_the_cusp(&built.body, on_the_rim, 1);
         assert!(
             built.rims[0].iter().flatten().any(|r| *r == cusps[0]),
             "the tangency is the rim the cusp joint swept"
@@ -161,7 +193,7 @@ fn a_revolve_wire_case_cusp_is_legal_on_both_bands() {
         dir: Vec2::new(0.0, 1.0),
     };
     let built = revolve(&profile, axis, Revolution::Full, Tol::witness()).unwrap();
-    legal_cusps(&built.body, 2);
+    tangent_marks_at_the_cusp(&built.body, on_the_rim, 2);
 }
 
 /// **Not a validation of the cusp.** Loft walls are NURBS, whose edges
@@ -206,7 +238,7 @@ fn a_raw_authored_cusp_is_legal_like_the_door() {
     assert_eq!(profile.loops()[0].tangent_joints(), &[2]);
     for d in [1.0, -1.0] {
         let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
-        legal_cusps(&built.body, 1);
+        tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
     }
 }
 
@@ -223,7 +255,7 @@ fn a_hole_cusp_is_a_legal_slit_at_either_sign_and_either_winding() {
         let profile = validated(vec![plate.clone(), hole]);
         for d in [1.0, -1.0] {
             let built = extrude(&profile, Extrusion::Distance(d), Tol::witness()).unwrap();
-            legal_cusps(&built.body, 1);
+            tangent_marks_at_the_cusp(&built.body, on_the_kiss, 1);
         }
     }
 }

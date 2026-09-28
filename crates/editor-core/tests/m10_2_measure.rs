@@ -23,7 +23,7 @@ use editor_core::{
     SplitHalf, StableName, ValuePayload, apply, evaluate,
 };
 use fixture::{ang, frame, len, scl, xy_frame};
-use geom_core::Tol;
+use geom_core::{Point3, Tol};
 
 /// The plate's hole radius, as a document parameter — the thing the
 /// e2e edits to flip the assertion.
@@ -1213,16 +1213,42 @@ fn gathers(doc: &ProfileDoc, node: RecipeNodeId) -> topo::Body<f64> {
         .unwrap_or_else(|e| panic!("the product gathers: {e:?}"))
 }
 
-/// The number of edges tier 3's check 4 READS as a jet-determinate
-/// tangency in `body` — so a row that gathers because the material arm
-/// judged its cusps legal is told apart from one that gathers because
-/// the arm never saw them.
-fn tangencies(body: &topo::Body<f64>) -> usize {
-    topo::contact_marks(body, Tol::witness())
-        .expect("a gathered body is valid")
-        .values()
-        .filter(|m| **m == topo::ContactMark::Tangent)
-        .count()
+/// The edges tier 3's check 4 marks `Tangent` in `body` — a
+/// jet-determinate tangency it JUDGED, rather than exempted — split by
+/// whether both endpoints satisfy `at`, the caller's geometric
+/// description of where the profile's cusp joint swept to. A `Tangent`
+/// mark alone does not say "cusp" (a π seam is marked the same); the
+/// location does, because the fixtures' only tangent joint is the
+/// `.cusp()` one. Returns `(at the cusp, elsewhere)`.
+fn tangent_marks(body: &topo::Body<f64>, at: impl Fn(&Point3<f64>) -> bool) -> (usize, usize) {
+    let marks = topo::contact_marks(body, Tol::witness()).expect("a gathered body is valid");
+    let point = |v| {
+        *body
+            .get_point(body.get_vertex(v).expect("live vertex").point)
+            .expect("live point")
+    };
+    let (mut on, mut off) = (0, 0);
+    for (edge, mark) in &marks {
+        if *mark != topo::ContactMark::Tangent {
+            continue;
+        }
+        let he = body.get_edge(edge).expect("live edge").he_plus;
+        let ends = [
+            point(body.get_half_edge(he).expect("live half-edge").start),
+            point(body.half_edge_end(he).expect("live half-edge")),
+        ];
+        if ends.iter().all(&at) {
+            on += 1;
+        } else {
+            off += 1;
+        }
+    }
+    (on, off)
+}
+
+/// On the lune's kiss line `x = y = 0` — where its cusp strut stands.
+fn on_the_kiss(p: &Point3<f64>) -> bool {
+    p.x.abs() < 1e-9 && p.y.abs() < 1e-9
 }
 
 /// A document whose one root is an extrude of a `.cusp()` lune
@@ -1237,7 +1263,11 @@ fn a_cusp_extrude_document_gathers_at_the_product_gate() {
     let (doc, ex) = cusp_extrude_doc("cusp-extrude-lune");
     let body = gathers(&doc, ex);
     assert_eq!(body.solids().count(), 1);
-    assert_eq!(tangencies(&body), 1, "the cusp strut, judged legal");
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the cusp strut, judged legal"
+    );
 }
 
 /// A `.cusp()` crescent REVOLVED gathers: a sphere zone and a cone
@@ -1275,7 +1305,14 @@ fn a_cusp_revolve_document_gathers_at_the_product_gate() {
         },
     );
     let body = gathers(&doc, rev);
-    assert_eq!(tangencies(&body), 1, "the cusp rim, judged legal");
+    // The cusp joint (h, h) revolves about the sketch's y axis to the
+    // circle of radius h at height h.
+    let on_the_rim = |p: &Point3<f64>| (p.y - h).abs() < 1e-9 && (p.x.hypot(p.z) - h).abs() < 1e-9;
+    assert_eq!(
+        tangent_marks(&body, on_the_rim),
+        (1, 0),
+        "the cusp rim, judged legal"
+    );
 }
 
 /// A `.cusp()` lune LOFTED between two sections gathers — but this row
@@ -1309,8 +1346,8 @@ fn a_cusp_loft_document_gathers_with_its_nurbs_seam_unjudged_by_kind() {
     );
     let body = gathers(&doc, loft);
     assert_eq!(
-        tangencies(&body),
-        0,
+        tangent_marks(&body, on_the_kiss),
+        (0, 0),
         "no loft seam is judged: the NURBS walls exempt it by kind"
     );
 }
@@ -1349,7 +1386,11 @@ fn a_cusp_extrude_notched_clear_of_its_strut_gathers() {
         },
     );
     let body = gathers(&doc, cut);
-    assert_eq!(tangencies(&body), 1, "the untouched cusp strut");
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the untouched cusp strut"
+    );
 }
 
 /// A PATTERN of the cusp extrude gathers: three copies, each carrying
@@ -1370,7 +1411,15 @@ fn a_pattern_of_a_cusp_extrude_gathers() {
     );
     let body = gathers(&doc, pattern);
     assert_eq!(body.solids().count(), 3);
-    assert_eq!(tangencies(&body), 3, "one legal strut per copy");
+    // Copy k's kiss line is x = 5k, y = 0.
+    let on_a_copys_kiss = |p: &Point3<f64>| {
+        p.y.abs() < 1e-9 && [0.0, 5.0, 10.0].iter().any(|x| (p.x - x).abs() < 1e-9)
+    };
+    assert_eq!(
+        tangent_marks(&body, on_a_copys_kiss),
+        (3, 0),
+        "one legal strut per copy"
+    );
 }
 
 /// A SPLIT of the cusp extrude at mid-height, its upper half selected
@@ -1395,5 +1444,9 @@ fn a_split_half_of_a_cusp_extrude_gathers() {
     );
     let body = gathers(&doc, above);
     assert_eq!(body.solids().count(), 1);
-    assert_eq!(tangencies(&body), 1, "the upper half's cusp strut");
+    assert_eq!(
+        tangent_marks(&body, on_the_kiss),
+        (1, 0),
+        "the upper half's cusp strut"
+    );
 }
