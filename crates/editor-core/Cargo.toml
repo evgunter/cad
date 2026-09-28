@@ -156,6 +156,9 @@ topo = { path = "../topo", features = ["sweep-testing", "test-support"] }
 # own loft fixture is built from, and a second spelling of them here is
 # a divergence waiting to happen. Test builds only.
 sweep = { path = "../sweep", features = ["test-support"] }
+# The geometry arena's typed keys, minted for a certificate the driver's
+# own unit rows certify in hand (`drive.rs`'s tests). Test builds only.
+slotmap = { workspace = true }
 # M10-9's staged-ceiling evidence needs geom-core's test-only funnel
 # dial (`identity-pass-testing`), which lets one named identity
 # residual's indeterminate answer pass so a ceiling can be measured "as

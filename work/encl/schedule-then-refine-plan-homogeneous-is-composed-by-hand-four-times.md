@@ -2,10 +2,11 @@
 id: schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times
 kind: issue
 title: "Equal-split schedule, then refine_plan_homogeneous" is composed by hand in four places
-status: review
+status: closed
 opened: 2026-09-26
 priority: P4
 cost: D
+closed: 2026-09-28
 ---
 
 

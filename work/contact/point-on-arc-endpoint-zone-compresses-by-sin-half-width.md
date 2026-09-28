@@ -2,12 +2,13 @@
 id: point-on-arc-endpoint-zone-compresses-by-sin-half-width
 kind: issue
 title: point_on_arc's endpoint neighbourhood (None) spans eps/sin(w/2) of arc length, so contain's boundary pre-pass can read a point on a short or near-full arc as off the boundary, or escalate far from any vertex
-status: dispatched
+status: closed
 opened: 2026-09-25
 priority: P1
 cost: D
 refs: [3217]
 parent: CONTACT-4
+closed: 2026-09-28
 ---
 
 
@@ -60,3 +61,13 @@ and the third period-guard site at `contain.rs` (the comment "THE
 cosine-window construction's period guard, third site"). All three
 compare `r̂·m̂` against `cos(w/2)`, whose margin compresses near an
 end in the same way.
+
+## Closed
+
+Fixed by CONTACT-4, measured rather than assumed. The switch alone would
+only have moved the compressed zone, because the carrier walk's
+pre-pass used the same cosine window. Both doors now decide the trim
+by distance through `arc_trim`, and `point_on_arc` is deleted. The
+short (`w = 0.02`) and near-full arcs, probed at both ends, are green
+at every ε row. On base, a point 50ε inside the near-full arc's end
+read `Out`.
