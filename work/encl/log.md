@@ -1186,3 +1186,20 @@ class of 65 sites is PRED's row.
   - `certify-span-and-zero-arms-…` (P3/M) is dispatched on `encl/certify-span-zero-arms`.
   - `checks-escalated-evidence-says-lower-the-tolerance` (P3/E) is dispatched on `encl/checks-escalated-evidence`.
   - `validate-own-close-levers-…` (P3/M) is held until certify-span lands, because both touch `validate.rs`'s certify and own-close endings.
+- 2026-09-28 — PR 3392 merged (`277dcb052b`, head `7e4c4e52c1`, hosted green). Row `certify-span-and-zero-arms-…` closed.
+  - **Full review:** approve-with-fixes.
+  - **Fix pass:**
+    - The tangent tube is its own decision (`TubeNotSeparated`), with its Negative as the lever alone.
+    - The zero span is restored to a defect per Ev's `e1600790f9`; the conflict with D4 ¶1 (i) is recorded for the fork.
+    - The collision with PR 3380 is recorded.
+    - The verdict is pinned at the construction sites.
+  - **Filed:**
+    - `certify-zero-arms-quote-no-margin-without-a-seam` (P3/M, design: needs a fork after 3380 settles);
+    - `certify-collapsed-arm-gates-route-as-the-decision-they-guard` (P3/M).
+  - Seam notes posted.
+- 2026-09-28 — Dispatched `validate-own-close-levers-follow-the-d4-recourse-ruling` (P3/M) on `encl/validate-own-close-levers`.
+- 2026-09-28 — PR 3390: the delta re-review returned approve-with-fixes. Round 2 is in flight:
+  - the straddle is ε-decided, so it ends as `Zero(None)` and `RefusedArm::Straddles` is deleted;
+  - "zero at this tolerance";
+  - `lean()` reads only decided signs;
+  - `recourse` unit tests.
