@@ -643,7 +643,7 @@ fn torus_sphere<T: Decide>(
             // the sphere's great circle centred (s, c_a) radius ρ.
             let e_hat = w_perp / s;
             let (ex, ey) = ((s - sigma * big_r) / d, ca / d);
-            let along = (d * d + r * r - rho * rho) / (d + d);
+            let along = (d.powi(2) + r.powi(2) - rho.powi(2)) / (d + d);
             let half = ((r - along) * (r + along)).sqrt();
             let (x, y) = (
                 sigma * big_r + ex * along - ey * half,
@@ -760,8 +760,8 @@ fn cylinder_cylinder<T: Decide>(
         (true, true) => {
             let q = o2 - m * (r2 * T::one().copysign(delta));
             let (av, bv) = (d2.cross(d1), (q - o1).cross(d1));
-            let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1 * r1);
-            let t = (-qb + (qb * qb - qa * qc).sqrt()) / qa;
+            let (qa, qb, qc) = (av.dot(av), av.dot(bv), bv.dot(bv) - r1.powi(2));
+            let t = (-qb + (qb.powi(2) - qa * qc).sqrt()) / qa;
             lone(q + d2 * t)
         }
     }
@@ -814,7 +814,7 @@ fn sphere_sphere<T: Decide>(c1: Point3<T>, r1: T, c2: Point3<T>, r2: T, band: Ba
     ) {
         Ok([true, true]) => {
             let k = (c2 - c1) / dd;
-            let x = (dd * dd + r1 * r1 - r2 * r2) / (dd + dd);
+            let x = (dd.powi(2) + r1.powi(2) - r2.powi(2)) / (dd + dd);
             let rad = ((r1 - x) * (r1 + x)).sqrt();
             let (b1, _) = k.orthonormal_basis();
             lone(c1 + k * x + b1 * rad)

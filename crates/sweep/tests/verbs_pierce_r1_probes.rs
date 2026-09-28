@@ -14,7 +14,7 @@ use core::f64::consts::PI;
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
-use topo::{Body, BooleanError};
+use topo::Body;
 
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
     (Point2::new(x, y), bulge)

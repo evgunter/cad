@@ -7,7 +7,12 @@
 //! Every row names the certificate it pins and the mutant that turns it
 //! red.
 
-#![allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+#![allow(
+    clippy::unwrap_used,
+    clippy::expect_used,
+    clippy::panic,
+    clippy::float_cmp
+)]
 
 use super::*;
 use crate::boolean::ops;
