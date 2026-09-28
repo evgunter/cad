@@ -81,14 +81,14 @@ fn volume(b: &Body<f64>) -> f64 {
         .volume
 }
 
-fn every_op(
-    a: &Body<f64>,
-    b: &Body<f64>,
-) -> [(
+/// One op's row: the op, its name, and what it returned.
+type OpRow = (
     BooleanOp,
     &'static str,
     Result<topo::BooleanResult<f64>, topo::BooleanError>,
-); 4] {
+);
+
+fn every_op(a: &Body<f64>, b: &Body<f64>) -> [OpRow; 4] {
     let t = Tol::witness();
     [
         (BooleanOp::Union, "A ∪ B", topo::union(a, b, t)),

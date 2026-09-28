@@ -1045,11 +1045,12 @@ fn circle_misses_a_face<T: Decide>(
         )
 }
 
-/// A cylinder face's carrier: its axis point, UNIT axis and radius.
-fn wall_carrier<T: Real>(
-    body: &Body<T>,
-    face: FaceKey,
-) -> Option<(Point3<T>, Vec3<T>, T, Vec3<T>)> {
+/// A cylinder carrier: its axis point, UNIT axis, radius and seam
+/// direction.
+type Wall<T> = (Point3<T>, Vec3<T>, T, Vec3<T>);
+
+/// A cylinder face's carrier ([`Wall`]).
+fn wall_carrier<T: Real>(body: &Body<T>, face: FaceKey) -> Option<Wall<T>> {
     match body
         .get_face(face)
         .and_then(|fd| body.get_surface(fd.surface))?
@@ -1260,7 +1261,6 @@ fn wall_pair_clear<T: Decide>(
     band: Band,
     boxes: (Option<bvh::Aabb>, Option<bvh::Aabb>),
 ) -> bool {
-    type Wall<T> = (Point3<T>, Vec3<T>, T, Vec3<T>);
     let (body, other_body) = match operand {
         Operand::A => (a, b),
         Operand::B => (b, a),
