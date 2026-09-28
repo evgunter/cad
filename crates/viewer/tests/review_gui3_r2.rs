@@ -14,7 +14,7 @@
 //! that read them are; the profile's shape is not an oracle here, so
 //! it is drawn with the shared rectangle.
 //!
-//! Randomized rows follow `memories/test-suite-cost.md`: a fresh seed
+//! Randomized rows follow implementer-discipline §8: a fresh seed
 //! per run through `test_utils::fuzz` (logged unconditionally,
 //! `CAD_FUZZ_SEED` replays), counts on `CAD_FUZZ_EFFORT`. Every row
 //! asserts; there is no print-only probe in this file.
@@ -181,7 +181,7 @@ fn an_abandoned_subtree_keeps_its_grandchildren_their_documents_and_their_edits(
 /// A counterexample search over undo/redo walks: after any sequence of
 /// undos and edits, walking undo to the root and redo back must land on
 /// the document the last commit produced. The seed varies per run
-/// (`memories/test-suite-cost.md`); the walk length rides the effort
+/// (implementer-discipline §8); the walk length rides the effort
 /// dial.
 #[test]
 fn redo_from_the_root_returns_to_the_last_committed_state_under_random_walks() {

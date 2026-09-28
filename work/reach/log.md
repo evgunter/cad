@@ -108,3 +108,25 @@ ATREST-12 (PR #3288, review fix pass) edits REACH's `splitting/containment.rs`, 
 - **`reach`**: an in-band ball gap places nothing (`None`) instead of escalating.
 
 The ATREST-9 rows are green on the change: `pis_arc_capped_poses::*` and `bool3_torus_doors::a_revolved_disc_caps_interior_is_on_the_face`.
+
+## 2026-09-28 — seam notes from CONTACT (two units on REACH's ground)
+
+- **CONTACT-4 (#3345, merged).** `splitting/containment.rs`'s
+  `conic_span` above read an in-band span as an arc. For an ellipse
+  that was unsound: a window over-wound by up to `10ε/b` read as an
+  arc, and a point on the doubled edge answered `In`/`Out` (1,800 wrong
+  readings in a reviewer's probe). `ConicArc::of` now reads "arc" only
+  under an upper bound on the edge's speed over the overlap, and
+  escalates between the two bounds. Circles are unchanged. The row is
+  `an_over_wound_ellipse_window_is_not_an_arc`.
+- **CONTACT-6 (branch `contact/6-cut-cavity`, in review).**
+  `splitting::finish::split_finish`'s promotion loop re-surfaced each
+  section face with `set_face_surface` but kept the `sense` bit it
+  inherited from the face it was carved from. A cut through a
+  reversed-sense cavity wall therefore produced a lower half that fails
+  `validate_geometric` (`LoopRoleInverted`), and `point_in_solid`
+  answered 1,274 false `Out` inside it. The fix sets `sense: true` on
+  both section faces, since `plane_for` charts each with its outward
+  normal. The change is one line at `finish.rs`'s promotion loop.
+
+Signed: (CONTACT orchestrator)

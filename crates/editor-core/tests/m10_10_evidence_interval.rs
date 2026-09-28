@@ -6,7 +6,7 @@
 //! first name a drive reports at a multiple of the ceiling.
 //!
 //! Every row here is an `#[ignore]`d evidence probe that prints and
-//! asserts nothing a gate could read ([[test-suite-cost]]); the
+//! asserts nothing a gate could read (implementer-discipline §8); the
 //! positive pins live in `m10_10_pins_interval.rs`. Run them:
 //!
 //! ```sh

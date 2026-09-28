@@ -1110,3 +1110,56 @@ class of 65 sites is PRED's row.
   - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
   - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
   - Subscribed to 3352 for Ev's answer.
+- 2026-09-28 — PR 3351 at `28393a4e91` has two red rows at 1e-12. One is the deliberate pair row. The other, `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`, is the PR's own failure: the new source-scan census isn't in the reader ledger. It doesn't depend on the ruling and was sent to the lane to fix now.
+- 2026-09-28 — While 3351 and 3352 wait on Ev, dispatched `domain-grid-homing-residue` (P4/E) on `encl/domain-grid-residue`: Opus, style review. It is mechanical: the residual grid and sliver spellings and the hand interior filters in `props/quad.rs` (PROPS territory).
+  - Held until the ruling: the designers' off-question findings, i.e. `MeterError`'s Zero/Negative fold and main's `classify_certify` giving residual escalations a face-angle reason. Their content depends on 3352.
+- 2026-09-28 — The domain-grid residue lane opened PR 3354 (head `131a9f0c6b`).
+  - Adds `range_grid_points(…, mandatory)` under `domain_grid_points`. `knot_aligned_cuts` (both of its grids) now goes through it, and `block_edges` is deleted.
+  - Two `quad.rs` sites use `interior_knots()`; two range filters are kept, with comments.
+  - Pinning rows were added first, and bits are unchanged.
+  - Filed `work/issues/arc-rim-span-count-hand-spells-interior` (unowned `pcurves.rs`).
+  - Style review dispatched.
+  - PR 3351 at `054c90ae91` is confirmed red only on the pair row, as intended.
+- 2026-09-28 — The PR 3354 style review came back APPROVE-WITH-FIXES.
+  - Bits are unchanged, including the `block_edges` end drop (4M random ranges, worst gap 1.0·ε·width).
+  - Three new pins can't go red for their named mutations: two re-association forms, the sliver scale (only a collapse is caught), and the degree-2 double-knot dedup.
+  - Also taken:
+    - vacuous ends-clearance prose;
+    - the filed row moved to CHART (TRIM's cut gave `pcurves.rs` to CHART);
+    - the sliver overflow reassociated so it is exact;
+    - the sweep table completed.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
+  - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.
+- 2026-09-28 14:45 — Ev commented on `[ev]` PR 3352, on the one split. The tolerance advice should either be symmetric (tighten or loosen as appropriate) or dropped entirely. Ev leans toward showing it only where changing ε may be the only recourse: tiny intended geometry (tighten), or a NURBS fitted to an edge at a given accuracy (loosen; likely STEP adoption only, or a lowered ε, which could warn at the change). Ev asked for thoughts.
+  - Reconciliation round 2: both designers were given Ev's comment verbatim and asked to answer it directly (≤60 lines each). The reply to Ev will carry both, labelled A/B.
+- 2026-09-28 — Fork round 2 on Ev's question: both designers converged.
+  - ε appears in refusal text only as a conditional, valued "if this size is intended, tighten below m/K", on band-decided arms of nonzero-sign decisions. It never appears on residuals or on sign-certain arms, and no refusal says "loosen".
+  - Loosening lives at the import door (ε_in, D7) and at an ε change. A found that `Edit::SetTolerance` already reports the predicates it flips.
+  - One sub-choice is left for Ev: whether kernel-limit sites that say "loosen" today (offset-fit stall, mass-props budget, built-curve residual) become "no way through yet" (B leans that way, unsure) or keep "loosen" as a last resort. A did not weigh it.
+  - D4 (i) on the `[ev]` branch updated to match (`7b494764a7`). Replied on 3352 with both round-2 For-Ev sections verbatim as A/B. The fork-log row's round-2 entry goes in with Ev's answer.
+- 2026-09-28 15:12 — **Ev ruled on `[ev]` PR 3352.** Ev took the recommendation. Sub-choice: kernel-limit sites with no other recourse keep "loosen the tolerance" as a last resort, saying it may indicate a kernel bug to report.
+  - D4 (i) updated (`8b30f7d6c7`). Fork-log row 5 decision half filled in: round 2, Ev's decision, match (converged; the sub-choice matched neither lean), and A/B = byte 235, A=Fable, B=Opus. The row was renumbered from 3 after main's rows 3–4.
+  - (The tool classifier was down 15:13–~16:00, which delayed this.)
+  - `certify-escalation…` is set `needs_ev: false` and back to dispatched. PR 3351's lane is briefed to reshape to the rule: route by `CertCheck` with a pass set, siblings through the same entry, residuals take the defect or last-resort ending, and `classify_certify` reads the same routing.
+  - Filed `offset-meters-follow-the-d4-recourse-ruling` (P3/M; the 3347 follow-up) and `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E).
+- 2026-09-28 — `[ev]` PR 3352 merged (`e31a096566`, docs-only green). Dispatched `kernel-limit-refusals-name-loosening-without-the-bug-note` (P3/E) on `encl/kernel-limit-last-resort`: Opus, style review. `offset-meters-follow-the-d4-recourse-ruling` waits for 3351's reshape, whose pattern it follows.
+- 2026-09-28 — PR 3351 reshaped to the D4 ruling (head `127b991c4f`).
+  - Routing: one `certify::recourse(check, RefusedArm, Reading)` plus `CertCheck::passes()`, both exhaustive. The 45-name table, `EDGE_CLOSE_RECOURSE` and `MissingRecourse` are off this path.
+  - Checks: `ParamWinding` split out of `ParamSpan`. `PlaneNurbsRefusal::TransversalityEscalated` added.
+  - Residual families: exact constructions → defect; approximations → last resort.
+  - Siblings are routed, and the pair row is green over 4 pairs. `classify_certify` reads the same routing, fixing main's residual-as-angle defect.
+  - Filed: `certify-span-and-zero-arms-cannot-carry-their-decisions-full-ending`, and SSI's `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Full review dispatched. It is the ruling's first implementation and the pattern the rollout copies.
+- 2026-09-28 — The kernel-limit lane opened PR 3363 (head `0d3966954c`).
+  - Adds a shared tail, `geom_core::KERNEL_LIMIT_LAST_RESORT`.
+  - offset_fit: two arms drop loosening (a real lever, split the face, remains); three keep it as the last resort, one of them (~769) missed by the row. topo `classify_offset_fit` mirrors this.
+  - PROPS' quadrature-budget sites are filed on PROPS' slate. topo flush is filed in issues. ssi evidence added.
+  - **Collision with 3351**, which adds `geom_core::LAST_RESORT_RECOURSE` (a whole sentence). Decision: 3363's tail is the one home, because it can carry a site's value. 3351's fix pass composes from it and deletes its own constant. The style review for 3363 is also checking that composition.
+- 2026-09-28 — Reviews adjudicated.
+  - **3363** (style review): APPROVE-WITH-FIXES, all taken. The doc now uses D4's own list. Adds `KERNEL_LIMIT_RECOURSE`, the whole no-value sentence, which topo now uses. Adds a checks-window endings pin: red with "loosen" re-added, then green. The `contains` pins are now whole-recourse. Merged at head `ae4283fcc4` → `c28651d7c3`, hosted green. Row closed.
+  - **3351** (full review): REQUEST-CHANGES.
+    - M1: the certify Display fixed `Reading::Build`, so a file's defect at STEP adoption read as a kernel defect or "loosen". Fix (a): Display renders the payload only; each door appends `recourse` at its own reading, and adoption never gives last resort or kernel defect.
+    - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
+    - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
+    - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.

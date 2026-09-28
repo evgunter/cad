@@ -219,3 +219,47 @@ CI was red on `main` meanwhile: a 3322 × 3331 semantic merge in
 
 Filed: TINT's `corpus-node-kinds-roster-is-hand-written`
 (`corpus::NODE_KINDS` is not welded to `Node`).
+
+## 2026-09-28 — Ev rules on the cusp: derive it (PR 3317)
+
+After four designer rounds (the fork log's row 3), Ev took C's and D's
+recommendation: a wedge-0/2π edge is legal at rest iff jet-determinate,
+derived like the π seam; intent is declared only where the tangency is
+created. D1's tier-3 bullet is rewritten on PR 3317. The cusp row is
+re-scoped to implement it (no design flag, no Ev flag), and the audit
+that replaces tier 3's backstop is filed as
+`every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one`.
+`assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate`, which
+waited on this row, now waits on its landing.
+
+## 2026-09-28 — Ev on the remaining design rows
+
+In chat:
+- `the-gather-tie-merge-cannot-tell-a-candidate-carried-twice`: to a
+  designer pair, with Ev's lean that the fix may be in how the gather
+  works. Dispatched; blinding byte 155 on
+  `analysis/design-fork/gather-tie-merge-candidate-identity`.
+- `loft-path-loses-nine-predicate-families-from-the-probe-stream`:
+  closed as not a defect. Agents should not preserve busywork to feed
+  k-lint.
+- `wire-rs-accumulation-residue-comment-ratio-and-wire-sweep`: no
+  ratio budget; a one-time editorial pass, dispatched on
+  `gather/wire-rs-editorial-pass` (single STYLE review). Ev also
+  suggested an implementer-discipline note to delete excessive comments
+  as drive-by edits; that goes up as its own PR, since
+  `docs/prompts/` waits on Ev's sign-off.
+
+The derive-cusp-legality unit (Ev's ruling on PR 3317) is running on
+`gather/derive-cusp-legality`, single FULL review.
+
+## 2026-09-28 — wire.rs gets its editorial pass (PR 3365)
+
+Ev ruled a one-time editorial pass (in chat) and a standing
+drive-by note, which landed as PR 3361 (implementer-discipline §4).
+The pass took `eval/wire.rs` from 47.1% to 33.5% comment by line
+with code unchanged apart from five `#[allow]` reasons; a STYLE
+review restored three cut reasons (`fold_descent`, `wire_blend`'s
+attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
+had contradicted the code on main, and cut the hand-kept caller
+lists. Three WIRE rows filed for comments that were doing the
+code's work.
