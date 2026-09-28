@@ -783,7 +783,7 @@ pub(crate) fn name_placed_union<T: geom_core::Real>(
             // `GraftKeys` is total — so a tied row keeps every candidate
             // and narrows through the one door.
             if !moved.is_empty() {
-                super::defer::narrow_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
+                super::defer::mint_into(&mut t, super::role::NameRef::new(wrapped), moved)?;
             }
         }
     }

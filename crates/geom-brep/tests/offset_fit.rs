@@ -33,10 +33,9 @@ use geom_brep::offset_fit::{
     BestBound, LastRound, OFFSET_FIT_BUDGET, OFFSET_FIT_SAMPLE_CAP, OffsetFitError, OffsetLimb,
     certify_offset_at, fit_offset_at,
 };
-use geom_brep::offset_meters::{
-    MeterError, OFFSET_METER_LADDER, Refused, patch_collapse, patch_regularity,
-};
+use geom_brep::offset_meters::{MeterError, OFFSET_METER_LADDER, patch_collapse, patch_regularity};
 use geom_brep::patch_bound::patch_cells_refined;
+use geom_brep::recourse::Refused;
 use geom_core::Bounds;
 use geom_core::KERNEL_LIMIT_LAST_RESORT;
 use geom_core::Point3;

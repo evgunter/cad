@@ -511,6 +511,8 @@ mod m9_3_wall_door;
 mod germ_cone_doors;
 #[path = "germ_conic_plane_roots.rs"]
 mod germ_conic_plane_roots;
+#[path = "germ_coplanar_conic.rs"]
+mod germ_coplanar_conic;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
 #[path = "germ_interior_saddle.rs"]
