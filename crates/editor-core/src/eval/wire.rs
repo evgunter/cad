@@ -12,10 +12,9 @@
 //!
 //! **The mid-evaluation name ladder** ([`ladder`]). Every door that
 //! resolves an AUTHORED name against the tables THIS run has built so
-//! far asks the same three questions; the one-table doors ask them 1,
-//! 2, 3, and the declare door asks 1, 3, kind, 2
-//! ([`resolve_declarations`]). What a resolved name DENOTES is one door
-//! too: [`named_entity`] over [`super::entity_door`].
+//! far asks the same three questions, in the order [`ladder`] gives.
+//! What a resolved name DENOTES is one door too: [`named_entity`] over
+//! [`super::entity_door`].
 //!
 //! **The declaration routing.** A union's declared face pairs are SITED
 //! at its members and consumed by a fold of pairwise booleans, so
@@ -693,8 +692,7 @@ fn node_operand<'d, P, R>(
 }
 
 /// [`operand`]'s refusal alone, for callers that already hold the
-/// value ([`body_operand`], [`placeable_operand`], [`wire_split`],
-/// [`wire_part`]).
+/// value.
 fn wrong_operand<T: Decide>(
     v: &super::NodeValue<T>,
     input: RecipeNodeId,
@@ -1129,7 +1127,7 @@ pub(crate) fn pinned_plane<T: super::SectionScalar>(
 }
 
 /// **A frame's authored pair, made orthonormal** — the one spelling of
-/// it (see [`frame_from_slots`] for its two callers).
+/// it.
 ///
 /// `u` is normalized and KEPT; `v` yields its component along `u`.
 /// Gram-Schmidt states "these two span no plane" as a length, so a
@@ -1617,7 +1615,7 @@ fn written_against(
 /// plane** — the document semantics (the axis operand, the same-frame
 /// rule, the full-vs-partial classification), and the generic lowering
 /// from there.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // the doc and the env are read for the frame rule and the tokens' scope
 fn wire_revolve<
     T: Decide
         + geom_core::Bounds
@@ -1921,8 +1919,10 @@ fn wire_blend<
     stamp_minted(&mut body, id);
     // Attach-at-mint (VERB-SEAT-DESIGN P2): the size slot's expression
     // lowers to an opaque token under THIS evaluation's scope, and the
-    // verb's DECLARED flow says which minted carriers it lands on. The
-    // channel is opt-in (P3), so a missing slot attaches nothing.
+    // verb's DECLARED flow says which minted carriers it lands on. A
+    // slot the document does not hold cannot have produced `size`, but
+    // this is a lookup, so it falls back to attaching nothing rather
+    // than asserting.
     if let Some(expr) = doc.node(id).and_then(|n| n.expr(verb.slots.size_slot)) {
         let scope = crate::param_source::ParamScope::of(doc.id(), env.parts.chain());
         crate::param_source::attach_blend(
@@ -1956,7 +1956,7 @@ fn wire_blend<
 ///
 /// The record is written by the doors as they act, so it is not an
 /// `Option`; the emitter translates every row.
-#[allow(clippy::too_many_arguments)]
+#[allow(clippy::too_many_arguments)] // the blend lowering's arguments, as `wire_blend`
 fn wire_shell<
     T: Decide
         + geom_core::Bounds
@@ -2042,8 +2042,7 @@ fn resolve_open_faces(
 
 /// The mid-evaluation N5 refusal ladder, shared by every door that
 /// resolves an AUTHORED name against the tables the run has built so
-/// far ([`resolve_selection`], [`resolve_open_faces`],
-/// [`resolve_declarations`]).
+/// far.
 ///
 /// Mid-evaluation there is no prior run and no whole-evaluation
 /// index, so [`mod@crate::resolve`]'s full ladder does not apply. Three
@@ -2061,8 +2060,13 @@ fn resolve_open_faces(
 ///    [`ladder::vanished`]: there is no evidence to weigh
 ///    mid-evaluation.
 ///
-/// Rungs 2 and 3 are ordered by the DOOR: [`resolve_declarations`] asks
-/// 1, 3, its pair's kind question, then 2, and argues why there.
+/// Rungs 2 and 3 are ordered by the DOOR. The one-table doors ask 1,
+/// 2, 3. The declare door ([`resolve_declarations`]) asks 1 and 3 of
+/// BOTH names, then its pair's kind question, then 2: a name that names
+/// nothing says so before any question about the pair, and a pair the
+/// vocabulary has no step for is unsupported however many entities
+/// answer to either name, so the tie is the one per-name refusal the
+/// kind question outranks.
 ///
 /// A door supplies [`ladder::Landing`]s, one per table, and keeps its
 /// own arity (which table, what a multi-table hit means, which kind it
@@ -2098,7 +2102,8 @@ mod ladder {
     pub(super) struct Live<'n>(&'n StableName);
 
     impl<'n> Live<'n> {
-        /// The name rung 1 was paid on.
+        /// The name rung 1 was paid on. `Copy` copies the proof, which
+        /// is sound: it is about a name that cannot change under it.
         pub(super) fn name(self) -> &'n StableName {
             self.0
         }
@@ -2770,15 +2775,14 @@ fn wire_boolean<
 /// so an undeclared contact refuses in every member order. A fold step
 /// that refuses one is a bug ([`fold_step_refusal`]). A certified pair
 /// passes each step's census by being fed to the step that joins its
-/// sites as a declared face pair, unless another member already
-/// contained its accumulation-side face whole ([`drop_consumed`]).
+/// sites as a declared face pair.
 ///
 /// **Nothing ∅-absorbing is invented** (D3). A member that evaluates to
-/// an empty boolean refuses `EmptyOperand` naming that member. An empty
-/// INTERMEDIATE (a kernel-bug path under union) refuses the same way,
-/// naming the member the fold had reached; at the LAST step it is the
-/// typed empty success a pair union has.
-#[allow(clippy::too_many_arguments)]
+/// an empty boolean refuses `EmptyOperand` naming that member. A fold
+/// step that returns empty from two real bodies is a kernel bug, at
+/// every step including the last: it refuses
+/// [`UNION_STEP_EMPTY`] and names no member, since each one is fine.
+#[allow(clippy::too_many_arguments)] // one parameter per named input, as `wire_boolean`
 fn wire_union<
     T: Decide
         + geom_core::Bounds
@@ -2864,10 +2868,7 @@ fn wire_union<
         // the pair boolean's own door. The accumulation is presented
         // COLLAPSED — its `FromA`/`FromB` rows are the fold's internal
         // space, and a refusal names collapsed rows (`union_refusal`), so
-        // this is the one space a caller can write. A name the fold
-        // merged away is first rewritten to its `Merged` row
-        // (`look_through_fold`), and a pair whose accumulation-side face
-        // was consumed whole leaves the bucket (`drop_consumed`).
+        // this is the one space a caller can write.
         let decls = if buckets[step].is_empty() {
             BooleanDeclarations::none()
         } else {
@@ -3300,7 +3301,9 @@ fn member_site(
 /// in the set of TWO bare merged rows, and descendant ROWS that
 /// disagree about which composition consumed it (the first
 /// composition retires the bare name). Disagreement is read across
-/// rows only; within a row [`fold_descent`]'s first reading decides.
+/// rows only; within a row [`fold_descent`]'s first reading decides,
+/// so a merged row whose constituents disagree, and a bare merged row
+/// beside a fragment, go unseen: shapes the mint cannot produce either.
 fn look_through_fold<'n>(
     bucket: &[SidedPair<'n>],
     acc_table: &NameTable,
@@ -3376,8 +3379,9 @@ fn look_through_fold<'n>(
 /// [split](FoldConsumption::Split). A fragmented `Merged` head covering
 /// the name is a [fragmented merge](FoldConsumption::FragmentedMerge).
 /// A `Merged` head that does not cover the name says what its first
-/// descending constituent says. A BARE merged row covering the name is
-/// the look-through's, and `None` here.
+/// descending constituent says: a fragment merged later was still
+/// consumed by the split that made it a fragment. A BARE merged row
+/// covering the name is the look-through's, and `None` here.
 fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<FoldConsumption> {
     use crate::names::RoleSeg;
     if !names::face_descends_from(row, name) {
@@ -3391,8 +3395,10 @@ fn fold_descent(row: &names::StableName, name: &names::StableName) -> Option<Fol
         .count();
     let head = &row.path[..row.path.len() - tail];
     let fragmented = tail > 0;
-    // No node or kind test needed: the guard above admits a head equal
-    // to the name's path only as the name's own node and kind.
+    // No node or kind test needed: the guard's other routes descend
+    // into names nested inside the path, and no name descends from a
+    // name that contains it, so a head equal to the name's path is the
+    // name's own node and kind.
     if fragmented && head == name.path.as_slice() {
         return Some(FoldConsumption::Split);
     }
@@ -3743,11 +3749,8 @@ fn resolve_declarations<'n>(
     for ((o1, n1), (o2, n2), class) in pairs {
         let (o1, o2, class) = (*o1, *o2, *class);
         let refused = |error| NodeErrorKind::DeclareResolve { error };
-        // BOTH names walk rungs 1 and 3 before EITHER tie is raised:
-        // the TIE is the one per-name refusal the PAIR question
-        // outranks, and the pair question needs both names landed. A
-        // second name that does not resolve at all is a repair the
-        // author owes either way.
+        // Rungs 1 and 3 for both names, the kind question, then rung 2
+        // (the order is `ladder`'s doc).
         let table_of = |op| match op {
             topo::Operand::A => a_table,
             topo::Operand::B => b_table,
@@ -3755,11 +3758,9 @@ fn resolve_declarations<'n>(
         let (live1, l1) = declare_landing(n1, doc, table_of(o1))?;
         let (live2, l2) = declare_landing(n2, doc, table_of(o2))?;
         let (n1, n2) = (n1.name(), n2.name());
-        // KIND BEFORE MULTIPLICITY: a pair the vocabulary has no step
-        // for is unsupported however many entities answer to either
-        // name. Asked of the NAMES' kinds, which the table's two row
-        // writers (`NameTable::insert_ref`, `insert_tied_ref`) make
-        // every candidate's kind, so a tie answers it too.
+        // Asked of the NAMES' kinds, which the table's two row writers
+        // (`NameTable::insert_ref`, `insert_tied_ref`) make every
+        // candidate's kind, so a tie answers it too.
         let unsupported = |kinds| NodeErrorKind::DeclareUnsupportedPair {
             kinds,
             cross_operand: o1 != o2,
@@ -3919,9 +3920,8 @@ mod sides {
 /// Each variant carries its ORIENTATION as a [`sides`] token. A fourth
 /// VARIANT fails to compile until the projection covers it (`E0004`);
 /// a fourth pair shape reusing a variant must mint its witness through
-/// a comparison. Not caught: a comparison called with one side twice,
-/// and an arm pairing the wrong KINDS with a variant — which reaches
-/// `broke`, fail-loud.
+/// a comparison. Not caught: an arm pairing the wrong KINDS with a
+/// variant, which reaches `broke`, fail-loud.
 ///
 /// Asked of the two names' KINDS and operands only, none of which needs
 /// a name resolved to one entity, so the question can precede the tie.
@@ -3959,13 +3959,8 @@ fn declared_step(
 
 /// **Where a declared name lands in the ONE table its site picked** —
 /// rungs 1 and 3 of the declare door's walk, stopped short of rung 2
-/// so [`resolve_declarations`] can ask the PAIR's kind question in
-/// between.
-///
-/// The site is the side (DM4), so there is no side to pick. Rung 3 is
-/// here because a name that names nothing in its table says THAT
-/// before any question about the pair; only the tie, which the kind
-/// question outranks, is left for the caller.
+/// (the order and its reasons: [`ladder`]). The site is the side
+/// (DM4), so there is no side to pick.
 ///
 /// # Errors
 ///
@@ -4303,14 +4298,7 @@ fn wire_placed_union<
 
 /// The Sweep node's frontier — the ONE
 /// [`NodeErrorKind::CurvedSolidFrontier`] door, a constant so the
-/// acceptance rows assert the SAME text.
-///
-/// §10.4's rigid-profile sweep needs the path as ONE curve, and a
-/// `Node::Sweep`'s `path` operand is a profile loop, always a closed
-/// chain of two or more segments. So no recipe path is expressible,
-/// and the node refuses naming what is missing: a joined-path
-/// composition lane. The library's `sweep::sweep_body` is live; only
-/// this NODE lane is gated.
+/// acceptance rows assert the SAME text, which says why.
 pub(crate) const SWEEP_FRONTIER: &str = "a swept solid: the recipe's path operand is a profile LOOP — always \
      a closed chain of two or more segments, even at the minimal \
      two-vertex circle — while §10.4's rigid-profile sweep needs the \
