@@ -7,7 +7,6 @@ opened: 2026-09-25
 priority: P3
 cost: M
 design: true
-needs_ev: true
 ---
 
 Found by the GATHER split-halves lane (`gather/split-halves-tie-merge`),
@@ -36,3 +35,14 @@ twice over. None is built. The merge would need candidate identity
 (which upstream entity a row descends from), not only a tie bit, to
 refuse it at the name. The checks' separation resident reports the
 overlapping solids either way, so the geometry is not silent.
+
+## Decided (Ev, PR 3366, 2026-09-28)
+
+Candidate identity: the minter of a tie numbers its candidates, the
+pass-through ops keep the number, and the gather refuses a repeated
+(name, candidate) pair (`crates/editor-core/src/names/README.md`, N4,
+"A tie's candidates keep their identity"). The `separated` mark,
+`Upstream::piece` and `pass_through` retire. From the designers, for
+the implementer: number at the minter, not by `EntityRef`; keep the
+candidate out of name digests; test with `CarriedRows` unit rows plus
+PR 3256's overlap shapes with the mark removed.
