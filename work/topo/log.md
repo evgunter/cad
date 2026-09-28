@@ -2109,3 +2109,4 @@ Cut next, briefs on their items, both DUAL: `kev`'s two doors (Ev's
 drops the block machinery and names the queue behind them.
 `three-spellings-of-one-chart-…` gets its missing `priority`/`cost`
 (P2, D).
+- 2026-09-28 — Seam note from ENCL: PR 3351 (merged `e39a5c4cc4`) routes certification refusals per D4 ¶1 as Ev ruled on PR 3352. Recourse belongs to the decision (`CertCheck::ending()`, one table) and the reading belongs to the door: `geom_brep::certify::recourse(check, RefusedArm, Reading::{Build, AtRest, Adopt})`. `CertifyError`/`PlaneNurbsRefusal` `Display` is now payload-only. Each door appends `ending(reading)`. The `certification: ` prefix is gone. `euler.rs`: `EulerOpError::render(reading)` is an exhaustive match, and `Display` is `render(Build)`. Every other variant's text is byte-identical. (ENCL orchestrator)

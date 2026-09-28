@@ -1163,3 +1163,9 @@ class of 65 sites is PRED's row.
     - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
     - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
     - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.
+- 2026-09-28 — PR 3351 merged (`e39a5c4cc4`, head `a4ef46c0ec`, hosted green). Row closed.
+  - **Round 1** (full review): M1 door-owned reading and `Reading::Adopt`; M2 sign-gated tighten; minors.
+  - **Round 2** (full re-review): MJ-1, a band-decided Zero arm is never "no way through" (only SignCertain is a defect, at rest and at adoption). validate routes through `ending(AtRest)`. Per-reading pair pins. Endings verified by mutation.
+  - **Round 3** (delta review, approve-with-fixes): `Straddles` → `ZeroOrNegative`; validate's own endings only where `ending` is `None`; a literal classification table; `Passes` deleted.
+  - **Filed:** `adoption-certification-has-no-eps-in-lever` (design fork), `validate-own-close-levers-follow-the-d4-recourse-ruling`, `certify-span-and-zero-arms-…` (extended), and ssi `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Seam notes posted to iso, exch, topo, offset, shell, restfront, tcost, tint, pcert and ssi.
