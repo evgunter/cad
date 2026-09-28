@@ -2971,7 +2971,7 @@ impl Undecided {
             }
             Self::FaceKindUnsupported => {
                 "one has a face (a spline, part of a sphere, cone or torus, a flat \
-                 face edged by one, or a cylinder wall with a hole or with an edge that \
+                 face edged by one, or a cylinder wall with a hole or an edge that \
                  is not a flat cut) the check cannot yet test a point against. Recourse: move the parts until \
                  their bounding boxes no longer overlap"
             }

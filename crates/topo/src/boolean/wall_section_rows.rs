@@ -417,11 +417,9 @@ fn the_window_construction_sites_are_the_ones_listed() {
         ];
         let mut current = String::new();
         let mut out = std::collections::BTreeSet::new();
-        for line in src.lines() {
+        // The code view: a comment naming a mark or a `fn` is not a site.
+        for line in test_utils::source::code_only(src).lines() {
             let t = line.trim_start();
-            if t.starts_with("//") {
-                continue;
-            }
             if let Some(at) = t.find("fn ") {
                 let head = &t[..at];
                 if head.is_empty() || head.ends_with("pub ") || head.ends_with(") ") {
