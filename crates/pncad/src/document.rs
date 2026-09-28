@@ -285,7 +285,7 @@ pub use editor_core::ContentBits;
 // roots name, and `RootFault` is the shared invariant refusal both
 // the edit and persistence doors carry.
 pub use editor_core::{
-    Product, ProductError, ProductErrorKind, RootFault, product, product_recorded,
+    Product, ProductError, ProductErrorKind, RootFault, SourceFinding, product, product_recorded,
 };
 
 // The gather's own witness, and only where `debug_assertions` are on:
