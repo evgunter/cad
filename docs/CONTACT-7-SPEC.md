@@ -168,3 +168,59 @@ The usual lane rules apply:
 Run the `editor-core` concision rows, the `perf12` goldens and
 `-p test-utils` before you hand back: this unit adds a source-reading
 row and may move refusal reasons.
+
+## Amendment (2026-09-28): a star face is read through its piece at `p`
+
+The lane found that reading a NON-CONVEX star face whole refuses
+CONTACT-1's L-bracket rests. The L's far arm reaches back across the
+only separating plane, which contradicts "every existing touch row
+answers as before". Both designers weighed the fix and agree it is
+sound. It replaces "whole polygon" in S2 and S3:
+
+**S2′. Each star face is read through its piece at `p`.** The piece is
+the visibility polygon of `p` within the face: holes' edges block, and
+hole vertices cast windows. Its vertices are face vertices plus window
+points on edges, all real points in metres.
+- For `p` a vertex, the piece is bounded by `p`'s two edges and holds
+  its full sector, so a wide sector needs no subdivision.
+- For `p` inside an edge, it is bounded by that edge.
+- For `p` inside a face, it holds a disc around `p`.
+
+**Why it is exact.** The piece is star-shaped from `p`. Every point of
+it lies on a segment from `p` to its boundary, so its signed distance
+is a convex combination of vertex distances. Nothing is extrapolated.
+
+**The construction may only err smaller.** A numeric choice in building
+it (whether an edge blocks, or where a window falls) that is undecided
+takes the SMALLER piece. A smaller piece costs false refusals, never
+soundness, as long as it stays star-shaped from `p` and holds every face
+point within some positive radius of `p`. A triangle of `p`'s two
+adjacent vertices does not qualify, because a notch can intrude into it.
+
+**S3.3′. Edge convexity is read through pieces too.** Read the far
+face's piece, taken at a point of the edge, against the near face's
+plane, in both orders. A whole far face can have vertices on both sides
+of the near plane (the L's bottom against the wall plane), where the
+reading contradicts itself.
+
+**S5′.** Once faces are read through pieces, a Below at a piece vertex
+is exact local evidence: the segment from `p` to that vertex lies in the
+face and leaves the half-space. So a decided Below at a piece vertex is
+a Crossing, and S5's reach-back `Unanalysed` is no longer needed.
+Crossing is still claimed only on decided readings.
+
+**S6′. What a Rest certifies** (write this at arm 2's loop):
+- Within the ball about `p` that reaches the nearest boundary of the
+  pieces read, every point where one material enters the other lies
+  within `zero` of the separating plane on its own side. That is a
+  slab at most 2·zero thick, coincidence under D4.
+- Beyond that ball, an overlap deeper than the band is a dip of some
+  face below the other solid's boundary. Signed distance is affine, so
+  the dip shows at a vertex of that face, which is probed, or at a
+  crossing of the dip's boundary with the other solid's edges, which
+  stands as a finding or an escalation.
+
+**Rows.** CONTACT-1's four L-bracket rows answer as before, and the
+obtuse witness stays not-Rest because its face is convex and its piece
+is the whole face. Add L-bracket rows with a notch or a hole near the
+touch, where the piece is strictly smaller than the face.
