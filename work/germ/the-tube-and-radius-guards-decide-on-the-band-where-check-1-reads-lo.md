@@ -48,6 +48,17 @@ because NaN and `±∞` become NaI and are refused. A datum COMPUTED at
 interval type can. This is stated at the check (`poisoned_datums`'s
 docs), and it belongs to whichever answer this row reaches.
 
+**Two more on the band side (2026-09-28, the C5 pose-gate unit).**
+`plane_cone_section` now decides `pn_aperture_sin` / `pn_aperture_cos`
+the way `cone_cylinder_section` decides `coc_aperture_*`, because both
+of its lanes divide by the aperture. `intersect.rs`'s module docs state
+the rule for the file ("A division by a cone's aperture is decided
+first"). The rule is about the DIVISOR — a quotient by a number within
+ε of zero carries no relative accuracy — so it stands whichever way
+this row goes on the convention; what this row's answer changes is
+whether a datum-sign posture at rest makes those trileans insurance
+only.
+
 ## What must be decided
 
 One of three answers:
