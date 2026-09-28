@@ -989,3 +989,30 @@ class of 65 sites is PRED's row.
   - Declined: the rename and an accessor nit.
   - C23 is mine to note at merge.
   - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3338's `f2f5740dc3` went red on `topo … the_window_construction_sites_are_the_ones_listed`. The cause is not this PR: main's base `930a59dbd1` carried the site-census drift from the semantic merge of #3322 and #3331, and #3337 fixes it on main. I ported the fix by merging main into the branch (`00e326acbc`, exit 0). The census test passes locally (15 of 15). I commented once on the PR, and hosted CI is re-running.
+- 2026-09-28 — PR 3338 merged (`b3e5937b8e`), hosted all green on `00e326acbc`. Closed `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times`. `C23` has the answer appended and CHORD is notified on its log; the close is left to CHORD.
+- 2026-09-28 — The driver-log lane opened PR 3343 (head `bb5feee20a`).
+  - A new `k_stats::splice_superseded` door splices verdicts and samples without escalations. certify's tangent arm uses it, so the log holds exactly the escalation the typed error carries.
+  - Rejected: the driver reading the typed error first (it would see through about 40 wrappers), certify reordering (it moves populations and is against C7), and a later-verdict-wins rule.
+  - All 12 K CSVs are byte-identical to main.
+  - Filed CONTACT's `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`.
+  - Territory: `k_stats.rs` belongs to props and verdict, and `drive.rs` to props; seam notes follow at merge.
+  - Full review dispatched. Its focus: every reader of the escalation log, not just the driver.
+- 2026-09-28 — The PR 3343 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: every escalation-log reader was enumerated, and none loses information it relies on. The drop path is sound because no sub-box can certify. The success path is bit-identical by construction; the 12-CSV check is vacuous, because no producer reaches the arm. The rows go red on main.
+  - Fixes taken:
+    - the soundness sentence restated as "no sub-box can certify";
+    - a false universal in the k_stats doc, and its hand-written census of detached sites (replaced by a pointer, not grown);
+    - the undisclosed cost of the Bisect deviation: sliver boxes now go to the floor and are priced Budget. That is evidence for VERDICT's existing coincidence-zone row;
+    - territory: tcost and tint also own the test file;
+    - the CONTACT row's third divergence;
+    - a stale path in drive.rs;
+    - C7 wording that pointed at the README instead of the code comment;
+    - cross-references between the duplicated fixtures.
+  - Declined, and logged as a direction if a second caller appears: a typed pending-escalation value in place of choosing a splice.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — Dispatched `kernel-defect-endings-and-repair-labels-have-no-shared-home` (P4) on `encl/kernel-defect-recourse`, Opus, style review. It follows CHROME's refusal standard; the shared constant lands in `geom_core::predicate`, which is PROPS territory, so a seam note will follow at merge.
+- 2026-09-28 — PR 3343 fix pass landed at `0eb6236870`.
+  - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
+  - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
+- 2026-09-28 — PR 3343 merged (`f5390b0605`), hosted all green on `0eb6236870`. Closed `driver-escalation-log-names-a-renamed-tangent-refusal-osculating`. Seam notes posted on the props, verdict, tcost and tint logs.
