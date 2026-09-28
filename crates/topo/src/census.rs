@@ -3946,7 +3946,14 @@ impl<T: Decide> Star<T> {
     /// and no side of a convex spherical polygon exceeds 180°. If every
     /// edge is reflex or flat, the same holds of the complement, whose
     /// faces and corners are the same. A reflex corner therefore comes
-    /// only with edges of both kinds, which already read as a saddle.
+    /// only with edges of both kinds, which already read as a saddle. A
+    /// corner that would read IN BAND beside edges that all read one way
+    /// needs no refusal of its own either: the edges are decided, so
+    /// the polygon is convex and the corner is at most 180°, and a
+    /// corner within ε of straight is one such a polygon allows (a side
+    /// of 180° is a lune's). The shape class rests on the decided edges
+    /// alone, and where an edge is in band the class is already a
+    /// saddle in band.
     fn shape(at: At, edges: &[StarEdge]) -> Shape {
         if at == At::Face {
             return Shape::Flat;
@@ -4396,9 +4403,11 @@ fn touch_candidates<T: Decide>(a: &Star<T>, b: &Star<T>, band: Band, notes: &mut
 ///    a facet plane of their Minkowski difference, spanned by two
 ///    generators — so failing it on decided readings is a crossing.
 /// 2. **The complement**: one star inside every one of the other's
-///    faces' outer half-spaces misses the other's material near `p` —
-///    a peg seated in a concave corner. Complete when the other's
-///    complement is convex (every edge at `p` reflex or flat).
+///    faces' outer half-spaces misses the other's material near `p`.
+///    It runs whatever the other star's shape — sound for any polyhedral
+///    cone, by the proof at [`rest::certify`]'s complement arm — and is
+///    complete where the other's complement is convex (every edge at `p`
+///    reflex or flat): a peg seated in a concave corner.
 ///
 /// A crossing is claimed only on decided readings over two stars the
 /// search is complete for. A candidate refused in band, on a saddle or
@@ -5758,9 +5767,18 @@ mod tests {
     ///   `Margin::levered`, the span test, where a Zero only skips a
     ///   candidate);
     /// - the classifier of unit normals is called only from `pairing`;
-    /// - nothing reads a bare sign (`sign_within`);
-    /// - `Distance`'s field is private, so a product or a lever has no
-    ///   way to become one.
+    /// - nothing reads a bare sign: no `sign_within`, no comparison of a
+    ///   real against zero (`< T::zero()`, `> T::zero()`), no
+    ///   `is_sign_negative`, `is_sign_positive`, `signum`, `partial_cmp`
+    ///   or `total_cmp`, and no `classify_dihedral` (a levered
+    ///   classifier of its own). No construction code in the section
+    ///   needs one today, so the list has no exemption; one added for
+    ///   code whose outcome only shrinks a piece must be named here;
+    /// - `Distance` is built in exactly one place: its field is private,
+    ///   `mod metric` holds exactly one `Self(` — inside `Distance::of` —
+    ///   and no `Distance(`, and `of` is the module's only function
+    ///   returning a `Distance`. So a product or a lever has no way to
+    ///   become one, not even through a second constructor beside `of`.
     ///
     /// **What it cannot see.** `Distance::of` takes the plane's normal
     /// on trust: a normal scaled by a length is a lever spelled as a
@@ -5803,7 +5821,19 @@ mod tests {
             stray.extend(outside(needle, &[&metric, &candidates]));
         }
         stray.extend(outside("classify_material_pairing", &[&pairing]));
-        stray.extend(outside("sign_within", &[]));
+        for needle in [
+            "sign_within",
+            "classify_dihedral",
+            "< T::zero()",
+            "> T::zero()",
+            "is_sign_negative",
+            "is_sign_positive",
+            "signum",
+            "partial_cmp",
+            "total_cmp",
+        ] {
+            stray.extend(outside(needle, &[]));
+        }
         assert!(
             stray.is_empty(),
             "a decision in the touch analysis outside its doors: {stray:#?}"
@@ -5813,9 +5843,25 @@ mod tests {
         assert_eq!(count("Margin::of(", &metric), 1, "the metric door's one `Margin::of`");
         assert_eq!(count("Margin::", &candidates), 1, "the span test's one lever");
         assert_eq!(count("Margin::levered(", &candidates), 1, "the span test's one lever");
+        let door = &section[metric.clone()];
+        assert!(door.contains("struct Distance<T>(T);"), "`Distance`'s field is private");
+        let of = body("\n        pub(super) fn of(");
+        assert!(metric.contains(&of.start), "`Distance::of` is in `mod metric`");
+        let builds: Vec<usize> = section
+            .match_indices("Self(")
+            .chain(section.match_indices("Distance("))
+            .map(|(i, _)| i)
+            .filter(|i| metric.contains(i))
+            .collect();
         assert!(
-            section[metric].contains("struct Distance<T>(T);"),
-            "`Distance`'s field is private"
+            builds.len() == 1 && of.contains(&builds[0]),
+            "`Distance` is built once, inside `Distance::of`: {} builds",
+            builds.len()
+        );
+        assert_eq!(
+            door.matches("-> Self").count() + door.matches("-> Distance").count(),
+            1,
+            "`Distance::of` is `mod metric`'s only function returning a `Distance`"
         );
     }
 
