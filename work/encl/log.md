@@ -903,3 +903,4 @@ map and the public `replace_face(s)_offset` take `Tol` alone. The wider
 class of 65 sites is PRED's row.
 
 - 2026-09-28 — PR 3324 fix pass landed at `9f72ae6df7` (fix `2758f727fd` + main). Orchestrator read of the fix diff: all six review items addressed. The surgery comment's Line-on-Cone refusal claim was false and was reworded. The CONTACT row is priced P3/M with `design: true` (lint refuses cost D on new rows). A PROPS row was filed: `invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`. The earlier `gate ok` red on `781c3b20d8` was a cancelled superseded job. Merging on hosted green.
+- 2026-09-28 — PR 3324 merged (`5e4329bac8`), hosted all green on `9f72ae6df7`. Closed `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`.
