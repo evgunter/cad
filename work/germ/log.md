@@ -409,3 +409,17 @@ The single Opus review found no MAJOR:
   - the corner bar clears at the certificate but still refuses at the reduction.
 - **Given back:** the pin-only bracket, the cube in the donut's hole, the nested and buried coaxial cylinders, and the diagonal parallel pair, each checked by closed form.
 - **`local-scripts/ci-local.sh` is gone from main** (`24fedbfad`), so hosted CI is the gate of record from here on.
+
+## 2026-09-28 — PR 3372's dual review: the pre-note and the fix pass
+
+- **Both reviewers: APPROVE-WITH-FIXES.**
+- **Pre-note:**
+  - **Bilateral:** the lever pivot (the offset is taken at the partner's stored origin, so a far origin plus a decided-Zero tilt reclassifies the same carrier; R2 MAJOR, R1 MINOR, both executed); the off-carrier witness mutant; the mate7a R-tan pin; the stale "wall-pair gate" doc.
+  - **R2 alone:** the coplanar-conic audit line; coincident walls cleared by W1; three surviving mutants; the box-inventory wording.
+  - **R1 alone:** a merge dropped the wedge row (executed); the G-side `chart_boundary` and cache-collision mutants; the NURBS scope wording.
+  - **Tally candidates:** none, since the only MAJOR is bilateral. The pair found a MAJOR.
+  - **Fairness:** R1 listed the shared scratchpad and saw file names only, none opened and no findings; flagged, still fair. R1's pattern `pkill` and backgrounded builds broke the brief; no relaxation, so no effect on fairness.
+- **Blinded coding:** byte 43.
+- **The fix pass** carries the whole union to the implementer.
+
+**Class (logged):** a merge's conflict resolution silently dropped a row (the wedge row; `git log -S` misses merges). The same session's orchestrator branch committed conflict markers once. After any merge of main, grep for conflict markers AND diff the list of test names against both parents.
