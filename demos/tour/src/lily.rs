@@ -1991,15 +1991,26 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
         1,
         "glue the two stem arcs into one stem (declared coincident-planar mate)",
         crate::booleans::try_union_declared(stem, arch, tol),
-        |e| {
-            matches!(
-                e,
-                BooleanError::GermFrameUnsupported {
-                    a_kind: SurfaceKind::Plane,
-                    b_kind: SurfaceKind::Torus,
-                    ..
-                }
-            )
+        // The pair is named, not just its kinds: the stem's face is a
+        // plane (its weld cap) and the arch's a torus (its tube wall).
+        |e| match *e {
+            BooleanError::GermFrameUnsupported {
+                a_face,
+                a_kind: SurfaceKind::Plane,
+                b_face,
+                b_kind: SurfaceKind::Torus,
+            } => {
+                matches!(
+                    stem.get_face(a_face)
+                        .and_then(|f| stem.get_surface(f.surface)),
+                    Some(pncad::geom::Surface::Plane { .. })
+                ) && matches!(
+                    arch.get_face(b_face)
+                        .and_then(|f| arch.get_surface(f.surface)),
+                    Some(pncad::geom::Surface::Torus { .. })
+                )
+            }
+            _ => false,
         },
         "make the stem a single body — and close #968, whose whole content this is",
     );
@@ -3985,16 +3996,33 @@ mod verbs_gate_r1_probes {
         // cap against the arch's wall (plane × torus) has no section
         // frame arm. Unconditional: an `if let` here would go quiet
         // exactly when the refusal's shape changes.
+        let BooleanError::GermFrameUnsupported {
+            a_face,
+            a_kind: SurfaceKind::Plane,
+            b_face,
+            b_kind: SurfaceKind::Torus,
+        } = glued
+        else {
+            panic!("wall 1 stops at the join's plane × torus germ frame: {glued:?}");
+        };
+        // The stem's weld cap: its plane passes through the fork, the
+        // stem's end at 22° on its 5 m ring about (−5, 0, 0).
+        let fork =
+            pncad::geom_core::Point3::new(-5.0 + 5.0 * deg(22.0).cos(), 0.0, 5.0 * deg(22.0).sin());
         assert!(
             matches!(
-                glued,
-                BooleanError::GermFrameUnsupported {
-                    a_kind: SurfaceKind::Plane,
-                    b_kind: SurfaceKind::Torus,
-                    ..
-                }
+                stem.get_face(a_face).and_then(|f| stem.get_surface(f.surface)),
+                Some(&Surface::Plane { origin, .. }) if (origin - fork).norm() < 1e-9
             ),
-            "wall 1 stops at the join's plane × torus germ frame: {glued:?}"
+            "the stem's face is its weld cap at the fork: {glued:?}"
+        );
+        assert!(
+            matches!(
+                arch.get_face(b_face)
+                    .and_then(|f| arch.get_surface(f.surface)),
+                Some(Surface::Torus { .. })
+            ),
+            "the arch's face is its tube wall: {glued:?}"
         );
         // **The weld itself has no torus contact to declare**, measured
         // off the two loci: the stem tube's end circle has radius

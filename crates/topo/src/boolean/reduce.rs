@@ -1343,15 +1343,20 @@ fn curved_face_arm<T: Decide>(
                 // every one of them through [`wall_crossing`]. Those
                 // arms never read convexity for a torus (its residual is
                 // not convex along a line either), so nothing they
-                // conclude rests on the carrier being straight; the
-                // declared-cover arms below, which do rest on a line's
-                // separation story, are closed to a circle by their
-                // guards. An ESCALATED clearance goes the same way: the
-                // enclosures are a shortcut in front of the roots, and a
-                // margin in their escalation gap says only that the
-                // shortcut did not decide — the roots still can.
+                // conclude rests on the carrier being straight. An
+                // ESCALATED clearance goes the same way: the enclosures
+                // are a shortcut in front of the roots, and a margin in
+                // their escalation gap says only that the shortcut did
+                // not decide — the roots still can.
+                //
+                // **Only an UNCOVERED circle falls through.** The
+                // declared-cover arms below rest on a line's separation
+                // story, so a covered circle — whose covered-Zero case
+                // returned above — keeps the frontier door here rather
+                // than reaching them. That makes those arms structurally
+                // line-only, which they assert.
                 Ok(Sign::Zero | Sign::Negative) | Err(_)
-                    if matches!(surface, geom::Surface::Torus { .. }) => {}
+                    if !covered && matches!(surface, geom::Surface::Torus { .. }) => {}
                 Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
                 Err(diag) => return Err(BooleanError::Escalated { diag }),
             }
@@ -1365,8 +1370,8 @@ fn curved_face_arm<T: Decide>(
             band,
         )
     };
-    // The declared-cover arms rest on a LINE's separation story; a
-    // circle that reaches the endpoint arms is the torus root lane's.
+    // The declared-cover arms rest on a LINE's separation story; only an
+    // uncovered circle reaches the endpoint arms (the circle rung above).
     let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
     let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
     let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
@@ -1404,7 +1409,11 @@ fn curved_face_arm<T: Decide>(
         // unchanged; only the example it reached for was superseded. A
         // NEGATIVE partner is a genuine crossing — never the covered
         // posture. Uncovered keeps both frontier doors verbatim.
-        (Sign::Zero, Sign::Zero) if covered && on_line => {
+        (Sign::Zero, Sign::Zero) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
@@ -1418,7 +1427,11 @@ fn curved_face_arm<T: Decide>(
                 Err(frontier())
             }
         }
-        (Sign::Zero, Sign::Positive) if covered && on_line => {
+        (Sign::Zero, Sign::Positive) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
@@ -1426,7 +1439,11 @@ fn curved_face_arm<T: Decide>(
                 Err(frontier())
             }
         }
-        (Sign::Positive, Sign::Zero) if covered && on_line => {
+        (Sign::Positive, Sign::Zero) if covered => {
+            debug_assert!(
+                on_line,
+                "a covered circle keeps the frontier at the circle rung"
+            );
             let h = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
@@ -1488,13 +1505,17 @@ fn curved_face_arm<T: Decide>(
         // the carrier. Two invariants carry it:
         //
         // - **It is not an on-carrier edge.** `NoInterior` is reached only
-        //   through a certified root count with distinct roots; the lines
-        //   that lie on a wall are its rulings, which answer `Constant`,
-        //   and no line lies on a torus. So the undeclared cosurface
-        //   question (CONTACT-DESIGN C2/C4) keeps its door, and so does a
+        //   through a certified root count with distinct roots. For a
+        //   LINE: the lines that lie on a wall are its rulings, which
+        //   answer `Constant`, and no line lies on a torus. For a CIRCLE
+        //   against a torus: a circle lying on it is either coaxial (a
+        //   rim or latitude circle, answered `Constant`) or has `F ≡ 0`,
+        //   whose pole no anchor can put definitely off the torus
+        //   (`Unsettled`). So the undeclared cosurface question
+        //   (CONTACT-DESIGN C2/C4) keeps its door, and so does a
         //   tangency, a trim with no verdict, and every other answer.
         // - **Its interior meets this face nowhere.** The face lies on its
-        //   carrier; the line meets the carrier only at its certified
+        //   carrier; the edge meets the carrier only at its certified
         //   roots; each root strictly inside the span was placed outside
         //   the trim, and each root at an end is that end's own incidence.
         //
@@ -1922,11 +1943,21 @@ fn wall_crossing<T: Decide>(
             Err(_) => return Ok(SpanVerdict::Unsettled),
         }
     }
-    Ok(if crossed_elsewhere && !at_end {
+    Ok(no_pierce_verdict(crossed_elsewhere, at_end))
+}
+
+/// The verdict of a root set with no pierce in this face: `Elsewhere`
+/// only when some root strictly inside the span was placed outside the
+/// trim AND no root sits at an end — the one case that accounts for a
+/// straddle's crossing. A root set with no interior root (or with one at
+/// an end) is `NoInterior`, which the straddle arm reads as a
+/// contradiction and keeps the door on.
+fn no_pierce_verdict<T: geom_core::Real>(crossed_elsewhere: bool, at_end: bool) -> SpanVerdict<T> {
+    if crossed_elsewhere && !at_end {
         SpanVerdict::Elsewhere
     } else {
         SpanVerdict::NoInterior
-    })
+    }
 }
 
 /// The certified LINE × wall roots, per kind, written into `roots`:
@@ -2455,6 +2486,32 @@ mod undeclared_rule_rows {
         ];
         for (ends, want) in rows {
             assert_eq!(rule(ends), want, "{ends:?}");
+        }
+    }
+}
+
+#[cfg(test)]
+mod no_pierce_tests {
+    use super::{SpanVerdict, no_pierce_verdict};
+
+    /// **A straddle with no root in the span keeps the door.** Only an
+    /// interior root placed off this face, with no root at an end,
+    /// accounts for a straddle's crossing; every other combination is
+    /// `NoInterior`, which the straddle arm refuses on.
+    #[test]
+    fn only_an_interior_root_off_the_face_is_elsewhere() {
+        for (crossed, at_end, want_elsewhere) in [
+            (true, false, true),
+            (false, false, false),
+            (true, true, false),
+            (false, true, false),
+        ] {
+            let got = no_pierce_verdict::<f64>(crossed, at_end);
+            assert_eq!(
+                matches!(got, SpanVerdict::Elsewhere),
+                want_elsewhere,
+                "crossed_elsewhere {crossed}, at_end {at_end}: {got:?}"
+            );
         }
     }
 }

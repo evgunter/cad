@@ -200,16 +200,27 @@ fn p1_wall1_passes_the_gate_and_the_crossing_layer_and_stops_at_the_join() {
     // germ pair of the stem's weld cap against the arch's wall has no
     // section frame arm. The far-cap claims below are geometry and
     // stand on their own.
+    let BooleanError::GermFrameUnsupported {
+        a_face,
+        a_kind: SurfaceKind::Plane,
+        b_face,
+        b_kind: SurfaceKind::Torus,
+    } = err
+    else {
+        panic!("wall 1 stops at the join's plane × torus germ frame: {err:?}");
+    };
+    // The stem's face in the pair is its weld cap (the plane at the
+    // fork); the arch's is one of its tube walls.
+    let fork = arch_frame().fork;
     assert!(
-        matches!(
-            err,
-            BooleanError::GermFrameUnsupported {
-                a_kind: SurfaceKind::Plane,
-                b_kind: SurfaceKind::Torus,
-                ..
-            }
-        ),
-        "wall 1 stops at the join's plane × torus germ frame: {err:?}"
+        plane_faces(&s)
+            .iter()
+            .any(|&(k, o, _)| k == a_face && (o - fork).norm() < 1e-9),
+        "the stem's face is its weld cap at the fork: {a_face:?}"
+    );
+    assert!(
+        torus_faces(&a).contains(&b_face),
+        "the arch's face is its tube wall: {b_face:?}"
     );
     let frame = arch_frame();
     let far_cap = plane_faces(&a)
