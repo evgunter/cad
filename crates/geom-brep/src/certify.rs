@@ -1932,10 +1932,31 @@ fn run_checks<T: Decide>(
                     // certificate that accepts one must read the same
                     // sagitta under the same predicate name, or the
                     // stored set and the certified set are two sets.
-                    let so = crate::tangent_second_order(surf1, surf2, p, tau, extent, band);
+                    //
+                    // The frame's escalation log carries exactly the
+                    // escalation the returned error carries, so both
+                    // readings run detached and two are spliced without
+                    // theirs (`k_stats::splice_superseded`):
+                    // - the naming reading's: it never refuses, it only
+                    //   names a refusal already made;
+                    // - a renamed refusal's second-order one: no sub-box
+                    //   can certify. The defect is definite at the folded
+                    //   arm on every sub-box, and where a sub-box's
+                    //   sagitta resolves, its lever `1/|κ_rel|` is at
+                    //   least half that arm (`|κ_rel| ≤ κ₁ + κ₂`, each
+                    //   `κᵢ ≤ 1/curvature_lever_arm`), so the defect there
+                    //   is above `K/2 · ε > ε`. Two premises are not
+                    //   invariants: K > 2 is the ratified K = 10 (`Tol`
+                    //   asks only K > 1), and `κᵢ ≤ 1/curvature_lever_arm`
+                    //   fails on a fat torus (R < 2r). Where they fail,
+                    //   a sub-box could certify, and the drop is still
+                    //   safe: a failed node with an empty log bisects.
+                    let (so, second_order) = geom_core::k_stats::detached(|| {
+                        crate::tangent_second_order(surf1, surf2, p, tau, extent, band)
+                    });
                     let (jet, arm) = (so.jet, so.arm);
                     match so.verdict {
-                        Ok(Sign::Positive) => {}
+                        Ok(Sign::Positive) => geom_core::k_stats::splice(second_order),
                         refused => {
                             // No lever `1/κ_rel` exists, so the
                             // parallelism defect is metered at the folded
@@ -1949,14 +1970,22 @@ fn run_checks<T: Decide>(
                             // ladder spells the same fallback lever; the
                             // one deliberate difference is its role here,
                             // where it only names a refusal already made.
-                            let renamed = matches!(
-                                decide(
-                                    "tangent_normal_parallel",
-                                    Margin::levered(jet.sin_theta, arm),
-                                    band,
-                                ),
-                                Ok(Sign::Positive | Sign::Negative)
-                            );
+                            let (renamed, naming) = geom_core::k_stats::detached(|| {
+                                matches!(
+                                    decide(
+                                        "tangent_normal_parallel",
+                                        Margin::levered(jet.sin_theta, arm),
+                                        band,
+                                    ),
+                                    Ok(Sign::Positive | Sign::Negative)
+                                )
+                            });
+                            if renamed {
+                                geom_core::k_stats::splice_superseded(second_order);
+                            } else {
+                                geom_core::k_stats::splice(second_order);
+                            }
+                            geom_core::k_stats::splice_superseded(naming);
                             return Err(match refused {
                                 _ if renamed => CertifyError::ResidualExceeded {
                                     check: CertCheck::TangentParallel,
