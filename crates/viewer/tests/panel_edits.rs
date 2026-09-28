@@ -601,10 +601,22 @@ fn a_gesture_on_an_absent_parameter_refuses_typed() {
     let tol = Tol::witness();
     let (doc, _profile, _extrude) = common::parametric_plate(tol);
     let mut session = DocSession::inline(doc, tol);
-    let outcome = session.perform(SessionOp::BeginParamGesture {
-        name: pncad::document::ParamName::new("no-such-parameter"),
-    });
-    assert!(matches!(outcome.refusal, Some(Refusal::NoSuchParam(_))));
+    let name = pncad::document::ParamName::new("no-such-parameter");
+    let outcome = session.perform(SessionOp::BeginParamGesture { name: name.clone() });
+    // The status line shows the refusal's `Display`: the fact the
+    // properties pane draws for this selection
+    // (`Refusal::undeclared_wording`), then the recourse the edit
+    // door's own refusal ends on.
+    let refusal = outcome.refusal.expect("the drag is refused");
+    assert!(matches!(refusal, Refusal::NoSuchParam(_)));
+    assert_eq!(
+        refusal.to_string(),
+        format!(
+            "{} — {}",
+            Refusal::undeclared_wording(&name),
+            editor_core::edit::UNDECLARED_PARAM_RECOURSE
+        )
+    );
     assert!(matches!(
         session
             .perform(SessionOp::PreviewParamGesture {

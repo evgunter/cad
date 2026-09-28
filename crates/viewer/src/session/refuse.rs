@@ -631,6 +631,20 @@ impl Refusal {
         )
     }
 
+    /// The not-declared fact, and its one home. The status line
+    /// renders it through [`Refusal::NoSuchParam`], which adds the
+    /// recourse; the properties pane shows it bare, as the verdict on a
+    /// parameter selection that no longer denotes — one composition,
+    /// so the pane describing the selection and the refusal answering
+    /// a drag on it say the fact in the same words.
+    ///
+    /// The recourse is the refusal's half alone: it instructs an
+    /// attempt, and the pane is describing a selection, not answering
+    /// one.
+    pub fn undeclared_wording(name: &ParamName) -> String {
+        format!("parameter {} is not declared", name.0)
+    }
+
     /// The create-offer sentence, and its one home — shown over the
     /// add-parameter form when an expression refused on this name.
     pub fn offer_wording(name: &ParamName) -> String {
@@ -660,8 +674,8 @@ impl core::fmt::Display for Refusal {
             Self::NoSuchParam(name) => {
                 write!(
                     f,
-                    "no document parameter named {} — {UNDECLARED_PARAM_RECOURSE}",
-                    name.0
+                    "{} — {UNDECLARED_PARAM_RECOURSE}",
+                    Self::undeclared_wording(name)
                 )
             }
             Self::ParamNotANumber { name } => {

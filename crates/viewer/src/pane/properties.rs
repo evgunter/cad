@@ -938,9 +938,11 @@ impl ViewerBehavior<'_> {
 /// here rather than a silent blank; and a picked entity's noun is read
 /// off its own arm, so no caller can hand this "face" for an edge.
 ///
-/// The words are composed per arm — for a picked entity, the
-/// resolution machinery's own payload, never a sentence composed here
-/// about somebody else's refusal. How LOUD they are is not composed
+/// The words are chosen per arm — for an undeclared parameter,
+/// [`Refusal::undeclared_wording`], the fact the refusal a drag on it
+/// gets opens with; for a picked entity, the resolution machinery's
+/// own payload — never a sentence composed here about somebody else's
+/// refusal. How LOUD they are is not composed
 /// per arm: it is read once, off the value.
 ///
 /// A free function over the `Ui` so a headless drive can reach it
@@ -960,12 +962,7 @@ pub(crate) fn standing_verdict(ui: &mut egui::Ui, theme: &Theme, standing: &Stan
             name,
             present: false,
         } => {
-            crate::widgets::message_toned(
-                ui,
-                format!("parameter {} is no longer declared", name.0),
-                theme,
-                tone,
-            );
+            crate::widgets::message_toned(ui, Refusal::undeclared_wording(name), theme, tone);
             return;
         }
         Standing::Face { resolution, .. } => ("face", resolution.as_deref()),
@@ -1558,17 +1555,20 @@ mod verdict_tests {
     }
 
     /// **An undeclared parameter is said once, loud** — the only line
-    /// the pane draws for it (`properties_ui`'s `Param` arm draws none).
+    /// the pane draws for it (`properties_ui`'s `Param` arm draws none)
+    /// — and in the refusal vocabulary's words: the line is
+    /// `Refusal::undeclared_wording`, which `Refusal::NoSuchParam`
+    /// opens with, so the pane and a drag's refusal cannot drift apart.
     #[test]
     fn an_undeclared_parameters_verdict_is_drawn_loud() {
+        let name = ParamName("width".to_owned());
+        let said = crate::session::Refusal::undeclared_wording(&name);
+        assert_eq!(said, "parameter width is not declared");
         let (painted, voices) = drawn(&Standing::Param {
-            name: ParamName("width".to_owned()),
+            name,
             present: false,
         });
-        assert_eq!(
-            find(&painted, "parameter width is no longer declared").ink,
-            Some(voices.unresolved)
-        );
+        assert_eq!(find(&painted, &said).ink, Some(voices.unresolved));
     }
 
     /// **A selection that still denotes has no verdict**, so nothing

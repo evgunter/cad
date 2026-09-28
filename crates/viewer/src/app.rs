@@ -3233,7 +3233,8 @@ mod properties_pane_tests {
     /// "select a feature" prompt, and nothing else.
     #[test]
     fn an_undeclared_parameter_is_said_once_in_the_pane() {
-        let verdict = "parameter nope is no longer declared";
+        let verdict =
+            crate::session::Refusal::undeclared_wording(&ParamName("nope".to_owned()));
         let mut with = painted_with(Selection::Param(ParamName("nope".to_owned())));
         let mut without = painted_with(Selection::None);
         assert!(
@@ -3241,7 +3242,7 @@ mod properties_pane_tests {
             "the properties pane is drawn in this frame: {without:?}"
         );
         without.retain(|text| text != "select a feature");
-        without.push(verdict.to_owned());
+        without.push(verdict);
         with.sort();
         without.sort();
         assert_eq!(with, without);
