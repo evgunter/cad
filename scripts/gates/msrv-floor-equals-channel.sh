@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # msrv-floor-equals-channel.sh — EVERY declared MSRV floor in this tree
 # is the string `rust-toolchain.toml` pins as the channel.
-# ONE home; ci.yml's "the MSRV floor is the pinned channel" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE RULE. `rust-version` is a floor a consumer's compiler must clear;
 # `[toolchain] channel` is the compiler this workspace builds with

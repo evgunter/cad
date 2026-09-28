@@ -12,7 +12,7 @@
 //! trees and diffed. Adopted here with its rows intact and its verdict
 //! turned into assertions, because a test that prints is evidence for
 //! whoever is reading that day and a gate for nobody
-//! (`memories/test-suite-cost.md`).
+//! (implementer-discipline §8).
 //!
 //! Eight distinct `expected:` phrases over four distinct `found:`
 //! families, so two independent things are pinned and a door that lost

@@ -4,7 +4,7 @@
 //! CLAIMS from the spec and the ratified design (E1/E2), not from a
 //! re-reading of its diff. Written against the public surface only.
 //!
-//! The sampled rows follow `memories/test-suite-cost.md`: counterexample
+//! The sampled rows follow implementer-discipline §8: counterexample
 //! searches drawing a fresh seed per run from `test_utils::fuzz` — the
 //! one harness every randomized sweep in the tree draws from, logged
 //! unconditionally, replayed by `CAD_FUZZ_SEED`, with every count a
@@ -183,7 +183,7 @@ fn truncated_normal_tail_is_exactly_zero_on_its_own_support() {
 
 /// CLAIM 4: the Band answers ONLY on the overlap topologies where
 /// every measure consistent with it agrees, enumerated exhaustively —
-/// an enumeration, not a fuzz (`test-suite-cost.md`).
+/// an enumeration, not a fuzz (implementer-discipline §8).
 #[test]
 fn band_answers_are_exactly_the_measure_free_ones() {
     let band = Distribution::Band { lo: -1.0, hi: 1.0 };

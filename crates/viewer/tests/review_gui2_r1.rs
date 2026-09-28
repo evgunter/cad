@@ -15,7 +15,7 @@
 //! the cursor positions aimed at them stay here, where the aim is
 //! written.
 //!
-//! Conventions per `memories/test-suite-cost.md`: the randomized rows
+//! Conventions per implementer-discipline §8: the randomized rows
 //! draw a fresh seed per run through `test_utils::fuzz` (logged
 //! unconditionally, replayable via `CAD_FUZZ_SEED`), and their counts
 //! ride the shared effort dial. The one `#[ignore]`d row is an
@@ -495,7 +495,7 @@ fn e2e_a_gallery_ring_is_picked_edited_killed_and_revived() {
     let tol = Tol::witness();
     // Coarser than the block fixtures' δ: the ring is a revolve and
     // this row tessellates it twice; picking semantics do not depend
-    // on the facet count (`memories/test-suite-cost.md` — keep the
+    // on the facet count (implementer-discipline §8 — keep the
     // per-run cost where the claim needs it).
     let ring_delta = common::ring_delta();
     let loaded =
