@@ -7,7 +7,7 @@
 use crate::probe_support::{try_wall_sheet, wall_sheet};
 use geom_core::{Band, Tol};
 use topo::test_support::CylFrame;
-use topo::{Body, ChartOverlap, ChartRegionError, ContactVerdict, FaceKey, declared_pair_overlap};
+use topo::{ChartOverlap, ChartRegionError, ContactVerdict, declared_pair_overlap};
 
 fn band() -> Band {
     let tol = Tol::witness();
@@ -49,8 +49,7 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     // pushes B's TRUE world z strictly DOWN); no seam crossing.
     let (u0, u1) = (0.2_f64, 1.4_f64);
     let ha = 1e5 * eps;
-    let (mut body_a, mut body_b) = (Body::<f64>::new(), Body::<f64>::new());
-    let Some(fa_key) = try_wall_sheet(&mut body_a, CylFrame::canonical(1.0), 8001, u0, u1, 0.0, ha)
+    let Some((body_a, fa_key)) = try_wall_sheet(CylFrame::canonical(1.0), 8001, u0, u1, 0.0, ha)
     else {
         println!("the fixture cannot be minted at this ε — standing down");
         return;
@@ -60,7 +59,7 @@ fn probe1_tilt_lever_omits_the_radius_and_certifies_a_separated_pair() {
     // δ = 0, σ = +1, c = 0) reads it as overlapping A's [0, ha].
     let vb1 = 0.08 * theta.sin();
     let vb0 = vb1 - 5e4 * eps;
-    let Some(fb_key) = try_wall_sheet(&mut body_b, fb, 8002, u0, u1, vb0, vb1) else {
+    let Some((body_b, fb_key)) = try_wall_sheet(fb, 8002, u0, u1, vb0, vb1) else {
         println!("the tilted fixture cannot be minted at this ε — standing down");
         return;
     };
@@ -145,12 +144,6 @@ fn probe2_band_fast_path_exactness_gate_is_f64_only() {
 // offset with both trims hugging the seam, run both ways.
 // =====================================================================
 
-fn sheet(frame: CylFrame, src: u64, u0: f64, u1: f64, v0: f64, v1: f64) -> (Body<f64>, FaceKey) {
-    let mut body = Body::<f64>::new();
-    let f = wall_sheet(&mut body, frame, src, u0, u1, v0, v1);
-    (body, f)
-}
-
 #[test]
 fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
     // World azimuth windows that straddle / hug A's seam at u = 0.
@@ -173,10 +166,10 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
     let mut disagreements = vec![];
     for (name, d, ((t0, t1), (s0, s1))) in cases {
         let fb = CylFrame::opposed(d);
-        let (a, fa) = sheet(CylFrame::canonical(1.0), 8101, t0, t1, 0.0, 1.0);
+        let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 8101, t0, t1, 0.0, 1.0);
         // Same world region, expressed in B's chart:
         // θ_world = d − u_B, z_world = 0.25 − v_B.
-        let (b, fbk) = sheet(fb, 8102, d - s1, d - s0, 0.25 - 0.7, 0.25 - 0.3);
+        let (b, fbk) = wall_sheet(fb, 8102, d - s1, d - s0, 0.25 - 0.7, 0.25 - 0.3);
         let ab = verdict_class(declared_pair_overlap(
             &a,
             fa,
@@ -213,8 +206,8 @@ fn probe3_large_seam_offset_with_trims_hugging_the_seam_both_ways() {
 #[test]
 fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
     // The unit's own SeamBranch row generalised: spans summing past τ.
-    let (a, fa) = sheet(CylFrame::canonical(1.0), 8201, 0.0, 3.5, 0.0, 1.0);
-    let (b, fbk) = sheet(
+    let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 8201, 0.0, 3.5, 0.0, 1.0);
+    let (b, fbk) = wall_sheet(
         CylFrame::opposed(0.7),
         8202,
         0.7 - 6.5,
@@ -234,8 +227,8 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
         ))
     );
     // A FLUSH seat (shared rim): TouchingBoundary is claimed.
-    let (a2, fa2) = sheet(CylFrame::canonical(1.0), 8203, 0.2, 1.6, 0.0, 0.5);
-    let (b2, fb2) = sheet(
+    let (a2, fa2) = wall_sheet(CylFrame::canonical(1.0), 8203, 0.2, 1.6, 0.0, 0.5);
+    let (b2, fb2) = wall_sheet(
         CylFrame::opposed(0.7),
         8204,
         0.7 - 1.3,
@@ -263,8 +256,8 @@ fn probe4_declines_on_decidable_geometry_are_reachable_and_typed() {
 
 #[test]
 fn probe5_door_one_verdict_is_ignored_at_every_variant() {
-    let (a, fa) = sheet(CylFrame::canonical(1.0), 8301, 0.2, 1.6, 0.0, 1.0);
-    let (b, fbk) = sheet(
+    let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 8301, 0.2, 1.6, 0.0, 1.0);
+    let (b, fbk) = wall_sheet(
         CylFrame::opposed(0.7),
         8302,
         0.7 - 1.3,
@@ -296,8 +289,8 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
         ("short (unit's own A/B z 0..1e-3)", 1e-3),
         ("long (0..4)", 4.0),
     ] {
-        let (a, fa) = sheet(CylFrame::canonical(1.0), 8402, 0.2, 1.6, 0.0, ha);
-        let (b, fb) = sheet(CylFrame::tilted(1.0, tilt), 8401, 0.2, 1.6, 0.0, ha);
+        let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 8402, 0.2, 1.6, 0.0, ha);
+        let (b, fb) = wall_sheet(CylFrame::tilted(1.0, tilt), 8401, 0.2, 1.6, 0.0, ha);
         let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
         println!("{label}: {r:?}");
     }
@@ -308,8 +301,8 @@ fn probe6_what_the_units_own_tilt_row_actually_answers() {
         ("tilt + thin A", 1e-4, 0.0, 1e-3, 5e-6),
         ("untilted + negative vb0", 1e-3, -5e-5, 4e-7, 0.0),
     ] {
-        let (a, fa) = sheet(CylFrame::canonical(1.0), 8403, 0.2, 1.4, 0.0, ha);
-        let (b, fb) = sheet(CylFrame::tilted(1.0, theta), 8404, 0.2, 1.4, vb0, vb1);
+        let (a, fa) = wall_sheet(CylFrame::canonical(1.0), 8403, 0.2, 1.4, 0.0, ha);
+        let (b, fb) = wall_sheet(CylFrame::tilted(1.0, theta), 8404, 0.2, 1.4, vb0, vb1);
         let r = declared_pair_overlap(&a, fa, &b, fb, ContactVerdict::Definite, band());
         println!("{label}: {r:?}");
     }
@@ -338,8 +331,8 @@ fn probe7_a_definitely_separated_pair_is_falsely_certified() {
         let fb = CylFrame::tilted(r, theta);
         let vb1 = 0.08 * theta.sin() * r;
         let vb0 = vb1 - h;
-        let (a, fa) = sheet(CylFrame::canonical(r), 8501, u0, u1, 0.0, h);
-        let (b, fbk) = sheet(fb, 8502, u0, u1, vb0, vb1);
+        let (a, fa) = wall_sheet(CylFrame::canonical(r), 8501, u0, u1, 0.0, h);
+        let (b, fbk) = wall_sheet(fb, 8502, u0, u1, vb0, vb1);
         // The truth, from the two chart maps.
         let mut b_zmax = f64::NEG_INFINITY;
         for i in 0..=400 {
@@ -388,8 +381,8 @@ fn probe7b_a_definitely_separated_pair_is_falsely_certified() {
         let fb = CylFrame::tilted(r, theta);
         let vb1 = frac * theta.sin() * r;
         let vb0 = vb1 - h;
-        let (a, fa) = sheet(CylFrame::canonical(r), 8601, au0, au1, 0.0, h);
-        let (b, fbk) = sheet(fb, 8602, bu0, bu1, vb0, vb1);
+        let (a, fa) = wall_sheet(CylFrame::canonical(r), 8601, au0, au1, 0.0, h);
+        let (b, fbk) = wall_sheet(fb, 8602, bu0, bu1, vb0, vb1);
         let mut b_zmax = f64::NEG_INFINITY;
         for i in 0..=400 {
             let u = bu0 + (bu1 - bu0) * (i as f64) / 400.0;
@@ -451,8 +444,8 @@ fn probe1b_transfer_axial_error_is_levered_by_the_radius_not_the_reach() {
         err > k * eps,
         "fixture sanity: the transfer error must sit far outside the band"
     );
-    let (a_body, fa_key) = sheet(fa, 8701, 0.15, 1.65, 0.0, 1e-3);
-    let (b_body, fb_key) = sheet(fb, 8702, 0.2, 1.6, 0.0, 1e-3);
+    let (a_body, fa_key) = wall_sheet(fa, 8701, 0.15, 1.65, 0.0, 1e-3);
+    let (b_body, fb_key) = wall_sheet(fb, 8702, 0.2, 1.6, 0.0, 1e-3);
     let got = declared_pair_overlap(
         &a_body,
         fa_key,

@@ -56,13 +56,6 @@ use geom_core::Tol;
 use geom_core::{Band, Point3, Vec3};
 use topo::{Body, CoherenceCondition, EulerOpError, FaceSurface, MefSite, MevSite};
 
-fn p3(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v3(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 /// The sphere under every row: R = 10 mm about +Z at the origin.
 const RS: f64 = 0.010;
 /// The lower rim's latitude.
@@ -76,23 +69,23 @@ const V1: f64 = 0.5;
 fn two_level_rim_cap(dv: f64) -> Result<Body<f64>, EulerOpError> {
     let tol = Tol::witness();
     let vm = V1 + 0.5 * dv;
-    let a = p3(RS * vm.cos(), 0.0, RS * vm.sin());
-    let b = p3(-RS * vm.cos(), 0.0, RS * vm.sin());
+    let a = Point3::new(RS * vm.cos(), 0.0, RS * vm.sin());
+    let b = Point3::new(-RS * vm.cos(), 0.0, RS * vm.sin());
     let rim = |v: f64| Curve3::Circle {
-        center: p3(0.0, 0.0, RS * v.sin()),
-        axis: v3(0.0, 0.0, 1.0),
+        center: Point3::new(0.0, 0.0, RS * v.sin()),
+        axis: Vec3::new(0.0, 0.0, 1.0),
         radius: RS * v.cos(),
-        u_ref: v3(1.0, 0.0, 0.0),
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
     };
     let mut body = Body::<f64>::new();
     let seed = body.mvfs(a).unwrap();
     body.set_face_surface(
         seed.face,
         FaceSurface::New(Surface::Sphere {
-            center: p3(0.0, 0.0, 0.0),
+            center: Point3::new(0.0, 0.0, 0.0),
             radius: RS,
-            axis: v3(0.0, 0.0, 1.0),
-            u_ref: v3(1.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 0.0, 1.0),
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
         }),
     )
     .unwrap();

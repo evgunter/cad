@@ -129,6 +129,39 @@ preferred the merge. Ev's reading is the cleaner one, and it removes the F7
 edit altogether. Still open for Ev: the `Band(s)` naming, and parking the
 π revolve.
 
+## 2026-09-26 — the torus-doors dual: both reviews NOT-MERGEABLE-AS-IS
+
+Dual on PR 3265, frozen head `ab143da4e`, protocol `fbeedfaf5`; R1 and R2
+had identical briefs. The union, adjudicated:
+
+- **Bilateral MAJOR.** Line×torus silently skips a certified root that
+  containment reads as definitely off the tube, so the union comes back an
+  `Assembly`. Main refused at the gate.
+- **Unilateral MAJOR (R2).** A torus that crosses only a face's interior
+  (the plane section is a closed oval touching no edge) falls to `ops.rs`'s
+  vertex-probe fallback, which is certified for the sphere and the cylinder
+  only.
+- **Bilateral MINOR.** The torus lever change loosens the pierce-normal
+  certificate (lever 0 at R ≤ r) and moves seven unpinned consumers.
+- **Other MINORs.** A stale gate-safety sentence (R1 is right against R2's
+  reading); an `Uncertain → Miss` mutant survives; one row was weakened;
+  every line row is axis-perpendicular, so none runs the Ferrari path.
+
+The fix pass is dispatched to the same lane. After it, one reviewer
+re-checks, on the same terms for both. The dual log row rides the PR last.
+
+**Classes, recorded at adjudication:**
+1. **Admitting a kind to the roster voids premises written elsewhere.**
+   Fallbacks and prose that assumed "the roster refuses X" (`ops.rs`'s
+   no-crossings fallback, `cylinder_extent_gate`'s torus bullet) go silently
+   false. A roster admission owes a sweep of every reader of the roster's
+   refusal, not only the kind dispatches.
+2. **One `Out` for two causes.** A containment answer of "off the carrier"
+   and "outside the trim" in one variant lets a contradicted certificate
+   read as a clean miss.
+3. **One function for two quantities.** `curvature_lever_arm` serves both a
+   curvature bound and a gradient-to-metres scale. Tightening one loosens
+   the other.
 ## 2026-09-26 — the ray-torus counterexample closes (PR 3255)
 
 The fault was in `line_torus_roots`: Cardano cancellation in the resolvent's
@@ -148,3 +181,52 @@ representation of one root. Where the sign picks WHICH root (the cylinder
 and cone near-root, `ray-wall-and-cone-near-root-cancels-over-a-small-lead`),
 it needs a frame decision instead. Any new `copysign` site in the register
 (`sym_rule_f_rows`) should be read against this.
+
+## 2026-09-26 — the torus doors land (PR 3265)
+
+Tier: dual, recorded as a `DR` row in `docs/DUAL-REVIEW-LOG.md`. Both
+reviews were NOT-MERGEABLE-AS-IS (two MAJORs, each a refusal that became a
+confident wrong answer; see the 2026-09-26 adjudication above). Then a fix
+pass, a re-check by one reviewer (APPROVE-WITH-FIXES), and a final pass.
+The gate is local and crate-scoped by Ev's authorization (hosted Actions
+was queued for hours): `topo`, `geom-brep` and `sweep` at the default eps,
+the torus rows at all three eps, clippy, `demos/tour` clippy and fmt.
+
+Closed: `torus-operand-gate-admission`,
+`torus-coincident-pair-cannot-reach-the-covered-rung`, and the torus half
+of `curved-face-containment-lacks-cone-torus`. Filed:
+- GERM: `circle-crosses-a-torus-face-with-no-root-lane`,
+  `undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`,
+  `torus-onto-the-subtract-and-intersect-roster`,
+  `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`,
+  `the-ring-torus-convention-is-checked-three-ways`;
+- ZIP: `dumbbell-joint-union-leaves-four-loose-ends`;
+- TANG: `decided-coincidence-carries-a-synthetic-invalid-margin`,
+  `torus-carrier-axis-margin-is-levered-by-one-not-the-ring`.
+
+REACH's `implicit.rs` gained `min_radius_of_curvature` (a note is on
+REACH's log).
+
+## 2026-09-28 — round two: two batched lanes
+
+PR 3265 merged, gated both by a full local `ci-local.sh` and by a hosted run
+on the merged head. Per Ev (2026-09-26), related units now ride one PR each
+to spare CI.
+
+- `germ/cone-containment-and-pose-gate` carries
+  `curved-face-containment-lacks-a-cone-arm` and
+  `c5-gate-admits-every-pose-of-an-implemented-pair`: the cone ground
+  `VERBS-CONE` builds on. **Tier: single full review.** The torus arm it
+  mirrors is reviewed and merged.
+- `germ/torus-ops-and-chord` carries
+  `undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`,
+  `torus-onto-the-subtract-and-intersect-roster` and
+  `the-ring-torus-convention-is-checked-three-ways`. **Tier: dual.** It
+  admits the torus to two more ops and relaxes a reduction rule. The last
+  admission (PR 3265) turned two refusals into confident wrong answers, and
+  the class it logged binds this lane: a roster admission owes a sweep of
+  every reader of the roster's refusal.
+
+Held for the next round: `circle-crosses-a-torus-face-with-no-root-lane` and
+`torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
+(both H), and `VERBS-CONE`, behind the cone lane.

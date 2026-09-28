@@ -2241,7 +2241,7 @@ impl<T: Decide> Body<T> {
         Ok(group)
     }
 
-    /// [`Body::planar_loop_winding`] at ellipse reach, in this door's
+    /// [`Body::planar_loop_winding`], in this door's
     /// error vocabulary: a torn lookup is `StaleKey` naming the loop and
     /// an in-band margin escalates. `None` is an empty loop or a NURBS
     /// or spiric carrier. `normal` is the face's OUTWARD normal.
@@ -2251,13 +2251,13 @@ impl<T: Decide> Body<T> {
         normal: geom_core::Vec3<T>,
         band: Band,
     ) -> Result<Option<geom_core::Sign>, MergeCoplanarError> {
-        let winding = self
-            .planar_loop_winding(l, normal, band, crate::loop_winding::LoopCarriers::Elliptic)
-            .map_err(|crate::loop_winding::TornLoop| MergeCoplanarError::Op {
+        let winding = self.planar_loop_winding(l, normal, band).map_err(
+            |crate::loop_winding::TornLoop| MergeCoplanarError::Op {
                 error: EulerOpError::StaleKey {
                     key: EntityId::Loop(l),
                 },
-            })?;
+            },
+        )?;
         match winding {
             None => Ok(None),
             Some(Ok(sign)) => Ok(Some(sign)),
@@ -2636,7 +2636,6 @@ mod tests {
     /// face's RING and their membrane half in the membrane's outer
     /// loop, which is the nesting the drain re-homes.
     fn cube_with_membrane(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
-        let pt = geom_core::Point3::new;
         let crate::test_support_fixtures::CubeOps {
             mut body,
             seed,
@@ -2647,10 +2646,10 @@ mod tests {
             &mut body,
             mefs[1].he_plus,
             &[
-                pt(0.25, 0.25, 1.0),
-                pt(0.75, 0.25, 1.0),
-                pt(0.75, 0.75, 1.0),
-                pt(0.25, 0.75, 1.0),
+                geom_core::Point3::new(0.25, 0.25, 1.0),
+                geom_core::Point3::new(0.75, 0.25, 1.0),
+                geom_core::Point3::new(0.75, 0.75, 1.0),
+                geom_core::Point3::new(0.25, 0.75, 1.0),
             ],
             tol,
         )
@@ -2738,7 +2737,6 @@ mod tests {
     /// before the rim is grown frees the seed face's slot, which the
     /// membrane's `add_face` then reuses.
     fn cube_with_arena_first_membrane(tol: Tol) -> (Body<f64>, FaceKey) {
-        let pt = geom_core::Point3::new;
         let cube = declined_cube::<f64>(tol);
         let mut body = cube.body;
         let seed_face = cube.seed.face;
@@ -2777,10 +2775,10 @@ mod tests {
             &mut body,
             host_he,
             &[
-                pt(0.25, 0.25, 1.0),
-                pt(0.75, 0.25, 1.0),
-                pt(0.75, 0.75, 1.0),
-                pt(0.25, 0.75, 1.0),
+                geom_core::Point3::new(0.25, 0.25, 1.0),
+                geom_core::Point3::new(0.75, 0.25, 1.0),
+                geom_core::Point3::new(0.75, 0.75, 1.0),
+                geom_core::Point3::new(0.25, 0.75, 1.0),
             ],
             tol,
         )
@@ -3143,14 +3141,13 @@ mod tests {
     /// [`NetState::Poisoned`], described geometry that cannot
     /// evaluate, and not the placeholder.
     fn poisoned_net() -> Surface<f64> {
-        let pt = geom_core::Point3::new;
         let kv = geom_core::spline::KnotVector::clamped(vec![0.0, 0.0, 1.0, 1.0], 1)
             .expect("a clamped linear knot vector");
         let net = geom::NurbsSurface::new(
             kv.clone(),
             kv,
             (0..4)
-                .map(|i| pt(f64::NAN, f64::from(i % 2), f64::from(i / 2)))
+                .map(|i| geom_core::Point3::new(f64::NAN, f64::from(i % 2), f64::from(i / 2)))
                 .collect(),
             vec![1.0; 4],
         )
@@ -3424,17 +3421,16 @@ mod tests {
     /// with its split face on a real plane and its seed face left on
     /// the placeholder, each on its own key: a placeholder cap.
     fn pillow_with_a_placeholder_cap(tol: Tol) -> (Body<f64>, FaceKey, FaceKey) {
-        let pt = geom_core::Point3::new;
         let mut body = Body::<f64>::new();
         let seed = body
-            .mvfs(pt(0.0, 0.0, 0.0))
+            .mvfs(geom_core::Point3::new(0.0, 0.0, 0.0))
             .expect("mvfs has no preconditions");
         let seg = body
             .mev_line(
                 crate::euler::MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(1.0, 0.0, 0.0),
+                geom_core::Point3::new(1.0, 0.0, 0.0),
                 tol,
             )
             .expect("the first edge grows");

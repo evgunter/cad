@@ -416,21 +416,8 @@ mod tests {
     /// The refinement schedule for one direction: every nonempty span of
     /// `kv` cut into `splits` equal pieces.
     fn chain(kv: &KnotVector, splits: usize) -> Vec<crate::spline::CurvePlan> {
-        let mut add = Vec::new();
-        for span in kv.first_span()..=kv.last_span() {
-            if !kv.span_is_nonempty(span) {
-                continue;
-            }
-            let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-            for k in 1..splits {
-                #[allow(clippy::cast_precision_loss)]
-                let t = lo + (hi - lo) * (k as f64 / splits as f64);
-                if t > lo && t < hi {
-                    add.push(t);
-                }
-            }
-        }
-        crate::spline::algebra::refine_plan_homogeneous(kv, &add).unwrap()
+        use crate::spline::algebra::{equal_split_points, refine_plan_homogeneous};
+        refine_plan_homogeneous(kv, &equal_split_points(kv, splits)).unwrap()
     }
 
     /// **Ring refinement is the per-line chain, scattered back** — each

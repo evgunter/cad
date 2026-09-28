@@ -116,10 +116,6 @@ fn tol() -> Tol {
     Tol::witness()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The six sentences, with a short name for the assertion message.
 const ALL: [(&str, &str); 6] = [
     ("turn-in-band", FILLET_TURN_INBAND_RECOURSE),
@@ -191,13 +187,13 @@ fn builds_and_validates(lp: Result<ProfileLoop<f64>, PathError<f64>>, what: &str
 /// `y = r` and the offset circle of radius `2 − r` meet only while
 /// `r ≤ 1`, so a larger radius has no tangent circle at all.
 fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(0.0, 2.0))
-        .line_to(p2(0.0, 0.0), tol())?
+    Open.at(Point2::new(0.0, 2.0))
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(2.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
                 p: Start,
             },
@@ -210,14 +206,14 @@ fn line_arc_internal(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 /// at `(start_x, 0)`, so the leg behind the derived corner `(2, 0)` is
 /// `2 − start_x` long and the tangent setback can outrun it.
 fn straight_leg(start_x: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    Open.at(p2(start_x, 0.0))
+    Open.at(Point2::new(start_x, 0.0))
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, 2.0),
+                p: Point2::new(0.0, 2.0),
             },
             tol(),
         )?
@@ -231,13 +227,13 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let tip = 0.75f64.sqrt();
     Open.arc_fillet_arc(
         Center {
-            c: p2(-0.5, 0.0),
+            c: Point2::new(-0.5, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -tip),
+            p: Point2::new(0.0, -tip),
         },
         radius,
         Center {
-            c: p2(0.5, 0.0),
+            c: Point2::new(0.5, 0.0),
             winding: ArcSweep::Ccw,
             p: Start,
         },
@@ -252,15 +248,15 @@ fn two_lobes(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-1.0, 0.0),
+            c: Point2::new(-1.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(1.0, 0.0),
+            p: Point2::new(1.0, 0.0),
         },
         radius,
         Center {
-            c: p2(1.0, 0.0),
+            c: Point2::new(1.0, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(3.0, 0.0),
+            p: Point2::new(3.0, 0.0),
         },
         tol(),
     )?
@@ -279,19 +275,19 @@ fn mixed_corner(radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
 fn short_leg_at_angle(a: f64, delta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let y = 2.0 - delta;
     let cx = -(4.0 - y * y).sqrt();
-    Open.at(p2(cx - a, y))
+    Open.at(Point2::new(cx - a, y))
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
             Center {
-                c: p2(0.0, 0.0),
+                c: Point2::new(0.0, 0.0),
                 winding: ArcSweep::Ccw,
-                p: p2(0.0, -2.0),
+                p: Point2::new(0.0, -2.0),
             },
             tol(),
         )?
-        .line_to(p2(-3.0, -3.0), tol())?
-        .line_to(p2(-3.0, 3.0), tol())?
+        .line_to(Point2::new(-3.0, -3.0), tol())?
+        .line_to(Point2::new(-3.0, 3.0), tol())?
         .line_to(Start, tol())
         .map(|c| c.loop_)
 }
@@ -307,21 +303,21 @@ fn lever_lens(big: f64, rho2: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let d = big + r;
     Open.arc_fillet_arc(
         Center {
-            c: p2(0.0, 0.0),
+            c: Point2::new(0.0, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(0.0, -big),
+            p: Point2::new(0.0, -big),
         },
         r,
         Center {
-            c: p2(d, 0.0),
+            c: Point2::new(d, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(d, big),
+            p: Point2::new(d, big),
         },
         tol(),
     )?
-    .line_to(p2(d, 2.0 * big), tol())?
-    .line_to(p2(-1.5 * big, 2.0 * big), tol())?
-    .line_to(p2(-1.5 * big, -1.5 * big), tol())?
+    .line_to(Point2::new(d, 2.0 * big), tol())?
+    .line_to(Point2::new(-1.5 * big, 2.0 * big), tol())?
+    .line_to(Point2::new(-1.5 * big, -1.5 * big), tol())?
     .line_to(Start, tol())
     .map(|c| c.loop_)
 }
@@ -349,8 +345,8 @@ fn lever_lens_least_lever(big: f64, eps: f64) -> f64 {
 /// the corner sits at `(4, 0)`, and the arrival leaves it at `theta`,
 /// anchored three units along. `radius` rounds the corner.
 fn bend(start_x: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(start_x, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(start_x, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -847,8 +843,8 @@ fn the_leg_extent_recourse_is_followed_by_giving_the_leg_an_extent() {
 /// The same bend on a scene `shift` metres from the origin, with legs
 /// to match — the reconstruction loss needs magnitude, not shallowness.
 fn far_bend(shift: f64, theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(shift + 4.0 + 3.0 * theta.cos(), shift + 3.0 * theta.sin());
-    Open.at(p2(shift, shift))
+    let anchor = Point2::new(shift + 4.0 + 3.0 * theta.cos(), shift + 3.0 * theta.sin());
+    Open.at(Point2::new(shift, shift))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -921,10 +917,10 @@ fn the_flattened_recourse_is_followed_by_a_larger_turn_and_a_larger_radius() {
     }
 
     // Lever 3, unconditional at every ε: the sharp corner.
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     builds_and_validates(
-        Open.at(p2(0.0, 0.0))
-            .line_to(p2(4.0, 0.0), tol())
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
             .map(|c| c.loop_),
@@ -1018,10 +1014,10 @@ fn the_stored_form_inband_recourse_is_followed_by_dropping_the_fillet() {
         !shown.contains("declare the coincidence"),
         "a joint the door minted has no declaration for the caller to add.\n  got: {shown}"
     );
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
     builds_and_validates(
-        Open.at(p2(0.0, 0.0))
-            .line_to(p2(4.0, 0.0), tol())
+        Open.at(Point2::new(0.0, 0.0))
+            .line_to(Point2::new(4.0, 0.0), tol())
             .and_then(|p| p.line_to(anchor, tol()))
             .and_then(|p| p.line_to(Start, tol()))
             .map(|c| c.loop_),

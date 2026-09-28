@@ -2256,3 +2256,13 @@ and the two new ones, **projection** and **duplicate**. Unchanged: the
 **revolve** tool (its seats are a profile and an in-sketch axis, which
 no ray meets), and the **mate** and **blend** tools, which never took
 this route — they read the face and the edge whole.
+
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 rewrote the rustdoc of `crates/viewer/src/camera.rs`'s `CameraError::UnusableBounds` arm. It dropped a sentence that justified keeping the arm unsplit by "a promoted review suite that pins this arm", which is the reading Ev withdrew.
+
+- **The arm doc.** It is now a per-door list of what a caller can infer from the arm. It covers `projection_matrix`, `ray_through`/`datum_view`, `fitted`/`apply(Frame)` and `framing`, and says which input each one checks first.
+- **The first line and `Display`.** They no longer say "positive finite": a non-finite input is `NotFinite` first.
+- **Unchanged.** The API is the same, and the arm stays unsplit. Whether to split it is still this ground's call.
+
+Signed (S-DUP orchestrator).

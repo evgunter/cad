@@ -15,6 +15,7 @@
 
 use crate::common::approx::band;
 use crate::common::census::{genus_of, rings_of};
+use crate::common::charts::{charts, moves_by};
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
@@ -23,10 +24,6 @@ use sweep::{
     Extrusion, Revolution, RevolveAxis, TubeWindow, extrude, revolve, tube_along_arc_hollow,
 };
 use topo::{Body, FaceKey, LoopBoundary, RimShell, ShellError, ShellKey, ShellRole, SolidKey};
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
 
 /// `topo::subtract` with the result body pulled out.
 pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
@@ -43,10 +40,10 @@ pub(crate) fn cut(a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// bounded by one cylinder wall and two planar caps. The perf fixture.
 pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -54,7 +51,7 @@ pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -68,10 +65,10 @@ pub(crate) fn vessel(r: f64, h: f64) -> Body<f64> {
 /// two-shell shape the STEP gate is recorded on.
 pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(ri, 0.0), 0.0),
-        (p2(ro, 0.0), 0.0),
-        (p2(ro, h), 0.0),
-        (p2(ri, h), 0.0),
+        (Point2::new(ri, 0.0), 0.0),
+        (Point2::new(ro, 0.0), 0.0),
+        (Point2::new(ro, h), 0.0),
+        (Point2::new(ri, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -79,7 +76,7 @@ pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -91,7 +88,7 @@ pub(crate) fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
 
 /// A right prism on a polygon.
 pub(crate) fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("a polygon is a valid profile");
@@ -162,14 +159,24 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// so a reroute through `subtract` would genuinely run the pipeline and
 /// this row would see it.
 ///
-/// **`bool_ring_run_winding` is allowed, and naming it is the point.**
-/// The verb ends in a tier-3 validation, and the validator's own
-/// planar-boundary check decides that predicate against the same margin
-/// the boolean's ring-run test uses. The name has **three** owners, not
-/// two — `topo::validate`, `topo::boolean::join`, and
-/// `topo::merge_faces`' role normalization — which is exactly why a
-/// silent prefix filter would be the wrong shape here. Allowing it by
-/// name keeps the claim exact.
+/// **The validator's own `bool_` predicates are allowed, and naming
+/// them is the point.** The verb ends in a tier-3 validation, and two of
+/// its checks decide predicates the boolean shares:
+///
+/// - `bool_ring_run_winding` — the planar-boundary check decides it
+///   against the same margin the boolean's ring-run test uses. The name
+///   has **three** owners, not two — `topo::validate`,
+///   `topo::boolean::join`, and `topo::merge_faces`' role normalization.
+/// - the point-in-solid walk's planar family — check 10 (shell winding)
+///   probes a vertex of each shell of a multi-shell solid against the
+///   other shells through `topo::boolean::solid_contain::point_in_solid_faces`,
+///   the boolean's containment fallback, and on these planar fixtures that walk
+///   decides only its planar predicates, listed below. It is a
+///   containment read, never a crossing.
+///
+/// That several owners share these names is exactly why a silent prefix
+/// filter would be the wrong shape here. Allowing them by name keeps
+/// the claim exact.
 ///
 /// **What this pin does and does not cover.** It reads the log for
 /// `bool_`-prefixed predicates, which is the crossing pipeline's own
@@ -178,7 +185,14 @@ fn a_sealed_shelled_box_is_an_outer_and_a_void() {
 /// boolean's machinery did not run", and the marching stack is reached
 /// only through that machinery, so the coverage of SSI is by
 /// composition rather than by the filter — stated rather than implied.
-const VALIDATOR_SHARED: &str = "bool_ring_run_winding";
+const VALIDATOR_SHARED: &[&str] = &[
+    "bool_ring_run_winding",
+    "bool_point_in_solid_plane",
+    "bool_point_in_solid_denom",
+    "bool_point_in_solid_advance",
+    "bool_point_in_solid_order",
+    "bool_point_in_solid_infinity",
+];
 
 #[test]
 fn shell_runs_no_intersection_machinery() {
@@ -192,7 +206,7 @@ fn shell_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && *p != VALIDATOR_SHARED)
+        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
         .collect();
     assert!(
         crossing.is_empty(),
@@ -859,7 +873,7 @@ fn shell_of_a_hollow_runs_no_intersection_machinery() {
     let crossing: Vec<&'static str> = verdicts
         .iter()
         .map(|v| v.predicate)
-        .filter(|p| p.starts_with("bool_") && *p != VALIDATOR_SHARED)
+        .filter(|p| p.starts_with("bool_") && !VALIDATOR_SHARED.contains(p))
         .collect();
     assert!(
         crossing.is_empty(),
@@ -1131,7 +1145,10 @@ const KLEIN_SWEEP_IN: f64 = 0.5 * core::f64::consts::PI;
 /// A circle profile loop of radius `r` — two semicircular arcs, the
 /// spelling `profile::circle` produces.
 fn circle_loop(r: f64) -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(-r, 0.0), 1.0),
+        (Point2::new(r, 0.0), 1.0),
+    ])
 }
 
 /// Klein's elbow, revolved about the loop-arc axis exactly as the demo
@@ -1143,7 +1160,7 @@ fn klein_elbow(loops: Vec<ProfileLoop<f64>>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(KLEIN_RLOOP, 0.0),
+            origin: Point2::new(KLEIN_RLOOP, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
         Revolution::Partial(-KLEIN_SWEEP_IN),
@@ -1455,7 +1472,7 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
@@ -1682,16 +1699,16 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
         &Profile::new(
             SketchPlane::xy(),
             vec![bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(0.30, 0.0), 0.0),
-                (p2(0.20, 0.40), 0.0),
-                (p2(0.0, 0.40), 0.0),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(0.30, 0.0), 0.0),
+                (Point2::new(0.20, 0.40), 0.0),
+                (Point2::new(0.0, 0.40), 0.0),
             ])],
         )
         .validate(tol)
         .expect("the frustum meridian validates"),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -1724,26 +1741,9 @@ fn a_curved_face_at_the_junction_moves_by_its_kind() {
 #[test]
 fn the_simultaneous_door_names_its_scope() {
     let tol = Tol::witness();
-    let charts = |body: &Body<f64>| -> Vec<Vec<FaceKey>> {
-        let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-        for (k, f) in body.faces() {
-            match out.iter_mut().find(|(s, _)| *s == f.surface) {
-                Some((_, v)) => v.push(k),
-                None => out.push((f.surface, vec![k])),
-            }
-        }
-        out.into_iter().map(|(_, v)| v).collect()
-    };
-    let move_all = |body: &Body<f64>, d: f64| -> Vec<topo::ChartMove<f64>> {
-        charts(body)
-            .into_iter()
-            .map(|faces| topo::ChartMove { faces, distance: d })
-            .collect()
-    };
-
     // A curved face has no plane equation to bring to its corners.
     let mut vessel_body = vessel(1.0, 2.0);
-    let moves = move_all(&vessel_body, -0.1);
+    let moves = moves_by(charts(&vessel_body), -0.1);
     let e = topo::offset_planes_together(&mut vessel_body, &moves, band(), tol)
         .expect_err("a cylinder has no plane equation");
     assert!(
@@ -1754,7 +1754,7 @@ fn the_simultaneous_door_names_its_scope() {
     // A face the door was not told about is a plane missing from every
     // corner it touches.
     let mut boxy_body = block(2.0, 3.0, 4.0, Tol::witness());
-    let mut partial = move_all(&boxy_body, -0.1);
+    let mut partial = moves_by(charts(&boxy_body), -0.1);
     partial.pop();
     let e = topo::offset_planes_together(&mut boxy_body, &partial, band(), tol)
         .expect_err("a partial moving set has corners this door cannot solve");
@@ -1775,7 +1775,7 @@ fn the_simultaneous_door_names_its_scope() {
         &[(0.0, 0.0), (0.5, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)],
         0.4,
     );
-    let moves = move_all(&straight, -0.05);
+    let moves = moves_by(charts(&straight), -0.05);
     let e = topo::offset_planes_together(&mut straight, &moves, band(), tol)
         .expect_err("a coplanar-adjacent corner determines no point");
     let topo::ReplaceFaceError::TogetherCorner { planes, what, .. } = &e else {
@@ -1868,7 +1868,7 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
@@ -1945,7 +1945,7 @@ fn r2_probe_other_two_passes_dump() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol).expect("lift");
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).expect("lift");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("glue");
         }
@@ -2008,7 +2008,7 @@ fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
@@ -2140,10 +2140,10 @@ fn sorted_dedup<K: Ord + Copy>(keys: &[K]) -> (Vec<K>, bool) {
 fn holed_box(side: f64, bore: f64, h: f64) -> Body<f64> {
     let square = |a: f64, b: f64| {
         bulge_loop(vec![
-            (p2(a, a), 0.0),
-            (p2(b, a), 0.0),
-            (p2(b, b), 0.0),
-            (p2(a, b), 0.0),
+            (Point2::new(a, a), 0.0),
+            (Point2::new(b, a), 0.0),
+            (Point2::new(b, b), 0.0),
+            (Point2::new(a, b), 0.0),
         ])
     };
     let lo = 0.5 * (side - bore);

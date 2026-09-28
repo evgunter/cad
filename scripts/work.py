@@ -84,14 +84,22 @@ AREAS = ("kernel", "api", "gui", "infra")
 # and is deliberately not a field.
 PRIORITIES = ("P0", "P1", "P2", "P3", "P4")
 
-# The cost class, as the 2026-09-03 cut defined it (docs/WORK-TRACKS-2026-09.md):
-# E the fix is written in the item, D a design question is open, H the intent is
-# clear and getting it right is technically hard. The weights are what make one
-# budget say "about 6 hard rows or about 30 easy ones" in a single number.
-COSTS = ("E", "D", "H")
-COST_WEIGHT = {"E": 1.0, "D": 2.5, "H": 5.0}
-DEFAULT_BUDGET = 30            # points; 30 E, 12 D, or 6 H
-UNPRICED_WEIGHT = COST_WEIGHT["D"]   # an unscored row is priced mid-range
+# The cost class is EFFORT only (Ev, in chat, 2026-09-27): E the fix is written
+# in the item or obvious, M between the two, H getting it right is technically
+# hard. Whether a design question is open is a separate fact, the `design` flag,
+# because the two vary independently. The weights are what make one budget say
+# "about 6 hard rows or about 30 easy ones" in a single number.
+#
+# D is LEGACY. The 2026-09-03 cut (docs/WORK-TRACKS-2026-09.md) defined it as
+# "a design question is open", but the README never said so and rows priced
+# before 2026-09-27 used it for middling effort too, so a `cost: D` on a row
+# opened before then means "M, and maybe design work": re-price it when you
+# touch the row. A row opened on or after LEGACY_D_UNTIL may not carry it.
+COSTS = ("E", "M", "H", "D")
+COST_WEIGHT = {"E": 1.0, "M": 2.5, "H": 5.0, "D": 2.5}
+LEGACY_D_UNTIL = "2026-09-27"  # the first `opened:` date that refuses `cost: D`
+DEFAULT_BUDGET = 30            # points; 30 E, 12 M, or 6 H
+UNPRICED_WEIGHT = COST_WEIGHT["M"]   # an unscored row is priced mid-range
 
 # A row counts against its track's budget only while it is DISPATCHABLE. A row
 # in flight, parked, deferred or closed is not a claim on the next sitting's
@@ -117,6 +125,7 @@ SCHEMA: dict[str, tuple[str, tuple[str, ...]]] = {
     "track": ("str", ("unit", "issue", "ruling")),
     "priority": ("enum:priority", KINDS),
     "cost": ("enum:cost", ("unit", "issue", "ruling")),
+    "design": ("flag", ("unit", "issue", "ruling")),
     "github": ("int", ("unit", "issue", "ruling")),
     "area": ("enum:area", ("program",)),
     "prefix": ("str", ("program",)),
@@ -557,6 +566,9 @@ def lint(root: str, warnings: list[str] | None = None) -> list[str]:
             errors.append(f"{it.path}: `closed:` is set but status is {it.status}")
         if it.status == "parked" and not it.get("blocked_on"):
             errors.append(f"{it.path}: parked needs a non-empty `blocked_on`")
+        if it.get("cost") == "D" and str(it.get("opened")) >= LEGACY_D_UNTIL:
+            errors.append(f"{it.path}: `cost: D` is legacy (opened before {LEGACY_D_UNTIL} only) — "
+                          f"price the effort E, M or H, and set `design: true` if a design question is open")
         if it.status == "deferred" and it.get("blocked_on"):
             errors.append(f"{it.path}: deferred is a ratified not-now, not a wait on a named trigger — "
                           f"a row with `blocked_on` is parked; cite the ratification in the body instead")
@@ -769,7 +781,8 @@ def render(root: str, only_program: str | None = None, today: dt.date | None = N
             blocked = ", ".join(_fmt_ref(b) for b in _listed(r, "blocked_on"))
             pr = f"#{r.get('pr')}" if r.get("pr") is not None else ""
             ev = " **[ev]**" if r.get("needs_ev") is not None else ""
-            out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {r.get('cost') or '—'} | "
+            cost = (r.get("cost") or "—") + (" +design" if r.get("design") is not None else "")
+            out.append(f"| {r.get('priority') or '—'} | `{r.id}` | {r.kind} | {cost} | "
                        f"{r.status}{ev} | {r.get('title')} | {blocked} | {pr} |")
         out.append("")
 
@@ -1135,13 +1148,18 @@ def selftest() -> int:
              "status: parked\nopened: 2026-09-01\npr: 1605\nblocked_on: [T-1, MESH-2]"),
             ("deferred may not name a blocker", "work/mesh/MESH-1.md",
              "status: review", "status: deferred"),
+            ("legacy D on a new row", "work/mesh/MESH-2.md",
+             "opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: D"),
+            ("design is a bare true", "work/mesh/MESH-2.md",
+             "status: open", "status: open\ndesign: yes"),
         ]
         expectations = ["unknown key", "either `true` or absent", "no item", "must equal the file name", "must be one of",
                         "needs a `closed:` date", "non-empty `blocked_on`",
                         "matches no tracked path", "must end in `/`", "not a field of kind unit",
                         "indented line", "only kind issue lives under",
                         "nothing else gates this row", "so prune the fired entry",
-                        "cite the ratification in the body"]
+                        "cite the ratification in the body",
+                        "`cost: D` is legacy", "either `true` or absent"]
         for (name, rel, old, new), needle in zip(cases, expectations, strict=True):
             p = os.path.join(root, rel)
             with open(p, encoding="utf-8") as f:
@@ -1154,6 +1172,15 @@ def selftest() -> int:
             expect(name, lint(root, warns) + warns, needle)
             _write(root, rel, original)
         expect("restored fixture", lint(root))
+        o2 = open(os.path.join(root, "work/mesh/MESH-2.md"), encoding="utf-8").read()
+        _write(root, "work/mesh/MESH-2.md", o2.replace("status: open", "status: open\ncost: D"))
+        expect("legacy D on a row opened before the cut is clean", lint(root))
+        _write(root, "work/mesh/MESH-2.md",
+               o2.replace("opened: 2026-09-01", f"opened: {LEGACY_D_UNTIL}\ncost: M\ndesign: true"))
+        expect("M with design on a new row is clean", lint(root))
+        if "| M +design |" not in render(root, only_program="mesh", today=far):
+            failures.append("render: a design row does not say so in its cost column")
+        _write(root, "work/mesh/MESH-2.md", o2)
 
         # THE PROGRAM'S OWN STATUS. `active` is unfalsifiable from the tree,
         # so the two checkable halves are the ones tested: a blocked track with

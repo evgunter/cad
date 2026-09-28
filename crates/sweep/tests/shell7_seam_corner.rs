@@ -20,12 +20,13 @@
 use core::f64::consts::{FRAC_PI_2, PI};
 
 use geom::{Curve3, Surface};
-use geom_core::Vec3;
+use geom_core::{Point2, Vec3};
 use profile::test_support::bulge_loop;
 use sweep::Revolution;
 use topo::{Body, ReplaceFaceError, ShellError};
 
 use super::shell7_common::*;
+use crate::common::charts::hollow_moves;
 
 const R: f64 = 2.0;
 const SMALL_R: f64 = 0.5;
@@ -35,8 +36,8 @@ const T: f64 = 0.05;
 /// minor angles `v` and `v + π` (radians from the outer equator, up).
 fn revolved_torus(v: f64) -> Body<f64> {
     let (s, c) = v.sin_cos();
-    let a = p2(R + SMALL_R * c, SMALL_R * s);
-    let b = p2(R - SMALL_R * c, -SMALL_R * s);
+    let a = Point2::new(R + SMALL_R * c, SMALL_R * s);
+    let b = Point2::new(R - SMALL_R * c, -SMALL_R * s);
     revolved(bulge_loop(vec![(a, 1.0), (b, 1.0)]), Revolution::Full)
 }
 
@@ -545,9 +546,9 @@ fn a_two_arc_sphere_shells_to_its_closed_form() {
     let (s, c) = v.sin_cos();
     let body = revolved(
         bulge_loop(vec![
-            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (p2(0.0, r), 0.0),
+            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (Point2::new(0.0, r), 0.0),
         ]),
         Revolution::Full,
     );
@@ -627,7 +628,10 @@ fn a_line_profile_beside_one_meridian_cap_refuses_on_a_hand_split_wedge() {
 fn a_partial_two_arc_torus_mints_its_rims_and_refuses_at_its_seam_reauthor() {
     let (big_r, r) = (2.0, 0.5);
     let body = revolved(
-        bulge_loop(vec![(p2(big_r + r, 0.0), 1.0), (p2(big_r - r, 0.0), 1.0)]),
+        bulge_loop(vec![
+            (Point2::new(big_r + r, 0.0), 1.0),
+            (Point2::new(big_r - r, 0.0), 1.0),
+        ]),
         Revolution::Partial(FRAC_PI_2),
     );
     assert_eq!(topo::validate_geometric(&body, tol()), Ok(()));

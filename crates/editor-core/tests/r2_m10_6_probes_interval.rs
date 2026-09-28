@@ -70,7 +70,7 @@ use editor_core::{
 };
 use geom_core::{Bounds, Tol};
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, ang, len, scl};
 
 /// The clearance engine has no lane at the symbolic identity tier
 /// (ERROR-DESIGN E12; `DriveRefusal::SymbolicClearanceUnsupported`, and
@@ -148,7 +148,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -168,12 +168,8 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
             len(0.0),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     // The two facing walls of the unit square: their distance is 1.0.
     let measure = r.insert(
@@ -196,7 +192,7 @@ fn straddling_assertion() -> (ProfileDoc, RecipeNodeId) {
         measure,
         // The bound IS the measured value, so no enclosure separates
         // them: E10's third state at every leaf.
-        bound: Expr::literal(1.0, Dimension::Length).expect("finite"),
+        bound: len(1.0),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, assertion)
@@ -283,7 +279,7 @@ fn the_certifying_filter_changes_a_pre_m10_6_documents_drive() {
 /// between the two WALLS is `d − 2r`, written into the geometry.
 fn pins(d: f64, r: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r_ = Recorder::new();
-    let plane = r_.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r_.insert(fixture::xy_frame());
     let mut pin = |cx: f64| {
         let profile = r_.insert(Node::Profile(ProfileProgram {
             plane,
@@ -380,7 +376,7 @@ fn min_separation_brackets_a_curved_pair_at_every_budget() {
 /// (`y = 0.7`) against the neck's lower wall (`y = 0.8`).
 fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     let mut r = Recorder::new();
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let c_profile = r.insert(Node::Profile(ProfileProgram {
         plane,
         loops: vec![
@@ -430,7 +426,7 @@ fn notched_pair(bound: f64) -> (ProfileDoc, RecipeNodeId, RecipeNodeId) {
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -767,7 +763,7 @@ fn guide(bound: f64) -> Guide {
             distribution: Some(Distribution::Normal { sigma: h / 3.0 }),
         },
     });
-    let plane = r.insert(fixture::frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let plane = r.insert(fixture::xy_frame());
     let square = |r: &mut Recorder| {
         r.insert(Node::Profile(ProfileProgram {
             plane,
@@ -795,12 +791,8 @@ fn guide(bound: f64) -> Guide {
             Expr::param(name("skew"), Dimension::Length),
             len(0.0),
         ],
-        rotation_axis: [
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(0.0, Dimension::Scalar).unwrap(),
-            Expr::literal(1.0, Dimension::Scalar).unwrap(),
-        ],
-        rotation_angle: Expr::literal(0.0, Dimension::Angle).expect("finite angle"),
+        rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
+        rotation_angle: ang(0.0),
     });
     let pair = vec![
         SitedRef::new(rail, fixture::fname(rail, fixture::wall(&r.doc, rail, 1))),
@@ -826,12 +818,12 @@ fn guide(bound: f64) -> Guide {
     );
     let assertion = r.insert(Node::Assertion {
         measure: by_distance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     r.insert(Node::Assertion {
         measure: by_clearance,
-        bound: Expr::literal(bound, Dimension::Length).expect("finite"),
+        bound: len(bound),
         dir: AssertionDir::AtLeast,
     });
     Guide {
@@ -849,8 +841,23 @@ fn guide(bound: f64) -> Guide {
 fn a_tolerance_study_end_to_end_through_the_public_doors() {
     let g = guide(2.0 - 1.0e-11);
     let analyzed = analyzed_box(&g.doc, &AnalysisPolicy::default());
-    let verdict =
-        drive(&g.doc, &analyzed, &numeric_lane(), Tol::witness()).expect("the nominal builds");
+    // A capped drive on rayon. At the default and 1e-6 rows the box
+    // certifies whole and unsplit, so neither dial moves anything. At
+    // 1e-12 the drive refines to the default 65,536-leaf budget (882
+    // certified, 64,654 refused) and held its `test` leg for six minutes
+    // serially (365 s on the hosted run of evgunter/cad PR 3318). Every
+    // assertion below needs certified leaves, not many of them: at 4,096
+    // it still certifies 164. The schedule moves no verdict
+    // (`DriveConfig::parallel`; `m10_7_r2_drive_schedule_is_deterministic`
+    // pins it). Measured locally at 1e-12, debug: 4,096 leaves took
+    // 307 s serial and 88 s on rayon. The cache seam below keys on this
+    // same config.
+    let drive_cfg = DriveConfig {
+        parallel: true,
+        max_leaves: 4096,
+        ..numeric_lane()
+    };
+    let verdict = drive(&g.doc, &analyzed, &drive_cfg, Tol::witness()).expect("the nominal builds");
     eprintln!("--- drive ---\n{}", verdict.render(&analyzed));
     assert!(
         !verdict.certified().is_empty(),
@@ -935,7 +942,6 @@ fn a_tolerance_study_end_to_end_through_the_public_doors() {
 
     // The cache seam, used the documented way.
     let mut cache = editor_core::report::ReportCache::new();
-    let drive_cfg = numeric_lane();
     let key = report_key(
         "stackup",
         verdict.content_key().0,

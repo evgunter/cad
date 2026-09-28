@@ -459,7 +459,12 @@ BOUNDS_ALLOWLIST=(
   # evaluation-service seams, and `separation` under the same entry.
   'crates/topo/src/boolean/boxes.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/mod.rs 5 2026-07-29 (M5 PR 8), the driver amendment'
-  'crates/topo/src/boolean/ops.rs 11 2026-07-29 (M5 PR 8), the driver amendment'
+  # ops.rs's no-crossings extent checks are one driver seam in three
+  # kinds — `sphere_extent_scan`, `cylinder_extent_gate` and
+  # `torus_extent_gate` (the torus doors, PR 3265) — each reading the
+  # certified face boxes the sweep built and deciding on them, the
+  # amendment's funnel shape; the third is why the count is 12.
+  'crates/topo/src/boolean/ops.rs 12 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/reduce.rs 4 2026-07-29 (M5 PR 8), the driver amendment'
   'crates/topo/src/boolean/rest.rs 1 2026-07-29 (M5 PR 8), the driver amendment'
   # `separation.rs` is FOUR and the ledger entry enumerates THREE

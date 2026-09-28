@@ -45,7 +45,8 @@ kind: unit                 # program | unit | issue | ruling
 title: the saturated span refuses at the parse
 status: spec               # see the vocabularies below
 priority: P1               # P0..P4; see Priority below
-cost: H                    # E | D | H; what the row costs to do
+cost: H                    # E | M | H; the effort (D is legacy, below)
+design: true               # a design question is open on the row
 parent: S-MESH-slate       # optional; another item's id
 blocked_on: [D303, 1601]   # item ids, or PR/issue numbers as ints
 rides_with: D304           # optional; the row this finding travels with
@@ -75,6 +76,30 @@ Unknown keys are lint errors. Add a key by adding it to the script's
 schema in the same PR that first uses it.
 
 ## Vocabularies
+
+**cost** is the row's EFFORT, nothing else (Ev, in chat, 2026-09-27):
+
+- `E` — easy: the fix is written in the item or is obvious.
+- `M` — medium: more than a written-down fix, short of hard.
+- `H` — hard: the intent is clear and getting it right is technically
+  difficult (geometry, certified-interval reasoning, topology
+  invariants, tests that are hard to construct).
+
+**design** is separate, because effort and an open decision vary
+independently: a hard row can be pure execution, and a cheap one can
+hinge on a choice. `design: true` says a question with several viable
+answers is open on the row, to be weighed before a lane builds it
+(`memories/orchestration-model.md`: designers first, and an `[ev]` PR
+only if it is a fork that is Ev's). It is not `needs_ev`, which says a
+question is already in front of Ev. Clear the flag once the question
+is decided.
+
+**`D` is legacy.** The 2026-09-03 cut defined `D` as "a design
+question is open", but this page never did, and **before 2026-09-27
+`D` was also used to mean `M`**. A `cost: D` on an older row therefore
+says "medium, and maybe a design question": read the body, then
+re-price it `E`/`M`/`H` and set or leave off `design` when you touch
+the row. Lint refuses `cost: D` on a row opened on or after 2026-09-27.
 
 **kind**: `program`, `unit` (a dispatchable piece of work with a spec
 and a PR), `issue` (a defect or finding, not yet a unit), `ruling` (a
@@ -162,7 +187,7 @@ in chat, 2026-09-20):
 
 **A band says what to do, never when.** Dispatch order is the band
 together with what the row costs and with whether a design question is
-open on it — a cheap P4 with the fix written in its body is often
+open on it (`cost` and `design`) — a cheap P4 with the fix written in its body is often
 taken ahead of a P1 that needs a ruling first, and that judgement is
 the orchestrator's. It is deliberately not a field: a stored dispatch
 order would go stale the first time a ruling landed.
@@ -182,10 +207,11 @@ actually dispatchable:
 - a row in `open` or `spec` counts; one `dispatched`, `review`,
   `parked`, `deferred` or `closed` does not, because a row in flight
   or ruled not-now is not a claim on the next sitting's attention;
-- it counts **1 point at cost `E`, 2.5 at `D`, 5 at `H`** — so one
-  budget of **30 points** says about 30 easy rows, about 12 design
-  rows, or about 6 hard ones, and says it for a mixed slate too, which
-  is nearly every slate;
+- it counts **1 point at cost `E`, 2.5 at `M`, 5 at `H`** (and 2.5 at
+  legacy `D`) — so one budget of **30 points** says about 30 easy rows,
+  about 12 medium ones, or about 6 hard ones, and says it for a mixed
+  slate too, which is nearly every slate. `design` adds nothing: the
+  cost prices the whole row, the weighing included;
 - a row with no `cost` is charged 2.5, so a track cannot come in under
   budget by declining to price itself.
 
