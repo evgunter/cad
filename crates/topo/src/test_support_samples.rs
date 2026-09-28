@@ -35,7 +35,6 @@
 //! names. Arena keys are the default (null) keys.
 #![allow(clippy::expect_used)] // one fixed band, well-formed by construction
 
-use geom_brep::MaterialWedge;
 use geom_brep::certify::{CertCheck, CertifyError};
 use geom_brep::edge_nurbs::PlaneNurbsRefusal;
 use geom_brep::offset_fit::{OffsetFitError, OffsetLimb};
@@ -837,12 +836,6 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
         ] {
             s.push((format!("{arm}{m}"), e));
         }
-    }
-    for wedge in [MaterialWedge::Cusp, MaterialWedge::Slit] {
-        s.push((
-            label("UndeclaredCusp", &wedge),
-            ValidationError::UndeclaredCusp { edge, wedge },
-        ));
     }
     for source in mass_props_errors() {
         let l = match &source {

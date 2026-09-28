@@ -55,8 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
-#[path = "band_declared_cusp_contacts.rs"]
-mod band_declared_cusp_contacts;
+#[path = "a_swept_cusp_is_legal_at_rest.rs"]
+mod a_swept_cusp_is_legal_at_rest;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -513,6 +513,8 @@ mod germ_cone_doors;
 mod germ_conic_plane_roots;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]

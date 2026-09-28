@@ -135,6 +135,18 @@ Ev's standing instructions for implementation work:
   their OWN PR — burying those in a unit's merge hides exactly what
   other orchestrators should see. Keep PUSHING branches continuously;
   only the PR is batched.
+- **Runners are a budget (Ev, 2026-09-28)**: when CI jobs sit queued
+  for more than a few seconds, you may combine the work in flight
+  into a single PR. Anything that waits on Ev keeps its own PR, so it cannot
+  hold the rest hostage.
+- **Friction is a finding (Ev, 2026-09-28)** — say so when something
+  slows you down. The bars: CI takes 15 min at most and typically
+  under 10, and so does any local development step; binaries are
+  small enough to run a full complement of lanes. Beyond flagging it,
+  you may dispatch a lane to fix it, and self-merge the fix when it
+  contradicts no established standard. When it does, propose it
+  anyway, with the cost measured: the standard may have been set
+  without knowing what it costs.
 - **Run `python3 scripts/work.py incoming` at every check-in and before
   bringing main into your branch** (fetch first). `log.md` merges by
   union (`work/README.md`), so a note another program leaves on your
