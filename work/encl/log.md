@@ -1093,3 +1093,14 @@ class of 65 sites is PRED's row.
     - Two designers (Opus, Fable) dispatched concurrently with one problem statement. The blinding byte is on `analysis/design-fork/encl-escalation-recourse` (protocol `bb10a4cdd4`).
     - The `[ev]` PR follows once they reconcile.
   - 3347 is recorded as having landed ahead of the ruling. Whether it stands is part of the question put to Ev.
+- 2026-09-28 — Design fork `encl-escalation-recourse`: first reports recorded (A/B only; the full summaries are kept for the row).
+  - Both recommend the same final-state shape:
+    - the recourse belongs to the decision, with a typed-enum key rather than name strings;
+    - `Indeterminate` carries no recourse;
+    - the pair shares one recourse by construction;
+    - the three-arm sentence only where a door takes a declaration;
+    - the checks window may end a definite at-rest contradiction as a defect;
+    - D4 (i)/(ii) change (their agent-written parts), and (iv) stays.
+  - Both rejected the framing: the "three-arm at every site" scope is agent text.
+  - They split on one point, which arms carry "lower the tolerance". A: every band-decided arm. B: only where lowering ε moves toward a pass, since it is backwards on residuals.
+  - Reconciliation round 1: each designer was handed the other's For-Ev section.
