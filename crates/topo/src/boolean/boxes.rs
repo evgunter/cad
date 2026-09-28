@@ -2861,11 +2861,18 @@ mod tests {
     ///   face's [`edge_box`]es against the germ circle's box, the
     ///   cone/torus arm consults a [`face_box`] before refusing by
     ///   kind — reach first, kind second, as at the operand gate —
-    ///   the WALL-PAIR gate reads two [`face_box`]es, one per
-    ///   operand, on the same rule, and so does the TORUS gate (a torus
-    ///   face's box against each non-sphere face of the other operand).
-    ///   **Refuses**: whichever box fails to clear turns the pair into
-    ///   `FallbackExtentUnsupported`.
+    ///   and the section certificate's pair scan (`section_pairs`,
+    ///   both paths) reads one [`face_box`] per face of each operand:
+    ///   two that overlap put the pair through the certificate, whose
+    ///   angular margins are levered by the overlap's diagonal.
+    ///   **Refuses** at the extent scan: a box that fails to clear turns
+    ///   the pair into `FallbackExtentUnsupported`. **Examines** at the
+    ///   pair scan: a loose box sends a separated pair through the
+    ///   classification, which certifies it apart, and lengthens the
+    ///   lever, which can only push a tilt margin off `Zero` — away
+    ///   from the parallel and coaxial readings, onto the exact tilted
+    ///   arm or R-reach. A box TIGHTER than its face would be the
+    ///   unsound direction: it could call a tilted pair parallel.
     /// - `separation.rs` — the two separation certificates, the
     ///   placement one and the solid-pair one, on one rule.
     ///   **Refuses**, both of them and for the same reason:
@@ -2928,7 +2935,7 @@ mod tests {
         // still gives — while the module docs' DOOR list above stays a
         // list of doors and gains nothing from the two.
         const PINNED: [(&str, usize); 4] = [
-            ("boolean/ops.rs", 7),
+            ("boolean/ops.rs", 4),
             ("boolean/reduce.rs", 5),
             ("census.rs", 7),
             ("separation.rs", 2),
