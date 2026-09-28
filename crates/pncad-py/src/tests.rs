@@ -5645,7 +5645,6 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "transverse_not_intrinsic",
             "uncertifiable_surface",
             "undeclared_contact",
-            "undeclared_cusp",
             "unreachable_half_edge",
             "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
@@ -6545,9 +6544,7 @@ fn top_form<'a>(code_line: &'a str, line: &str, number: usize) -> (TopForm, &'a 
 
 /// **Read `src/tags.rs` and enumerate its tag table.**
 ///
-/// A RECOGNISER THAT ENUMERATES, in the house sense
-/// (`scripts/check-ci-mirror-parity.py`'s header makes the argument at
-/// length): every top-level line must match one of the forms below,
+/// A RECOGNISER THAT ENUMERATES, in the house sense: every top-level line must match one of the forms below,
 /// and anything else raises rather than being skipped. The failure
 /// mode this rules out is the one that matters — a reader that quietly
 /// matches nothing, reports a happy zero, and lets the pin pass

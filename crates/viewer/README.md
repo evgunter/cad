@@ -1954,12 +1954,8 @@ a module that declares two lists under that name, because the row is
 keyed on the module and the name and cannot say which of the two it
 meant.
 
-The gate runs in the `mirror` job, which carries no `if:`, because half
-its subject is this page: a change set of only the README is TIER=docs,
-and sited under `if: run_build` the arms that exist for an edit to this
-table could not fire on an edit to this table.
-`scripts/check-ci-mirror-parity.py`'s `TIER_BLIND` names it, so the
-siting is enforced rather than remembered.
+The gate runs in ci.yml's `lint` job on every tier, so an edit to this
+table alone fires it.
 
 What it does not see is `crates/viewer/tests/`, deliberately: the
 suites' hand-written variant lists are inline arrays in a row, not

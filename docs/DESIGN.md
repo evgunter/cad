@@ -646,19 +646,48 @@ Five commitments:
    input. ε_input IS K·ε, a synonym, not a third dial; K stays the one
    knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`). Binding consequences:
    (i) user-facing messages and recourse never fork on exactly-on vs
-   in-band below ε_input — ONE message, ONE recourse (declare the
-   coincidence / move the geometry / lower the tolerance — the
-   three-arm sentence at every site whose question is "is this margin
-   decidable"; a contact site, whose question is "did anyone declare
-   this", drops the third arm per SELECT-DESIGN §3d), with the margin
-   riding the payload as data; kernel semantics keep the distinction
-   (message policy, not predicate policy). (ii) Error variants may stay
-   distinct as data; their user stories converge, with the shared
-   `Indeterminate` Display string (`COINCIDENCE_RECOURSE`) as the
-   carrier. (iii) D7's ε_in is an instance of ε_input, not a separate
+   in-band below ε_input — ONE message, ONE recourse per **decision**
+   (the one question a site asks), written once in the decision's own
+   levers and shared by all its refused arms, with the margin riding
+   the payload as data; kernel semantics keep the distinction (message
+   policy, not predicate policy). The recourse follows from the
+   decision and its verdict: *declare the coincidence* only at a door
+   that takes a declaration whose presence would change the verdict;
+   *move the geometry*, phrased as the decision's own lever, always;
+   *tighten the tolerance* only where the refused margin is a size the
+   user may intend and a smaller ε decides it — the band-decided arms
+   (in band, or Zero where Zero does not pass) of a decision that passes
+   on a nonzero sign — phrased conditionally and with the value the
+   margin gives ("if this size is intended, tighten the tolerance below
+   m/K"); never on a sign-certain arm, and never on a decision that
+   passes only at Zero (a residual), whose refused margin is a miss,
+   not a size. No refusal advises loosening ε, with one exception: a
+   refusal that would otherwise name no recourse at all (a kernel
+   approximation limit — an offset fit that stalls, a quadrature budget
+   spent, a built curve's residual) names loosening the tolerance as a
+   last resort and says the refusal may indicate a kernel bug worth
+   reporting. At adoption the lever is the import's own ε_in (D7),
+   phrased by the import door, and a change to a document's ε reports
+   what it flips at the change itself. The
+   three-arm sentence (declare the coincidence / move the geometry /
+   tighten the tolerance) is thus the recourse of a decision whose
+   refused side is a declarable coincidence; a contact site, whose
+   question is "did anyone declare this", drops the third arm per
+   SELECT-DESIGN §3d. The decision is a closed type at its site (as
+   `CertCheck` is), so its recourse is an exhaustive match, never a
+   lookup by predicate name. (ii) Error variants may stay distinct as
+   data; their user stories converge per decision. `Indeterminate`
+   carries data, not a recourse: its Display renders the payload, and
+   the site that knows the decision appends the one ending
+   (`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
+   compose). (iii) D7's ε_in is an instance of ε_input, not a separate
    concept. (iv) **The rule binds a predicate's DEFINITE arms too**: a
    new definite outcome a user could reach by moving geometry tells the
-   same one story with the same one recourse as its in-band sibling.
+   same one story with the same one recourse as its in-band sibling. A
+   surface reading a body at rest may end a definite contradiction
+   between a stored description and its stored geometry as a defect —
+   no move of the geometry reaches it — and never names a lever the
+   decision does not.
    Review checklist form: for every arm added to a decision, name which
    ε_input story it belongs to, or say why it belongs to none.
 
@@ -1014,15 +1043,13 @@ grounds (rounding control, f64, portability) are re-checkable facts.
    checks watcher asserts a minimum green-row count equal to the current
    full CI matrix, bumped in the same PR that grows the matrix. CI
    carries a three-tier change filter, implemented once in
-   `scripts/ci-filter.py` and called by both `ci.yml`'s filter job and
-   `local-scripts/ci-local.sh` so hosted and local gating cannot drift:
+   `scripts/ci-filter.py` and called by `ci.yml`'s filter job:
    tier `docs` (only `*.md`/`memories/`) skips every build row and
    gates on the `docs-only` marker job; tier `all` (any workspace-level
    file, any member `Cargo.toml`, anything the allowlist does not
    recognise) runs the whole matrix; tier `closure` (crate sources
    only) scopes the cargo rows to the changed members plus every member
    that transitively depends on them. Classification fails CLOSED.
-   `ci-local.sh --full` forces tier `all`.
 4. **Semantic equivariance where it is free — with the premise
    UNAUDITED.** Kernel constructions and selection rules should commute
    with rigid motions *and reflections* at the semantic level (in ℝ),

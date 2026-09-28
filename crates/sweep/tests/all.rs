@@ -55,8 +55,8 @@ mod common;
 mod mate2_common;
 mod revolve_common;
 
-#[path = "band_declared_cusp_contacts.rs"]
-mod band_declared_cusp_contacts;
+#[path = "a_swept_cusp_is_legal_at_rest.rs"]
+mod a_swept_cusp_is_legal_at_rest;
 #[path = "band_subdivided_side_walls.rs"]
 mod band_subdivided_side_walls;
 #[path = "bool1_fix_pass.rs"]
@@ -478,9 +478,6 @@ test_utils::every_suite_file_is_aggregated!();
 #[path = "m8_3_rational_volume.rs"]
 mod m8_3_rational_volume;
 
-#[path = "reporting_door_bit_digest.rs"]
-mod reporting_door_bit_digest;
-
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
 
@@ -512,6 +509,8 @@ mod m9_3_wall_door;
 
 #[path = "germ_cone_doors.rs"]
 mod germ_cone_doors;
+#[path = "germ_conic_plane_roots.rs"]
+mod germ_conic_plane_roots;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
 #[path = "germ_torus_doors.rs"]

@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # witness-not-ambient.sh — kernel library code RECEIVES the run
-# tolerance, it does not mint it. ci.yml's "the witness is not an
-# ambient read" step and local-scripts/ci-local.sh's discipline row
-# both call this file.
+# tolerance, it does not mint it. ci.yml's `lint` job runs every gate in this directory.
 #
 # WHY THIS EXISTS. `Tol` (geom-core `tolerance.rs`) is a zero-sized
 # witness that the run's tolerance is committed: it has exactly one

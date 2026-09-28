@@ -137,8 +137,7 @@ stamp() {
 # --- the selftest ---------------------------------------------------
 #
 # Every case is a REAL subprocess invocation of a COPY of this script
-# inside a scratch repository, for the reason `gate-roster.sh
-# --selftest` gives: a diagnosis lost to `errexit` has to FAIL the
+# inside a scratch repository: a diagnosis lost to `errexit` has to FAIL the
 # self-test rather than pass it silently, and two of the cases below
 # exist only because the unguarded spelling died before it could speak.
 selftest() {

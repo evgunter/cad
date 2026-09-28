@@ -53,8 +53,6 @@ mod common;
 
 #[path = "cert1_r1_import_probes.rs"]
 mod cert1_r1_import_probes;
-#[path = "cert5_r1_import_probes.rs"]
-mod cert5_r1_import_probes;
 #[path = "cert_n2r2_consumer_probes.rs"]
 mod cert_n2r2_consumer_probes;
 #[path = "coherence_channel.rs"]

@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bit-identity-debug-only.sh — the debug-only subjects stay debug-only.
-# ONE home; ci.yml's `discipline` job and local-scripts/ci-local.sh's
-# discipline row both call this file by name.
+# ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # A SUBJECT LIST, NOT A FILE. `SUBJECTS` carries one row per file that
 # owes a symbol to `cfg(debug_assertions)`: the path, the spellings

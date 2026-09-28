@@ -438,10 +438,10 @@ fn r2_circle_at_is_bit_identical_to_the_old_arm() {
 /// NOT a door measurement any more (the shipped set carries the
 /// algebra too), which is why the arms are labelled that way and no
 /// ratio is printed as if it were the door's: the link's ceiling does
-/// not move under either (`m10_10_pins_interval` holds the bracket).
-/// EVIDENCE-ONLY since M10-10's fix pass (51 s release, and every
-/// claim it gated is pinned elsewhere: the door registers on the link
-/// in `m10_9_pins_interval`, the bracket in `m10_10_pins_interval`).
+/// not move under either (the bracket is recorded in
+/// `m10_9_pins_interval::measured_studies`). EVIDENCE-ONLY since
+/// M10-10's fix pass (51 s release; the door registering on the link
+/// is pinned in `m10_9_pins_interval`).
 #[test]
 #[ignore = "evidence-only: the link's real study and ceiling under M10-9's door-shut tier and the shipped set"]
 fn r2_link_end_to_end_with_and_without_the_door() {
