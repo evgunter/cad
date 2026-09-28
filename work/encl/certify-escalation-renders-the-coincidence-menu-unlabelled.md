@@ -2,8 +2,10 @@
 id: certify-escalation-renders-the-coincidence-menu-unlabelled
 kind: issue
 title: geom-brep: CertifyError::Escalated forwards Indeterminate's coincidence menu, unlabelled, where the edge's own faces leave nothing to declare
-status: open
+status: dispatched
 opened: 2026-09-28
+priority: P3
+cost: E
 ---
 
 (ENCL implementer, from the §5 sweep of

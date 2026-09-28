@@ -1073,3 +1073,4 @@ class of 65 sites is PRED's row.
   - Declined: import-style taste.
   - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
 - 2026-09-28 — PR 3347 merged (`2e913b87d0`), hosted all green on `695e7a39e6`. Closed `offset-meter-escalation-renders-the-coincidence-menu-unlabelled`. Seam notes posted on the restfront, tcost and tint logs.
+- 2026-09-28 — Priced `certify-escalation-renders-the-coincidence-menu-unlabelled` at P3/E and dispatched it on `encl/certify-escalation-recourse`, Opus, style review. The brief carries 3347's lessons: one routing home shared with `validate::classify_certify`, explicit arms plus `MissingRecourse` (no default arm), and pins on both surfaces.
