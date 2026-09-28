@@ -278,6 +278,91 @@ pub enum Surface<T: Real> {
     Approx(Arc<ApproxSurface<T>>),
 }
 
+/// **The ring-torus convention's ring half, decided: its one home.**
+///
+/// D3's convention for a torus is `R > r > 0`. This decides the half
+/// that relates the two datums, `R − r > 0`, as a length on the band
+/// under the one name `ring_torus_convention`. It lives here, in the
+/// crate that defines [`Surface::Torus`], so that every door that leans
+/// on the ring reads it whatever its layer: the spiric carrier's
+/// constructor in this crate, the offset door and the plane×torus
+/// section in `geom_brep`, and in `topo` tier 3, the trim door's
+/// meridian frame and the regular outward normal. Each maps a
+/// non-`Positive` answer into its own refusal.
+///
+/// The tube half `r > 0` is a separate datum and is not decided here:
+/// `R − r` alone passes a nonpositive tube radius whenever the
+/// difference stays positive (`r = −0.3` against `R = 0.75`), so a door
+/// that needs both asks the tube first.
+///
+/// A chart's azimuth stretch floor is the same number, `R − r`, but it
+/// is an arm bound that any positive floor satisfies, gated like every
+/// other kind's arm, and not a statement of the convention.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Sign, geom_core::Indeterminate> {
+    geom_core::k_stats::decide(
+        "ring_torus_convention",
+        geom_core::Margin::of(major_radius - minor_radius),
+        band,
+    )
+}
+
+/// **The ring-torus convention's tube half, decided**: `r > 0`, as a
+/// length on the band under `torus_tube_positive`. The door that needs
+/// both halves asks this one first ([`ring_torus`]'s docs say why), or
+/// reads both through [`require_ring_torus`].
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] when the margin lands in the
+/// escalation band.
+pub fn torus_tube<T: geom_core::Decide>(
+    minor_radius: T,
+    band: Band,
+) -> Result<geom_core::Sign, geom_core::Indeterminate> {
+    geom_core::k_stats::decide(
+        "torus_tube_positive",
+        geom_core::Margin::of(minor_radius),
+        band,
+    )
+}
+
+/// **Both halves of the ring convention, as a requirement**: the tube
+/// (`r > 0`) and then the ring (`R − r > 0`), each through the funnel's
+/// collapsed-arm gate ([`geom_core::k_stats::decide_positive`]), so a
+/// decided non-positive half is the funnel's recorded escalation under
+/// the half's own name — for a door whose only answer to a non-ring
+/// torus is to decline the query.
+///
+/// # Errors
+///
+/// [`geom_core::Indeterminate`] under `torus_tube_positive` or
+/// `ring_torus_convention`: in-band, or definitely non-positive.
+pub fn require_ring_torus<T: geom_core::Decide>(
+    major_radius: T,
+    minor_radius: T,
+    band: Band,
+) -> Result<(), geom_core::Indeterminate> {
+    geom_core::k_stats::decide_positive(
+        "torus_tube_positive",
+        geom_core::Margin::of(minor_radius),
+        band,
+    )?;
+    geom_core::k_stats::decide_positive(
+        "ring_torus_convention",
+        geom_core::Margin::of(major_radius - minor_radius),
+        band,
+    )
+}
+
 impl<T: Real> Surface<T> {
     /// The "no description yet" NURBS state (the former unit
     /// placeholder variant, as data): a structurally valid payload

@@ -309,7 +309,7 @@ pub enum SpiricInvalid {
     /// cutting plane is not parallel to the torus axis.
     FrameNotOrthogonal,
     /// A constructor predicate landed in the ambiguity band or was
-    /// poisoned (`spiric_minor_positive`, `spiric_ring`,
+    /// poisoned (`spiric_minor_positive`, `ring_torus_convention`,
     /// `spiric_two_ovals`, `spiric_frame_orthogonal`).
     Escalated(Indeterminate),
 }
@@ -557,7 +557,8 @@ impl<T: Decide> Curve3<T> {
     ///
     /// - `spiric_minor_positive` — margin `minor_radius` (m): Positive
     ///   required; else [`SpiricInvalid::MinorNotPositive`].
-    /// - `spiric_ring` — margin `major_radius − minor_radius` (m):
+    /// - `ring_torus_convention` ([`crate::ring_torus`], the convention's
+    ///   one home) — margin `major_radius − minor_radius` (m):
     ///   Positive required; else [`SpiricInvalid::NotARing`].
     /// - `spiric_two_ovals` — margin `(major_radius − minor_radius) −
     ///   |offset|` (m), the length the two-oval regime closes by,
@@ -592,7 +593,7 @@ impl<T: Decide> Curve3<T> {
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),
         }
         let ring = major_radius - minor_radius;
-        match decide("spiric_ring", Margin::of(ring), band) {
+        match crate::ring_torus(major_radius, minor_radius, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => return Err(SpiricInvalid::NotARing),
             Err(diag) => return Err(SpiricInvalid::Escalated(diag)),

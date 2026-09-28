@@ -1044,8 +1044,11 @@ pub enum BooleanError {
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
     CurvedPairUnsupported {
-        /// The op this refusal is specific to (never `Union`), or
-        /// `None` when the kind has no arm under any op.
+        /// The op this refusal is specific to, or `None` when the kind
+        /// has no arm under any op. `Union` is named only by the
+        /// crossings path's reach gate (`ops::interior_loop_reach_gate`),
+        /// which refuses a torus face that may meet an undeclared face
+        /// of the other operand where no edge event can see it.
         op: Option<BooleanOp>,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,

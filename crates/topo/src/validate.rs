@@ -2315,33 +2315,40 @@ fn classify_certify(e: &CertifyError) -> (&'static str, &'static str) {
     }
 }
 
-fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static str) {
+fn classify_offset_fit(
+    e: &geom_brep::OffsetFitError,
+) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::OffsetFitError as O;
-    use geom_brep::offset_meters::MeterError as M;
+    use geom_brep::offset_meters::{
+        CURVATURE_HEADROOM_RECOURSE, MeterError as M, NORMAL_FLOOR_RECOURSE, escalation_recourse,
+    };
     // Each recourse is the one the fit's own message names for the same
     // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
     const DRIFT: &str =
         "the fitted surface does not stay within the tolerance of the one it stands for";
-    match e {
+    let (why, recourse) = match e {
+        // The meters' escalation reads their own routing table; a name
+        // the table does not hold says so rather than borrowing a lever.
+        O::Meter(M::Escalated { source }) => {
+            let recourse = match escalation_recourse(source.predicate) {
+                Some(lever) => own_close(&source.margin, lever).into(),
+                None if source.margin == geom_core::MarginDiag::Invalid => DEFECT.into(),
+                None => geom_core::MissingRecourse(source.predicate)
+                    .to_string()
+                    .into(),
+            };
+            return (
+                "whether this face can be offset is too close to call at this tolerance",
+                recourse,
+            );
+        }
         O::Meter(M::NormalFloor { .. }) => (
             "the face's surface normal degenerates, so it has no offset",
-            "Recourse: split the face clear of any pole, cusp or pinch",
+            NORMAL_FLOOR_RECOURSE,
         ),
         O::Meter(M::CurvatureHeadroom { .. }) => (
             "the offset folds over itself on this face",
-            "Recourse: use an offset distance of smaller magnitude, or offset to the other side",
-        ),
-        O::Meter(M::Escalated { source }) => (
-            "whether this face can be offset is too close to call at this tolerance",
-            own_close(
-                &source.margin,
-                if source.predicate == Some("offset_curvature_headroom") {
-                    "Recourse: use an offset distance of smaller magnitude, or lower the tolerance"
-                } else {
-                    "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
-                     tolerance"
-                },
-            ),
+            CURVATURE_HEADROOM_RECOURSE,
         ),
         O::BudgetExhausted {
             last_round: geom_brep::LastRound::Improved,
@@ -2369,7 +2376,8 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
         | O::WindowUnsupported { .. }
         | O::Elevation(_) => ("its stored fit is not well-formed", DEFECT),
         O::Band(b) => (classify_band(b), TOLERANCE),
-    }
+    };
+    (why, recourse.into())
 }
 
 fn classify_mass_props(e: &crate::props::MassPropsError) -> (&'static str, &'static str) {
@@ -5305,11 +5313,7 @@ pub(crate) fn tier3_local_checks_marked<
                     ..
                 } = surface
                 {
-                    match decide(
-                        "ring_torus_convention",
-                        Margin::of(*major_radius - *minor_radius),
-                        band,
-                    ) {
+                    match geom::ring_torus(*major_radius, *minor_radius, band) {
                         Ok(Sign::Positive) => {}
                         Ok(Sign::Zero | Sign::Negative) => {
                             errors.push(ValidationError::DegenerateTorus { face: face_key });
@@ -12472,6 +12476,59 @@ mod offset_fit_door_rows {
         let free = geom_brep::recertify_approx(&approx, tol)
             .expect("the free function agrees that it re-certifies");
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
+    }
+
+    /// The checks window reads the meters' escalation table too, and
+    /// ends each route in its own sentence: the normal floor's split, the
+    /// curvature meter's distance, a poisoned margin's defect ending
+    /// (the file's, since the window reads a body at rest), and the
+    /// named hole for a name no meter raises.
+    #[test]
+    fn a_meter_escalation_ends_in_its_routed_sentence() {
+        use geom_brep::OffsetFitError;
+        use geom_brep::offset_meters::{
+            CURVATURE_HEADROOM_PREDICATE, MeterError, NORMAL_FLOOR_PREDICATE,
+        };
+        use geom_core::{Indeterminate, MarginDiag};
+        let says = |predicate, margin| {
+            ValidationError::ApproxCertification {
+                face: FaceKey::default(),
+                error: OffsetFitError::Meter(MeterError::Escalated {
+                    source: Indeterminate {
+                        margin,
+                        band: Band::linear(Tol::witness()).unwrap(),
+                        predicate: Some(predicate),
+                    },
+                }),
+            }
+            .to_string()
+        };
+        let wide = MarginDiag::Enclosure {
+            lo: -2.0e-9,
+            hi: 4.0e-9,
+        };
+        let rows = [
+            (
+                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Value(5.0e-9)),
+                "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
+                 tolerance",
+            ),
+            (
+                says(CURVATURE_HEADROOM_PREDICATE, wide),
+                "Recourse: use an offset distance of smaller magnitude, or lower the tolerance",
+            ),
+            (
+                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Invalid),
+                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+            ),
+            (
+                says("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
+                "no recourse specific to predicate 'roster_unknown_probe' is recorded",
+            ),
+        ];
+        for (msg, ending) in rows {
+            assert!(msg.ends_with(ending), "{msg}");
+        }
     }
 }
 

@@ -75,7 +75,8 @@
 //!   negative refuses ([`OffsetError::RadiusFloor`] — a collapsed or
 //!   near-collapsed offset is never minted); the ambiguity band
 //!   escalates.
-//! - `offset_torus_ring` — torus: margin `major − (minor + d)`, the
+//! - `ring_torus_convention` ([`geom::ring_torus`], the convention's
+//!   one home, on the realized minor) — torus: margin `major − (minor + d)`, the
 //!   ring convention `R > r` (the same quantity tier-3 validation
 //!   nets as `DegenerateTorus`; refusing here keeps that net a second
 //!   net, not the first).
@@ -317,7 +318,7 @@ impl<T: geom_core::Real> std::error::Error for OffsetError<T> {}
 /// # Errors
 ///
 /// [`OffsetError`] — the two refusal predicates
-/// (`offset_radius_floor`, `offset_torus_ring`) decided before any
+/// (`offset_radius_floor`, `ring_torus_convention`) decided before any
 /// mint, their escalations, and the `Nurbs` non-closure refusal.
 pub fn offset_surface<T: geom_core::Decide>(
     surface: &Surface<T>,
@@ -400,8 +401,7 @@ pub fn offset_surface<T: geom_core::Decide>(
         } => {
             let realized = *minor_radius + d;
             floor(SurfaceKind::Torus, realized)?;
-            let ring = Margin::of(*major_radius - realized);
-            match decide("offset_torus_ring", ring, band).map_err(esc)? {
+            match geom::ring_torus(*major_radius, realized, band).map_err(esc)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
                     return Err(OffsetError::TorusRing {

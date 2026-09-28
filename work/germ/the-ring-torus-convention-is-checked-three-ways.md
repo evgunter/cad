@@ -2,11 +2,13 @@
 id: the-ring-torus-convention-is-checked-three-ways
 kind: issue
 title: The ring-torus convention (R > r, rho > 0) is checked in three spellings with three error types
-status: dispatched
+status: closed
 opened: 2026-09-26
 priority: P3
 cost: D
 branch: germ/torus-ops-and-chord
+closed: 2026-09-28
+pr: 3330
 ---
 
 ## What
@@ -40,3 +42,7 @@ consequence.
 GERM (filed by PR #3265's final pass). `chart_region.rs` is CHART's
 ground, so the unification crosses that seam, which is why it was not
 done in that PR.
+
+## Closed (PR 3330, 2026-09-28)
+
+Landed after a dual review (DR-14), both APPROVE-WITH-FIXES, the fix pass taken whole. See the PR body.

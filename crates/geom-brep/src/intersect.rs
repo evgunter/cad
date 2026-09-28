@@ -677,7 +677,8 @@ pub enum SectionError {
     CoincidentSurfaces,
     /// The torus operand violates the ring convention `R > r > 0` (a
     /// spindle or horn torus, or a nonpositive tube radius — both
-    /// inequalities are decided, `pt_tube_guard` then `pt_ring_guard`):
+    /// inequalities are decided, `pt_tube_guard` then `ring_torus_convention`,
+    /// the convention's one home [`geom::ring_torus`]):
     /// its meridian circles meet or cross on
     /// the axis, so no closed form here is well-posed. Every validated
     /// body already upholds the convention (`sweep::revolve` refuses
@@ -1904,7 +1905,8 @@ pub enum PlaneTorusSection<T: Real> {
 ///
 /// Trileans, in order (named lever arms per D4 ¶1):
 ///
-/// 1. `pt_tube_guard` — margin `r` (meters) — then `pt_ring_guard` —
+/// 1. `pt_tube_guard` — margin `r` (meters) — then `ring_torus_convention`
+///    ([`geom::ring_torus`]) —
 ///    margin `R − r` (meters), decided before any classification: the
 ///    ring convention `R > r > 0` is TWO inequalities and each gets
 ///    its own named trilean, because `R − r` alone waves through a
@@ -1982,7 +1984,7 @@ pub fn plane_torus_section<T: Decide>(
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
-    match decide("pt_ring_guard", Margin::of(big_r - r), band).map_err(SectionError::Escalated)? {
+    match geom::ring_torus(big_r, r, band).map_err(SectionError::Escalated)? {
         Sign::Positive => {}
         Sign::Zero | Sign::Negative => return Err(SectionError::DegenerateTorus),
     }
