@@ -1,7 +1,7 @@
 ---
 id: sweep-revolve-about-y-helper-and-its-fixtures-spelled-per-suite
 kind: issue
-title: sweep tests: the revolve-about-y helper, the rectangle meridian and the klein elbow are spelled per suite beside test_support::revolved_about_y
+title: sweep tests: the revolve-about-y helper and the rectangle meridian are spelled per suite beside test_support::revolved_about_y
 status: open
 opened: 2026-09-28
 priority: P4
@@ -50,11 +50,12 @@ filed this folded the ones in files it was already editing
 `shell7_common::drum`). `shell5_r2_probes::can(r, z0, z1)` is the same
 shape lifted to `z0` and is a superset, not a copy.
 
-**3. The klein elbow**: `verbs_shell::klein_elbow` and
-`shell7_dump::klein_elbow` build one body (a disc `R = 1.2` off the
-axis, a quarter turn back) and differ only in naming the constants;
-`spiric_rim::klein_elbow(r)` is the same elbow parameterised on the
-disc radius.
+**3. The klein elbow** is no longer a member: PR 3371 gave it one home,
+`common::torus_walls::klein_elbow`, and folded its five spellings
+(`verbs_shell`, `shell7_dump`, `spiric_rim`, and inline in
+`offd2_r1_probes` and `torax_axial`). The two-arc circle loop those
+elbows are cut from is its own copy class, already tracked as
+`work/fixture/the-two-vertex-bulge-one-circle-fixture-has-eight-copies.md`.
 
 **Blind spots.** Class 1 is name-shaped: a helper doing the job under a
 third name is unmatched. Class 2's scan requires the four corners

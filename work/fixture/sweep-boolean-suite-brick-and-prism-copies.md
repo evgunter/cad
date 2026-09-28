@@ -200,5 +200,7 @@ Siblings filed by the same lane: `work/tint/topo-tests-brick-copies.md`,
 calls and `shell5_r1_probes`' one now read
 `sweep::test_support::prism(corners(&pts), h, tol)` — the same
 construction (`sketch_at(0)` is `SketchPlane::xy()`'s frame, and
-`corners` is the zero-bulge loop). The remaining `prism(pts, h)` members
-are unchanged; re-run the census before converting them.
+`corners` is the zero-bulge loop). So are `offd2_r1_probes.rs`'s and
+`shell5_r1_dump.rs`'s private copies (three and two calls), in the same
+PR. The remaining `prism(pts, h)` members are unchanged; re-run the
+census before converting them.

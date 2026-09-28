@@ -34,16 +34,27 @@ not name three more shared homes the `all` binary carries:
   read by `curved_mergedoor`, `mate2_cyl_rest`, `mate2_r1_probes`,
   `mate2_r2_probes`, `r1_probes_m9_3`.
 
-`common/latitude_seam.rs` reaches `shell7_common` by `crate::` path and
-says why ("that tree is the SHELL-7 suites' own and is not a `common::`
-module"), so a `common::` module now depends on a suite file.
+(`common/latitude_seam.rs` used to reach `shell7_common` by `crate::`
+path, so a `common::` module depended on a suite file; PR 3371 cut that
+edge by building its bodies through `sweep::test_support` and reading
+vertices through `topo::readback::vertex_point`. No `common::` module
+names a family home now.)
 
-**The question, and why `design: true`.** Two answers are viable. A
-family home can be ruled a legitimate rung of the routing list (as
-`revolve_common` already is) and listed with the rule for when one may
-exist; or the three fold into `tests/common` modules the way the seven
-suite exports did (`shell_operands`, `torus_walls`, …). The first keeps
+**The question, and why `design: true`.** Whether the three family
+homes stay as named homes or fold into `common`. Two answers are
+viable. A family home can be ruled a legitimate rung of the routing
+list (as `revolve_common` already is) and listed with the rule for when
+one may exist; or the three fold into `tests/common` modules the way
+the suite exports did (`shell_operands`, `torus_walls`, …). The first keeps
 a family's vocabulary beside the family; the second leaves one place to
 look. Either is mechanical once chosen; the choice is the row.
 
 Measured with `git grep -lE '(crate|super)::<home>\b' -- crates/sweep/tests`.
+
+## Why this row is on this slate
+
+The ground is S-TCOST's and S-TINT's (`crates/sweep/tests/*`), and
+SHELL's for the two shell homes. The question is where a shared fixture
+lives — the narrowest-home rule's reach — which is this program's
+subject, as the row it was found from
+(`sweep-suites-import-fixtures-from-other-suites`) was.

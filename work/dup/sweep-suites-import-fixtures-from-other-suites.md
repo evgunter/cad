@@ -149,3 +149,44 @@ did.
 
 After the move both instruments return nothing outside the family
 homes.
+
+### Fix pass (review of PR 3371)
+
+**The copy census had a blind spot**: a copy of a moved body spelled
+through a suite's private `revolved(...)` / `revolved_by(...)` helper,
+or inline, matches no fixture name. A literal-meridian pass over those
+helpers (`(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)` and the
+`block(2, 3, 4)` shelled at `0.25`) found the members the first pass
+missed, and they are folded:
+- `tube(0.4, 0.8, 0.6)` in `verbs_offd`, `pcurve_p1b_r2_probes`,
+  `p1b_r1_probes` and `offd_r1_probes`. Their partial-turn wedges of
+  the same meridian stay, each marked;
+- the inline hollow box in `shell8_r1_probes` and `shell5_r2_probes`.
+
+**Twins found in files this unit edits, folded:**
+- the private `prism`s in `offd2_r1_probes` and `shell5_r1_dump`;
+- the klein elbow, five spellings, now `common::torus_walls::klein_elbow`;
+- the tilted-cut cylinder of `pis_arc_capped_poses` and
+  `contfp_reads_arcs_on_their_carriers`, now
+  `common::tilted_cut_cylinder`, with its normal and volume bound;
+- `review_m5_pr9_inband_at_rest`'s inline tangency `any`, now read
+  through `intrinsic_edges`;
+- `sf2b_r2_probes`' inline `bulge`.
+
+**Bitdump.** `shellfix1_bitdump` now writes through
+`common::bitdump`, which gained the Euler counts and each face's loop
+points: before, each dump was blind to what the other printed.
+
+**The corner-arc row.** `contact_edge_must_carry` now pins the four
+corner arcs over the named set: edges between a blend face and a
+corner face. `chart_contact_edges`, a whole-body count, is back in its
+one consumer, `review_contact_edge_must_carry_r1_probes`.
+
+**The `latitude_seam` inversion is fixed.** It no longer reads
+`shell7_common`.
+
+**Marked twins that genuinely differ:**
+- `torax_interval`'s `Interval` barrel;
+- `spiric_rim`'s scalar-generic vessel;
+- `shell10_r2_probes::rows_of`;
+- `shell9_r1_probes::dump_rows`.
