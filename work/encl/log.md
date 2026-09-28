@@ -1083,3 +1083,13 @@ class of 65 sites is PRED's row.
   - Tier raised from style to a single full review. The table's completeness is load-bearing: a missed name regresses a live refusal to "no recourse".
   - Filed `certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle` (encl), and added evidence to the issues and chrome rows.
 - 2026-09-28 — PR 3351 is red at `test (eps = 1e-12, 2/2)` on its own new row `every_certify_escalation_ends_in_its_routed_sentence`; everything else passes. It is this PR's failure, and the lane is reproducing it at 1e-12 now. The review's findings will follow into the same fix pass.
+- 2026-09-28 — **Design fork opened: escalation recourse vs D4 ¶1.** PR 3351's full review found a MAJOR, and its provenance checks out.
+  - The ratified two-tolerance principle (Ev, #129, `68c72a257c`; clause (iv) in Ev's `24e67b85ee`) binds a decision's definite and in-band arms to ONE recourse. It names that recourse as the three-arm sentence, and names certify `NotTransverse` vs `Escalated` as a pair.
+  - PR 3351 forks that pair (`Escalated` goes to the edge lever, the definite halves stay on the three-arm sentence) and deleted the S6 pin.
+  - Merged PR 3347 keeps its pairs together but replaced the three-arm sentence with site-specific levers at the meters. The checks window's `classify_*` already did that at many sites.
+  - Whether a site whose question has no declarable coincidence may carry its own lever is a change to what ratified text decides, so it is Ev's.
+  - Actions taken:
+    - 3351 is held from merging. Its lane does the CI fix and the fixes that don't depend on the ruling, and restores a pair-agreement pin that is red until the ruling.
+    - Two designers (Opus, Fable) dispatched concurrently with one problem statement. The blinding byte is on `analysis/design-fork/encl-escalation-recourse` (protocol `bb10a4cdd4`).
+    - The `[ev]` PR follows once they reconcile.
+  - 3347 is recorded as having landed ahead of the ruling. Whether it stands is part of the question put to Ev.
