@@ -150,6 +150,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
+use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -2628,16 +2629,8 @@ fn refine_dir(
         return None;
     }
     let other = if along_u { nv } else { net.len() / nv };
-    let (d0, d1) = kv.domain();
-    let mut add: Vec<f64> = Vec::new();
-    for k in 1..QUAD2_REFINE_SPANS {
-        #[allow(clippy::cast_precision_loss)]
-        let t = d0 + (d1 - d0) * (k as f64 / QUAD2_REFINE_SPANS as f64);
-        if t > d0 && t < d1 && !kv.knots().contains(&t) {
-            add.push(t);
-        }
-    }
-    let plans = geom_core::spline::algebra::refine_plan(kv, &vec![1.0; count], &add).ok()?;
+    let add = algebra::domain_grid_points(kv, QUAD2_REFINE_SPANS, GridSkip::BitEqual);
+    let plans = algebra::refine_plan_homogeneous(kv, &add).ok()?;
     // Ascending-index fold over the plan chain, then over the lines of
     // this direction (D9).
     let mut cur_kv = kv.clone();
@@ -2707,17 +2700,6 @@ fn quotient_second(
         + pt(12.0) * n * w_d.sqr() / w.powi(5)
 }
 
-/// How close a grid cut may come to a knot before it is dropped
-/// instead of minting a hairline cell, in ulps of the trim
-/// rectangle's own span.
-///
-/// A few ulps, because that is the whole width of the defect: the
-/// grid point and the knot are describing the same place, and the
-/// cell between them is arithmetic noise rather than geometry. It is
-/// deliberately NOT a tolerance in the ε sense — no input's meaning
-/// depends on it, only whether one redundant subdivision is taken.
-const SLIVER_CUT_ULPS: f64 = 8.0;
-
 /// The `QUAD2_HULL_BLOCKS + 1` block boundaries of one direction, as
 /// the block loop computes them — shared so the cut list and the
 /// block index cannot drift apart.
@@ -2768,6 +2750,13 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// list also carries the range ends and the coarse block edges it owes
 /// the hull blocks' containment.
 ///
+/// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
+/// [`refine_dir`] and [`bezier_blocks`] take: that grid runs over a knot
+/// vector's own domain and clears only its interior knots, while this
+/// range is the trim rectangle's, its knots are a raw slice that may be
+/// a derivative's, and a grid point must stand clear of the range ends
+/// as well.
+///
 /// `knots` is the raw slice the caller cuts on. A caller cutting on a
 /// derivative's knots takes the once-differenced slice from
 /// [`geom_core::spline::KnotVector::derivative_knot_slice`] or its
@@ -2805,7 +2794,7 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // both calls, so it is accepted in both or dropped in both — and
     // every cell therefore still lies inside exactly one block.
     let span = (hi - lo).abs();
-    let sliver = span * SLIVER_CUT_ULPS * f64::EPSILON;
+    let sliver = span * f64::from(SLIVER_CLEARANCE_ULPS) * f64::EPSILON;
     let clear = |t: f64, mandatory: &[f64]| -> bool {
         t > lo && t < hi && mandatory.iter().all(|m| (t - *m).abs() > sliver)
     };
@@ -4053,27 +4042,20 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
         return None;
     }
     let (d0, d1) = kv.domain();
-    let span = (d1 - d0).abs();
-    let sliver = span * SLIVER_CUT_ULPS * f64::EPSILON;
     let mut breaks: Vec<f64> = kv
         .knots()
         .iter()
         .copied()
         .filter(|k| *k > d0 && *k < d1)
         .collect();
-    breaks.sort_by(f64::total_cmp);
-    breaks.dedup();
-    let knotted = breaks.clone();
-    for i in 1..m {
-        #[allow(clippy::cast_precision_loss)]
-        let t = d0 + (d1 - d0) * (i as f64 / m as f64);
-        // A uniform cut that lands on a knot is the knot; minting the
-        // hairline span between them would be arithmetic noise, and
-        // the block list would carry a box of zero width.
-        if t > d0 && t < d1 && knotted.iter().all(|k| (t - *k).abs() > sliver) {
-            breaks.push(t);
-        }
-    }
+    // A uniform cut that lands on a knot is the knot; minting the
+    // hairline span between them would be arithmetic noise, and the
+    // block list would carry a box of zero width.
+    breaks.extend(algebra::domain_grid_points(
+        kv,
+        m,
+        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
+    ));
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
     let mut add: Vec<f64> = Vec::new();
@@ -6994,5 +6976,74 @@ mod tests {
         );
         encloses(b.flux, c * g_int, "Q12 flux");
         encloses(b.area, g_int, "Q12 area");
+    }
+
+    /// `refine_dir`'s grid is the DOMAIN's sixteenths, skipped only
+    /// where a knot sits on the grid point bit for bit: `0.5` is
+    /// skipped, while a knot one ulp above `1/16` does NOT suppress
+    /// `1/16`, and both land in the refined vector. The expected
+    /// vector is written out by hand.
+    #[test]
+    fn refine_dir_inserts_the_domain_grid_skipping_bit_equal_knots() {
+        let near = f64::from_bits(0.0625f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, near, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        #[allow(clippy::cast_precision_loss)]
+        let net: Vec<RVec3> = (0..kv.control_count()).map(|i| [pt(i as f64); 3]).collect();
+        let (rkv, rnet, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        assert_eq!(
+            rkv.knots(),
+            [
+                0.0, 0.0, 0.0, 0.0625, near, 0.125, 0.1875, 0.25, 0.3125, 0.375, 0.4375, 0.5,
+                0.5625, 0.625, 0.6875, 0.75, 0.8125, 0.875, 0.9375, 1.0, 1.0, 1.0
+            ]
+        );
+        assert_eq!(count, 19);
+        assert_eq!(rnet.len(), 19);
+    }
+
+    /// `refine_dir` has no "already fine enough" cut-off: a vector
+    /// with more control points than the grid has spans still takes
+    /// every grid point it lacks. The interior knots are the odd
+    /// 64ths, none on the sixteenths grid, so all fifteen go in.
+    #[test]
+    fn refine_dir_refines_an_already_fine_vector() {
+        let mut knots = vec![0.0, 0.0, 0.0];
+        knots.extend((0..21).map(|j| f64::from(2 * j + 1) / 64.0));
+        knots.extend([1.0, 1.0, 1.0]);
+        let kv = KnotVector::clamped(knots, 2).unwrap();
+        assert_eq!(kv.control_count(), 24);
+        #[allow(clippy::cast_precision_loss)]
+        let net: Vec<RVec3> = (0..24).map(|i| [pt(i as f64); 3]).collect();
+        let (rkv, _, count) = refine_dir(&kv, &net, 1, true).unwrap();
+        assert_eq!(count, 24 + 15);
+        for k in 1..16 {
+            let t = f64::from(k) / 16.0;
+            assert_eq!(rkv.multiplicity_of(t).map(|(m, _)| m), Some(1), "{t}");
+        }
+    }
+
+    /// `bezier_blocks`' uniform breaks are the DOMAIN's `m`ths, dropped
+    /// when within the sliver guard of a knot: a knot one ulp above
+    /// `1/4` suppresses the break at `1/4` (four blocks, not five),
+    /// while `1/2` and `3/4` stand. The block COUNT carries the pin:
+    /// the starts' brackets (~1e-15 wide, the λ-rounding pad) cannot
+    /// tell `near` from `1/4`, so they only confirm the other breaks
+    /// sit where the grid puts them.
+    #[test]
+    fn bezier_blocks_drops_a_uniform_break_within_the_sliver_of_a_knot() {
+        let near = f64::from_bits(0.25f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, near, 1.0, 1.0], 1).unwrap();
+        let img = TrimPiece {
+            knots: kv,
+            control: [0.0, near, 1.0].iter().map(|t| (pt(*t), pt(0.0))).collect(),
+            weights: vec![1.0; 3],
+        };
+        let blocks = bezier_blocks(&img, 4).unwrap();
+        assert_eq!(blocks.len(), 4, "{blocks:?}");
+        for (block, start) in blocks.iter().zip([0.0, near, 0.5, 0.75]) {
+            let u = block[0].0;
+            assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
+            assert!(u.hi() - u.lo() < 1e-12, "{u:?}");
+        }
     }
 }
