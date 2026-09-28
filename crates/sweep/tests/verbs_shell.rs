@@ -1455,7 +1455,7 @@ fn a_ring_standing_on_its_outer_loop_refuses_at_tier_3() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
@@ -1851,7 +1851,7 @@ fn r2_probe_composed_door_vs_old_battery_on_a_check_9_body() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
@@ -1928,7 +1928,7 @@ fn r2_probe_other_two_passes_dump() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol).expect("lift");
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).expect("lift");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("glue");
         }
@@ -1991,7 +1991,7 @@ fn the_composed_doors_vector_is_the_batterys_on_a_check_9_body() {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band(), tol)
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol)
             .expect("the counterpart chart lifts onto the mouth plane");
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).expect("the raw glue");
