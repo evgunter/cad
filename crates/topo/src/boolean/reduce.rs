@@ -394,6 +394,7 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     })? {
         return Err(BooleanError::CurvedPairUnsupported {
             op: None,
+            site: super::PairRefusalSite::OperandGate,
             operand: p.operand,
             face: p.face,
             kind: p.kind,

@@ -1,7 +1,7 @@
 ---
 id: torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
-title: A torus face that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop
+title: A curved face (torus, sphere; cylinder×cylinder unmeasured) that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop
 status: open
 opened: 2026-09-26
 refs: [torus-operand-gate-admission]
@@ -25,11 +25,11 @@ and neither sees a loop no edge crosses. The shape is kind-generic:
 cylinder wall×wall pairs have it too, and `cylinder_extent_gate`
 guards only the no-crossings fallback.
 
-**Unmeasured.** No transverse torus union completes today: every one
-measured stops at the chord rule, the sagitta charge or the join. So
-the wrong answer this describes is not reached by any fixture now. It
-becomes reachable the day one of those doors opens, and the unit that
-opens it owns this row.
+**Measured, and wrong on main until the stopgap below** (it was
+recorded here as unmeasured when filed): a half donut and a bracket
+whose foot cuts an oval off the outer equator came back as a valid ∪
+body with the lens counted twice, and a sphere cap cut the same way
+came back wrong under every op.
 
 ## Home
 
