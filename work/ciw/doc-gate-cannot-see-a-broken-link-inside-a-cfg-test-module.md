@@ -47,3 +47,7 @@ a second rustdoc pass over the test cfg, or a ruling that doc links in
 test modules are out of scope and the gate's own doc says so. All
 three are CIW's call; what this row asserts is only that the gate's
 claim today is wider than what it checks, and that nothing says so.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

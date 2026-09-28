@@ -31,7 +31,7 @@ still exists unchanged:
 | Subject to repoint to | Row |
 | --- | --- |
 | `RowStatus::badge` (the `pub fn badge` signature) | `work/view/four-badges-five-spellings.md` |
-| the `` [`pncad::document::ClassAdmission`] `` link in `TreeRow::note`'s doc | `work/view/renderer-free-cross-crate-links-are-ungated-off-the-seed-set.md` |
+| the `` [`pncad::document::ClassAdmission`] `` link in `TreeRow::note`'s doc | `renderer-free-cross-crate-links-are-ungated-off-the-seed-set` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`) |
 | `Node::Measure`'s arm in `node_kind` | `work/view/the-gui-shows-no-measure-value-and-no-clearance.md` |
 | the `` [`crate::app::indeterminate_wording`] `` link in `downstream_wording`'s doc | `work/view/named-not-linked-is-a-silent-disposition-at-eleven-of-thirteen-sites.md` |
 

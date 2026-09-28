@@ -18,10 +18,10 @@ of the row is decidable.
 ## What is unguarded
 
 `shellcheck` is invoked by **nothing** — not `.github/workflows/*.yml`,
-not `local-scripts/ci-local.sh`, not `scripts/`. The tree nevertheless
+not `local-scripts/`, not `scripts/`. The tree nevertheless
 carries the annotations of a repo that runs it: `# shellcheck
 source=…`, `# shellcheck shell=bash`, and about twenty `# shellcheck
-disable=SC…` markers across `local-scripts/ci-local.sh`,
+disable=SC…` markers across
 `local-scripts/render-hosted.sh`, `scripts/apt-install.sh`,
 `scripts/doc-gate.sh` and `scripts/gates/probe-suite-census.sh`.
 
@@ -45,10 +45,10 @@ eleven sites, is **10**. So the cost is concentrated in two codes with
 one decision each, not spread thin across the tree.
 
 **The 7 errors are all false positives, and were verified as such before
-anything was routed anywhere.** All seven are SC1087 over
-`$esc[[:space:]]` in `scripts/gates/gate-roster.sh` (`:160`, `:164`,
-`:279`, `:284`, `:288`, `:292`) and
-`scripts/gates/panic-free-macro-bodies.sh:143`. shellcheck reads the
+anything was routed anywhere.** All seven were SC1087 over
+`$esc[[:space:]]`, six of them in the since-deleted
+`scripts/gates/gate-roster.sh` and one in
+`scripts/gates/panic-free-macro-bodies.sh`. shellcheck reads the
 `[` as an array subscript on `$esc`; it is a POSIX character class
 inside a `grep -E` pattern, `[` cannot be part of an identifier, so the
 class survives literally and the greps match as intended. The code is
@@ -81,3 +81,7 @@ non-zero arms are unreachable.
 `pipestatus-after-assignment-in-ci-yml`. That is why the guard exists as
 its own script rather than as a shellcheck row, and it is the reason
 this item is a residue and not a supersession.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

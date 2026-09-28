@@ -28,7 +28,7 @@ enums sit at column 0 inside the invocation and the invocation closes
 as a bare `}` under the enum's own.
 
 **No gate will ever report drift there.** The PR gate's `rustfmt` step
-and `local-scripts/ci-local.sh` both pass over it silently, which is the
+and `local-scripts/fmt-all.sh` both pass over it silently, which is the
 property that makes this CIW's rather than a style note: a gate that
 cannot see a region reports the same green whether the region is clean
 or not.
@@ -63,3 +63,7 @@ gate of its own.
   what PR 2501 does in `DOCUMENT_VOCABULARIES`'s doc.
 
 Either way the number wants measuring first.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

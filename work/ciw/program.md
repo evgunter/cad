@@ -27,6 +27,8 @@ in order to cause ci to fail less / main to be red less often"* — and
 most of the slate is that. The rows that are not about redness are about
 a PR that is silently UNGATED rather than red (a head with no merge ref
 gets no run), and a red inherited from main that is not attributed to
-the merge that caused it.
+the merge that caused it. The P3 rows came from BLIND and MIRROR when
+those tracks left the tracker: instruments that pass while blind, which
+is Ev's medium band (tooling that prevents a SILENT bug).
 
 Charter and unit order: `work/ciw/plan.md`; narrative in `work/ciw/log.md`.

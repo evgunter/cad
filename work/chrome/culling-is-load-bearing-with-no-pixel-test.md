@@ -61,3 +61,7 @@ either should read both.
 `crates/viewer/tests/` are this program's ground.
 
 Opened from issue #1097's hardware run (Ev, 2026-09-04).
+
+## Re-homed to CHROME (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`): the missing pixel test is viewer coverage.

@@ -91,3 +91,7 @@ convention decision for the crate, not a line edit. Finding 2 is
 about a guard the lane repaired for an unrelated reason, so it is
 disclosed here rather than widened into that unit.
 
+
+## Re-homed to VDOC (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`): its population is the viewer's citations.

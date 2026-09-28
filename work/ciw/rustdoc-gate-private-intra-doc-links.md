@@ -146,3 +146,7 @@ in that item) are members of this population, reported by nothing today
 because of the `-A` at `scripts/doc-gate.sh:555`. That item listed six of
 them and missed `rest.rs:493` and `:540`, which is what writing against
 the instance costs.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from MIRROR when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

@@ -73,7 +73,7 @@ gone under an axis nothing reads.
 - `python-suite-axis-skips-only-two-members` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) (open) asks
   whether the exception earns its machinery. Same axis, same
   independence from this row.
-- `work/ciw/ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore`
+- `ciw-rows-and-ci-local-prose-rotted-by-the-c1-c3-restore` (deleted; `docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`)
   (open) is the prose-rot row for exactly the commit that caused this —
   but it enumerates THREE sites, all of them CIW's own
   (`local-scripts/*` and two CIW items), and says so in its own header.

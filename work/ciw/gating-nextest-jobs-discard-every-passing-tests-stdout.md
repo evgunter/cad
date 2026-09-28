@@ -1,7 +1,7 @@
 ---
 id: gating-nextest-jobs-discard-every-passing-tests-stdout
 kind: issue
-title: The twelve gating nextest jobs discard every passing test's stdout, so both of the tree's announce-only idioms reach no reader on the gate
+title: The gating nextest runs discard every passing test's stdout, so both of the tree's announce-only idioms reach no reader on the gate
 status: open
 opened: 2026-09-15
 priority: P3
@@ -17,14 +17,10 @@ is filing the workflow half here rather than taking it.
 ## The fact
 
 `cargo-nextest` captures a passing test's stdout and `--success-output`
-defaults to `never`. In `.github/workflows/ci.yml`, **`--success-output`
-appears exactly once** — on the `cargo nextest run -p viewer --features
-app` GPU-smoke row, whose own comment says it is there for the smoke
-row's adapter. Every other `cargo nextest run` in that file, including
-both archived matrix invocations that make up the twelve gating
-`test (…)` jobs, passes no such flag and sets no
-`NEXTEST_SUCCESS_OUTPUT`; `find . -name 'nextest.toml'` returns nothing,
-so no committed profile sets a default either.
+defaults to `never`. No `cargo nextest run` in `.github/workflows/ci.yml`
+or `nightly.yml` passes `--success-output` or sets
+`NEXTEST_SUCCESS_OUTPUT`, and `.config/nextest.toml`'s `ci` profile sets
+no `success-output`, so every gating run discards it.
 
 Measured on this tree (`cargo nextest run -p viewer -E
 'test(/lane_skipped/)'`, no flag) — four marker rows whose entire body
@@ -101,3 +97,7 @@ were deleted in the 2026-09-28 CI-latency cut).
 One site is outside TINT's fence and outside this grep's crate list:
 `crates/viewer/src/lib.rs`, filed as
 `work/view/viewer-lib-marker-claims-the-log-carries-its-sentence`.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.

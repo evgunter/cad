@@ -81,3 +81,7 @@ push a commit and let a fresh run happen — which is what this row's own
 commit did.
 
 Filed by SUITE/D114, from the diagnosis of #2630's red.
+
+## Re-homed to CIW (2026-09-28)
+
+Moved from BLIND when it left the tracker (`docs/doc-ledger/mirror-and-blind-leave-the-tracker.md`); its subject is CIW's ground.
