@@ -25,7 +25,7 @@ refs: [a-doors-rustdoc-carries-an-unguarded-census-sentence]
   which folded the hits in its own two files (`topo/src/body.rs`,
   `sweep/src/test_support.rs`) and left these.
 
-**The rule the triage applies** is `work/dup/plan.md` item 13: a door's
+**The rule the triage applies** is `work/reroute/plan.md` item 13: a door's
 rustdoc carries an invariant for a user, not a measurement for a future
 lane. A hit that counts a population that can grow or shrink (callers,
 copies, suites) is rewritten to say what the door is for, or to point
