@@ -181,6 +181,11 @@ const LEDGER: &[Entry] = &[
                              // code-and-literals views
     },
     Entry {
+        path: "crates/geom-brep/src/certify.rs",
+        disposition: Shared, // escalating-predicate-name census over the
+                             // certify paths, code and code-and-literals views
+    },
+    Entry {
         path: "crates/geom-brep/tests/all.rs",
         disposition: Shared, // mount guard, literal view
     },
