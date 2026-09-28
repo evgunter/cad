@@ -554,7 +554,8 @@ pub fn refine_plan_homogeneous(
 /// **The equal-split refinement schedule**: the interior points that
 /// cut every nonempty span of `kv` into `splits` equal pieces — the
 /// `new_knots` a caller hands [`refine_plan`] or
-/// [`refine_plan_homogeneous`] to refine uniformly within spans.
+/// [`refine_plan_homogeneous`] to refine uniformly within spans
+/// ([`equal_split_plan`] is the latter composition).
 ///
 /// A point floating point collapses onto a span end is skipped rather
 /// than inserted: refinement is a tightening, never a correctness
