@@ -648,13 +648,8 @@ fn each_faces_message_names_its_lever() {
         !flat.contains("still improving") && flat.contains("did not improve on the one before"),
         "{flat}"
     );
-    assert_eq!(
-        recourse(&flat).as_deref(),
-        Some(
-            format!("loosen the tolerance to 0.001 m or more, {KERNEL_LIMIT_LAST_RESORT}").as_str()
-        ),
-        "{flat}"
-    );
+    let want = format!("loosen the tolerance to 0.001 m or more, {KERNEL_LIMIT_LAST_RESORT}");
+    assert_eq!(recourse(&flat).as_deref(), Some(want.as_str()), "{flat}");
     let c = OffsetFitError::SampleCapReached {
         cap: OFFSET_FIT_SAMPLE_CAP,
         rounds: 5,
@@ -711,10 +706,10 @@ fn each_faces_message_names_its_lever() {
         }),
     }
     .to_string();
-    assert!(
-        l.contains(&format!(
-            "Recourse: loosen the tolerance to 0.00032 m or more, {KERNEL_LIMIT_LAST_RESORT}"
-        )),
+    let want = format!("loosen the tolerance to 0.00032 m or more, {KERNEL_LIMIT_LAST_RESORT}");
+    assert_eq!(
+        recourse(&l).as_deref(),
+        Some(want.as_str()),
         "the lost bound is not what the repair is sized to: {l}"
     );
     assert!(!l.contains("offset distance"), "{l}");

@@ -687,8 +687,8 @@ fn a_single_non_improving_round_is_the_budgets_face_not_the_stalls() {
         "the message says a round that rose was improving: {msg}"
     );
     assert!(
-        msg.contains(&format!(
-            "loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+        msg.ends_with(&format!(
+            "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
         )) && !msg.contains(&format!("{achieved} m")),
         "the last resort is not sized to the best bound reached: {msg}"
     );
@@ -1218,8 +1218,8 @@ fn the_second_non_improving_round_is_the_stalls_face() {
             "saddle d={d:e}: the message does not say what was tried: {msg}"
         );
         assert!(
-            msg.contains(&format!(
-                "loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
+            msg.ends_with(&format!(
+                "Recourse: loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             )) && !msg.contains(&format!("{achieved} m")),
             "saddle d={d:e}: the last resort is not sized to the best bound reached: {msg}"
         );
