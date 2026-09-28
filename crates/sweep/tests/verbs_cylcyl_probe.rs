@@ -320,7 +320,7 @@ fn cylinders_standing_clear_of_each_other_still_answer() {
 /// reduction therefore finds no crossing at all and the operation falls
 /// through to the containment fallback with the boundaries genuinely
 /// meeting: the S12-silence shape, for a cylinder pair.
-pub(crate) fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
+fn crossing_pair_without_edge_events() -> (Body<f64>, Body<f64>) {
     let tol = Tol::witness();
     let a = cyl(0.0, 0.0, 1.0, 0.0, 10.0);
     let rod = cyl(0.0, 0.0, 1.0, -10.0, 10.0);

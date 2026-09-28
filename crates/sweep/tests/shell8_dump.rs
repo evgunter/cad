@@ -15,8 +15,8 @@
 use geom_core::Vec3;
 use topo::{Body, FaceKey};
 
+use crate::common::shell_operands::{hollow_box, outer_and_void, two_void_box, vessel};
 use crate::shell8_common::{cap, tol};
-use crate::verbs_shell::{hollow_box, outer_and_void, two_void_box, vessel};
 
 fn dump(label: &str, body: &Body<f64>) {
     println!(
@@ -80,7 +80,7 @@ fn dump(label: &str, body: &Body<f64>) {
         "[dump8] {label}: tier3={:?}",
         topo::validate_geometric(body, tol())
     );
-    super::shell9_rows::print_rows(label, body);
+    crate::common::pcurve_rows::print_rows(label, body);
 }
 
 fn opened(label: &str, body: &Body<f64>, t: f64, faces: &[FaceKey]) {

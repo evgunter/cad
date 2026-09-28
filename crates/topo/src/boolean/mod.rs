@@ -1871,7 +1871,11 @@ impl core::fmt::Display for BooleanError {
                  representation exists"
             ),
             Self::GraftRecertify(e) => {
-                write!(f, "grafted edge description failed re-certification: {e}")
+                write!(
+                    f,
+                    "grafted edge description failed re-certification: {}",
+                    e.render(geom_brep::certify::Reading::Build)
+                )
             }
         }
     }

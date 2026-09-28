@@ -189,6 +189,7 @@ RUN_FLOOR=(
   ignored:editor-core:m10_3_driver_k_probe_interval:1
   ignored:editor-core:m4_pr8_k_probe:1
   ignored:sweep:k_report:1
+  plain:editor-core:assemble_one_local_battery:1
   plain:editor-core:m10_3_driver_k_probe_interval:1
   plain:editor-core:m10_p_fence:2
   plain:editor-core:m4_pr8_k_probe:1

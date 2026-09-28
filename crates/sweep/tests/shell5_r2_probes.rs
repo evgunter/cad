@@ -14,7 +14,8 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, LoopBoundary, ShellError, ShellKey, ShellRole};
 
-use crate::verbs_shell::{cut, two_void_box};
+use crate::common::cavity::cut;
+use crate::common::shell_operands::{hollow_box, two_void_box};
 use sweep::test_support::{block, brick};
 
 fn void_shells(body: &Body<f64>) -> Vec<ShellKey> {
@@ -66,10 +67,12 @@ fn r2_diagonal_voids_refuse_at_the_grown_footprint_gate() {
     let outer = block(6.0, 4.0, 4.0, Tol::witness());
     // A: x 1.0..2.5, y 0.8..1.8   B: x 2.9..4.4, y 2.3..3.3, both z 1..3.
     let one = cut(
+        "first void",
         &outer,
         &brick((1.0, 2.5), (0.8, 1.8), (1.0, 3.0), Tol::witness()),
     );
     let body = cut(
+        "second void",
         &one,
         &brick((2.9, 4.4), (2.3, 3.3), (1.0, 3.0), Tol::witness()),
     );
@@ -111,10 +114,12 @@ fn r2_the_same_gate_hole_is_closed_on_a_single_shell_notched_operand() {
     let tol = Tol::witness();
     let outer = block(6.0, 4.0, 4.0, Tol::witness());
     let one = cut(
+        "first void",
         &outer,
         &brick((1.0, 2.5), (-1.0, 1.8), (1.0, 3.0), Tol::witness()),
     );
     let body = cut(
+        "second void",
         &one,
         &brick((2.9, 4.4), (2.3, 5.0), (1.0, 3.0), Tol::witness()),
     );
@@ -276,6 +281,7 @@ fn r2_the_hollow_b_subtraction_reaches_operand_outer_shells() {
     .expect("the small box shells")
     .body;
     let body = cut(
+        "hollow inner box",
         &brick((0.0, 6.0), (0.0, 6.0), (0.0, 6.0), Tol::witness()),
         &inner,
     );
@@ -378,9 +384,7 @@ fn r2_each_thin_solid_pairs_its_own_voids_twin() {
 #[test]
 fn r2_the_new_door_mints_a_solid_with_no_outer_shell() {
     let tol = Tol::witness();
-    let mut body = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol)
-        .expect("the box hollows")
-        .body;
+    let mut body = hollow_box();
     let voids = void_shells(&body);
     assert_eq!(voids.len(), 1);
     let minted = body
