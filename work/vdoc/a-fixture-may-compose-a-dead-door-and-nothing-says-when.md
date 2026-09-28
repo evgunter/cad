@@ -76,3 +76,24 @@ not the same work**: that one adds a disclosure at a site, this one
 states the rule that decides when a disclosure is enough. Either can
 land first; this one is the better instruction for the next reader and
 that one is the cheaper edit.
+
+## Evidence 2026-09-28 (`vnews/a-ranked-verdict-is-its-own-type`): no instance is left
+
+`work/vnews/ranked-and-unranked-verdicts-are-one-type` landed the way
+this row expected: `frame::apply` takes the ranking's `RankedVerdict`,
+and a policy's `StatusUpdate` goes only through `frame::deliver`. Both
+dead compositions, `apply(status, fold_status(refused))`, no longer
+compile, and both rows that held them were rewritten:
+
+- `a_clean_fold_retires_the_camera_refusal_it_did_write` now runs
+  `deliver`, then `frame_status`, then `apply`, then `deliver`, which
+  is the order a frame runs them.
+- `a_refused_fold_is_news_about_the_camera` (renamed from
+  `…_and_apply_overwrites_with_it`) asserts only the fold's `Show`.
+  `apply`'s overwrite is now asserted by
+  `keep_clear_and_show_are_three_different_sentences`.
+
+Neither row composes a dead door now, so neither needs a disclosure.
+The tree holds no instance of this row's rule. The rule is still the
+right instruction for the next door added beside an existing one, but
+it has no worked example left to cite.
