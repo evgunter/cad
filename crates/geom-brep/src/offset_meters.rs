@@ -142,7 +142,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
-use geom_core::{Band, Indeterminate, Margin, Sign, SupSpeed};
+use geom_core::{Band, Indeterminate, KERNEL_DEFECT_ENDING, Margin, MarginDiag, Sign, SupSpeed};
 
 use crate::dihedral::decide;
 use crate::patch_bound::{PatchBoundError, PatchCell, patch_cells_refined};
@@ -212,6 +212,12 @@ pub enum MeterError {
     },
     /// A meter escalated: the margin landed in the ambiguity band or
     /// was poisoned (escalate-never-guess, D4 ¶3).
+    ///
+    /// It renders the classifier's payload without `Indeterminate`'s
+    /// shared coincidence tail — a meter decides one face's own normal
+    /// or curvature, so "declare the coincidence" has no object — and
+    /// ends in [`escalation_recourse`] for an undecided margin, or
+    /// [`KERNEL_DEFECT_ENDING`] for a poisoned one.
     Escalated {
         /// The predicate-layer escalation.
         source: Indeterminate,
@@ -239,10 +245,45 @@ impl core::fmt::Display for MeterError {
             ),
             Self::Escalated { source } => write!(
                 f,
-                "whether the face can be offset is too close to call: \
-                 {source}"
+                "whether the face can be offset is too close to call: {}. {}",
+                source.payload(),
+                match source.margin {
+                    MarginDiag::Invalid => KERNEL_DEFECT_ENDING,
+                    MarginDiag::Value(_) | MarginDiag::Enclosure { .. } => {
+                        escalation_recourse(source.predicate)
+                    }
+                }
             ),
         }
+    }
+}
+
+/// The predicate name [`offset_normal_floor`] attaches to its
+/// escalation.
+pub const NORMAL_FLOOR_PREDICATE: &str = "offset_normal_floor";
+
+/// The predicate name [`offset_curvature_headroom`] attaches to its
+/// escalation.
+pub const CURVATURE_HEADROOM_PREDICATE: &str = "offset_curvature_headroom";
+
+/// The labelled repair for a meter margin the band could not decide,
+/// routed by the meter that escalated: the one table every surface
+/// that renders [`MeterError::Escalated`] reads (its own `Display`,
+/// and `topo::validate`'s checks-window classifier).
+///
+/// The curvature meter's lever is the offset distance; every other
+/// escalation is the normal floor's (the two meters are the only
+/// deciders that raise it), whose lever is where the face runs. Both
+/// keep the tolerance, which is what put the margin in the band. A
+/// poisoned margin is not routed here: it is not a number the user can
+/// move, so each surface ends it in the kernel-defect ending its own
+/// subject calls for.
+#[must_use]
+pub fn escalation_recourse(predicate: Option<&str>) -> &'static str {
+    if predicate == Some(CURVATURE_HEADROOM_PREDICATE) {
+        "Recourse: use an offset distance of smaller magnitude, or lower the tolerance"
+    } else {
+        "Recourse: split the face clear of any pole, cusp or pinch, or lower the tolerance"
     }
 }
 
@@ -549,7 +590,7 @@ pub fn patch_regularity(cells: &[PatchCell]) -> PatchRegularity {
 /// ambiguity band or is poisoned.
 pub fn offset_normal_floor(reg: &PatchRegularity, band: Band) -> Result<(), MeterError> {
     let margin = Margin::over_lever(reg.floor, reg.speed_lever().get());
-    match decide("offset_normal_floor", margin, band)
+    match decide(NORMAL_FLOOR_PREDICATE, margin, band)
         .map_err(|source| MeterError::Escalated { source })?
     {
         Sign::Positive => Ok(()),
@@ -784,8 +825,12 @@ pub enum MeterResult {
 /// at or below zero, [`MeterError::Escalated`] when it lands in the
 /// ambiguity band or is poisoned.
 pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(), MeterError> {
-    match decide("offset_curvature_headroom", Margin::of(coll.headroom), band)
-        .map_err(|source| MeterError::Escalated { source })?
+    match decide(
+        CURVATURE_HEADROOM_PREDICATE,
+        Margin::of(coll.headroom),
+        band,
+    )
+    .map_err(|source| MeterError::Escalated { source })?
     {
         Sign::Positive => Ok(()),
         Sign::Zero | Sign::Negative => Err(MeterError::CurvatureHeadroom {
@@ -799,7 +844,6 @@ pub fn offset_curvature_headroom(coll: &PatchCollapse, band: Band) -> Result<(),
 #[cfg(test)]
 #[allow(clippy::unwrap_used)]
 mod tests {
-    use geom_core::MarginDiag;
     use geom_core::predicate::COINCIDENCE_RECOURSE;
 
     use super::*;
@@ -807,11 +851,9 @@ mod tests {
     /// Every meter refusal names what the caller changes, not only the
     /// number that refused.
     ///
-    /// `Escalated` renders the classifier's [`Indeterminate`] whole and
-    /// contributes three words of its own, so it is asserted
-    /// TRANSITIVELY — at every `MarginDiag` arm, because that Display's
-    /// three arms are three different sentences and picking one would
-    /// prove the chain at one payload.
+    /// `Escalated` is asserted at each meter's predicate crossed with
+    /// every `MarginDiag` arm: the predicate picks the lever, and the
+    /// poisoned margin replaces it with the kernel-defect ending.
     #[test]
     fn every_meter_error_arm_names_a_recourse() {
         // A vocabulary, not a part-of-speech test: an arm that names
@@ -850,18 +892,37 @@ mod tests {
         for arm in &arms {
             match arm {
                 MeterError::Escalated { .. } => {
-                    for margin in margins {
-                        let source = Indeterminate {
-                            margin,
-                            band,
-                            predicate: Some("offset_meter_recourse_probe"),
-                        };
-                        let msg = MeterError::Escalated { source }.to_string();
-                        assert!(
-                            msg.contains(&source.to_string()),
-                            "carrier not rendered whole: {msg}"
-                        );
-                        assert!(msg.contains(COINCIDENCE_RECOURSE), "no recourse in: {msg}");
+                    let predicates = [
+                        (NORMAL_FLOOR_PREDICATE, "split the face clear"),
+                        (CURVATURE_HEADROOM_PREDICATE, "offset distance of smaller"),
+                    ];
+                    for (predicate, lever) in predicates {
+                        for margin in margins {
+                            let source = Indeterminate {
+                                margin,
+                                band,
+                                predicate: Some(predicate),
+                            };
+                            let msg = MeterError::Escalated { source }.to_string();
+                            assert!(
+                                msg.contains(&source.payload().to_string()),
+                                "payload not rendered: {msg}"
+                            );
+                            assert!(
+                                !msg.contains(COINCIDENCE_RECOURSE),
+                                "a face's meter offers a declaration: {msg}"
+                            );
+                            let ending = match margin {
+                                MarginDiag::Invalid => KERNEL_DEFECT_ENDING,
+                                _ => escalation_recourse(Some(predicate)),
+                            };
+                            assert!(msg.ends_with(ending), "{predicate}: {msg}");
+                            assert_eq!(
+                                msg.contains(lever),
+                                !matches!(margin, MarginDiag::Invalid),
+                                "{predicate}: {msg}"
+                            );
+                        }
                     }
                 }
                 _ => {

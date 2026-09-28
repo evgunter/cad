@@ -2335,12 +2335,7 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
             "whether this face can be offset is too close to call at this tolerance",
             own_close(
                 &source.margin,
-                if source.predicate == Some("offset_curvature_headroom") {
-                    "Recourse: use an offset distance of smaller magnitude, or lower the tolerance"
-                } else {
-                    "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
-                     tolerance"
-                },
+                geom_brep::offset_meters::escalation_recourse(source.predicate),
             ),
         ),
         O::BudgetExhausted {
