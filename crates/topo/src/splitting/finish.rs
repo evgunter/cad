@@ -17,6 +17,12 @@
 //! loop's first chord — deterministic data, no comparisons) with
 //! opposite normals; the mirror test pins both signs bitwise.
 //!
+//! That is each face's CHART normal. Its sense is its loop's winding
+//! about it, the reading tier 3's check 6 makes: a section's outer
+//! boundary winds counter-clockwise (`true`), and a section that is a
+//! hole in another — the disc over a bore, beside the face over the
+//! whole outline — winds clockwise (`false`).
+//!
 //! The book's "the 'inner' loop should appear in the part Above, and
 //! the 'outer' loop in the part Below" is list-position convention
 //! chasing; here the roles are the F9 keys
@@ -174,6 +180,18 @@ pub enum SplitFinishError {
         /// The classifier's diagnostic.
         diag: geom_core::Indeterminate,
     },
+    /// A section loop's winding about its chart normal has no sign, so
+    /// the section face's material side cannot be read: in the band
+    /// (`diag`), zero, or (`None`) a loop with an edge that states no
+    /// certified curve. The split's operand gate admits only line,
+    /// circle and ellipse edges, so every section edge is one the
+    /// winding reads.
+    SectionWindingUndecided {
+        /// The null face the section loop bounds.
+        face: FaceKey,
+        /// The winding's diagnostic, when it escalated.
+        diag: Option<geom_core::Indeterminate>,
+    },
 }
 
 impl From<EulerOpError> for SplitFinishError {
@@ -218,6 +236,21 @@ impl core::fmt::Display for SplitFinishError {
                  Recourse: {}",
                 diag.payload(),
                 super::SPLIT_COINCIDENCE_RECOURSE
+            ),
+            Self::SectionWindingUndecided {
+                diag: Some(diag), ..
+            } => write!(
+                f,
+                "which side of a cut face is material is too close to call ({}). \
+                 Recourse: {}",
+                diag.payload(),
+                super::SPLIT_COINCIDENCE_RECOURSE
+            ),
+            Self::SectionWindingUndecided { diag: None, .. } => write!(
+                f,
+                "which side of a cut face is material cannot be read: its outline \
+                 encloses no area, or has an edge with no curve. Recourse: move the \
+                 split plane"
             ),
         }
     }
@@ -277,6 +310,7 @@ pub(super) fn split_finish<T: Decide>(
             .collect(),
     };
 
+    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     // ---- Promotion: each null face → two section faces. ----
     // Which loop is currently the ring is read from the face record
     // (the role keys), not from list position.
@@ -317,22 +351,22 @@ pub(super) fn split_finish<T: Decide>(
             PlaneSide::Above => PlaneSide::Below,
             _ => PlaneSide::Above,
         };
-        let promoted = body.mfkrh(ring, FaceSurface::New(plane_for(ring_side)))?;
-        body.set_face_surface(section.face, FaceSurface::New(plane_for(other_side)))?;
-        // **Both section faces are sense `true`**: `plane_for` charts
-        // each with its OUTWARD normal `m` (module docs), so the chart
-        // normal is the material side by construction. `mfkrh` onto a
-        // `New` surface mints `true` for the promoted face, but
-        // `set_face_surface` re-charts the null face and keeps the bit
-        // it had. That bit is the null face's parent's: `mef` minted
-        // the null face on an operand face's surface and inherited
-        // that face's sense with it, so a null face carved from a
-        // reversed wall (a bore or cavity, `sense: false`) would carry
-        // `false` onto a chart whose normal is already outward, and
-        // every reader of the bit (the ray lane's crossing sign among
-        // them) would take the section face as facing into material.
-        body.set_face_sense(promoted.face, true)?;
-        body.set_face_sense(section.face, true)?;
+        // Each section face's sense is its loop's winding about its
+        // chart normal: tier 3's check 6 reading (`planar_loop_winding`),
+        // taken before the re-chart and stated with it.
+        let ring_sense = section_sense(&body, section.face, ring, &plane_for(ring_side), band)?;
+        let outer_sense = section_sense(&body, section.face, outer, &plane_for(other_side), band)?;
+        let promoted = body.mfkrh(ring, FaceSurface::Inherit)?;
+        body.set_face_surface_and_sense(
+            promoted.face,
+            FaceSurface::New(plane_for(ring_side)),
+            ring_sense,
+        )?;
+        body.set_face_surface_and_sense(
+            section.face,
+            FaceSurface::New(plane_for(other_side)),
+            outer_sense,
+        )?;
         body.clear_null_face_pair(section.face);
         section_side.insert(promoted.face, ring_side);
         section_side.insert(section.face, other_side);
@@ -349,7 +383,6 @@ pub(super) fn split_finish<T: Decide>(
     // conventional description in an adjacent chart per D2 — kept
     // where the edge already has one, stated in the section chart
     // where it does not; escalations refuse typed. ----
-    let band = geom_core::Band::linear(tol).map_err(SplitFinishError::Band)?;
     let section_faces: Vec<FaceKey> = section_side.keys().collect();
     for face in section_faces {
         describe_section_boundary(&mut body, face, band, tol)?;
@@ -396,6 +429,45 @@ pub(super) fn split_finish<T: Decide>(
         below: SplitPart::Body(below),
         naming,
     })
+}
+
+/// The sense of the section face a promoted loop will bound, charted
+/// on `plane`: the loop's winding about the chart normal (interior-left
+/// ⇒ counter-clockwise about the outward normal), read by the function
+/// tier 3's check 6 falsifies the bit with. A section's outer boundary
+/// winds counter-clockwise about the normal `plane_for` gives it; a
+/// section whose region is a hole in another's (the disc over a bore,
+/// beside the square around it) winds clockwise and is `false`.
+///
+/// # Errors
+///
+/// [`SplitFinishError::SectionWindingUndecided`] where the winding has
+/// no sign (in the band, zero, or a loop with an edge that states no
+/// certified curve); [`SplitFinishError::Corrupt`] on a torn loop.
+fn section_sense<T: Decide>(
+    body: &Body<T>,
+    face: FaceKey,
+    l: crate::entity::LoopKey,
+    plane: &Surface<T>,
+    band: geom_core::Band,
+) -> Result<bool, SplitFinishError> {
+    let Surface::Plane { normal, .. } = *plane else {
+        return Err(SplitFinishError::Corrupt);
+    };
+    match body
+        .planar_loop_winding(l, normal, band)
+        .map_err(|_| SplitFinishError::Corrupt)?
+    {
+        Some(Ok(geom_core::Sign::Positive)) => Ok(true),
+        Some(Ok(geom_core::Sign::Negative)) => Ok(false),
+        Some(Ok(geom_core::Sign::Zero)) | None => {
+            Err(SplitFinishError::SectionWindingUndecided { face, diag: None })
+        }
+        Some(Err(diag)) => Err(SplitFinishError::SectionWindingUndecided {
+            face,
+            diag: Some(diag),
+        }),
+    }
 }
 
 /// D6 (M3 PR 6a): describes every boundary edge of one just-promoted

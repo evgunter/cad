@@ -1,10 +1,10 @@
-# CONTACT-6: a split's section faces face out
+# CONTACT-6: a split's section faces take their sense from their winding
 
 This file is the PR body for the landing. The orchestrator folds it into
 that PR and deletes it at merge.
 
 Carries `work/contact/point-in-solid-reads-out-inside-a-tilted-cut-cylinder-cavity`
-(P0).
+(P0). It includes the single full review's fix pass (MAJOR 1, S1–S6).
 
 ## What was wrong
 
@@ -23,9 +23,9 @@ The fixture is built through public doors:
 - split by `split` through `(0, 0, 1.25)` with normal
   `(sin 1, 0, cos 1)`.
 
-The plane crosses the bore, so each half's section is two planar
-faces, one on each side of the bore in `y`. Each is bounded by three
-lines and an ellipse arc.
+The plane crosses the bore's wall along a line, so each half's section
+is two planar faces, one on each side of the bore in `y`. Each is
+bounded by three lines and an ellipse arc.
 
 Probe `(−16/9, 0.9467, 1.8778)`, identity pose, lower half:
 1. The pre-pass places it off every face.
@@ -38,172 +38,246 @@ Probe `(−16/9, 0.9467, 1.8778)`, identity pose, lower half:
    `−(sin 1, 0, cos 1)`, because the face's sense is `false`.
    `d·n < 0` reads as an entry, and the closest-hit rule answers `Out`.
 
-Face 16v1's outer loop winds counter-clockwise about `+n`: its area
-vector dotted with `+n` is `+4.1698`, the same as 15v1's. Its sense is
-the only thing that says otherwise. Tier 3 says the same:
-`validate_geometric` on the lower half returns
-`LoopRoleInverted { face: 16v1 }`, at the base and at CONTACT-4's head.
-The row's premise that it passes does not hold for this fixture. The
-volume is exactly half because the props lane integrates the loop
-windings, not the bit.
+16v1's outer loop winds counter-clockwise about `+n` (area·n = +4.1698,
+the same as 15v1's). Only its sense says otherwise. Tier 3 agrees:
+`validate_geometric` returns `LoopRoleInverted { face: 16v1 }` on the
+lower half, at the base and at CONTACT-4's head. The row's premise that
+it passes does not hold for this fixture. The volume is exactly half
+because the props lane integrates the loop windings, not the bit.
 
 ### The defective site
 
-`splitting::finish::split_finish`, the promotion loop (`finish.rs:320`):
+`splitting::finish::split_finish`, the promotion loop:
+- `mfkrh(ring, New(plane))` promotes the ring;
+- `set_face_surface(section.face, New(plane))` re-charts the null face.
 
-```rust
-let promoted = body.mfkrh(ring, FaceSurface::New(plane_for(ring_side)))?;
-body.set_face_surface(section.face, FaceSurface::New(plane_for(other_side)))?;
-```
+The null face was minted by the join's `mef` on an operand face's
+surface, and it inherited that face's sense
+(`mint_face_surface_and_sense`). `set_face_surface` onto a `New`
+surface keeps the bit it finds. So a null face carved from the reversed
+cavity wall carried `false` onto the section plane, whatever the
+section's winding.
 
-`plane_for` charts each section face with its OUTWARD normal
-(module docs: above `m = −n_SP`, below `m = +n_SP`). So the invariant
-`Face::sense` states, "`true` iff the material side agrees with the
-chart normal", demands `true` on both.
-- The promoted face gets `true` from `mfkrh`'s mint onto a `New`
-  surface.
-- `section.face` is the null face. The join's `mef` minted it on an
-  operand face's surface and so inherited that face's sense
-  (`mint_face_surface_and_sense`). `set_face_surface` re-charts a face
-  and keeps its bit.
+That is two rules for one fact:
+- the mint stamps a bit (`mint_face_surface_and_sense`);
+- a re-chart keeps one (`set_face_surface`).
 
-A null face carved from the reversed cavity wall (`sense: false`)
-therefore kept `false` on a chart that is already outward. The upper
-half's two section faces, and every uncut body, came out right only
-because their null faces were carved from `sense: true` faces.
+Every re-chart caller has to remember to reset the bit.
 
 ## The fix
 
-The promotion loop now sets both section faces to sense `true`, with
-the argument at the site:
-- the chart is outward by `plane_for`'s derivation;
-- the null face's bit is its parent's, and a reversed wall's is
-  `false`.
+**One door states the bit with the chart.**
+`Body::set_face_surface_and_sense(face, surface, sense)` re-charts and
+writes the sense in one call. `set_face_surface`'s doc now says it keeps
+the bit, and names the new door for a caller that decides the new
+chart's orientation. The re-chart callers that already paired the two
+calls now use it:
+- `sweep::blend::surgery`: blend, corner-patch and band faces (three
+  sites);
+- `step_import::adopt`: every adopted face;
+- `topo::splitting::finish`: both section faces.
 
-The fix is at the writer, so every reader of the bit is fixed with it:
-- the ray lane's crossing sign;
-- `face_outward_normal` and the other `face_normal` doors;
-- tier 3's check 6.
+**Each section face's sense is its loop's winding about its chart
+normal.** This is the reading tier 3's check 6 falsifies the bit with,
+through the same function, `Body::planar_loop_winding`. The new helper
+`finish::section_sense`:
+- takes the reading before the re-chart;
+- maps `Positive` to `true` and `Negative` to `false`;
+- refuses `SplitFinishError::SectionWindingUndecided { face, diag }`
+  where the winding has no sign: in the band, zero, or a loop on a
+  spiric or NURBS carrier.
 
-Nothing answers where it used to refuse, and nothing refuses where it
-used to answer: the refusal counts are unchanged.
+The promoted face goes through `mfkrh(ring, Inherit)` and then the same
+door, so both faces take the one reading.
+
+What the reading gives:
+- **Cut cavity at tilt 1.0:** both section faces on either side of the
+  bore wind counter-clockwise, so both are `true`.
+- **Hole class** (a cut that crosses the bore all round): the section
+  is a face over the whole outline, with no ring, plus a separate disc
+  over the bore that cancels it. The disc winds clockwise about its
+  side's outward normal, so it is `false`.
+
+The first version of this fix stamped `true` on both faces. That was
+wrong on the hole class's disc: it made both halves fail check 6 where
+the base failed one (MAJOR 1). **The square-plus-disc encoding of a
+section with a hole stands.** A single annular face with a ring is
+REACH's defect, filed by the orchestrator, and this PR does not touch
+it.
+
+### The new refusal
+
+`SectionWindingUndecided` is reached only where check 6 itself could
+not read the face:
+- a winding in the band, or zero;
+- an edge with no certified curve.
+
+None of the rows reach it. The split's operand gate
+(`classify.rs`) already refuses a spiric or NURBS edge, and a cone,
+sphere or torus face. So a section loop rides only line, circle and
+ellipse edges, which the winding reads exactly.
+
+The variant is `SplitError::Finish`, so every consumer already matches
+it as a split refusal. Its `Display` follows `DescribeEscalated`: the
+escalated form quotes the payload and the shared split-plane recourse.
 
 ## Measurement
 
-The grid is 9³ plus 11³ over the brick, keeping only points whose
-analytic distance from every boundary surface (six brick planes, the
-rod, the cut plane) is at least 1e3·ε. That leaves 2060 points per
-pose, at the six poses of `pis_arc_capped_poses::poses`.
+Base is main before CONTACT-4 (`a8f006ab5`). Head is this branch.
+Counts are summed over the six poses of `pis_arc_capped_poses::poses`,
+on the 9³ + 11³ grid of points at least 1e3·ε from every boundary
+surface. They are identical at ε = 1e-9, 1e-6 and 1e-12, except where
+noted.
 
-Base is main before CONTACT-4 (`a8f006ab5`, also measured at
-`94d5b265f`: identical). Head is CONTACT-4's head without this fix.
-Every count is identical at ε = 1e-9, 1e-6 and 1e-12.
+### `point_in_solid`: answered / wrong / refused
 
-| lower half, per pose | base right / wrong / refused | CONTACT-4 head | this branch |
+| case | half | base | head |
 |---|---|---|---|
-| identity | 551 / 272 / 1237 | 551 / 272 / 1237 | 823 / 0 / 1237 |
-| 0.7 about x | 551 / 272 / 1237 | same | 823 / 0 / 1237 |
-| 0.7 about z | 766 / 103 / 1191 | same | 869 / 0 / 1191 |
-| 0.3 about y | 560 / 260 / 1240 | same | 820 / 0 / 1240 |
-| 1.1 about (1,2,3) | 762 / 95 / 1203 | same | 857 / 0 / 1203 |
-| π/2 about x | 551 / 272 / 1237 | same | 823 / 0 / 1237 |
-| total | 3741 / **1274** / 7345 | 3741 / **1274** / 7345 | 5015 / **0** / 7345 |
+| cavity cut at tilt 1.0 | below | 3741 / **1274** / 7345 | 5015 / **0** / 7345 |
+| | above | 11428 / 0 / 932 | same |
+| cavity uncut | | 12360 / 0 / 0 | same |
+| cavity cut flat | both | 12360 / 0 / 0 | same |
+| cavity cut at tilt 0.3 | below / above | 5825 / 0 / 6535; 8990 / 0 / 3370 | same |
+| off-centre cavity (rod at `(0.8, 0)`) cut flat | both | 12360 / 0 / 0 | same |
+| off-centre cavity, tilt 1.4, flipped | below / above | 10032 / 0 / 2328; 6120 / 0 / 6240 | same |
+| bored cylinder cut flat | both | 12360 / 0 / 0 | same |
+| bored cylinder, tilt 0.3 | below / above | 5299 / 0 / 7061; 8605 / 0 / 3755 | same |
+| bored cylinder, tilt −1, flipped | below / above | 6071 / 0 / 6289; 8766 / 0 / 3594 | same |
 
-- **CONTACT-4 did not fix it.** It changed nothing here, as expected:
-  the in-face walk was right on both faces, and the wrong sign came
-  from the sense bit.
-- Every wrong answer was a false `Out`.
-- **Every refusal is `VolumeUncertified` on a point outside the body.**
-  Its first ray meets nothing, and the cut's elliptic wall has no
-  closed-form volume (the props lane's, and unchanged).
+- Every refusal is `VolumeUncertified` on a point outside the body.
+- The one exception is the bored cylinder at tilt 0.3 at ε = 1e-6: 3
+  in-band `bool_wall_trim` escalations per half (answered 5297 and
+  8603), at base and head alike.
+- The only change is the cavity at tilt 1.0, below: 1274 false `Out`
+  become right. CONTACT-4's head measures exactly as the base on it.
 
-Controls, identical at base, CONTACT-4's head and this branch, at every
-ε row:
-- the upper half: 11428 right, 0 wrong, 932 `VolumeUncertified`;
-- the uncut cavity: 12360 right, 0 wrong, 0 refused.
+### `validate_geometric`, and section-face senses
+
+| case | half | base: tier 3 / section senses | head: tier 3 / section senses |
+|---|---|---|---|
+| cavity cut at tilt 1.0 | below | **`LoopRoleInverted`** (section) / true, false | clean / true, true |
+| | above | clean / true, true | clean / true, true |
+| cavity cut flat | below | clean / false, true | clean / false, true |
+| | above | **`LoopRoleInverted`** (section: the disc) / true, true | clean / false, true |
+| cavity cut at tilt 0.3 | below | clean / false, true | clean / false, true |
+| | above | **`LoopRoleInverted`** (disc) / true, true | clean / false, true |
+| off-centre cavity cut flat | below | clean / false, true | clean / false, true |
+| | above | **`LoopRoleInverted`** (disc) / true, true | clean / false, true |
+| off-centre cavity, tilt 1.4, flipped | below | `RingMeetsOuter` (cap) / true, false | `RingMeetsOuter` (cap) / true, false |
+| | above | **`LoopRoleInverted` ×2** (section + cap) / true, true | `LoopRoleInverted` (cap) / true, false |
+| bored cylinder cut flat | below | clean / false, true | clean / false, true |
+| | above | **`LoopRoleInverted`** (disc) / true, true | clean / false, true |
+| bored cylinder, tilt 0.3 | below | clean / false, true | clean / false, true |
+| | above | **`LoopRoleInverted`** (disc) / true, true | clean / false, true |
+| bored cylinder, tilt −1, flipped | below | `RingMeetsOuter` (cap) / true, false | `RingMeetsOuter` (cap) / true, false |
+| | above | **`LoopRoleInverted` ×2** (section + cap) / true, true | `LoopRoleInverted` (cap) / true, false |
+
+The head is no worse than the base in any row, and **no section face
+fails check 6 anywhere**.
+
+The findings left over are all on OPERAND cap faces, under the two
+steep flipped cuts, and are the same at base:
+- below: the cap's ring touches its outer loop (`RingMeetsOuter`);
+- above: a cap fragment is inverted (`LoopRoleInverted`).
+
+They are filed on REACH's slate as
+`work/reach/split-leaves-a-ringed-cap-fragment-invalid-under-a-steep-cut`.
+That file also records that nearby rod positions refuse the split
+(`RingHomingAmbiguous`, `TornComponent`) at base and head alike.
 
 ## Rows
 
-`crates/sweep/tests/pis_cut_cavity.rs`:
-- `the_cut_cavity_reads_its_truth_at_every_pose`:
-  - the lower half, the upper half and the uncut cavity, at six poses;
-  - every answer is the truth;
-  - the only refusal admitted is `VolumeUncertified` on a truth-`Out`
-    point;
-  - the answered counts are floored at the measured 5015, 11428 and
-    12360.
-- `the_traced_probe_reads_in_and_every_section_face_faces_out`:
-  - the traced probe, and the row's example column
-    `(−1.422, 1.113, z)` for `z ∈ {0.128, 0.628, 1.128, 1.628}`, read
-    `In`;
-  - both halves pass `validate_geometric`;
-  - each half has exactly two section faces, both sense `true`.
+`crates/sweep/tests/pis_cut_cavity.rs`: nine cases, each case's floor,
+escalation cap and tier-3 residue in its own record.
+- `every_cut_through_a_bore_reads_its_truth_at_every_pose`: every
+  answer is the truth. The refusals admitted are:
+  - `VolumeUncertified` on a truth-`Out` point;
+  - in-band escalations, up to the measured cap.
 
-With the fix reverted, both rows are red: 1275 problems (1274 wrong
-plus the floor), and the traced probe reads `Out`.
+  The answered counts are floored at the measured minima.
+- `every_section_face_passes_check_6`: no section face is
+  `LoopRoleInverted` in any case or half, and tier 3 finds nothing
+  beyond the stated residue (`STEEP_RESIDUE` on the two steep cuts).
+- `the_traced_probe_reads_in`: the traced probe and the row's example
+  column `(−1.422, 1.113, z)` read `In`.
 
-`pis_arc_capped_poses::poses` becomes `pub(crate)` so the new suite
-shares the six poses rather than copying them.
+Red without the reading:
+- **Leave the inherited bit** (the base's behaviour): all three rows
+  red. That is 1275 problems on the first, the traced probe reads
+  `Out`, and check 6 fails on the discs and on 16v1.
+- **Stamp both `true`** (this PR's first version): the check-6 row is
+  red on every hole-class case.
+
+`pis_arc_capped_poses::poses` is `pub(crate)` so the suite shares the
+six poses. `sweep`'s `test_support` has no pose home (it holds
+fixtures, not rigid maps), so they stay in the test tree (S5).
+
+## Docs corrected (S2)
+
+These said check 6 does not examine loops riding an `Ellipse`. It does:
+the arm reads `Line`, `Circle` and `Ellipse` loops.
+- `set_face_sense`'s doc (`attach.rs`);
+- `ValidationError::LoopRoleInverted`'s doc (`validate.rs`).
+
+`set_face_sense`'s "live case of the mint" line now names the re-chart
+door and the winding reading.
 
 ## Class sweep
 
-The shape: **a face whose sense came from an inheriting mint (`mef`,
-`mfkrh(Inherit)`), re-charted onto a new surface without the bit being
-set again.**
+The shape: **a face whose sense came from an inheriting mint, re-charted
+onto a new surface without the bit being set again.**
 
-Pass 1 grepped `set_face_surface(` over every crate. The hits outside
-test modules and probes:
+Pass 1, `set_face_surface(` over every crate, outside test modules and
+probes:
 
 | site | disposition |
 |---|---|
-| `topo/splitting/finish.rs` (promotion loop) | **fixed** |
-| `step-import/adopt.rs` | sets `spec.sense` right after: not this class |
-| `sweep/blend/surgery.rs` (three sites) | sets the band's sense right after (`set_face_sense`): not this class |
-| `sweep/extrude.rs`, `loft.rs`, `revolve/partial.rs` (top/end cap) | the swept seed face is minted `true` by the constructor and the plane is fitted to be outward: never inherited |
-| `sweep/revolve/full.rs` (`Shared(wall0)`) | takes wall 0's sense explicitly: not this class |
-| `topo/offset_axial.rs`, `offset_together.rs`, `replace_face.rs` | re-chart the same face onto a moved copy of its own chart (same normal direction), so the kept bit stays honest |
+| `topo/splitting/finish.rs` | **fixed**: `set_face_surface_and_sense`, from the winding |
+| `step-import/adopt.rs` | moved onto `set_face_surface_and_sense` (it set `spec.sense` right after) |
+| `sweep/blend/surgery.rs` (three) | moved onto `set_face_surface_and_sense` (each set the sense right after) |
+| `sweep/extrude.rs`, `loft.rs`, `revolve/partial.rs` (cap) | the swept seed face is minted `true`, and the plane is fitted outward; never inherited |
+| `sweep/revolve/full.rs` (`Shared(wall0)`) | takes wall 0's sense explicitly |
+| `topo/offset_axial.rs`, `offset_together.rs`, `replace_face.rs` | move a face onto a moved copy of its own chart (same normal direction), so the kept bit is still honest |
 | `topo/readback.rs` | doc examples on a fresh `mvfs` face |
 
-Pass 1 could not see a surface written without that door. Pass 2
-grepped `.surface =` for direct writes. The hits:
-- `boolean/combine.rs` re-keys surfaces during a copy (same surface,
-  same bit);
-- the rest (`merge_faces.rs`, `query.rs`, `solid_contain.rs`,
-  `review_m1_pr3.rs`) are in `#[cfg(test)]` modules.
+Pass 2, direct `.surface =` writes: `boolean/combine.rs` re-keys during
+a copy (same surface, same bit). The rest are in `#[cfg(test)]`
+modules.
 
-Pass 3 covered the other null-face promotions, grepping `mfkrh(` and
-`clear_null_face_pair`:
-- `boolean/finish.rs` and `boolean/rest.rs` promote with
-  `FaceSurface::Inherit`. The face stays on its parent's surface, so
-  the inherited bit is the right one.
-- `shell.rs`'s rim promotion sets `host_sense` explicitly.
+Pass 3, the other null-face promotions (`mfkrh(`,
+`clear_null_face_pair`):
+- `boolean/finish.rs` and `boolean/rest.rs` promote with `Inherit` and
+  stay on the parent's surface, so the inherited bit is right;
+- `shell.rs` sets `host_sense` explicitly;
 - `splitting/reassembly.rs` is a test oracle.
 
-The blind spot is a surface change by a door that neither writes
-`.surface` nor calls `set_face_surface`, such as a whole-body copy that
-maps faces. Only `combine.rs` does that, and it keeps each surface.
+Blind spot: a door that changes a face's surface without either
+spelling. Only `combine.rs` does, and it keeps each surface.
 
-## Nothing filed
+## Filed
 
-The row's claim that `validate_geometric` passes is answered above: it
-fails at the base on this fixture. The split verb runs no closing tier-3
-check, so the defect shipped silently, but that is the verb's documented
-contract (callers validate), not a new finding.
+`work/reach/split-leaves-a-ringed-cap-fragment-invalid-under-a-steep-cut`,
+the operand cap findings above.
+
+The row file's body is corrected to the traced cause, and its status is
+left to the orchestrator (S6).
 
 ## Local results
 
-- at the fix commit `d3d9c57c0` (before merging main):
-  - `cargo test -p sweep --test all`: 1703 passed, 7 ignored (ε
-    default);
-  - the `pis_` rows green at 1e-6 and 1e-12;
-  - `cargo test -p topo --lib split` (52) and `--test all split` (36)
-    green;
-  - `cargo clippy -p topo -p sweep --all-targets -- -D warnings` clean;
-  - `cargo fmt --check` clean;
-- after merging main (CONTACT-4 landed): the `pis_` rows (11) and
-  `topo --lib split` (52) green again.
-
-CI is the verification of record.
+At the fix-pass head. CI is the verification of record.
+- `cargo test -p topo -p sweep` at ε default, 1e-6 and 1e-12: all
+  green (topo lib 879, topo `all` 685, sweep `all` 1714 with 7
+  ignored). The first battery caught the new door missing from the two
+  mutation-door tables (`pcurves::staleness_posture`,
+  `review_m1_pr5_internal`); topo lib was rerun green at all three rows
+  after the fix.
+- `pis_cut_cavity` at all three ε rows: 3 of 3.
+- `cargo test -p step-import`: 201 passed, 1 ignored, plus 77.
+- `editor-core` concision rows: 7 of 7. `cargo test -p test-utils`:
+  green.
+- clippy `-D warnings` on topo, sweep and step-import, all targets;
+  rustdoc `-D warnings --document-private-items --all-features` on the
+  same three; `cargo fmt --check`; every `scripts/gates/*.sh`: clean.
 
 🤖 Generated with [Claude Code](https://claude.com/claude-code)
 
