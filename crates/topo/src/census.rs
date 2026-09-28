@@ -2987,11 +2987,11 @@ impl Undecided {
                  bounding boxes no longer overlap"
             }
             Self::TouchUnanalysed => {
-                "they touch where the check cannot read the shape of one of them: a corner \
-                 that is neither convex nor concave (such as the inner corner of an L), or \
-                 a face that folds back on itself at the touch. It cannot yet tell whether \
-                 they overlap there. There is no way through yet for a designed resting \
-                 contact; otherwise move them until their bounding boxes no longer overlap"
+                "they touch at a corner neither convex nor concave (such as the inner \
+                 corner of an L) or where a face folds back on itself, so the check cannot \
+                 tell whether they overlap. There is no way through yet for a designed \
+                 resting contact; otherwise move them until their bounding boxes no longer \
+                 overlap"
             }
             Self::TouchDegenerate => {
                 "they touch where the check's readings of one's faces contradict each \
@@ -3524,6 +3524,9 @@ fn candidate_plane<T: Real>(p: Point3<T>, n: Vec3<T>) -> geom::Surface<T> {
     }
 }
 
+/// A boundary edge of a face, as its two end points.
+type Segment<T> = (Point3<T>, Point3<T>);
+
 /// Where `p` sits on the face whose piece is built.
 #[derive(Clone, Copy, Debug)]
 enum PieceAt {
@@ -3692,7 +3695,7 @@ fn face_piece<T: Decide>(
         }
         let probe = (ua + ub).normalize();
         // The edge the probe meets first, with its distance along it.
-        let mut first: Option<((Point3<T>, Point3<T>), T)> = None;
+        let mut first: Option<(Segment<T>, T)> = None;
         for &(x, y) in &edges {
             let (sx, sy) = (side(probe, x), side(probe, y));
             let cross = match (sign(TOUCH_PIECE_SIDE, sx), sign(TOUCH_PIECE_SIDE, sy)) {
