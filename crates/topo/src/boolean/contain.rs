@@ -60,7 +60,9 @@ pub enum ContainError {
     /// is a segment of zero area and every interior point of the region
     /// would read `Out`. Measured wrong at that shape — a half-disc cap,
     /// a half-cylinder cap, a lens cap — and refused rather than
-    /// answered (issue #1076).
+    /// answered. The walk that reads such a loop on its carriers exists
+    /// (`splitting::containment::point_in_carrier_loop`); this door has not moved onto it
+    /// (`work/tang/arc-aware-point-in-loop`).
     ArcLoopUnsupported {
         /// The loop whose region no available walk expresses.
         r#loop: crate::entity::LoopKey,
@@ -186,10 +188,10 @@ pub fn contfp<T: Decide>(
 /// Which walk can express a loop's region — the question [`contfp`]'s
 /// interior/exterior step must answer before it asks any other.
 ///
-/// Visible to the crate because it is the classification tier 3's
-/// check 9 gates its nesting arm on as well: the same question, about
-/// the same loops, and a second spelling of it was a second answer to
-/// maintain.
+/// Visible to the crate because tier 3's check 9 reads its `Disc`
+/// class to decide two whole-circle loops against each other: the
+/// same question, about the same loops, and a second spelling of it
+/// was a second answer to maintain.
 pub(crate) enum LoopShape<T: geom_core::Real> {
     /// Every edge is an arc of ONE circle: the region is that circle's
     /// disc and [`disc_side`] is exact on it.
@@ -208,19 +210,23 @@ pub(crate) enum LoopShape<T: geom_core::Real> {
     /// whose bore sits in the lune between them.
     ///
     /// [`contfp`] walks it anyway — one point's verdict, the posture
-    /// it has always taken, with #1076 owning the general case. A
+    /// it has always taken; the carrier walk that reads this class
+    /// exactly exists, and moving `contfp` onto it is
+    /// `work/tang/arc-aware-point-in-loop`'s remainder. A
     /// consumer that would REFUSE a body on an `Out` must not: tier
-    /// 3's check 9 gates its nesting arm on [`Self::Polygon`] and
-    /// [`Self::Disc`] alone for exactly that reason.
+    /// 3's check 9 places its rings with
+    /// `splitting::containment::point_in_carrier_loop`, which reads
+    /// each edge on its own carrier, for exactly that reason.
     ArcParity,
     /// **No walk expresses this region.** Arc-bearing over fewer than
     /// three vertices: the polygon through them is a segment of ZERO
     /// AREA, so the parity walk answers `Out` for every interior
     /// point — a half-disc cap, a half-cylinder cap, a lens cap (two
     /// arcs of two DIFFERENT circles, no line edge at all). Each was
-    /// measured as a silent wrong body before this gate. Refused, in
-    /// the conservative direction, until the general arc-aware parity
-    /// walk exists (#1076).
+    /// measured as a silent wrong body before this gate. Refused here,
+    /// in the conservative direction; the carrier walk that reads it
+    /// (`splitting::containment::point_in_carrier_loop`) exists and `contfp` has not moved
+    /// onto it (`work/tang/arc-aware-point-in-loop`).
     NoWalk,
 }
 
@@ -262,7 +268,8 @@ pub(crate) struct LoopCircle<T: geom_core::Real> {
 ///   polygon is a proper region and the walk is measured correct at
 ///   the shapes reviewed (a slot, a rounded rectangle). Unproven in
 ///   general: an arc bowing outward puts region between the polygon
-///   and the boundary (#1076 owns the general case). Separated from
+///   and the boundary (the carrier walk, `splitting::containment::point_in_carrier_loop`,
+///   reads it exactly; `contfp` does not yet). Separated from
 ///   [`LoopShape::Polygon`] because that gap is a different answer for
 ///   a consumer that refuses on `Out` than for one that classifies a
 ///   point.
@@ -378,7 +385,7 @@ pub(crate) fn loop_shape<T: Decide>(
 /// that `q` lies in the circle's plane; that `q` is off the circle by
 /// more than the band — what [`contfp`]'s boundary pre-pass supplies —
 /// is the caller's to supply if it wants a definite answer.
-pub(crate) fn disc_side<T: Decide>(
+fn disc_side<T: Decide>(
     disc: LoopCircle<T>,
     q: Point3<T>,
     band: Band,
@@ -435,8 +442,10 @@ pub(super) fn curved_boundary_containment<T: Decide>(
 /// for them the chord is a different curve — on a planar face an
 /// elliptical rim's chord runs through the face INTERIOR, so a chord
 /// verdict there is not conservative, it is wrong, exactly as it was
-/// for circles. Both modes are therefore on borrowed time; issue #1076
-/// owns the ellipse arc row that would retire the choice.
+/// for circles. Both modes are therefore on borrowed time: the carrier
+/// walk (`splitting::containment::point_in_carrier_loop`) carries the ellipse arc row that
+/// would retire the choice, and moving this door onto it is
+/// `work/tang/arc-aware-point-in-loop`'s remainder.
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum UnrowedCarriers {
     /// Decide them by their CHORD ([`contfp`]'s posture for the

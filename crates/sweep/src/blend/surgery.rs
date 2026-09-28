@@ -4113,11 +4113,14 @@ fn attach_contact<T: Decide + Bounds>(
             // Reached where the jet is under-determined on a pair the
             // lane admits: a corner arc on a slim wedge, whose extent
             // is the folded lever arm, or any band under a run with
-            // `K < 2`. A pair the lane REFUSES lands here too, and the
-            // derived image covers the carriers the lane admits, so
-            // such a pair would fall to the certification door's own
-            // refusal inside `op("surgery contact edge")`; no arm the
-            // battery admits mints one.
+            // `K < 2`. A pair the lane REFUSES lands here too once
+            // every station has read smooth first-order (a crossing
+            // out of lane answers `Transverse` below, as in lane): the
+            // certificate cannot store an intrinsic tangency there, so
+            // the conventional image is the honest description, and
+            // the door derives it — `geom_brep::chart_pcurve` images a
+            // ruling `Line` in a `Cone`'s chart as readily as in a
+            // plane's. No arm the battery admits mints such a pair.
             MustCarryVerdict::UnderDetermined => EdgeDescriptionSpec::chart(s1),
             // In-band: a separation certifiable as neither positive nor
             // zero — a band a few K·ε in radius, or a corner arc whose
