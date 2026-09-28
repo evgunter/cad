@@ -12,12 +12,14 @@
 //!   says it is fine;
 //! - **the composition law**: for a rigid map `M`,
 //!   `M(S + d·n) = M(S) + d·n_M` — so the fit of an offset, mapped, is
-//!   a certified fit of the offset of the mapped base, at the SAME
-//!   tolerance. That is why the description is the layer the map
+//!   a fit of the offset of the mapped base, and certifies at the same
+//!   tolerance when its bound sits below it by more than the frame
+//!   moves the bound. That is why the description is the layer the map
 //!   composes with. `topo::transform_rigid` maps an `Approx` face on
 //!   exactly this identity, re-deriving the mapped fit's certificate
-//!   through the scalar's lane; what is pinned here is the identity
-//!   itself, at the surface, with no body in the way.
+//!   through the scalar's lane and re-fitting the mapped description
+//!   when a sound face's image refuses; what is pinned here is the
+//!   identity itself, at the surface, with no body in the way.
 //! - both signs of `d`, and the kind's own dispositions at the
 //!   dispatch sites that answer for it structurally.
 
@@ -390,7 +392,11 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// carries unit normals to unit normals, so `M(S + d·n)` is
 /// `M(S) + d·n_M`. The consequence the description layer rests on: the
 /// mapped fit certifies against the mapped base, at the same `d` and
-/// the same target — a certified statement, not a sampled one.
+/// the same target — a certified statement, not a sampled one — for a
+/// fit whose bound sits under the target by more than the map moves
+/// it. This row's does (0.44 of the target, asserted under half); one
+/// minted near its target need not, which `topo`'s
+/// `rigid_map_near_eps_approx` suite reproduces.
 ///
 /// **What survives the map is the sampled limb, not the bound.**
 /// `on_locus_max` is a distance between two points, computed the same
@@ -428,6 +434,14 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         let s = approx_offset_surface_at(Arc::clone(&base), d, TARGET, band()).unwrap();
         let here = approx_of(&s).certificate();
         let fit = approx_of(&s).fit();
+        // The headroom the row's claim rests on (doc above): a bound
+        // this far under the target is not one a rotation carries past it.
+        assert!(
+            here.hull_sup <= 0.5 * TARGET,
+            "d = {d}: the fit's bound {} is not under half the target, so the map's drift \
+             could carry it past",
+            here.hull_sup
+        );
         for (name, map) in &maps {
             let mapped_base = base.map_points(|p| map.transform_point(p));
             let mapped_fit = fit.map_points(|p| map.transform_point(p));

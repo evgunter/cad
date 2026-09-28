@@ -47,7 +47,7 @@
 //! with none declared: an `f64` tolerance parameter or an `.eps()`
 //! read here reds that census and has to be said what it is for.
 
-use geom::surfaces::{NurbsSurface, Surface};
+use geom::surfaces::NurbsSurface;
 use geom_core::{Real, Tol};
 
 use crate::OffsetFitError;
@@ -65,7 +65,11 @@ use crate::OffsetFitError;
 #[allow(clippy::type_complexity)]
 pub struct OffsetFitLane<T: Real> {
     /// [`OffsetFitLane::mint`]'s body.
-    mint: fn(std::sync::Arc<NurbsSurface<T>>, T, Tol) -> Result<Surface<T>, OffsetFitError>,
+    mint: fn(
+        std::sync::Arc<NurbsSurface<T>>,
+        T,
+        Tol,
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError>,
     /// The certifier over a `(description, fit, window)` triple:
     /// [`OffsetFitLane::remap`]'s body, and [`OffsetFitLane::recertify`]'s
     /// on a surface's own triple.
@@ -135,7 +139,7 @@ impl<T: Real> OffsetFitLane<T> {
         base: std::sync::Arc<NurbsSurface<T>>,
         d: T,
         tol: Tol,
-    ) -> Result<Surface<T>, OffsetFitError> {
+    ) -> Result<std::sync::Arc<geom::ApproxSurface<T>>, OffsetFitError> {
         (self.mint)(base, d, tol)
     }
 
