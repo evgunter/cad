@@ -663,12 +663,17 @@ pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec
 ///
 /// `mandatory` is whatever set the grid must defer to, and it is not
 /// the grid's to widen: [`domain_grid_points`] passes a vector's
-/// interior knots, while a caller cutting a sub-range on a raw knot
-/// slice passes that slice's in-range knots AND the range's ends, so
-/// no grid point opens a hairline span beside either. The test is
-/// against `mandatory` alone, never against other grid points, so a
-/// point two grids share (a coarse grid's point is a fine grid's when
-/// the counts divide) is kept by both or dropped by both.
+/// interior knots, and a caller cutting a sub-range on a raw knot
+/// slice passes its whole cut set, which carries the range's ends
+/// for completeness — the open-range test already keeps every grid
+/// point off them. The test is against `mandatory` alone, never
+/// against other grid points, so a point two grids share (a coarse
+/// grid's point is a fine grid's when the counts divide) is kept by
+/// both or dropped by both.
+///
+/// The clearance is `|hi − lo|·(ulps·ε)`: `ulps·ε` is exact, so the
+/// product rounds once and a finite width never overflows it to `∞`
+/// (which would drop every grid point beside any mandatory one).
 ///
 /// `pieces` of 0 or 1 yields none.
 #[must_use]
@@ -681,7 +686,7 @@ pub fn range_grid_points(
 ) -> Vec<f64> {
     let sliver = match skip {
         GridSkip::BitEqual => None,
-        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * f64::from(ulps) * f64::EPSILON),
+        GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * (f64::from(ulps) * f64::EPSILON)),
     };
     (1..pieces)
         .filter_map(|k| {
@@ -1171,9 +1176,9 @@ mod tests {
         );
         assert!(domain_grid_points(&kv, 1, GridSkip::BitEqual).is_empty());
         assert!(domain_grid_points(&kv, 0, GridSkip::BitEqual).is_empty());
-        // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·k/n`
-        // rounds to these values, and to others under any re-association
-        // (`hi − (hi − lo)·(n − k)/n` gives `0.15999999999999992`,
+        // A non-dyadic domain pins the grid ARITHMETIC: `lo + (hi − lo)·(k/n)`
+        // rounds to these values, and the counted-from-the-top form
+        // `hi − (hi − lo)·((n − k)/n)` to others (`0.15999999999999992`,
         // `0.39999999999999997`, …). The knot at `0.4` is the grid's own
         // point, so the bit-equal skip drops it.
         let odd = KnotVector::clamped(vec![0.1, 0.1, 0.4, 0.7, 0.7], 1).unwrap();
@@ -1189,6 +1194,37 @@ mod tests {
                 0.58,
                 0.64
             ]
+        );
+        // n = 13 separates the step forms that n = 10 does not:
+        // `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` give
+        // `0.1923076923076923` at k = 2, `0.23846153846153845` at k = 3
+        // and `0.6538461538461537` at k = 12.
+        assert_eq!(
+            domain_grid_points(&odd, 13, GridSkip::BitEqual),
+            [
+                0.146_153_846_153_846_16,
+                0.192_307_692_307_692_32,
+                0.238_461_538_461_538_47,
+                0.284_615_384_615_384_6,
+                0.330_769_230_769_230_8,
+                0.376_923_076_923_076_9,
+                0.423_076_923_076_923,
+                0.469_230_769_230_769_23,
+                0.515_384_615_384_615_3,
+                0.561_538_461_538_461_5,
+                0.607_692_307_692_307_6,
+                0.653_846_153_846_153_9
+            ]
+        );
+        // A finite width near `f64::MAX`: the clearance is
+        // `|hi − lo|·(ulps·ε)`, finite, so a grid point clear of the
+        // knot stands. Spelled `(|hi − lo|·ulps)·ε` the product
+        // overflows to `∞` first and every point is dropped.
+        let big = f64::MAX / 2.0;
+        let huge = KnotVector::clamped(vec![-big, -big, 0.5 * big, big, big], 1).unwrap();
+        assert_eq!(
+            domain_grid_points(&huge, 4, GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS)),
+            [-0.5 * big, 0.0]
         );
         // `WithinUlps(0)` is the bit-equal rule.
         assert_eq!(

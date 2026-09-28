@@ -2733,10 +2733,10 @@ fn quotient_second(
 /// Nor is it [`algebra::domain_grid_points`], the knot-blind grid
 /// [`refine_dir`] and [`bezier_blocks`] take: that grid runs over a knot
 /// vector's own domain and clears only its interior knots, while this
-/// range is the trim rectangle's, its knots are a raw slice that may be
-/// a derivative's, and a grid point must stand clear of the range ends
-/// as well. Both are [`algebra::range_grid_points`] underneath; what
-/// differs is the range and the mandatory set each hands it.
+/// range is the trim rectangle's and its knots are a raw slice that may
+/// be a derivative's. Both are [`algebra::range_grid_points`]
+/// underneath; what differs is the range and the mandatory set each
+/// hands it.
 ///
 /// `knots` is the raw slice the caller cuts on. A caller cutting on a
 /// derivative's knots takes the once-differenced slice from
@@ -2762,10 +2762,12 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // invariants: they only subdivide, and a cell that is wider
     // because one was dropped is still inside one smooth piece and
     // still inside its block. So a grid point is taken only when it
-    // stands clear of every mandatory cut by the sliver clearance,
-    // which is what stops the cut rule minting hairline cells (and
-    // hairline coarse blocks) when a knot happens to land an ulp from
-    // a grid point.
+    // stands clear of every mandatory knot cut by the sliver
+    // clearance, which is what stops the cut rule minting hairline
+    // cells (and hairline coarse blocks) when a knot happens to land
+    // an ulp from a grid point. The ends ride in the mandatory set
+    // for completeness; the open-range test already keeps every grid
+    // point off them.
     //
     // The test is against the MANDATORY set alone, never against
     // other grid points. That is what makes the block-edge list and
@@ -7017,32 +7019,45 @@ mod tests {
     }
 
     /// `bezier_blocks`' breaks are the DISTINCT interior knots: a
-    /// double knot at `1/2` on a degree-2 image is one break (already
-    /// at full multiplicity, so nothing is inserted there), and the
-    /// quarters grid adds `1/4` and `3/4` — four blocks.
+    /// double knot at `1/2` on a degree-3 image is one break, raised
+    /// by ONE inserted copy to multiplicity 3, and the quarters grid
+    /// adds `1/4` and `3/4` — four blocks of `degree + 1` points. A
+    /// break listed twice would insert two copies and take `1/2`
+    /// past the degree.
     #[test]
     fn bezier_blocks_breaks_once_at_a_repeated_knot() {
-        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0], 2).unwrap();
+        let kv = KnotVector::clamped(
+            vec![0.0, 0.0, 0.0, 0.0, 0.5, 0.5, 1.0, 1.0, 1.0, 1.0],
+            3,
+        )
+        .unwrap();
+        // The Greville abscissae: an identity image, so each block
+        // starts at its break.
+        let greville = [0.0, 1.0 / 6.0, 1.0 / 3.0, 2.0 / 3.0, 5.0 / 6.0, 1.0];
         let img = TrimPiece {
             knots: kv,
-            control: [0.0, 0.25, 0.5, 0.75, 1.0]
-                .iter()
-                .map(|t| (pt(*t), pt(0.0)))
-                .collect(),
-            weights: vec![1.0; 5],
+            control: greville.iter().map(|t| (pt(*t), pt(0.0))).collect(),
+            weights: vec![1.0; 6],
         };
         let blocks = bezier_blocks(&img, 4).unwrap();
         assert_eq!(blocks.len(), 4, "{blocks:?}");
         for (block, start) in blocks.iter().zip([0.0, 0.25, 0.5, 0.75]) {
+            assert_eq!(block.len(), 4, "{block:?}");
             let u = block[0].0;
             assert!(u.lo() <= start && start <= u.hi(), "{u:?} vs {start}");
         }
     }
 
     /// `knot_aligned_cuts` pinned bit for bit on the non-dyadic range
-    /// `[0.1, 0.7]`, where `lo + (hi − lo)·k/n` rounds to the values
-    /// written out below and to others under any re-association.
+    /// `[0.1, 0.7]`, where `lo + (hi − lo)·(k/n)` rounds to the values
+    /// written out below.
     ///
+    /// * `pieces = 13`, no knots: the grid arithmetic. The step forms
+    ///   `lo + ((hi − lo)·k)/n` and `lo + k·((hi − lo)/n)` round
+    ///   `k = 2` to `0.1923076923076923`, not `0.19230769230769232`.
+    /// * `pieces = 16`, the sliver clearance's WIDTH: a knot 7·ε·width
+    ///   above the grid point `0.2875` drops it, one 9·ε·width above
+    ///   `0.5125` does not — the 8-ulp clearance sits between.
     /// * `pieces = 16` (a multiple of [`QUAD2_HULL_BLOCKS`], so every
     ///   block edge is a grid point): a knot one ulp above the grid
     ///   point `0.2125` stands and the grid point is dropped; the
@@ -7061,6 +7076,60 @@ mod tests {
         let near_e3 = f64::from_bits(e3.to_bits() + 1);
         assert_eq!(near_g3, 0.212_500_000_000_000_02);
         assert_eq!(near_e3, 0.325);
+        assert_eq!(
+            knot_aligned_cuts(lo, hi, 13, &[]),
+            [
+                0.1,
+                0.146_153_846_153_846_16,
+                0.175,
+                0.192_307_692_307_692_32,
+                0.238_461_538_461_538_47,
+                0.25,
+                0.284_615_384_615_384_6,
+                e3,
+                0.330_769_230_769_230_8,
+                0.376_923_076_923_076_9,
+                0.4,
+                0.423_076_923_076_923,
+                0.469_230_769_230_769_23,
+                0.475,
+                0.515_384_615_384_615_3,
+                0.549_999_999_999_999_9,
+                0.561_538_461_538_461_5,
+                0.607_692_307_692_307_6,
+                0.625,
+                0.653_846_153_846_153_9,
+                0.7
+            ]
+        );
+        let unit = (hi - lo) * f64::EPSILON;
+        let inside = 0.2875 + 7.0 * unit;
+        let outside = 0.5125 + 9.0 * unit;
+        assert_eq!(inside, 0.287_500_000_000_000_9);
+        assert_eq!(outside, 0.512_500_000_000_001_2);
+        assert_eq!(
+            knot_aligned_cuts(lo, hi, 16, &[inside, outside]),
+            [
+                0.1,
+                0.1375,
+                0.175,
+                g3,
+                0.25,
+                inside,
+                e3,
+                0.362_500_000_000_000_04,
+                0.4,
+                0.4375,
+                0.475,
+                0.5125,
+                outside,
+                0.549_999_999_999_999_9,
+                0.5875,
+                0.625,
+                0.6625,
+                0.7
+            ]
+        );
         assert_eq!(
             knot_aligned_cuts(lo, hi, 16, &[-0.5, 0.1, near_g3, 0.5, 0.5, 0.7, 0.9]),
             [
