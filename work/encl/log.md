@@ -1021,3 +1021,15 @@ class of 65 sites is PRED's row.
   - Forwarded carriers are labelled `Recourse:` about 27 times: `note()`, `FitError`, `SplineError`, `KnotVectorIssue`.
   - Three more sites folded in. Six rows filed across encl, reach, shell, chart, props and issues. Evidence added to CHROME's checker row.
   - The scope grew past the brief (macros, the rewording of `ResultVolumeImplausible`, many owners' files). The review stays a style review, pointed at the macro surface, the consistency of the labelling ruling, double labels, and the new rows.
+- 2026-09-28 — PR 3346's style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the macros are least-surface (the `&'static str` callers are real), there are no double labels, and the chains row holds `Meter/Escalated`.
+  - The main fix: `OffsetFitError::Fit`/`Structure` now show a builder's repair, labelled `Recourse:`, to a user who didn't build the spline. They will render as `Elevation` does (the refusal plus the kernel-defect ending). The same class at other owners' sites (step-import, ssi, skin and others) becomes one row.
+  - Also taken:
+    - five missed endings, filed per owner;
+    - `ScaffoldingOperand`'s fold dropped, since `mev_null` is pub and "kernel defect" is not established;
+    - wording fixes;
+    - `#[doc(hidden)]` on the macros;
+    - constants renamed `*_ENDING`, since a dead end is not a recourse;
+    - `file:line` citations in the rows;
+    - a CHROME checker note on the lowercase marker and on "no way through yet".
+  - Kept as is: the A/B operand naming (outside this unit).
