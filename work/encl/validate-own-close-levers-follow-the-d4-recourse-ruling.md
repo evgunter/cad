@@ -49,17 +49,17 @@ or call `geom_brep::certify::recourse` where the decision is a
 
 The same file has other endings that still say "lower the tolerance",
 unconditional and unvalued, and this row's list does not name them
-(`crates/topo/src/validate.rs`, at the offset-meters branch's base):
+(`crates/topo/src/validate.rs` at `3391f2be3a`, PR 3382's fix pass):
 
 - the coincidence menus in the census-subject ending (~:2091, ~:2093),
   which compose `COINCIDENCE_RECOURSE`'s wording (filed for the constant
   itself: `work/props/coincidence-recourse-says-lower-where-d4-says-tighten.md`);
-- `OFF_BOUNDARY` (~:2500);
-- the edges-apart-or-across ending (~:2553);
-- `ChartRegionError::DegenerateLoop` (~:2570), "widen the face well past
+- `OFF_BOUNDARY` (~:2514);
+- the edges-apart-or-across ending (~:2568);
+- `ChartRegionError::DegenerateLoop` (~:2585), "widen the face well past
   the tolerance, or lower the tolerance";
-- the torus tube-radius escalation through `own_close` (~:2669);
-- the hole-inside-outline escalation through `own_close` (~:2841).
+- the torus tube-radius escalation through `own_close` (~:2683);
+- the hole-inside-outline escalation through `own_close` (~:2856).
 
 `classify_offset_fit` no longer composes one. Its meter arms end
 through `MeterError::ending(Reading::AtRest)`, the meters'
