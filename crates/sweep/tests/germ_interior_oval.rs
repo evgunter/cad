@@ -297,3 +297,59 @@ fn the_crown_alone_still_answers_its_closed_form() {
         close(volume(b), want, what);
     }
 }
+
+/// **Whatever ∪ answers for the half donut and bracket, it does not
+/// count the lens twice.** The pre-guard answer was a valid body of
+/// volume `vol(H) + vol(C) − 0.006` — only the pin's overlap removed.
+/// The true union is smaller by the lens, so a body at that volume (or
+/// above) is the wrong answer, and a refusal is the only other outcome
+/// this row accepts.
+#[test]
+fn the_half_donut_union_never_counts_the_lens_twice() {
+    let (h, c) = (half_donut(), torus_bracket());
+    let twice = volume(&h) + volume(&c) - 0.006;
+    if let Ok(r) = topo::union(&h, &c, Tol::witness()) {
+        let got = volume(&r.body().expect("non-empty").body);
+        assert!(
+            got < twice - 1e-6,
+            "the union's volume {got} counts the lens twice (vol A + vol B − pin = {twice})"
+        );
+    }
+}
+
+/// **The corner bar: a second lens, and the torus half's per-op reach
+/// is what covers it.** A `0.2`-square bar across the donut's hole, cut
+/// to the length that puts all eight corners on the inner face. Its end
+/// squares' edges along `y` keep a constant `ρ`, so their interiors run
+/// inside the tube, and the lens between each end square and the tube
+/// is bounded by no event but the corners' own contacts. A gate that
+/// cleared a torus pair because it HAS events would pass it; the torus
+/// half never consults events — any undeclared overlapping pair refuses
+/// unless the carriers are certified apart — so whatever door the
+/// pipeline reaches first, the result is never a body.
+#[test]
+fn the_corner_bar_never_comes_back_a_body() {
+    let d = {
+        let vp = validated(vec![revolve_common::donut_profile()]);
+        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+            .expect("the donut revolves")
+            .body
+    };
+    let hw = 0.1_f64;
+    let rho = 2.0 - (0.25 - hw * hw).sqrt();
+    let z = (rho * rho - hw * hw).sqrt();
+    let b = boxed((-hw, hw), (-hw, hw), (-z, z));
+    for (what, r) in [
+        ("∪", topo::union(&d, &b, Tol::witness())),
+        ("∩", topo::intersect(&d, &b, Tol::witness())),
+        ("∖", topo::subtract(&d, &b, Tol::witness())),
+        ("∖ reversed", topo::subtract(&b, &d, Tol::witness())),
+    ] {
+        if let Ok(r) = r {
+            panic!(
+                "{what}: the corner bar came back {:?}",
+                r.body().map(|x| (x.kind, volume(&x.body)))
+            );
+        }
+    }
+}

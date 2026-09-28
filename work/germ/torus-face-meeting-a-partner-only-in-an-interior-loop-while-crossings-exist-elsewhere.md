@@ -67,6 +67,19 @@ returned, as `CurvedPairUnsupported { op: Some(op) }`:
     lies in both faces wholly or not at all).
   - Everything else refuses.
 
+**A second instance, the corner bar**, found in PR 3330's dual review
+(`the_corner_bar_never_comes_back_a_body`): a bar across the hole with
+all eight corners on the inner face, whose end-square edges run inside
+the tube. Its only events are the corners' contacts.
+
+- It never reaches the guard today. On main it refuses at the chord
+  rule (`CurvedPierceUnsupported`). With PR 3330's chord relaxation it
+  refuses at the sagitta charge (`CurvedSectorSideUnsupported`),
+  measured on a scratch merge.
+- The torus half covers it anyway, because it never consults events:
+  any undeclared overlapping pair refuses. A per-pair rule that cleared
+  pairs WITH events would not have covered it.
+
 **Still open, and why this row stays open:**
 
 - **(b)** is not built. It would enumerate each overlapping torus
