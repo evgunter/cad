@@ -7,8 +7,6 @@ opened: 2026-09-25
 priority: P1
 cost: H
 branch: gather/cusp-sweep-gate
-design: true
-needs_ev: true
 ---
 
 
@@ -78,3 +76,30 @@ longer asks its own callers to cure by hand.
 
 The red-first row is `a_cusp_extrude_document_refuses_at_the_product_gate`
 (above): flip its `expect_err` to the gathered product.
+
+## Decided (Ev, PR 3317, 2026-09-28)
+
+The row's framing (carry the sweep's declaration to the product gate)
+is retired. A wedge-0/2π edge is legal at rest iff its tangency is
+jet-determinate, derived from the body exactly as the π seam is; intent
+is declared only where the tangency is created (the profile's `.cusp()`,
+a boolean's C7 `Tangent` operand pair). What the unit owes:
+
+- check 4's material arm: wedge ends legal iff jet-determinate;
+  `UndeclaredCusp` retires; `LaminaWedge` and the in-band escalation stay;
+- retire `validate_geometric_declared*`, `contact_marks_declared*`,
+  `declares_tangent_contact`, `MaterialWedge::is_declared_arm`, the three
+  sweep results' `declared_contacts` and `swept::cusp_contacts`, the
+  importer's cusp use of `declared_contacts` (its `Rest` records stay),
+  tier 3′ reading curve records as `Tangent` declarations, and the
+  editor's `UndeclaredCusp` mapping; the profile's `cusp_joints` stays;
+- the red-first row flips: a `.cusp()` extrude, revolve (and loft,
+  unjudged on NURBS walls) gathers, and so does one through a boolean
+  that leaves the strut, a pattern, a split and part selection;
+- prose that restates the declared arm moves with it (PATHS §4's "the
+  declaration is what the kernel's material-wedge invariant asks for at
+  rest"; check 4's NURBS-exemption comment on "DECLARED corner
+  structure"; the sweep verbs' `body` docs).
+
+The audit that replaces tier 3's backstop is its own row:
+`every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one`.
