@@ -209,8 +209,8 @@ pub struct BooleanNaming {
     /// `merge_coplanar_faces` absorption groups `(kept, absorbed…)`,
     /// result keys.
     pub merge_groups: Vec<(FaceKey, Vec<FaceKey>)>,
-    /// Merge groups the output stage did NOT glue, as outside the
-    /// never-elide inventory (M4 PR 5), and declared surface pairs
+    /// Curved merge groups the output stage did NOT glue, as outside
+    /// the merge's Euler inventory (M4 PR 5), and declared surface pairs
     /// the door has no rung for (a non-planar carrier) — the record's
     /// faces plus the typed
     /// [`MergeCoplanarError`](crate::merge_faces::MergeCoplanarError)
@@ -3149,5 +3149,45 @@ mod tests {
         desc.vertices.insert(dead_vertex, live_vertex);
         let out = remap_contacts(&body, &contacts, KeyView::Direct, KeyView::Direct, &desc);
         assert!(out.vv.is_empty(), "fused-into-one pair is consumed");
+    }
+
+    /// **A record citing a pruned free end is consumed and drops**,
+    /// under the same strict rule as a zip-fused vertex (tier 3′). The
+    /// merge's dangling-seam pruning deletes a vertex with no successor
+    /// — nothing was fused into it and no fusion row names it — so a
+    /// v-v record and a v-on-f record citing it both drop, while the
+    /// same records citing a live vertex survive unchanged.
+    #[test]
+    fn a_record_citing_a_pruned_free_end_drops() {
+        use super::{Descendants, KeyView, remap_contacts};
+        use crate::boolean::{ContactRecords, VfContact, VvContact};
+        use crate::entity::VertexKey;
+
+        let square = [(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)];
+        let mut body = quad_prism(&square, 1.0, Tol::witness());
+        let vertices: Vec<VertexKey> = body.vertices().map(|(k, _)| k).collect();
+        let [live, other, pruned, ..] = vertices[..] else {
+            panic!("a prism has vertices")
+        };
+        let face = body.faces().next().map(|(k, _)| k).unwrap();
+        body.vertices.remove(pruned);
+        let records = |v: VertexKey| ContactRecords {
+            vv: vec![VvContact { a: v, b: other }],
+            a_on_b: vec![VfContact { vertex: v, face }],
+            b_on_a: vec![VfContact { vertex: v, face }],
+            ..ContactRecords::default()
+        };
+        let desc = Descendants::default();
+        let remap =
+            |c: &ContactRecords| remap_contacts(&body, c, KeyView::Direct, KeyView::Direct, &desc);
+        let out = remap(&records(pruned));
+        assert!(out.vv.is_empty(), "{:?}", out.vv);
+        assert!(out.a_on_b.is_empty(), "{:?}", out.a_on_b);
+        assert!(out.b_on_a.is_empty(), "{:?}", out.b_on_a);
+        // The control: the same records on a live vertex carry.
+        let out = remap(&records(live));
+        assert_eq!(out.vv, vec![VvContact { a: live, b: other }]);
+        assert_eq!(out.a_on_b, vec![VfContact { vertex: live, face }]);
+        assert_eq!(out.b_on_a, vec![VfContact { vertex: live, face }]);
     }
 }
