@@ -1156,3 +1156,18 @@ class of 65 sites is PRED's row.
   - offset_fit: two arms drop loosening (a real lever, split the face, remains); three keep it as the last resort, one of them (~769) missed by the row. topo `classify_offset_fit` mirrors this.
   - PROPS' quadrature-budget sites are filed on PROPS' slate. topo flush is filed in issues. ssi evidence added.
   - **Collision with 3351**, which adds `geom_core::LAST_RESORT_RECOURSE` (a whole sentence). Decision: 3363's tail is the one home, because it can carry a site's value. 3351's fix pass composes from it and deletes its own constant. The style review for 3363 is also checking that composition.
+- 2026-09-28 — Reviews adjudicated.
+  - **3363** (style review): APPROVE-WITH-FIXES, all taken. The doc now uses D4's own list. Adds `KERNEL_LIMIT_RECOURSE`, the whole no-value sentence, which topo now uses. Adds a checks-window endings pin: red with "loosen" re-added, then green. The `contains` pins are now whole-recourse. Merged at head `ae4283fcc4` → `c28651d7c3`, hosted green. Row closed.
+  - **3351** (full review): REQUEST-CHANGES.
+    - M1: the certify Display fixed `Reading::Build`, so a file's defect at STEP adoption read as a kernel defect or "loosen". Fix (a): Display renders the payload only; each door appends `recourse` at its own reading, and adoption never gives last resort or kernel defect.
+    - M2: tighten was offered on wrong-sign in-band margins. It is now gated on `passes()`.
+    - Minors: TubeStraddles/Limb/ChartImageUnavailable siblings get endings; the Invalid tail is reworded; mesh12 accepts ParamWinding only; the tube Zero|Negative conflation goes on the row; a row for validate's SliverDihedral/own_close "lower".
+    - Fix pass dispatched. It composes from `KERNEL_LIMIT_RECOURSE` now that 3363 is on main.
+- 2026-09-28 — PR 3351 merged (`e39a5c4cc4`, head `a4ef46c0ec`, hosted green). Row closed.
+  - **Round 1** (full review): M1 door-owned reading and `Reading::Adopt`; M2 sign-gated tighten; minors.
+  - **Round 2** (full re-review): MJ-1, a band-decided Zero arm is never "no way through" (only SignCertain is a defect, at rest and at adoption). validate routes through `ending(AtRest)`. Per-reading pair pins. Endings verified by mutation.
+  - **Round 3** (delta review, approve-with-fixes): `Straddles` → `ZeroOrNegative`; validate's own endings only where `ending` is `None`; a literal classification table; `Passes` deleted.
+  - **Filed:** `adoption-certification-has-no-eps-in-lever` (design fork), `validate-own-close-levers-follow-the-d4-recourse-ruling`, `certify-span-and-zero-arms-…` (extended), and ssi `plane-nurbs-certificate-escalation-does-not-name-its-limb`.
+  - Seam notes posted to iso, exch, topo, offset, shell, restfront, tcost, tint, pcert and ssi.
+- 2026-09-28 — Dispatched `offset-meters-follow-the-d4-recourse-ruling` (P3/M) on `encl/offset-meters-d4-recourse`, following 3351's pattern. Opus, full review.
+- 2026-09-28 — Design fork `encl-adoption-eps-in` opened on `adoption-certification-has-no-eps-in-lever`. The question: what lever a band-decided certification refusal names at STEP adoption, since the ladder certifies at the kernel ε, not ε_in; plus `TierInvalid`'s reading and an undecided approximation at adoption. Blinding byte is on `analysis/design-fork/encl-adoption-eps-in` (protocol `bb10a4cdd4`). Two designers dispatched concurrently with the same problem statement.

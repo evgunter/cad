@@ -1,7 +1,6 @@
 #!/usr/bin/env bash
 # bit-identity-punning.sh — the type-punning tripwire. ONE home;
-# ci.yml's "bit-identity punning tripwire" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# ci.yml's `lint` job runs every gate in this directory.
 #
 # Complementary punning tripwire (M3 PR 4; Ev #53/#57/#58): the
 # type-punning plumbing that lets generic code reach a scalar's

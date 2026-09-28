@@ -17,9 +17,9 @@ use topo::{Body, FaceKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::pcurve_rows::rows;
+use crate::common::shell_operands::vessel;
 use crate::shell8_common::{beside, deep_dump, faces_of, tol};
-use crate::shell9_rows::rows;
-use crate::verbs_shell::vessel;
 
 /// The stored rows of `solid`'s faces, in half-edge-slot order.
 fn rows_of(body: &Body<f64>, solid: SolidKey) -> Vec<String> {

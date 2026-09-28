@@ -78,7 +78,7 @@ use geom_core::spline::SplineError;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
-use crate::certify::CERT_SAMPLES;
+use crate::certify::{CERT_SAMPLES, CertCheck, Reading, RefusedArm, recourse};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
@@ -164,7 +164,16 @@ pub enum PlaneNurbsRefusal {
         /// certified over — the resolution the verdict was reached at.
         boxes: u32,
     },
-    /// A margin escalated inside the certificate.
+    /// The per-sample transversality margin escalated: the same
+    /// decision as [`NotTransverse`](Self::NotTransverse), undecided.
+    TransversalityEscalated {
+        /// The interior sample index.
+        sample: u32,
+        /// The classifier's diagnostic.
+        cause: Indeterminate,
+    },
+    /// A margin escalated inside the rung-3 certificate, or the
+    /// reported transversality was poisoned.
     Escalated(Indeterminate),
     /// The (carrier, operand) shape is outside the lane's certified
     /// inventory, named exactly. A routing boundary (C12.1), never a
@@ -173,6 +182,54 @@ pub enum PlaneNurbsRefusal {
         /// The refused class, named.
         what: &'static str,
     },
+}
+
+impl PlaneNurbsRefusal {
+    /// The ending this refusal's decision gives it, read at `reading`
+    /// ([`recourse`]), or `None` for a refusal that is no decision's
+    /// refused arm. `Display` renders the payload alone, as
+    /// [`crate::CertifyError`]'s does, and the door appends this.
+    ///
+    /// The per-sample transversality and the uniqueness tube are the
+    /// `Transversality` decision, whose band-decided arms end alike (D4
+    /// ¶1 (iv)); the certificate's limb and escalation refusals share
+    /// the certificate's ending.
+    #[must_use]
+    pub fn ending(&self, reading: Reading) -> Option<String> {
+        match self {
+            Self::NotTransverse { .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::Zero,
+                reading,
+            )),
+            Self::TransversalityEscalated { cause, .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::Undecided(cause),
+                reading,
+            )),
+            Self::Limb { .. } => Some(recourse(
+                CertCheck::PlaneNurbsCertificate,
+                RefusedArm::SignCertain,
+                reading,
+            )),
+            // The tube's margin is the lane's transversality over the
+            // chain (`ssi_tube_transversality`), and this refusal is its
+            // DECIDED Zero-or-Negative verdict, which the variant does
+            // not split (`certified_clearance` may be positive inside
+            // the zero band).
+            Self::TubeStraddles { .. } => Some(recourse(
+                CertCheck::Transversality,
+                RefusedArm::ZeroOrNegative,
+                reading,
+            )),
+            Self::Escalated(diag) => Some(recourse(
+                CertCheck::PlaneNurbsCertificate,
+                RefusedArm::Undecided(diag),
+                reading,
+            )),
+            Self::FootPointInconclusive { .. } | Self::PcurveFit | Self::Unsupported { .. } => None,
+        }
+    }
 }
 
 impl core::fmt::Display for PlaneNurbsRefusal {
@@ -189,8 +246,13 @@ impl core::fmt::Display for PlaneNurbsRefusal {
             Self::NotTransverse { sample } => write!(
                 f,
                 "the plane and the NURBS wall have coincident tangent planes at interior \
-                 sample {sample} — the Intersection transversality precondition fails (D2); {}",
-                geom_core::COINCIDENCE_RECOURSE
+                 sample {sample}, where the edge's description says they cross"
+            ),
+            Self::TransversalityEscalated { sample, cause } => write!(
+                f,
+                "whether the plane and the NURBS wall cross at interior sample {sample} is too \
+                 close to call: {}",
+                cause.payload()
             ),
             Self::PcurveFit => write!(
                 f,
@@ -213,7 +275,11 @@ impl core::fmt::Display for PlaneNurbsRefusal {
                  locus; the certificate's proven clearance from zero is {certified_clearance:e} \
                  m, which is the bound it could prove and not the sliver's own extent"
             ),
-            Self::Escalated(diag) => write!(f, "a plane × NURBS limb margin escalated: {diag}"),
+            Self::Escalated(diag) => write!(
+                f,
+                "a plane × NURBS limb margin escalated: {}",
+                diag.payload()
+            ),
             Self::Unsupported { what } => write!(f, "outside the plane × NURBS lane: {what}"),
         }
     }
@@ -335,7 +401,9 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
             Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
                 return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
             }
-            Err(cause) => return Err(PlaneNurbsRefusal::Escalated(cause)),
+            Err(cause) => {
+                return Err(PlaneNurbsRefusal::TransversalityEscalated { sample: i, cause });
+            }
         }
         // `Real::min` PROPAGATES poison (unlike `f64::min`, which
         // returns the non-NaN operand), so a poisoned sine cannot

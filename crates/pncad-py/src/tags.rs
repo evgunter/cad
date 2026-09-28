@@ -2747,7 +2747,6 @@ pub fn validation_error_tag(err: &ValidationError) -> &'static str {
         ValidationError::TransverseNotIntrinsic { .. } => "transverse_not_intrinsic",
         ValidationError::ScaffoldAtRest { .. } => "scaffold_at_rest",
         ValidationError::TangentNotIntrinsic { .. } => "tangent_not_intrinsic",
-        ValidationError::UndeclaredCusp { .. } => "undeclared_cusp",
         ValidationError::LaminaWedge { .. } => "lamina_wedge",
         ValidationError::LoopRoleInverted { .. } => "loop_role_inverted",
         ValidationError::CurvedSenseInverted { .. } => "curved_sense_inverted",

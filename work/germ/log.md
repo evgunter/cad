@@ -287,3 +287,25 @@ merged in.
 - The ball-to-plane gap has one home.
 - G1–G4 mutants are killed.
 - Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
+
+## 2026-09-28 — the cylinder stopgap lands (PR 3355)
+
+The P0 closes. `interior_loop_verdict` gains a cylinder half:
+- the plane clause (an event, or a span or point certificate);
+- the wall-pair clause (a saddle clears on an event or an Out point; two loops need evidence per branch; equal radii need all four quadrants);
+- the reach test;
+- parallel axes in reach refuse.
+
+The single Opus review found no MAJOR:
+- **MINOR 1**, fixed: the row now pins `site: InteriorLoopGuard`.
+- **MINOR 2**, recorded in the item: the two-loop and plane clauses are dormant defence under the meridian-edge premise.
+- **MINOR 3**, recorded: the pinch-band branch-sign hazard, which the section certificate refuses as R-tan.
+
+## 2026-09-28 — the section certificate lands (PR 3372, DR-15)
+
+- **What landed:** the interior-loop class is certified per face pair on both paths. It supersedes the torus, sphere and cylinder stopgaps and the two extent gates.
+- **Given back:** the pin-only bracket, the cube in the donut's hole, the nested, buried and diagonal cylinders, and the wedge.
+- **Dual review:** both reviewers APPROVE-WITH-FIXES. The one MAJOR (the origin pivot of the lever) is bilateral, so the tally is 0. The pair found a MAJOR, which makes 5 toward twelve.
+- **The fix pass** took the whole union.
+- **A pre-existing premise-S gap** surfaced: the coplanar conic arm at `reduce.rs:833`. It is filed P1 as `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`. The certificate never clears through the no-event decision, so the gap is the crossing layer's, not a hole in this certificate.
+- **Next:** `VERBS-CONE` can now take the certificate's cone arms (Q3). The ∖/∩ torus roster is unparked.

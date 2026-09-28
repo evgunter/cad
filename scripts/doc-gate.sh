@@ -1,9 +1,7 @@
 #!/usr/bin/env bash
-# Shared rustdoc gate — the SINGLE implementation, called by BOTH
-# .github/workflows/ci.yml (its `fmt` job, since #852 folded the old
-# standalone `doc` job into it) and local-scripts/ci-local.sh,
-# the ci-filter.py arrangement applied to a second gate. Both halves
-# run `--selftest` first, the way every gate in scripts/gates/ does.
+# Shared rustdoc gate — the SINGLE implementation, called by
+# .github/workflows/nightly.yml's `rustdoc-roots` job, which runs
+# `--selftest` first.
 #
 # WHY THIS GATE EXISTS (#465). `cargo check` and `cargo clippy -- -D
 # warnings` are both SILENT about broken documentation: the relevant
@@ -60,9 +58,8 @@
 # the one feature selection the two above cannot express; see the
 # `not(feature)` section below. It adds no manifest to the coverage set.
 #
-# ONE MODE: ALL THREE PASSES, EVERY ROOT, EVERY CALLER. The hosted `fmt`
-# job, `local-scripts/ci-local.sh` and a developer at a prompt run the
-# same thing, and a doc break is caught on the pull request that wrote it.
+# ONE MODE: ALL THREE PASSES, EVERY ROOT, EVERY CALLER. The nightly
+# `rustdoc-roots` job and a developer at a prompt run the same thing.
 # A reduced mode would be a second gate wearing this one's name — the
 # caller that forgot to ask for the full form would get a subset reading
 # as the whole — so the only flags here narrow WHAT IS DOCUMENTED for a
@@ -86,8 +83,7 @@
 # broken tree.
 #
 # THE ROOT LIST IS DERIVED AND MUST STAY DERIVED. A literal list here
-# would be the second hand-written roster in this repo, and
-# scripts/gates/gate-roster.sh exists because the first one drifted: a
+# would be a hand-written roster, and a hand-written roster drifts: a
 # root added to `workspace.exclude` and forgotten here would be a tree
 # nothing documents, reading as covered. Deriving it from MEMBERSHIP
 # rather than from parsing `exclude` is the stronger of the two
@@ -511,22 +507,10 @@
 # dropping `-D warnings` from RUSTDOCFLAGS, `--document-private-items`
 # from the invocation, or the second pass below would each have left it
 # green over a broken tree with nothing saying so. The fixture lives
-# here rather than in scripts/gates/ because the local half runs THAT
-# WHOLE DIRECTORY in a loop inside its `discipline` row, which is greps
-# plus one `cargo metadata` — moving this script there would put a full
-# `cargo doc --workspace --all-features` inside that row, which
-# ci-local.sh already runs as a row of its own.
-#
-# AND THE SITING COSTS NOTHING, because the watching does not have to
-# move with the file. `gate-roster.sh` proves that both halves call each
-# gate's `--selftest` AND the gate; its roster is the DIRECTORY, so it
-# used to say nothing about this script and deleting `--selftest` from
-# either half's rustdoc row red nothing. That is not a trade anyone had
-# to accept: `check-ci-mirror-parity.py`'s TIER_BLIND already implements
-# "this NAMED PATH must be invoked by the hosted half and by the local
-# half", and gate-roster.sh now carries the same shape for gates sited
-# outside its directory — see OUTLIER_GATES there. This script is its
-# one entry, checked exactly as a member of the directory is.
+# here rather than in scripts/gates/ because ci.yml's `lint` job runs
+# THAT WHOLE DIRECTORY in a loop, which is greps plus one
+# `cargo metadata` — moving this script there would put a full
+# `cargo doc --workspace --all-features` inside every PR's lint job.
 set -euo pipefail
 # shellcheck source=scripts/gates/lib.sh
 . "$(dirname "${BASH_SOURCE[0]}")/gates/lib.sh"
@@ -1419,9 +1403,9 @@ gate_selftest() {
 # way scripts/gates/probe-suite-census.sh adds its modes: `gate_parse_args`
 # knows `--selftest` and `--root` and rejects anything else.
 #
-# THERE IS ONE MODE AND IT IS THE WHOLE GATE. Every caller — the hosted
-# `fmt` job, `local-scripts/ci-local.sh`, a developer at a prompt — runs
-# all three passes over every cargo root. A reduced mode would be a
+# THERE IS ONE MODE AND IT IS THE WHOLE GATE. Every caller — the nightly
+# `rustdoc-roots` job, a developer at a prompt — runs all three passes
+# over every cargo root. A reduced mode would be a
 # second gate under one name, and the caller that forgot to ask for the
 # full one would get a subset reading as the whole.
 PRINT_ROOTS=false

@@ -1,8 +1,7 @@
 #!/usr/bin/env bash
 # loop-boundary-discards.sh — every place a `LoopBoundary` value is
 # thrown away is in the register below, at a pinned count, audited or
-# not. ONE home; ci.yml's "LoopBoundary deferral register" step and
-# local-scripts/ci-local.sh's discipline row both call this file.
+# not. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE INVARIANT. A `continue` carrying a paragraph of justification and
 # a `continue` carrying none are the same six characters. The paragraph
