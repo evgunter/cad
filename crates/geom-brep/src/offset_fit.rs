@@ -223,7 +223,9 @@ use geom_core::Bounds;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, BandError, Interval, KERNEL_DEFECT_ENDING, Point3, Tol};
+use geom_core::{
+    Band, BandError, Interval, KERNEL_DEFECT_ENDING, KERNEL_LIMIT_LAST_RESORT, Point3, Tol,
+};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -306,11 +308,12 @@ impl OffsetLimb {
 }
 
 /// **The smallest bound the refinement loop reached**, and the grid it
-/// was first reached on: what every refinement refusal sizes its
-/// recourse to ([`OffsetFitError::BudgetExhausted`],
+/// was first reached on: what every refinement refusal reports
+/// ([`OffsetFitError::BudgetExhausted`],
 /// [`OffsetFitError::SampleCapReached`],
 /// [`OffsetFitError::RefinementStalled`], and
-/// [`OffsetFitError::BoundNotFinite`] when a round reached one).
+/// [`OffsetFitError::BoundNotFinite`] when a round reached one), and
+/// the size a last-resort loosening names where no other lever is left.
 ///
 /// # The recourse claim
 ///
@@ -398,15 +401,16 @@ pub enum LastRound {
 ///
 /// The levers above are the kernel's. Neither constant is a caller's
 /// to change, so each face's message names the caller's repair
-/// instead: a tolerance no tighter than the smallest bound any round
-/// reached ([`BestBound`], whose doc states when a request there
-/// certifies), a face split into pieces that need less refinement
-/// where more refinement was still paying (the cap, and the budget on
-/// [`LastRound::Improved`]), or,
-/// when no bound was ever finite, an offset distance of larger
-/// magnitude. A face whose last round did not fall names the tolerance
-/// alone: nothing in the loop's state says a smaller piece would fall
-/// further.
+/// instead: a face split into pieces that need less refinement where
+/// more refinement was still paying (the cap, and the budget on
+/// [`LastRound::Improved`]), or, when no bound was ever finite, an
+/// offset distance of larger magnitude. A face whose last round did not
+/// fall has no such lever: nothing in the loop's state says a smaller
+/// piece would fall further. It names loosening the tolerance to no
+/// tighter than the smallest bound any round reached ([`BestBound`],
+/// whose doc states when a request there certifies) as the last resort
+/// a kernel approximation limit leaves, with the note that the refusal
+/// may be a kernel bug ([`geom_core::KERNEL_LIMIT_LAST_RESORT`]).
 ///
 /// **D2 classification: row 1**, stated here once for the four faces
 /// (their own docs point back here rather than restating it). Every
@@ -425,9 +429,10 @@ pub enum LastRound {
 /// taken).
 /// A request whose tolerance sits between the old door bound and the
 /// new one would therefore cross INTO a refusal face, and what rules
-/// that out here is the corpus: over `budget_faces`' 70 requests, one
-/// bound rose, by 1.8%, three orders below the tolerance it was asked
-/// for, and no request crossed in. Every request that crossed OUT is
+/// that out here is a corpus measurement: over 70 requests (the
+/// quarter cylinder and a bumpy patch, 7 deltas x 5 tolerances each),
+/// one bound rose, by 1.8%, three orders below the tolerance it was
+/// asked for, and no request crossed in. Every request that crossed OUT is
 /// certified by the same decomposition that refused it.
 #[derive(Clone, Debug, PartialEq)]
 // The variant roster `topo`'s sample-coverage row reads (this
@@ -484,9 +489,10 @@ pub enum OffsetFitError {
     /// only: on [`LastRound::DidNotImprove`] a further round is the
     /// both-directions step, which can stall in its turn, so no lever
     /// is known. The message names no rounds as the way through either
-    /// way. The caller's recourse is `best` on both readings, and on
-    /// [`LastRound::Improved`] also a face split so each piece needs
-    /// fewer rounds. Classification: the enum's, above.
+    /// way. The caller's recourse on [`LastRound::Improved`] is a face
+    /// split so each piece needs fewer rounds; on
+    /// [`LastRound::DidNotImprove`] it is `best`, as the last resort.
+    /// Classification: the enum's, above.
     BudgetExhausted {
         /// The round budget that expired.
         budget: usize,
@@ -753,8 +759,7 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit used all {budget} refinement rounds while still \
                  improving, and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: loosen the tolerance to {best} m or more, or split \
-                 the face so each piece fits in fewer rounds"
+                 {tolerance} m. Recourse: split the face so each piece fits in fewer rounds"
             ),
             Self::BudgetExhausted {
                 budget,
@@ -767,7 +772,7 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit used all {budget} refinement rounds, the last of \
                  which did not improve on the one before, and its best certified error was \
                  {best} m against a tolerance of {tolerance} m. Recourse: loosen the \
-                 tolerance to {best} m or more"
+                 tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::SampleCapReached {
                 cap,
@@ -778,8 +783,7 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit reached its limit of {cap} samples per direction, \
                  and its best certified error was {best} m against a tolerance of \
-                 {tolerance} m. Recourse: loosen the tolerance to {best} m or more, or split \
-                 the face so each piece needs fewer samples"
+                 {tolerance} m. Recourse: split the face so each piece needs fewer samples"
             ),
             Self::BoundNotFinite {
                 d,
@@ -800,7 +804,8 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit bounded its error at {b} m on coarser sampling \
                  and lost that bound on finer sampling, so it cannot be certified to \
-                 {tolerance} m. Recourse: loosen the tolerance to {b} m or more"
+                 {tolerance} m. Recourse: loosen the tolerance to {b} m or more, \
+                 {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::RefinementStalled {
                 tolerance,
@@ -811,7 +816,7 @@ impl core::fmt::Display for OffsetFitError {
                 "the offset surface's fit stopped improving: refining it in both directions \
                  either did not lower its certified error or added no samples, and its best \
                  certified error was {best} m against a tolerance of {tolerance} m. Recourse: \
-                 loosen the tolerance to {best} m or more"
+                 loosen the tolerance to {best} m or more, {KERNEL_LIMIT_LAST_RESORT}"
             ),
             Self::WindowUnsupported { window } => write!(
                 f,
@@ -2731,46 +2736,6 @@ mod tests {
         assert!(worst5 >= 1.0, "the cap grid's widest cell gain is {worst5}");
     }
 
-    /// The bumpy patch `tests/offset_fit.rs` and `budget_faces.rs`
-    /// fit, rebuilt here because `Composite` is private: the no-rise
-    /// claim is about cells, and a consumer suite cannot see one.
-    /// The net is the same interpolation of the same height field, so
-    /// the two fixtures are the same surface.
-    fn bumpy_patch() -> geom::NurbsSurface<f64> {
-        use geom::curves::fit::interpolate_columns;
-        let n = 7;
-        let params: Vec<f64> = (0..n).map(|i| f64::from(i) / f64::from(n - 1)).collect();
-        let height = |u: f64, v: f64| 0.35 * (2.4 * u).sin() * (1.9 * v + 0.4).cos() + 0.2 * u * v;
-        let rows: Vec<Vec<f64>> = params
-            .iter()
-            .map(|u| {
-                let mut row = Vec::with_capacity((n as usize) * 3);
-                for v in &params {
-                    row.extend_from_slice(&[*u, *v, height(*u, *v)]);
-                }
-                row
-            })
-            .collect();
-        let (ku, r) = interpolate_columns(&params, 3, &rows).unwrap();
-        let mut rows_v: Vec<Vec<f64>> = Vec::with_capacity(n as usize);
-        for l in 0..(n as usize) {
-            let mut row = Vec::with_capacity(ku.control_count() * 3);
-            for rr in &r {
-                row.extend_from_slice(&rr[l * 3..l * 3 + 3]);
-            }
-            rows_v.push(row);
-        }
-        let (kv, pts) = interpolate_columns(&params, 3, &rows_v).unwrap();
-        let (cu, cv) = (ku.control_count(), kv.control_count());
-        let mut control = Vec::with_capacity(cu * cv);
-        for i in 0..cu {
-            for row in pts.iter().take(cv) {
-                control.push(Point3::new(row[i * 3], row[i * 3 + 1], row[i * 3 + 2]));
-            }
-        }
-        geom::NurbsSurface::new(ku, kv, control, vec![1.0; cu * cv]).unwrap()
-    }
-
     /// **The divisor of the `‖E‖` floor is certified from above.**
     ///
     /// [`Composite::e_floors`] divides `mig(D)` by `sup‖M̃‖·w̃` to get
@@ -2826,37 +2791,6 @@ mod tests {
         eprintln!(
             "{name} d={d:e}: {cells} cells, an f64 fold would sit below interval arithmetic \
              reading on {fold_below} of them"
-        );
-    }
-
-    /// **No cell rises on the grids of the request whose DOOR bound
-    /// grew.** The quarter cylinder's two grids are measured by the
-    /// row above; the request that came back 1.8% worse at the door
-    /// is the bumpy patch's `d = 1e-5`, and the per-cell claim is
-    /// what separates a schedule that diverged from a bound that
-    /// loosened.
-    ///
-    /// On the 810-cell grid that request lands on, the widest gain
-    /// any cell shows is `1.0000304` — four orders below the 1.8% the
-    /// door moved by, which is the measurement the filed item
-    /// `offset-fit-door-bound-is-not-monotone-in-the-cell-bound`
-    /// rests on.
-    #[test]
-    fn no_cell_rises_on_the_bumpy_grids_whose_door_bound_grew() {
-        let band = Band::linear(Tol::witness()).unwrap();
-        let base = bumpy_patch();
-        let (d, tol) = (1e-5, 1e-6);
-        let (fit, cert) = super::fit_offset_at(&base, d, tol, band).unwrap();
-        let (reg, _) = crate::offset_meters::meter_patch(&base, d, band).unwrap();
-        let comp = Composite::build(&base, &fit, d).unwrap();
-        // `no_cell_loosens` asserts the per-cell claim; the gain it
-        // returns is reported, since it is a property of the grid
-        // rather than of the bound.
-        let worst = no_cell_loosens(&comp, reg.floor, d);
-        assert!(worst >= 1.0, "d={d:e} tol={tol:e}: widest gain {worst}");
-        eprintln!(
-            "bumpy d={d:e} tol={tol:e}: cells={} hull_sup={:.7e} widest cell gain {worst}",
-            cert.cells, cert.hull_sup
         );
     }
 

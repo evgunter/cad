@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # bounds-allowlist.sh — the compound `…Bounds`/`…Enclosure` bound gate.
-# ONE home for the FILE LIST; ci.yml's "Bounds compound-bound allowlist
-# (ratified 2026-07-29)" step and local-scripts/ci-local.sh's discipline
-# row both call this file.
+# ONE home for the FILE LIST; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE REASONS ARE NOT HERE, AND ARE NOT RESTATED HERE. The scope rule,
 # the "brackets never decide" clause that is weighed BEFORE any necessity

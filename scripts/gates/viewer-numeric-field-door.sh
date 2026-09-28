@@ -1,8 +1,6 @@
 #!/usr/bin/env bash
 # viewer-numeric-field-door.sh — every numeric field in the viewer is
-# built through the crate's one door. ONE home; ci.yml's "the viewer's
-# numeric fields go through one door" step in the `discipline` job runs
-# it and local-scripts/ci-local.sh's `discipline` row runs the same file.
+# built through the crate's one door. ONE home; ci.yml's `lint` job runs every gate in this directory.
 #
 # THE RULE. `crate::widgets::number_field` is the constructor every
 # numeric field in `crates/viewer/src` is built with, and it carries two

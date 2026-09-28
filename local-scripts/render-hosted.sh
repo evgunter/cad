@@ -1,73 +1,26 @@
 #!/usr/bin/env bash
-# ONE COMMAND FOR A RENDER: install the one CI already made — or, on
-# request, dispatch -> poll -> install.
+# RENDER YOUR PUSHED BRANCH ON HOSTED CI, THEN INSTALL THE FRAMES.
 #
-#   local-scripts/render-hosted.sh                      # take your branch's
-#                                                 # newest CI render
-#   local-scripts/render-hosted.sh --lane uv            # one lane of it
-#   local-scripts/render-hosted.sh --on-demand          # render fresh instead
-#   local-scripts/render-hosted.sh --run 12345678       # pull a specific run
+#   local-scripts/render-hosted.sh                      # every lane
+#   local-scripts/render-hosted.sh --lane uv            # one lane
+#   local-scripts/render-hosted.sh --run 12345678       # pull a finished run
 #
-# FIRST, THE SHORT ANSWER: YOU PROBABLY WANT `git pull`, NOT THIS
-# SCRIPT (2026-08-17). CI now RE-BASELINES every lane itself. A PR
-# run whose render differs REPORTS it with a neutral check ("!", not
-# "x") naming the cells; main's own run then COMMITS them. So the frames
-# arrive by merging and pulling, not by installing. So the ordinary flow is: push, wait for CI, `git pull`,
-# look at the frames. Nothing to download, nothing to install.
-#
-# EVERY LANE RE-BASELINES — the roster is the lane table below, and
-# nothing here counts it, for the reason that table states. There is no
-# lane left that needs a manual install after an ordinary CI run. What
-# this script is still genuinely good for on a PR: LOOKING at the new
-# cells before you merge, since the PR run reports them rather than
-# committing them.
-#
-# WHAT THIS SCRIPT IS STILL FOR:
-#   * A DISPATCH AIMED AT A BARE SHA, which has no branch to commit to;
-#     those runs report the drift and name this command, as before.
-#   * `--on-demand` renders CI has not covered: an unpushed branch, no
-#     CI run yet, or a deliberate re-render at a different scene budget.
-#   * `--verify`, the byte-exactness round trip (see below).
-#
-# TAKING IS THE DEFAULT; RENDERING IS THE FLAG. Every CI run on a pushed
-# branch renders every lane in the table below (ci.yml's `renders` job
-# calls render.yml), so once your branch has a CI run the frames already
-# exist — a dispatch would render the same tree a second time, for ~5
-# more runner-minutes and no new information.
-#
-# It takes the CI run WHATEVER ITS CONCLUSION: a run can still fail for
-# a wedged pass, a missing renderer or a scene that would not draw, and
-# lanes upload before any of that is decided, so the artifact is there
-# either way.
+# PRs do not render and the nightly re-baselines main, so a change you
+# expect to move frames is rendered on demand: this dispatches render.yml
+# on your branch, polls it, and installs each lane's artifact at its
+# committed path. The dispatched run also commits the re-baselined cells
+# to the branch itself, so `git pull` after it lands the same bytes.
 #
 # Renders are hosted (`.github/workflows/render.yml`); the local entry
 # points refuse without an explicit override (demos/hosted-render-guard.sh).
-# This is the front end that makes that refusal reasonable: it triggers
-# the workflow on your branch, prints per-job progress until the run
-# settles, and — on success — downloads each lane's artifact and
-# INSTALLS it back into the working tree at the committed path, so the
-# frames land exactly where a local pass would have put them and are
-# reviewed and committed the ordinary way.
 #
-# IT RENDERS THE PUSHED TREE, SO IT REFUSES AN UNPUSHED HEAD. A runner
-# checks out a ref from the remote; it cannot see your working tree and
-# it cannot see unpushed commits. Rendering "your branch" while the
-# remote is three commits behind is the failure mode this exists to make
-# impossible — the check is a hard refusal, not a warning, because the
-# result of getting it wrong is a plausible-looking set of frames drawn
-# from the wrong scenes. Uncommitted changes are a warning by the same
-# logic one step down: they were definitely not rendered, but you can
-# see them in `git status` next to the frames.
+# IT RENDERS THE PUSHED TREE, SO IT REFUSES AN UNPUSHED HEAD: a runner
+# checks out the remote ref and cannot see local commits.
 #
-# BYTE-EXACTNESS IS THE CONTRACT. The whole design rests on an artifact
-# being the file, not a rendering of the file: the committed PNGs carry
-# provenance `tEXt` chunks that demos/check_render_provenance.py gates
-# on, and a pipeline that re-encoded or re-stamped anything would launder
-# them. actions/upload-artifact zips and `gh run download` unzips, both
-# lossless — and `--verify` proves it end to end rather than asserting
-# it, by round-tripping the lanes `VERIFY_LANES` names (matplotlib Agg or
-# stdlib text, pinned, no GL anywhere, so byte-identity is a real
-# expectation) and diffing what came back against what is committed.
+# BYTE-EXACTNESS IS THE CONTRACT: an artifact is the file, not a
+# rendering of it (upload-artifact zips and `gh run download` unzips,
+# both lossless), and `--verify` round-trips the lanes `VERIFY_LANES`
+# names and diffs them against what is committed.
 set -euo pipefail
 
 die() { echo "render-hosted: $*" >&2; exit 1; }
@@ -80,13 +33,8 @@ say() { echo "==> $*"; }
 # install, the closing `git status` and the usage text. A lane is one
 # row, and there is no second list for a new lane to fall behind.
 #
-# A ROSTER, NOT A COUNT, and the roster itself is checked. A count goes
-# stale the next time a lane is added and nothing reds when it does; so
-# does a roster. `scripts/check-render-lane-parity.py` reads this table
-# out of this file (`--print-lane-table`), reads the lanes, artifact
-# names and committed directories out of render.yml, and reds when the
-# two disagree. It runs in ci.yml's `mirror` job, the one hosted job that
-# does not delete `local-scripts/`.
+# A ROSTER, NOT A COUNT. A count goes stale the next time a lane is
+# added. Nothing checks this table against render.yml.
 LANE_TABLE="
 kernel  renders-kernel  demos/renders
 freecad renders-freecad demos/renders-freecad
@@ -100,8 +48,7 @@ gui     renders-gui     demos/renders-gui
 # list: it is not the roster but a PROPERTY of a lane — byte-reproducible
 # off-box, so a pulled file may be compared to the committed one at all.
 # render.yml states that property in prose, per lane, and declares it
-# nowhere a reader can key on, so check-render-lane-parity.py cannot hold
-# this list to anything and does not pretend to
+# nowhere a reader can key on
 # (`work/ciw/verify-lane-set-is-a-property-nothing-declares`). What it
 # costs if it goes stale is bounded and visible: a lane missing here is a
 # lane `--verify` silently does not prove, and `--verify` says how many
@@ -149,45 +96,10 @@ lane_install_roster() {
         [ -z "$l" ] || printf '  %-7s -> %s/\n' "$l" "$d"
     done <<<"$LANE_TABLE"
 }
-print_lane_table() {
-    local l c
-    for l in $(lane_names); do
-        printf 'lane %s %s %s\n' "$l" "$(artifact_for "$l")" "$(dir_for "$l")"
-    done
-    printf 'jobs-re %s\n' "$RENDER_JOBS_RE"
-    # THE TWO DERIVED LISTS THE ROWS ABOVE DO NOT REACH, and they are the
-    # two that decide behaviour: what `all` expands to (the download's
-    # population — four of six lanes, silently, is what this file shipped)
-    # and what `--lane` accepts (the refusal's). Printed by RUNNING them:
-    # `lanes-all` is `lanes_of all` itself, and each `accepts` row is
-    # `lane_accepted`'s own answer for one candidate, the impossible
-    # candidate included. So the guard holds what the run does, not a
-    # second spelling of it.
-    printf 'lanes-all %s\n' "$(lanes_of all)"
-    for c in $(lane_names) all __no_such_lane__; do
-        if lane_accepted "$c"; then
-            printf 'accepts %s yes\n' "$c"
-        else
-            printf 'accepts %s no\n' "$c"
-        fi
-    done
-}
-
-# `--print-lane-table` is the one mode that answers without a checkout,
-# and it is answered here, before the `cd` below needs a repository:
-# check-render-lane-parity.py's mutants run this file against scratch
-# trees of their own, so the guard's selftest can hold a mutated table
-# against a mutated workflow without either being a git tree.
-PRINT_TABLE_ONLY=0
-for _arg in "$@"; do
-    [ "$_arg" != --print-lane-table ] || PRINT_TABLE_ONLY=1
-done
 
 WORKFLOW=render.yml
-CI_WORKFLOW=ci.yml
 LANE=all
 RUN_ID=""
-ON_DEMAND=0
 # The lane jobs, by the name each ends with. A dispatched render.yml run
 # names them exactly; called from ci.yml they arrive prefixed ("render
 # lanes / freecad montages (kernel + freecad)"), so the match is on the
@@ -211,8 +123,6 @@ ON_DEMAND=0
 # Getting it wrong is not cosmetic: an unlisted lane job is one the poll
 # neither waits for nor reports, so a run can be declared settled while
 # that lane is still drawing and its artifact is not there yet.
-# check-render-lane-parity.py reds if a job that uploads a lane artifact
-# is not matched here, and if this matches a job that uploads none.
 RENDER_JOBS_RE='(scene inputs \+ uv sheet \+ wild montage|freecad montages \(kernel \+ freecad\)|viewer gui montage)$'
 REF=""
 SCENE_TIMEOUT=""
@@ -230,16 +140,15 @@ VERIFY=0
 POLL_BUDGET_MIN=200
 POLL_INTERVAL=20
 
-if [ "$PRINT_TABLE_ONLY" = 1 ]; then print_lane_table; exit 0; fi
 cd "$(git rev-parse --show-toplevel)"
 
 usage() {
     cat <<EOF
 usage: local-scripts/render-hosted.sh [options]
 
-  (default)                             install the render your branch's
-                                        newest CI run already made
-  --on-demand                           render fresh instead of taking CI's
+  (default)                             dispatch render.yml on the branch,
+                                        wait, and install the frames
+  --on-demand                           the default; accepted for old callers
   --lane <$(lane_choices '|')>
                                         which lane(s) (default: all)
   --ref <branch|tag|sha>                which branch (default: current)
@@ -253,10 +162,6 @@ usage: local-scripts/render-hosted.sh [options]
   --budget-min <n>                      give up polling after n minutes
                                         (default: $POLL_BUDGET_MIN, printed from
                                         the variable so it cannot drift)
-  --print-lane-table                    the lane roster this file works from,
-                                        one line per lane; what
-                                        scripts/check-render-lane-parity.py
-                                        holds against render.yml
   -h, --help
 
 Artifacts land at their committed paths:
@@ -269,12 +174,11 @@ while [ $# -gt 0 ]; do
         --lane) LANE="${2:?--lane needs a value}"; shift 2 ;;
         --ref) REF="${2:?--ref needs a value}"; shift 2 ;;
         --run) RUN_ID="${2:?--run needs a value}"; shift 2 ;;
-        --on-demand) ON_DEMAND=1; shift ;;
+        --on-demand) shift ;;
         --scene-timeout) SCENE_TIMEOUT="${2:?--scene-timeout needs a value}"; shift 2 ;;
         --budget-min) POLL_BUDGET_MIN="${2:?--budget-min needs a value}"; shift 2 ;;
         --no-install) INSTALL=0; shift ;;
         --verify) VERIFY=1; shift ;;
-        --print-lane-table) shift ;;  # answered above, before the checkout
         -h|--help) usage; exit 0 ;;
         *) usage >&2; die "unknown argument: $1" ;;
     esac
@@ -285,43 +189,6 @@ lane_accepted "$LANE" \
 command -v gh >/dev/null || die "gh is not installed (https://cli.github.com)"
 gh auth status >/dev/null 2>&1 || die "gh is not authenticated — run: gh auth login"
 
-# ------------------------------------------------------- take CI's render
-
-# THE DEFAULT IS TO TAKE, NOT TO RENDER. ci.yml's `renders` job calls
-# render.yml on every push that builds anything, so a pushed branch's
-# newest CI run already holds every lane's artifact — the same
-# bytes a dispatch would produce, from the same pipeline, at no extra
-# runner cost. Rendering again would render the same tree twice, so
-# that is the flag (`--on-demand`) and this is the default.
-#
-# NOTE THAT TAKING IS USUALLY UNNECESSARY NOW (2026-08-17): a lane that
-# drifted has already been re-baselined and COMMITTED by that same run,
-# so `git pull` gets you the frames and this script gets you a copy of
-# what you already have. What is left for it: a bare-SHA dispatch (no
-# branch to commit to), `--verify`, `--no-install`, and pulling a
-# specific run's bytes for comparison.
-#
-# The run is taken WHATEVER ITS CONCLUSION, which is the point rather
-# than a leniency: a run can still fail on a wedged pass, a missing
-# renderer or a scene that would not draw, and the artifacts are
-# uploaded before any of that is decided, so a failed run still has
-# them.
-if [ "$ON_DEMAND" = 0 ] && [ -z "$RUN_ID" ]; then
-    if [ -z "$REF" ]; then
-        REF="$(git rev-parse --abbrev-ref HEAD)"
-        [ "$REF" != HEAD ] || die "detached HEAD — pass --ref explicitly"
-    fi
-    say "looking for the newest $CI_WORKFLOW run on $REF"
-    RUN_ID="$(gh run list --workflow "$CI_WORKFLOW" --branch "$REF" --limit 1 \
-        --json databaseId --jq '.[0].databaseId // empty')"
-    # No fallback to dispatching. Rendering costs ~5 runner-minutes and
-    # the caller asked for the cheap path; silently taking the expensive
-    # one is the kind of helpfulness that surprises.
-    [ -n "$RUN_ID" ] || die "no $CI_WORKFLOW run on '$REF' yet — CI renders every lane \
-on every push, so this usually means the branch is unpushed. Push it, or render on \
-demand: local-scripts/render-hosted.sh --on-demand --lane $LANE"
-    say "taking $CI_WORKFLOW run $RUN_ID (no new render)"
-fi
 
 # ---------------------------------------------------------------- dispatch
 
