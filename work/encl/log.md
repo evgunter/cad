@@ -1082,3 +1082,4 @@ class of 65 sites is PRED's row.
   - Checks-window text is unchanged for known names. An unknown name now reads "no recourse … recorded" where it used to read EDGE_CLOSE.
   - Tier raised from style to a single full review. The table's completeness is load-bearing: a missed name regresses a live refusal to "no recourse".
   - Filed `certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle` (encl), and added evidence to the issues and chrome rows.
+- 2026-09-28 — PR 3351 is red at `test (eps = 1e-12, 2/2)` on its own new row `every_certify_escalation_ends_in_its_routed_sentence`; everything else passes. It is this PR's failure, and the lane is reproducing it at 1e-12 now. The review's findings will follow into the same fix pass.
