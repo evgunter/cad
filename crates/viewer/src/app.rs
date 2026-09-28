@@ -3213,7 +3213,8 @@ mod properties_pane_tests {
 
     /// Every text the app painted once the startup document has
     /// LANDED, with `tool` open and `picks` fed to it as the frame
-    /// feeds a click's selection (`Tools::feed`, then the batch).
+    /// feeds a click's selection (`Tools::feed`, then the batch), and
+    /// the collapsed section headed `section` (if any) clicked open.
     ///
     /// Landed first, because the survival step (`sync_scene`'s
     /// `Tools::reconcile`) only asks a face pick whether it resolves
@@ -3221,18 +3222,20 @@ mod properties_pane_tests {
     /// would show picks the next frame might drop.
     fn painted_with_tool(
         tool: crate::tools::ToolKind,
+        section: Option<&str>,
         picks: impl FnOnce(RecipeNodeId) -> Vec<Selection>,
     ) -> (RecipeNodeId, Vec<String>) {
         let ctx = egui::Context::default();
         let mut app = ViewerApp::assemble(&ctx, pncad::tolerance::witness())
             .expect("startup that needs no graphics device");
         let mut frame = eframe::Frame::_new_kittest();
-        let mut paint = |app: &mut ViewerApp| -> Vec<String> {
+        let mut paint = |app: &mut ViewerApp, events: Vec<egui::Event>| {
             let input = egui::RawInput {
                 screen_rect: Some(egui::Rect::from_min_size(
                     egui::Pos2::ZERO,
                     egui::vec2(1600.0, 1000.0),
                 )),
+                events,
                 ..Default::default()
             };
             let mut output = ctx.run_ui(input, |ui| {
@@ -3240,9 +3243,6 @@ mod properties_pane_tests {
             });
             output.textures_delta.clear();
             crate::pane::headless::landed_in(&output.shapes)
-                .into_iter()
-                .map(|landed| landed.text)
-                .collect()
         };
         // The startup document's last node is its body (`plate_with_hole`).
         let body = *app.session.doc().order().last().expect("a startup body");
@@ -3251,8 +3251,9 @@ mod properties_pane_tests {
         let declined = app.tools.feed(app.session.doc(), &ops);
         assert!(declined.is_empty(), "{declined:?}");
         app.perform_batch(ops);
+        let mut landed = Vec::new();
         for _ in 0..3000 {
-            paint(&mut app);
+            landed = paint(&mut app, Vec::new());
             if app.session.landed_pair().is_some() {
                 break;
             }
@@ -3262,8 +3263,31 @@ mod properties_pane_tests {
             app.session.landed_pair().is_some(),
             "the startup document lands"
         );
-        paint(&mut app);
-        (body, paint(&mut app))
+        if let Some(section) = section {
+            let at = landed
+                .iter()
+                .find(|landed| landed.text == section)
+                .map(|landed| landed.allocated.center())
+                .expect("the section header is painted");
+            let button = |pressed| egui::Event::PointerButton {
+                pos: at,
+                button: egui::PointerButton::Primary,
+                pressed,
+                modifiers: egui::Modifiers::default(),
+            };
+            paint(
+                &mut app,
+                vec![egui::Event::PointerMoved(at), button(true), button(false)],
+            );
+        }
+        // Two frames more: a section's open animation and a survival
+        // step that drops the pick both settle within them.
+        paint(&mut app, Vec::new());
+        let texts = paint(&mut app, Vec::new())
+            .into_iter()
+            .map(|landed| landed.text)
+            .collect();
+        (body, texts)
     }
 
     /// **A seated tool's panel, painted by the app**: the held pick's
@@ -3271,9 +3295,11 @@ mod properties_pane_tests {
     /// through the whole frame — survival step included.
     #[test]
     fn a_seated_tool_panel_shows_its_held_picks() {
-        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Boolean, |body| {
-            vec![Selection::Node(body)]
-        });
+        let (body, painted) = painted_with_tool(
+            crate::tools::ToolKind::Boolean,
+            Some("Combine bodies"),
+            |body| vec![Selection::Node(body)],
+        );
         let line = format!(
             "first operand: {}; second operand: —",
             crate::tree::node_number(body)
@@ -3286,7 +3312,7 @@ mod properties_pane_tests {
     /// way the seated panels say a pick.
     #[test]
     fn the_mate_panel_shows_its_held_picks() {
-        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, |body| {
+        let (body, painted) = painted_with_tool(crate::tools::ToolKind::Mate, None, |body| {
             vec![Selection::Face(crate::session::FaceSelection {
                 name: pncad::prelude::StableName {
                     kind: pncad::prelude::EntityKind::Face,
