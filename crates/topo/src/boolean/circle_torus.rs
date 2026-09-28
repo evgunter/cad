@@ -1069,25 +1069,28 @@ mod tests {
     #[test]
     fn circles_lying_on_the_torus_are_uncertain() {
         let mut poses = Vec::new();
-        for az in [0.0_f64, 0.7, 2.1, 4.0] {
+        let tilt = (RT / R).asin();
+        for k in 0..24 {
+            let az = 0.261_799 * f64::from(k) + 0.1;
             let (s, c) = az.sin_cos();
+            // A meridian circle of the tube.
             poses.push(Pose {
                 c: [R * c, R * s, 0.0],
                 n: [-s, c, 0.0],
                 rho: RT,
                 u: [c, s, 0.0],
             });
+            // A Villarceau circle: radius `R`, centred `r` along the
+            // midplane direction `az`, in the bitangent plane through
+            // that direction tilted `asin(r/R)` off the midplane.
+            let perp = [-s, c, 0.0];
+            poses.push(Pose {
+                c: [RT * c, RT * s, 0.0],
+                n: [-tilt.sin() * perp[0], -tilt.sin() * perp[1], tilt.cos()],
+                rho: R,
+                u: [c, s, 0.0],
+            });
         }
-        // A Villarceau circle: radius `R`, centred `r` along the `x` axis,
-        // in the bitangent plane through that axis tilted `asin(r/R)` off
-        // the midplane.
-        let tilt = (RT / R).asin();
-        poses.push(Pose {
-            c: [RT, 0.0, 0.0],
-            n: [0.0, -tilt.sin(), tilt.cos()],
-            rho: R,
-            u: [1.0, 0.0, 0.0],
-        });
         for (i, pose) in poses.into_iter().enumerate() {
             for (t0, t1) in [(0.0, 1.0), (2.0, 4.5)] {
                 assert!(
@@ -1105,14 +1108,18 @@ mod tests {
     /// silently dropped from the arc.
     #[test]
     fn roots_are_reported_within_half_a_turn_of_the_arc() {
+        // Two roots 0.04 rad apart (a shallow dip into the tube): with
+        // the antipode beside one of them, the other sits just inside
+        // the arc's far end, where the moved anchor's map puts it a
+        // whole turn away.
         let n = {
             let k = (0.3_f64.powi(2) + 1.0).sqrt();
             [0.0, 0.3 / k, 1.0 / k]
         };
         let pose = Pose {
-            c: [0.9, 0.0, 0.1],
+            c: [1.44, 0.0, 0.1],
             n,
-            rho: 0.5,
+            rho: 0.8,
             u: [1.0, 0.0, 0.0],
         };
         let all = oracle(pose, -core::f64::consts::PI, core::f64::consts::PI);
