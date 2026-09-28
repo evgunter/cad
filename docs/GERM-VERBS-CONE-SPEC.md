@@ -134,7 +134,7 @@ names its raising site.
 | `contain.rs` `curved_face_placement` cone arm (:628) | H | double-cone carrier first, then the face's own trim. The mirror nappe is `Trim(Out)`, never `OffCarrier`. |
 | `solid_contain.rs` `face_geo` (:778), `cast_ray` cone quadratic (:4323) | H | the ray × cone quadratic, nappe and slant window |
 | `solid_contain.rs` `cone_trimmed_window` (:1498) | R | `PartialConeFace` for an apex-closed sector wider than π: the walk crosses the apex by nearest branch and reports a full period (§2.4). Through `cone_face_containment` it is `Trim(None)`, which is also a door. |
-| `solid_contain.rs` `face_plane_datum` (:543) | R | `KindUnsupported`, plane-only by contract; never asked of a cone by the lanes above |
+| `solid_contain.rs` `face_plane` (:528–553) | R | `KindUnsupported`, plane-only by contract; never asked of a cone by the lanes above |
 
 ### 1.4 The section certificate, both paths
 
@@ -159,7 +159,7 @@ names its raising site.
 | `join.rs` `pair_section_frame` `_ => NoArm` (:943) | R | `GermFrameUnsupported` |
 | `chord_join.rs` `bool_planar_chord_spec` wall `_ =>` (:1447) | R | `SectionInvariant`; unreachable behind the join |
 
-**Summary.** 9 sites handle the cone. 20 refuse it typed. **One is
+**Summary.** 9 sites handle the cone. 21 refuse it typed. **One is
 silent: the `(Negative, Negative)` convexity arm.** A second shape shows
 up only in the admission's own order: every certificate row that clears on
 W1 or W2 rests on premise S, which that arm breaks. The preview's silent
@@ -172,3 +172,178 @@ included), and neither the pierce normal nor the sector normal has a cone
 arm. Admission in this spec is the torus's shape (PR 3265): it answers
 where the cone faces' pairs are certified with no event on them, and it
 refuses typed at the join otherwise. The join arms are §3's U8 and Q1.
+
+## 2. The math, per arm
+
+**Notation.** The cone is `(A, â, α)`, with `s = sin α`, `c = cos α` and
+`τ = tan α`. For a point `p`, `q = p − A`, `h = q·â` and
+`ρ = |q − hâ|`. The carrier is the DOUBLE cone: `S(u, v)` puts `v > 0` on
+the nappe that opens along `â`, so `sign h = sign v` is the nappe. Two
+forms of the carrier are used:
+
+- the elevation `f = ρc − |h|s` (`geom_brep::cone_elevation` with no
+  nappe, the one home of the residual);
+- the quadric `Q = ρ²c² − h²s² = |q|²c² − h²`.
+
+`Q = f·(ρc + |h|s)`, and the second factor is `≥ 0`, zero only at the
+apex. So **`sign Q = sign f` everywhere except the apex**, and `Q` is a
+polynomial along any line or circle, where `f` is not.
+
+### 2.1 Line × cone: the quadratic
+
+The line is `o + t·d`, with `|d| = 1`. Put `w = o − A`, `d_a = d·â` and
+`w_a = w·â`. Then
+
+```
+Q(t) = a·t² + 2b·t + k₀,   a = c² − d_a²,   b = (w·d)·c² − w_a·d_a,   k₀ = |w|²·c² − w_a²
+```
+
+The ray lane already solves this quadratic (`cast_ray`'s cone arm,
+`solid_contain.rs` :4335, with all three coefficients negated). There
+are three cases, by `a`:
+
+- **`a > 0`**: the line lies outside the aperture. It has 0 or 2 roots,
+  and **both are on one nappe**. Along the line `{Q < 0}` is one
+  interval. The interior of the double cone has two convex components,
+  which meet only at the apex, where `Q = 0`. So the interval lies in one
+  of them.
+- **`a < 0`**: the line lies inside the aperture. It **always** has two
+  roots, one on each nappe, because `Q → −∞` at both ends of the line.
+  The one exception is a line through the apex.
+- **`a = 0`**: the line is parallel to a generator. `Q` is linear, so
+  there is one root or none, and `Q ≡ 0` exactly when the line IS a
+  generator.
+
+The discriminant is `Δ = b² − a·k₀`.
+
+- Positive: two roots `(−b ± √Δ)/a`.
+- Zero: a **tangency**. That is either a graze along a generator or a
+  line through the apex. Near the apex `Q = a·(t − t*)²`, so every line
+  through the apex has a double root there. The apex has no tangent plane
+  and no crossing order this lane reads, so it keeps the door.
+- Negative: a miss, possible only when `a > 0`.
+
+**The unit.** Factor the ray lane's quadratic into
+`solid_contain::line_cone_roots(o, d, apex, axis, half_angle, lever,
+band) → ConeRoots { GeneratorParallel, Tangent, Miss, Two([t; 2]) }`.
+This is the `line_wall_roots` precedent, and it keeps the ray lane's
+predicate names `bool_ray_cone_lead` and `bool_ray_cone_disc` with their
+metering (`Margin::levered(a, lever)`, `Margin::over_lever(Δ, lever)`).
+The lever is the face's slant extent `max(|v_lo|, |v_hi|)`, as in the
+ray lane.
+
+`wall_crossing`'s line lane gets a cone arm: `Two` is a certified set,
+`Tangent` and `GeneratorParallel` are `Unsettled`, and `Miss` is `Miss`.
+The trim places each root. A root on the mirror nappe is `Trim(Out)` by
+the slant window's signed bounds (`cone_face_containment` docs), so it
+reads as crossed elsewhere. Every root of the quadratic is examined.
+
+**The `(Zero, Zero)` invariant.** The arm's docs say "the lines that lie
+on a wall are its rulings, which answer `Constant`". A line on a cone is
+a generator, and a generator is `GeneratorParallel`, so `Unsettled`: the
+door. The sentence gains the cone clause. It never reads `NoInterior`, so
+the chord argument is unchanged.
+
+### 2.2 Circle × cone: a quartic in the half-angle, plus two closed forms
+
+The circle is `C(θ) = C₀ + r·e(θ)`, with `e(θ) = û cos θ + v̂ sin θ`. Put
+`δ = C₀ − A`. Then
+
+```
+|q|² = |δ|² + r² + 2r·δ·e(θ)         a first harmonic
+h(θ) = δ·â + r·(û·â cos θ + v̂·â sin θ)   a first harmonic
+Q(θ) = c²|q|² − h²                    a trigonometric polynomial of degree 2
+```
+
+So with `φ = θ − θ_a` and `t = tan(φ/2)`, `Q·(1 + t²)²` is a **quartic in
+`t`**. That matches Bézout's `2 × 2 = 4`; unlike the torus, no degree is
+lost at the circular points.
+
+It uses PR 3375's machinery (`circle_torus.rs`) verbatim:
+
+- the anchor `θ_a` is the arc's midpoint;
+- the pole `θ_a + π` must be definitely off the cone. The leading
+  coefficient is `Q` there, and `sign Q = sign f` off the apex, so it is
+  decided on `cone_elevation` in metres (`bool_circle_cone_pole`);
+- a pole on the cone retries at two other anchors;
+- the root variable is the length `2r·t`;
+- a `QuarticRows` constant holds `bool_circle_cone_*`;
+- the lever is the face's slant extent.
+
+**Special poses, decided first and geometrically, in metres:**
+
+- **Coaxial** (the circle's axis `∥ â`, its centre on the axis): `Q` is
+  constant. The answer is `CircleConeRoots::Coaxial { elevation }`, and
+  the circle rung decides the elevation itself.
+  - Definite: the circle never meets the carrier, `CurvedEvent::None`.
+  - `Zero`: the circle is a parallel ON the cone, so the door.
+
+  This case matters. A pin coaxial with a cone has rims of exactly this
+  pose, and today they refuse at `circle_clearance` (§1.2).
+- **Parallel axes** (the circle's plane `⊥ â`, its centre off the axis,
+  so `h ≡ h₀`): the plane `h = h₀` meets the double cone in exactly one
+  parallel, of radius `ρ₀ = |h₀|·τ`. The crossings are circle ×
+  circle in that plane. With `e = |δ_⊥|`, decide
+  `bool_circle_cone_reach` on `r + ρ₀ − e` and `bool_circle_cone_nest`
+  on `e − |r − ρ₀|`.
+  - Both Positive: two roots,
+    `θ = θ_δ ± arccos((ρ₀² − e² − r²)/(2re))`.
+  - Either Zero: tangent, `Uncertain`.
+  - Either Negative: `Miss`.
+
+  `h₀` in the band of 0 (the plane through the apex) is `Uncertain`.
+  Here `Q` is a first harmonic, and the quartic would carry the exact
+  complex pair `t = ±i`, which is the instrument trap PR 3375 measured on
+  the lily. So the closed form is used instead.
+- **A circle ON the cone** is only ever a parallel. The planes that cut
+  a right circular cone in a circle are the axis-normal ones, so this is
+  the coaxial case.
+- **A circle through the apex**: `Q` has a double root there, so the
+  ladder answers `Uncertain` and the door holds.
+
+**The circle rung.** For a cone face, `circle_clearance` answers `None`
+(there is no enclosure form). Today that raises the frontier. After this
+unit it routes to the roots instead:
+
+- coaxial is decided as above;
+- every other pose falls into the endpoint-sign arms, as PR 3375 routes
+  a torus.
+
+Those arms never read convexity for a cone (§2.3), and the
+declared-cover arms are closed to circles by 3375's `on_line`.
+
+### 2.3 The convexity arms: why a cone takes the roots for every sign pattern
+
+Along a line, `ρ(t)` is convex and `|h(t)|` is convex. So
+`f = ρc − |h|s` is **convex on each side of the apex plane `h = 0`, and
+concave across it**. It has a kink there, where `f = ρc ≥ 0`.
+
+- **`(Negative, Negative)`, ends on one nappe:** the interior of a nappe
+  is a convex cone, so the segment stays inside. The arm's answer is
+  right.
+- **`(Negative, Negative)`, ends on opposite nappes:** the segment
+  crosses `h = 0`, where `f ≥ 0`, so it crosses the surface at least
+  once on each side, or passes through the apex. **The arm's
+  `Ok(None)` is wrong.** P3 measures it.
+- **`(Positive, Positive)`:** on each side, `f″ = c·ρ″`, and
+  `ρ″ = (|d_⊥|²ρ² − (q_⊥·d_⊥)²)/ρ³` is unbounded as the line nears the
+  axis. There is no constant `f″` for the dip bound, and the kink breaks
+  the chord argument across `h = 0`.
+
+**The replacement:** extend the torus guard at `reduce.rs` :1510 from
+`Torus` to `Torus | Cone`. `Q` is exactly quadratic along a line (and a
+quartic in `t` along a circle, §2.2), and `sign Q = sign f`, so the
+certified roots are exact for every sign pattern:
+
+- `Pierce` is a pierce;
+- `NoInterior`, `Elsewhere` and `Miss` are no event;
+- `Constant` and `Unsettled` keep the door.
+
+After this, the `(Negative, Negative)` arm and the `f2` match never see
+a cone. `f2`'s `_ =>` stays as the documented door. Both arms' comments
+name the cylinder and the sphere as the kinds that carry the convexity
+they rely on.
+
+**An edge ending AT the apex** (a pin's corner on the tip, two cones
+apex to apex) decides `Zero` at the discriminant. It keeps the door,
+typed.
