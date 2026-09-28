@@ -1054,3 +1054,9 @@ class of 65 sites is PRED's row.
     - the CHROME-section claim tempered;
     - the ~60-field deferral turned into a filed row.
   - Fix pass sent back to the lane.
+- 2026-09-28 — The grid lane opened PR 3348 (head `a3f01666d4`).
+  - Adds `algebra::domain_grid_points` with `GridSkip{BitEqual, WithinUlps}`. It is homed at `refine_dir`, `bezier_blocks`, ssi `refined` and edge_nurbs `localized`; the skip guard and cut-off stay per caller.
+  - Pinning rows were added on main first and pass unchanged after the refactor.
+  - `knot_aligned_cuts` is not homed: it is a different function (trim-rectangle range, and it clears the ends).
+  - Filed SSI's `chart-uniform-breaks-lean-on-exact-dedup`. edge_nurbs is ISO's by territory, not SSI/Q's.
+  - Style review dispatched.
