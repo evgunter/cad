@@ -335,7 +335,7 @@ fn arc_loft_natively_computes_its_rational_volume() {
                     let bracket = unreached.bracket.expect("a budget refusal keeps a bracket");
                     assert!(
                         bracket.volume_lo > 0.0,
-                        "the bracket the gate admitted on is definitely positive: {bracket:?}"
+                        "the budget refusal's bracket is definitely positive: {bracket:?}"
                     );
                     let msg = unreached.to_string();
                     assert!(

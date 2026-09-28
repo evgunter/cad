@@ -174,7 +174,23 @@ fn prism() -> Body<f64> {
 /// `1e11·ε` sits an order above the first bound and four below the
 /// second, at every ε row this repo runs.
 fn exhausting_prism() -> Body<f64> {
-    arc_prism(1.0e11 * Tol::witness().get().eps)
+    arc_prism(EXHAUSTING * Tol::witness().get().eps)
+}
+
+/// [`exhausting_prism`]'s scale, in units of ε.
+const EXHAUSTING: f64 = 1.0e11;
+
+/// `ROUND SPLIT`'s fine prism's scale, in units of ε: large enough
+/// that its sign settles before its schedule meets the target, small
+/// enough that the schedule does meet it.
+const FINE: f64 = 1.0e9;
+
+/// The arc prism's exact volume at scale `s`: its section is the
+/// `2s` square plus the quarter-circle bulge's segment on a chord of
+/// `2s` (radius `s·√2`, area `s²·(π/2 − 1)`), so `(3 + π/2)·s²`,
+/// stacked `s` high.
+fn arc_prism_volume(s: f64) -> f64 {
+    (3.0 + core::f64::consts::FRAC_PI_2) * s.powi(3)
 }
 
 /// A ball: two rimless spherical bands. Whole-body inversion of a
@@ -453,8 +469,8 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
     let tol = Tol::witness();
     let eps = tol.get().eps;
     let small = || prism();
-    let fine = || arc_prism_at(1.0e9 * eps, 3.0);
-    let exhausting = || arc_prism_at(1.0e11 * eps, 3.0);
+    let fine = || arc_prism_at(FINE * eps, 3.0);
+    let exhausting = || arc_prism_at(EXHAUSTING * eps, 3.0);
     for (label, body) in [
         ("small then fine", grafted(&[small(), fine()])),
         ("fine then small", grafted(&[fine(), small()])),
@@ -480,7 +496,7 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                  pair: {errors:?}"
             )
         });
-        let held = gated.enclosure();
+        let gated_bracket = gated.enclosure();
         // `measure` is `refine_to_target` with its refusal classified:
         // the same walk and the same verdicts, so the count below is
         // the continuation's either way.
@@ -528,17 +544,17 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                 if label.starts_with("small") {
                     assert_eq!(
                         ends(bracket.volume_lo, bracket.volume_hi),
-                        ends(held.volume_lo, held.volume_hi),
+                        ends(gated_bracket.volume_lo, gated_bracket.volume_hi),
                         "CONTINUATION BRACKET {label}: the continuation resumed nothing, so \
                          its bracket is the certificate's: [{}, {}] vs [{}, {}]",
                         bracket.volume_lo,
                         bracket.volume_hi,
-                        held.volume_lo,
-                        held.volume_hi,
+                        gated_bracket.volume_lo,
+                        gated_bracket.volume_hi,
                     );
                 } else {
                     let (before, after) = (
-                        held.volume_hi - held.volume_lo,
+                        gated_bracket.volume_hi - gated_bracket.volume_lo,
                         bracket.volume_hi - bracket.volume_lo,
                     );
                     assert!(
@@ -550,14 +566,24 @@ fn a_multi_solid_certificate_split_across_rounds_continues_to_the_measurement() 
                     // Both are sound brackets of the one volume, so
                     // they meet.
                     assert!(
-                        bracket.volume_lo.max(held.volume_lo)
-                            <= bracket.volume_hi.min(held.volume_hi),
+                        bracket.volume_lo.max(gated_bracket.volume_lo)
+                            <= bracket.volume_hi.min(gated_bracket.volume_hi),
                         "CONTINUATION BRACKET {label}: [{}, {}] and the certificate's \
                          [{}, {}] are disjoint, so one of them does not hold the volume",
                         bracket.volume_lo,
                         bracket.volume_hi,
-                        held.volume_lo,
-                        held.volume_hi,
+                        gated_bracket.volume_lo,
+                        gated_bracket.volume_hi,
+                    );
+                    // And the narrower one holds the closed form: two
+                    // arc prisms, translation leaving each volume alone.
+                    let truth = arc_prism_volume(FINE * eps) + arc_prism_volume(EXHAUSTING * eps);
+                    assert!(
+                        bracket.volume_lo <= truth && truth <= bracket.volume_hi,
+                        "CONTINUATION BRACKET {label}: the closed-form volume {truth} lies \
+                         outside the bracket [{}, {}]",
+                        bracket.volume_lo,
+                        bracket.volume_hi,
                     );
                 }
             }
