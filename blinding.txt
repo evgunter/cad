@@ -1,0 +1,5 @@
+fork: encl-adoption-eps-in (the lever a band-decided certification refusal names at STEP adoption; D4 ¶1 / D7)
+dispatched: 2026-09-28
+protocol: bb10a4cdd4
+byte: 52
+mapping: Opus=A Fable=B
