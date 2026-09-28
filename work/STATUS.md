@@ -1208,7 +1208,7 @@ area `kernel`; prefix `germ/`; tag `(GERM orchestrator)`; ab_band `7000-7099`.
 | pri | item | kind | cost | status | title | blocked on | PR |
 |---|---|---|---|---|---|---|---|
 | P0 | `VERBS-CONE` | issue | H | open | cone and torus operand lanes |  |  |
-| P0 | `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere` | issue | H | open | A torus face that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop |  |  |
+| P0 | `torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere` | issue | H | open | A curved face (torus, sphere; cylinder×cylinder unmeasured) that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop |  |  |
 | P1 | `circle-crosses-a-torus-face-with-no-root-lane` | issue | H | open | A circle edge against a torus face has no root lane: the lily's stem seam refuses CurvedPierceUnsupported at the arch's torus wall |  |  |
 | P1 | `union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut` | issue | M | open | A tilted rod entering a half donut's cap and poking an oval out of the inner equator reaches the volume backstop on a tier-valid planar body: the pipeline's upstream result is suspect |  |  |
 | P2 | `torus-onto-the-subtract-and-intersect-roster` | issue | D | parked | Torus onto revert_arm_exists: subtract and intersect still refuse a torus operand at the front door | torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere |  |
