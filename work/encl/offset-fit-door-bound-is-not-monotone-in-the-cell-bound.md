@@ -8,10 +8,6 @@ priority: P4
 cost: E
 branch: encl/offset-fit-loop-faces
 rides_with: offset-fit-budget-face-speaks-for-a-round-whose-bound-rose
-<<<<<<< HEAD
-pr: 3294
-=======
->>>>>>> origin/main
 closed: 2026-09-26
 ---
 

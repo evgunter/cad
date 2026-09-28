@@ -7,11 +7,6 @@ opened: 2026-09-22
 priority: P4
 cost: E
 rides_with: a-third-spelling-of-cut-every-span-into-splits-pieces
-<<<<<<< HEAD
-branch: encl/equal-split-points-home
-pr: 3292
-=======
->>>>>>> origin/main
 closed: 2026-09-26
 ---
 
