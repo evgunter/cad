@@ -2,7 +2,7 @@
 id: a-rotation-can-refuse-an-approx-face-that-certifies-near-eps
 kind: issue
 title: a rigid map moves an Approx face's hull_sup by up to 5%, so a face certified within that margin of eps refuses ApproxRecertify after a rotation
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P3
 cost: E

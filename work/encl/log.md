@@ -904,3 +904,8 @@ class of 65 sites is PRED's row.
 
 - 2026-09-28 — PR 3324 fix pass landed at `9f72ae6df7` (fix `2758f727fd` + main). Orchestrator read of the fix diff: all six review items addressed. The surgery comment's Line-on-Cone refusal claim was false and was reworded. The CONTACT row is priced P3/M with `design: true` (lint refuses cost D on new rows). A PROPS row was filed: `invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`. The earlier `gate ok` red on `781c3b20d8` was a cancelled superseded job. Merging on hosted green.
 - 2026-09-28 — PR 3324 merged (`5e4329bac8`), hosted all green on `9f72ae6df7`. Closed `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`.
+- 2026-09-28 — Dispatched three lanes concurrently (disjoint files), all Opus:
+  - `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing` on `encl/tangent-arm-first-order-cause`: a new reading, K-REPORT applies; single full review.
+  - `measure-budget-bracket-is-the-sign-level-one-not-the-continuations` on `encl/measure-continuation-bracket`: soundness of the cross-face fold is settled first; single full review, dual if the fold's argument is subtle.
+  - `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps` on `encl/rigid-map-approx-headroom`: fixture first; single full review.
+  Each lane stops and reports rather than landing if its fix turns on ratified text.
