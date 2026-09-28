@@ -2,13 +2,15 @@
 id: curved-face-containment-lacks-cone-torus
 kind: issue
 title: curved_face_containment has no cone or torus arm while point_in_solid now answers both kinds
-status: dispatched
+status: closed
 opened: 2026-09-01
 github: 1484
 refs: [1464, 1425]
 priority: P0
 cost: H
 branch: germ/torus-doors
+closed: 2026-09-26
+pr: 3265
 ---
 
 ## From GitHub issue 1484
@@ -28,3 +30,9 @@ BOOL-2 left the cone there and BOOL-3 left the torus; neither unit's fence inclu
 ## Re-homed at S-BOOL's exit (2026-09-16)
 
 Moved from `work/bool/` to CURVED (its charter names S-BOOL's ceded ground and inherits at S-BOOL's exit) when S-BOOL closed (`docs/S-BOOL-EXIT-WALK.md`); the item's content, id and history are unchanged.
+
+## Closed (PR 3265, 2026-09-26)
+
+The torus arm has landed. `curved_face_placement` answers `OffCarrier` or
+`Trim(verdict)`, and `curved_face_containment` is its projection. The cone
+half is `curved-face-containment-lacks-a-cone-arm`.

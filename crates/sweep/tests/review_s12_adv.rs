@@ -27,6 +27,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
+use crate::common::operands::m5_boss;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -248,21 +249,7 @@ fn probe_contained_cylinder_reaches_the_fallback_soundly() {
 #[test]
 fn probe_involution_on_a_boolean_result_body() {
     let plate = brick((0.0, 3.0), (0.0, 3.0), (0.0, 0.8), Tol::witness());
-    let boss = {
-        let at = |th: f64| p2(1.2 + 0.35 * th.cos(), 1.7 + 0.35 * th.sin());
-        let lp = bulge_loop(
-            (0..3)
-                .map(|i| (at(2.0 * PI * i as f64 / 3.0), (PI / 6.0).tan()))
-                .collect(),
-        );
-        let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.3)));
-        let profile = Profile::new(plane, vec![lp])
-            .validate(Tol::witness())
-            .unwrap();
-        extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-            .unwrap()
-            .body
-    };
+    let boss = m5_boss(3, 0.3, 1.0);
     let holed = topo::subtract(&plate, &boss, Tol::witness())
         .unwrap()
         .body()

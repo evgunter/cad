@@ -19,6 +19,7 @@
 use crate::corpus;
 use crate::fixture;
 
+use crate::fixture::{ang, len};
 use editor_core::persist::{load, save};
 use editor_core::{
     CancelToken, CapEnd, Datum, Dimension, DocEdit, EditError, EntityKey, EntityKind, Entry,
@@ -31,10 +32,6 @@ use geom_brep::SurfaceKind;
 use geom_core::{Tol, UnitVec3, Vec3};
 use topo::readback;
 use topo::{CurveKind, DatumValue};
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(
@@ -413,10 +410,6 @@ fn rule_one_names_numeric_predicates_in_both_statements() {
 // ---------------------------------------------------------------------
 // DOCM-1 items 1, 2 and 5: the derived frame itself.
 // ---------------------------------------------------------------------
-
-fn ang(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("an angle literal")
-}
 
 /// The frame value a node landed, as (origin, u, v).
 fn frame_of(

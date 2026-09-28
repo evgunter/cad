@@ -88,24 +88,6 @@ fn mate_row_role(ev: &Evaluation<f64>, id: RecipeNodeId) -> MateRole {
     }
 }
 
-fn add_seat(
-    session: &mut DocSession,
-    bench: &common::asm::Bench,
-    post: RecipeNodeId,
-    b_x: f64,
-    clocking: Option<f64>,
-) -> RecipeNodeId {
-    common::session_insert(
-        session,
-        SessionOp::AddMate {
-            a: common::head(common::asm::in_part(post, &bench.post_top)),
-            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: common::asm::seat_alignment(b_x, clocking),
-        },
-    )
-}
-
 /// **The offender the cluster rows break a cluster with**: a planar
 /// rest alone on `post`, which leaves its pair free to slide and spin,
 /// so the solve refuses UNDER naming that one mate. A verdict about
@@ -117,14 +99,14 @@ fn add_rest(
     bench: &common::asm::Bench,
     post: RecipeNodeId,
 ) -> RecipeNodeId {
-    common::session_insert(
+    common::commit_mate(
         session,
-        SessionOp::AddMate {
-            a: common::head(common::asm::in_part(post, &bench.post_top)),
-            b: common::head(common::asm::in_part(bench.shelf_i, &bench.shelf_bottom)),
-            class: ContactClass::Rest,
-            alignment: common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
-        },
+        common::asm::seat_op(
+            bench,
+            post,
+            ContactClass::Rest,
+            common::asm::rest_alignment(common::asm::SHELF_LENGTH / 4.0),
+        ),
     )
 }
 
@@ -161,19 +143,19 @@ fn a_cluster_refusal_reaches_the_mate_that_evaluated_before_it() {
     let bench = common::asm::bench("rev4-cluster", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    let sound = add_seat(
+    let sound = common::commit_mate(
         &mut session,
-        &bench,
-        bench.post_a,
-        common::asm::SHELF_LENGTH / 2.0,
-        None,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
     let (_, first) = check(&session, tol, "sound alone");
     assert_eq!(mate_row_role(&first, sound), MateRole::Determining);
 
     let offender = add_rest(&mut session, &bench, bench.post_b);
-    session.pump();
     let (doc, second) = check(&session, tol, "after the offender");
     let carried = mate_row_fault(&second, sound);
     assert_eq!(
@@ -222,24 +204,26 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     let bench = common::asm::bench("rev4-contra", tol);
     let mut session = common::asm::open_bench(&bench, tol);
 
-    let held = add_seat(
+    let held = common::commit_mate(
         &mut session,
-        &bench,
-        bench.post_a,
-        common::asm::SHELF_LENGTH / 2.0,
-        None,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::middle_seat_alignment(),
+        ),
     );
-    session.pump();
     check(&session, tol, "held alone");
 
-    let added = add_seat(
+    let added = common::commit_mate(
         &mut session,
-        &bench,
-        bench.post_a,
-        common::asm::SHELF_LENGTH / 2.0 + 0.01,
-        None,
+        common::asm::seat_op(
+            &bench,
+            bench.post_a,
+            ContactClass::Rest,
+            common::asm::contradicting_seat_alignment(),
+        ),
     );
-    session.pump();
     let (_, ev) = check(&session, tol, "contradiction");
     let f1 = mate_row_fault(&ev, held);
     assert!(
@@ -264,7 +248,6 @@ fn two_faults_in_succession_on_one_mate_never_serve_a_stale_one() {
     // the cluster now also refuses through post_b's under-determined
     // rest.
     let offender = add_rest(&mut session, &bench, bench.post_b);
-    session.pump();
     let (_, ev) = check(&session, tol, "contradiction + offender");
     // Faulted under both at once; which fault wins is the solve's
     // business, and the row's job is only to carry the one it recorded

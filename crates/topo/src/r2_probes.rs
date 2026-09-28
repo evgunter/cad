@@ -16,10 +16,6 @@ use geom_core::{Point3, Tol, Vec3};
 
 use crate::validate::{ValidationError, validate_geometric, validate_geometric_declared};
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 /// The face's sense bit, read off the body.
 fn sense_of(b: &crate::Body<f64>, f: crate::entity::FaceKey) -> bool {
     b.get_face(f).unwrap().sense
@@ -84,13 +80,13 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     let tol = Tol::witness();
     let p = crate::tier3_tests::cusp_prism(tol);
     let inner = Surface::Cylinder {
-        origin: pt(0.0, 1.0, 0.0),
+        origin: Point3::new(0.0, 1.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
     let outer = Surface::Cylinder {
-        origin: pt(0.0, 2.0, 0.0),
+        origin: Point3::new(0.0, 2.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 2.0,
         u_ref: Vec3::unit_x(),
@@ -106,9 +102,9 @@ fn r2_membership_near_the_kiss_is_the_crescent_and_reverts_to_its_complement() {
     // (0.0025, 0.005). Midpoint 0.00375 is material; 0.001 (below the
     // outer wall) and 0.01 (above the inner wall) are void.
     let x = 0.1;
-    let inside = pt(x, 0.00375, 0.5);
-    let below = pt(x, 0.001, 0.5);
-    let above = pt(x, 0.01, 0.5);
+    let inside = Point3::new(x, 0.00375, 0.5);
+    let below = Point3::new(x, 0.001, 0.5);
+    let above = Point3::new(x, 0.01, 0.5);
     assert!(
         material(inside, s_inner, s_outer),
         "the crescent is material"

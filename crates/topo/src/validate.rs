@@ -2195,17 +2195,20 @@ fn classify_offset_fit(e: &geom_brep::OffsetFitError) -> (&'static str, &'static
                 },
             ),
         ),
-        O::BudgetExhausted { .. } | O::SampleCapReached { .. } => {
+        O::BudgetExhausted {
+            last_round: geom_brep::LastRound::Improved,
+            ..
+        }
+        | O::SampleCapReached { .. } => {
             (DRIFT, "Recourse: loosen the tolerance, or split the face")
         }
-        O::RefinementStalled { .. }
-        | O::BoundNotFinite {
-            last_finite: Some(_),
+        O::BudgetExhausted {
+            last_round: geom_brep::LastRound::DidNotImprove,
             ..
-        } => (DRIFT, "Recourse: loosen the tolerance"),
-        O::BoundNotFinite {
-            last_finite: None, ..
-        } => (
+        }
+        | O::RefinementStalled { .. }
+        | O::BoundNotFinite { best: Some(_), .. } => (DRIFT, "Recourse: loosen the tolerance"),
+        O::BoundNotFinite { best: None, .. } => (
             "the fitted surface's error cannot be bounded at this offset distance",
             "Recourse: use an offset distance of larger magnitude",
         ),
@@ -7020,10 +7023,8 @@ fn edge_adjacent_faces<T: Real>(
     (FaceKey, crate::geometry::SurfaceKey),
 )> {
     let face_of = |he: HalfEdgeKey| {
-        let he_data = body.half_edges.get(he)?;
-        let loop_data = body.loops.get(he_data.parent_loop)?;
-        let face_data = body.faces.get(loop_data.face)?;
-        Some((loop_data.face, face_data.surface))
+        let face = body.face_of_half_edge(he)?;
+        Some((face, body.get_face(face)?.surface))
     };
     Some((face_of(he_plus)?, face_of(he_minus)?))
 }
@@ -7843,12 +7844,12 @@ fn shell_component<T: Real>(
                         component_edges.insert(he.edge, ());
                         // Glue across the edge via mate.
                         let mate = body.mate(member)?;
-                        let mate_he = body.half_edges.get(mate)?;
-                        let mate_loop = body.loops.get(mate_he.parent_loop)?;
-                        let mate_face = body.faces.get(mate_loop.face)?;
-                        if mate_face.shell == shell && !visited.contains_key(mate_loop.face) {
-                            visited.insert(mate_loop.face, ());
-                            pending.push(mate_loop.face);
+                        let mate_face = body.face_of_half_edge(mate)?;
+                        if body.get_face(mate_face)?.shell == shell
+                            && !visited.contains_key(mate_face)
+                        {
+                            visited.insert(mate_face, ());
+                            pending.push(mate_face);
                         }
                     }
                 }
@@ -9464,31 +9465,29 @@ mod tests {
     /// The thin cross's outer loop — a shape whose centroid lies in a
     /// hole of its own region.
     fn cross_outer() -> Vec<Point3<f64>> {
-        let p = Point3::new;
         vec![
-            p(1.0, 1.0, 0.0),
-            p(1.0, 10.0, 0.0),
-            p(-1.0, 10.0, 0.0),
-            p(-1.0, 1.0, 0.0),
-            p(-10.0, 1.0, 0.0),
-            p(-10.0, -1.0, 0.0),
-            p(-1.0, -1.0, 0.0),
-            p(-1.0, -10.0, 0.0),
-            p(1.0, -10.0, 0.0),
-            p(1.0, -1.0, 0.0),
-            p(10.0, -1.0, 0.0),
-            p(10.0, 1.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(1.0, 10.0, 0.0),
+            Point3::new(-1.0, 10.0, 0.0),
+            Point3::new(-1.0, 1.0, 0.0),
+            Point3::new(-10.0, 1.0, 0.0),
+            Point3::new(-10.0, -1.0, 0.0),
+            Point3::new(-1.0, -1.0, 0.0),
+            Point3::new(-1.0, -10.0, 0.0),
+            Point3::new(1.0, -10.0, 0.0),
+            Point3::new(1.0, -1.0, 0.0),
+            Point3::new(10.0, -1.0, 0.0),
+            Point3::new(10.0, 1.0, 0.0),
         ]
     }
 
     /// The ring threading one of that cross's arms.
     fn cross_ring() -> Vec<Point3<f64>> {
-        let p = Point3::new;
         vec![
-            p(-9.0, -0.4, 0.0),
-            p(9.0, -0.4, 0.0),
-            p(9.0, 0.4, 0.0),
-            p(-9.0, 0.4, 0.0),
+            Point3::new(-9.0, -0.4, 0.0),
+            Point3::new(9.0, -0.4, 0.0),
+            Point3::new(9.0, 0.4, 0.0),
+            Point3::new(-9.0, 0.4, 0.0),
         ]
     }
 
@@ -9505,38 +9504,37 @@ mod tests {
     fn the_nesting_arm_refuses_no_hand_built_nested_ring() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         for (name, outer, ring) in [
             (
                 "10 x 0.2 plate, hole at one end",
                 vec![
-                    p(0.0, 0.0, 0.0),
-                    p(10.0, 0.0, 0.0),
-                    p(10.0, 0.2, 0.0),
-                    p(0.0, 0.2, 0.0),
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(10.0, 0.0, 0.0),
+                    Point3::new(10.0, 0.2, 0.0),
+                    Point3::new(0.0, 0.2, 0.0),
                 ],
                 vec![
-                    p(8.5, 0.05, 0.0),
-                    p(9.5, 0.05, 0.0),
-                    p(9.5, 0.15, 0.0),
-                    p(8.5, 0.15, 0.0),
+                    Point3::new(8.5, 0.05, 0.0),
+                    Point3::new(9.5, 0.05, 0.0),
+                    Point3::new(9.5, 0.15, 0.0),
+                    Point3::new(8.5, 0.15, 0.0),
                 ],
             ),
             (
                 "L-plate, ring hugging the concave corner",
                 vec![
-                    p(0.0, 0.0, 0.0),
-                    p(10.0, 0.0, 0.0),
-                    p(10.0, 2.0, 0.0),
-                    p(2.0, 2.0, 0.0),
-                    p(2.0, 10.0, 0.0),
-                    p(0.0, 10.0, 0.0),
+                    Point3::new(0.0, 0.0, 0.0),
+                    Point3::new(10.0, 0.0, 0.0),
+                    Point3::new(10.0, 2.0, 0.0),
+                    Point3::new(2.0, 2.0, 0.0),
+                    Point3::new(2.0, 10.0, 0.0),
+                    Point3::new(0.0, 10.0, 0.0),
                 ],
                 vec![
-                    p(1.2, 1.2, 0.0),
-                    p(1.8, 1.2, 0.0),
-                    p(1.8, 1.8, 0.0),
-                    p(1.2, 1.8, 0.0),
+                    Point3::new(1.2, 1.2, 0.0),
+                    Point3::new(1.8, 1.2, 0.0),
+                    Point3::new(1.8, 1.8, 0.0),
+                    Point3::new(1.2, 1.8, 0.0),
                 ],
             ),
             (
@@ -9698,18 +9696,17 @@ mod tests {
     fn the_nesting_arm_is_silent_on_a_non_planar_face() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let ring = vec![
-            p(4.0, 4.0, 0.0),
-            p(6.0, 4.0, 0.0),
-            p(6.0, 6.0, 0.0),
-            p(4.0, 6.0, 0.0),
+            Point3::new(4.0, 4.0, 0.0),
+            Point3::new(6.0, 4.0, 0.0),
+            Point3::new(6.0, 6.0, 0.0),
+            Point3::new(4.0, 6.0, 0.0),
         ];
         let (body, face) = lamina_with_ring(&outer, &ring, tol);
         let inverted = invert_roles(&body, face);
@@ -9742,18 +9739,17 @@ mod tests {
     fn an_arc_bearing_outer_loop_is_the_gates_residue() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let ring = vec![
-            p(4.0, 4.0, 0.0),
-            p(6.0, 4.0, 0.0),
-            p(6.0, 6.0, 0.0),
-            p(4.0, 6.0, 0.0),
+            Point3::new(4.0, 4.0, 0.0),
+            Point3::new(6.0, 4.0, 0.0),
+            Point3::new(6.0, 6.0, 0.0),
+            Point3::new(4.0, 6.0, 0.0),
         ];
         let (body, face) = lamina_with_ring(&outer, &ring, tol);
         assert!(
@@ -9777,8 +9773,10 @@ mod tests {
             // ring vertex against the outer loop's carrier LOCUS, and a
             // circle drawn through the fixture would fire arm 2 before
             // the nesting arm is reached at all.
-            *c.curves.get_mut(curve).unwrap() =
-                CurveGeom::Certified(crate::fixtures::test_curve(p(1.0e3, 1.0e3, 1.0e3), tol));
+            *c.curves.get_mut(curve).unwrap() = CurveGeom::Certified(crate::fixtures::test_curve(
+                Point3::new(1.0e3, 1.0e3, 1.0e3),
+                tol,
+            ));
             let f = c.get_face(face).unwrap();
             assert!(
                 nesting_region(&c, f.surface, f.outer, band).is_none(),
@@ -9800,23 +9798,22 @@ mod tests {
     fn an_empty_ring_outside_the_outer_loop_is_refused() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let ring = vec![
-            p(4.0, 4.0, 0.0),
-            p(6.0, 4.0, 0.0),
-            p(6.0, 6.0, 0.0),
-            p(4.0, 6.0, 0.0),
+            Point3::new(4.0, 4.0, 0.0),
+            Point3::new(6.0, 4.0, 0.0),
+            Point3::new(6.0, 6.0, 0.0),
+            Point3::new(4.0, 6.0, 0.0),
         ];
         let (body, face) = lamina_with_ring(&outer, &ring, tol);
         for (name, at, outside) in [
-            ("outside", p(100.0, 100.0, 0.0), true),
-            ("inside", p(2.0, 2.0, 0.0), false),
+            ("outside", Point3::new(100.0, 100.0, 0.0), true),
+            ("inside", Point3::new(2.0, 2.0, 0.0), false),
         ] {
             let mut b = body.clone();
             let point = b.add_point(at);
@@ -9867,18 +9864,17 @@ mod tests {
     fn an_empty_ring_on_a_disc_outer_loop_is_decided_three_ways() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let ring = vec![
-            p(4.0, 4.0, 0.0),
-            p(6.0, 4.0, 0.0),
-            p(6.0, 6.0, 0.0),
-            p(4.0, 6.0, 0.0),
+            Point3::new(4.0, 4.0, 0.0),
+            Point3::new(6.0, 4.0, 0.0),
+            Point3::new(6.0, 6.0, 0.0),
+            Point3::new(4.0, 6.0, 0.0),
         ];
         let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
         let outer_loop = body.get_face(face).unwrap().outer;
@@ -9890,7 +9886,7 @@ mod tests {
             let curve = body.get_edge(edge).unwrap().curve;
             // `test_curve` is the unit circle about `anchor + x`.
             *body.curves.get_mut(curve).unwrap() =
-                CurveGeom::Certified(crate::fixtures::test_curve(p(4.0, 5.0, 0.0), tol));
+                CurveGeom::Certified(crate::fixtures::test_curve(Point3::new(4.0, 5.0, 0.0), tol));
         }
         let f = body.get_face(face).unwrap();
         let region = nesting_region(&body, f.surface, f.outer, band).expect("the gate opens");
@@ -9901,9 +9897,9 @@ mod tests {
         // Strictly between ε and K·ε for any K > 1.
         let in_band = tol.eps() * tol.k().sqrt();
         for (name, at) in [
-            ("inside", p(5.3, 5.2, 0.0)),
-            ("outside", p(100.0, 100.0, 0.0)),
-            ("in band", p(5.0, 6.0 - in_band, 0.0)),
+            ("inside", Point3::new(5.3, 5.2, 0.0)),
+            ("outside", Point3::new(100.0, 100.0, 0.0)),
+            ("in band", Point3::new(5.0, 6.0 - in_band, 0.0)),
         ] {
             let mut b = body.clone();
             let point = b.add_point(at);
@@ -9940,12 +9936,11 @@ mod tests {
     fn a_ring_crossing_its_outer_loop_is_refused() {
         let tol = Tol::witness();
         let band = Band::linear(tol).expect("the run's band");
-        let p = Point3::new;
         let ring = vec![
-            p(5.0, 5.0, 0.0),
-            p(15.0, 5.0, 0.0),
-            p(15.0, 7.0, 0.0),
-            p(5.0, 7.0, 0.0),
+            Point3::new(5.0, 5.0, 0.0),
+            Point3::new(15.0, 5.0, 0.0),
+            Point3::new(15.0, 7.0, 0.0),
+            Point3::new(5.0, 7.0, 0.0),
         ];
         let (body, face) = lamina_with_ring(&square_outer(), &ring, tol);
         let got = check_9_words(&body, band, tol);
@@ -9964,12 +9959,11 @@ mod tests {
 
     /// The outer loop of the crossing rows: the square `[0, 10]²`.
     fn square_outer() -> Vec<Point3<f64>> {
-        let p = Point3::new;
         vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ]
     }
 
@@ -10170,10 +10164,10 @@ mod tests {
     #[test]
     fn an_edge_pair_meeting_at_a_point_is_refused() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let square = square_outer();
         for (name, at) in [("line × arc crossing", 9.3), ("line × arc tangency", 9.0)] {
-            let (body, face) = lamina_with_circular_ring(&square, None, p(at, 5.0, 0.0), 1.0, tol);
+            let (body, face) =
+                lamina_with_circular_ring(&square, None, Point3::new(at, 5.0, 0.0), 1.0, tol);
             assert_meets(name, &body, face, |c| {
                 matches!(c, RingContact::EdgesMeet { .. })
             });
@@ -10182,7 +10176,7 @@ mod tests {
         // (10, 0) and (10, 10) about (4.75, 5): radius 7.25, bulging to
         // x = 12. The ring, radius 1 about (11.2, 5), bows past it.
         let (mut body, face) =
-            lamina_with_circular_ring(&square, None, p(11.2, 5.0, 0.0), 1.0, tol);
+            lamina_with_circular_ring(&square, None, Point3::new(11.2, 5.0, 0.0), 1.0, tol);
         let outer_loop = body.get_face(face).unwrap().outer;
         let right = loop_cycle_of(&body, outer_loop)
             .unwrap()
@@ -10193,7 +10187,7 @@ mod tests {
                 a.x == 10.0 && b.x == 10.0
             })
             .expect("the square's right edge");
-        recarry_as_arc(&mut body, right, p(4.75, 5.0, 0.0), tol);
+        recarry_as_arc(&mut body, right, Point3::new(4.75, 5.0, 0.0), tol);
         assert_meets(
             "arc × arc crossing",
             &body,
@@ -10215,8 +10209,7 @@ mod tests {
     fn a_ring_near_its_outer_loop_is_decided_three_ways() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let p = Point3::new;
-        let o = p(0.0, 0.0, 0.0);
+        let o = Point3::new(0.0, 0.0, 0.0);
         let disc = on_circle(o, 5.0, OUTER_DEGREES);
         let clear = 4.0 * tol.k() * tol.eps();
         let in_band = tol.eps() * tol.k().sqrt();
@@ -10228,28 +10221,28 @@ mod tests {
                 "off-centre hole near the rim",
                 &disc,
                 Some(o),
-                p(3.9, 0.0, 0.0),
+                Point3::new(3.9, 0.0, 0.0),
                 1.0,
             ),
             (
                 "disc hole 4Kε from the rim",
                 &disc,
                 Some(o),
-                p(4.0 - clear, 0.0, 0.0),
+                Point3::new(4.0 - clear, 0.0, 0.0),
                 1.0,
             ),
             (
                 "hole 4Kε from a straight edge",
                 &square,
                 None,
-                p(9.0 - clear, 5.0, 0.0),
+                Point3::new(9.0 - clear, 5.0, 0.0),
                 1.0,
             ),
             (
                 "hole well clear of a straight edge",
                 &square,
                 None,
-                p(8.5, 5.0, 0.0),
+                Point3::new(8.5, 5.0, 0.0),
                 1.0,
             ),
         ];
@@ -10263,13 +10256,13 @@ mod tests {
                 "disc hole in band of the rim",
                 disc.clone(),
                 Some(o),
-                p(4.0 - in_band, 0.0, 0.0),
+                Point3::new(4.0 - in_band, 0.0, 0.0),
             ),
             (
                 "hole in band of a straight edge",
                 square_outer(),
                 None,
-                p(9.0 - in_band, 5.0, 0.0),
+                Point3::new(9.0 - in_band, 5.0, 0.0),
             ),
         ] {
             let (body, face) = lamina_with_circular_ring(&outer, outer_circle, center, 1.0, tol);
@@ -10338,14 +10331,13 @@ mod tests {
     #[test]
     fn a_short_arcs_end_near_a_wall_is_clear() {
         let tol = Tol::witness();
-        let p = Point3::new;
         for k in [50.0, 500.0] {
             let d = k * tol.eps();
-            let c = p(10.0 - d, -5.0, 0.0);
-            let q = p(10.0 - d, 5.0, 0.0);
+            let c = Point3::new(10.0 - d, -5.0, 0.0);
+            let q = Point3::new(10.0 - d, 5.0, 0.0);
             let s = 0.02_f64;
-            let a = p(c.x - 10.0 * s.sin(), c.y + 10.0 * s.cos(), 0.0);
-            let r = p(9.9 - d, 4.0, 0.0);
+            let a = Point3::new(c.x - 10.0 * s.sin(), c.y + 10.0 * s.cos(), 0.0);
+            let r = Point3::new(9.9 - d, 4.0, 0.0);
             let (got, _) = words_with_arcs(&square_outer(), &[q, a, r], &[(q, a, c)]);
             assert!(got.is_empty(), "[δ = {k}ε] a clear ring drew {got:?}");
         }
@@ -10360,11 +10352,10 @@ mod tests {
     #[test]
     fn a_near_tangency_off_the_arcs_trim_is_clear() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let y = 1.0 + 3.0 * tol.eps();
-        let c = p(5.0, y, 0.0);
-        let e = p(6.0, y, 0.0);
-        let n = p(5.0, y + 1.0, 0.0);
+        let c = Point3::new(5.0, y, 0.0);
+        let e = Point3::new(6.0, y, 0.0);
+        let n = Point3::new(5.0, y + 1.0, 0.0);
         let (got, _) = words_with_arcs(&square_outer(), &[c, e, n], &[(e, n, c)]);
         assert!(got.is_empty(), "a clear quarter-disc drew {got:?}");
     }
@@ -10379,16 +10370,15 @@ mod tests {
     fn an_outer_vertex_on_a_ring_edge_is_a_meeting() {
         let tol = Tol::witness();
         let band = Band::linear(tol).unwrap();
-        let p = Point3::new;
-        let centre = p(5.0, 5.0, 0.0);
+        let centre = Point3::new(5.0, 5.0, 0.0);
         for (k, touches) in [(0.5, true), (3.0, false)] {
             let d = k * tol.eps();
             let outer = vec![
-                p(7.04 + d, 1.0, 0.0),
-                p(7.0 + d, 5.0, 0.0),
-                p(7.04 + d, 9.0, 0.0),
-                p(0.0, 9.0, 0.0),
-                p(0.0, 1.0, 0.0),
+                Point3::new(7.04 + d, 1.0, 0.0),
+                Point3::new(7.0 + d, 5.0, 0.0),
+                Point3::new(7.04 + d, 9.0, 0.0),
+                Point3::new(0.0, 9.0, 0.0),
+                Point3::new(0.0, 1.0, 0.0),
             ];
             let (body, face) = lamina_with_circular_ring(&outer, None, centre, 2.0, tol);
             let got = check_9_words(&body, band, tol);
@@ -10416,30 +10406,33 @@ mod tests {
     /// outer arc's window. The two arcs share a carrier and no point.
     #[test]
     fn a_ring_arc_on_an_outer_arcs_circle_off_its_trim_is_clear() {
-        let p = Point3::new;
-        let centre = p(22.0, 5.0, 0.0);
+        let centre = Point3::new(22.0, 5.0, 0.0);
         let radius = (64.0_f64 + 25.0).sqrt();
         let at = |deg: f64| {
             let t = deg.to_radians();
-            p(
+            Point3::new(
                 centre.x + radius * t.cos(),
                 centre.y + radius * t.sin(),
                 0.0,
             )
         };
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(30.0, 0.0, 0.0),
-            p(30.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(30.0, 0.0, 0.0),
+            Point3::new(30.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let (a, b) = (at(170.0), at(190.0));
-        let ring = vec![a, b, p(14.0, 5.0, 0.0)];
+        let ring = vec![a, b, Point3::new(14.0, 5.0, 0.0)];
         let (got, _) = words_with_arcs(
             &outer,
             &ring,
             &[
-                (p(30.0, 0.0, 0.0), p(30.0, 10.0, 0.0), centre),
+                (
+                    Point3::new(30.0, 0.0, 0.0),
+                    Point3::new(30.0, 10.0, 0.0),
+                    centre,
+                ),
                 (a, b, centre),
             ],
         );
@@ -10463,25 +10456,24 @@ mod tests {
     #[test]
     fn short_and_near_full_arcs_near_a_wall_are_decided_three_ways() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let clear = 4.0 * tol.k() * tol.eps();
         let in_band = tol.eps() * tol.k().sqrt();
         let short = |gap: f64| {
-            let c = p(-gap, 5.0, 0.0);
+            let c = Point3::new(-gap, 5.0, 0.0);
             let h = 0.01_f64;
-            let a = p(c.x + 10.0 * h.cos(), 5.0 + 10.0 * h.sin(), 0.0);
-            let b = p(c.x + 10.0 * h.cos(), 5.0 - 10.0 * h.sin(), 0.0);
+            let a = Point3::new(c.x + 10.0 * h.cos(), 5.0 + 10.0 * h.sin(), 0.0);
+            let b = Point3::new(c.x + 10.0 * h.cos(), 5.0 - 10.0 * h.sin(), 0.0);
             words_with_sweeps(
                 &square_outer(),
-                &[a, b, p(9.0, 5.0, 0.0)],
+                &[a, b, Point3::new(9.0, 5.0, 0.0)],
                 &[(a, b, c, false)],
             )
         };
         let near_full = |gap: f64| {
-            let c = p(9.0 - gap, 5.0, 0.0);
+            let c = Point3::new(9.0 - gap, 5.0, 0.0);
             let h = 5.0_f64.to_radians();
-            let a = p(c.x - h.cos(), 5.0 + h.sin(), 0.0);
-            let b = p(c.x - h.cos(), 5.0 - h.sin(), 0.0);
+            let a = Point3::new(c.x - h.cos(), 5.0 + h.sin(), 0.0);
+            let b = Point3::new(c.x - h.cos(), 5.0 - h.sin(), 0.0);
             words_with_sweeps(&square_outer(), &[a, b, c], &[(a, b, c, true)])
         };
         for (name, build) in [
@@ -10514,10 +10506,10 @@ mod tests {
         // The near-full arc's MOUTH facing the wall, its carrier poking
         // through inside the mouth — 0.14 rad either side of 0°, where
         // the 0.6-rad mouth has no arc — and its ends clear inside.
-        let c = p(9.01, 5.0, 0.0);
+        let c = Point3::new(9.01, 5.0, 0.0);
         let h = 0.3_f64;
-        let a = p(c.x + h.cos(), 5.0 + h.sin(), 0.0);
-        let b = p(c.x + h.cos(), 5.0 - h.sin(), 0.0);
+        let a = Point3::new(c.x + h.cos(), 5.0 + h.sin(), 0.0);
+        let b = Point3::new(c.x + h.cos(), 5.0 - h.sin(), 0.0);
         let (got, _) = words_with_sweeps(&square_outer(), &[a, c, b], &[(a, b, c, true)]);
         assert!(got.is_empty(), "[mouth facing the wall] got {got:?}");
     }
@@ -10528,14 +10520,13 @@ mod tests {
     #[test]
     fn a_ring_line_crossing_an_outer_arc_is_refused() {
         let tol = Tol::witness();
-        let p = Point3::new;
-        let o = p(0.0, 0.0, 0.0);
+        let o = Point3::new(0.0, 0.0, 0.0);
         let outer = on_circle(o, 5.0, OUTER_DEGREES);
         let ring = vec![
-            p(3.0, -1.0, 0.0),
-            p(6.0, -1.0, 0.0),
-            p(6.0, 1.0, 0.0),
-            p(3.0, 1.0, 0.0),
+            Point3::new(3.0, -1.0, 0.0),
+            Point3::new(6.0, -1.0, 0.0),
+            Point3::new(6.0, 1.0, 0.0),
+            Point3::new(3.0, 1.0, 0.0),
         ];
         let (mut body, face) = lamina_with_ring(&outer, &ring, tol);
         let outer_loop = body.get_face(face).unwrap().outer;
@@ -10572,11 +10563,10 @@ mod tests {
     #[test]
     fn arm_5_decides_the_branches_the_loop_rows_cannot_reach() {
         let band = Band::linear(Tol::witness()).unwrap();
-        let p = Point3::new;
         let n = geom_core::Vec3::new(0.0, 0.0, 1.0);
         let line = |a: (f64, f64), b: (f64, f64)| MeetSegment::Line {
-            a: p(a.0, a.1, 0.0),
-            b: p(b.0, b.1, 0.0),
+            a: Point3::new(a.0, a.1, 0.0),
+            b: Point3::new(b.0, b.1, 0.0),
         };
         for (name, second, meets) in [
             ("collinear overlap", line((2.0, 0.0), (5.0, 0.0)), true),
@@ -10587,7 +10577,7 @@ mod tests {
             assert_eq!(matches!(got, EdgePair::Meet), meets, "[{name}]");
             assert!(!matches!(got, EdgePair::Unsure(_)), "[{name}] decided");
         }
-        let o = p(0.0, 0.0, 0.0);
+        let o = Point3::new(0.0, 0.0, 0.0);
         assert!(
             matches!(
                 segments_meet(
@@ -10603,7 +10593,7 @@ mod tests {
         // Circles about the origin and (2, 0), both radius 2: they meet
         // at (1, ±√3), i.e. at 60° and 300° on the first and at 120°
         // and 240° on the second.
-        let c2 = p(2.0, 0.0, 0.0);
+        let c2 = Point3::new(2.0, 0.0, 0.0);
         assert!(
             matches!(
                 segments_meet(
@@ -10646,19 +10636,18 @@ mod tests {
     #[test]
     fn a_vertex_in_a_locus_band_off_the_trim_is_clear() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let e3 = 3.0 * tol.eps();
         let notch_below = vec![
-            p(0.0, 0.0, 0.0),
-            p(4.0, 0.0, 0.0),
-            p(5.0, 4.0 - e3, 0.0),
-            p(6.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(4.0, 0.0, 0.0),
+            Point3::new(5.0, 4.0 - e3, 0.0),
+            Point3::new(6.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
-        let c = p(5.0, 5.0, 0.0);
-        let (e, n) = (p(6.0, 5.0, 0.0), p(5.0, 6.0, 0.0));
+        let c = Point3::new(5.0, 5.0, 0.0);
+        let (e, n) = (Point3::new(6.0, 5.0, 0.0), Point3::new(5.0, 6.0, 0.0));
         let (got, _) = words_with_arcs(&notch_below, &[c, e, n], &[(e, n, c)]);
         assert!(got.is_empty(), "[on the arc's circle] got {got:?}");
     }
@@ -10669,22 +10658,21 @@ mod tests {
     #[test]
     fn a_vertex_in_a_line_locus_band_off_the_trim_is_clear() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let e3 = 3.0 * tol.eps();
         let notch_right = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, 3.5, 0.0),
-            p(8.0, 4.0 - e3, 0.0),
-            p(10.0, 4.5, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, 3.5, 0.0),
+            Point3::new(8.0, 4.0 - e3, 0.0),
+            Point3::new(10.0, 4.5, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let hole = vec![
-            p(4.0, 4.0, 0.0),
-            p(6.0, 4.0, 0.0),
-            p(6.0, 6.0, 0.0),
-            p(4.0, 6.0, 0.0),
+            Point3::new(4.0, 4.0, 0.0),
+            Point3::new(6.0, 4.0, 0.0),
+            Point3::new(6.0, 6.0, 0.0),
+            Point3::new(4.0, 6.0, 0.0),
         ];
         let (got, _) = words_with_arcs(&notch_right, &hole, &[]);
         assert!(got.is_empty(), "[on the edge's extension] got {got:?}");
@@ -10703,20 +10691,19 @@ mod tests {
     #[test]
     fn a_near_full_arcs_end_facing_a_wall_is_clear() {
         let tol = Tol::witness();
-        let p = Point3::new;
         let eps = tol.eps();
-        let c = p(5.0, 5.0, 0.0);
+        let c = Point3::new(5.0, 5.0, 0.0);
         let h = 5.0_f64.to_radians();
-        let a = p(5.0 + h.cos(), 5.0 + h.sin(), 0.0);
-        let b = p(5.0 + h.cos(), 5.0 - h.sin(), 0.0);
+        let a = Point3::new(5.0 + h.cos(), 5.0 + h.sin(), 0.0);
+        let b = Point3::new(5.0 + h.cos(), 5.0 - h.sin(), 0.0);
         let outer = vec![
-            p(0.0, 0.0, 0.0),
-            p(10.0, 0.0, 0.0),
-            p(10.0, a.y - 50.0 * eps, 0.0),
-            p(a.x - 200.0 * eps, a.y - 50.0 * eps, 0.0),
-            p(10.0, a.y + 0.01, 0.0),
-            p(10.0, 10.0, 0.0),
-            p(0.0, 10.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(10.0, 0.0, 0.0),
+            Point3::new(10.0, a.y - 50.0 * eps, 0.0),
+            Point3::new(a.x - 200.0 * eps, a.y - 50.0 * eps, 0.0),
+            Point3::new(10.0, a.y + 0.01, 0.0),
+            Point3::new(10.0, 10.0, 0.0),
+            Point3::new(0.0, 10.0, 0.0),
         ];
         let (got, _) = words_with_sweeps(&outer, &[a, b, c], &[(a, b, c, true)]);
         assert!(got.is_empty(), "a clear pac-man drew {got:?}");

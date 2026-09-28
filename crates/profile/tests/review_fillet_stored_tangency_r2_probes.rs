@@ -20,7 +20,7 @@
 
 use crate::common;
 
-use common::{p2, tol};
+use common::tol;
 use geom_core::k_stats::Bracket;
 use geom_core::{Point2, Tol};
 use profile::{
@@ -51,8 +51,8 @@ fn sagitta(radius: f64, theta: f64) -> f64 {
 // ------------------------------------------------------------------
 
 fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(4.0 + 3.0 * theta.cos(), 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?
@@ -63,14 +63,14 @@ fn line_line(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>
 }
 
 fn line_arc_centre(theta: f64) -> Point2<f64> {
-    p2(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
+    Point2::new(4.0 - 2.0 * theta.sin(), 2.0 * theta.cos())
 }
 
 fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let c = line_arc_centre(theta);
-    let start = c + (p2(2.0 * theta.cos(), 2.0 * theta.sin()) - p2(0.0, 0.0));
+    let start = c + (Point2::new(2.0 * theta.cos(), 2.0 * theta.sin()) - Point2::new(0.0, 0.0));
     Open.at(start)
-        .line_to(p2(0.0, 0.0), tol())?
+        .line_to(Point2::new(0.0, 0.0), tol())?
         .toward(1.0, 0.0, tol())?
         .fillet_arc(
             radius,
@@ -87,15 +87,15 @@ fn line_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>>
 fn arc_arc(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     Open.arc_fillet_arc(
         Center {
-            c: p2(-theta, 0.0),
+            c: Point2::new(-theta, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(2.0 - theta, 0.0),
+            p: Point2::new(2.0 - theta, 0.0),
         },
         radius,
         Center {
-            c: p2(theta, 0.0),
+            c: Point2::new(theta, 0.0),
             winding: ArcSweep::Ccw,
-            p: p2(theta - 2.0, 0.0),
+            p: Point2::new(theta - 2.0, 0.0),
         },
         tol(),
     )?
@@ -127,7 +127,7 @@ fn corners() -> [Corner; 3] {
 fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let phi = 0.3_f64;
     let (s, c) = phi.sin_cos();
-    let rot = |x: f64, y: f64| p2(x * c - y * s, x * s + y * c);
+    let rot = |x: f64, y: f64| Point2::new(x * c - y * s, x * s + y * c);
     let height = 2.0 * radius + gap;
     // The anchor on the short side sits half way along the leg the two
     // trims leave, so both fit margins are gap / 2.
@@ -153,11 +153,11 @@ fn two_fillets_with_a_leg_of(gap: f64, radius: f64) -> Result<ProfileLoop<f64>, 
 /// the entry vertex.
 fn seam_fillet(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError<f64>> {
     let (s, c) = theta.sin_cos();
-    Open.at(p2(1.0, 0.0))
+    Open.at(Point2::new(1.0, 0.0))
         .angle(0.0, tol())?
         .line(3.0, tol())?
-        .line_to(p2(4.0, 3.0), tol())?
-        .line_to(p2(-3.0 * c, -3.0 * s), tol())?
+        .line_to(Point2::new(4.0, 3.0), tol())?
+        .line_to(Point2::new(-3.0 * c, -3.0 * s), tol())?
         .angle(theta, tol())?
         .fillet(radius, tol())?
         .to(Start, tol())
@@ -172,17 +172,17 @@ fn fused_incoming(theta: f64, radius: f64) -> Result<ProfileLoop<f64>, PathError
     let y = -2.0 * theta.cos();
     Open.arc_fillet(
         Center {
-            c: p2(0.0, 0.0),
+            c: Point2::new(0.0, 0.0),
             winding: ArcSweep::Cw,
-            p: p2(0.0, 2.0),
+            p: Point2::new(0.0, 2.0),
         },
         radius,
         tol(),
     )?
     .toward(-1.0, 0.0, tol())?
-    .to(p2(-4.0, y), tol())?
-    .line_to(p2(-4.0, 3.0), tol())?
-    .line_to(p2(3.0, 3.0), tol())?
+    .to(Point2::new(-4.0, y), tol())?
+    .line_to(Point2::new(-4.0, 3.0), tol())?
+    .line_to(Point2::new(3.0, 3.0), tol())?
     .line_to(Start, tol())
     .map(|c| c.loop_)
 }
@@ -476,8 +476,8 @@ fn scaled_line_line(
     radius: f64,
     scale: f64,
 ) -> Result<ProfileLoop<f64>, PathError<f64>> {
-    let anchor = p2(scale * (4.0 + 3.0 * theta.cos()), scale * 3.0 * theta.sin());
-    Open.at(p2(0.0, 0.0))
+    let anchor = Point2::new(scale * (4.0 + 3.0 * theta.cos()), scale * 3.0 * theta.sin());
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, tol())?
         .fillet(radius, tol())?
         .at(anchor, tol())?

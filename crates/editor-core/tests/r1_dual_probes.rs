@@ -61,6 +61,7 @@ test_utils::gated_to![
     "crates/profile/src/",
     "crates/editor-core/tests/corpus/",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::corpus;
@@ -75,7 +76,7 @@ use editor_core::{
     SlotId, ValuePayload, product_recorded,
 };
 use editor_core::{BooleanValue, DatumValue, Evaluation, NodeResult, SplitSide};
-use fixture::{len, scl};
+use fixture::{len, scl, xy_frame};
 use geom_core::{Bounds, Decide, Dual64, Tol};
 use topo::Body;
 
@@ -495,14 +496,7 @@ fn r1_no_value_only_key_collision_search() {
 /// the parameter node the e2e bumps.
 fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
     let mut r = Recorder::new();
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let plate = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![
@@ -514,14 +508,7 @@ fn r1_study_document() -> (ProfileDoc, editor_core::RecipeNodeId) {
         profile: plate,
         distance: len(0.25),
     });
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let boss_profile = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![LoopProgram::circle(0.0, 0.0, 0.5).unwrap()],

@@ -39,13 +39,10 @@
 //! reading REFUSES, which is the escalation PATH through the walk; it
 //! is not a body that escalates on the channel.
 //!
-//! **One row is `probe`-gated and it is rostered as EXECUTED**
-//! (`scripts/gates/probe-suite-census.sh`'s `RUN_FLOOR`, which
-//! `k_probe_sweep.sh` derives its default-selection loop from). The
-//! sample population is the thing k-lint counts, so a row asserting it
-//! does not move with the thread count is worth nothing if it only
-//! compiles: an inert pin reports the same green as one that ran. The
-//! other rows are ungated and run on every merge as usual.
+//! **Its `probe` row lives in `thread_count_probe_populations`**: the
+//! sample population is the thing k-lint counts, and only the probe
+//! sweep runs a `probe` build, so the row sits in a file the sweep can
+//! select without re-running the goldens here.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::{
@@ -348,45 +345,5 @@ fn the_roster_records_the_props_lanes_own_verdicts() {
         quad > 0,
         "the described-spline body recorded no props_quad verdict — the roster no longer \
          reaches the quadrature lane, so the golden above pins a walk that does nothing"
-    );
-}
-
-/// **The `probe` sample population does not shrink with the thread
-/// count** — what k-lint counts, read at 1 and 4 threads. The golden
-/// above cannot carry this: the sink only exists in a `probe` build.
-#[cfg(feature = "probe")]
-#[test]
-fn the_sample_population_is_identical_at_one_and_four_threads() {
-    use geom_core::Probe;
-    use geom_core::k_stats::{start_recording, take_samples};
-
-    let eps = Tol::witness().get().eps;
-    let body: Body<Probe> = loft_body::<Probe>(
-        &[arc_section(1.0e9 * eps), arc_section(1.0e9 * eps)],
-        &stacked(&[0.0, 1.0], 1.0e9 * eps),
-        1,
-        Tol::witness(),
-    )
-    .expect("the probe arc loft lofts")
-    .body;
-    let population = |threads: usize| {
-        on_pool(threads, || {
-            start_recording();
-            let _ = topo::mass_properties(&body, Tol::witness());
-            take_samples()
-                .iter()
-                .map(|s| (s.predicate, s.margin.to_bits(), s.outcome.token()))
-                .collect::<Vec<_>>()
-        })
-    };
-    let one = population(1);
-    let four = population(4);
-    assert!(
-        !one.is_empty(),
-        "the probe lane recorded no sample — the comparison below is vacuous"
-    );
-    assert_eq!(
-        one, four,
-        "the sample population moved with the thread count"
     );
 }

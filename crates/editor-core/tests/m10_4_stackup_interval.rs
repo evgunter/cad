@@ -272,7 +272,7 @@ fn plate_spaced(
     );
     let assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+        bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
     (r.doc, measure, assertion)
@@ -1308,11 +1308,11 @@ fn a_loft_section_seed_is_the_typed_valve_never_a_zero() {
     // A frame per section height: the sections are drawn on DIFFERENT
     // planes, so they are different nodes.
     let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }))
+        r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ))
     };
     let section = |plane| {
         Node::Profile(ProfileProgram {

@@ -41,11 +41,13 @@
 
 use core::f64::consts::PI;
 
+use crate::common::operands::m5_boss;
 use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Affine3, Point2, Point3, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
+use sweep::test_support::ball_poled_y;
+use sweep::{Extrusion, extrude};
 use topo::boolean::{BooleanOp, SweepStrategy, boolean_op_with};
 use topo::{Body, BooleanDeclarations};
 
@@ -89,25 +91,6 @@ fn plate() -> Body<f64> {
 
 const R: f64 = 0.35;
 
-/// A cylindrical boss of radius `R` at (1.2, 1.7), authored as `n`
-/// equal arcs, sketched at `z0` and extruded by `len`.
-fn boss(n: usize, z0: f64, len: f64) -> Body<f64> {
-    let theta = 2.0 * PI / n as f64;
-    let bulge = (theta / 4.0).tan();
-    let at = |i: usize| {
-        let th = theta * i as f64;
-        p2(1.2 + R * th.cos(), 1.7 + R * th.sin())
-    };
-    let lp = bulge_loop((0..n).map(|i| (at(i), bulge)).collect());
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(len), Tol::witness())
-        .unwrap()
-        .body
-}
-
 /// A 3 × 3 × 1 plate with a CONCAVE semicircular notch (radius 0.5)
 /// bitten out of its `x = 3` wall — S11's `sense: false` arc wall, and
 /// the operand that makes the mixed-sense split reachable.
@@ -131,23 +114,6 @@ fn notched() -> Body<f64> {
 /// The notch's own volume debit: a half-disc of radius 0.5 through the
 /// full height.
 const NOTCH: f64 = PI * 0.25 / 2.0;
-
-/// The unit ball of the PR 9c acceptance: two half-sphere bands on ONE
-/// sphere surface, translated to `centre`.
-fn ball_at(centre: Vec3<f64>) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)]);
-    let vp = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
-        dir: geom_core::Vec2::new(0.0, 1.0),
-    };
-    let ball = revolve(&vp, axis, Revolution::Full, Tol::witness())
-        .unwrap()
-        .body;
-    topo::transform_rigid(&ball, &Affine3::translation(centre), Tol::witness()).unwrap()
-}
 
 /// A body's face senses in arena order.
 fn senses(body: &Body<f64>) -> Vec<bool> {
@@ -188,7 +154,7 @@ fn both_lanes(op: BooleanOp, a: &Body<f64>, b: &Body<f64>) -> Body<f64> {
 /// unchanged.
 #[test]
 fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
-    let body = boss(3, 0.0, 1.0);
+    let body = m5_boss(3, 0.0, 1.0);
     let before = format!("{body:?}");
     let v = vol(&body);
     assert!(v > 0.0);
@@ -248,7 +214,7 @@ fn revert_uses_the_plane_normal_for_planes_and_the_sense_bit_for_charts() {
 /// each involutions, so nothing widens and nothing drifts.
 #[test]
 fn curved_revert_is_a_bitwise_involution_and_deterministic() {
-    for body in [boss(3, 0.0, 1.0), boss(2, 0.0, 1.0), notched()] {
+    for body in [m5_boss(3, 0.0, 1.0), m5_boss(2, 0.0, 1.0), notched()] {
         let original = format!("{body:?}");
         let once = body.revert().unwrap();
         assert_eq!(format!("{:?}", once.revert().unwrap()), original);
@@ -301,7 +267,7 @@ fn revert_flips_a_mixed_sense_body_face_by_face() {
 fn subtract_drills_a_blind_hole_with_the_exact_closed_form_volume() {
     for n in [3, 2] {
         let a = plate();
-        let b = boss(n, 0.3, 1.0);
+        let b = m5_boss(n, 0.3, 1.0);
         let out = both_lanes(BooleanOp::Subtract, &a, &b);
         // The boss enters at z = 0.3 and leaves through the top at
         // z = 0.8: a blind pocket 0.5 deep.
@@ -321,7 +287,7 @@ fn subtract_drills_a_blind_hole_with_the_exact_closed_form_volume() {
 #[test]
 fn subtract_makes_a_through_hole_and_a_two_shell_complement() {
     let a = plate();
-    let b = boss(3, -0.2, 1.2);
+    let b = m5_boss(3, -0.2, 1.2);
     let holed = both_lanes(BooleanOp::Subtract, &a, &b);
     let expect = 3.0 * 3.0 * 0.8 - PI * R * R * 0.8;
     assert!(
@@ -348,7 +314,7 @@ fn subtract_makes_a_through_hole_and_a_two_shell_complement() {
 #[test]
 fn intersect_is_the_subtract_twin_and_the_two_are_additive() {
     let a = plate();
-    let b = boss(3, 0.3, 1.0);
+    let b = m5_boss(3, 0.3, 1.0);
     let met = both_lanes(BooleanOp::Intersect, &a, &b);
     let expect = PI * R * R * 0.5;
     assert!(
@@ -460,7 +426,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     let zone = 11.0 * PI / 12.0;
     let cut = both_lanes(BooleanOp::Subtract, &a, &b);
@@ -488,7 +454,7 @@ fn the_die_pip_sphere_shape_now_cuts_at_the_opened_door() {
     // And the CYLINDER class through the same entry point is still
     // live — S13 opens a class, it does not trade one for another.
     assert!(
-        topo::subtract(&plate(), &boss(3, 0.3, 1.0), Tol::witness()).is_ok(),
+        topo::subtract(&plate(), &m5_boss(3, 0.3, 1.0), Tol::witness()).is_ok(),
         "the opened door must not re-gate the cylinder class"
     );
 }
@@ -537,7 +503,7 @@ fn finding_row_flipped_containment_fallback_now_sees_the_curved_extent() {
     let a = extrude(&slab, Extrusion::Distance(1.0), Tol::witness())
         .unwrap()
         .body;
-    let b = ball_at(Vec3::new(2.0, 2.0, 0.5));
+    let b = ball_poled_y(1.0, Vec3::new(2.0, 2.0, 0.5), Tol::witness());
 
     // The ball genuinely leaves the slab: its equator reaches z = 1.5.
     let above = Point3::new(2.0, 2.0, 1.4);

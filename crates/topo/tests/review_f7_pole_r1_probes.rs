@@ -166,16 +166,15 @@ fn inset_patch_prism() -> (
         Tol::witness(),
     );
     let mut b = p.body;
-    let pt = geom_core::Point3::new;
     let he_a = he_at(&b, p.top_face, 0.0, 0.0, 1.0);
     let ring = plant_ring_face(
         &mut b,
         he_a,
         &[
-            pt(0.5, 0.5, 1.0),
-            pt(1.5, 0.5, 1.0),
-            pt(1.5, 1.5, 1.0),
-            pt(0.5, 1.5, 1.0),
+            geom_core::Point3::new(0.5, 0.5, 1.0),
+            geom_core::Point3::new(1.5, 0.5, 1.0),
+            geom_core::Point3::new(1.5, 1.5, 1.0),
+            geom_core::Point3::new(0.5, 1.5, 1.0),
         ],
         Tol::witness(),
     );
@@ -227,7 +226,6 @@ fn p3_inset_coplanar_patch_still_refuses() {
 fn p4_mixed_pair_refuses() {
     let (mut b, top, [pv, _qv, rv, _sv], ring) = inset_patch_prism();
     let tol = Tol::witness();
-    let pt = geom_core::Point3::new;
     // Bridge corner (0,0) → P: joins the ring into the outer loop.
     let target = he_at(&b, top, 0.0, 0.0, 1.0);
     let ring_he = {
@@ -257,7 +255,7 @@ fn p4_mixed_pair_refuses() {
                 he1: he_c,
                 he2: he_c,
             },
-            pt(1.8, 1.7, 1.0),
+            geom_core::Point3::new(1.8, 1.7, 1.0),
             tol,
         )
         .unwrap(); // M
@@ -277,7 +275,10 @@ fn p4_mixed_pair_refuses() {
             he1: strut2.he_minus,
             he2: he_r,
         },
-        common::line(pt(1.8, 1.7, 1.0), pt(1.5, 1.5, 1.0)),
+        common::line(
+            geom_core::Point3::new(1.8, 1.7, 1.0),
+            geom_core::Point3::new(1.5, 1.5, 1.0),
+        ),
         FaceSurface::Inherit,
         tol,
     )

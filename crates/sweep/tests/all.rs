@@ -152,6 +152,8 @@ mod verbs_offd;
 #[path = "verbs_shell.rs"]
 mod verbs_shell;
 
+#[path = "axis_lap.rs"]
+mod axis_lap;
 #[path = "band_ruled_d_hole.rs"]
 mod band_ruled_d_hole;
 #[path = "bitdump.rs"]
@@ -478,6 +480,9 @@ mod reporting_door_bit_digest;
 #[path = "mass_props_are_thread_count_invariant.rs"]
 mod mass_props_are_thread_count_invariant;
 
+#[path = "thread_count_probe_populations.rs"]
+mod thread_count_probe_populations;
+
 #[path = "sign_walk_plus_v.rs"]
 mod sign_walk_plus_v;
 
@@ -499,6 +504,8 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "germ_torus_doors.rs"]
+mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]
 mod m9_3_zip;
 #[path = "mate2_cyl_rest.rs"]

@@ -14,6 +14,9 @@
 //!   reason;
 //! - this module — section authoring, the profile vocabulary a suite
 //!   builds a body FROM;
+//! - [`interval`] — the `Interval` literals (`iv`, `p2`, `v2`, `p3`,
+//!   `v3`) an interval-lane suite authors with (section authoring,
+//!   same routing);
 //! - [`orient`] — what a suite CHECKS of a body it built, by reading
 //!   POSITIONS off the shipped charts;
 //! - [`cap_rims`] — what a suite checks of a body's CAP RIMS: the
@@ -27,6 +30,9 @@
 //!   authoring, so it routes to this module rather than to a suite);
 //! - [`cavity`] — the vented-cavity fixture vocabulary (body
 //!   authoring, same routing);
+//! - [`charts`] — a body's faces grouped by the surface they wear, and
+//!   the `ChartMove` sets the offset doors take: what a suite drives a
+//!   door WITH, which is neither a body nor a check of one;
 //! - [`oracles`] — closed-form volumes, which are neither: a truth
 //!   derived without the kernel, so its own doc carries the rule for
 //!   which per-suite spellings may come here at all;
@@ -100,6 +106,12 @@ pub mod approx;
 /// routes here.
 pub mod cavity;
 
+/// A body's charts — its faces grouped by the surface they wear — and
+/// the `ChartMove` sets the simultaneous offset doors take. What a
+/// suite drives a door WITH, so it routes here rather than into a
+/// suite.
+pub mod charts;
+
 /// The intersecting equal-radius cylinder pair — the germ lane's
 /// fixture and the parameter-identity channel's, one authoring for
 /// the one door both read. Body authoring, so it routes here.
@@ -118,6 +130,11 @@ pub mod cone_nappe;
 /// body's plane-chart images). Body authoring plus readers that
 /// evaluate no surface, so it routes here.
 pub mod latitude_seam;
+
+/// The `Interval` literals — a scalar, and points and vectors from
+/// exact `f64` coordinates. What an interval-lane
+/// suite authors its profile and placements with, so it routes here.
+pub mod interval;
 
 /// The closed-form volumes those suites meter against. Not a fixture
 /// and not a check of a body, but a truth derived WITHOUT the kernel;
@@ -195,6 +212,30 @@ pub fn arc_section(s: f64) -> Section {
         v(s, s, 0.0),
         v(-s, s, 0.0),
     ])]
+}
+
+/// **The three-arc circle**: radius `radius` about `centre`, as three
+/// 120° arcs whose first joint sits at `first` degrees (any angle; the
+/// suites use 0, 60, 90 and 120-degree steps of them). Each joint's
+/// angle is reduced mod 360 before it is evaluated, so a start of 240
+/// puts its joints at 240, 0 and 120 — never at 360, whose `sin` is
+/// not zero in `f64`.
+///
+/// One loop for the crate's three-arc cylinders, collars and pegs: a
+/// cylinder built from it is one curved surface cut by three seam
+/// struts, which is the shape the MATE-2 rows and the conic corpus
+/// both depend on.
+pub fn three_arc(centre: Point2<f64>, radius: f64, first: f64) -> ProfileLoop<f64> {
+    let b120 = (core::f64::consts::PI / 6.0).tan();
+    let at = |deg: f64| {
+        let th: f64 = (deg % 360.0).to_radians();
+        Point2::new(centre.x + radius * th.cos(), centre.y + radius * th.sin())
+    };
+    bulge_loop(vec![
+        (at(first), b120),
+        (at(first + 120.0), b120),
+        (at(first + 240.0), b120),
+    ])
 }
 
 /// **Runs `run` on a pool of exactly `threads` threads**, and answers

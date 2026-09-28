@@ -33,6 +33,7 @@ test_utils::gated_to![
     "crates/geom-core/src/tolerance.rs",
     "crates/geom-core/src/interval.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;
@@ -51,7 +52,7 @@ use editor_core::{
 };
 use geom_core::Tol;
 
-use fixture::{Recorder, len};
+use fixture::{Recorder, len, xy_frame};
 
 fn eps() -> f64 {
     Tol::witness().eps()
@@ -86,14 +87,7 @@ fn slab_with(dist: Distribution, nominal: f64) -> ProfileDoc {
             distribution: Some(dist),
         },
     });
-    let xy_frame_0 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_0 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_0,
         loops: vec![unit_square()],
@@ -126,14 +120,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
             }),
         },
     });
-    let xy_frame_1 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_1 = r.insert(xy_frame());
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_1,
         loops: vec![unit_square()],
@@ -143,14 +130,7 @@ pub(crate) fn bounded_chamber(c: f64, nominal: f64, half: f64) -> ProfileDoc {
         profile: p,
         distance: Expr::param(name("q"), Dimension::Length),
     });
-    let xy_frame_2 = r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [0.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-        u: [1.0, 0.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        v: [0.0, 1.0, 0.0]
-            .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-    }));
+    let xy_frame_2 = r.insert(xy_frame());
     let p2 = r.insert(Node::Profile(ProfileProgram {
         plane: xy_frame_2,
         loops: vec![unit_square()],
@@ -726,14 +706,7 @@ fn evidence_only_e2e_consumer_walk() {
                 distribution: Some(Distribution::Normal { sigma: half_d }),
             },
         });
-        let xy_frame_3 = r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [0.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Length).unwrap()),
-            u: [1.0, 0.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-            v: [0.0, 1.0, 0.0]
-                .map(|v| editor_core::Expr::literal(v, editor_core::Dimension::Scalar).unwrap()),
-        }));
+        let xy_frame_3 = r.insert(xy_frame());
         let p = r.insert(Node::Profile(ProfileProgram {
             plane: xy_frame_3,
             loops: vec![

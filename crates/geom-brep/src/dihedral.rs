@@ -261,7 +261,7 @@ pub fn folded_lever_arm<T: Real>(s1: &Surface<T>, s2: &Surface<T>, p: Point3<T>,
 /// two sets and every disagreement is a spurious
 /// `DescriptionNotAdjacent`. Every smooth-join arm in the sweep verbs
 /// routes here through [`must_carry_over_edge`], which is where the
-/// gate, the stations and the three-way policy live; `Intersection`-
+/// gate, the stations and the verdict policy live; `Intersection`-
 /// tangency certification and the boolean rim wedge fold this reading
 /// into walks of their own. The two remaining hand-rolled siblings are the
 /// tier-3 validator's (`topo::validate`) and the boolean rebuild's
@@ -312,20 +312,36 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// the one place a constructor decides what description such a join
 /// carries.
 ///
-/// The answer is three-way and typed, exactly as the metered
-/// predicate's own doc states it:
+/// The answer is typed: the metered predicate's own three ways, plus
+/// the first-order refutation its premise needs:
 ///
 /// - **[`MustCarryVerdict::JetDeterminate`]** — every station read
 ///   `Positive`: the surfaces determine the locus along the whole
 ///   edge, so prefer-intrinsic (D2/OQ7) demands the intrinsic
 ///   [`crate::EdgeDescription::TangentIntersection`].
-/// - **[`MustCarryVerdict::UnderDetermined`]** — the pair is outside
-///   the certificate's lane, or a station read `Zero`/`Negative`: the
-///   conventional description is the honest one.
+/// - **[`MustCarryVerdict::UnderDetermined`]** — a first-order smooth
+///   station read `Zero`/`Negative`, so the conventional description
+///   is the honest one; or the pair is outside the certificate's lane,
+///   where nothing is metered and the verdict says only that no
+///   intrinsic tangency can be stored (see the variant).
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
 ///   neither, carrying that station's escalation: the caller refuses
 ///   TYPED (D4 ¶3). An in-band verdict is never silently either side,
 ///   so no caller may fold it into "conventional".
+/// - **[`MustCarryVerdict::Transverse`]** — a station's tangent planes
+///   are definitely distinct: the join is a corner there, not a smooth
+///   join, and the rule has no description to choose for it.
+///
+/// **Each station is gated first-order before it is metered
+/// second-order.** [`tangent_second_order`]'s transverse direction
+/// `n̂₁ × τ̂` is tangent to both surfaces only where their normals are
+/// parallel, so off a smooth join its reading depends on the argument
+/// order. Each station therefore asks [`classify_dihedral`] first —
+/// symmetric in its two surfaces, levered against the same
+/// [`folded_lever_arm`] — and only a `Smooth` station reaches the jet.
+/// The arm is classified before any angle, so over an extent inside
+/// the band's escalation threshold a genuine tangency answers `InBand`
+/// under `"dihedral_arm"`, not `UnderDetermined`.
 ///
 /// **The verdict is the whole answer, and the only number that rides
 /// with it is the DECIDING station's.** A reading taken beside the
@@ -334,10 +350,10 @@ pub struct SecondOrder<T: geom_core::Real> {
 /// cause would report a margin that passed. The station that decided
 /// is the one a caller has to name, and it is already inside
 /// [`MustCarryVerdict::InBand`]'s [`Indeterminate`]: its margin, its
-/// band and the predicate it was classified under. On the two definite
-/// verdicts there is no cause to report, and a caller that wants the
-/// jet re-reads it at the station it cares about through
-/// [`tangent_second_order`].
+/// band and the predicate it was classified under. The three other
+/// verdicts carry no cause — `Transverse` does not name its station
+/// either — and a caller that wants the jet re-reads it at the station
+/// it cares about through [`tangent_second_order`].
 ///
 /// **The lane gate comes first, before any metering.**
 /// [`crate::tangent_certificate_lane`] says whether the jet
@@ -349,13 +365,20 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///
 /// **The stations are the certification schedule's interior**
 /// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]), read in
-/// order, the first non-`Positive` station deciding — the same walk,
-/// in the same order, with the same early exit as the tier-3
-/// must-carry arm that re-asks this question of the stored
-/// description. That is what keeps the demanded set and the stored set
-/// ONE set: a constructor reading a coarser schedule can store a
+/// order, the first station that is not `Smooth` first-order or not
+/// `Positive` second-order deciding. The stations are the tier-3
+/// must-carry arm's, which re-asks this question of the stored
+/// description, and that is what keeps the demanded set and the stored
+/// set ONE set: a constructor reading a coarser schedule can store a
 /// description tier 3 then refuses, and one reading a finer schedule
-/// can refuse what tier 3 would have accepted.
+/// can refuse what tier 3 would have accepted. The ORDER differs:
+/// tier 3 classifies every station first-order before it descends,
+/// while this walk interleaves the two readings per station. The two
+/// agree on an edge whose stations all read one first-order class; on
+/// a mixed edge this walk answers from whichever reading decides
+/// first, where tier 3 escalates at any first-order in-band station
+/// and attaches no must-carry to an edge that is not smooth
+/// throughout.
 ///
 /// **Why the extra stations never disagree on the joins this kernel
 /// mints**, stated because it is an argument and not a licence to read
@@ -371,7 +394,7 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///
 /// **The one home** [`folded_lever_arm`]'s doc calls aspirational, one
 /// level up: the fold has a single spelling and so does the metered
-/// margin, but the EDGE-level rule — gate, stations, three-way policy
+/// margin, but the EDGE-level rule — gate, stations, verdict policy
 /// — was spelled once per caller, and the spellings disagreed on the
 /// in-band case. A new constructor spelling its own is that
 /// disagreement again.
@@ -390,6 +413,11 @@ pub fn must_carry_over_edge<T: Decide>(
     for i in 1..crate::CERT_SAMPLES - 1 {
         let t = crate::sample_param(t0, t1, i);
         let (p, tau) = carrier.ders1(t);
+        match classify_dihedral(s1, s2, p, extent, band) {
+            Ok(DihedralClass::Smooth) => {}
+            Ok(DihedralClass::Transverse) => return MustCarryVerdict::Transverse,
+            Err(source) => return MustCarryVerdict::InBand(source),
+        }
         let reading = tangent_second_order(s1, s2, p, tau, extent, band);
         match reading.verdict {
             Ok(Sign::Positive) => {}
@@ -400,22 +428,39 @@ pub fn must_carry_over_edge<T: Decide>(
     MustCarryVerdict::JetDeterminate
 }
 
-/// [`must_carry_over_edge`]'s three-way verdict.
+/// [`must_carry_over_edge`]'s verdict.
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub enum MustCarryVerdict {
     /// Every interior station of the certification schedule read a
     /// definitely-positive second-order separation: the intrinsic
     /// description is demanded.
     JetDeterminate,
-    /// The conventional description is the honest one — the pair is
-    /// outside [`crate::tangent_certificate_lane`], or a station's
-    /// second-order separation was definitely `Zero`/`Negative` (a G2
-    /// join, a same-surface split, coplanar planes).
+    /// No intrinsic tangency is demanded, for one of two reasons.
+    ///
+    /// - A first-order smooth station's second-order separation was
+    ///   definitely `Zero`/`Negative` (a G2 join, a same-surface split,
+    ///   coplanar planes): the conventional description is the honest
+    ///   one, by this predicate.
+    /// - The pair is outside [`crate::tangent_certificate_lane`]: the
+    ///   certificate cannot store an intrinsic tangency there, so the
+    ///   rule reads NO station, first-order or second. This answers
+    ///   only that the intrinsic tangency is unavailable; it says
+    ///   nothing about whether the join is smooth, and a transverse
+    ///   pair out of lane reads this verdict too.
     UnderDetermined,
     /// A station was in-band: near-osculating geometry, certifiable as
     /// neither, carrying that station's escalation for the caller to
-    /// refuse typed.
+    /// refuse typed. The escalation is either station reading's — the
+    /// first-order wedge (`"dihedral_wedge"`/`"dihedral_arm"`) or the
+    /// second-order sagitta (`"tangent_second_order"`).
     InBand(Indeterminate),
+    /// A station's tangent planes are definitely distinct
+    /// ([`DihedralClass::Transverse`]): the join is not first-order
+    /// smooth, so the second-order question was never posed there and
+    /// the rule has no description to choose. The edge is a corner at
+    /// that station, and a caller whose premise was a smooth join has
+    /// had that premise refuted.
+    Transverse,
 }
 
 /// **The material wedge** an edge's two faces subtend at a sample —

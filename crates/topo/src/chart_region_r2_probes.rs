@@ -1,7 +1,7 @@
 //! Blinded review R2 probes for M9-2 PR-1's chart-region predicate.
 //! Adversarial only — nothing here ships; the module is `cfg(test)`.
 
-use super::tests::{band, face_of, pt, rect, sheet, uv, xy_plane, xy_plane_rotated};
+use super::tests::{band, face_of, rect, sheet, uv, xy_plane, xy_plane_rotated};
 use super::*;
 use crate::euler::FaceSurface;
 use crate::source::GeomSource;
@@ -14,7 +14,7 @@ use geom_core::{Point3, Vec3};
 
 fn harmonic(pa: (f64, f64), pb: (f64, f64)) -> Pcurve<f64> {
     Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(pa.0, pa.1),
         pb: Vec2::new(pb.0, pb.1),
         pl: Vec2::new(1.0, 0.0),
@@ -53,7 +53,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
     // is the conservative direction, and it is what "no scalar
     // zero-test on T" costs.
     let p = Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(1.0, 0.0),
         pb: Vec2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 0.0),
@@ -61,7 +61,7 @@ fn probe_line_like_but_not_structurally_zero_refuses() {
     assert!(pcurve_entry(&p, 0.0, 1.0, true).is_err());
     // A genuinely curved image (u sinusoid, v linear) also refuses.
     let q = Pcurve::Harmonic {
-        p0: pt(0.0, 0.0),
+        p0: Point2::new(0.0, 0.0),
         pa: Vec2::new(1.0, 0.0),
         pb: Vec2::new(0.0, 0.0),
         pl: Vec2::new(0.0, 1.0),
@@ -304,13 +304,13 @@ fn probe_collinear_runs_do_not_disturb_the_walk() {
     // A's bottom edge carries three extra COLLINEAR vertices.
     let a = face_of(
         vec![
-            pt(0.0, 0.0),
-            pt(0.25, 0.0),
-            pt(0.5, 0.0),
-            pt(0.75, 0.0),
-            pt(1.0, 0.0),
-            pt(1.0, 1.0),
-            pt(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(0.25, 0.0),
+            Point2::new(0.5, 0.0),
+            Point2::new(0.75, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
         ],
         &[],
     );
@@ -329,18 +329,18 @@ fn probe_collinear_runs_do_not_disturb_the_walk() {
 fn probe_comb_yields_three_pieces_with_exact_area() {
     // A three-tooth comb crossed by a horizontal bar: three pieces.
     let comb = vec![
-        pt(0.0, 0.0),
-        pt(5.0, 0.0),
-        pt(5.0, 3.0),
-        pt(4.0, 3.0),
-        pt(4.0, 1.0),
-        pt(3.0, 1.0),
-        pt(3.0, 3.0),
-        pt(2.0, 3.0),
-        pt(2.0, 1.0),
-        pt(1.0, 1.0),
-        pt(1.0, 3.0),
-        pt(0.0, 3.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(5.0, 0.0),
+        Point2::new(5.0, 3.0),
+        Point2::new(4.0, 3.0),
+        Point2::new(4.0, 1.0),
+        Point2::new(3.0, 1.0),
+        Point2::new(3.0, 3.0),
+        Point2::new(2.0, 3.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 3.0),
+        Point2::new(0.0, 3.0),
     ];
     let a = face_of(comb, &[]);
     let bar = face_of(rect(-1.0, 2.0, 6.0, 2.5), &[]);
@@ -394,7 +394,12 @@ fn probe_bit_identical_fast_path_is_rotation_stable() {
     let a = face_of(rect(0.0, 0.0, 1.0, 1.0), &[]);
     // Same cycle, rotated start vertex.
     let b = face_of(
-        vec![pt(1.0, 0.0), pt(1.0, 1.0), pt(0.0, 1.0), pt(0.0, 0.0)],
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+        ],
         &[],
     );
     assert!(bit_equal_cyclic(&a.outer, &b.outer));
@@ -486,7 +491,12 @@ fn probe_all_vertices_on_the_other_boundary_never_answers_empty() {
     let b = face_of(rect(0.0, 0.0, 2.0, 2.0), &[]);
     // (i) the inscribed diamond on B's edge midpoints.
     let diamond = face_of(
-        vec![pt(1.0, 0.0), pt(2.0, 1.0), pt(1.0, 2.0), pt(0.0, 1.0)],
+        vec![
+            Point2::new(1.0, 0.0),
+            Point2::new(2.0, 1.0),
+            Point2::new(1.0, 2.0),
+            Point2::new(0.0, 1.0),
+        ],
         &[],
     );
     let got = overlap_of_regions(&diamond, &b, false, band());
