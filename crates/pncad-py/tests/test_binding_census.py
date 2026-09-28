@@ -2635,6 +2635,14 @@ NOT_BOUND = {
     "Mispaired": INTERIOR,
     "NameTable": INTERIOR,
     "Operand": INTERIOR,
+    # `BooleanError::CurvedPairUnsupported`'s SITE: which door refused
+    # the pair (the operand gate, the ∖/∩ revert roster, or the
+    # crossings path's interior-loop guard). Carried in Rust so a
+    # consumer matching that variant can name the field's type;
+    # interior here because Python never holds one. The refusal crosses
+    # as its tag word plus prose, and the guard's prose is its own
+    # sentence, so a Python caller reads the site in the message.
+    "PairRefusalSite": INTERIOR,
     # The frame WITNESS — an origin and a right-handed orthonormal
     # triple, minted where its axes were decided. Python never holds
     # one: `SketchPlane.from_frame` takes the two directions a caller
