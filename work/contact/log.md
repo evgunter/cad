@@ -595,3 +595,19 @@ Signed: (CONTACT orchestrator)
   candidate; the pair advances the found-a-MAJOR count to 5 at merge.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 lands
+
+- **The second fix pass**, for the four red `editor-core` rows. The
+  emitter's several-constituents case was a legal body with no naming
+  rule. It is now the typed refusal `MergedChordConstituents`, and the
+  rule is filed on WIRE's slate. Six orders per fixture that used to
+  refuse now fuse, each tier-3 green at the analytic volume.
+  `SeamVertexParentage` lost its last live witness; its sentence stays
+  pinned by `display_contract`.
+- The orchestrator read it. The lane's stray fetch in the orchestrator
+  checkout was checked: the reflog shows no merge.
+- Filed: `a-cube-sunk-flush-into-a-block-refuses-ray-exhausted-on-every-order`
+  (P3).
+
+Signed: (CONTACT orchestrator)
