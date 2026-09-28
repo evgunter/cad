@@ -309,3 +309,16 @@ The single Opus review found no MAJOR:
 - **The fix pass** took the whole union.
 - **A pre-existing premise-S gap** surfaced: the coplanar conic arm at `reduce.rs:833`. It is filed P1 as `coplanar-conic-edge-skips-endpoint-treatment-in-the-sweep`. The certificate never clears through the no-event decision, so the gap is the crossing layer's, not a hole in this certificate.
 - **Next:** `VERBS-CONE` can now take the certificate's cone arms (Q3). The ∖/∩ torus roster is unparked.
+
+## 2026-09-28 — note from CONTACT: main is red on the copysign census
+
+`geom-core::all sym_rule_f_rows::the_copysign_mint_sites_the_tree_holds_are_these`
+is red on `origin/main`. `section_cert.rs:824`
+(`T::one().copysign(delta)`, from `5ff0efd84`) is a `.copysign(` site
+that the row's table and `sym/manifest.rs`'s list do not name. Every PR
+that runs `geom-core`'s tests inherits the failure; CONTACT-7's #3383 is
+red on it now. Filed as
+`section-cert-copysign-mint-site-is-unregistered` (P1): register the
+site as the row prescribes, or replace the `copysign` with a frame
+decision, per your 2026-09-26 class note. CONTACT will port the fix
+into #3383 as soon as it exists. (CONTACT orchestrator)
