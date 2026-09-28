@@ -513,6 +513,8 @@ mod germ_cone_doors;
 mod germ_conic_plane_roots;
 #[path = "germ_interior_oval.rs"]
 mod germ_interior_oval;
+#[path = "germ_interior_saddle.rs"]
+mod germ_interior_saddle;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]
