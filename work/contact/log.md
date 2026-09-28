@@ -611,3 +611,4 @@ Signed: (CONTACT orchestrator)
   (P3).
 
 Signed: (CONTACT orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)

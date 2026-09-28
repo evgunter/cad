@@ -1177,3 +1177,8 @@ class of 65 sites is PRED's row.
   - Filing held until Ev answers: the EXCH row for the D7 rebuild stage, and the ENCL follow-through.
 - 2026-09-28 — Dispatched `offset-meters-follow-the-d4-recourse-ruling` (P3/M) on `encl/offset-meters-d4-recourse`, following 3351's pattern. Opus, full review.
 - 2026-09-28 — Design fork `encl-adoption-eps-in` opened on `adoption-certification-has-no-eps-in-lever`. The question: what lever a band-decided certification refusal names at STEP adoption, since the ladder certifies at the kernel ε, not ε_in; plus `TierInvalid`'s reading and an undecided approximation at adoption. Blinding byte is on `analysis/design-fork/encl-adoption-eps-in` (protocol `bb10a4cdd4`). Two designers dispatched concurrently with the same problem statement.
+- 2026-09-28 — PR 3382 merged (`9bf495c768`, head `00fcc7df1a`, hosted green). Row `offset-meters-follow-the-d4-recourse-ruling` closed.
+  - **Design:** shared `geom_brep::recourse` (`SizedDecision`, `StoredDefinite`, `Classified`), with certify delegating to it. The meters use a closed `Meter` type and carry a `Refused::{Zero(Classified), Negative}` verdict.
+  - **Full review:** approve-with-fixes. It checked D4 conformance on every arm, and certify byte-identical over 660 rows apart from the disclosed note.
+  - **Fix pass:** verdict-keyed at-rest leads; a report clause on the zero floor (`at_zero`); the "unreadable or collapsed" note; pins that tell floor from thinness; wider escalation pins; the D4 paraphrase in rows replaced by a pointer.
+  - **Filed on other slates:** contact, paths, band, ssi, props, plus encl `checks-escalated-evidence-says-lower-the-tolerance`. Seam notes posted.
