@@ -346,7 +346,7 @@ impl core::fmt::Display for IdNews {
     /// path's news and is said in its own words ([`compare`]).
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         match self {
-            Self::Disagreement(disagreement) => disagreement.fmt(f),
+            Self::Disagreement(disagreement) => core::fmt::Display::fmt(disagreement, f),
             Self::BesideRefusal(from_gpu) => write!(f, "id buffer at the cursor: {from_gpu}"),
         }
     }

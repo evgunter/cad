@@ -1935,8 +1935,11 @@ mod tests {
             .foreign
             .evaluation()
             .expect("the other document lands");
-        let refusal = index
-            .faces_under_cursor(foreign, &camera, pane, cursor, &hidden)
+        // The refusal is planted where a ray is still asked of a drawn
+        // part: `compare` reads only that the ray refused.
+        let refusal = fixture
+            .index
+            .faces_under_cursor(foreign, &camera, pane, cursor, &DisplayView::none())
             .expect_err("an evaluation of another document is refused");
         assert_eq!(
             idpass::compare(&index, &hidden, answer, Some(serial), Err(&refusal)),
