@@ -829,3 +829,24 @@ tube escalates on 88% of probes), CONTACT having no orchestrator
 either; an `[ev]`-shaped row on EXCH (import's per-instance gate reads
 every assembly face twice now that check 7 is per solid, and retiring
 it changes DESIGN import step 4's text).
+
+## 2026-09-27 — the last three land as one batch; ATREST closes
+
+ATREST-7 (check 10, shell winding 0/1), ATREST-12 (check 9's nesting arm
+through the carrier walk) and ATREST-13 (check 1/6 follow-ups) landed
+together in #3325, per Ev's CI note. The batch's hosted run (36383525533)
+was green on all six test rows and all five k-lint rows. Its rustfmt and
+rustdoc steps failed, on two merge artefacts: the `pt(` → `Point3::new(`
+swap needed rustfmt, and two doc links still named
+`splitting::point_in_carrier_loop` after the function moved under
+`splitting::containment`. Both were fixed and re-checked locally
+(`cargo fmt --all --check`, `scripts/doc-gate.sh`), and the batch merged
+`[skip ci]` after a clean merge of main and a local `cargo check
+--all-targets` on the five crates main had touched.
+
+Every unit is closed. The plan set no exit criteria, so the program
+closes without a walk. Thirteen rows remain — the validator's
+not-yet-checked list and its costs — and they cohere into one track, so
+they move by `git mv`, ids kept, to RESTFRONT (`work/restfront/`), opened
+for them. `docs/doc-ledger/atrest-leaves-the-tracker.md` is the
+done-state of record.
