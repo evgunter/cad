@@ -21,7 +21,9 @@ use geom_core::k_stats::{self, MarginSample, Probe};
 /// One sample by its bits, sortable: the two passes' orders differ
 /// (tier 3 makes check 7 after checks 8 and 9, tier 3′ before), so the
 /// comparison is of multisets.
-fn bits(s: &MarginSample) -> (&'static str, u64, u64, u64, String) {
+type Bits = (&'static str, u64, u64, u64, String);
+
+fn bits(s: &MarginSample) -> Bits {
     (
         s.predicate,
         s.margin.to_bits(),
@@ -31,7 +33,7 @@ fn bits(s: &MarginSample) -> (&'static str, u64, u64, u64, String) {
     )
 }
 
-fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<(&'static str, u64, u64, u64, String)>) {
+fn recorded<R>(f: impl FnOnce() -> R) -> (R, Vec<Bits>) {
     k_stats::start_recording();
     let out = f();
     let mut samples: Vec<_> = k_stats::take_samples().iter().map(bits).collect();
