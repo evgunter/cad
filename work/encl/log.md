@@ -933,3 +933,13 @@ class of 65 sites is PRED's row.
   - Headroom rejected: the derived δ≈0.8 makes minting ×4–5 dearer, and turns some faces into mint refusals.
   - Residue at 1e-12 (4 of 93 re-fits stall) filed as `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`. SSI sibling filed.
   - Single full review dispatched. Its focus: the transform now re-mints (determinism, identity, composition) and no laundering.
+- 2026-09-28 — The PR 3332 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: no laundering (the gate mutation goes red); the fixture reproduces the refusal and goes red on revert; the success path is bit-identical; determinism holds; the O2 sentence is agent-written (c4f5d26cdc).
+  - Fixes, all taken:
+    - the stale refusal census in `refusal_concision_chains.rs`;
+    - the doc overclaim: edges that ride the old fit's bits and in-band meters can still refuse after a re-fit (one new encl row, latent);
+    - `rounds` doc, a guard on the 0.44 number, and pinning the Limb-only branch;
+    - `mint` returns `Arc<ApproxSurface>` if cheap;
+    - Display wording, doc trim, and the territory line in the PR body.
+  - Seam notes posted on the offset and shell logs.
+  - Fix pass sent back to the lane.
