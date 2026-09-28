@@ -1236,8 +1236,8 @@ fn curved_face_arm<T: Decide>(
                 circle_clearance(&surface, &curve, center, axis, radius, u_ref, band)
                     .ok_or_else(frontier)?
             };
-            return match clearance {
-                Ok(Sign::Positive) => Ok(CurvedEvent::None),
+            match clearance {
+                Ok(Sign::Positive) => return Ok(CurvedEvent::None),
                 // The declared-cover rung: a covered zero-clearance
                 // circle takes the planar sweep's endpoint posture —
                 // each endpoint's own side decides its treatment
@@ -1319,15 +1319,28 @@ fn curved_face_arm<T: Decide>(
                             Sign::Negative => return Err(frontier()),
                         }
                     }
-                    if Placement::records_the_pair(ends) {
+                    return if Placement::records_the_pair(ends) {
                         Ok(CurvedEvent::Recorded)
                     } else {
                         Err(frontier())
-                    }
+                    };
                 }
-                Ok(Sign::Zero | Sign::Negative) => Err(frontier()),
-                Err(diag) => Err(BooleanError::Escalated { diag }),
-            };
+                // **The circle × torus root lane.** An arc the
+                // enclosures could not clear against a TORUS takes the
+                // same endpoint-sign arms as a line below, and the
+                // certified roots of [`super::circle_torus`] decide
+                // every one of them through [`wall_crossing`]. Those
+                // arms never read convexity for a torus (its residual is
+                // not convex along a line either), so nothing they
+                // conclude rests on the carrier being straight; the
+                // declared-cover arms below, which do rest on a line's
+                // separation story, are closed to a circle by their
+                // guards.
+                Ok(Sign::Zero | Sign::Negative)
+                    if matches!(surface, geom::Surface::Torus { .. }) => {}
+                Ok(Sign::Zero | Sign::Negative) => return Err(frontier()),
+                Err(diag) => return Err(BooleanError::Escalated { diag }),
+            }
         }
         _ => return Err(frontier()),
     }
@@ -1338,6 +1351,9 @@ fn curved_face_arm<T: Decide>(
             band,
         )
     };
+    // The declared-cover arms rest on a LINE's separation story; a
+    // circle that reaches the endpoint arms is the torus root lane's.
+    let on_line = matches!(curve.carrier(), geom::Curve3::Line { .. });
     let s1 = side(pu).map_err(|diag| BooleanError::Escalated { diag })?;
     let s2 = side(pv).map_err(|diag| BooleanError::Escalated { diag })?;
     match (s1, s2) {
@@ -1374,7 +1390,7 @@ fn curved_face_arm<T: Decide>(
         // unchanged; only the example it reached for was superseded. A
         // NEGATIVE partner is a genuine crossing — never the covered
         // posture. Uncovered keeps both frontier doors verbatim.
-        (Sign::Zero, Sign::Zero) if covered => {
+        (Sign::Zero, Sign::Zero) if covered && on_line => {
             let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             // An endpoint the containment door cannot decide keeps the
@@ -1388,7 +1404,7 @@ fn curved_face_arm<T: Decide>(
                 Err(frontier())
             }
         }
-        (Sign::Zero, Sign::Positive) if covered => {
+        (Sign::Zero, Sign::Positive) if covered && on_line => {
             let h = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)
@@ -1396,7 +1412,7 @@ fn curved_face_arm<T: Decide>(
                 Err(frontier())
             }
         }
-        (Sign::Positive, Sign::Zero) if covered => {
+        (Sign::Positive, Sign::Zero) if covered && on_line => {
             let h = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
             if Placement::records_the_pair([Some(h), None]) {
                 Ok(CurvedEvent::Recorded)

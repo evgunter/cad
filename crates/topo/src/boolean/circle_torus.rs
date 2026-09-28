@@ -238,3 +238,309 @@ pub(super) fn circle_torus_roots<T: Decide>(
     }
     Ok(CircleTorusRoots::Uncertain)
 }
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used, clippy::panic, clippy::float_cmp)]
+mod tests {
+    //! The door against an independent oracle: `F` sampled densely over
+    //! the whole turn and each sign change bisected — simple roots only,
+    //! which is the regime the door answers in. Each named pose is one
+    //! of the lane's classifications, so a branch answered wrongly goes
+    //! red on the pose that reaches it.
+
+    use super::*;
+    use geom_core::{Bounds, Interval, Tol};
+
+    const R: f64 = 1.0;
+    const RT: f64 = 0.25;
+
+    fn band() -> Band {
+        Band::linear(Tol::witness()).unwrap()
+    }
+
+    fn torus<T: geom_core::Real>() -> geom::Surface<T> {
+        geom::Surface::Torus {
+            center: Point3::new(T::zero(), T::zero(), T::zero()),
+            axis: Vec3::new(T::zero(), T::zero(), T::one()),
+            major_radius: T::from_f64(R),
+            minor_radius: T::from_f64(RT),
+            u_ref: Vec3::new(T::one(), T::zero(), T::zero()),
+        }
+    }
+
+    /// A circle pose: centre, unit axis, radius, unit `u_ref ⟂ axis`.
+    #[derive(Clone, Copy)]
+    struct Pose {
+        c: [f64; 3],
+        n: [f64; 3],
+        rho: f64,
+        u: [f64; 3],
+    }
+
+    fn v3<T: geom_core::Real>(a: [f64; 3]) -> Vec3<T> {
+        Vec3::new(T::from_f64(a[0]), T::from_f64(a[1]), T::from_f64(a[2]))
+    }
+
+    fn point(pose: Pose, theta: f64) -> Point3<f64> {
+        let (n, u) = (v3::<f64>(pose.n), v3::<f64>(pose.u));
+        let v = n.cross(u);
+        Point3::new(pose.c[0], pose.c[1], pose.c[2]) + (u * theta.cos() + v * theta.sin()) * pose.rho
+    }
+
+    /// The torus's own implicit `F` at a point — the oracle's function.
+    fn big_f(p: Point3<f64>) -> f64 {
+        let s = p.x * p.x + p.y * p.y + p.z * p.z;
+        (s + R * R - RT * RT).powi(2) - 4.0 * R * R * (s - p.z * p.z)
+    }
+
+    /// Independent roots over `[t0, t1]`: sign changes on a fine grid,
+    /// bisected.
+    fn oracle(pose: Pose, t0: f64, t1: f64) -> Vec<f64> {
+        let n = 20_000;
+        let f = |t: f64| big_f(point(pose, t));
+        let mut out = Vec::new();
+        for i in 0..n {
+            let (mut a, mut b) = (
+                t0 + (t1 - t0) * f64::from(i) / f64::from(n),
+                t0 + (t1 - t0) * f64::from(i + 1) / f64::from(n),
+            );
+            if f(a) * f(b) > 0.0 {
+                continue;
+            }
+            for _ in 0..80 {
+                let m = 0.5 * (a + b);
+                if f(a) * f(m) <= 0.0 {
+                    b = m;
+                } else {
+                    a = m;
+                }
+            }
+            out.push(0.5 * (a + b));
+        }
+        out
+    }
+
+    fn door(pose: Pose, t0: f64, t1: f64) -> CircleTorusRoots<f64> {
+        circle_torus_roots(
+            Point3::new(pose.c[0], pose.c[1], pose.c[2]),
+            v3(pose.n),
+            pose.rho,
+            v3(pose.u),
+            t0,
+            t1,
+            &torus(),
+            band(),
+        )
+        .unwrap()
+    }
+
+    /// The door's roots that fall in `[t0, t1]`, sorted.
+    fn in_arc(pose: Pose, t0: f64, t1: f64) -> (usize, Vec<f64>) {
+        let CircleTorusRoots::Certified { count, thetas } = door(pose, t0, t1) else {
+            panic!("expected a certified count");
+        };
+        let mut ts: Vec<f64> = thetas[..count]
+            .iter()
+            .copied()
+            .filter(|t| (t0..=t1).contains(t))
+            .collect();
+        ts.sort_by(f64::total_cmp);
+        (count, ts)
+    }
+
+    fn assert_matches_oracle(label: &str, pose: Pose, t0: f64, t1: f64, want_count: usize) {
+        let (count, ts) = in_arc(pose, t0, t1);
+        let want = oracle(pose, t0, t1);
+        assert_eq!(count, want_count, "{label}: certified count over the turn");
+        assert_eq!(ts.len(), want.len(), "{label}: roots in the arc {ts:?} vs {want:?}");
+        for (a, b) in ts.iter().zip(&want) {
+            assert!((a - b).abs() < 1e-9, "{label}: root {a} vs oracle {b}");
+            assert!(big_f(point(pose, *a)).abs() < 1e-9, "{label}: F at {a}");
+        }
+    }
+
+    /// Midplane, off-axis: the carrier crosses the OUTER equator twice
+    /// and the INNER equator twice — the inner-equator region, four
+    /// roots, which a two-root reading would halve.
+    #[test]
+    fn a_midplane_circle_through_both_equators_has_four_roots() {
+        let pose = Pose {
+            c: [1.0, 0.0, 0.0],
+            n: [0.0, 0.0, 1.0],
+            rho: 1.0,
+            u: [1.0, 0.0, 0.0],
+        };
+        assert_matches_oracle("full turn", pose, -3.0, 3.0, 4);
+        // An arc holding only the two inner-equator crossings.
+        let (_, ts) = in_arc(pose, 1.0, 3.0);
+        for t in &ts {
+            let p = point(pose, *t);
+            assert!(
+                ((p.x * p.x + p.y * p.y).sqrt() - (R - RT)).abs() < 1e-9,
+                "an inner-equator root at {t}"
+            );
+        }
+    }
+
+    /// A tilted, off-centre carrier: the generic pose, two roots on the
+    /// arc and the ladder's Ferrari arm (no symmetry sets `q̂` to zero).
+    #[test]
+    fn a_tilted_arc_crossing_the_tube_twice_matches_the_oracle() {
+        let s = 0.5_f64.sqrt();
+        let pose = Pose {
+            c: [1.3, 0.1, 0.05],
+            n: [0.0, s, s],
+            rho: 0.4,
+            u: [1.0, 0.0, 0.0],
+        };
+        let all = oracle(pose, -3.1, 3.1);
+        assert!(!all.is_empty(), "the pose must cross the tube");
+        assert_matches_oracle("tilted", pose, -3.1, 3.1, all.len());
+        // A short arc holding exactly the FIRST crossing: the door
+        // reports the whole turn's count, the arc's filter keeps one.
+        let (a, b) = (all[0] - 0.05, all[0] + 0.05);
+        assert_matches_oracle("tilted short arc", pose, a, b, all.len());
+    }
+
+    /// A circle in a meridian plane, crossing the tube's cross-section
+    /// twice: the parallel-to-axis family, with its `h` a pure harmonic.
+    #[test]
+    fn a_meridian_plane_circle_crosses_the_tube_twice() {
+        let pose = Pose {
+            c: [1.4, 0.0, 0.0],
+            n: [0.0, 1.0, 0.0],
+            rho: 0.3,
+            u: [1.0, 0.0, 0.0],
+        };
+        assert_matches_oracle("meridian", pose, -3.0, 3.0, 2);
+    }
+
+    /// Tangent to the outer equator from outside: a double root, which
+    /// the ladder must refuse rather than read as two crossings or none.
+    #[test]
+    fn a_tangent_circle_is_uncertain() {
+        let pose = Pose {
+            c: [2.0, 0.0, 0.0],
+            n: [0.0, 0.0, 1.0],
+            rho: 2.0 - (R + RT),
+            u: [1.0, 0.0, 0.0],
+        };
+        assert!(
+            matches!(door(pose, 2.0, 4.0), CircleTorusRoots::Uncertain),
+            "a graze is not a certified count"
+        );
+    }
+
+    /// Coaxial with the torus: constant residual, answered before the
+    /// quartic (whose complex double pair would read as a tangency).
+    /// Both a carrier clear of the tube and one lying ON it (the outer
+    /// equator) answer `Coaxial`.
+    #[test]
+    fn a_coaxial_circle_is_answered_coaxial() {
+        for (z, rho) in [(0.1, 3.0), (0.0, R + RT)] {
+            let pose = Pose {
+                c: [0.0, 0.0, z],
+                n: [0.0, 0.0, 1.0],
+                rho,
+                u: [1.0, 0.0, 0.0],
+            };
+            assert!(
+                matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Coaxial),
+                "coaxial at z {z}, radius {rho}"
+            );
+        }
+    }
+
+    /// A carrier ON the torus but not coaxial (a meridian circle of the
+    /// tube): `F ≡ 0`, so no pole is definite and the door refuses —
+    /// what keeps an on-carrier circle from any recording arm.
+    #[test]
+    fn a_circle_lying_on_the_torus_is_uncertain() {
+        let pose = Pose {
+            c: [R, 0.0, 0.0],
+            n: [0.0, 1.0, 0.0],
+            rho: RT,
+            u: [1.0, 0.0, 0.0],
+        };
+        assert!(matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Uncertain));
+    }
+
+    /// Clear of the torus: a certified zero count.
+    #[test]
+    fn a_clear_circle_is_a_miss() {
+        let pose = Pose {
+            c: [4.0, 0.0, 0.3],
+            n: [0.3_f64.sin(), 0.0, 0.3_f64.cos()],
+            rho: 1.0,
+            u: [0.3_f64.cos(), 0.0, -(0.3_f64.sin())],
+        };
+        assert!(matches!(door(pose, 0.0, 1.0), CircleTorusRoots::Miss));
+    }
+
+    /// The pole lands ON the torus at the arc's antipode: the first
+    /// anchor is refused and a shifted one answers, with the same roots.
+    #[test]
+    fn a_pole_on_the_torus_moves_the_anchor() {
+        let pose = Pose {
+            c: [1.0, 0.0, 0.0],
+            n: [0.0, 0.0, 1.0],
+            rho: 1.0,
+            u: [1.0, 0.0, 0.0],
+        };
+        // The carrier meets the outer equator where |C(θ)| = 1.25;
+        // centre the arc on the antipode of that root.
+        let root = oracle(pose, 0.0, 3.0)[0];
+        let mid = root - core::f64::consts::PI;
+        assert_matches_oracle("pole on the torus", pose, mid - 0.5, mid + 0.5, 4);
+    }
+
+    /// The interval lane: the same poses, and every certified root
+    /// enclosure contains the oracle's root.
+    #[test]
+    fn the_interval_lane_encloses_the_oracle_roots() {
+        let s = 0.5_f64.sqrt();
+        for pose in [
+            Pose {
+                c: [1.0, 0.0, 0.0],
+                n: [0.0, 0.0, 1.0],
+                rho: 1.0,
+                u: [1.0, 0.0, 0.0],
+            },
+            Pose {
+                c: [1.3, 0.1, 0.05],
+                n: [0.0, s, s],
+                rho: 0.4,
+                u: [1.0, 0.0, 0.0],
+            },
+        ] {
+            let got = circle_torus_roots::<Interval>(
+                Point3::new(
+                    Interval::from_f64(pose.c[0]),
+                    Interval::from_f64(pose.c[1]),
+                    Interval::from_f64(pose.c[2]),
+                ),
+                v3(pose.n),
+                Interval::from_f64(pose.rho),
+                v3(pose.u),
+                Interval::from_f64(-3.1),
+                Interval::from_f64(3.1),
+                &torus(),
+                band(),
+            )
+            .unwrap();
+            let CircleTorusRoots::Certified { count, thetas } = got else {
+                panic!("interval lane: expected a certified count");
+            };
+            let want = oracle(pose, -3.1, 3.1);
+            assert_eq!(count, want.len(), "interval count");
+            for w in want {
+                assert!(
+                    thetas[..count]
+                        .iter()
+                        .any(|t| t.lo() - 1e-12 <= w && w <= t.hi() + 1e-12),
+                    "oracle root {w} in no enclosure {thetas:?}"
+                );
+            }
+        }
+    }
+}
