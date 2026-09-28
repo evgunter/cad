@@ -78,7 +78,8 @@ use geom_core::spline::SplineError;
 use geom_core::spline::algebra::{GridSkip, domain_grid_points};
 use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3};
 
-use crate::certify::{CERT_SAMPLES, CertCheck, Reading, RefusedArm, recourse};
+use crate::certify::{CERT_SAMPLES, CertCheck, recourse};
+use crate::recourse::{Reading, RefusedArm};
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
 /// What the plane × NURBS lane proved, in meters unless noted.
@@ -199,7 +200,7 @@ impl PlaneNurbsRefusal {
         match self {
             Self::NotTransverse { .. } => Some(recourse(
                 CertCheck::Transversality,
-                RefusedArm::Zero,
+                RefusedArm::Zero(None),
                 reading,
             )),
             Self::TransversalityEscalated { cause, .. } => Some(recourse(
