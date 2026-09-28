@@ -252,6 +252,17 @@ In chat:
 The derive-cusp-legality unit (Ev's ruling on PR 3317) is running on
 `gather/derive-cusp-legality`, single FULL review.
 
+## 2026-09-28 — the cusp is derived at rest (PR 3362)
+
+`product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares`
+closes on `gather/derive-cusp-legality`: check 4's material arm holds a
+wedge end legal iff jet-determinate, the declared-arm plumbing retires,
+and a `.cusp()` extrude, revolve, pattern, split half and strut-clear
+boolean gather through `product` (the loft passes with its seam
+unjudged by kind). The FULL review's fix pass landed on the same branch.
+Filed: `restfront/check-4-gives-no-arm-verdict-to-a-mixed-or-nurbs-adjacent-edge`;
+the audit row `every-op-that-can-mint-a-wedge-end-refuses-an-undeclared-one`
+rose to P2 (STEP import admits an undeclared cusp body).
 ## 2026-09-28 — wire.rs gets its editorial pass (PR 3365)
 
 Ev ruled a one-time editorial pass (in chat) and a standing
