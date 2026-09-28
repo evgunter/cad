@@ -7,8 +7,8 @@
 //!
 //! The rows run the reproducer end to end (`a = [0,1]³`,
 //! `f = [0.5,1.5]² × [0,1]`, then a third brick `c`), a seam that bends
-//! twice around a hole, and the step refusal a planar group the merge
-//! cannot glue earns.
+//! twice around a hole, and a through-hole plugged three ways, whose
+//! rim is a doubled cycle the pruning takes down to its last edge.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -18,8 +18,8 @@ use common::{brick, describe_as_intersections, flush_declarations, holed_block, 
 use geom_core::Tol;
 use topo::validate::{validate_closed, validate_geometric};
 use topo::{
-    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary,
-    MergeCoplanarError, mass_properties, union_with, validate_pseudomanifold,
+    Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanResult, LoopBoundary, Operand,
+    mass_properties, union_with, validate_pseudomanifold,
 };
 
 fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
@@ -29,18 +29,27 @@ fn unwrap_body(r: BooleanResult<f64>) -> BooleanBody<f64> {
     bb
 }
 
+/// The height every outer-loop vertex of `f` lies at, if they share one.
+fn face_height(b: &Body<f64>, f: topo::FaceKey) -> Option<f64> {
+    let face = b.get_face(f)?;
+    let LoopBoundary::Cycle { first } = b.get_loop(face.outer)?.boundary else {
+        return None;
+    };
+    let zs: Vec<f64> = b
+        .loop_cycle(first)?
+        .into_iter()
+        .map(|he| {
+            let v = b.get_half_edge(he).unwrap().start;
+            b.get_point(b.get_vertex(v).unwrap().point).unwrap().z
+        })
+        .collect();
+    zs.iter().all(|&z| z == zs[0]).then_some(zs[0])
+}
+
 /// The faces of `b` whose every outer-loop vertex lies at height `z`.
 fn faces_at_height(b: &Body<f64>, z: f64) -> usize {
     b.faces()
-        .filter(|(_, face)| {
-            let LoopBoundary::Cycle { first } = b.get_loop(face.outer).unwrap().boundary else {
-                return false;
-            };
-            b.loop_cycle(first).unwrap().into_iter().all(|he| {
-                let v = b.get_half_edge(he).unwrap().start;
-                b.get_point(b.get_vertex(v).unwrap().point).unwrap().z == z
-            })
-        })
+        .filter(|&(f, _)| face_height(b, f) == Some(z))
         .count()
 }
 
@@ -136,27 +145,37 @@ fn the_merged_union_refuses_an_undeclared_third_brick_across_operands() {
     let BooleanError::UndeclaredCoincidence { pair, .. } = &err else {
         panic!("expected an undeclared coincidence, got {err:?}");
     };
-    assert_ne!(pair[0].0, pair[1].0, "a cross-operand pair: {err:?}");
+    // The refused pair is exactly one the declarations would have
+    // covered: A's face and c's face, in that order, a flush pair.
+    let [(Operand::A, fa), (Operand::B, fb)] = *pair else {
+        panic!("a cross-operand (A, B) pair: {err:?}");
+    };
+    let flush = flush_declarations(&af.body, &c(), tol);
+    assert!(
+        flush
+            .coincident_faces
+            .iter()
+            .any(|d| (d.a, d.b) == (fa, fb)),
+        "({fa:?}, {fb:?}) is a flush pair of the two operands: {:?}",
+        flush.coincident_faces
+    );
+    // ...and it is the two BOTTOM caps: the merged union's octagonal
+    // bottom and c's bottom, the first flush pair the gate meets.
+    assert_eq!(face_height(&af.body, fa), Some(0.0), "{err:?}");
+    assert_eq!(face_height(&c(), fb), Some(0.0), "{err:?}");
 }
 
-/// **No contact record cites a deleted free end.** The pruning deletes
-/// the corner vertex of each cap's bent seam; a record citing it is
-/// consumed and drops under the strict rule, so every record the
-/// result carries resolves, and tier 3′ reads them green
-/// (`assert_green`). The rule itself, on a record that does cite a
-/// pruned vertex, is `boolean::ops`' `a_record_citing_a_pruned_free_end_drops`.
+/// **The bent seam's corner is deleted, and no record survives to
+/// cite it.** The union ships no contact records at all: every
+/// reduction record here rests at a seam vertex the zip fused, and is
+/// consumed there, before the merge runs. That is why the drop rule
+/// for a pruned vertex is pinned on the merge's real outcome in
+/// `boolean::ops`' `a_record_citing_a_pruned_free_end_drops` rather
+/// than here.
 #[test]
-fn every_carried_record_resolves_after_the_pruning() {
+fn the_bent_seams_corner_is_deleted_and_no_record_survives() {
     let bb = a_union_f();
-    let live = |v| bb.body.get_vertex(v).is_some();
-    let face = |f| bb.body.get_face(f).is_some();
-    for c in &bb.contacts.vv {
-        assert!(live(c.a) && live(c.b), "{c:?}");
-    }
-    for c in bb.contacts.a_on_b.iter().chain(&bb.contacts.b_on_a) {
-        assert!(live(c.vertex) && face(c.face), "{c:?}");
-    }
-    // The corner the pruning deleted is no vertex of the result.
+    assert_eq!(bb.contacts, Default::default(), "{:?}", bb.contacts);
     let at_corner = bb.body.vertices().any(|(_, v)| {
         let p = bb.body.get_point(v.point).unwrap();
         (p.x, p.y) == (1.0, 1.0)
@@ -212,29 +231,81 @@ fn a_bent_seam_around_a_hole_merges_to_one_ringed_cap() {
     assert_green(&bb, "U ∪ bar");
 }
 
-/// **A boolean refuses a planar group it was licensed to merge and
-/// cannot glue**, with the merge's own reason, rather than ship two
-/// coplanar caps the next boolean refuses. A through-hole plugged
-/// exactly, every flush pair declared: each cap and the plug's cap
-/// join, and the hole's four rim edges are a closed doubled cycle.
-/// The pruning takes three of them and leaves the fourth with both
-/// ends free — an isolated segment whose deletion leaves an empty ring
-/// the Euler inventory has no operator to remove.
-#[test]
-fn a_planar_group_the_merge_cannot_glue_refuses_the_step() {
+/// A block with a unit-square through-hole, `[0,3]×[0,2]×[0,2]` less
+/// `[1,2]×[0.5,1.5]`, described.
+fn holed() -> Body<f64> {
     let tol = Tol::witness();
     let mut block = holed_block::<f64>(3.0, &[1.5], tol);
     describe_as_intersections(&mut block, tol);
-    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), tol);
+    block
+}
+
+/// `holed() ∪ plug`, every flush pair declared, then a next union with
+/// a brick flush on the block's `x = 3` wall: both must run, publish
+/// no skip and stay green, at the volumes given.
+fn assert_plug_merges(plug: Body<f64>, volume: f64, what: &str) {
+    let tol = Tol::witness();
+    let block = holed();
     let decls = flush_declarations(&block, &plug, tol);
-    let err = union_with(&block, &plug, &decls, tol)
-        .expect_err("a planar group the merge cannot glue refuses the step");
-    println!("[plug] {err}");
-    let BooleanError::Merge(reason) = &err else {
-        panic!("expected the merge stage's refusal, got {err:?}");
-    };
-    assert!(
-        matches!(reason, MergeCoplanarError::ResultNotClosed { .. }),
-        "{reason:?}"
+    let bb = unwrap_body(
+        union_with(&block, &plug, &decls, tol)
+            .unwrap_or_else(|e| panic!("{what}: the plugged block merges, got {e:?}")),
     );
+    assert!(
+        bb.naming.merge_skipped.is_empty(),
+        "{what}: {:?}",
+        bb.naming.merge_skipped
+    );
+    assert_eq!(
+        mass_properties(&bb.body, tol).unwrap().volume,
+        volume,
+        "{what}"
+    );
+    assert_green(&bb, what);
+    println!(
+        "[plug] {what}: faces {} merge_groups {:?}",
+        bb.body.faces().count(),
+        bb.naming.merge_groups
+    );
+    let next = brick::<f64>((3.0, 4.0), (0.0, 2.0), (0.0, 2.0), tol);
+    let decls = flush_declarations(&bb.body, &next, tol);
+    let nb = unwrap_body(
+        union_with(&bb.body, &next, &decls, tol)
+            .unwrap_or_else(|e| panic!("{what}: the result is an operand, got {e:?}")),
+    );
+    assert!(nb.naming.merge_skipped.is_empty(), "{what}: next union");
+    assert_eq!(
+        mass_properties(&nb.body, tol).unwrap().volume,
+        volume + 4.0,
+        "{what}: next union"
+    );
+    assert_green(&nb, &format!("{what}, next union"));
+}
+
+/// **A hole plugged exactly merges into whole caps.** Each cap and the
+/// plug's cap join; the hole's rim edges are a closed doubled cycle
+/// with no free end, so `kemr` cuts it off as a ring, the pruning then
+/// takes its edges one free end at a time, and the last — both ends
+/// free — goes with its lone vertex and the ring. The block is whole.
+#[test]
+fn an_exactly_plugged_hole_merges_to_whole_caps() {
+    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 2.0), Tol::witness());
+    assert_plug_merges(plug, 12.0, "exact plug");
+}
+
+/// **A plug filling the hole's bottom half** merges the bottom cap
+/// whole and leaves the top of the hole open as a pocket.
+#[test]
+fn a_half_plugged_hole_merges_its_bottom_cap() {
+    let plug = brick::<f64>((1.0, 2.0), (0.5, 1.5), (0.0, 1.0), Tol::witness());
+    assert_plug_merges(plug, 11.0, "bottom-half plug");
+}
+
+/// **An oversized plug**, overlapping the hole's rim in area on every
+/// side: its caps' remainders are frames around the hole, and each cap
+/// merges whole.
+#[test]
+fn an_oversized_plug_merges_to_whole_caps() {
+    let plug = brick::<f64>((0.5, 2.5), (0.25, 1.75), (0.0, 2.0), Tol::witness());
+    assert_plug_merges(plug, 12.0, "oversized plug");
 }

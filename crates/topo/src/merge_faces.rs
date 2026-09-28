@@ -66,12 +66,11 @@ pub struct MergedGroup {
     /// Rings minted by intra-face shared-edge kills (`kemr` — a merged
     /// run that surrounds a hole grows a genuine ring), in mint order.
     pub rings_made: Vec<LoopKey>,
-    /// Vertices deleted by the dangling-seam pruning (`kev`), in kill
-    /// order — each the free end of a shared edge the glue left
-    /// dangling inside the merged face, deleted with that edge. None
-    /// was on the merged face's boundary, and none was fused into
-    /// another vertex: a contact record citing one is consumed and
-    /// drops, like a record citing any other dead entity.
+    /// Vertices deleted by the dangling-seam pruning, in kill order:
+    /// each the free end of a shared edge the glue left dangling inside
+    /// the merged face (the argument that this changes no region is
+    /// stated once, at the pruning in `merge_group`). A contact record
+    /// citing one is consumed and drops.
     ///
     /// Recorded rather than left implicit because this is the one
     /// thing the op destroys that no other field names: `absorbed`
@@ -793,8 +792,10 @@ enum EstablishedFact {
     AbsorbedFaceIsRingFree,
     /// The dying half-edge and its mate are in different loops.
     DyingHalvesAreInDifferentLoops,
-    /// The strut edge's two halves start at distinct vertices, which
-    /// `strut_tip`'s valence-one answer established.
+    /// The strut edge's two halves start at distinct vertices: the
+    /// valence-one answer `strut_tip` gives immediately before the
+    /// call is that fact's one spelling, so no second re-check
+    /// restates it.
     StrutHalvesHaveDistinctEnds,
     /// The duplicate edge's two halves share a loop, which the
     /// intra-face pass verified before choosing `kemr`.
@@ -852,7 +853,13 @@ impl EstablishedFact {
 /// | `ring_move` | `StaleKey`, `RingIsOuter` (C), `CrossShell` (C) |
 /// | `kef` | `StaleKey`, `UnclaimedHalfEdge`, `LoopCycleBroken`, `LoopNotCycle`, `SameLoop` (C), `SameFace` (**R**), `FaceHasRings` (C) |
 /// | `kev` | `StaleKey`, `UnclaimedHalfEdge`, `LoopNotCycle`, `OrbitBroken`, `SelfLoopEdge` (C) |
+/// | `mekr_chord` (a lone vertex's ring) | `StaleKey`, `StaleGeometry`, `LoopNotCycle`, `LoopNotEmpty`, `LoopCycleBroken`, `SameLoop`, `NotSameFace`, `RingIsOuter`, `Certification` |
 /// | `kemr` | `StaleKey`, `NotSameEdge`, `LoopNotCycle`, `LoopCycleBroken`, `EmptyAnchorsCollide`, `NotSameLoop` (C) |
+///
+/// The `mekr_chord` row and the `kev` after it run only on a planar
+/// survivor, which refuses the call whatever it raises, so where those
+/// refusals fall changes no outcome; the row's variants take the arms
+/// below as they stand.
 ///
 /// The variants the table does not name take the enum's verdict like
 /// any other variant this door does not contradict. One of them this
@@ -862,7 +869,7 @@ impl EstablishedFact {
 /// any group reaches the surgery. The rest belong to operators this
 /// door does not call: the attachment and split gates
 /// (`set_edge_curve`, `split_edge`), the make-side sites (`mev`,
-/// `mef`, `mekr`), `kvfs`, `kfmrh`'s cross-solid form and the
+/// `mef`), `kvfs`, `kfmrh`'s cross-solid form and the
 /// shell-move door. That is not a third arm: an arm the door cannot
 /// reach cannot be pinned, and a classification nothing can
 /// distinguish is documentation, which is what this table is. No
@@ -892,7 +899,8 @@ impl OpPlacement {
         match error {
             // ---- This door's own half: contradicts a re-checked
             // fact. Each arm's re-check is the `debug_assert!` that
-            // carries the same `EstablishedFact` in the surgery. ----
+            // carries the same `EstablishedFact` in the surgery, or,
+            // for the strut, `strut_tip`'s answer just before `kev`. ----
             E::RingIsOuter { .. } => Self::Contradicts(F::RingIsNotItsFacesOuter),
             E::CrossShell { .. } => Self::Contradicts(F::RingAndSurvivorShareAShell),
             E::FaceHasRings { .. } => Self::Contradicts(F::AbsorbedFaceIsRingFree),
@@ -1019,21 +1027,16 @@ impl<T: Decide> Body<T> {
     /// wrong) and re-homing absorbed faces' rings onto the survivor.
     ///
     /// **Dangling seam edges are pruned (`kev`).** An intra-face
-    /// duplicate is not always a ring. A shared edge whose far end has
-    /// no other edge left once the faces are joined — the second leg
-    /// of a seam that bends at a corner, a leg of a straight seam cut
-    /// at an interior vertex, a spoke of a junction where several
-    /// absorbed faces met — dangles inside the merged face. It
-    /// encloses no area, so deleting it together with its free end
-    /// leaves the merged face's region exactly as it was, at any angle
-    /// and whatever produced the vertex; the op does that with `kev`,
-    /// repeatedly, so a shared chain of `k` edges loses its `k − 1`
-    /// interior junctions. The decision is topological (a vertex with
-    /// one edge) and reads no coordinate. Only a doubled edge with no
-    /// free end separates a ring, and `kemr` mints it. The deleted
-    /// vertex is never on the merged face's boundary and is never
-    /// fused into another; it is recorded in
-    /// [`MergedGroup::killed_vertices`].
+    /// duplicate is not always a ring. A shared edge left with a free
+    /// end once the faces are joined — the second leg of a seam that
+    /// bends at a corner, a spoke of a junction where several absorbed
+    /// faces met, the last edge of a doubled cycle — is deleted with
+    /// its free end, at any angle and repeatedly along a chain; only a
+    /// doubled edge with no free end separates a ring, which `kemr`
+    /// mints. The decision is topological and reads no coordinate; the
+    /// deleted vertices are recorded in
+    /// [`MergedGroup::killed_vertices`], whose docs say where the
+    /// region argument lives.
     ///
     /// **Atomic and deterministic (D9)**: the op stages on a clone —
     /// on any refusal `self` is untouched; on success the staged body
@@ -1043,7 +1046,9 @@ impl<T: Decide> Body<T> {
     /// group: `f −(n−1)`, `e −k`, plus `r +m` for intra-face `kemr`
     /// kills, and `v −1` for each pruning `kev` (which is what
     /// keeps χ conserved when a ring is NOT minted: `kemr` trades an
-    /// edge for a ring, `kev` trades an edge for a vertex). Each step
+    /// edge for a ring, `kev` trades an edge for a vertex), plus
+    /// `v −1, r −1` for each lone vertex deleted with its ring (`mekr`
+    /// then `kev`, the edge they mint and kill leaving no trace). Each step
     /// is an Euler operator, so tier 1 holds throughout and χ is
     /// conserved at every step.
     ///
@@ -1955,7 +1960,15 @@ impl<T: Decide> Body<T> {
         //   turned there. `kev` deletes both. A shared chain of `k`
         //   edges loses its `k − 1` interior junctions this way, one
         //   free end at a time, and a junction where several absorbed
-        //   faces met goes with the last of its spokes.
+        //   faces met goes with the last of its spokes. An edge with
+        //   BOTH ends free is a ring holding nothing but itself (the
+        //   last edge of a doubled cycle, say the rim of a hole a
+        //   coplanar face plugged exactly): both ends go, the second
+        //   with the ring, which by then is a lone vertex and encloses
+        //   nothing either. Every vertex deleted here is the free end
+        //   of a seam edge the glue left dangling, none is on the
+        //   merged face's boundary, none is fused into another, and
+        //   each is recorded in `killed_vertices`.
         // - **A doubled edge with no free end** separates a genuine
         //   ring from the outline: `kemr` mints it. Dangling edges are
         //   pruned first, and again after every ring, so `kemr` only
@@ -1991,28 +2004,54 @@ impl<T: Decide> Body<T> {
                     [(he_plus, he_minus, hm.start), (he_minus, he_plus, hp.start)]
                 {
                     if self.strut_tip(from_free)? {
-                        strut = Some((edge_key, toward_free, free));
+                        strut = Some((edge_key, toward_free, free, hp.r#loop));
                         break 'scan;
                     }
                 }
             }
-            if let Some((edge_key, toward_free, free)) = strut {
-                // The fact `kev` could contradict, re-read at the
-                // call: `strut_tip` answered about a vertex orbit,
-                // and what `kev` refuses on is the derived fact that
-                // the edge's two ends are distinct.
-                debug_assert!(
-                    self.get_half_edge(toward_free)
-                        .zip(self.edge_mate(toward_free, edge_key))
-                        .is_none_or(|(toward, mate)| toward.start != mate.start),
-                    "merge_group: {}",
-                    EstablishedFact::StrutHalvesHaveDistinctEnds.what()
-                );
+            if let Some((edge_key, toward_free, free, ring)) = strut {
+                // BOTH ends free: the edge is its own loop, a ring of
+                // the survivor holding nothing but itself — the last
+                // edge of a doubled cycle the pruning has taken the
+                // rest of. `kev` leaves that ring as a lone vertex, and
+                // `mekr` then `kev` delete the vertex with its ring.
+                // The ring is never the survivor's outline (an outline
+                // bounds the face's area); if the arena says it is,
+                // the shape is refused before any of the three calls.
+                let other = self
+                    .strut_tip(toward_free)?
+                    .then(|| self.get_half_edge(toward_free).map(|h| h.start))
+                    .flatten();
+                let outline = self
+                    .get_face(rep)
+                    .ok_or(DanglingRef::Entity(EntityId::Face(rep)))?
+                    .outer;
+                if other.is_some() && ring == outline {
+                    return Err(MergeCoplanarError::UnsupportedConfiguration { edge: edge_key });
+                }
                 #[cfg(test)]
                 tear_before_kev(self, toward_free, edge_key);
                 self.kev(toward_free)?;
                 group.killed_edges.push(edge_key);
                 group.killed_vertices.push(free);
+                if let Some(lone) = other {
+                    let target = match self
+                        .get_loop(outline)
+                        .ok_or(DanglingRef::Entity(EntityId::Loop(outline)))?
+                        .boundary
+                    {
+                        crate::entity::LoopBoundary::Cycle { first } => first,
+                        crate::entity::LoopBoundary::Empty { .. } => {
+                            return Err(MergeCoplanarError::Op {
+                                error: EulerOpError::LoopNotCycle { r#loop: outline },
+                            });
+                        }
+                    };
+                    let bridge =
+                        self.mekr_chord(crate::MekrSite::EmptyRing { target, ring }, tol)?;
+                    self.kev(bridge.he_plus)?;
+                    group.killed_vertices.push(lone);
+                }
                 continue;
             }
             let (edge_key, (he_plus, hp), (he_minus, hm)) = duplicates[0];

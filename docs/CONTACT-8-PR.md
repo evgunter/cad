@@ -14,6 +14,14 @@ repeats one step until no doubled edge is left:
   vertex with no other edge, is deleted together with that end by
   `kev(half running toward the free end)`, and the end is recorded in
   `MergedGroup::killed_vertices`;
+- an edge with BOTH ends free is a ring holding nothing but itself
+  (the last edge of a doubled cycle, such as a plugged hole's rim):
+  `kev` takes one end, leaving the ring a lone vertex, and
+  `mekr_chord(EmptyRing)` then `kev` delete that vertex with its ring —
+  both ends recorded, the bridging edge minted and killed within the
+  step. If the arena says that ring is the survivor's outline, the
+  shape refuses `UnsupportedConfiguration` before any of the three
+  calls;
 - only when no doubled edge has a free end is the first one handed to
   `kemr`, which mints a ring (or refuses `UnsupportedConfiguration` if
   its halves are in two loops, as before).
@@ -22,9 +30,10 @@ The free-end test is `strut_tip`, which reads the vertex orbit and
 announces a broken one. A shared chain of `k` edges loses its `k − 1`
 interior junctions one free end at a time, and pruning runs again after
 every ring, so a chain that only dangles once a ring is cut off is
-pruned too. The argument is stated at the site: a dangling edge inside
-a face encloses no area, so deleting it and its free end leaves the
-merged face's region exactly as it was. `kev` on a free end re-bases no
+pruned too. The argument is stated once, at the site (the door's docs
+and `killed_vertices` point there): a dangling edge inside a face
+encloses no area, nor does a lone-vertex ring, so deleting them and
+their free ends leaves the merged face's region exactly as it was. `kev` on a free end re-bases no
 fan, so no carrier is left certified against a dead vertex.
 
 Deleted: the `straight_seam` pre-decision, its "exactly two shared
@@ -41,17 +50,34 @@ All four boolean output stages (`boolean::ops`' seamed stage,
 reason. `MergeRung` and the door's declared-face set existed only to
 pick the regime and are gone; `planes_declared_equal` answers `bool`.
 
-The refusal the plugged hole reaches renders as the existing
-`BooleanError::Merge` text ("coplanar-merge output stage refused:
-merge_coplanar_faces: merged result failed tier 2 (2 errors);
-refused"). No refusal text was added, so no shared ending was due; the
-text is an inventory statement rather than a kernel defect, so
-`KERNEL_DEFECT_ENDING` would not fit it.
+**No reachable planar shape refuses after S1.** I looked: the corpus
+this unit runs (the reproducer, the L-corner, the four-way junction,
+the three-edge chain, the bigon, the seam around a hole, the plugged
+hole three ways) all merge, and the review's 22 unions (8 at an
+oblique pose) all merged. The regime is pinned by the unit rows on
+the regime itself (`planar_runs_refuse_and_curved_runs_record`, and the
+declared nested membrane refusing `SameFace` at the door). The refusals
+left on the planar surgery path are typed by the surgery itself
+(`UnsupportedConfiguration`, `MergedFaceRoleAmbiguous`, an operator's
+own `Op` refusal), all on the staged clone; the post-run tier-2 gate
+(`ResultNotClosed`) is reached by no shape I know of. No refusal
+text was added, so no shared ending was due.
 
 **S3: records.** Nothing changed in `remap_contacts`: a vertex the
-pruning deletes is dead, is in no fusion row, and every lane
-(`vert`, `vert_strict`) drops a record citing it. A unit row now pins
-that (`a_record_citing_a_pruned_free_end_drops`). The pruning never
+pruning deletes is dead, has no descendant, and every lane (`vert`,
+`vert_strict`) drops a record citing it. Records cannot reach it
+through a boolean by construction: a pruned vertex is a junction of
+the seam the zip laid in the merged plane, so a vertex-on-face rest
+there was fused (and dropped) by the zip, and a vertex-vertex record
+there names the other operand's coincident vertex, which the zip fuses
+into it (consumed). `a_union_f` ships no records at all, and its row
+says so. What the merge could still get wrong is the descendant chase,
+so `a_record_citing_a_pruned_free_end_drops` runs a REAL pruning merge
+(a prism top split by a bent seam), absorbs its outcome into
+`Descendants` as the boolean does, adds the fusion row a zip would
+write into the deleted vertex, and requires a v-v, a-on-b and b-on-a
+record citing either key to drop, with a live-vertex control. A
+`Descendants` that mapped the killed vertex to a survivor turns it red. The pruning never
 fuses vertices and never removes a boundary vertex: `kev` is only
 called on a vertex whose orbit has one member, and that one edge is a
 doubled edge of the survivor, so the vertex bounds no region. No case
@@ -103,17 +129,16 @@ The new suite at base and head:
 |---|---|---|
 | `an_area_overlap_cap_contact_publishes_one_cap_top_and_bottom` | both cap groups skipped (`GroupNotClosed`), 0 `Merged` rows | 2 `Merged`, one cap each height, 10 faces, volume 1.75, tiers green |
 | `the_merged_union_takes_a_third_brick_declared` | refuses `UndeclaredCoincidence` on the same-operand pair `(A, A)` | runs, no skips, 8 faces, volume 2 |
-| `the_merged_union_refuses_an_undeclared_third_brick_across_operands` | the same same-operand `(A, A)` pair, which no declaration can cover | `UndeclaredCoincidence` across A and B |
-| `every_carried_record_resolves_after_the_pruning` | the corner (1, 1) survives in the shipped body | green |
+| `the_merged_union_refuses_an_undeclared_third_brick_across_operands` | the same same-operand `(A, A)` pair, which no declaration can cover | `UndeclaredCoincidence` on `(A, B)`: the two bottom caps, a pair `flush_declarations` covers |
+| `the_bent_seams_corner_is_deleted_and_no_record_survives` | the corner (1, 1) survives in the shipped body | corner gone; `contacts` empty |
 | `a_bent_seam_around_a_hole_merges_to_one_ringed_cap` | both cap groups skipped (`GroupNotClosed`, two empty loops each) | one cap per height, one ring each, volume 9 |
-| `a_planar_group_the_merge_cannot_glue_refuses_the_step` | ships (`Ok`), both cap groups recorded as skipped | `Merge(ResultNotClosed)` |
+| `an_exactly_plugged_hole_merges_to_whole_caps` | ships, both cap groups skipped (`GroupNotClosed`, four empty loops each) | 6 faces, volume 12, tiers green; next union volume 16, green |
+| `a_half_plugged_hole_merges_its_bottom_cap` | ships, the bottom cap group skipped (`GroupNotClosed`) | 11 faces (bottom cap whole, pocket on top), volume 11; next union 15, green |
+| `an_oversized_plug_merges_to_whole_caps` | ships, both cap groups skipped (`GroupNotClosed`) | 6 faces, volume 12; next union 16, green |
 
-**S2's reachable shape.** A through-hole plugged exactly, every flush
-pair declared (`holed_block(3, [1.5])` ∪ the unit plug). Each cap and
-the plug's cap join; the hole's four rim edges form a closed doubled
-cycle, the pruning takes three, and the fourth has both ends free.
-Its `kev` leaves an empty ring, which no Euler operator in the merge's
-inventory removes, so the run fails tier 2 and the boolean refuses.
+The plug rows at the first head (`448fea9d1`) all refused
+`Merge(ResultNotClosed{ScaffoldingEmptyLoop})`: the pruning `kev`'d the
+rim's last edge with both ends free and left a vertex-only ring.
 
 No golden, render or committed baseline moved.
 
@@ -151,17 +176,38 @@ revolve cap above and nothing else that ships as a boolean output.
   clause now forbids boundary-vertex removal (its vertices are boundary
   vertices, untouched by the pruning).
 - `demos/tour/src/lily.rs`: the comment citing the deleted function.
+- `crates/editor-core/tests/m4_pr5_declare.rs`: the recipe-door L-corner
+  row is renamed `declared_l_corner_caps_merge_at_the_recipe_door_tier3_green`,
+  asserts the merge (10 faces), and its F6 pure-seam-vertex pin states
+  its premise on the merged caps (the wall-crossing vertices, not the
+  deleted corner).
+- `docs/KERNEL-VERBS.md`: the pole-half paragraph's licence sentence.
+- `scripts/gates/loop-boundary-discards.sh`: one audited register
+  entry for the pruning's bridge-target arm (an empty outline refuses
+  `LoopNotCycle`, never passes over).
+- `work/topo/D262.md`: a dated note that `redundant_subdivision_vertex`
+  and its seven arms are gone.
 
-## Local results (code at `448fea9d1`; later commits touch only `docs/` and `work/`)
+## Not changed: the re-scan
 
-- `topo` + `sweep`, nextest: eps unset 3306/3306, `1e-6` 3306/3306,
-  `1e-12` 3306/3306.
-- `editor-core` concision rows, perf12, docm6: 26/26. `test-utils`: 79/79.
+Each pass of the intra-face loop re-scans every edge for doubled edges
+and every doubled edge's orbit, so a group whose merge deletes `k`
+edges costs O(E·k). The groups here are small and the scan is the one
+the absorption loop already made; a worklist would be a second
+bookkeeping of the same set, so it is left.
+
+## Local results (fix pass, on the merge of origin/main)
+
+- `topo` + `sweep`, nextest: eps unset 3300/3300, `1e-6` 3300/3300,
+  `1e-12` 3300/3300.
+- `editor-core` concision rows, perf12, docm6, m4_pr5_declare: 35/35.
+  `test-utils`: 79/79.
 - `cargo clippy --workspace --all-targets -D warnings`: clean.
-  `demos/tour` clippy clean and nextest 89/89; `demos/wild` clippy
-  clean (it has no tests).
 - rustdoc (`-D warnings`, private items, `topo`): clean.
-- every `scripts/gates/*.sh`, self-test and pass: green.
+- every `scripts/gates/*.sh`, self-test and pass: green (the pruning's
+  bridge arm is registered in `loop-boundary-discards.sh`, audited).
   `python3 scripts/work.py lint`: ok.
+- First pass only: `demos/tour` clippy clean and nextest 89/89,
+  `demos/wild` clippy clean; the fix pass touches no demo.
 
 Hosted CI has not run; the branch is pushed without a PR.
