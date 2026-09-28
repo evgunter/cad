@@ -661,9 +661,14 @@ Five commitments:
    margin gives ("if this size is intended, tighten the tolerance below
    m/K"); never on a sign-certain arm, and never on a decision that
    passes only at Zero (a residual), whose refused margin is a miss,
-   not a size. No refusal advises loosening ε: at adoption the lever is
-   the import's own ε_in (D7), phrased by the import door, and a change
-   to a document's ε reports what it flips at the change itself. The
+   not a size. No refusal advises loosening ε, with one exception: a
+   refusal that would otherwise name no recourse at all (a kernel
+   approximation limit — an offset fit that stalls, a quadrature budget
+   spent, a built curve's residual) names loosening the tolerance as a
+   last resort and says the refusal may indicate a kernel bug worth
+   reporting. At adoption the lever is the import's own ε_in (D7),
+   phrased by the import door, and a change to a document's ε reports
+   what it flips at the change itself. The
    three-arm sentence (declare the coincidence / move the geometry /
    tighten the tolerance) is thus the recourse of a decision whose
    refused side is a declarable coincidence; a contact site, whose
