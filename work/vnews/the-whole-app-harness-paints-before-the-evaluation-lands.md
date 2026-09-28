@@ -35,3 +35,16 @@ number of frames and a loud failure when the bound is hit, rather than
 a fixed two. The session already knows when an evaluation is outstanding
 (`frame::Progress` / `session::Outstanding`), so the harness can read
 that rather than sleep.
+
+## A second copy of the frame body (2026-09-28)
+
+The unit-picker unit (`vnews/the-unit-picker-reads-its-refusal`) adds a
+`Driven` harness to the same test module whose `Driven::frame` repeats
+`painted_with`'s frame body. Its full review found that the new rows
+inherit this race: `gained_hovering` diffs a quiet frame against a
+hovered frame over whole-app text, with no wait for evaluation, after
+edits that request one. The race's direction is spurious reds, not
+false greens, because appearing text breaks the equality and vanishing
+text is filtered. The fix pass on that unit factors the two frame
+bodies into one helper, so the fix this row owes lands in one place;
+until then, a fix scoped to `painted_with` alone is half a fix.
