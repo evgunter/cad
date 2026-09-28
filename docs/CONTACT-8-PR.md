@@ -253,6 +253,15 @@ rather than papered over with a contrived document.
 
 ## Local results (second fix pass, on the merge of origin/main)
 
-RESULTS_PLACEHOLDER
+- `topo` + `sweep`, nextest: eps unset 3298/3298, `1e-6` 3298/3298,
+  `1e-12` 3298/3298.
+- ALL of `editor-core`: 2271/2271. `test-utils`: 79/79. `pncad-py`
+  (its `naming_error_tag` census): 126/126.
+- `cargo clippy --workspace --all-targets -D warnings`: clean.
+- rustdoc (`-D warnings`, private items, `topo`): clean.
+- every `scripts/gates/*.sh`, self-test and pass: green.
+  `python3 scripts/work.py lint`: ok.
+- The first fix pass's subset runs of `editor-core` missed the four
+  rows above; every run from here is the whole suite.
 
 Hosted CI has not run; the branch is pushed without a PR.
