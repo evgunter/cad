@@ -623,11 +623,7 @@ pub fn classify_material_pairing_as<T: Decide>(
     let n_plus = implicit_outward_normal(s_plus, sense_plus, p).vec();
     let n_minus = implicit_outward_normal(s_minus, sense_minus, p).vec();
     Ok(
-        match decide_nonzero(
-            name,
-            Margin::levered(n_plus.dot(n_minus), arm),
-            band,
-        )? {
+        match decide_nonzero(name, Margin::levered(n_plus.dot(n_minus), arm), band)? {
             NonzeroSign::Positive => MaterialPairing::Aligned,
             NonzeroSign::Negative => MaterialPairing::Opposed,
         },

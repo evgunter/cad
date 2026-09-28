@@ -59,7 +59,14 @@ fn graft_prism(
 ) {
     let tol = Tol::witness();
     let mut part = Body::<f64>::new();
-    common::prism_ops(&mut part, profile, z, map, common::FaceGeometry::Certified, tol);
+    common::prism_ops(
+        &mut part,
+        profile,
+        z,
+        map,
+        common::FaceGeometry::Certified,
+        tol,
+    );
     common::describe_as_intersections(&mut part, tol);
     topo::graft_disjoint(body, &part, tol).unwrap();
 }
@@ -215,7 +222,11 @@ fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
 fn corners((p, a, b, c): Solid3) -> Vec<[f64; 3]> {
     let mut out = Vec::new();
     for i in 0..8 {
-        let (u, v, w) = (f64::from(i & 1), f64::from((i >> 1) & 1), f64::from((i >> 2) & 1));
+        let (u, v, w) = (
+            f64::from(i & 1),
+            f64::from((i >> 1) & 1),
+            f64::from((i >> 2) & 1),
+        );
         out.push([
             p[0] + u * a[0] + v * b[0] + w * c[0],
             p[1] + u * a[1] + v * b[1] + w * c[1],
@@ -253,9 +264,11 @@ fn overlap_depth(s: Solid3, t: Solid3) -> f64 {
             continue;
         }
         let proj = |cs: &[[f64; 3]]| {
-            cs.iter().map(|&q| dot(q, axis) / n).fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
-                (lo.min(x), hi.max(x))
-            })
+            cs.iter()
+                .map(|&q| dot(q, axis) / n)
+                .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), x| {
+                    (lo.min(x), hi.max(x))
+                })
         };
         let ((a0, a1), (b0, b1)) = (proj(&cs), proj(&ct));
         depth = depth.min(a1.min(b1) - a0.max(b0));
@@ -275,7 +288,12 @@ fn overlap_depth(s: Solid3, t: Solid3) -> f64 {
 /// convex bars.
 #[test]
 fn a_crossed_ridge_sweep_clears_no_overlap() {
-    let lower: Solid3 = ([-1.0, 0.0, 0.0], [2.0, 0.0, 0.0], [0.0, 1.0, 1.0], [0.0, -1.0, 1.0]);
+    let lower: Solid3 = (
+        [-1.0, 0.0, 0.0],
+        [2.0, 0.0, 0.0],
+        [0.0, 1.0, 1.0],
+        [0.0, -1.0, 1.0],
+    );
     let (mut wrong_clears, mut false_refusals, mut overlapping, mut apart) =
         (Vec::new(), Vec::new(), 0, 0);
     for o in [-1.5, -1.0, -0.5, 0.0, 0.5] {
@@ -285,11 +303,7 @@ fn a_crossed_ridge_sweep_clears_no_overlap() {
             let (d, n) = ([c, s, 0.0], [-s, c, 0.0]);
             for shift in [-1.0, 0.0, 0.5] {
                 for lift in [-0.01, 0.0, 0.01] {
-                    let p = [
-                        o - d[0] * (1.0 - shift),
-                        -d[1] * (1.0 - shift),
-                        2.0 + lift,
-                    ];
+                    let p = [o - d[0] * (1.0 - shift), -d[1] * (1.0 - shift), 2.0 + lift];
                     let upper: Solid3 = (
                         p,
                         [2.0 * d[0], 2.0 * d[1], 0.0],
@@ -385,15 +399,12 @@ type BrickPose<'a> = (Vec<(f64, f64)>, Rect, Span, &'a str);
 
 /// Two prisms' materials overlap exactly when some box of one overlaps
 /// some box of the other in a positive length on all three axes.
-fn boxes_overlap(
-    a: &[Rect],
-    az: (f64, f64),
-    b: &[Rect],
-    bz: (f64, f64),
-) -> bool {
+fn boxes_overlap(a: &[Rect], az: (f64, f64), b: &[Rect], bz: (f64, f64)) -> bool {
     overlaps(az, bz)
-        && a.iter()
-            .any(|&(ax, ay)| b.iter().any(|&(bx, by)| overlaps(ax, bx) && overlaps(ay, by)))
+        && a.iter().any(|&(ax, ay)| {
+            b.iter()
+                .any(|&(bx, by)| overlaps(ax, bx) && overlaps(ay, by))
+        })
 }
 
 /// One pose of a sweep over two prisms, each its profile, its boxes,
@@ -440,11 +451,7 @@ fn sweep_pairs(poses: &[(String, Part<'_>, Part<'_>)]) -> (usize, usize, Vec<Str
 }
 
 /// `profile` and its boxes shifted by `(dx, dy)`.
-fn shifted(
-    profile: &[(f64, f64)],
-    boxes: &[Rect],
-    (dx, dy): (f64, f64),
-) -> Shifted {
+fn shifted(profile: &[(f64, f64)], boxes: &[Rect], (dx, dy): (f64, f64)) -> Shifted {
     (
         profile.iter().map(|&(x, y)| (x + dx, y + dy)).collect(),
         boxes
@@ -473,15 +480,43 @@ fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
             "channel",
             &U_CHANNEL,
             &U_BOXES,
-            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (3.0, 4.0), (0.5, 1.5)],
-            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (0.5, 1.5), (1.0, 3.0)],
+            [
+                (-1.0, 0.0),
+                (0.0, 1.0),
+                (1.0, 2.0),
+                (2.0, 3.0),
+                (3.0, 4.0),
+                (0.5, 1.5),
+            ],
+            [
+                (-1.0, 0.0),
+                (0.0, 1.0),
+                (1.0, 2.0),
+                (2.0, 3.0),
+                (0.5, 1.5),
+                (1.0, 3.0),
+            ],
         ),
         (
             "comb",
             &COMB,
             &COMB_BOXES,
-            [(-1.0, 0.0), (0.0, 0.5), (0.5, 1.5), (1.5, 2.5), (0.25, 0.75), (3.0, 4.0)],
-            [(-1.0, 0.0), (0.0, 1.0), (1.0, 2.0), (2.0, 3.0), (0.75, 1.25), (1.0, 3.0)],
+            [
+                (-1.0, 0.0),
+                (0.0, 0.5),
+                (0.5, 1.5),
+                (1.5, 2.5),
+                (0.25, 0.75),
+                (3.0, 4.0),
+            ],
+            [
+                (-1.0, 0.0),
+                (0.0, 1.0),
+                (1.0, 2.0),
+                (2.0, 3.0),
+                (0.75, 1.25),
+                (1.0, 3.0),
+            ],
         ),
     ];
     for (name, _, _, xs, ys) in &hosts {

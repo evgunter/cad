@@ -3665,7 +3665,8 @@ fn face_piece<T: Decide>(
     // Which side of the line through `p` along the unit `u` a point is
     // on: its distance from the plane through that line normal to the
     // face, positive to the line's left about `m`.
-    let side = |u: Vec3<T>, q: Point3<T>| sign(TOUCH_PIECE_SIDE, Distance::of(q, p, m.cross(u)), band);
+    let side =
+        |u: Vec3<T>, q: Point3<T>| sign(TOUCH_PIECE_SIDE, Distance::of(q, p, m.cross(u)), band);
     // The same quantity as a construction value, for interpolation only.
     let offset = |u: Vec3<T>, q: Point3<T>| m.cross(u).dot(q - p);
     let unit = |q: Point3<T>| (q - p).normalize();
@@ -3716,20 +3717,21 @@ fn face_piece<T: Decide>(
         })
     };
     // The order of two points' turns about `p`.
-    let order = |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| -> Result<core::cmp::Ordering, TouchVerdict> {
-        if a.0 != b.0 {
-            return Ok(a.0.cmp(&b.0));
-        }
-        if matches!(a.0, Turn::Ahead | Turn::Back) {
-            return Ok(Equal);
-        }
-        Ok(match side(unit(a.1), b.1) {
-            Some(Sign::Positive) => Less,
-            Some(Sign::Negative) => Greater,
-            Some(Sign::Zero) => Equal,
-            None => return Err(TouchVerdict::PieceInBand),
-        })
-    };
+    let order =
+        |a: (Turn, Point3<T>), b: (Turn, Point3<T>)| -> Result<core::cmp::Ordering, TouchVerdict> {
+            if a.0 != b.0 {
+                return Ok(a.0.cmp(&b.0));
+            }
+            if matches!(a.0, Turn::Ahead | Turn::Back) {
+                return Ok(Equal);
+            }
+            Ok(match side(unit(a.1), b.1) {
+                Some(Sign::Positive) => Less,
+                Some(Sign::Negative) => Greater,
+                Some(Sign::Zero) => Equal,
+                None => return Err(TouchVerdict::PieceInBand),
+            })
+        };
     let mut sorted: Vec<(Turn, Point3<T>)> = Vec::with_capacity(points.len());
     for &q in &points {
         let item = (turn(q)?, q);
@@ -3758,8 +3760,7 @@ fn face_piece<T: Decide>(
             _ => rays.push(item),
         }
     }
-    let mut gaps: Vec<(Point3<T>, Point3<T>)> =
-        rays.windows(2).map(|w| (w[0].1, w[1].1)).collect();
+    let mut gaps: Vec<(Point3<T>, Point3<T>)> = rays.windows(2).map(|w| (w[0].1, w[1].1)).collect();
     if end.is_none() {
         match (rays.first(), rays.last()) {
             (Some(&first), Some(&last)) if rays.len() > 1 => gaps.push((last.1, first.1)),
@@ -3781,7 +3782,8 @@ fn face_piece<T: Decide>(
         // Empty: no vertex strictly left of `ua` and right of `ub`.
         for &q in &points {
             match (side(ua, q), side(ub, q)) {
-                (Some(Sign::Negative | Sign::Zero), _) | (_, Some(Sign::Positive | Sign::Zero)) => {}
+                (Some(Sign::Negative | Sign::Zero), _) | (_, Some(Sign::Positive | Sign::Zero)) => {
+                }
                 _ => return Err(TouchVerdict::PieceInBand),
             }
         }
@@ -3901,7 +3903,11 @@ impl<T: Decide> Star<T> {
     ) -> Result<Dihedral, TouchVerdict> {
         let read = |near: &StarFace<T>, far: &StarFace<T>| {
             FaceSide::of(far.piece.iter().map(|&k| {
-                metric::sign(TOUCH_DIHEDRAL, Distance::of(verts[k], p, near.outward), band)
+                metric::sign(
+                    TOUCH_DIHEDRAL,
+                    Distance::of(verts[k], p, near.outward),
+                    band,
+                )
             }))
         };
         let (fi, fj) = (&faces[i], &faces[j]);
@@ -4074,7 +4080,11 @@ impl<T: Decide> Star<T> {
             .iter()
             .map(|&f| Self::star_face(body, geo, f, p, Some((v, None)), &mut verts, band))
             .collect::<Result<Vec<_>, _>>()?;
-        let slot = |f: FaceKey| keys.iter().position(|&g| g == f).ok_or(TouchVerdict::Corrupt);
+        let slot = |f: FaceKey| {
+            keys.iter()
+                .position(|&g| g == f)
+                .ok_or(TouchVerdict::Corrupt)
+        };
         let (mut edges, mut rays) = (Vec::new(), Vec::new());
         for e in geo.edges.iter().filter(|e| e.v0 == v || e.v1 == v) {
             let far = if e.v0 == v { e.v1 } else { e.v0 };
@@ -4111,7 +4121,15 @@ impl<T: Decide> Star<T> {
         let faces = keys
             .iter()
             .map(|&f| {
-                Self::star_face(body, geo, f, p, Some((edge.v0, Some(edge.v1))), &mut verts, band)
+                Self::star_face(
+                    body,
+                    geo,
+                    f,
+                    p,
+                    Some((edge.v0, Some(edge.v1))),
+                    &mut verts,
+                    band,
+                )
             })
             .collect::<Result<Vec<_>, _>>()?;
         let end = |v: VertexKey| geo.vmap.get(&v).copied().ok_or(TouchVerdict::Corrupt);
@@ -4137,15 +4155,7 @@ impl<T: Decide> Star<T> {
     ) -> Result<Self, TouchVerdict> {
         let mut verts = Vec::new();
         let face = Self::star_face(body, geo, f, p, None, &mut verts, band)?;
-        Self::assemble(
-            p,
-            At::Face,
-            verts,
-            vec![face],
-            Vec::new(),
-            Vec::new(),
-            band,
-        )
+        Self::assemble(p, At::Face, verts, vec![face], Vec::new(), Vec::new(), band)
     }
 
     /// **Does the star lie in the closed half-space `{x : n·(x − p) ≥
@@ -4307,7 +4317,10 @@ mod rest {
         Plane(Vec3<T>),
         /// `inner` in the closed half-space outside every one of
         /// `outer`'s faces.
-        Complement { inner: &'s Star<T>, outer: &'s Star<T> },
+        Complement {
+            inner: &'s Star<T>,
+            outer: &'s Star<T>,
+        },
     }
 
     /// Runs the readings ([`Star::within`]) against one candidate and
@@ -4371,7 +4384,12 @@ mod rest {
 /// the cross product of two unit generators. Whether a pair spans a
 /// plane is the analysis's one levered reading, at the two stars'
 /// reach: a Zero skips the pair, an in-band span is noted.
-fn touch_candidates<T: Decide>(a: &Star<T>, b: &Star<T>, band: Band, notes: &mut Notes) -> Vec<Vec3<T>> {
+fn touch_candidates<T: Decide>(
+    a: &Star<T>,
+    b: &Star<T>,
+    band: Band,
+    notes: &mut Notes,
+) -> Vec<Vec3<T>> {
     let lever = a.reach.max(b.reach);
     let rays: Vec<Vec3<T>> = a.rays.iter().chain(&b.rays).copied().collect();
     let mut out = Vec::new();
@@ -4434,7 +4452,13 @@ fn touch_verdict<T: Decide>(
         }
     }
     for (inner, outer) in [(&a, &b), (&b, &a)] {
-        if let Some(rest) = certify(&a, &b, Candidate::Complement { inner, outer }, band, &mut notes) {
+        if let Some(rest) = certify(
+            &a,
+            &b,
+            Candidate::Complement { inner, outer },
+            band,
+            &mut notes,
+        ) {
             return TouchVerdict::Rest(rest);
         }
     }
@@ -5801,7 +5825,9 @@ mod tests {
                 .expect("the backstop's header after it");
         let section = &code[start..end];
         let body = |anchor: &str| -> core::ops::Range<usize> {
-            let at = section.find(anchor).unwrap_or_else(|| panic!("the section holds `{anchor}`"));
+            let at = section
+                .find(anchor)
+                .unwrap_or_else(|| panic!("the section holds `{anchor}`"));
             let open = at + section[at..].find('{').expect("its body");
             open..balanced_end(section, open).expect("its closing brace")
         };
@@ -5813,7 +5839,11 @@ mod tests {
                 .match_indices(needle)
                 .map(|(i, _)| i)
                 .filter(|i| !allowed.iter().any(|r| r.contains(i)))
-                .map(|i| section[i.saturating_sub(60)..(i + 40).min(section.len())].trim().to_owned())
+                .map(|i| {
+                    section[i.saturating_sub(60)..(i + 40).min(section.len())]
+                        .trim()
+                        .to_owned()
+                })
                 .collect()
         };
         let mut stray = Vec::new();
@@ -5838,15 +5868,38 @@ mod tests {
             stray.is_empty(),
             "a decision in the touch analysis outside its doors: {stray:#?}"
         );
-        let count = |needle: &str, r: &core::ops::Range<usize>| section[r.clone()].matches(needle).count();
-        assert_eq!(count("Margin::", &metric), 1, "the metric door's one `Margin::of`");
-        assert_eq!(count("Margin::of(", &metric), 1, "the metric door's one `Margin::of`");
-        assert_eq!(count("Margin::", &candidates), 1, "the span test's one lever");
-        assert_eq!(count("Margin::levered(", &candidates), 1, "the span test's one lever");
+        let count =
+            |needle: &str, r: &core::ops::Range<usize>| section[r.clone()].matches(needle).count();
+        assert_eq!(
+            count("Margin::", &metric),
+            1,
+            "the metric door's one `Margin::of`"
+        );
+        assert_eq!(
+            count("Margin::of(", &metric),
+            1,
+            "the metric door's one `Margin::of`"
+        );
+        assert_eq!(
+            count("Margin::", &candidates),
+            1,
+            "the span test's one lever"
+        );
+        assert_eq!(
+            count("Margin::levered(", &candidates),
+            1,
+            "the span test's one lever"
+        );
         let door = &section[metric.clone()];
-        assert!(door.contains("struct Distance<T>(T);"), "`Distance`'s field is private");
+        assert!(
+            door.contains("struct Distance<T>(T);"),
+            "`Distance`'s field is private"
+        );
         let of = body("\n        pub(super) fn of(");
-        assert!(metric.contains(&of.start), "`Distance::of` is in `mod metric`");
+        assert!(
+            metric.contains(&of.start),
+            "`Distance::of` is in `mod metric`"
+        );
         let builds: Vec<usize> = section
             .match_indices("Self(")
             .chain(section.match_indices("Distance("))
@@ -7670,10 +7723,7 @@ mod tests {
         .into_iter()
         .flatten()
         .collect::<Vec<_>>();
-        assert!(
-            rests.iter().all(|(_, v)| v.is_rest()),
-            "{rests:?}"
-        );
+        assert!(rests.iter().all(|(_, v)| v.is_rest()), "{rests:?}");
         let crossings = [
             touch_verdicts(&bracket_and_block((0.0, 1.5), (1.0, 3.0), (0.0, 1.0))),
             touch_verdicts(&bracket_and_block((0.5, 1.5), (1.0, 3.0), (0.0, 1.0))),
@@ -7758,10 +7808,7 @@ mod tests {
                 .map(|(_, v)| v)
                 .collect();
             assert!(vf.len() >= 2, "{times}: {vf:?}");
-            assert!(
-                vf.iter().all(|v| !v.is_rest()),
-                "{times}× zero: {vf:?}"
-            );
+            assert!(vf.iter().all(|v| !v.is_rest()), "{times}× zero: {vf:?}");
         }
     }
 
@@ -7855,7 +7902,8 @@ mod tests {
             (0.0, 3.0),
         ];
         let mut body = crate::test_support_fixtures::prism_z::<f64>(&NOTCHED, 0.0, 1.0, tol).body;
-        let part = crate::test_support_fixtures::brick::<f64>((1.0, 2.5), (1.2, 3.0), (0.0, 1.0), tol);
+        let part =
+            crate::test_support_fixtures::brick::<f64>((1.0, 2.5), (1.2, 3.0), (0.0, 1.0), tol);
         crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
         let corner = body
             .vertices
@@ -7907,7 +7955,8 @@ mod tests {
         let tol = Tol::witness();
         let mut body = crate::test_support_fixtures::holed_block::<f64>(4.0, &[2.0], tol);
         crate::test_support_fixtures::describe_as_intersections(&mut body, tol);
-        let part = crate::test_support_fixtures::brick::<f64>((-1.0, 0.0), (0.0, 2.0), (0.0, 2.0), tol);
+        let part =
+            crate::test_support_fixtures::brick::<f64>((-1.0, 0.0), (0.0, 2.0), (0.0, 2.0), tol);
         crate::instance::graft_disjoint(&mut body, &part, tol).unwrap();
         let corner = body
             .vertices
@@ -7922,7 +7971,9 @@ mod tests {
             .expect("the holed block's corner");
         let piece = piece_at(&body, corner, Vec3::new(0.0, 0.0, 1.0));
         assert!(
-            piece.iter().all(|&q| (q - Point3::new(4.0, 2.0, 2.0)).norm() > 1e-9),
+            piece
+                .iter()
+                .all(|&q| (q - Point3::new(4.0, 2.0, 2.0)).norm() > 1e-9),
             "the far corner is behind the hole: {piece:?}"
         );
         assert!(
@@ -8000,7 +8051,8 @@ mod tests {
         let body = prism_and_brick(&U, (2.0, 3.0), (0.0, 1.0), (1.0, 2.0));
         let got = sites(&body);
         assert!(
-            got.iter().any(|(s, _)| matches!(s, TouchSite::EdgeInFace(..))),
+            got.iter()
+                .any(|(s, _)| matches!(s, TouchSite::EdgeInFace(..))),
             "{got:?}"
         );
         assert!(got.iter().all(|(_, t)| t.is_rest()), "{got:?}");
@@ -8138,7 +8190,10 @@ mod tests {
     fn either_order_decides_a_slivers_convexity() {
         let band = Band::linear(Tol::witness()).unwrap();
         let dev = 15.0 * band.zero();
-        let bent = [Point3::new(-0.03, 1.0, 0.03 * dev), Point3::new(-0.03, -1.0, 0.03 * dev)];
+        let bent = [
+            Point3::new(-0.03, 1.0, 0.03 * dev),
+            Point3::new(-0.03, -1.0, 0.03 * dev),
+        ];
         let m = -Vec3::new(dev, 0.0, 1.0).normalize();
         for order in [[0, 1], [1, 0]] {
             let star = edge_star((m, vec![vec![1, 0, 5, 4]]), bent, order, band).expect("a sliver");
@@ -8280,7 +8335,8 @@ mod tests {
             });
             let got = sites(&body);
             assert!(
-                got.iter().any(|(s, _)| matches!(s, TouchSite::EdgeInFace(..))),
+                got.iter()
+                    .any(|(s, _)| matches!(s, TouchSite::EdgeInFace(..))),
                 "{times}: {got:?}"
             );
             let edges: Vec<TouchVerdict> = got
@@ -8396,13 +8452,8 @@ mod tests {
             (m, vec![vec![0, a, b]])
         };
         let faces = [tri(0), tri(1), tri(2)];
-        let edges = [
-            (vec![1], [2, 0]),
-            (vec![2], [0, 1]),
-            (vec![3], [1, 2]),
-        ];
-        synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &edges, band)
-            .expect("a pit")
+        let edges = [(vec![1], [2, 0]), (vec![2], [0, 1]), (vec![3], [1, 2])];
+        synthetic(verts[0], At::Vertex(0), verts.clone(), &faces, &edges, band).expect("a pit")
     }
 
     /// **A barely reflex corner is read at its faces' far vertices.** The
@@ -8933,10 +8984,7 @@ mod tests {
                 .map(|(_, t)| t)
                 .collect();
             assert!(!tip.is_empty(), "{side}: {got:?}");
-            assert!(
-                tip.iter().all(|t| !t.is_rest()),
-                "{side}: {tip:?}"
-            );
+            assert!(tip.iter().all(|t| !t.is_rest()), "{side}: {tip:?}");
         }
     }
 }
