@@ -2,7 +2,8 @@
 id: census-verdict-golden-hashes-an-anchor-ordered-stream
 kind: issue
 title: the shell census golden hashes voided_rod's verdicts in decision order, so a pure re-anchoring of a loop moves it and a sign change is indistinguishable from a move
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-14
 priority: P3
 cost: E
@@ -128,3 +129,5 @@ while folding their own way (byte-wise in place, and word-wise).
 
 **Recommendation (orchestrator's call).** Keep open, unchanged in
 substance; amend the "two goldens" count to one when the unit is cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

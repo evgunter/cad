@@ -2,7 +2,8 @@
 id: m10-3-chamber-probes-gated-away-from-the-symbolic-tier
 kind: issue
 title: the M10-3 chamber probes are gated to the driver's paths and not the symbolic tier's, so a change to the tier does not run the row S-TCOST bisected the tier's cost on
-status: open
+status: closed
+closed: 2026-09-28
 opened: 2026-09-14
 priority: P3
 cost: D
@@ -48,3 +49,5 @@ DID run on SYM-4's PR, so its list differs; the two lists should say
 the same thing about the tier).
 
 **2026-09-28:** The chamber row (`the_driven_chamber_replays_bit_identically_names_both_wall_flips_and_reports_containment`) and `the_band_and_uniform_drives_ship_the_same_leaf_partition` were deleted in the 2026-09-28 CI-latency cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

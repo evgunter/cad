@@ -2,7 +2,8 @@
 id: m10-3-chamber-row-reads-ten-times-its-recorded-cost
 kind: issue
 title: DIAGNOSED: the M10-3 interval suite is 15x slower since M10-7's symbolic normal form (PR 1725) — a KERNEL regression its own gate hid
-status: parked
+status: closed
+closed: 2026-09-28
 opened: 2026-09-11
 blocked_on: [symbolic-tier-costs-95-percent-of-the-m10-3-drive]
 priority: P4
@@ -343,3 +344,5 @@ this — wiring the EFFORT policy before the regression is fixed puts a
 66-83 s row on every pull request.
 
 **2026-09-28:** The chamber row and `the_band_and_uniform_drives_ship_the_same_leaf_partition` were deleted in the 2026-09-28 CI-latency cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

@@ -2,7 +2,8 @@
 id: one-test-is-the-whole-ci-critical-path
 kind: issue
 title: One test is 85% of the CI critical path: a_tolerance_study_end_to_end_through_the_public_doors at eps = 1e-12
-status: parked
+status: closed
+closed: 2026-09-28
 opened: 2026-09-12
 blocked_on: [m10-3-chamber-row-reads-ten-times-its-recorded-cost]
 refs: [nextest-shard-count-needs-remeasure]
@@ -147,3 +148,5 @@ table). None of it reaches the run's wall while this row runs for eight
 minutes beside it.
 
 **2026-09-28:** `a_tolerance_study_end_to_end_through_the_public_doors` was deleted in the 2026-09-28 CI-latency cut.
+
+Closed 2026-09-28: the test this item concerns is deleted (`work/ciw/latency-cut.md`).

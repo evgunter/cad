@@ -80,10 +80,15 @@ import and interval, ungated.
 
 ## What was deleted
 
-- 50 slow tests with no recorded catch (verdicts per test: the PR's
-  worktree commit; shapes were studies, measurement ceilings, thread-count
-  invariance walks, and adopted one-off review probes), plus three sweeps cut
-  ~10x.
+- 50 slow tests with no recorded catch (826 s of test time at default eps,
+  plus the 1e-12 tolerance study at 743–854 s): studies, measurement
+  ceilings, thread-count invariance walks, and adopted one-off review probes
+  whose subject has cheaper coverage. Three sweeps are cut ~10x instead
+  (`m10_10_r2_probes` 48 s → 2.6 s, `n3r1_probes` 13 s → 1.6 s). Items
+  about the deleted tests are closed.
+- **The slow set** (`.config/nextest.toml`): the 154 remaining tests at
+  ≥ 1 s (838 s), 82 of them triaged as worth keeping nightly and 72 an
+  untriaged tail of files under 7 s each.
 - The CI-testing-CI scripts: the hosted/local parity checker and its
   siblings (status capture, render-lane parity, install wrappers, cache-prime
   parity, run-job aggregator, reach selftest, gate roster), the test-cost
