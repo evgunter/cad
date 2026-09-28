@@ -967,3 +967,8 @@ class of 65 sites is PRED's row.
   - `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` on `encl/driver-log-renamed-refusal`. Single full review; it stops at the fork if the k_stats door is broad.
   - `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` on `encl/offset-dist-term-frame-width`. It measures before choosing. Single full review, dual if the construction change is broad.
   - `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times` on `encl/equal-split-plan-chain`. Style review; mechanical plus the RATIONAL_*_SPLITS question.
+- 2026-09-28 — The 1e-12 rigid-map lane STOPPED at measurement, as briefed.
+  - Cause: Bézier-insertion width from `insert_once_ring`'s lerp form (the PROPS `compose.rs` site), already in `Ẽ` before `X` is formed. It is not X's cancellation.
+  - The convex form alone gives 0 of 93 refusals, a frame-invariant bound and `hull_sup` ÷4.4. None of the candidate fixes on the ENCL side would close it.
+  - Row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites`. Evidence appended there, and PROPS notified on its log (two ENCL rows now wait on it, one P0).
+  - The probe sources are in this session's scratchpad only.

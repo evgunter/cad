@@ -2,10 +2,11 @@
 id: a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12
 kind: issue
 title: at eps = 1e-12 a rigid map still refuses the bowed Approx fixture: the rotated patch's offset fit floors above eps, so the re-fit fallback cannot answer
-status: dispatched
+status: parked
 opened: 2026-09-28
 priority: P3
 cost: E
+blocked_on: [f64-refinement-inside-an-enclosure-has-five-more-sites]
 ---
 
 ## Measured (ENCL rigid-map headroom lane, branch `encl/rigid-map-approx-headroom`, 2026-09-28)
