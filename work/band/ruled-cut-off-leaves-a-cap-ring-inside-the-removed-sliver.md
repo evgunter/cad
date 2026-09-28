@@ -56,7 +56,7 @@ Tier 3 misses both routes for different reasons. Check 9
 outer, but is silent on arc-bearing outer loops like the D-rod cap's —
 filed as `work/atrest/check-9-nesting-arc-parity-and-no-walk-wait-on-the-arc-aware-walk`.
 The keyhole route leaves the bore inside ANOTHER RING, which no check
-tests — filed as `work/atrest/check-9-does-not-check-a-ring-nested-inside-another-ring`.
+tests — filed as `work/restfront/check-9-does-not-check-a-ring-nested-inside-another-ring`.
 
 ## What the taker owes
 

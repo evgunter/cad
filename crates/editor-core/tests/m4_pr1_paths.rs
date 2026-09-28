@@ -3,6 +3,7 @@
 //! naming layer (N1) will lean on.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::fixture::{len, scl};
 use editor_core::{
     Datum, Dimension, Doc, DocEdit, EditError, Expr, ExprPath, Node, RecipeNodeId, SlotId,
 };
@@ -18,14 +19,6 @@ impl editor_core::ProfilePayload for FakeProfile {}
 
 type TDoc = Doc<FakeProfile>;
 type TEdit = DocEdit<FakeProfile>;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).unwrap()
-}
-
-fn scl(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).unwrap()
-}
 
 /// profile + extrude(distance = a + b), returning (doc, profile id,
 /// extrude id).

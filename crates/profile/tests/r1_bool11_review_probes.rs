@@ -5,21 +5,17 @@
 use geom_core::{Point2, Tol};
 use profile::{Open, PathError, Profile, SketchPlane, Start};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Author `line(1)` from the origin along +x, then `continue_to((2, dy))`.
 /// `at = (1,0)`, `û = (1,0)`, so `across == dy` EXACTLY (perp_dot of a
 /// unit +x ray with `(1, dy)`), which is what makes ulp probing sound.
 fn attempt(dy: f64) -> Result<(), PathError<f64>> {
     let t = Tol::witness();
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, dy), t)
+        .continue_to(Point2::new(2.0, dy), t)
         .map(|_| ())
 }
 
@@ -115,12 +111,12 @@ fn r1_no_lever_is_scale_free_in_the_director() {
             continue;
         }
         let err = Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .toward(mag, 0.0, t)
             .unwrap()
             .line(1.0, t)
             .unwrap()
-            .continue_to(p2(2.0, miss), t)
+            .continue_to(Point2::new(2.0, miss), t)
             .expect_err("definitely off the ray whatever the director's magnitude");
         match err {
             PathError::ContinuationTargetOffRay { across, along } => {
@@ -150,12 +146,12 @@ fn r1_no_lever_angular_sensitivity_versus_target_distance() {
         // A target L along the ray, tilted so the miss is exactly eps.
         let theta = (eps / l).atan();
         assert!(
-            Open.at(p2(0.0, 0.0))
+            Open.at(Point2::new(0.0, 0.0))
                 .angle(0.0, t)
                 .unwrap()
                 .line(1.0, t)
                 .unwrap()
-                .continue_to(p2(1.0 + l, eps), t)
+                .continue_to(Point2::new(1.0 + l, eps), t)
                 .is_ok(),
             "a miss of exactly eps must be accepted at L={l:e}"
         );
@@ -169,12 +165,12 @@ fn r1_no_lever_angular_sensitivity_versus_target_distance() {
         let l = 1e4;
         let t2 = Tol::witness();
         match Open
-            .at(p2(0.0, 0.0))
+            .at(Point2::new(0.0, 0.0))
             .angle(0.0, t2)
             .unwrap()
             .line(1.0, t2)
             .unwrap()
-            .continue_to(p2(1.0 + l, theta * l), t2)
+            .continue_to(Point2::new(1.0 + l, theta * l), t2)
         {
             Ok(_) => Regime::Accept,
             Err(PathError::Escalated { .. }) => Regime::Escalate,
@@ -194,26 +190,26 @@ fn r1_no_lever_angular_sensitivity_versus_target_distance() {
 fn r1_the_closer_mints_nothing_and_leaves_no_degenerate_segment() {
     use std::f64::consts::FRAC_PI_2;
     let t = Tol::witness();
-    let entry = p2(0.0, 0.0);
+    let entry = Point2::new(0.0, 0.0);
     let loop_ = Open
         .at(entry)
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 0.0), t)
+        .continue_to(Point2::new(2.0, 0.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 2.0), t)
+        .continue_to(Point2::new(2.0, 2.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(0.0, 2.0), t)
+        .continue_to(Point2::new(0.0, 2.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -246,7 +242,7 @@ fn r1_the_closer_mints_nothing_and_leaves_no_degenerate_segment() {
 fn r1_open_fillet_before_a_declared_continuation() {
     let t = Tol::witness();
     let after_fillet = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -268,7 +264,7 @@ fn r1_site_seam_is_reachable_from_the_declared_verb() {
     let t = Tol::witness();
     // Ring: (2,0) entry, (3,0) corner, (3,3), (0,3), (0,0), (1,0) sub.
     let chain = Open
-        .at(p2(2.0, 0.0))
+        .at(Point2::new(2.0, 0.0))
         .toward(1.0, 0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -332,7 +328,7 @@ fn r1_lily_base(width: f64, ridge: f64, keel: f64, shoulder: f64) -> Vec<Point2<
         sh(keel_p, right),
     ]
     .iter()
-    .map(|&(x, y)| p2(x, y))
+    .map(|&(x, y)| Point2::new(x, y))
     .collect()
 }
 
@@ -349,7 +345,7 @@ fn r1_ring_with_extras(base: &[Point2<f64>], extra: &[usize]) -> Vec<Point2<f64>
         let b = base[(i + 1) % n];
         for j in 1..=extra[i] {
             let f = j as f64 / (extra[i] + 1) as f64;
-            out.push(p2(a.x + f * (b.x - a.x), a.y + f * (b.y - a.y)));
+            out.push(Point2::new(a.x + f * (b.x - a.x), a.y + f * (b.y - a.y)));
         }
     }
     out
@@ -517,7 +513,7 @@ fn r1_in_band_misses_accumulate_along_a_declared_run() {
     let bias = 0.5 * eps; // an accepted miss, every leg, the same side
     let n = 40usize;
     let mut chain = Open
-        .at(p2(0.0, 0.0))
+        .at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
@@ -526,13 +522,13 @@ fn r1_in_band_misses_accumulate_along_a_declared_run() {
         let x = 1.0 + (i as f64 + 1.0);
         let y = (i as f64 + 1.0) * bias;
         chain = chain
-            .continue_to(p2(x, y), t)
+            .continue_to(Point2::new(x, y), t)
             .unwrap_or_else(|e| panic!("leg {i} refused: {e:?}"));
     }
     let closed = chain
-        .line_to(p2(1.0 + n as f64, 50.0), t)
+        .line_to(Point2::new(1.0 + n as f64, 50.0), t)
         .unwrap()
-        .line_to(p2(0.0, 50.0), t)
+        .line_to(Point2::new(0.0, 50.0), t)
         .unwrap()
         .line_to(Start, t)
         .unwrap();

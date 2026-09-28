@@ -65,27 +65,30 @@
 //!   uncrossable (spiric, spline) edge's ball, less its reach — anything
 //!   but definitely clear abandons the ray.
 //! - **`point_in_arc_loop_conic_span`**: a conic arc's gap to a full
-//!   period. A circle: `(τ − w)·r`, exact. An ellipse: CLOSED on the
-//!   upper bound `(τ − w)·a`, OPEN on the lower bound, the chord between
-//!   the arc's ends.
+//!   period, `(τ − w)` levered by the smaller semi-axis — read only for a
+//!   window wound definitely PAST a period, which is no edge. Anything
+//!   else is an arc, a whole turn included (its two ends coincide).
 //! - **`point_in_arc_loop_conic_on`**: the distance from the conic. A
 //!   circle: exact through the radius. An ellipse: ON on an upper bound
 //!   (a point of the ellipse near the foot), OFF on a lower bound (the
 //!   Hessian-bounded root) — [`ConicArc::hit`].
 //! - **`point_in_arc_loop_conic_end`**: the distance to either end of the
-//!   arc. A circle: the unit chord times the radius. An ellipse: the exact
-//!   distance from the point to the end point.
+//!   arc ([`arc_trim`]'s step 1). On the boundary, a circle's is the unit
+//!   chord times the radius and an ellipse's the exact distance from the
+//!   point to the end point; on a ray's crossing, the unit chord times
+//!   the smaller semi-axis.
 //! - **`point_in_arc_loop_conic_trim`**: the chordal-defect sum saying
-//!   which side of the ends the point lies, levered by the radius or, on
-//!   an ellipse, the larger semi-axis.
+//!   which side of the ends a BOUNDARY point lies, levered by the radius
+//!   or, on an ellipse, the larger semi-axis.
 //! - **`point_in_arc_loop_conic_window`**, **`_disc`**, **`_advance`**: a
-//!   ray's crossing of a conic — the cosine window, the discriminant, the
-//!   root's advance — each levered by the smaller semi-axis, where a
-//!   `Zero` only abandons the ray.
+//!   ray's crossing of a conic — the distance trim's defect sum
+//!   ([`arc_trim`]), the discriminant, the root's advance — each levered
+//!   by the smaller semi-axis, where a `Zero` or an in-band margin only
+//!   abandons the ray.
 //!
 //! Two escalation names never reach the funnel
 //! ([`crate::invalid_margin`]): **`point_in_arc_loop_conic_straddle`**, an
-//! ellipse's two bounds on one quantity straddling the whole band, and
+//! ellipse's two bounds on its distance straddling the whole band, and
 //! **`point_in_arc_loop_boundary_disagreement`**, the walk meeting on an
 //! edge a point its caller's pass placed off it.
 
@@ -192,23 +195,23 @@ impl std::error::Error for PointInLoopError {}
 /// sibling of `splitting` rather than a descendant. `chart_region`'s
 /// `SCHEDULE_2D` is a different table by dimension, not a fourth
 /// reader of this one.
-pub(crate) const SCHEDULE: [[f64; 3]; 16] = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
-    [0.5, 0.25, 1.0],
-    [1.0, 0.5, 0.25],
-    [0.25, 1.0, 0.5],
-    [-0.5, 1.0, 0.125],
-    [0.125, -0.5, 1.0],
-    [1.0, 0.125, -0.5],
-    [0.75, -1.0, 0.375],
-    [0.375, 0.75, -1.0],
-    [-1.0, 0.375, 0.75],
-    [0.625, 0.9375, 0.3125],
-    [0.3125, -0.625, 0.9375],
-    [0.9375, 0.3125, -0.625],
-    [-0.75, -0.25, 1.0],
+pub(crate) const SCHEDULE: [Vec3<f64>; 16] = [
+    Vec3::new(1.0, 0.0, 0.0),
+    Vec3::new(0.0, 1.0, 0.0),
+    Vec3::new(0.0, 0.0, 1.0),
+    Vec3::new(0.5, 0.25, 1.0),
+    Vec3::new(1.0, 0.5, 0.25),
+    Vec3::new(0.25, 1.0, 0.5),
+    Vec3::new(-0.5, 1.0, 0.125),
+    Vec3::new(0.125, -0.5, 1.0),
+    Vec3::new(1.0, 0.125, -0.5),
+    Vec3::new(0.75, -1.0, 0.375),
+    Vec3::new(0.375, 0.75, -1.0),
+    Vec3::new(-1.0, 0.375, 0.75),
+    Vec3::new(0.625, 0.9375, 0.3125),
+    Vec3::new(0.3125, -0.625, 0.9375),
+    Vec3::new(0.9375, 0.3125, -0.625),
+    Vec3::new(-0.75, -0.25, 1.0),
 ];
 
 /// Collects the loop's vertex points in cycle order.
@@ -316,6 +319,7 @@ fn polygon_walk<T: Decide>(
         normal,
         extent,
         "point_in_loop_arm",
+        ArmBand::Escalate,
         band,
         |d, side_axis| {
             ray_parity::ray_verdict(points, q, d, side_axis, &ROWS, band).map_err(escalate)
@@ -334,11 +338,12 @@ fn walk_schedule<T: Decide>(
     normal: Vec3<T>,
     extent: T,
     arm_row: &'static str,
+    arm_band: ArmBand,
     band: Band,
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<Option<bool>, PointInLoopError>,
 ) -> Result<LoopContainment, PointInLoopError> {
     for r in &SCHEDULE {
-        let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
+        let r = r.map(T::from_f64);
         let n_dot_r = normal.dot(r);
         let d_raw = r - normal * n_dot_r;
         // sin(schedule member, plane NORMAL) × loop extent — the
@@ -349,11 +354,11 @@ fn walk_schedule<T: Decide>(
         // the in-plane displacement the probe direction commands at
         // the loop's own scale.
         let arm = Margin::levered(d_raw.norm() / r.norm(), extent);
-        match decide(arm_row, arm, band)
-            .map_err(|diag| PointInLoopError::Escalated { r#loop, diag })?
-        {
-            Sign::Positive => {}
-            _ => continue, // near-parallel schedule member: skip
+        match decide(arm_row, arm, band) {
+            Ok(Sign::Positive) => {}
+            Ok(_) => continue, // near-parallel schedule member: skip
+            Err(_) if arm_band == ArmBand::Retry => continue,
+            Err(diag) => return Err(PointInLoopError::Escalated { r#loop, diag }),
         }
         let d = d_raw.normalize();
         let side_axis = normal.cross(d); // in-plane ⟂, unit
@@ -366,6 +371,16 @@ fn walk_schedule<T: Decide>(
         }
     }
     Err(PointInLoopError::RayExhausted { r#loop })
+}
+
+/// What [`walk_schedule`] does with an in-band margin on its arm row,
+/// which is about one schedule MEMBER and not about the point.
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ArmBand {
+    /// Escalate — [`point_in_loop`]'s posture, which its consumers read.
+    Escalate,
+    /// Skip that member, as a near-parallel one is skipped.
+    Retry,
 }
 
 /// The arc-bearing walk's K rows over a loop's STRAIGHT edges — the
@@ -456,16 +471,16 @@ pub(crate) struct ConicArc<T: geom_core::Real> {
     /// boundary verdict, where a `Zero` IS the answer, never reads it
     /// for an ellipse ([`Self::hit`]).
     lever: T,
-    /// The carrier parameters of the arc's two ends; `None` when the arc
-    /// spans a whole period.
-    window: Option<(T, T)>,
+    /// The carrier parameters of the arc's two ends.
+    span: (T, T),
+    /// The arc's two ends and its apex (the window's mid direction),
+    /// on the unit circle — the trim [`arc_trim`] decides by distance.
+    trim: [(T, T); 3],
 }
 
 /// Why a conic carrier gives no [`ConicArc`].
 pub(crate) enum ConicArcError {
-    /// The width-against-a-period row landed in the band.
-    Escalated(Indeterminate),
-    /// The window winds past a period: no edge at all.
+    /// The window winds definitely past a period: no edge at all.
     WoundPastPeriod,
 }
 
@@ -478,14 +493,20 @@ enum ConicHit {
     Carrier,
     /// On the arc, definitely clear of both ends.
     On,
-    /// On the conic within the band of the arc's end `0` (at `t0`) or
-    /// `1` (at `t1`).
-    End(usize),
+    /// On the conic within the band of one of the arc's ends.
+    End,
 }
 
 impl<T: Decide> ConicArc<T> {
     /// The arc a certified conic carrier spans over `(t0, t1)`; `None`
     /// for a carrier that is not a circle or an ellipse.
+    ///
+    /// A window wound definitely past a period is no edge at all. One
+    /// within the band of a whole turn is an arc like any other: the
+    /// distance trim reads a whole circle, a near-whole one and a short
+    /// one alike — on a whole turn its two ends coincide at the edge's
+    /// one vertex and every other point of the carrier is on it — so
+    /// nothing here turns on which it is, and no gap is read as closed.
     fn of(
         carrier: &geom::Curve3<T>,
         (t0, t1): (T, T),
@@ -509,52 +530,16 @@ impl<T: Decide> ConicArc<T> {
             _ => return Ok(None),
         };
         let lever = a.min(b);
-        let straddle =
-            || ConicArcError::Escalated(crate::invalid_margin::invalid(band, rows.straddle));
-        // The window's gap to a full period, `Δ = τ − w`. On a circle
-        // `Δ·r` is its length exactly. On an ellipse no lever is: the gap
-        // runs at a speed between `b` and `a`, so `Δ·b` would read a gap
-        // at the minor vertex `b/a` short and close an open arc. Its
-        // length is bounded instead — above by `Δ·a`, below by the chord
-        // between the arc's two end points — and CLOSED needs the upper
-        // bound within the zero band, OPEN the lower bound beyond the
-        // escalation band. (The chord bounds the gap from below at any
-        // width; it bounds it tightly only while the gap is short, so an
-        // arc whose own two ends sit within the band of each other — an
-        // edge shorter than the band — escalates rather than opens.)
-        let gap = decide(
+        if let Ok(Sign::Negative) = decide(
             rows.span,
-            Margin::levered(T::tau() - (t1 - t0), a.max(b)),
+            Margin::levered(T::tau() - (t1 - t0), lever),
             band,
-        );
-        let window = match (kind, gap) {
-            (_, Ok(Sign::Zero)) => None,
-            (_, Ok(Sign::Negative)) => return Err(ConicArcError::WoundPastPeriod),
-            (ConicKind::Circle, Err(diag)) => return Err(ConicArcError::Escalated(diag)),
-            (ConicKind::Circle, Ok(Sign::Positive)) => Some((t0, t1)),
-            (ConicKind::Ellipse, gap) => {
-                let ends = geom::Curve3::Ellipse {
-                    center,
-                    axis,
-                    major: a,
-                    minor: b,
-                    u_ref: u,
-                };
-                let chord = ends.eval(t0) - ends.eval(t1);
-                match (decide(rows.span, Margin::norm3(chord), band), gap) {
-                    (Ok(Sign::Positive), _) => Some((t0, t1)),
-                    (Ok(Sign::Negative), _) => {
-                        return Err(ConicArcError::Escalated(crate::invalid_margin::invalid(
-                            band, rows.span,
-                        )));
-                    }
-                    (Err(diag), _) | (Ok(Sign::Zero), Err(diag)) => {
-                        return Err(ConicArcError::Escalated(diag));
-                    }
-                    (Ok(Sign::Zero), _) => return Err(straddle()),
-                }
-            }
-        };
+        ) {
+            return Err(ConicArcError::WoundPastPeriod);
+        }
+        let (s0, c0) = t0.sin_cos();
+        let (s1, c1) = t1.sin_cos();
+        let (sm, cm) = ((t0 + t1) * T::from_f64(0.5)).sin_cos();
         Ok(Some(Self {
             kind,
             center,
@@ -564,7 +549,8 @@ impl<T: Decide> ConicArc<T> {
             a,
             b,
             lever,
-            window,
+            span: (t0, t1),
+            trim: [(c0, s0), (c1, s1), (cm, sm)],
         }))
     }
 
@@ -579,12 +565,30 @@ impl<T: Decide> ConicArc<T> {
         self.center + self.u * (self.a * c) + self.v * (self.b * s)
     }
 
+    /// A unit-circle point as a [`Point3`] for [`arc_trim`], which reads
+    /// points; the third coordinate is zero, so every distance is the
+    /// plane's own.
+    fn lift((x, y): (T, T)) -> Point3<T> {
+        Point3::new(x, y, T::zero())
+    }
+
+    /// The arc's ends, apex and the apex's antipode, lifted.
+    fn trim_points(&self) -> ([Point3<T>; 2], Point3<T>, Point3<T>) {
+        let [e0, e1, m] = self.trim;
+        let z = T::zero();
+        (
+            [Self::lift(e0), Self::lift(e1)],
+            Self::lift(m),
+            Self::lift((z - m.0, z - m.1)),
+        )
+    }
+
     /// **Where `q` sits against this edge.**
     ///
     /// **A circle**: its unit coordinates are an isometry scaled by the
     /// radius, so every reading is levered into metres exactly — the
     /// distance from the circle, `√(((ρ − 1)·r)² + axial²)`, then the
-    /// arc's trim ([`arc_trim`]).
+    /// arc's trim ([`arc_trim`], its `Zero` the band of an end).
     ///
     /// **An ellipse**: no single lever is exact. The smaller semi-axis
     /// understates a distance by up to `b/a` and the larger overstates it
@@ -606,20 +610,20 @@ impl<T: Decide> ConicArc<T> {
     ///   where the ellipse bends tighter than the band resolves (its
     ///   smallest radius of curvature `b²/a` within a few `ε`).
     ///
-    /// `ON` the carrier only where the UPPER bound is within the zero
-    /// band; `OFF` only where the LOWER bound clears the escalation band;
-    /// between them the answer escalates on whichever bound landed in the
-    /// band. The out-of-plane miss `(q − c)·n̂` folds into both. On the
-    /// carrier, an end is read as the EXACT distance from `q` to the end
-    /// point — never a unit chord — and the side of the ends from the
-    /// foot `P` (within the band of `q`, so on the same side of an end
-    /// that is more than the escalation band from `q`), its chordal
-    /// defect levered by the LARGER semi-axis: a unit angle costs at most
-    /// `a` metres of arc, so the margin still bounds the arc length to
-    /// the nearer end from above and never compresses it.
+    /// `OFF` only where the LOWER bound clears the escalation band; `ON`
+    /// the carrier only where the UPPER bound is within the zero band;
+    /// between them the answer escalates. The out-of-plane miss
+    /// `(q − c)·n̂` folds into both. On the carrier, an end is read as the
+    /// EXACT distance from `q` to the end point — never a unit chord — and
+    /// the side of the ends from the foot `P` (within the band of `q`, so
+    /// on the same side of an end that is more than the escalation band
+    /// from `q`), by [`arc_trim_margin`] levered by the LARGER semi-axis:
+    /// a unit angle costs at most `a` metres of arc, so the margin still
+    /// bounds the arc length to the nearer end from above.
     fn hit(&self, q: Point3<T>, rows: ConicRows, band: Band) -> Result<ConicHit, Indeterminate> {
         let (x, y) = self.unit(q);
         let axial = (q - self.center).dot(self.axis);
+        let (ends, apex, anti) = self.trim_points();
         if self.kind == ConicKind::Circle {
             let rho = (x.powi(2) + y.powi(2)).sqrt();
             let miss = (((rho - T::one()) * self.lever).powi(2) + axial.powi(2)).sqrt();
@@ -628,14 +632,23 @@ impl<T: Decide> ConicArc<T> {
                 Sign::Positive => return Ok(ConicHit::Off),
                 Sign::Negative => return Err(crate::invalid_margin::invalid(band, rows.on)),
             }
-            let Some(span) = self.window else {
-                return Ok(ConicHit::On);
+            let trim = ArcTrimRows {
+                end: rows.end,
+                trim: rows.trim,
             };
             return Ok(
-                match arc_trim((x / rho, y / rho), span, self.lever, rows, band)? {
-                    ArcTrim::End(i) => ConicHit::End(i),
-                    ArcTrim::On => ConicHit::On,
-                    ArcTrim::Off => ConicHit::Carrier,
+                match arc_trim(
+                    Self::lift((x / rho, y / rho)),
+                    ends,
+                    apex,
+                    anti,
+                    self.lever,
+                    &trim,
+                    band,
+                )? {
+                    Sign::Zero => ConicHit::End,
+                    Sign::Positive => ConicHit::On,
+                    Sign::Negative => ConicHit::Carrier,
                 },
             );
         }
@@ -681,17 +694,15 @@ impl<T: Decide> ConicArc<T> {
                 return Err(crate::invalid_margin::invalid(band, rows.straddle));
             }
         }
-        let Some((t0, t1)) = self.window else {
-            return Ok(ConicHit::On);
-        };
-        let ends = [
+        let (t0, t1) = self.span;
+        let at = [
             decide(rows.end, Margin::norm3(q - self.point(t0)), band),
             decide(rows.end, Margin::norm3(q - self.point(t1)), band),
         ];
-        if let Some(i) = ends.iter().position(|e| matches!(e, Ok(Sign::Zero))) {
-            return Ok(ConicHit::End(i));
+        if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+            return Ok(ConicHit::End);
         }
-        for end in ends {
+        for end in at {
             match end? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => {
@@ -699,157 +710,117 @@ impl<T: Decide> ConicArc<T> {
                 }
             }
         }
+        let side = arc_trim_margin(Self::lift(foot), ends[0], apex, anti);
         Ok(
-            match decide(
-                rows.trim,
-                Margin::levered(chordal_defect(foot, (t0, t1)), a.max(b)),
-                band,
-            )? {
+            match decide(rows.trim, Margin::levered(side, a.max(b)), band)? {
                 Sign::Positive | Sign::Zero => ConicHit::On,
                 Sign::Negative => ConicHit::Carrier,
             },
         )
     }
 
-    /// Is the unit-circle direction `(x, y)` inside the arc's window?
-    /// The cosine-window construction (`solid_contain::point_on_wall_in_face`
-    /// carries its argument): Positive inside, Negative outside, Zero an
+    /// Is the unit-circle point `(x, y)` inside the arc's window?
+    /// [`arc_trim`] in the arc's unit coordinates, levered by the
+    /// smaller semi-axis: Positive inside, Negative outside, Zero an
     /// endpoint's neighbourhood. Only a ray's crossing reads it, where a
-    /// `Zero` abandons the ray: the construction's endpoint zone is
-    /// compressed by `sin(w/2)`, which costs a short arc rays and never
-    /// a count. A boundary verdict, where a `Zero` would be an answer,
-    /// reads [`Self::hit`] instead.
+    /// `Zero` or an in-band margin abandons the ray, so the lever's
+    /// understatement on an ellipse costs rays, never a count.
     fn in_window(&self, (x, y): (T, T), band: Band) -> Result<Sign, Indeterminate> {
-        let Some((t0, t1)) = self.window else {
-            return Ok(Sign::Positive);
-        };
-        let half = T::from_f64(0.5);
-        let (ms, mc) = ((t0 + t1) * half).sin_cos();
-        let (_, cos_half) = ((t1 - t0) * half).sin_cos();
-        decide(
-            "point_in_arc_loop_conic_window",
-            Margin::levered(x * mc + y * ms - cos_half, self.lever),
+        let (ends, apex, anti) = self.trim_points();
+        arc_trim(
+            Self::lift((x, y)),
+            ends,
+            apex,
+            anti,
+            self.lever,
+            &ARC_LOOP_TRIM,
             band,
         )
     }
 }
 
-/// Where a point on an arc's carrier sits against the arc's trim.
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum ArcTrim {
-    /// Within the band of the arc's end `0` (at `t0`) or `1` (at `t1`).
-    End(usize),
-    /// On the arc, definitely clear of both ends.
-    On,
-    /// Off the arc, definitely clear of both ends.
-    Off,
+/// The K rows one [`arc_trim`] consumer decides on.
+pub(crate) struct ArcTrimRows {
+    /// A point's distance to either end of the arc.
+    pub(crate) end: &'static str,
+    /// The two-term chordal margin: which side of the ends.
+    pub(crate) trim: &'static str,
 }
 
-/// The distance between two unit-circle points.
-fn apart<T: Decide>((ax, ay): (T, T), (bx, by): (T, T)) -> T {
-    ((ax - bx).powi(2) + (ay - by).powi(2)).sqrt()
-}
+/// The arc-bearing walk's trim rows for a ray's CROSSING of an arc,
+/// where a `Zero` abandons the ray.
+const ARC_LOOP_TRIM: ArcTrimRows = ArcTrimRows {
+    end: "point_in_arc_loop_conic_end",
+    trim: "point_in_arc_loop_conic_window",
+};
 
-/// The unit-circle point at angle `t`.
-fn unit_at<T: Decide>(t: T) -> (T, T) {
-    let (s, c) = t.sin_cos();
-    (c, s)
-}
-
-/// **Which side of an arc's ends a unit-circle point `p` lies**, as the
-/// sum of two chordal defects `(|e − m| − |p − m|) + (|p + m| − |e + m|)`,
-/// where `e` is an end, `m` the arc's mid direction and `−m` its
-/// complement's: positive on the arc, negative off it.
+/// **Whether `p`, a point on a circle, lies inside the arc of it whose
+/// ends are `ends` and whose apex is `apex`** (`anti` the apex's
+/// antipode) — decided as DISTANCES, never as an angle, and the one
+/// home of that rule: tier 3's check 9 trims an edge with it and the
+/// arc-bearing walk here trims a crossing with it. Every length is
+/// multiplied by `lever` on its way to a margin: `1` for points given
+/// in metres, the smaller semi-axis for points given in a conic's unit
+/// coordinates (exact for a circle, conservative for an ellipse).
 ///
-/// Chord length is monotone in angular distance up to a half turn, so
-/// each term is positive exactly on the arc, and the sum is
-/// `2(g(α) − g(w/2))` for `g(x) = cos(x/2) − sin(x/2)` and `α` the angle
-/// from `m` — a function whose slope is at least `1/2` over the whole
-/// half turn, so the sum is never smaller than the angle from `p` to the
-/// nearer end: never compressed, on a short arc, a near-full one, or
-/// anywhere between. It is taken from `t0`'s end alone because the two
-/// ends are symmetric about `m` — each `w/2` from it — so
-/// `|e₀ ∓ m| = |e₁ ∓ m|` and either end gives the same sum.
-fn chordal_defect<T: Decide>(p: (T, T), (t0, t1): (T, T)) -> T {
-    let e0 = unit_at(t0);
-    let m = unit_at((t0 + t1) * T::from_f64(0.5));
-    let anti = (T::zero() - m.0, T::zero() - m.1);
-    (apart(e0, m) - apart(p, m)) + (apart(p, anti) - apart(e0, anti))
-}
-
-/// **Whether a point on a CIRCLE lies on the arc `[t0, t1]`**, decided as
-/// distances in the circle's unit coordinates, `dir` the point's
-/// direction on it and `lever` the radius, which makes every reading
-/// here exact in metres.
+/// 1. **At an end**: `p` within the band of either end, measured as
+///    `|p − end|`, answers `Zero`. That is the ONLY way an endpoint
+///    neighbourhood counts: an angular window compresses arc length
+///    near an end by `sin(w/2)`, so on a short arc (and by `sin` of the
+///    complement on a near-full one) its `Zero` reaches `ε / sin(w/2)`
+///    along the carrier, a hundred times `ε` at `w = 0.02`.
+/// 2. **Otherwise, which side of the ends**: the sum of two chordal
+///    defects, `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, where `a`
+///    is an end, `m` the apex and `m′` its antipode. Chord length is
+///    monotone in angular distance up to a half turn, so each term is
+///    positive exactly on the arc; near an end they move as `cos(w/4)`
+///    and `sin(w/4)` times the arc length, whose sum is at least 1, so
+///    the margin is never compressed below the distance it measures —
+///    on a short arc, a near-full one, or a whole circle (where `m′` is
+///    the end and every point is inside). Its `Zero` is therefore within
+///    the band of an end, which step 1 has already answered.
 ///
-/// 1. **At an end**: `dir` within the band of either end, measured as a
-///    chord, is [`ArcTrim::End`]. That is the ONLY way an endpoint
-///    neighbourhood counts. The cosine window `r̂·m̂ ≥ cos(w/2)`
-///    compresses arc length near an end by `sin(w/2)` (and by `sin` of
-///    the complement on a near-full arc), so its `Zero` would reach
-///    `ε / sin(w/2)` along the carrier — a hundred times `ε` at
-///    `w = 0.02` — and its escalation ten times that.
-/// 2. **Otherwise, which side of the ends**: [`chordal_defect`], never
-///    smaller than the arc length to the nearer end. Its `Zero`
-///    therefore lies within the band of an end, which step 1 has
-///    answered; it reads as on.
+/// `Positive` inside, `Negative` past an end, `Zero` at an end or in
+/// the trim's band.
 ///
-/// **Its floor.** The unit coordinates carry rounding of order one ulp
-/// of 1, which the lever turns into about `1e-16 · lever` metres; where
-/// `ε / lever` falls to that order (`ε = 1e-12` on a circle of 10⁴ m)
-/// the band is as narrow as the arithmetic's own error, and a point
-/// near an end reads by rounding. The fixtures that pin this (radius
-/// 10, `ε ≥ 1e-12`) stay three orders clear of it.
+/// # Errors
 ///
-/// **A second home.** `validate::window`'s arc arm (tier 3's check 9)
-/// runs the same two steps in metres on a circle; one home for both is
-/// filed as `work/atrest/validate-window-arc-arm-folds-onto-arc-trim.md`.
-/// An ellipse reads its ends as exact distances instead
-/// ([`ConicArc::hit`]).
-///
-/// The arc must span less than a period; a whole period has no ends and
-/// is the caller's to answer.
-fn arc_trim<T: Decide>(
-    p: (T, T),
-    (t0, t1): (T, T),
+/// An in-band end distance with neither end definitely `Zero`, or an
+/// in-band trim margin.
+pub(crate) fn arc_trim<T: Decide>(
+    p: Point3<T>,
+    ends: [Point3<T>; 2],
+    apex: Point3<T>,
+    anti: Point3<T>,
     lever: T,
-    rows: ConicRows,
+    rows: &ArcTrimRows,
     band: Band,
-) -> Result<ArcTrim, Indeterminate> {
-    let ends = [
-        decide(
-            rows.end,
-            Margin::levered(apart(p, unit_at(t0)), lever),
-            band,
-        ),
-        decide(
-            rows.end,
-            Margin::levered(apart(p, unit_at(t1)), lever),
-            band,
-        ),
+) -> Result<Sign, Indeterminate> {
+    let [a, b] = ends;
+    let at = [
+        decide(rows.end, Margin::levered((p - a).norm(), lever), band),
+        decide(rows.end, Margin::levered((p - b).norm(), lever), band),
     ];
-    if let Some(i) = ends.iter().position(|e| matches!(e, Ok(Sign::Zero))) {
-        return Ok(ArcTrim::End(i));
+    if at.iter().any(|e| matches!(e, Ok(Sign::Zero))) {
+        return Ok(Sign::Zero);
     }
-    for end in ends {
-        match end? {
-            Sign::Positive => {}
-            // A distance is never negative.
-            Sign::Zero | Sign::Negative => {
-                return Err(crate::invalid_margin::invalid(band, rows.end));
-            }
-        }
+    if let Some(diag) = at.into_iter().find_map(Result::err) {
+        return Err(diag);
     }
-    Ok(
-        match decide(
-            rows.trim,
-            Margin::levered(chordal_defect(p, (t0, t1)), lever),
-            band,
-        )? {
-            Sign::Positive | Sign::Zero => ArcTrim::On,
-            Sign::Negative => ArcTrim::Off,
-        },
+    decide(
+        rows.trim,
+        Margin::levered(arc_trim_margin(p, a, apex, anti), lever),
+        band,
     )
+}
+
+/// [`arc_trim`]'s step 2 alone — the sum of two chordal defects,
+/// `(|a − m| − |p − m|) + (|p − m′| − |a − m′|)`, positive on the arc and
+/// never compressed below the angle to the nearer end — for a caller that
+/// has decided the ends by another metric first (an ellipse's exact end
+/// distances, [`ConicArc::hit`]). The one body of the construction.
+fn arc_trim_margin<T: Decide>(p: Point3<T>, a: Point3<T>, apex: Point3<T>, anti: Point3<T>) -> T {
+    ((a - apex).norm() - (p - apex).norm()) + ((p - anti).norm() - (a - anti).norm())
 }
 
 /// One boundary edge of a planar loop, on its own carrier.
@@ -874,8 +845,8 @@ pub(crate) enum EdgeContact {
     Carrier,
     /// On the edge, clear of a conic's ends.
     On,
-    /// Within the band of a conic's end `0` (at the edge's start) or `1`.
-    End(usize),
+    /// Within the band of one of a conic's two ends.
+    End,
     /// An edge on a carrier with no row (a spiric, a spline): this pass
     /// cannot say, and the region walk holds it as a ball.
     Unread,
@@ -905,19 +876,19 @@ impl<T: Decide> LoopEdge<T> {
                 ConicHit::Off => EdgeContact::Off,
                 ConicHit::Carrier => EdgeContact::Carrier,
                 ConicHit::On => EdgeContact::On,
-                ConicHit::End(i) => EdgeContact::End(i),
+                ConicHit::End => EdgeContact::End,
             },
             Self::Unrowed { .. } => EdgeContact::Unread,
         })
     }
 
-    /// A conic edge's end point `i` (`0` at its start parameter).
-    pub(crate) fn conic_end(&self, i: usize) -> Option<Point3<T>> {
+    /// A conic edge's two end points (at its start and end parameters).
+    pub(crate) fn conic_ends(&self) -> Option<[Point3<T>; 2]> {
         let Self::Conic(k) = self else {
             return None;
         };
-        let (t0, t1) = k.window?;
-        Some(k.point(if i == 0 { t0 } else { t1 }))
+        let (t0, t1) = k.span;
+        Some([k.point(t0), k.point(t1)])
     }
 }
 
@@ -971,9 +942,6 @@ pub(crate) fn carrier_loop<T: Decide>(
                 continue;
             }
             Ok(None) => {}
-            Err(ConicArcError::Escalated(diag)) => {
-                return Err(PointInLoopError::Escalated { r#loop, diag });
-            }
             Err(ConicArcError::WoundPastPeriod) => return Err(corrupt()),
         }
         edges.push(match carrier {
@@ -1168,7 +1136,7 @@ fn carrier_walk<T: Decide>(
         {
             EdgeContact::Off | EdgeContact::Unread => {}
             EdgeContact::Carrier => on_carrier[i] = true,
-            EdgeContact::On | EdgeContact::End(_) => match boundary {
+            EdgeContact::On | EdgeContact::End => match boundary {
                 Boundary::Verdict => return Ok(Some(WalkSide::OnBoundary)),
                 // The caller's pass ran the same arithmetic and placed `q`
                 // off this edge. The two agree whenever every decision is
@@ -1186,12 +1154,26 @@ fn carrier_walk<T: Decide>(
             },
         }
     }
+    // ---- The rays. ----
+    // WHY A RAY-LEVEL MARGIN RETRIES (the one home of this argument).
+    // Past the boundary pass, every row is a fact about ONE RAY — which
+    // schedule member, where it meets a vertex's line, a conic, an arc's
+    // end, an uncrossable edge's ball — and not about `q`: the boundary
+    // pass (this walk's own, or its caller's) has decided `q` off every
+    // edge and arc by more than the band, which bounds any crossing's
+    // advance `t` away from zero, so no in-band margin on a ray can be the
+    // question "is `q` on the boundary". And a ray's parity is used only
+    // when EVERY row on it is decisive, so abandoning one — exactly as a
+    // graze is abandoned — can only turn an escalation into an answer or
+    // into `RayExhausted`, never into a wrong verdict. Only the boundary
+    // pass's rows, which ask where `q` itself stands, escalate.
     let mut blocked = false;
     let walked = walk_schedule(
         r#loop,
         normal,
         extent,
         "point_in_arc_loop_arm",
+        ArmBand::Retry,
         band,
         |d, side_axis| {
             // A ray that could meet an uncrossable edge's ball answers
@@ -1214,11 +1196,10 @@ fn carrier_walk<T: Decide>(
                     return Ok(None);
                 }
             }
-            let Some(mut crossings) =
+            let Ok(Some(mut crossings)) =
                 ray_parity::ray_crossings(verts, q, d, side_axis, &ARC_LOOP_ROWS, band, |i| {
                     matches!(edges[i], LoopEdge::Chord)
                 })
-                .map_err(escalate)?
             else {
                 return Ok(None);
             };
@@ -1226,7 +1207,7 @@ fn carrier_walk<T: Decide>(
                 let LoopEdge::Conic(k) = *edge else {
                     continue;
                 };
-                match conic_crossings(k, on_carrier[i], q, d, band).map_err(escalate)? {
+                match conic_crossings(k, on_carrier[i], q, d, band) {
                     Some(c) => crossings += c,
                     None => return Ok(None),
                 }
@@ -1246,7 +1227,8 @@ fn carrier_walk<T: Decide>(
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
-/// `None` for a graze. `on_carrier` says the pre-pass put `q` on the
+/// `None` for a graze, and for an in-band margin on any of its rows
+/// (why that is sound: the ray loop in [`carrier_walk`]). `on_carrier` says the pre-pass put `q` on the
 /// conic and off the arc, so a root at `q` itself is no crossing.
 fn conic_crossings<T: Decide>(
     k: ConicArc<T>,
@@ -1254,7 +1236,7 @@ fn conic_crossings<T: Decide>(
     q: Point3<T>,
     d: Vec3<T>,
     band: Band,
-) -> Result<Option<usize>, Indeterminate> {
+) -> Option<usize> {
     let (px, py) = k.unit(q);
     let (dx, dy) = (d.dot(k.u) / k.a, d.dot(k.v) / k.b);
     // `d` is unit and in the conic's plane, so `(dx, dy)` is nonzero.
@@ -1269,26 +1251,28 @@ fn conic_crossings<T: Decide>(
         "point_in_arc_loop_conic_disc",
         Margin::levered(disc * T::from_f64(0.5), k.lever),
         band,
-    )? {
+    )
+    .ok()?
+    {
         Sign::Positive => {}
-        Sign::Zero => return Ok(None), // tangent to the conic
-        Sign::Negative => return Ok(Some(0)),
+        Sign::Zero => return None, // tangent to the conic
+        Sign::Negative => return Some(0),
     }
     let root = disc.max(T::zero()).sqrt();
     let mut crossings = 0;
     for s in [T::zero() - along - root, T::zero() - along + root] {
         // Back to metres along the unit ray.
         let t = s / dn;
-        match decide("point_in_arc_loop_conic_advance", Margin::of(t), band)? {
+        match decide("point_in_arc_loop_conic_advance", Margin::of(t), band).ok()? {
             Sign::Positive => {}
             Sign::Negative => continue,
             Sign::Zero if on_carrier => continue,
             // A crossing at `q` the pre-pass did not see.
-            Sign::Zero => return Ok(None),
+            Sign::Zero => return None,
         }
         let (hx, hy) = (px + dx * t, py + dy * t);
         let hn = (hx.powi(2) + hy.powi(2)).sqrt();
-        match k.in_window((hx / hn, hy / hn), band)? {
+        match k.in_window((hx / hn, hy / hn), band).ok()? {
             Sign::Positive => crossings += 1,
             Sign::Negative => {}
             // An endpoint's neighbourhood. The endpoint is a vertex of
@@ -1296,10 +1280,10 @@ fn conic_crossings<T: Decide>(
             // its side row, so this arm answers only where that row and
             // this window disagree inside the band — a graze all the
             // same, never a count.
-            Sign::Zero => return Ok(None),
+            Sign::Zero => return None,
         }
     }
-    Ok(Some(crossings))
+    Some(crossings)
 }
 
 #[cfg(test)]
@@ -1357,12 +1341,12 @@ mod tests {
             }
             assert_eq!(
                 ask(at(t1 + 0.5 * eps / r)),
-                ConicHit::End(1),
+                ConicHit::End,
                 "w = {t1}: within the band of the end"
             );
             assert_eq!(
                 ask(at(t0 - 0.5 * eps / r)),
-                ConicHit::End(0),
+                ConicHit::End,
                 "w = {t1}: within the band of the start"
             );
         }
@@ -1428,11 +1412,15 @@ mod tests {
         ConicArc::of(&carrier, (t0, t1), WALK_ROWS.conic, band)
     }
 
-    /// **An ellipse's span reads its gap in metres.** An arc of a full
-    /// period less a gap of `15ε` at the MINOR vertex (`a/b = 20`, where
-    /// the gap runs at speed `a`) is open: the gap's lower bound, the
-    /// chord between the arc's ends, clears the band. Levered by `b` the
-    /// gap read `0.75ε`, the arc read closed, and it had no ends.
+    /// **A nearly full ellipse arc keeps its gap; a full one has none.**
+    /// A full period less a gap of `15ε` at the MINOR vertex (`a/b = 20`,
+    /// where the gap runs at speed `a`): the span is read only for a
+    /// window wound past a period, so the arc keeps both ends, and the
+    /// point in the middle of the gap — on the carrier, `7.5ε` from each
+    /// end — is never ON the arc. Levered by `b` as a CLOSED verdict, that
+    /// gap read `0.75ε` and the arc read closed. A true full period keeps
+    /// its two coincident ends at the edge's one vertex, and every other
+    /// point of the carrier is on it.
     #[test]
     fn a_nearly_full_ellipse_arc_is_not_closed() {
         let band = Band::linear(Tol::witness()).unwrap();
@@ -1443,18 +1431,34 @@ mod tests {
         let Ok(Some(k)) = steep(band, (t0, t1)) else {
             panic!("the arc is read");
         };
-        assert!(k.window.is_some(), "the arc has ends: its gap is 15ε");
-        // The gap's own midpoint is on the carrier and off the arc.
-        let got = k.hit(k.point(core::f64::consts::FRAC_PI_2), WALK_ROWS.conic, band);
+        let mid_gap = k.hit(k.point(core::f64::consts::FRAC_PI_2), WALK_ROWS.conic, band);
         assert!(
-            !matches!(got, Ok(ConicHit::On)),
-            "the gap is not the arc: {got:?}"
+            !matches!(mid_gap, Ok(ConicHit::On)),
+            "the gap is not the arc: {mid_gap:?}"
         );
-        // And a truly full period is closed.
+        for s in [5.0, 11.0] {
+            // `s·ε` of arc into the gap from the arc's end at `t1`.
+            let past = k.hit(k.point(t1 + s * eps / 20.0), WALK_ROWS.conic, band);
+            assert!(
+                !matches!(past, Ok(ConicHit::On)),
+                "{s}ε past the end, in the gap: {past:?}"
+            );
+        }
+        assert_eq!(k.hit(k.point(1.0), WALK_ROWS.conic, band), Ok(ConicHit::On));
         let Ok(Some(full)) = steep(band, (0.0, core::f64::consts::TAU)) else {
             panic!("the full ellipse is read");
         };
-        assert!(full.window.is_none(), "a full period has no ends");
+        for t in [0.3, core::f64::consts::FRAC_PI_2, 3.0, 5.0] {
+            assert_eq!(
+                full.hit(full.point(t), WALK_ROWS.conic, band),
+                Ok(ConicHit::On),
+                "a full period is on the arc at {t}"
+            );
+        }
+        assert_eq!(
+            full.hit(full.point(0.0), WALK_ROWS.conic, band),
+            Ok(ConicHit::End)
+        );
     }
 
     /// **The centre of an ellipse** is `b` from it, exactly the lower

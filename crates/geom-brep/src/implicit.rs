@@ -245,15 +245,25 @@ pub fn implicit_outward_normal<T: Real>(
 }
 
 /// The local curvature lever arm of `s` at `p` (module docs): the
-/// smallest local radius of curvature, `f64::MAX` for a plane (the
-/// practical `min` identity — see the module docs for why not `+∞`),
-/// poison for [`Surface::Nurbs`].
+/// chart's own length scale, `f64::MAX` for a plane (the practical
+/// `min` identity — see the module docs for why not `+∞`), poison for
+/// [`Surface::Nurbs`].
 ///
 /// Per kind: sphere/cylinder — the radius; cone — the radial distance
-/// ρ of `p` from the axis (a conservative bound on the osculating
-/// radius ρ/cos α; smaller arms escalate *more*, which is the safe
-/// direction); torus — the minor radius (the tube's curvature
-/// dominates a ring torus).
+/// ρ of `p` from the axis; torus — the tube radius `r`. It is the scale
+/// the implicit forms are normalized by (`|∇F| − 1` is the elevation
+/// over it for all four), which is how its readers use it: to meter a
+/// dimensionless residual or a relative curvature as a length at the
+/// chart's own scale (`face_normal`'s on-chart certificate, the
+/// dihedral fold, the contact and SSI jet checks).
+///
+/// **It is NOT a bound on the curvature on a fat torus.** On a ring
+/// with `R < 2r` the inner equator bends at `1/(R − r)`, harder than
+/// the tube's `1/r`. A reader that charges a SAGITTA against the
+/// tightest bend wants [`min_radius_of_curvature`] instead, and the two
+/// must not be swapped: a smaller value here LOOSENS the readers above
+/// (their margins shrink toward Zero), while a smaller radius of
+/// curvature tightens a sagitta charge.
 pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
     match *s {
         Surface::Plane { .. } => T::from_f64(f64::MAX),
@@ -269,6 +279,32 @@ pub fn curvature_lever_arm<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
         // As `Nurbs`: the stand-in is a spline, so no implicit form —
         // and the offset description has no closed lever arm to lend.
         Surface::Nurbs(_) | Surface::Approx(_) => poison(),
+    }
+}
+
+/// **The smallest radius of curvature of `s`**, for a reader that
+/// charges a sagitta against the tightest bend — a lower bound on every
+/// normal curvature radius, `f64::MAX` for a plane, poison for
+/// [`Surface::Nurbs`].
+///
+/// Per kind: sphere/cylinder — the radius; cone — the radial distance
+/// ρ of `p` (a conservative bound on the osculating radius ρ/cos α);
+/// torus — `min(r, R − r)`, the smallest principal radius anywhere on
+/// the ring. The tube radius `r` is one principal radius everywhere;
+/// the other is `r·ρ/|ρ − R|`, which is at least `ρ` and reaches `R − r`
+/// on the inner equator, so a fat ring (`R < 2r`) curves hardest ALONG
+/// its inner equator. The bound is global rather than local to `p`, the
+/// conservative direction: a sagitta is charged over an arm that leaves
+/// `p`. A spindle or horn torus (`R ≤ r`) has a curvature singularity on
+/// the axis and gets ZERO, so every charge read from it refuses.
+pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
+    match *s {
+        Surface::Torus {
+            major_radius,
+            minor_radius,
+            ..
+        } => minor_radius.min((major_radius - minor_radius).max(T::zero())),
+        _ => curvature_lever_arm(s, p),
     }
 }
 
@@ -850,6 +886,85 @@ mod tests {
     use proptest::prelude::*;
 
     use super::*;
+
+    /// **The torus's smallest radius of curvature bounds every bend, on
+    /// a fat ring too.** It is read as a radius a sagitta is charged
+    /// against, so it must not exceed `1/|κ|` for any normal curvature
+    /// `κ` the surface has. On a fat ring (`R = 0.8`, `r = 0.5` — the
+    /// dumbbell waist) the inner equator bends at `1/(R − r) = 1/0.3`
+    /// along the parallel, harder than the tube's `1/r = 1/0.5` across
+    /// it. The normal curvature is read off the residual's own Hessian
+    /// (`dᵀ∇²F d / |∇F|`, `|∇F| = 1` on the surface), so the row does
+    /// not restate the lever's formula.
+    #[test]
+    fn the_torus_min_radius_of_curvature_bounds_every_normal_curvature() {
+        for (big_r, r) in [(0.8, 0.5), (2.0, 0.5), (1.2, 0.3)] {
+            let s = Surface::Torus {
+                center: Point3::new(0.0, 0.0, 0.0),
+                axis: Vec3::new(0.0, 1.0, 0.0),
+                major_radius: big_r,
+                minor_radius: r,
+                u_ref: Vec3::new(1.0, 0.0, 0.0),
+            };
+            // Around the tube at 24 minor angles, both principal
+            // directions: along the parallel (z) and across the tube.
+            for k in 0..24 {
+                let v = f64::from(k) * core::f64::consts::TAU / 24.0;
+                let (sv, cv) = v.sin_cos();
+                let p = Point3::new(big_r + r * cv, r * sv, 0.0);
+                let across = Vec3::new(-sv, cv, 0.0);
+                let along = Vec3::new(0.0, 0.0, 1.0);
+                let lever = min_radius_of_curvature(&s, p);
+                for d in [along, across] {
+                    let kappa = implicit_hessian_form(&s, p, d).abs();
+                    assert!(
+                        lever * kappa <= 1.0 + 1e-12,
+                        "R = {big_r}, r = {r}, v = {v}: lever {lever} exceeds the radius \
+                         of curvature 1/{kappa} along {d:?}"
+                    );
+                }
+            }
+        }
+    }
+
+    /// **The chart length scale stays the tube radius, and the two
+    /// quantities stay apart.** `curvature_lever_arm` is what turns
+    /// `|∇F| − 1` into metres (`face_normal`'s on-chart certificate), so
+    /// on a torus it must be exactly `r`: a point `δ` off the tube reads
+    /// `|∇F| − 1 = δ/r`, and levering by anything smaller would accept
+    /// points further off. `min_radius_of_curvature` is the sagitta
+    /// reader's quantity; on a horn or spindle torus it is ZERO, so
+    /// every charge read from it refuses.
+    #[test]
+    fn the_torus_chart_scale_and_its_curvature_bound_are_different_quantities() {
+        let torus = |big_r: f64, r: f64| Surface::Torus {
+            center: Point3::new(0.0, 0.0, 0.0),
+            axis: Vec3::new(0.0, 1.0, 0.0),
+            major_radius: big_r,
+            minor_radius: r,
+            u_ref: Vec3::new(1.0, 0.0, 0.0),
+        };
+        let fat = torus(0.8, 0.5);
+        for (v, delta) in [(0.4_f64, 1e-3), (2.9, -2e-3), (3.1, 5e-4)] {
+            let (sv, cv) = v.sin_cos();
+            let p = Point3::new(0.8 + (0.5 + delta) * cv, (0.5 + delta) * sv, 0.0);
+            let lever = curvature_lever_arm(&fat, p);
+            assert_eq!(lever, 0.5, "the chart scale is the tube radius");
+            let reading = implicit_gradient(&fat, p).norm() - 1.0;
+            assert!(
+                (reading * lever - delta).abs() < 1e-12,
+                "|∇F| − 1 levered by the chart scale is the elevation: {reading} · {lever} vs {delta}"
+            );
+        }
+        assert!((min_radius_of_curvature(&fat, Point3::new(0.3, 0.0, 0.0)) - 0.3).abs() < 1e-15);
+        for (big_r, r) in [(0.5, 0.5), (0.3, 0.5)] {
+            assert_eq!(
+                min_radius_of_curvature(&torus(big_r, r), Point3::new(big_r + r, 0.0, 0.0)),
+                0.0,
+                "R = {big_r}, r = {r}: a horn or spindle torus has no curvature bound"
+            );
+        }
+    }
 
     /// The exactly orthonormal tilted frame from PR 1's fixtures
     /// (integer Pythagorean triple over 3).

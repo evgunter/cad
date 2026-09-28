@@ -2,9 +2,9 @@
 id: two-rules-disagree-on-when-a-fixture-leaves-a-suite
 kind: issue
 title: sweep's src/test_support header and its tests/common routing rule disagree about where a fixture with a second in-crate suite belongs
-status: open
+status: closed
 opened: 2026-09-20
-needs_ev: true
+closed: 2026-09-27
 priority: P4
 cost: E
 ---
@@ -139,3 +139,7 @@ ground and `crates/sweep/tests/` on S-TCOST's and S-TINT's, so no one
 owner covers the pair. The finding is about where a SHARED fixture
 lives, which is this program's subject, and S-DUP claims no territory
 by design (`plan.md`). One row rather than three.
+
+## Closed (2026-09-27): Ev's ruling
+
+Ev ruled that the `tests/common` narrowest-home rule governs. `crates/sweep/src/test_support.rs`'s header now defers to it: a fixture lives in `src/test_support` only when a consumer outside the crate needs it, or an in-crate `mod tests` does. One that only the crate's `tests/` suites share, however many, lives in `tests/common`.

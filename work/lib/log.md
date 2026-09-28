@@ -5266,3 +5266,14 @@ Fixtures that wrote a bulge chain now call
 and its `Segment` per edge). Neither is on the façade.
 
 Signed (PATHS orchestrator).
+
+## Announced from ENCL (2026-09-26): two tag rows in `pncad-py`
+
+ENCL's batch PR (the must-carry first-order gate) adds
+`SmoothJoinRefuted { edge }` to `ExtrudeError` and `RevolveError`. It is
+unreachable but reported, in the style of `CapPlane`: the must-carry rule
+refuting the verb's own smooth-join premise. `pncad-py`'s two tag maps and
+its tag tables gained `smooth_join_refuted`. That is an addition, not a
+claim on your ground.
+
+Signed: (ENCL orchestrator)

@@ -452,6 +452,97 @@ arc bulges the base was wrong, and the head is right there.
 - **The module header** of `splitting/containment.rs` lists every row
   the arc-aware walk and `LoopEdge::contact` own.
 
+### Reconciliation with ATREST-12
+
+ATREST-12 (#3325) landed on main after this branch last took main, and
+made its own reviewed decisions in `splitting/containment.rs`. Main is
+merged in with a merge commit. The orchestrator's ruling on the four
+questions:
+
+1. **One `arc_trim`: ATREST-12's, where it lives.**
+   `pub(crate) arc_trim(p, ends, apex, anti, lever, rows, band) -> Sign`
+   is kept with its signature, and check 9's arm 5 still calls it. This
+   branch's private copy is deleted. A circle edge's boundary reading
+   calls it with the circle's unit points and the radius as lever (a
+   `Zero` is the end's band, which on a circle reads as `End`).
+   - An ellipse decides its ends as EXACT distances first. It then needs
+     only step 2, which is factored out as `arc_trim_margin`: the
+     construction keeps one body.
+   - `EdgeContact::End` no longer carries which end. `contain`'s
+     pre-pass checks both carrier ends against both stored vertices
+     instead: it escalates on an in-band margin, returns `Corrupt` only
+     for an end definitely off BOTH vertices, and otherwise escalates on
+     the end row.
+   - `work/restfront/validate-window-arc-arm-folds-onto-arc-trim` is
+     closed.
+2. **The ray crossing's window is ATREST-12's distance trim** (`in_window`
+   calls `arc_trim` in unit coordinates, rows `ARC_LOOP_TRIM`). The
+   cosine window is gone from the walk, and `solid_contain`'s by-hand
+   site list drops `ConicArc::in_window`, down to two restated sites.
+3. **In-band on a ray retries** (`ArmBand::Retry`). An error in
+   `ray_crossings` or `conic_crossings` abandons that ray, and
+   exhaustion escalates as main does; the argument is stated once, at
+   `carrier_walk`'s ray loop. A ball clearance in the band already
+   abandoned the ray here, and is covered by the same argument.
+4. **The span rule is main's: only a definite wound-past-period is
+   corrupt; everything else is an arc** with both ends, a whole turn
+   included. Tested against the case the second delta review found, and
+   it holds:
+   - An arc of 2π less a 15ε gap at `a/b = 20` keeps its ends. The
+     middle of the gap and points 5ε and 11ε into it are never `On`.
+   - A true full period reads `On` everywhere on the carrier except its
+     joint, which reads `End` (the edge's one vertex).
+   - This branch's two-sided span bound and its `span`-row straddle are
+     therefore dropped: main's rule never closes a gap, so there is
+     nothing to bound.
+   - `a_nearly_full_ellipse_arc_is_not_closed` is re-signed to those
+     assertions; it used to assert a `None` window.
+
+**Kept, as purely this branch's:**
+- the one boundary reading `LoopEdge::contact`, shared by `contfp`'s
+  pre-pass and the walk's `Boundary::Verdict` pass;
+- the two-sided ellipse on/off bounds;
+- the per-edge spiric/spline balls;
+- `invalid_margin`;
+- every row.
+
+**Other changes forced by the merge:**
+- **`boolean::contain::disc_side`** is deleted. Main made it private,
+  and no caller is left once `contfp` stopped dispatching on
+  `LoopShape`.
+- **`LoopShape`'s doc** now names its one consumer: check 9 reads the
+  `Disc` class for arm 4.
+- **`validate.rs` is untouched.** Main's check 9 calls
+  `point_in_carrier_loop` and `arc_trim` with unchanged signatures and
+  reads `loop_shape`'s `Disc`. The seam is announced on
+  `work/restfront/log.md`.
+- **Tracker rows.** `work/atrest/` is deleted on main (ATREST closed;
+  RESTFRONT succeeds it on `validate.rs`). This branch's addenda to
+  `work/atrest/log.md` are dropped.
+  `check-9-and-classify-contain-describe-contfps-retired-polygon-walk`
+  still stands (`validate.rs:597`, `:2468` and `:6233`) and is re-homed
+  under `work/restfront/`.
+
+**Probes after the merge** (ε = 1e-9, K = 10):
+- **`zz_c4_probe` regions:** 0 wrong on all 88 face tallies. Spiric caps
+  unchanged: 953/946 right, 0 wrong, 160/158 refused.
+- **`zz_c4d`:**
+  - 0 `Corrupt`;
+  - ±12ε and ±15ε at the major vertex read `Out`/`In` at every tilt;
+  - 11–18ε inside each end read `OnEdge` at every tilt;
+  - the 15ε census corner raises no containment refusal;
+  - the band sweep is 0 wrong over 16 faces;
+  - the reach probes are 32 of 32 `Out`.
+- **`c4d2` ends:** 0 bad at `a/b` 14, 20 and 100, on the disc and the
+  half.
+- **`c4d2` circle digest** against the pre-merge head: identical except
+  100 of the 19,844 probes.
+  - Those 100 were ray-level escalations (56 on
+    `point_in_arc_loop_conic_advance`, 44 on `point_in_arc_loop_side`).
+  - Main's retry now answers 96 of them and exhausts 4
+    (`RayExhausted`).
+  - That is question 3's ruling doing what it says.
+
 ## Rows added, moved, deleted
 
 - **Added in `crates/sweep/tests/contfp_reads_arcs_on_their_carriers.rs`:**

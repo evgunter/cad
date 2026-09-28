@@ -30,6 +30,7 @@ test_utils::gated_to![
     "crates/editor-core/src/measure.rs",
     "crates/geom-core/src/tolerance.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;

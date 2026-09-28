@@ -551,6 +551,38 @@ pub fn refine_plan_homogeneous(
     refine_plan(kv, &vec![1.0; kv.control_count()], new_knots)
 }
 
+/// **The equal-split refinement schedule**: the interior points that
+/// cut every nonempty span of `kv` into `splits` equal pieces — the
+/// `new_knots` a caller hands [`refine_plan`] or
+/// [`refine_plan_homogeneous`] to refine uniformly within spans.
+///
+/// A point floating point collapses onto a span end is skipped rather
+/// than inserted: refinement is a tightening, never a correctness
+/// condition, so a dropped point costs a wider piece and never an
+/// invalid one, while an inserted collapse would raise an end knot's
+/// multiplicity. Points come out in ascending span order, ascending
+/// within a span; `splits` of 0 or 1 yields none.
+#[must_use]
+pub fn equal_split_points(kv: &KnotVector, splits: usize) -> Vec<f64> {
+    let mut add = Vec::new();
+    for span in kv.first_span()..=kv.last_span() {
+        if !kv.span_is_nonempty(span) {
+            continue;
+        }
+        // `span_is_nonempty` has just checked `span + 1` is in range.
+        let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
+        for k in 1..splits {
+            #[allow(clippy::cast_precision_loss)]
+            let f = k as f64 / splits as f64;
+            let u = lo + (hi - lo) * f;
+            if u > lo && u < hi {
+                add.push(u);
+            }
+        }
+    }
+    add
+}
+
 /// **Knot merging (Book §5.3), the structure half: per vector, the
 /// copies [`refine_plan`] must insert to land it on the UNION of
 /// `vectors`.** The union knot vector carries every distinct interior
@@ -934,6 +966,34 @@ mod tests {
         (kv, w, x)
     }
 
+    /// The equal-split schedule's sliver guard: on the one-ulp span
+    /// `[1, tiny]` every `lo + (hi − lo)·k/n` rounds onto an end, and
+    /// none of those collapses reaches the output. The rest of the row
+    /// pins count and order — `n − 1` points per span wider than a
+    /// sliver, ascending, the grid restarting at every knot — against
+    /// values written out by hand rather than re-derived from the
+    /// implementation's expression.
+    #[test]
+    fn equal_split_points_skips_slivers_and_keeps_count_and_order() {
+        let tiny = f64::from_bits(1.0f64.to_bits() + 1);
+        let kv = KnotVector::clamped(vec![0.0, 0.0, 0.0, 0.5, 0.5, 1.0, tiny, 2.0, 2.0, 2.0], 2)
+            .unwrap();
+        let got = equal_split_points(&kv, 4);
+        // Three spans wider than a sliver — [0, 0.5], [0.5, 1], [tiny, 2] —
+        // at three points each.
+        assert_eq!(got.len(), 9, "{got:?}");
+        assert_eq!(got[..6], [0.125, 0.25, 0.375, 0.625, 0.75, 0.875]);
+        for (g, want) in got[6..].iter().zip([1.25, 1.5, 1.75]) {
+            assert!((g - want).abs() <= f64::EPSILON, "{g} vs {want}");
+        }
+        assert!(got.windows(2).all(|w| w[0] < w[1]), "{got:?}");
+        // A collapsed sliver point would land on `1.0` or `tiny`: no knot
+        // value is ever a split point.
+        assert!(got.iter().all(|u| !kv.knots().contains(u)), "{got:?}");
+        assert!(equal_split_points(&kv, 1).is_empty());
+        assert!(equal_split_points(&kv, 0).is_empty());
+    }
+
     fn apply_chain(plans: &[CurvePlan], x: &[f64]) -> Vec<f64> {
         let mut cur = x.to_vec();
         for plan in plans {
@@ -1004,21 +1064,7 @@ mod tests {
                 .expect("a clamped vector has control points");
             let scale = coeffs.iter().fold(0.0f64, |m, c| m.max(c.abs())).max(1.0);
             for splits in [2usize, 3, 8, 16] {
-                // Every nonempty span cut into `splits` equal pieces.
-                let mut add = Vec::new();
-                for span in kv.first_span()..=kv.last_span() {
-                    if !kv.span_is_nonempty(span) {
-                        continue;
-                    }
-                    let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-                    for k in 1..splits {
-                        #[allow(clippy::cast_precision_loss)]
-                        let t = lo + (hi - lo) * (k as f64 / splits as f64);
-                        if t > lo && t < hi {
-                            add.push(t);
-                        }
-                    }
-                }
+                let add = equal_split_points(&kv, splits);
                 let plans = refine_plan_homogeneous(&kv, &add).unwrap();
                 let f64_out = apply_chain(&plans, &coeffs);
                 let mut ring_out = input.clone();
@@ -1106,20 +1152,7 @@ mod tests {
             knots.extend_from_slice(interior);
             knots.extend(core::iter::repeat_n(1.0, p + 1));
             let kv = KnotVector::clamped(knots, p).unwrap();
-            let mut add = Vec::new();
-            for span in kv.first_span()..=kv.last_span() {
-                if !kv.span_is_nonempty(span) {
-                    continue;
-                }
-                let (lo, hi) = (kv.knots()[span], kv.knots()[span + 1]);
-                for k in 1..splits {
-                    #[allow(clippy::cast_precision_loss)]
-                    let t = lo + (hi - lo) * (k as f64 / splits as f64);
-                    if t > lo && t < hi {
-                        add.push(t);
-                    }
-                }
-            }
+            let add = equal_split_points(&kv, splits);
             let plans = refine_plan_homogeneous(&kv, &add).unwrap();
             let mut out: Vec<Interval> = vec![Interval::point(c); kv.control_count()];
             for plan in &plans {

@@ -20,10 +20,6 @@ pub fn eps() -> f64 {
     Tol::witness().get().eps
 }
 
-pub fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
     Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -37,12 +33,15 @@ pub fn validated(loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
 /// once revolved a full turn about `y`. Shared by `mass_props`'s
 /// closed-form row and `revert_periodic_wrap`'s two-arc torus.
 pub fn donut_profile() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(2.0, -0.5), 1.0), (p2(2.0, 0.5), 1.0)])
+    bulge_loop(vec![
+        (Point2::new(2.0, -0.5), 1.0),
+        (Point2::new(2.0, 0.5), 1.0),
+    ])
 }
 
 pub fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     }
 }

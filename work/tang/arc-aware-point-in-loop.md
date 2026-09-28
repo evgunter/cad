@@ -140,6 +140,18 @@ cap arcs' common centre and is collinear with the loop's straight edges.
 (Its diag also reads `margin: Invalid`.) The same door stops the
 longitudinal spelling of the revolved dumbbell.
 
+## 2026-09-25 — check 9's nesting arm reads the walk (ATREST-12)
+
+`validate::ring_nesting` places ring vertices with
+`splitting::containment::point_in_carrier_loop` on every planar outer
+loop, with no `loop_shape` dispatch in front of it; the `ArcParity` and
+`NoWalk` silences there are closed (the lune, the slot, the half-disc
+and the D-rod's cap are rows). **This site is closed.** Two sites are
+left on the polygon walk with arc-bearing loops: `contain::contfp`
+(CONTACT's ground; `ArcParity` walks the polygon, `NoWalk` refuses)
+and `chord_join::rehome_rings` (REACH's row,
+`work/reach/rehome-rings-reads-an-arc-bearing-run-through-the-polygon-walk`).
+
 ## 2026-09-26 — the `contfp` site moves onto the carrier walk (CONTACT-4)
 
 `boolean::contain::contfp` now reads its outer loop and every ring
@@ -152,5 +164,5 @@ The `NoWalk` refusal (half-disc, lens) is answered. The walk's `None`
 refusal, `ContainError::ArcLoopUnsupported`.
 
 Still on the polygon walk with an arc-bearing loop: `chord_join::rehome_rings`
-(REACH's row, above), and check 9's nesting arm, which is gated to
-`Polygon`/`Disc` and which ATREST-12 moves onto the same walk.
+(REACH's row, above) alone. Check 9's site closed first (ATREST-12,
+above).

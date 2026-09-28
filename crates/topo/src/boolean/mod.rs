@@ -109,10 +109,10 @@ use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
-// Crate-internal: tier 3's check 9 gates its nesting arm on the same
-// loop classification this module's own walk dispatches on, and
-// decides the disc class with the same exact side row.
-pub(crate) use contain::{LoopCircle, LoopShape, disc_side, loop_shape};
+// Crate-internal: tier 3's check 9 decides two whole-circle loops
+// against each other (its contact arm 4) on the same loop
+// classification this module's own walk dispatches on.
+pub(crate) use contain::{LoopShape, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -443,16 +443,39 @@ impl FacePairDeclaration {
 #[derive(Debug, Default)]
 pub(crate) struct DeclaredPairs {
     map: std::collections::BTreeMap<(FaceKey, FaceKey), ContactClass>,
+    /// The `Rest` pairs the declaration door's carrier ladder called ONE
+    /// carrier, `(A face, B face)`.
+    one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
 }
 
 impl DeclaredPairs {
-    pub(crate) fn build(decls: &BooleanDeclarations) -> Self {
+    pub(crate) fn build(
+        decls: &BooleanDeclarations,
+        one_carrier: std::collections::BTreeSet<(FaceKey, FaceKey)>,
+    ) -> Self {
         Self {
             map: decls
                 .coincident_faces
                 .iter()
                 .map(|d| ((d.a, d.b), d.class))
                 .collect(),
+            one_carrier,
+        }
+    }
+
+    /// Whether the (operand-tagged) pair is a `Rest` declaration the
+    /// door VERIFIED as one carrier — the certificate, not the claim.
+    pub(crate) fn verified_one_carrier(
+        &self,
+        o1: Operand,
+        f1: FaceKey,
+        o2: Operand,
+        f2: FaceKey,
+    ) -> bool {
+        match (o1, o2) {
+            (Operand::A, Operand::B) => self.one_carrier.contains(&(f1, f2)),
+            (Operand::B, Operand::A) => self.one_carrier.contains(&(f2, f1)),
+            _ => false,
         }
     }
 
@@ -738,10 +761,10 @@ pub enum BooleanError {
     /// **Point-in-face on a loop no walk expresses at the point.** The
     /// in-plane walk reads each edge on its own carrier — a line as its
     /// chord, a circle or ellipse arc on its conic — and has no crossing
-    /// row for a spiric or spline edge. A point definitely clear of the
-    /// loop's reach is answered `Out`; one within it, where a crossing of
-    /// that edge could change the answer, is refused here rather than
-    /// guessed.
+    /// row for a spiric or spline edge. It answers along any ray that
+    /// definitely misses a ball holding such an edge; a point where
+    /// every ray could meet one — a crossing of that edge could change
+    /// the answer — is refused here rather than guessed.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
@@ -1959,8 +1982,8 @@ pub(crate) fn boolean_reduce_declared_strategy<T: Decide + Bounds>(
 ) -> Result<BooleanReduction<T>, BooleanError> {
     let band = Band::linear(tol)?;
     validate_declarations(a_operand, b_operand, decls)?;
-    verify_declared_contacts(a_operand, b_operand, decls, band)?;
-    let declared = DeclaredPairs::build(decls);
+    let one_carrier = verify_declared_contacts(a_operand, b_operand, decls, band)?;
+    let declared = DeclaredPairs::build(decls, one_carrier);
     reduce::gate_operand_pairs(a_operand, b_operand, &declared, band)?;
     reduce::gate_maximal_faces(a_operand, Operand::A, band)?;
     reduce::gate_maximal_faces(b_operand, Operand::B, band)?;
@@ -2117,7 +2140,8 @@ fn verify_declared_contacts<T: Decide>(
     b: &Body<T>,
     decls: &BooleanDeclarations,
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<std::collections::BTreeSet<(FaceKey, FaceKey)>, BooleanError> {
+    let mut one_carrier = std::collections::BTreeSet::new();
     for &FacePairDeclaration {
         a: fa,
         b: fb,
@@ -2125,32 +2149,44 @@ fn verify_declared_contacts<T: Decide>(
     } in &decls.coincident_faces
     {
         match class {
-            ContactClass::Rest => verify_rest_declaration(a, fa, b, fb, band)?,
+            ContactClass::Rest => {
+                if verify_rest_declaration(a, fa, b, fb, band)? {
+                    one_carrier.insert((fa, fb));
+                }
+            }
             ContactClass::Tangent => verify_tangent_declaration(a, fa, b, fb, band)?,
         }
     }
-    Ok(())
+    Ok(one_carrier)
 }
 
 /// The `Rest` half of [`verify_declared_contacts`]: the carrier
 /// ladder in its declared posture — a definitely-different carrier
 /// contradicts, an in-band residue is bridged (C4), a sliver
 /// escalates.
+///
+/// `Ok(true)` when the ladder called the two faces ONE carrier (either
+/// orientation) — the certificate the crossing layer's carrier-identity
+/// rung reads, recorded once here instead of re-derived per event.
 fn verify_rest_declaration<T: Decide>(
     a: &Body<T>,
     fa: FaceKey,
     b: &Body<T>,
     fb: FaceKey,
     band: Band,
-) -> Result<(), BooleanError> {
+) -> Result<bool, BooleanError> {
     // A carrier kind the ladder cannot describe: `validate_
     // declarations` has already had its say about which kinds this
-    // op accepts, so there is nothing left to add here.
+    // op accepts, so there is nothing left to add here — and nothing
+    // for the identity rung to read.
     let Some(outcome) = rest::carrier_pair_relation(a, fa, b, fb, true, band) else {
-        return Ok(());
+        return Ok(false);
     };
     match outcome {
-        Ok(_) => Ok(()),
+        Ok(
+            carrier_eq::CarrierRelation::SameOriented | carrier_eq::CarrierRelation::SameOpposite,
+        ) => Ok(true),
+        Ok(carrier_eq::CarrierRelation::Distinct) => Ok(false),
         Err(carrier_eq::CarrierEqError::Contradicted(diag)) => {
             Err(BooleanError::ContactContradicted {
                 declaration: crate::contact::DeclaredContact {

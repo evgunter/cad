@@ -16,12 +16,8 @@ use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_lo
 use sweep::{Extrusion, extrude};
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn pv(x: f64, y: f64, bulge: f64) -> (Point2<f64>, f64) {
-    (p2(x, y), bulge)
+    (Point2::new(x, y), bulge)
 }
 
 fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
@@ -35,25 +31,25 @@ fn body_of(loops: Vec<ProfileLoop<f64>>, z0: f64, z1: f64) -> Body<f64> {
 
 fn cyl(cx: f64, cy: f64, r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(cx, cy), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(cx, cy), r, tol).unwrap();
     body_of(vec![lp.into()], z0, z1)
 }
 
 /// An annular cap: outer circle `ro`, coaxial bore `ri`.
 fn tube(ro: f64, ri: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let outer = profile::circle(p2(0.0, 0.0), ro, tol).unwrap();
-    let bore = profile::circle(p2(0.0, 0.0), ri, tol).unwrap();
+    let outer = profile::circle(Point2::new(0.0, 0.0), ro, tol).unwrap();
+    let bore = profile::circle(Point2::new(0.0, 0.0), ri, tol).unwrap();
     body_of(vec![outer.into(), bore.into()], z0, z1)
 }
 
 fn boxx(x0: f64, x1: f64, y0: f64, y1: f64, z0: f64, z1: f64) -> Body<f64> {
     body_of(
         vec![RawLoop::polygon([
-            p2(x0, y0),
-            p2(x1, y0),
-            p2(x1, y1),
-            p2(x0, y1),
+            Point2::new(x0, y0),
+            Point2::new(x1, y0),
+            Point2::new(x1, y1),
+            Point2::new(x0, y1),
         ])],
         z0,
         z1,
@@ -163,8 +159,18 @@ fn r1_concentric_buried_cylinder() {
 fn r1_square_hole_plate_unioned_with_a_boss() {
     let plate = body_of(
         vec![
-            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]),
-            RawLoop::polygon([p2(-0.5, -0.5), p2(0.5, -0.5), p2(0.5, 0.5), p2(-0.5, 0.5)]),
+            RawLoop::polygon([
+                Point2::new(-2.0, -2.0),
+                Point2::new(2.0, -2.0),
+                Point2::new(2.0, 2.0),
+                Point2::new(-2.0, 2.0),
+            ]),
+            RawLoop::polygon([
+                Point2::new(-0.5, -0.5),
+                Point2::new(0.5, -0.5),
+                Point2::new(0.5, 0.5),
+                Point2::new(-0.5, 0.5),
+            ]),
         ],
         0.0,
         1.0,
@@ -362,10 +368,15 @@ fn r1_the_cap_yardstick_is_what_the_pr_says() {
 #[test]
 fn r1_a_box_down_a_circular_hole_in_a_square_plate() {
     let tol = Tol::witness();
-    let hole = profile::circle(p2(0.0, 0.0), 0.5, tol).unwrap();
+    let hole = profile::circle(Point2::new(0.0, 0.0), 0.5, tol).unwrap();
     let plate = body_of(
         vec![
-            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]),
+            RawLoop::polygon([
+                Point2::new(-2.0, -2.0),
+                Point2::new(2.0, -2.0),
+                Point2::new(2.0, 2.0),
+                Point2::new(-2.0, 2.0),
+            ]),
             hole.into(),
         ],
         0.0,

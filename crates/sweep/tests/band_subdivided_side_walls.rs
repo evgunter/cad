@@ -30,20 +30,16 @@ use sweep::blend::BlendError;
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, loft_body, revolve};
 use topo::{Body, BooleanError, EdgeKey, FaceKey, Operand, union, validate_closed};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// `[0,2]²` whose bottom side is authored as `line(1)` and then the
 /// straight continuation to `(2, 0)`: five vertices, four corners, and
 /// segments 0 and 1 declared to share one carrier.
 fn subdivided_square(t: Tol) -> ClosedLoop<f64> {
-    Open.at(p2(0.0, 0.0))
+    Open.at(Point2::new(0.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(2.0, 0.0), t)
+        .continue_to(Point2::new(2.0, 0.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -69,10 +65,10 @@ fn subdivided_prism(t: Tol) -> sweep::Extruded<f64> {
 /// An axis-aligned cube of side `s` with its low corner at `(x0, y0, z0)`.
 fn cube_at(x0: f64, y0: f64, z0: f64, s: f64) -> Body<f64> {
     let lp = ProfileLoop::polygon([
-        p2(x0, y0),
-        p2(x0 + s, y0),
-        p2(x0 + s, y0 + s),
-        p2(x0, y0 + s),
+        Point2::new(x0, y0),
+        Point2::new(x0 + s, y0),
+        Point2::new(x0 + s, y0 + s),
+        Point2::new(x0, y0 + s),
     ]);
     let plane = SketchPlane::new(Affine3::from_parts(
         Mat3::identity(),
@@ -168,18 +164,18 @@ fn extruded_continuation_walls_share_a_key_and_refuse_until_merged() {
 fn revolved_continuation_walls_share_a_key_and_refuse_until_merged() {
     let t = Tol::witness();
     let lp: ProfileLoop<f64> = Open
-        .at(p2(1.0, 0.0))
+        .at(Point2::new(1.0, 0.0))
         .angle(0.0, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(3.0, 0.0), t)
+        .continue_to(Point2::new(3.0, 0.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
         .line(1.0, t)
         .unwrap()
-        .continue_to(p2(3.0, 2.0), t)
+        .continue_to(Point2::new(3.0, 2.0), t)
         .unwrap()
         .turn(FRAC_PI_2, t)
         .unwrap()
@@ -192,7 +188,7 @@ fn revolved_continuation_walls_share_a_key_and_refuse_until_merged() {
         .validate(t)
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     };
     // A cube across the annulus plane y = 0 over the split circle at

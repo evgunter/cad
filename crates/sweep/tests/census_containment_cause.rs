@@ -36,16 +36,15 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ContactRecords, ValidationError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A LENS extruded z0..z0+h: a profile loop of TWO vertices joined by
 /// two arcs of different circles. Its caps are planar, and the polygon
 /// through their two vertices has no area.
 fn lens(z0: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = bulge_loop(vec![(p2(-1.0, 0.0), 0.6), (p2(1.0, 0.0), 0.6)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-1.0, 0.0), 0.6),
+        (Point2::new(1.0, 0.0), 0.6),
+    ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(h), tol).unwrap().body

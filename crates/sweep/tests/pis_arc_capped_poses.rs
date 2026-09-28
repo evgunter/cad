@@ -480,95 +480,103 @@ fn the_in_face_walk_reads_each_edge_on_its_carrier() {
         // The in-plane point over `(x, y)`.
         Point3::new(x, y, 1.25 - x * 0.3f64.tan())
     };
-    let p = Point3::new;
     let rows: Vec<FaceRow<'_>> = vec![
         (
             "two-arc disc cap",
             &disc,
-            p(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             z,
             vec![
-                (p(0.0, 0.0, 1.0), Some(true)), // on the two arcs' shared chord
-                (p(0.3, 0.2, 1.0), Some(true)),
-                (p((0.5 - near) * s45, (0.5 - near) * s45, 1.0), Some(true)),
-                (p((0.5 + near) * s45, (0.5 + near) * s45, 1.0), Some(false)),
-                (p((0.5 - near) * c200, (0.5 - near) * s200, 1.0), Some(true)),
+                (Point3::new(0.0, 0.0, 1.0), Some(true)), // on the two arcs' shared chord
+                (Point3::new(0.3, 0.2, 1.0), Some(true)),
                 (
-                    p((0.5 + near) * c200, (0.5 + near) * s200, 1.0),
+                    Point3::new((0.5 - near) * s45, (0.5 - near) * s45, 1.0),
+                    Some(true),
+                ),
+                (
+                    Point3::new((0.5 + near) * s45, (0.5 + near) * s45, 1.0),
                     Some(false),
                 ),
-                (p(0.0, 0.5, 1.0), None), // on an arc
-                (p(0.5, 0.0, 1.0), None), // the vertex joining the arcs
-                (p(0.7, 0.0, 1.0), Some(false)),
+                (
+                    Point3::new((0.5 - near) * c200, (0.5 - near) * s200, 1.0),
+                    Some(true),
+                ),
+                (
+                    Point3::new((0.5 + near) * c200, (0.5 + near) * s200, 1.0),
+                    Some(false),
+                ),
+                (Point3::new(0.0, 0.5, 1.0), None), // on an arc
+                (Point3::new(0.5, 0.0, 1.0), None), // the vertex joining the arcs
+                (Point3::new(0.7, 0.0, 1.0), Some(false)),
             ],
         ),
         (
             "D-rod cap (arc and chord)",
             &rod,
-            p(0.0, 0.0, ROD_L),
+            Point3::new(0.0, 0.0, ROD_L),
             z,
             vec![
-                (p(0.2, 0.0, ROD_L), Some(true)),
-                (p(0.4, 0.0, ROD_L), Some(false)), // inside the circle, past the flat
-                (p(0.4, 0.3, ROD_L), Some(false)), // on the circle, off the arc
-                (p(0.3, 0.1, ROD_L), None),        // on the flat
-                (p(-0.5, 0.0, ROD_L), None),       // on the arc
+                (Point3::new(0.2, 0.0, ROD_L), Some(true)),
+                (Point3::new(0.4, 0.0, ROD_L), Some(false)), // inside the circle, past the flat
+                (Point3::new(0.4, 0.3, ROD_L), Some(false)), // on the circle, off the arc
+                (Point3::new(0.3, 0.1, ROD_L), None),        // on the flat
+                (Point3::new(-0.5, 0.0, ROD_L), None),       // on the arc
             ],
         ),
         (
             "D-plate cap (arc bowing out)",
             &d_plate,
-            p(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             z,
             vec![
-                (p(0.55, 0.0, 1.0), Some(true)), // the lune beyond the chord
-                (p(0.6, 0.0, 1.0), Some(true)),
-                (p(0.61, 0.0, 1.0), Some(false)),
-                (p(0.55, 0.2, 1.0), Some(false)),
-                (p(0.5, 0.0, 1.0), Some(true)), // on the chord
+                (Point3::new(0.55, 0.0, 1.0), Some(true)), // the lune beyond the chord
+                (Point3::new(0.6, 0.0, 1.0), Some(true)),
+                (Point3::new(0.61, 0.0, 1.0), Some(false)),
+                (Point3::new(0.55, 0.2, 1.0), Some(false)),
+                (Point3::new(0.5, 0.0, 1.0), Some(true)), // on the chord
             ],
         ),
         (
             "notched plate cap (arc bowing in)",
             &notched,
-            p(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             z,
             vec![
-                (p(0.0, 0.85, 1.0), Some(false)), // in the notch
-                (p(0.0, 1.0, 1.0), Some(false)),  // on the chord, in the notch
-                (p(0.0, 0.65, 1.0), Some(true)),
-                (p(0.5, 0.9, 1.0), Some(true)),
-                (p(0.0, 0.7, 1.0), None), // the notch's deepest point
+                (Point3::new(0.0, 0.85, 1.0), Some(false)), // in the notch
+                (Point3::new(0.0, 1.0, 1.0), Some(false)),  // on the chord, in the notch
+                (Point3::new(0.0, 0.65, 1.0), Some(true)),
+                (Point3::new(0.5, 0.9, 1.0), Some(true)),
+                (Point3::new(0.0, 0.7, 1.0), None), // the notch's deepest point
             ],
         ),
         (
             "dome base annulus (two full-circle edges joined by a seam)",
             &dome,
-            p(0.0, 0.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
             Vec3::new(0.0, 1.0, 0.0),
             vec![
-                (p(0.75 * s45, 0.0, 0.75 * s45), Some(true)),
-                (p(0.75, 0.0, 0.0), None), // on the seam
-                (p(0.0, 0.0, -0.75), Some(true)),
-                (p(0.0, 0.0, 0.25), Some(false)), // in the bore
-                (p(1.2, 0.0, 0.0), Some(false)),
-                (p(0.0, 0.0, -1.0), None), // on the outer circle
-                (p(0.0, 0.0, 0.5), None),  // on the bore
+                (Point3::new(0.75 * s45, 0.0, 0.75 * s45), Some(true)),
+                (Point3::new(0.75, 0.0, 0.0), None), // on the seam
+                (Point3::new(0.0, 0.0, -0.75), Some(true)),
+                (Point3::new(0.0, 0.0, 0.25), Some(false)), // in the bore
+                (Point3::new(1.2, 0.0, 0.0), Some(false)),
+                (Point3::new(0.0, 0.0, -1.0), None), // on the outer circle
+                (Point3::new(0.0, 0.0, 0.5), None),  // on the bore
             ],
         ),
         (
             "holed plate top (a two-arc ring)",
             &holed,
-            p(0.0, 0.0, 1.0),
+            Point3::new(0.0, 0.0, 1.0),
             z,
             vec![
-                (p(0.0, 0.0, 1.0), Some(false)), // in the hole
-                (p(0.3, 0.3, 1.0), Some(false)),
-                (p(0.4, 0.4, 1.0), Some(true)),
-                (p(1.5, -1.5, 1.0), Some(true)),
-                (p(0.0, 0.5, 1.0), None), // on the ring
-                (p(0.0, 0.5 + near, 1.0), Some(true)),
-                (p(2.5, 0.0, 1.0), Some(false)),
+                (Point3::new(0.0, 0.0, 1.0), Some(false)), // in the hole
+                (Point3::new(0.3, 0.3, 1.0), Some(false)),
+                (Point3::new(0.4, 0.4, 1.0), Some(true)),
+                (Point3::new(1.5, -1.5, 1.0), Some(true)),
+                (Point3::new(0.0, 0.5, 1.0), None), // on the ring
+                (Point3::new(0.0, 0.5 + near, 1.0), Some(true)),
+                (Point3::new(2.5, 0.0, 1.0), Some(false)),
             ],
         ),
         (

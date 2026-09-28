@@ -142,13 +142,13 @@ fn wrong_cache_is_rejected_at_attachment() {
     // band at every CI ε row) must be refused by the op itself, body
     // untouched.
     let eps = Tol::witness().get().eps;
-    let c = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(c(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let edges_before = body.edges().count();
-    let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.carrier = Curve3::Line {
-        origin: c(0.0, 100.0 * eps, 0.0),
+        origin: Point3::new(0.0, 100.0 * eps, 0.0),
         dir: Vec3::unit_x(),
     };
     let err = body
@@ -156,7 +156,7 @@ fn wrong_cache_is_rejected_at_attachment() {
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            c(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             spec,
             Tol::witness(),
         )
@@ -250,9 +250,10 @@ fn dual_lane_decisions_match_f64_bit_for_bit() {
     // upgraded Intersection re-certifications.
     //
     // The dual goes through the `_structural` door, which is where every
-    // certificate compared below is produced — all nine checks run, check
-    // 7 through the closed form (the cube is planar, so it computes at a
-    // dual with a zero pad), and none of them reads a certified lane. The
+    // certificate compared below is produced — all ten checks run, checks
+    // 7 and 10 through the closed form (the cube is planar, so it computes
+    // at a dual with a zero pad; the cube's one shell skips check 10), and
+    // none of them reads a certified lane. The
     // f64 lane's own composed-door rows are elsewhere in this file.
     use geom_core::{Dual, Dual64};
     let mut f = geometric_cube::<f64>(Tol::witness());
@@ -291,15 +292,14 @@ fn near_tangent_intersection_attachment_escalates() {
     // path. Built standalone (plane × plane through one line).
     let eps = Tol::witness().get().eps;
     let theta = 3.0 * eps;
-    let c = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(c(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            c(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             Tol::witness(),
         )
         .unwrap();
@@ -309,9 +309,9 @@ fn near_tangent_intersection_attachment_escalates() {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             },
-            EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0)),
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
             FaceSurface::New(Surface::Plane {
-                origin: c(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 normal: Vec3::unit_z(),
                 u_ref: Vec3::unit_x(),
             }),
@@ -323,18 +323,19 @@ fn near_tangent_intersection_attachment_escalates() {
         .set_face_surface(
             seed.face,
             FaceSurface::New(Surface::Plane {
-                origin: c(0.0, 0.0, 0.0),
+                origin: Point3::new(0.0, 0.0, 0.0),
                 normal: Vec3::new(0.0, theta.sin(), theta.cos()),
                 u_ref: Vec3::unit_x(),
             }),
         )
         .unwrap();
     let flat = body.get_face(split.face).unwrap().surface;
-    let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = EdgeDescriptionSpec::Intersection {
         s1: flat,
         s2: tilted,
-        witness: c(0.5, 0.0, 0.0),
+        witness: Point3::new(0.5, 0.0, 0.0),
     };
     let err = body
         .set_edge_curve(split.edge, spec, Tol::witness())
@@ -357,28 +358,28 @@ fn near_tangent_intersection_attachment_escalates() {
 fn totality_no_panics_on_poison_inputs() {
     // NaN coordinates, poison specs, Nurbs carriers: every failure is a
     // typed error — never a panic (D9).
-    let c = |x: f64, y: f64, z: f64| Point3::new(x, y, z);
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(c(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let nan = f64::NAN;
     assert!(matches!(
         body.mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop
             },
-            c(nan, 0.0, 0.0),
+            Point3::new(nan, 0.0, 0.0),
             Tol::witness(),
         ),
         Err(EulerOpError::Certification { .. })
     ));
-    let mut spec = EdgeCurveSpec::line_between(c(0.0, 0.0, 0.0), c(1.0, 0.0, 0.0));
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.carrier = Curve3::nurbs_placeholder();
     assert!(matches!(
         body.mev(
             MevSite::Lone {
                 r#loop: seed.r#loop
             },
-            c(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             spec,
             Tol::witness(),
         ),

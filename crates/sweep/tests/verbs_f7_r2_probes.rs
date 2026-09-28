@@ -8,7 +8,7 @@
 
 use crate::revolve_common;
 
-use geom_core::{Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -18,7 +18,11 @@ use topo::{
 };
 
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 fn cone() -> Body<f64> {

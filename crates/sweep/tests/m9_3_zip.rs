@@ -8,7 +8,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::operands::plate6 as plate;
+use crate::common::operands::{plate6 as plate, plate6_cyl};
 use geom_core::{Affine3, Point2, Tol, Vec3};
 use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
@@ -16,27 +16,6 @@ use topo::readback::euler_counts;
 use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
-
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
-/// A radius-0.5 three-arc cylinder at (cx, 2), z ∈ [z0, z0 + h].
-fn cyl(cx: f64, z0: f64, h: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th = deg.to_radians();
-        p2(cx + 0.5 * th.cos(), 2.0 + 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(h), Tol::witness())
-        .unwrap()
-        .body
-}
 
 fn body_of(r: BooleanResult<f64>) -> Body<f64> {
     match r {
@@ -49,16 +28,16 @@ fn body_of(r: BooleanResult<f64>) -> Body<f64> {
 /// unions — the shipped transverse lane).
 fn plate_with_pegs() -> Body<f64> {
     let p0 = plate(0.0);
-    let p1 = body_of(topo::union(&p0, &cyl(2.0, 0.4, 1.6), Tol::witness()).unwrap());
-    body_of(topo::union(&p1, &cyl(4.0, 0.4, 1.6), Tol::witness()).unwrap())
+    let p1 = body_of(topo::union(&p0, &plate6_cyl(2.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap());
+    body_of(topo::union(&p1, &plate6_cyl(4.0, 0.4, 1.6, 0.5), Tol::witness()).unwrap())
 }
 
 /// Plate Q: z ∈ [1, 2] with two through-bores (the shipped transverse
 /// subtracts).
 fn plate_with_bores() -> Body<f64> {
     let q0 = plate(1.0);
-    let q1 = body_of(topo::subtract(&q0, &cyl(2.0, 0.8, 1.4), Tol::witness()).unwrap());
-    body_of(topo::subtract(&q1, &cyl(4.0, 0.8, 1.4), Tol::witness()).unwrap())
+    let q1 = body_of(topo::subtract(&q0, &plate6_cyl(2.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap());
+    body_of(topo::subtract(&q1, &plate6_cyl(4.0, 0.8, 1.4, 0.5), Tol::witness()).unwrap())
 }
 
 /// The cylinder faces of a body whose axis x is near `cx`.
@@ -204,10 +183,10 @@ fn quarter_round_below() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(1.0, 0.0), 0.0),
-            (p2(1.0, 2.0), b90),
-            (p2(0.0, 3.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 2.0), b90),
+            (Point2::new(0.0, 3.0), 0.0),
         ],
         vec![2],
     )
@@ -220,11 +199,11 @@ fn quarter_round_above() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            (p2(1.0, 0.5), 0.0),
-            (p2(1.0, 2.0), -b90),
-            (p2(2.0, 3.0), 0.0),
-            (p2(3.0, 3.0), 0.0),
-            (p2(3.0, 0.5), 0.0),
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(1.0, 2.0), -b90),
+            (Point2::new(2.0, 3.0), 0.0),
+            (Point2::new(3.0, 3.0), 0.0),
+            (Point2::new(3.0, 0.5), 0.0),
         ],
         vec![1, 2],
     )

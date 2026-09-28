@@ -25,6 +25,7 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::iv;
 use geom_core::{Bounds, Interval, Real, Tol};
 use sweep::blend::build::fillet_edges;
 use sweep::test_support::{
@@ -35,10 +36,6 @@ use topo::{Body, mass_properties, validate_geometric};
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
 }
 
 fn repaired(mut body: Body<Interval>) -> Body<Interval> {

@@ -6,15 +6,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::p2;
 use geom::Surface;
-use geom_core::{Band, Bounds, Interval, Point2, Real, Tol};
+use geom_core::{Band, Bounds, Interval, Real, Tol};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, extrude};
 use topo::{Body, ChartMove};
-
-fn p2(x: f64, y: f64) -> Point2<Interval> {
-    Point2::new(Interval::from_f64(x), Interval::from_f64(y))
-}
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<Interval> {
     let lp = bulge_loop(

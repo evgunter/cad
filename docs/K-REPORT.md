@@ -851,7 +851,7 @@ or ellipse arcs through. Four are a new `ray_parity::ParityRows` value
 | `point_in_arc_loop_reach` | a bare literal at the `decide` site |
 | `point_in_arc_loop_conic_span` | a `ConicRows` field (CONTACT-4; once per arc edge) |
 | `point_in_arc_loop_conic_on` | a `ConicRows` field (CONTACT-4) |
-| `point_in_arc_loop_conic_window` | a bare literal in `ConicArc::in_window` |
+| `point_in_arc_loop_conic_window` | an `ArcTrimRows` field (`ARC_LOOP_TRIM`: `arc_trim`'s trim row on a ray's crossing) |
 | `point_in_arc_loop_conic_disc` | a bare literal at the `decide` site |
 | `point_in_arc_loop_conic_advance` | a bare literal at the `decide` site |
 
@@ -896,7 +896,8 @@ Notes on the neighbouring names:
   `bool_contact_arc` and `bool_contact_arc_span` move into `ConicRows`
   fields.
 - `point_in_arc_loop_conic_window` decides only where a ray crosses an
-  arc.
+  arc, as `arc_trim`'s trim row (ATREST-12's distance trim, the one home
+  check 9's `ring_outer_arc_{end,trim}` also read).
 - `point_in_arc_loop_reach` is a ray's clearance from an uncrossable
   edge's ball. A clearance in the band abandons the ray rather than
   escalating.

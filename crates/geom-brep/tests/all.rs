@@ -138,6 +138,8 @@ mod r2_quad_digit_probe;
 
 #[path = "offset_fit.rs"]
 mod offset_fit;
+#[path = "offset_fit_band_probes.rs"]
+mod offset_fit_band_probes;
 #[path = "ring2_r2_probes.rs"]
 mod ring2_r2_probes;
 
