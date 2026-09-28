@@ -323,12 +323,12 @@ fn torus_f(p: Point3<f64>, big_r: f64, r: f64) -> f64 {
     (s + big_r * big_r - r * r).powi(2) - 4.0 * big_r * big_r * (s - p.y * p.y)
 }
 
-/// A circle carrier read back off an edge: centre, axis, radius, `u_ref`
-/// and the edge's parameter span.
-fn carrier_of(
-    body: &Body<f64>,
-    edge: EdgeKey,
-) -> (Point3<f64>, Vec3<f64>, f64, Vec3<f64>, (f64, f64)) {
+/// A circle carrier: centre, axis, radius, `u_ref`.
+type Carrier = (Point3<f64>, Vec3<f64>, f64, Vec3<f64>);
+
+/// A circle carrier read back off an edge, and the edge's parameter
+/// span.
+fn carrier_of(body: &Body<f64>, edge: EdgeKey) -> (Carrier, (f64, f64)) {
     let e = body.get_edge(edge).unwrap();
     let c = body.get_curve_geom(e.curve).unwrap().certified().unwrap();
     let geom::Curve3::Circle {
@@ -340,16 +340,16 @@ fn carrier_of(
     else {
         panic!("a circle edge");
     };
-    (center, axis, radius, u_ref, c.params())
+    ((center, axis, radius, u_ref), c.params())
 }
 
-fn on_carrier(c: (Point3<f64>, Vec3<f64>, f64, Vec3<f64>), theta: f64) -> Point3<f64> {
+fn on_carrier(c: Carrier, theta: f64) -> Point3<f64> {
     let (center, axis, radius, u) = c;
     center + (u * theta.cos() + axis.cross(u) * theta.sin()) * radius
 }
 
 /// The carrier's roots against `B`'s torus over one turn, bisected.
-fn carrier_roots(c: (Point3<f64>, Vec3<f64>, f64, Vec3<f64>), big_r: f64, r: f64) -> Vec<f64> {
+fn carrier_roots(c: Carrier, big_r: f64, r: f64) -> Vec<f64> {
     let f = |t: f64| torus_f(on_carrier(c, t), big_r, r);
     let n = 20_000;
     let tau = core::f64::consts::TAU;
@@ -419,8 +419,7 @@ fn a_seam_whose_antipode_sits_beside_an_off_arc_root_still_pierces() {
     };
     let a0 = build(Vec3::new(1.0, 0.0, 0.0));
     let seam0 = circle_edges(&a0, 0.5)[0];
-    let (c0, n0, rho, u0, (t0, t1)) = carrier_of(&a0, seam0);
-    let carrier = (c0, n0, rho, u0);
+    let (carrier, (t0, t1)) = carrier_of(&a0, seam0);
     let roots = carrier_roots(carrier, big_r, r);
     assert_eq!(
         roots.len(),
@@ -447,8 +446,8 @@ fn a_seam_whose_antipode_sits_beside_an_off_arc_root_still_pierces() {
             .map(|b| build(rotate(Vec3::new(1.0, 0.0, 0.0), b)))
             .find(|a| {
                 let seam = circle_edges(a, 0.5)[0];
-                let (c, n, rh, u, (s0, s1)) = carrier_of(a, seam);
-                let antipode = on_carrier((c, n, rh, u), 0.5 * (s0 + s1) + core::f64::consts::PI);
+                let (turned, (s0, s1)) = carrier_of(a, seam);
+                let antipode = on_carrier(turned, 0.5 * (s0 + s1) + core::f64::consts::PI);
                 (antipode - on_carrier(carrier, star + delta)).norm() < 1e-9
             })
             .expect("one sense of the turn puts the antipode beside the root");
