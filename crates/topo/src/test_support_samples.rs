@@ -374,7 +374,11 @@ fn offset_fit_errors() -> Vec<OffsetFitError> {
             headroom: -0.1,
             kappa: (2.0, 0.5),
         }),
-        OffsetFitError::Meter(MeterError::Escalated { source: diag() }),
+        // Under a name a meter raises: the meters route their repair by
+        // name, and any other names a hole in that table.
+        OffsetFitError::Meter(MeterError::Escalated {
+            source: diag().with_predicate(geom_brep::offset_meters::NORMAL_FLOOR_PREDICATE),
+        }),
         OffsetFitError::Fit(geom::curves::fit::FitError::TooFewPoints { have: 2, need: 4 }),
         OffsetFitError::Structure(geom_core::spline::SplineError::DomainInvalid {
             lo: 1.0,
