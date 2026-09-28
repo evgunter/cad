@@ -720,3 +720,21 @@ message calls drift "a finding, not a table to refresh", and absorbing
 it would erase what SYM bisects. Only the gate's own delta is applied,
 and the drift stays red (it does not gate). Filed on SYM:
 `ignored-sym-receipt-rows-drifted-red-on-main-unattributed`.
+
+## Batch gate result; PR 3313 opened on hosted (2026-09-28)
+
+(ENCL orchestrator) The full local `ci-local.sh` ran on
+`encl/batch-split-loop-mustcarry` at `2c700043cb`, with the user's
+settings. Every row passed except `corrupt input (release profile)`.
+That failure is the script's own defect: the release profile keeps
+debug assertions on, so the `cfg(not(debug_assertions))` row never
+compiled. It was fixed on main by `862f576e20`; the batch touches none of
+its files. The run's target stayed at about 8 GB mid-matrix, and the
+settings are confirmed.
+
+By the time the run ended, main had moved about 147 commits in two
+days, two of them in the batch's files (`surgery.rs`, `pncad-py`
+tests), and hosted CI was idle. So the batch merged main and opened as
+**PR 3313 without `[skip ci]`**: the hosted run on the merged head is
+the gate, and a fresh 4½-hour local run would have been slower. 3295 is
+closed, pointing at 3313.
