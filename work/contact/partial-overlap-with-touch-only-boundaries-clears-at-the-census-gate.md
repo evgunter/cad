@@ -2,11 +2,12 @@
 id: partial-overlap-with-touch-only-boundaries-clears-at-the-census-gate
 kind: issue
 title: Two half-overlapping cubes whose boundaries meet only in touches (coplanar faces, edges in faces) clear the census's instance arm at the box gate — the census has no arm for a partial overlap that produces no pierce
-status: open
+status: dispatched
 opened: 2026-09-16
 refs: [2767, 750]
 priority: P0
 cost: H
+parent: CONTACT-5
 ---
 
 Found by both of BOOL-4's reviews (PR 2767) as the class beside the

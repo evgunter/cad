@@ -363,6 +363,10 @@ const LEDGER: &[Entry] = &[
         ),
     },
     Entry {
+        path: "crates/topo/src/boolean/wall_section_rows.rs",
+        disposition: Shared, // the window-construction site list, code view
+    },
+    Entry {
         path: "crates/topo/src/census.rs",
         disposition: Shared, // the backstop's no-inline-`what` guard, literal view
                              // carved by `balanced_end`
