@@ -443,26 +443,29 @@ now calls it under its own predicate name.
 
 ## Local results
 
-All under nextest, with the lane's own target directory:
-- `-p topo -p sweep`: 3300 of 3300 at ε unset, 1e-6 and 1e-12. After the
-  last text and clippy edit, it was re-run at ε unset (3300 of 3300),
-  and the census and contact rows at all three ε (100 of 100).
-- `editor-core`, the concision rows, `perf12_census_*` and
-  `docm6_seam_declarations`: 26 of 26 at all three ε. No `perf12`
-  golden moved.
-  - `refusal_concision_at_rest` first went red on the reworded
-    `TouchUnanalysed` (88 words against a budget of 75). The text was
-    cut to fit.
-- `-p test-utils`: 79 of 79. `-p geom-brep`: 782 of 782.
+These are for the fix pass's head, all under nextest with the lane's own
+target directory:
+- `-p topo -p sweep`: 3304 of 3304 at ε unset, 1e-6 and 1e-12.
+- `-p editor-core`, the whole crate: 2269 of 2269 at ε unset, 1e-6 and
+  1e-12. No `perf12` golden moved, and `docm6` and the concision rows
+  pass.
+- `-p test-utils`: 79 of 79. `-p geom-brep`: 766 of 766.
+- The Python suite, as `ci.yml` runs it: `maturin build` of
+  `crates/pncad-py`, installed into a fresh venv with `ty==0.0.39`, then
+  `unittest discover`. It ran 857, all OK.
 - `cargo clippy -p topo -p geom-brep --all-targets --all-features -- -D
-  warnings`: clean.
+  warnings` is clean, and so is `cargo clippy -p pncad-py --features
+  python --all-targets -- -D warnings`.
 - rustdoc (`-D warnings -A rustdoc::private_intra_doc_links`, `-p topo
-  --document-private-items --all-features`): clean.
-- every `scripts/gates/*.sh`: OK. `python3 scripts/work.py lint`: 0
-  problems.
-- Mutation: a `Margin::levered` added to `Star::within` turns the S4
-  source row red. The first build read faces whole, which is the
-  mutation that drops the piece. It turned red the four L-bracket rows,
-  which the notch row now shares.
+  --document-private-items --all-features`) is clean.
+- Every `scripts/gates/*.sh` passes. `interval-square-allowlist` first
+  caught an `x * x` in `candidate_plane`, now `powi(2)`.
+  `python3 scripts/work.py lint`: 0 problems.
+- The mutant table above: each mutant was applied alone and turns its
+  rows red.
+- The last two edits were that `powi(2)` spelling and the sweep file's
+  clippy type aliases, and neither touches a decision. After them, the
+  census and contact rows were re-run (106 of 106), and so were the
+  `contact7` sweeps.
 
 The hosted run is the record.

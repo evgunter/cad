@@ -3577,7 +3577,7 @@ fn candidate_plane<T: Real>(p: Point3<T>, n: Vec3<T>) -> geom::Surface<T> {
     geom::Surface::Plane {
         origin: p,
         normal: n,
-        u_ref: Vec3::new(one + s * n.x * n.x * a, s * b, -s * n.x),
+        u_ref: Vec3::new(one + s * n.x.powi(2) * a, s * b, -s * n.x),
     }
 }
 

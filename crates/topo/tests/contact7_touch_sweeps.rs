@@ -371,12 +371,24 @@ const COMB_BOXES: [((f64, f64), (f64, f64)); 4] = [
     ((3.5, 4.0), (1.0, 2.0)),
 ];
 
+/// An interval, as its two ends.
+type Span = (f64, f64);
+/// A box in the plane, as its `x` and `y` spans.
+type Rect = (Span, Span);
+/// A host prism: its name, profile, boxes, and the brick spans swept
+/// about it in `x` and `y`.
+type Host<'a> = (&'a str, &'a [(f64, f64)], &'a [Rect], [Span; 6], [Span; 6]);
+/// A prism's profile and boxes, shifted in the plane.
+type Shifted = (Vec<(f64, f64)>, Vec<Rect>);
+/// A brick pose: its profile, its box, its `z` span and its host's name.
+type BrickPose<'a> = (Vec<(f64, f64)>, Rect, Span, &'a str);
+
 /// Two prisms' materials overlap exactly when some box of one overlaps
 /// some box of the other in a positive length on all three axes.
 fn boxes_overlap(
-    a: &[((f64, f64), (f64, f64))],
+    a: &[Rect],
     az: (f64, f64),
-    b: &[((f64, f64), (f64, f64))],
+    b: &[Rect],
     bz: (f64, f64),
 ) -> bool {
     overlaps(az, bz)
@@ -386,7 +398,7 @@ fn boxes_overlap(
 
 /// One pose of a sweep over two prisms, each its profile, its boxes,
 /// its `z` span and its offset in the plane.
-type Part<'a> = (&'a [(f64, f64)], Vec<((f64, f64), (f64, f64))>, (f64, f64));
+type Part<'a> = (&'a [(f64, f64)], Vec<Rect>, Span);
 
 /// Runs a sweep of prism pairs under the identity and two generic
 /// rotations, and returns `(overlapping, apart, wrong clears, false
@@ -430,9 +442,9 @@ fn sweep_pairs(poses: &[(String, Part<'_>, Part<'_>)]) -> (usize, usize, Vec<Str
 /// `profile` and its boxes shifted by `(dx, dy)`.
 fn shifted(
     profile: &[(f64, f64)],
-    boxes: &[((f64, f64), (f64, f64))],
+    boxes: &[Rect],
     (dx, dy): (f64, f64),
-) -> (Vec<(f64, f64)>, Vec<((f64, f64), (f64, f64))>) {
+) -> Shifted {
     (
         profile.iter().map(|&(x, y)| (x + dx, y + dy)).collect(),
         boxes
@@ -455,8 +467,8 @@ fn shifted(
 fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
     let zs = [(-1.0, 0.0), (1.0, 2.0), (0.0, 1.0), (0.25, 0.75)];
     let mut poses: Vec<(String, Part<'_>, Part<'_>)> = Vec::new();
-    let mut bricks: Vec<(Vec<(f64, f64)>, ((f64, f64), (f64, f64)), (f64, f64), &str)> = Vec::new();
-    let hosts: [(&str, &[(f64, f64)], &[((f64, f64), (f64, f64))], [(f64, f64); 6], [(f64, f64); 6]); 2] = [
+    let mut bricks: Vec<BrickPose<'_>> = Vec::new();
+    let hosts: [Host<'_>; 2] = [
         (
             "channel",
             &U_CHANNEL,
@@ -490,7 +502,7 @@ fn a_rotated_comb_and_channel_sweep_clears_no_overlap() {
             (square, vec![(*x, *y)], *z),
         ));
     }
-    let comb_at: Vec<((f64, f64), (Vec<(f64, f64)>, Vec<((f64, f64), (f64, f64))>))> = [
+    let comb_at: Vec<(Span, Shifted)> = [
         (-4.0, 0.0),
         (3.0, 0.0),
         (0.0, 2.0),
