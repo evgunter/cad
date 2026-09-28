@@ -943,3 +943,10 @@ class of 65 sites is PRED's row.
     - Display wording, doc trim, and the territory line in the PR body.
   - Seam notes posted on the offset and shell logs.
   - Fix pass sent back to the lane.
+- 2026-09-28 — The PR 3334 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: the certified set cannot change; lever and band are right; the name reuse doesn't collide; the revert goes red.
+  - Found:
+    - Two surviving mutants: in-band renames, and extent vs the folded arm. A plane×plane tilt row is to kill both.
+    - A side channel through `drive::classify_replay`'s escalation log. The moved Interval cell still names `tangent_second_order` there, so it is fixed if cheap, else a row.
+    - The stale ledger row in `predicate-dimension-audit.md`, an overclaiming header comment, two missed sweep hits, and a cross-reference between the two fallback spellings (certify vs contact_verify), to a consolidation row.
+  - Fix pass sent back to the lane.
