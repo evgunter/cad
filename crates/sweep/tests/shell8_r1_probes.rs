@@ -19,8 +19,9 @@ use topo::{Body, FaceKey, ShellKey, SolidKey};
 
 use crate::common::approx::band;
 use crate::common::charts::{charts_of, moves_by};
+use crate::common::oracles::box_volume;
+use crate::common::shell_operands::{hollow_box, vessel};
 use crate::shell8_common::{beside, deep_dump, faces_of, solid_of, tol, volume};
-use crate::verbs_shell::{hollow_box, v, vessel};
 
 // ---------------------------------------------------------------------
 // Claim 1 — the AXIAL door, scoped
@@ -79,7 +80,8 @@ fn r1_a_distant_box_does_not_lever_the_vessels_margins() {
     .expect("a box a million metres away does not reach the vessel")
     .body;
     let wall = core::f64::consts::PI * (r * r * h - (r - t) * (r - t) * (h - 2.0 * t));
-    let boxwall = v(2.0, 3.0, 4.0) - v(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
+    let boxwall =
+        box_volume(2.0, 3.0, 4.0) - box_volume(2.0 - 2.0 * t, 3.0 - 2.0 * t, 4.0 - 2.0 * t);
     println!(
         "[r1] vessel alone {:.12}, in a far pair {:.12}, closed form {:.12}",
         volume(&alone),
@@ -240,9 +242,9 @@ fn r1_a_part_inside_another_solids_void() {
     match topo::shell(&body, t, tol()) {
         Ok(s) => {
             let vol = volume(&s.body);
-            let cav = v(1.5, 2.5, 3.5) - v(1.46, 2.46, 3.46);
-            let outer = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
-            let part = v(1.46, 2.46, 3.46) - v(1.36, 2.36, 3.36);
+            let cav = box_volume(1.5, 2.5, 3.5) - box_volume(1.46, 2.46, 3.46);
+            let outer = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
+            let part = box_volume(1.46, 2.46, 3.46) - box_volume(1.36, 2.36, 3.36);
             println!(
                 "[r1] nested built: solids={} shells={} volume={vol:.9} (sum of walls {:.9})",
                 s.body.solids().count(),
@@ -370,7 +372,7 @@ fn r1_e2e_two_parts_one_body() {
     let hollow = topo::shell(&assembly, t, tol())
         .expect("both parts hollow in one call")
         .body;
-    let wall_box = v(2.0, 3.0, 4.0) - v(1.9, 2.9, 3.9);
+    let wall_box = box_volume(2.0, 3.0, 4.0) - box_volume(1.9, 2.9, 3.9);
     let wall_ves =
         core::f64::consts::PI * (1.0 * 1.0 * 2.0 - (1.0 - t) * (1.0 - t) * (2.0 - 2.0 * t));
     println!(
@@ -412,8 +414,8 @@ fn r1_e2e_two_parts_one_body() {
         .expect("a thinner second wall opens the box and leaves the vessel sealed")
         .body;
     let pi = core::f64::consts::PI;
-    let closed = (v(2.0, 3.0, 4.0) - v(1.96, 2.96, 3.96))
-        + (v(1.94, 2.94, 3.94) - v(1.9, 2.9, 3.9))
+    let closed = (box_volume(2.0, 3.0, 4.0) - box_volume(1.96, 2.96, 3.96))
+        + (box_volume(1.94, 2.94, 3.94) - box_volume(1.9, 2.9, 3.9))
         + pi * (1.0 * 1.0 * 2.0 - 0.98 * 0.98 * 1.96)
         + pi * (0.97 * 0.97 * 1.94 - 0.95 * 0.95 * 1.9)
         - 1.96 * 2.96 * t2;
@@ -456,9 +458,7 @@ fn r1_e2e_two_parts_one_body() {
 /// what that walk costs.
 #[test]
 fn r1_naming_the_inner_wall_after_two_hollowings() {
-    let once = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, tol())
-        .expect("first hollow")
-        .body;
+    let once = hollow_box();
     let twice = topo::shell(&once, 0.05, tol()).expect("second hollow").body;
     println!(
         "[r1] after two hollowings: solids={} shells={} faces={}",
@@ -498,10 +498,10 @@ fn r1_naming_the_inner_wall_after_two_hollowings() {
 #[test]
 fn r1_rederive_the_hollow_hollow_open_closed_form() {
     let terms = [
-        v(2.0, 3.0, 4.0) - v(1.98, 2.98, 3.98),
-        v(1.92, 2.92, 3.92) - v(1.9, 2.9, 3.9),
-        v(1.6, 2.6, 3.6) - v(1.58, 2.58, 3.58),
-        v(1.52, 2.52, 3.52) - v(1.5, 2.5, 3.5),
+        box_volume(2.0, 3.0, 4.0) - box_volume(1.98, 2.98, 3.98),
+        box_volume(1.92, 2.92, 3.92) - box_volume(1.9, 2.9, 3.9),
+        box_volume(1.6, 2.6, 3.6) - box_volume(1.58, 2.58, 3.58),
+        box_volume(1.52, 2.52, 3.52) - box_volume(1.5, 2.5, 3.5),
     ];
     let lid = 1.52 * 2.52 * 0.01;
     let total: f64 = terms.iter().sum::<f64>() - lid;

@@ -1096,7 +1096,7 @@ impl DocSession {
                     let (verdict, kept) = badge(assemble_gathered(product, self.tol));
                     (Some(verdict), kept)
                 } else {
-                    (None, Some(Arc::new(product.body)))
+                    (None, Some(Arc::new(product.body.into_body())))
                 };
                 (None, checks, at_rest, body)
             }

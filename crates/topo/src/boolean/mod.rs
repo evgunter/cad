@@ -660,8 +660,8 @@ pub enum PairRefusalSite {
     /// whose box may meet a face of the other operand.
     RevertRoster,
     /// The crossings path's interior-loop guard, after the reduction: a
-    /// torus or sphere face that may meet a face of the other operand in
-    /// a closed loop no edge event marks.
+    /// torus, sphere or cylinder face that may meet a face of the other
+    /// operand in a closed loop no edge event marks.
     InteriorLoopGuard,
 }
 
@@ -1051,10 +1051,10 @@ pub enum BooleanError {
     /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
     /// operands' kinds and boxes. The crossings path's interior-loop
     /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
-    /// would have answered: a torus or sphere face that may meet a face
-    /// of the other operand in a loop no edge event marks (the reduction
-    /// saw crossings elsewhere, and the join and face-region propagation
-    /// cannot see the loop).
+    /// would have answered: a torus, sphere or cylinder face that may
+    /// meet a face of the other operand in a loop no edge event marks
+    /// (the reduction saw crossings elsewhere, and the join and
+    /// face-region propagation cannot see the loop).
     ///
     /// The up-front refusals exist because their downstream failure is
     /// **silent, not typed**: with no crossings found the pipeline
@@ -1866,7 +1866,11 @@ impl core::fmt::Display for BooleanError {
                  representation exists"
             ),
             Self::GraftRecertify(e) => {
-                write!(f, "grafted edge description failed re-certification: {e}")
+                write!(
+                    f,
+                    "grafted edge description failed re-certification: {}",
+                    e.render(geom_brep::certify::Reading::Build)
+                )
             }
         }
     }

@@ -27,6 +27,7 @@ use topo::{Body, CurveGeom, FaceKey, ReplaceFaceError};
 
 use crate::common;
 use crate::common::approx::band;
+use crate::common::shell_operands::tube;
 use common::approx::{FIT_DEGREE, prism};
 
 /// The target these fixtures hand the fit ENGINE, and no longer a door's
@@ -59,12 +60,6 @@ fn revolved(points: &[(f64, f64)]) -> Body<f64> {
     )
     .expect("the fixture polygon revolves")
     .body
-}
-
-/// The tube: outer wall `r = 0.8`, inner wall `r = 0.4`, annular caps
-/// at `y = 0` and `y = 0.6`.
-fn tube() -> Body<f64> {
-    revolved(&[(0.4, 0.0), (0.8, 0.0), (0.8, 0.6), (0.4, 0.6)])
 }
 
 /// A tube whose outer wall is a cylinder BELOW and a cone ABOVE. The
@@ -174,7 +169,7 @@ fn circle_radii(body: &Body<f64>) -> Vec<f64> {
 #[test]
 fn the_cylinder_wall_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
-        let mut body = tube();
+        let mut body = tube(0.4, 0.8, 0.6);
         let face = cylinder_face(&body, 0.8);
         topo::replace_face_offset(&mut body, face, d, Tol::witness())
             .unwrap_or_else(|e| panic!("d = {d}: the outer wall's offset must land: {e}"));
@@ -203,7 +198,7 @@ fn the_cylinder_wall_offsets_at_both_signs() {
 #[test]
 fn the_untouched_cap_seams_are_re_anchored() {
     let d = 0.05;
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let face = cylinder_face(&body, 0.8);
     topo::replace_face_offset(&mut body, face, d, Tol::witness()).unwrap();
 
@@ -255,7 +250,7 @@ fn the_untouched_cap_seams_are_re_anchored() {
 #[test]
 fn a_planar_cap_offsets_at_both_signs() {
     for d in [0.05_f64, -0.05] {
-        let mut body = tube();
+        let mut body = tube(0.4, 0.8, 0.6);
         let face = plane_face(&body, 0.6);
         topo::replace_face_offset(&mut body, face, d, Tol::witness())
             .unwrap_or_else(|e| panic!("d = {d}: the cap's offset must land: {e}"));
@@ -282,7 +277,7 @@ fn a_planar_cap_offsets_at_both_signs() {
 /// composition PR-2 rides on, exercised here at the primitive.
 #[test]
 fn every_face_of_a_tube_offsets_in_turn() {
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let faces: Vec<FaceKey> = body.faces().map(|(k, _)| k).collect();
     for face in faces {
         let sense = body.get_face(face).unwrap().sense;
@@ -308,7 +303,7 @@ fn every_face_of_a_tube_offsets_in_turn() {
 /// carries that refusal verbatim.
 #[test]
 fn the_radius_floor_refuses_typed() {
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let face = cylinder_face(&body, 0.4);
     let before = body.clone();
     let e = topo::replace_face_offset(&mut body, face, -0.5, Tol::witness())
@@ -564,8 +559,8 @@ fn a_fitted_charts_iso_row_carries_the_fits_spline_space() {
 /// no re-mint, nothing.
 #[test]
 fn a_body_the_door_did_not_touch_is_bit_identical() {
-    let a = tube();
-    let b = tube();
+    let a = tube(0.4, 0.8, 0.6);
+    let b = tube(0.4, 0.8, 0.6);
     assert_eq!(
         format!("{:?}", a.faces().collect::<Vec<_>>()),
         format!("{:?}", b.faces().collect::<Vec<_>>())
@@ -621,7 +616,7 @@ fn a_body_the_door_did_not_touch_is_bit_identical() {
 #[test]
 fn the_moved_caps_own_seam_keeps_its_declaring_pushforward() {
     let d = 0.05_f64;
-    let mut body = tube();
+    let mut body = tube(0.4, 0.8, 0.6);
     let cap = plane_face(&body, 0.6);
 
     // Both caps' radial seams are chart images the profile segment

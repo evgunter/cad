@@ -342,8 +342,11 @@ const INTERVAL_NOT_FORWARD: &str = "the stored parameter interval is not forward
 /// Their fine-band sub-reason: with the spans certified, adoption
 /// refuses the rim/sphere near-tangency — the second-order arm's own
 /// verdict, so a regression that moves the refusal to another door
-/// fails these cells.
-const TANGENT_SECOND_ORDER_ZERO: &str = "tangent_second_order) is exactly zero at sample 1";
+/// fails these cells. Band-decided, like the tangent-plane zero: the
+/// lever alone at adoption.
+const TANGENT_SECOND_ORDER_ZERO: &str = "the faces agree to second order at sample 1, so they do \
+     not fix where the edge runs, which its description says they do. Recourse: move the \
+     geometry so the faces curve apart more clearly where they touch";
 /// dm1's former coarse-band sub-reason: the convergence predicate
 /// declines to decide, by name. **No cell reaches it any more** — the
 /// gate stops on a definite SIGN before the round whose width lands in
@@ -377,23 +380,33 @@ const NIST09: &str = "tests/fixtures/wild/nist/nist_ftc_09_asme1_rd.stp";
 /// one that merely moves the refusal somewhere else.
 const ISO_RECTANGLE_PREDICATE: &str = "props_rim_level";
 
-/// The seam carrier's residual is DECIDEDLY outside the band.
-const SEAM_HALFPLANE_DEFINITE: &str =
-    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band";
+/// The seam carrier's residual is DECIDEDLY outside the band, ending as
+/// a definite refusal at adoption does: the file is named beside the
+/// kernel.
+const SEAM_HALFPLANE_DEFINITE: &str = concat!(
+    "the out-of-halfplane component at sample 0 definitely exceeds the tolerance band (the \
+     cache does not represent the description, D4 ¶2). ",
+    geom_core::kernel_or_file_defect_ending!()
+);
 /// The same residual, IN the band: escalate-never-guess, by name.
 const SEAM_HALFPLANE_ESCALATED: &str = "the out-of-halfplane component at sample 0 escalated: predicate 'carrier_in_seam_halfplane' \
      indeterminate";
 /// Coarse enough for the two walls to read as one: the Intersection
-/// transversality precondition fails, and the ladder says which.
-const TANGENT_PLANES_COINCIDE: &str = "tangent planes coincide at interior sample 1 — the Intersection transversality \
-     precondition fails";
+/// transversality precondition fails, and the ladder says which. A zero
+/// verdict is band-decided — at a finer ambient band the coincidence
+/// predicates no longer fire here, and a different check refuses the
+/// file (`SEAM_HALFPLANE_DEFINITE` at 1e-12) — so at adoption it names
+/// its decision's lever alone, and the attempt ends there (the `;`
+/// before the next rung).
+const TANGENT_PLANES_COINCIDE: &str = "the faces meet tangentially at sample 1, where the edge's \
+     description says they cross. Recourse: move the geometry so the faces cross at a clearer angle;";
 /// At ambient 1e-6 the file's own span decision is in-band too, and it
 /// is reached first — at assembly, before any edge is adopted.
 const PARAM_SPAN_ESCALATED: &str = "the stored interval's span (not a sampled check) escalated: predicate \
      'interval_span_forward' indeterminate";
 /// Naming the MAPPED-CURVE arm pins that BOTH candidates were tried and
 /// both refused definite — the seam arm alone would match a prefix.
-const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: certification: the start-endpoint residual at \
+const ENDPOINT_START_MAPPED_CURVE: &str = "mapped curve: geometry attachment gate: the start-endpoint residual at \
      sample 0 definitely exceeds";
 
 /// Every committed STEP file, with the disposition measured at M7-7.
@@ -986,6 +999,7 @@ fn every_corpus_import_passes_the_shared_gate() {
                 (Ok(StepImport::Wireframe { .. }), Wireframe) => {}
                 (Err(e), Refused(fragment)) => {
                     let msg = e.to_string();
+                    assert_adoption_reading(&who, &msg);
                     assert!(
                         msg.contains(fragment),
                         "{who}: refused for a DIFFERENT reason than the table records \
@@ -995,6 +1009,29 @@ fn every_corpus_import_passes_the_shared_gate() {
                 (got, want) => panic!("{who}: disposition changed — want {want:?}, got {got:?}"),
             }
         }
+    }
+}
+
+/// A certification refusal at adoption is read at the adoption door
+/// (D4 ¶1, D7): the geometry is the file's and the tolerance the
+/// kernel's, so no ending there names the tolerance in either
+/// direction, and none blames the kernel alone. The message's own
+/// payload may still say "the tolerance band"; the endings may not.
+fn assert_adoption_reading(who: &str, msg: &str) {
+    let adoption = msg.contains("no intensional description certifies")
+        || msg.contains("step import: assembling entity");
+    if !adoption {
+        return;
+    }
+    for forbidden in [
+        "tighten the tolerance",
+        "loosen the tolerance",
+        geom_core::KERNEL_DEFECT_ENDING,
+    ] {
+        assert!(
+            !msg.contains(forbidden),
+            "{who}: an adoption refusal ends as if read at a build ({forbidden:?}): {msg}"
+        );
     }
 }
 

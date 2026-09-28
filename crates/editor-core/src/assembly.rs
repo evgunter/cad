@@ -793,8 +793,11 @@ impl core::error::Error for AssemblyError {}
 /// through, fed the records the mates declared. The door is reached
 /// through the SCALAR'S at-rest policy ([`topo::AtRestPolicy`],
 /// `docs/DUAL-DESIGN.md` DL3): certifying scalars run
-/// [`topo::validate_pseudomanifold`] verbatim; at a dual the gate is
-/// structurally absent, and its success arm says so
+/// [`topo::validate_pseudomanifold`]'s verdict, reading tier 3's half of
+/// it off the verdict the gather kept on the product's body
+/// ([`topo::AtRestBody::validate_pseudomanifold`]), so the local battery
+/// runs once per aggregate and the census is what this gate adds; at a
+/// dual the gate is structurally absent, and its success arm says so
 /// ([`topo::AtRestOutcome::NotRunAtThisScalar`]).
 ///
 /// **The pairing obligation (DL3), stated at this door**: at a
@@ -896,7 +899,7 @@ pub fn assemble_gathered<T: Decide + AtRestPolicy>(
     }
     match T::gate_at_rest_declared(&body, &contacts, tol) {
         Ok(_) => Ok(Assembly {
-            body,
+            body: body.into_body(),
             names,
             contacts,
             minted,
@@ -1383,13 +1386,9 @@ fn attribute(
         | ValidationError::SliverDihedral { .. }
         | ValidationError::TransverseNotIntrinsic { .. }
         | ValidationError::TangentNotIntrinsic { .. }
-        // The material-wedge arm's two refusals are findings about an
-        // EDGE of this body, not about a contact record: the lamina
-        // states that two of its own faces osculate, and the
-        // undeclared cusp states that NO declaration names the pair —
-        // which is `UndeclaredContact`'s reasoning one granularity
-        // down, and the same reason neither can name a mate.
-        | ValidationError::UndeclaredCusp { .. }
+        // The material-wedge arm's refusal is a finding about an EDGE
+        // of this body, not about a contact record: the lamina states
+        // that two of its own faces osculate, which no mate names.
         | ValidationError::LaminaWedge { .. }
         | ValidationError::ScaffoldAtRest { .. }
         | ValidationError::LoopRoleInverted { .. }
