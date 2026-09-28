@@ -367,3 +367,23 @@ The certificate implementer walked every edge × face arm before writing any cod
 - **`VERBS-CONE` gains two items:** the convexity arm (`:1519`) and the certificate's cone arms.
 
 **Class (logged):** a spec asserted a premise from a doc comment ("never a silent fallback") on ONE arm, and the premise was false on a sibling arm that the doc comment never covered. The implementer's audit-before-code caught it. Briefs for certificate work keep "audit the premise per arm, stop if it fails."
+## 2026-09-28 — the conic × plane sweep examines every root (PR 3358)
+
+- **The fix:** premise S of the section certificate now holds at `reduce.rs` `sweep_direction`'s conic lane. The first root not placed `Out` splits, and the requeued fragments find any other root.
+- **Siblings:** none carry the defect (the lane's audit is in the PR body).
+- **Rows:** 24 rows are red on the base (`UnpairedLooseEnds`) and answer their closed forms with the fix.
+- **Moved refusal:** one existing probe's refusal moved from `UnpairedLooseEnds` to the tracked full-period-wall containment limit.
+- **Tier:** orchestrator read. Merged on hosted green.
+## 2026-09-28 — the stopgap's guard rows land (PR 3349)
+
+- The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
+- The lens row checks the true union against a quadrature lens.
+- Both torus gates share the `carriers_apart` certificate. A wedge clear of the donut's carrier is now answered correctly.
+- The ball-to-plane gap has one home.
+- G1–G4 mutants are killed.
+- Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
+
+## 2026-09-28 — PR 3358 merged; the circle × torus lane waits for disk
+
+- **PR 3358 (every root) merged** on hosted green, after main was merged in (main had moved in `topo` and `sweep`). The certificate lane is told.
+- **`circle-crosses-a-torus-face-with-no-root-lane` (P1, H) is held** until the cylinder stopgap lands and frees its target. With the certificate and the stopgap both building, free disk sits at about 15 GB, and a third lane plus a certificate full gate risks filling it.

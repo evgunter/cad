@@ -149,15 +149,28 @@ fn refuses_as_the_interior_loop_guard(
     kind: geom_brep::SurfaceKind,
     what: &str,
 ) {
+    refuses_at(r, topo::PairRefusalSite::InteriorLoopGuard, op, kind, what);
+}
+
+/// The refusal names its SITE, so a row can tell the guard from the
+/// ∖/∩ revert roster, which refuses the same pair up front.
+fn refuses_at(
+    r: Result<topo::BooleanResult<f64>, topo::BooleanError>,
+    site: topo::PairRefusalSite,
+    op: topo::BooleanOp,
+    kind: geom_brep::SurfaceKind,
+    what: &str,
+) {
     match r {
         Err(topo::BooleanError::CurvedPairUnsupported {
             op: Some(o),
+            site: s,
             kind: k,
             ..
         }) => {
-            assert_eq!((o, k), (op, kind), "{what}");
+            assert_eq!((s, o, k), (site, op, kind), "{what}");
         }
-        Err(e) => panic!("{what}: refused, but not by the guard: {e:?}"),
+        Err(e) => panic!("{what}: refused, but not at {site:?}: {e:?}"),
         Ok(r) => panic!(
             "{what}: answered {:?}, volume {:?}",
             r.body().map(|b| b.kind),
@@ -170,23 +183,41 @@ fn refuses_as_the_interior_loop_guard(
 /// off the outer equator.** The pin's crossings through the cap are the
 /// only events, so the oval was never seen, and ∪ came back a valid
 /// `Seamed` body of volume `π²/2 + 1.476 − 0.006` — the lens counted
-/// twice. Each op now refuses at the guard.
+/// twice. ∪ now refuses at the GUARD. ∩ and ∖ never reach it: the ∖/∩
+/// revert roster has no torus and refuses the pair up front, and the
+/// row says so rather than crediting the guard with it.
 #[test]
-fn a_torus_oval_behind_crossings_elsewhere_refuses_every_op() {
+fn a_torus_oval_refuses_union_at_the_guard_and_intersect_and_subtract_at_the_roster() {
+    use topo::{BooleanOp as Op, PairRefusalSite as Site};
     let (h, c) = (half_donut(), torus_bracket());
-    for (op, r) in [
-        (topo::BooleanOp::Union, topo::union(&h, &c, Tol::witness())),
+    let torus = geom_brep::SurfaceKind::Torus;
+    for (site, op, r, what) in [
         (
-            topo::BooleanOp::Intersect,
+            Site::InteriorLoopGuard,
+            Op::Union,
+            topo::union(&h, &c, Tol::witness()),
+            "h ∪ c",
+        ),
+        (
+            Site::RevertRoster,
+            Op::Intersect,
             topo::intersect(&h, &c, Tol::witness()),
+            "h ∩ c",
+        ),
+        (
+            Site::RevertRoster,
+            Op::Subtract,
+            topo::subtract(&h, &c, Tol::witness()),
+            "h ∖ c",
+        ),
+        (
+            Site::RevertRoster,
+            Op::Subtract,
+            topo::subtract(&c, &h, Tol::witness()),
+            "c ∖ h",
         ),
     ] {
-        refuses_as_the_interior_loop_guard(
-            r,
-            op,
-            geom_brep::SurfaceKind::Torus,
-            "half donut and bracket",
-        );
+        refuses_at(r, site, op, torus, what);
     }
 }
 
@@ -307,14 +338,56 @@ fn the_crown_alone_still_answers_its_closed_form() {
 #[test]
 fn the_half_donut_union_never_counts_the_lens_twice() {
     let (h, c) = (half_donut(), torus_bracket());
-    let twice = volume(&h) + volume(&c) - 0.006;
+    let truth = volume(&h) + volume(&c) - (0.006 + oval_lens_volume());
     if let Ok(r) = topo::union(&h, &c, Tol::witness()) {
         let got = volume(&r.body().expect("non-empty").body);
         assert!(
-            got < twice - 1e-6,
-            "the union's volume {got} counts the lens twice (vol A + vol B − pin = {twice})"
+            (got - truth).abs() <= 1e-6,
+            "the union's volume {got} is not the true union's {truth} \
+             (vol A + vol B − the pin's 0.006 − the oval's lens)"
         );
     }
+}
+
+/// **The oval's lens**: the part of the donut (`R = 2`, `r = 0.5` about
+/// `y`) below `z = −2.45`, which lies inside the bracket's foot. At
+/// height `y` the tube's section is the annulus `2 ± s(y)`,
+/// `s = √(0.25 − y²)`; the plane `z = −2.45` cuts off the outer disc's
+/// circular segment `a²·acos(d/a) − d·√(a² − d²)` (`a = 2 + s`,
+/// `d = 2.45`) wherever `a > d`, and the inner disc never reaches it.
+/// Integrated over `y` by composite Simpson; the integrand's square-root
+/// edge at `|y| = √(0.25 − 0.45²)` is resolved by the step count.
+fn oval_lens_volume() -> f64 {
+    let d = 2.45_f64;
+    let y0 = (0.25_f64 - 0.45 * 0.45).sqrt();
+    let segment = |y: f64| {
+        let a = 2.0 + (0.25 - y * y).max(0.0).sqrt();
+        if a <= d {
+            0.0
+        } else {
+            a * a * (d / a).acos() - d * (a * a - d * d).sqrt()
+        }
+    };
+    let n = 20_000;
+    let h = 2.0 * y0 / f64::from(n);
+    let mut sum = segment(-y0) + segment(y0);
+    for i in 1..n {
+        let w = if i % 2 == 1 { 4.0 } else { 2.0 };
+        sum += w * segment(-y0 + h * f64::from(i));
+    }
+    sum * h / 3.0
+}
+
+/// **The lens is far above the row's tolerance**, so the row above
+/// tells the true union from the lens counted twice. The bracket: the
+/// segment at `y = 0` (`≈ 0.0147 m²`) over a width of at most the chord
+/// `2·√(0.25 − 0.45²) ≈ 0.436 m` bounds it above, and it is not a
+/// sliver below.
+#[test]
+fn the_oval_lens_is_well_above_the_rows_tolerance() {
+    let lens = oval_lens_volume();
+    assert!(lens > 1e-3, "the lens volume {lens}");
+    assert!(lens < 0.02, "the lens volume {lens}");
 }
 
 /// **The corner bar: a second lens, and the torus half's per-op reach
@@ -352,4 +425,51 @@ fn the_corner_bar_never_comes_back_a_body() {
             );
         }
     }
+}
+
+/// **The one carrier certificate, read by the no-crossings torus gate
+/// too.** A wedge above the donut (`R = 2`, `r = 0.5` about `y`), its
+/// underside tilted along the plane `0.3x + y = 1.3`: every face's
+/// carrier plane clears the torus — the underside by its support
+/// `R·|n⊥| + r ≈ 1.075` against a distance `≈ 1.245`, the top, the ends
+/// and the caps by more — while the underside's BOX, running down to
+/// `y = 0.4` at `x = 3`, overlaps the donut faces' boxes. There are no
+/// crossings, so the fallback runs; the torus gate used to refuse the
+/// box overlap, and with the certificate it answers the two disjoint
+/// solids — `π²` (the donut, `2π²Rr²`) plus the wedge's `7.2 × 6`.
+#[test]
+fn a_wedge_clear_of_the_donuts_carrier_is_answered_though_its_box_overlaps() {
+    let donut = {
+        let vp = validated(vec![revolve_common::donut_profile()]);
+        revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
+            .expect("the donut revolves")
+            .body
+    };
+    let wedge = {
+        let lp = ProfileLoop::polygon([
+            Point2::new(-3.0, 2.2),
+            Point2::new(3.0, 0.4),
+            Point2::new(3.0, 2.5),
+            Point2::new(-3.0, 2.5),
+        ]);
+        let plane = profile::SketchPlane::new(Affine3::from_parts(
+            Mat3::from_cols(Vec3::unit_x(), Vec3::unit_y(), Vec3::unit_z()),
+            Vec3::new(0.0, 0.0, -3.0),
+        ));
+        let vp = profile::Profile::new(plane, vec![lp])
+            .validate(Tol::witness())
+            .expect("the wedge profile validates");
+        sweep::extrude(&vp, sweep::Extrusion::Distance(6.0), Tol::witness())
+            .expect("the wedge extrudes")
+            .body
+    };
+    let r = topo::union(&donut, &wedge, Tol::witness())
+        .unwrap_or_else(|e| panic!("the certified-apart pair is answered: {e:?}"));
+    let b = r.body().expect("non-empty");
+    assert_eq!(b.kind, topo::BooleanResultKind::Assembly);
+    close(
+        volume(&b.body),
+        std::f64::consts::PI.powi(2) + 7.2 * 6.0,
+        "donut ∪ wedge",
+    );
 }

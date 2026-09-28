@@ -238,15 +238,22 @@ reparents only within one shell (`EulerOpError::CrossShell`).
 3. **Tier 3 "geometric"** — D4 ¶2 residual certification, plus the
    **material wedge-angle predicate**: at every edge the material wedge
    ∈ (0, 2π), bounded away from the ends by θ = ε/r; wedge = π is the
-   legal smooth-seam case; and the ends carry a **declared second-order
-   arm**: wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's
-   `revert` image — legal together or not at all) are legal iff the
-   tangency is **declared** (the C7 `Tangent` contact vocabulary, never
-   inferred from values) and **jet-determinate**: quadratic transverse
-   separation with κ_rel bounded away from zero — `TangentIntersection`'s
-   own margin, so the cusp edge's honest description IS
-   `TangentIntersection`. In-band κ_rel escalates; an undeclared cusp
-   refuses (`UndeclaredCusp`); osculation refuses (`LaminaWedge`). The
+   legal smooth-seam case; and the ends carry a **second-order arm**:
+   wedge = 0 (a cusp) and wedge = 2π (a knife slit, the cusp's `revert`
+   image — legal together or not at all) are legal iff the tangency is
+   **jet-determinate**: quadratic transverse separation with κ_rel
+   bounded away from zero — `TangentIntersection`'s own margin, so the
+   cusp edge's honest description IS `TangentIntersection` wherever the
+   tangent certificate's lane reaches. The ends are derived from the
+   body exactly as the π seam is: a cusp and a smooth seam are the same
+   tangent junction on one shared edge, told apart only by the sign of
+   the two faces' outward normals, which the body already certifies.
+   The shared edge is the structural record. Whether a cusp is *wanted*
+   is declared where the tangency is created — the profile's cusp
+   joint, a boolean's C7 `Tangent` operand declaration — never inferred
+   from values, and an op that could mint a wedge end its inputs never
+   declared owns that refusal. In-band κ_rel escalates; osculation
+   refuses (`LaminaWedge`). The
    arm admits no laminae, so zero-volume bodies stay geometric defects.
    A doubled cusp (two material wedges on one tangent line) is the
    coincident-distinct-edges class, each edge classifying separately.
@@ -422,12 +429,21 @@ reparents only within one shell (`EulerOpError::CrossShell`).
   continuation (the two walls are one carrier by that declaration, so
   they share a surface key and merge on the structural rung). In
   either case the recipe records one node, not hidden healing. Merge glues on the structural and declared rungs
-  only; numeric coincidence never merges. Load-bearing dependency:
-  `merge_coplanar_faces` **never elides vertices**, and tier 3′'s
-  strict record-drop rule (a contact record whose vertex pair fused
-  into one vertex is consumed and drops) is correct *because* of that;
-  any future collinear-vertex elision re-opens the record-carriage
-  class.
+  only; numeric coincidence never merges. A boolean whose output
+  stage cannot glue a planar group it was licensed to merge refuses
+  the step with the merge's own typed reason, so every boolean output
+  is a legal boolean operand; only a curved group's skip is recorded
+  and shipped. Load-bearing dependency: `merge_coplanar_faces`
+  **never fuses two vertices into one and never removes a vertex from
+  a face's boundary**. The one vertex it deletes is the free end of a
+  seam edge the glue left dangling inside the merged face: that edge
+  encloses no area, so it and its free end go together, at any angle
+  and repeatedly along a seam chain, and the deletion is recorded in
+  `killed_vertices`. Tier 3′'s strict record-drop rule (a contact
+  record whose vertex pair fused into one vertex is consumed and
+  drops) is correct *because* nothing is fused; a record citing a
+  deleted free end drops as consumed. Any future fusing or
+  boundary-vertex elision re-opens the record-carriage class.
 
 **The frontier is typed, named and inventoried elsewhere.** Every
 unbuilt case refuses with a message naming its own blocker (D9 row 2),
@@ -630,19 +646,48 @@ Five commitments:
    input. ε_input IS K·ε, a synonym, not a third dial; K stays the one
    knob (`Tolerance.k`, env `CAD_AMBIGUITY_K`). Binding consequences:
    (i) user-facing messages and recourse never fork on exactly-on vs
-   in-band below ε_input — ONE message, ONE recourse (declare the
-   coincidence / move the geometry / lower the tolerance — the
-   three-arm sentence at every site whose question is "is this margin
-   decidable"; a contact site, whose question is "did anyone declare
-   this", drops the third arm per SELECT-DESIGN §3d), with the margin
-   riding the payload as data; kernel semantics keep the distinction
-   (message policy, not predicate policy). (ii) Error variants may stay
-   distinct as data; their user stories converge, with the shared
-   `Indeterminate` Display string (`COINCIDENCE_RECOURSE`) as the
-   carrier. (iii) D7's ε_in is an instance of ε_input, not a separate
+   in-band below ε_input — ONE message, ONE recourse per **decision**
+   (the one question a site asks), written once in the decision's own
+   levers and shared by all its refused arms, with the margin riding
+   the payload as data; kernel semantics keep the distinction (message
+   policy, not predicate policy). The recourse follows from the
+   decision and its verdict: *declare the coincidence* only at a door
+   that takes a declaration whose presence would change the verdict;
+   *move the geometry*, phrased as the decision's own lever, always;
+   *tighten the tolerance* only where the refused margin is a size the
+   user may intend and a smaller ε decides it — the band-decided arms
+   (in band, or Zero where Zero does not pass) of a decision that passes
+   on a nonzero sign — phrased conditionally and with the value the
+   margin gives ("if this size is intended, tighten the tolerance below
+   m/K"); never on a sign-certain arm, and never on a decision that
+   passes only at Zero (a residual), whose refused margin is a miss,
+   not a size. No refusal advises loosening ε, with one exception: a
+   refusal that would otherwise name no recourse at all (a kernel
+   approximation limit — an offset fit that stalls, a quadrature budget
+   spent, a built curve's residual) names loosening the tolerance as a
+   last resort and says the refusal may indicate a kernel bug worth
+   reporting. At adoption the lever is the import's own ε_in (D7),
+   phrased by the import door, and a change to a document's ε reports
+   what it flips at the change itself. The
+   three-arm sentence (declare the coincidence / move the geometry /
+   tighten the tolerance) is thus the recourse of a decision whose
+   refused side is a declarable coincidence; a contact site, whose
+   question is "did anyone declare this", drops the third arm per
+   SELECT-DESIGN §3d. The decision is a closed type at its site (as
+   `CertCheck` is), so its recourse is an exhaustive match, never a
+   lookup by predicate name. (ii) Error variants may stay distinct as
+   data; their user stories converge per decision. `Indeterminate`
+   carries data, not a recourse: its Display renders the payload, and
+   the site that knows the decision appends the one ending
+   (`COINCIDENCE_RECOURSE` is the sentence coincidence decisions
+   compose). (iii) D7's ε_in is an instance of ε_input, not a separate
    concept. (iv) **The rule binds a predicate's DEFINITE arms too**: a
    new definite outcome a user could reach by moving geometry tells the
-   same one story with the same one recourse as its in-band sibling.
+   same one story with the same one recourse as its in-band sibling. A
+   surface reading a body at rest may end a definite contradiction
+   between a stored description and its stored geometry as a defect —
+   no move of the geometry reaches it — and never names a lever the
+   decision does not.
    Review checklist form: for every arm added to a decision, name which
    ε_input story it belongs to, or say why it belongs to none.
 

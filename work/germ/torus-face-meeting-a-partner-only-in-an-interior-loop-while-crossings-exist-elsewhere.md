@@ -1,8 +1,13 @@
 ---
 id: torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
+<<<<<<< HEAD
 title: A torus face that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop
 status: dispatched
+=======
+title: A curved face (torus, sphere; cylinder×cylinder unmeasured) that meets a partner face only in an interior loop, while crossings exist elsewhere, is classified by face-region propagation that cannot see the loop
+status: open
+>>>>>>> origin/main
 opened: 2026-09-26
 refs: [torus-operand-gate-admission]
 priority: P0
@@ -26,8 +31,8 @@ and neither sees a loop no edge crosses. The shape is kind-generic:
 cylinder wall×wall pairs have it too, and `cylinder_extent_gate`
 guards only the no-crossings fallback.
 
-**Measured, and reached by a union on main** (GERM torus-ops PR,
-2026-09-28). The fixture is in `crates/sweep/tests/germ_torus_doors.rs`
+**Measured, and reached by a union on main until the stopgap below**
+(GERM torus-ops PR, 2026-09-28; recorded here as unmeasured when filed). The fixture is in `crates/sweep/tests/germ_torus_doors.rs`
 (`half_donut`, `bracket`): the donut's profile revolved by `π` about
 `y` (`R = 2`, `r = 0.5`, the half with `z ≤ 0`), and a `0.6`-thick
 C-shaped bracket whose pin crosses the `x > 0` cap (`x ∈ [1.95, 2.05]`,
@@ -53,9 +58,8 @@ This is a confident wrong answer on `union` today, which is why the
 roster admission (`torus-onto-the-subtract-and-intersect-roster`)
 stopped: admitting the kind extends it to ∖ and ∩. The row
 `subtract_and_intersect_refuse_an_oval_their_crossings_cannot_see`
-pins that ∖ and ∩ refuse this shape at the roster; ∪ has no row,
-because the only true answer a row could assert today is the
-refusal no door gives.
+pins that ∖ and ∩ refuse this shape at the roster. ∪ refuses it at
+the interior-loop guard since the stopgap below.
 
 **The fork.** Two shapes of fix, and choosing is a posture question:
 
@@ -70,9 +74,10 @@ refusal no door gives.
   partner) is enumerated and every closed component interior to both
   faces refuses, or is cut in. Sound and narrow, and it is the H.
 
-The shape is kind-generic, as stated above; a sphere face with a small
+The shape is kind-generic, as stated above. A sphere face with a small
 cap cut clear of its seams, while crossings exist elsewhere, is the
-same question, and is unmeasured.
+same question, and it was measured wrong on main under every op (the
+Stopgap section below).
 
 ## Home
 
