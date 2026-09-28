@@ -909,3 +909,9 @@ class of 65 sites is PRED's row.
   - `measure-budget-bracket-is-the-sign-level-one-not-the-continuations` on `encl/measure-continuation-bracket`: soundness of the cross-face fold is settled first; single full review, dual if the fold's argument is subtle.
   - `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps` on `encl/rigid-map-approx-headroom`: fixture first; single full review.
   Each lane stops and reports rather than landing if its fix turns on ratified text.
+- 2026-09-28 — The measure-bracket lane opened PR 3333 (head `b2c2de42cf`). Findings:
+  - The row's discovering premise is refuted. At 1e-12 the teapot spout's gate walk already exhausted every face's schedule (`rounds still open None`), so the ±9 % bracket is the narrowest the kernel held.
+  - The "three orders narrower" figure misread `QuadratureBudget::width_len`, the lower bound on the width of an unrun round, as a held enclosure. The same misreading gave the teapot narration's "five orders"; that prose is corrected to about 9.8 half-widths.
+  - The fix is still real where the continuation refines before refusing: `measure` now returns the narrower of the certificate's bracket and the continuation's mixed-round fold. The lane's soundness argument: volume = (1/3)·ΣΦ_f, each term is sound at every round, and the fold is sequential so it does not depend on pool width.
+  - The fixture's subject costs +20 s in debug.
+  Single full review dispatched.
