@@ -17,7 +17,7 @@ use geom_brep::{
     CertifyError, EdgeCurve, EdgeCurveSpec, EdgeDescription, EdgeDescriptionSpec,
     PlaneCylinderSection,
 };
-use geom_core::{Point3, Vec3};
+use geom_core::{Interval, Point3, Real, Vec3};
 
 /// The authored tangent pair: the unit cylinder about z and the plane
 /// x = 1, tangent along the ruling {(1, 0, z)}.
@@ -546,5 +546,286 @@ fn a_small_angle_false_tangency_is_decided_at_the_parallelism_band_edge() {
             check: geom_brep::CertCheck::TangentParallel,
             sample: 1,
         }
+    );
+}
+
+/// The line `(x, 0, z)`, `z ∈ [0, 1]` (extent 1), described as a
+/// tangency of `s1` and `s2`, certified.
+fn certify_line_at(
+    x: f64,
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> Result<EdgeCurve<f64>, CertifyError> {
+    let (k1, k2, map) = arena2(s1, s2);
+    let carrier = Curve3::Line {
+        origin: Point3::new(x, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    };
+    let (p0, p1) = (carrier.eval(0.0), carrier.eval(1.0));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(0.5),
+        },
+        carrier,
+        param_start: 0.0,
+        param_end: 1.0,
+    };
+    EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band())
+}
+
+/// The plane through the line `(x, 0, z)` whose normal is `+x` turned
+/// by `tilt` about `z`.
+fn plane_through_line(x: f64, tilt: f64) -> Surface<f64> {
+    let (sin, cos) = tilt.sin_cos();
+    Surface::Plane {
+        origin: Point3::new(x, 0.0, 0.0),
+        normal: Vec3::new(cos, sin, 0.0),
+        u_ref: Vec3::new(0.0, 0.0, 1.0),
+    }
+}
+
+/// **A second-order refusal is renamed only by a DEFINITE first-order
+/// defect, metered at the folded lever arm.** Two planes through one
+/// line, tilted by θ, have `κ_rel = 0` exactly, so the second-order
+/// margin refuses definitely (`NotSecondOrderSeparated`) and no lever
+/// `1/κ_rel` exists; the parallelism defect is read at the folded arm,
+/// here the line's extent `L = 1`, as `sin θ · L`.
+///
+/// - `sin θ · L` inside the band: the first-order reading is no more
+///   definite than the second-order one, which stands.
+/// - `sin θ · L` far past the band: the refusal is the parallelism
+///   defect.
+/// - A cylinder of radius `R = ε` through the line, against a plane
+///   tilted by 0.1 rad: `κ_rel = 1/R`, the folded arm is `R` (not the
+///   extent `L`), the sagitta `R/2` is on the zero side, and
+///   `sin θ · R = 0.1·ε` is too — so the second-order refusal stands,
+///   where levering at the extent (`0.1` m) would read a definite
+///   defect.
+#[test]
+fn a_second_order_refusal_is_renamed_only_by_a_definite_defect_at_the_folded_arm() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let length = 1.0;
+    let osculating = CertifyError::NotSecondOrderSeparated {
+        sample: 1,
+        band: band(),
+    };
+
+    let in_band = ((zero * escalate).sqrt() / length).asin();
+    assert_eq!(
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, in_band)).unwrap_err(),
+        osculating,
+        "an in-band first-order reading does not rename the refusal"
+    );
+
+    let definite = (1e3 * zero / length).asin();
+    assert_eq!(
+        certify_line_at(1.0, tangent_plane(), plane_through_line(1.0, definite)).unwrap_err(),
+        CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        },
+        "a definite first-order defect names the refusal"
+    );
+
+    let radius = zero;
+    let tiny = Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    };
+    let tilt: f64 = 0.1;
+    assert!(
+        tilt.sin() * length >= escalate && tilt.sin() * radius <= zero,
+        "the cell separates the folded arm from the extent"
+    );
+    assert_eq!(
+        certify_line_at(radius, tiny, plane_through_line(radius, tilt)).unwrap_err(),
+        osculating,
+        "the defect is levered at the folded arm R, not the extent L"
+    );
+}
+
+/// `certify_line_at` at `Interval`, inside a verdict-log bracket: the
+/// certificate's answer and what the frame recorded beside it.
+/// `editor_core::drive`'s unit rows re-spell it as `tangent_log`.
+fn certify_line_at_interval(
+    x: f64,
+    s1: Surface<f64>,
+    s2: Surface<f64>,
+) -> (
+    Result<EdgeCurve<Interval>, CertifyError>,
+    geom_core::k_stats::Recorded,
+) {
+    let lift = Interval::from_f64;
+    let (k1, k2, map) = arena2(s1.map_scalar(lift), s2.map_scalar(lift));
+    let carrier = Curve3::Line {
+        origin: Point3::new(x, 0.0, 0.0),
+        dir: Vec3::new(0.0, 0.0, 1.0),
+    }
+    .map_scalar(lift);
+    let (t0, t1) = (lift(0.0), lift(1.0));
+    let (p0, p1) = (carrier.eval(t0), carrier.eval(t1));
+    let spec = EdgeCurveSpec {
+        description: EdgeDescriptionSpec::TangentIntersection {
+            s1: k1,
+            s2: k2,
+            witness: carrier.eval(lift(0.5)),
+        },
+        carrier,
+        param_start: t0,
+        param_end: t1,
+    };
+    let bracket = geom_core::k_stats::Bracket::open();
+    let out = EdgeCurve::certify(spec, p0, p1, |k| map.get(k).cloned(), band());
+    (out, bracket.finish())
+}
+
+/// The cylinder of radius `r` about z, tangent-adjacent to the line
+/// `(r, 0, z)`. `editor_core::drive`'s `tangent_log` re-spells it.
+fn cylinder_of(r: f64) -> Surface<f64> {
+    Surface::Cylinder {
+        origin: Point3::new(0.0, 0.0, 0.0),
+        axis: Vec3::new(0.0, 0.0, 1.0),
+        radius: r,
+        u_ref: Vec3::new(1.0, 0.0, 0.0),
+    }
+}
+
+/// The radius whose sagitta `R/2` over its own folded arm `R` sits
+/// wholly inside the band, `0.8·Kε`, while a steep enough tilt still
+/// meters a definite defect there (`sin θ · R > Kε` for `sin θ > 5/8`).
+/// `editor_core::drive`'s unit rows carry the same constant.
+fn sliver_radius() -> f64 {
+    1.6 * band().escalate()
+}
+
+/// The predicate names a frame recorded as escalations.
+fn escalated(recorded: &geom_core::k_stats::Recorded) -> Vec<&'static str> {
+    recorded
+        .escalations
+        .iter()
+        .map(geom_core::k_stats::Escalation::predicate)
+        .collect()
+}
+
+/// **A renamed refusal leaves no second-order escalation on the log.**
+/// A cylinder of radius `R = 1.6·Kε` against a plane through its ruling
+/// tilted to `sin θ = 0.9`, at `Interval`: the second-order sagitta
+/// `R/2` is an enclosure wholly inside the band — the subdivision
+/// driver's terminal-sliver shape — and the parallelism defect at the
+/// folded arm, `0.9·R = 1.44·Kε`, is definite, so the certificate
+/// refuses `ResidualExceeded { TangentParallel }`. The frame's
+/// escalation log must agree with that error: it carries nothing, so
+/// the driver reads the node as the definite refusal it is rather than
+/// as a `tangent_second_order` sliver. The naming reading's verdict
+/// stays on the verdict channel.
+#[test]
+fn a_renamed_refusal_leaves_no_second_order_escalation_on_the_log() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let r = sliver_radius();
+    let tilt = 0.9f64.asin();
+    let lift = Interval::from_f64;
+    let so = geom_brep::tangent_second_order(
+        &cylinder_of(r).map_scalar(lift),
+        &plane_through_line(r, tilt).map_scalar(lift),
+        Point3::new(lift(r), lift(0.0), lift(0.5)),
+        Vec3::new(lift(0.0), lift(0.0), lift(1.0)),
+        lift(1.0),
+        band(),
+    );
+    let Err(cause) = so.verdict else {
+        panic!("the sagitta R/2 is in band: {:?}", so.verdict);
+    };
+    let geom_core::MarginDiag::Enclosure { lo, hi } = cause.margin else {
+        panic!("an Interval margin is an enclosure: {cause:?}");
+    };
+    assert!(
+        zero < lo && hi < escalate,
+        "the second-order enclosure [{lo:e}, {hi:e}] sits wholly inside ({zero:e}, {escalate:e})"
+    );
+
+    let (out, recorded) = certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, tilt));
+    assert_eq!(
+        out.err(),
+        Some(CertifyError::ResidualExceeded {
+            check: geom_brep::CertCheck::TangentParallel,
+            sample: 1,
+        })
+    );
+    assert_eq!(
+        escalated(&recorded),
+        Vec::<&str>::new(),
+        "a refusal renamed to TangentParallel left an escalation on the log"
+    );
+    assert!(
+        recorded.verdicts.iter().any(
+            |v| v.predicate == "tangent_normal_parallel" && v.sign == geom_core::Sign::Positive
+        ),
+        "the naming reading's definite verdict left the verdict channel: {:?}",
+        recorded.verdicts
+    );
+}
+
+/// **A definite second-order refusal leaves the naming reading's
+/// escalation off the log.** Two planes through one line have
+/// `κ_rel = 0` exactly, so the second-order margin is a definite `Zero`
+/// at `Interval` too, and the refusal is `NotSecondOrderSeparated`. With
+/// the tilt's defect at the folded arm (the extent) in band, the naming
+/// reading escalates — and only names: the refusal was already made, on
+/// every sub-box, by the definite second-order reading. The log carries
+/// nothing, as the error does; the second-order verdict stays.
+#[test]
+fn a_definite_second_order_refusal_leaves_the_naming_escalation_off_the_log() {
+    let (zero, escalate) = (band().zero(), band().escalate());
+    let in_band = (zero * escalate).sqrt().asin();
+    let (out, recorded) =
+        certify_line_at_interval(1.0, tangent_plane(), plane_through_line(1.0, in_band));
+    assert_eq!(
+        out.err(),
+        Some(CertifyError::NotSecondOrderSeparated {
+            sample: 1,
+            band: band(),
+        })
+    );
+    assert_eq!(
+        escalated(&recorded),
+        Vec::<&str>::new(),
+        "the naming reading's in-band escalation reached the log"
+    );
+    assert!(
+        recorded
+            .verdicts
+            .iter()
+            .any(|v| v.predicate == "tangent_second_order" && v.sign == geom_core::Sign::Zero),
+        "the definite second-order verdict left the verdict channel: {:?}",
+        recorded.verdicts
+    );
+}
+
+/// **An escalated refusal's log is the escalation its error carries.**
+/// The sliver cylinder against a shallow tilt (`sin θ = 0.3`, a defect
+/// `0.48·Kε` at the folded arm): the naming reading is in band too, so
+/// the second-order escalation stands as the refusal, and the log holds
+/// it and nothing else.
+#[test]
+fn an_escalated_refusal_logs_exactly_the_escalation_it_carries() {
+    let r = sliver_radius();
+    let (out, recorded) =
+        certify_line_at_interval(r, cylinder_of(r), plane_through_line(r, 0.3f64.asin()));
+    let Err(CertifyError::Escalated {
+        check: geom_brep::CertCheck::TangentSecondOrder,
+        sample: 1,
+        cause,
+    }) = out
+    else {
+        panic!("the in-band sagitta stands as the refusal: {:?}", out.err());
+    };
+    assert_eq!(
+        recorded.escalations,
+        [geom_core::k_stats::Escalation { source: cause }],
+        "the log is not the error's escalation"
     );
 }

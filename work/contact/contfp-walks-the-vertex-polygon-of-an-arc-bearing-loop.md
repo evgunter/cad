@@ -2,11 +2,12 @@
 id: contfp-walks-the-vertex-polygon-of-an-arc-bearing-loop
 kind: issue
 title: contain::contfp answers an arc-bearing loop (LoopShape::ArcParity) from its vertex polygon, which is not the region: a false Out in the lune an outward arc bows past, on a door with live callers in reduce, ops, census and chart_region
-status: dispatched
+status: closed
 opened: 2026-09-26
 priority: P0
 cost: D
 parent: CONTACT-4
+closed: 2026-09-28
 ---
 
 
@@ -34,3 +35,14 @@ at about 43,000 adversarial probes with zero wrong answers.
 - `chart_region.rs`
 
 A false `Out` in any of them is a wrong answer, not a refusal.
+
+## Closed
+
+Fixed by CONTACT-4. `contfp` reads every loop through
+`splitting::containment::point_in_carrier_loop` after one boundary
+pre-pass (`LoopEdge::contact`), each edge on its own carrier. The
+bored D-rod's lune point reads `In` (base `Out`). The same cap with a
+brick standing in the lune now shows its 4 `VertexOnFace` contacts
+through `validate_pseudomanifold`, where base showed none. Three
+`verbs_pierce` rows that asserted a refusal now assert the exact
+volumes.

@@ -651,7 +651,7 @@ local run cannot complete, one hosted run covers the batch.
 - **`BoundNotFinite { best: None }`** through schedule exhaustion was
   shown unconstructible, and the variant's doc says why.
 
-Filed: `work/atrest/validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`.
+Filed: `work/dup/validate-classifiers-paraphrase-lower-recourses-with-no-row-comparing-them`.
 The lane's plain `cargo doc -D warnings` reports private-item links, but
 the repo's doc gate runs with `-A rustdoc::private_intra_doc_links`, so
 the batch's local gate decides it. Ready for the batch with 3292; 3295
@@ -763,3 +763,371 @@ minutes from push. The must-carry first-order gate and its `m10_9` pin
 fix are on main; the row is closed. The SYM drift row (P1) is on SYM's
 slate. Now dispatchable: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`
 (P1/D).
+
+## Dispatched (2026-09-28)
+
+(ENCL orchestrator)
+- `encl/seed-grid-and-tol-band`: `offset-fit-seed-grid-is-a-fourth-equal-split-spelling`
+  (P1/E) together with `tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`
+  (P3/D), in ONE PR to spare CI. **Single review, style.** The seed
+  grid must stay bit-identical; the pair becomes unrepresentable at the
+  offset-fit and transform doors.
+- `encl/must-carry-lane-gate-order`: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`
+  (P1/D). It measures first, and stops at options if the choice
+  reaches D2/D4 (then it is a design fork). **Single review, full**:
+  it changes a certifying rule's order and the K stream.
+
+Lesson, recorded: an orchestrator commit that follows `git merge` must
+check the merge's exit status first. `b3fd91ce17` went out with conflict
+markers because it did not, and was corrected on top.
+
+## PR 3320 (seed grid + tol/band) reported (2026-09-28)
+
+(ENCL orchestrator) Head `666b4cabca`.
+- **Seed grid.** `seed_direction` takes its interior points from
+  `equal_split_points`. Bit-identical: 508 fixture calls plus 142,521
+  random clamped knot vectors, degrees 1–5, scales 1e-300 to 1e300,
+  spans down to 1 ulp.
+- **The (tol, band) pair.** The offset-fit and transform doors take
+  `Tol` alone, and `Band::linear(tol)` is derived inside (`run_band`).
+  That makes the mint and tier 3's recertify meter at one band by
+  construction. It adds a new typed arm, `OffsetFitError::Band`.
+  - Disclosed: the public `replace_face_offset` still takes both
+    values, so a disagreeing band splits the fitted arm from the
+    analytic one. No in-tree caller does this.
+  - The wider class (65 more sites) is filed on PRED:
+    `tol-and-band-travel-as-a-redundant-pair-past-the-offset-fit-doors`.
+
+Style review dispatched on the frozen head.
+
+## PR 3320 review adjudicated (2026-09-28)
+
+(ENCL orchestrator) Style review on `666b4cabca`: APPROVE-WITH-FIXES.
+The seed-grid rewrite and the Tol-only doors are correct. **The fix
+minted its defect one layer up** (S1): `replace_face_offset` still takes
+`(band, tol)`, so one public call now meters its fitted surface at the
+run's band and everything else at the caller's. Taken: close the pair
+at the public `replace_face(s)_offset` (every caller derives `band`
+from `tol`), and at `tier3_local_checks_marked` if the same holds.
+
+Also taken:
+- the `# Errors` docs name `OffsetFitError::Band`;
+- that arm renders one true recourse, instead of `BandError`'s, which
+  misdirects a `Tol` caller;
+- the prefix and doc corrections (S4, S5, S7, S8);
+- a door-level row if a degenerate `Tol` can be minted;
+- the clamped premise stated at `seed_direction`;
+- cosmetic re-wraps.
+
+Appended to PRED's row: the per-crate "derive the run's band at the
+door" wrapper class (S2). Not taken: the projection seed grids (S11),
+since endpoint-inclusive grids are a different concept.
+
+## PR 3320 fix pass in (2026-09-28)
+
+(ENCL orchestrator) Head `5361cd02ad`, with main merged in (one
+import-block conflict, resolved).
+- **S1 is closed at the public door.** `replace_face(s)_offset` take
+  `Tol` alone and derive one band up front (`ReplaceFaceError::Band`),
+  so the analytic mint, the re-anchoring, the transport, the iso rows,
+  the apex decisions and the fit lane read one band by construction.
+  That touched 56 caller sites, each already `Band::linear` of the
+  same witness.
+- **S6 is stated, not closed.** `tier3_local_checks_marked` has a
+  caller (`n2r1_probes`) with a fixed band.
+- **`OffsetFitError::Band`** now renders one true recourse, and
+  `Meter` shares the corrected prefix.
+- **New ignored probes** drive each door to the new arms with
+  pathological committed tolerances.
+- **The earlier hosted rustfmt red** was the new probe file before
+  `cargo fmt`.
+
+It merges on hosted green.
+
+## PR 3324 (must-carry lane-gate order) reported (2026-09-28)
+
+(ENCL orchestrator) Head `781c3b20d8`. It measured first:
+- **Reach.** Of about 36k calls to `must_carry_over_edge`, across
+  the Band 4 corpus at three ε, the tour k-probe, M2, E6, and sweep's
+  and editor-core's full suites, 0 were out of lane (bar the pinning
+  test's own). So no stored description moves, and the corpus K
+  stream is unchanged.
+- **Option (a), implemented.** First-order runs per station ahead of
+  the lane gate, and the lane gates only the second-order demand.
+  Out-of-lane pairs now answer `Transverse`/`InBand`, and
+  `UnderDetermined` only when every station is smooth.
+- **(b) and (c) are dominated.** (b), a witness-only check, gives two
+  first-order policies and misses mixed edges. (c) leaves surgery
+  unprotected.
+- **Ratified text.** No D2/D4 change is claimed ("lane gate first" was
+  code doc). The full review is asked to falsify that, and a MAJOR there
+  would make this a design fork.
+- **Filed.** `contact-verify-lane-gate-answers-a-crossing-not-certifiable`
+  (CONTACT).
+- **Open, handed to the review.** `sweep::swept::describe_face_rim_at_rest`.
+
+Full review dispatched.
+
+## PR 3324 review adjudicated (2026-09-28)
+
+(ENCL orchestrator) Full review on `781c3b20d8`: APPROVE-WITH-FIXES, no
+MAJOR.
+- **No ratified clause implemented the old order**, checked with `-S`
+  provenance on D2's lane clause (`4eda8abec4`) and on "lane gate comes
+  first" (`ec33536109`, BLEND-9 code doc). So this is not a design fork.
+- **Correctness.** In lane, nothing changes. Out of lane, the pair is
+  classified per station. The K row is a real pin under `probe`.
+- **Taken into a fix pass:**
+  - the two `UnderDetermined` spellings made to agree;
+  - the rule's doc states that every Nurbs/Approx pair now answers
+    `InBand` (the kind is not implemented), whose recourse misleads;
+  - the "unverified" `describe_face_rim_at_rest` is closed (loft's
+    Plane×Nurbs cap rims only, under D2's NURBS exemption), and its doc
+    example corrected;
+  - the CONTACT item's diagnosis completed (the fix there needs a
+    bound-free first-order path, not a reorder) and priced;
+  - the new doc paragraph trimmed;
+  - surgery's "falls to the certification door's refusal" claim
+    checked.
+- **Brief correction, recorded.** The widened smooth out-of-lane row
+  was never meant to red on the old order (both answered
+  `UnderDetermined`); the brief overstated that, not the PR.
+
+## PR 3320 merged (2026-09-28)
+
+(ENCL orchestrator) Hosted CI green on `5361cd02ad` across every row.
+Closed: `offset-fit-seed-grid-is-a-fourth-equal-split-spelling` and
+`tol-and-band-travel-as-a-redundant-pair-on-the-offset-fit-doors`. The
+seed grid has one home. The offset-fit doors, the transform's surface
+map and the public `replace_face(s)_offset` take `Tol` alone. The wider
+class of 65 sites is PRED's row.
+
+- 2026-09-28 — PR 3324 fix pass landed at `9f72ae6df7` (fix `2758f727fd` + main). Orchestrator read of the fix diff: all six review items addressed. The surgery comment's Line-on-Cone refusal claim was false and was reworded. The CONTACT row is priced P3/M with `design: true` (lint refuses cost D on new rows). A PROPS row was filed: `invalid-margin-recourse-cannot-tell-an-unimplemented-kind-from-bad-inputs`. The earlier `gate ok` red on `781c3b20d8` was a cancelled superseded job. Merging on hosted green.
+- 2026-09-28 — PR 3324 merged (`5e4329bac8`), hosted all green on `9f72ae6df7`. Closed `must-carry-lane-gate-hides-a-transverse-out-of-lane-pair`.
+- 2026-09-28 — Dispatched three lanes concurrently (disjoint files), all Opus:
+  - `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing` on `encl/tangent-arm-first-order-cause`: a new reading, K-REPORT applies; single full review.
+  - `measure-budget-bracket-is-the-sign-level-one-not-the-continuations` on `encl/measure-continuation-bracket`: soundness of the cross-face fold is settled first; single full review, dual if the fold's argument is subtle.
+  - `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps` on `encl/rigid-map-approx-headroom`: fixture first; single full review.
+  Each lane stops and reports rather than landing if its fix turns on ratified text.
+- 2026-09-28 — The measure-bracket lane opened PR 3333 (head `b2c2de42cf`). Findings:
+  - The row's discovering premise is refuted. At 1e-12 the teapot spout's gate walk already exhausted every face's schedule (`rounds still open None`), so the ±9 % bracket is the narrowest the kernel held.
+  - The "three orders narrower" figure misread `QuadratureBudget::width_len`, the lower bound on the width of an unrun round, as a held enclosure. The same misreading gave the teapot narration's "five orders"; that prose is corrected to about 9.8 half-widths.
+  - The fix is still real where the continuation refines before refusing: `measure` now returns the narrower of the certificate's bracket and the continuation's mixed-round fold. The lane's soundness argument: volume = (1/3)·ΣΦ_f, each term is sound at every round, and the fold is sequential so it does not depend on pool width.
+  - The fixture's subject costs +20 s in debug.
+  Single full review dispatched.
+- 2026-09-28 — The tangent-arm lane opened PR 3334 (head `93a6dddb28`).
+  - Measured first: three of four cells (f64 reversed order; Interval in both orders) named the osculating cause for a 90° crossing.
+  - The fix adds a first-order parallelism reading, on the refusal path only, when the second-order margin is not Positive. A definite defect renames the refusal to `TangentParallel`.
+  - The certified set does not change. K delta is 0 at every ε row across the four producers (checked with a temporary marker). No fork: C7 and D4 ¶1 decide the same things.
+  - Single full review dispatched. Its falsification targets: callers that branch on the refusal kind, and reuse of the predicate name in the census.
+- 2026-09-28 — The PR 3333 full review came back APPROVE-WITH-FIXES.
+  - Kernel claims all confirmed: the mixed-round fold is sound, the fold is independent of pool width, the public contract of `refine_to_target` is unchanged, and the row's premise is refuted in code.
+  - The reviewer found a real test gap: a zero-pad (unsound) mutant passed every assertion in the row. A closed-form containment check catches it.
+  - Other findings, all taken into the fix pass: prose misses in teapot.rs, tour `main.rs`, `nurbs_import.rs` and `test_validate.py`, and the confusing `held` name.
+  - A monotonicity contradiction between validate.rs:4370 and the `filter` guard is to be settled from the code.
+  - Declined: merging the two near-duplicate refusal types (taste), and the index loop.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — The rotation lane opened PR 3332 (head `60c3070c46`, hosted green).
+  - Reproduced: 48 of 93 rotations refused a face minted at 0.998ε. The row's 5% is not a bound: drift varied by fixture from 0.55% to 12%, and was ×3.1 at 1e-12.
+  - Fix: re-fit on refusal in `map_approx`. The original is re-checked in its own frame; if it certifies, the mapped description is minted fresh at the same ε. Otherwise the map refuses as before.
+  - Headroom rejected: the derived δ≈0.8 makes minting ×4–5 dearer, and turns some faces into mint refusals.
+  - Residue at 1e-12 (4 of 93 re-fits stall) filed as `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12`. SSI sibling filed.
+  - Single full review dispatched. Its focus: the transform now re-mints (determinism, identity, composition) and no laundering.
+- 2026-09-28 — The PR 3332 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: no laundering (the gate mutation goes red); the fixture reproduces the refusal and goes red on revert; the success path is bit-identical; determinism holds; the O2 sentence is agent-written (c4f5d26cdc).
+  - Fixes, all taken:
+    - the stale refusal census in `refusal_concision_chains.rs`;
+    - the doc overclaim: edges that ride the old fit's bits and in-band meters can still refuse after a re-fit (one new encl row, latent);
+    - `rounds` doc, a guard on the 0.44 number, and pinning the Limb-only branch;
+    - `mint` returns `Arc<ApproxSurface>` if cheap;
+    - Display wording, doc trim, and the territory line in the PR body.
+  - Seam notes posted on the offset and shell logs.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — The PR 3334 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: the certified set cannot change; lever and band are right; the name reuse doesn't collide; the revert goes red.
+  - Found:
+    - Two surviving mutants: in-band renames, and extent vs the folded arm. A plane×plane tilt row is to kill both.
+    - A side channel through `drive::classify_replay`'s escalation log. The moved Interval cell still names `tangent_second_order` there, so it is fixed if cheap, else a row.
+    - The stale ledger row in `predicate-dimension-audit.md`, an overclaiming header comment, two missed sweep hits, and a cross-reference between the two fallback spellings (certify vs contact_verify), to a consolidation row.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3333 fix pass landed at `9e70ecbd9a` (main merged clean).
+  - All 9 items done.
+  - Monotonicity is settled: rounds are NOT monotone (each round recomputes from scratch, and midpoint rounding grows with cell count). The `filter` guard stays, and validate.rs's check-7 doc now rests on containment only.
+  - `PERF-6-SPEC.md` corrected in place, since it states a measurement.
+  - Merging on hosted green of this head.
+- 2026-09-28 — PR 3334 fix pass landed at `5a362d9f20`.
+  - Mutants A and B are killed by the plane/cylinder row.
+  - Driver side channel (b) cannot be fixed cheaply (it needs a new k_stats door or unwrapping about 40 op wrappers), so it is filed as `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` (P3/M). It is visible only on a sliver enclosure.
+  - Fallback pair appended to PRED's `lever-arm-fold-six-hand-rolled-siblings`.
+  - Merging on hosted green of this head.
+- 2026-09-28 — PR 3333 merged (`435247c3a5`), hosted all green on `9e70ecbd9a`. Closed `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`. The discovering premise was refuted, but the fix stands where the continuation actually refines.
+- 2026-09-28 — PR 3332 merged (`a1a1e2fb4a`), hosted all green on `0fb0d14242`. That head's base predates 3333's merge. The two diffs are disjoint (transform/approx/editor-core test vs props/sweep test/tour), so the push-to-main run is the joint check; I am watching it. Closed `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps`. Residues are open on encl: the 1e-12 re-fit stall, and edges/meters (latent, design).
+- 2026-09-28 — PR 3334 merged (`590784fad3`), hosted all green on `5a362d9f20`. Closed `interval-jet-hulls-kappa-sign-at-a-right-angle-crossing`. The residue `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` is open (P3/M). 3332, 3333 and 3334 are disjoint; the push-to-main run on `590784fad3` is the joint check.
+- 2026-09-28 — Dispatched three lanes concurrently, all Opus. Their territory is disjoint: k_stats/drive, offset certificate, and spline algebra/patch_bound.
+  - `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` on `encl/driver-log-renamed-refusal`. Single full review; it stops at the fork if the k_stats door is broad.
+  - `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` on `encl/offset-dist-term-frame-width`. It measures before choosing. Single full review, dual if the construction change is broad.
+  - `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times` on `encl/equal-split-plan-chain`. Style review; mechanical plus the RATIONAL_*_SPLITS question.
+- 2026-09-28 — The 1e-12 rigid-map lane STOPPED at measurement, as briefed.
+  - Cause: Bézier-insertion width from `insert_once_ring`'s lerp form (the PROPS `compose.rs` site), already in `Ẽ` before `X` is formed. It is not X's cancellation.
+  - The convex form alone gives 0 of 93 refusals, a frame-invariant bound and `hull_sup` ÷4.4. None of the candidate fixes on the ENCL side would close it.
+  - Row parked on `f64-refinement-inside-an-enclosure-has-five-more-sites`. Evidence appended there, and PROPS notified on its log (two ENCL rows now wait on it, one P0).
+  - The probe sources are in this session's scratchpad only.
+- 2026-09-28 — The equal-split lane opened PR 3338 (head `13fff39548`).
+  - Adds a helper, `equal_split_plan`, and replaces four hand compositions with it. Bits are unchanged (diagnostics identical against main).
+  - Constants ruling: RATIONAL_CERT_SPLITS and RATIONAL_METER_SPLITS are two independent choices. The meter's value was measured (e9c9e57a5e); the cert's only cited it (db570b6835). "Mirrored" is dropped at both sites. There is no ratification of either.
+  - This answers CHORD's `C23`. After merge I will note it on C23 and the CHORD log and leave the close to CHORD.
+  - Filed `domain-uniform-refinement-grid-is-spelled-three-times` (P4/E).
+  - Style review dispatched.
+- 2026-09-28 — The PR 3338 style review came back APPROVE-WITH-FIXES.
+  - Bits verified by argument: one plan per point, and no dropped-plan path.
+  - Constants ruling supported by history.
+  - Fixes taken:
+    - patch_bound's "what it prices" drops `mesh::chords`' rational carrier bound, which db570b6835 named and 652f32319c lost;
+    - two wraps;
+    - the filed row gains `knot_aligned_cuts` as a fourth spelling with the sliver-guard precedent, and the control-count cut-off difference;
+    - `equal_split_plan`'s doc states a rule it does not compute.
+  - Declined: the rename and an accessor nit.
+  - C23 is mine to note at merge.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3338's `f2f5740dc3` went red on `topo … the_window_construction_sites_are_the_ones_listed`. The cause is not this PR: main's base `930a59dbd1` carried the site-census drift from the semantic merge of #3322 and #3331, and #3337 fixes it on main. I ported the fix by merging main into the branch (`00e326acbc`, exit 0). The census test passes locally (15 of 15). I commented once on the PR, and hosted CI is re-running.
+- 2026-09-28 — PR 3338 merged (`b3e5937b8e`), hosted all green on `00e326acbc`. Closed `schedule-then-refine-plan-homogeneous-is-composed-by-hand-four-times`. `C23` has the answer appended and CHORD is notified on its log; the close is left to CHORD.
+- 2026-09-28 — The driver-log lane opened PR 3343 (head `bb5feee20a`).
+  - A new `k_stats::splice_superseded` door splices verdicts and samples without escalations. certify's tangent arm uses it, so the log holds exactly the escalation the typed error carries.
+  - Rejected: the driver reading the typed error first (it would see through about 40 wrappers), certify reordering (it moves populations and is against C7), and a later-verdict-wins rule.
+  - All 12 K CSVs are byte-identical to main.
+  - Filed CONTACT's `contact-verify-logs-a-second-order-escalation-its-outcome-overruled`.
+  - Territory: `k_stats.rs` belongs to props and verdict, and `drive.rs` to props; seam notes follow at merge.
+  - Full review dispatched. Its focus: every reader of the escalation log, not just the driver.
+- 2026-09-28 — The PR 3343 full review came back APPROVE-WITH-FIXES.
+  - Confirmed: every escalation-log reader was enumerated, and none loses information it relies on. The drop path is sound because no sub-box can certify. The success path is bit-identical by construction; the 12-CSV check is vacuous, because no producer reaches the arm. The rows go red on main.
+  - Fixes taken:
+    - the soundness sentence restated as "no sub-box can certify";
+    - a false universal in the k_stats doc, and its hand-written census of detached sites (replaced by a pointer, not grown);
+    - the undisclosed cost of the Bisect deviation: sliver boxes now go to the floor and are priced Budget. That is evidence for VERDICT's existing coincidence-zone row;
+    - territory: tcost and tint also own the test file;
+    - the CONTACT row's third divergence;
+    - a stale path in drive.rs;
+    - C7 wording that pointed at the README instead of the code comment;
+    - cross-references between the duplicated fixtures.
+  - Declined, and logged as a direction if a second caller appears: a typed pending-escalation value in place of choosing a splice.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — Dispatched `kernel-defect-endings-and-repair-labels-have-no-shared-home` (P4) on `encl/kernel-defect-recourse`, Opus, style review. It follows CHROME's refusal standard; the shared constant lands in `geom_core::predicate`, which is PROPS territory, so a seam note will follow at merge.
+- 2026-09-28 — PR 3343 fix pass landed at `0eb6236870`.
+  - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
+  - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
+- 2026-09-28 — PR 3343 merged (`f5390b0605`), hosted all green on `0eb6236870`. Closed `driver-escalation-log-names-a-renamed-tangent-refusal-osculating`. Seam notes posted on the props, verdict, tcost and tint logs.
+- 2026-09-28 — The kernel-defect lane opened PR 3346 (head `ab7c781ba1`).
+  - Two constants in `geom_core::predicate`, the kernel defect and the kernel-or-file defect, defined through `#[macro_export]` macros for `concat!` callers.
+  - Forwarded carriers are labelled `Recourse:` about 27 times: `note()`, `FitError`, `SplineError`, `KnotVectorIssue`.
+  - Three more sites folded in. Six rows filed across encl, reach, shell, chart, props and issues. Evidence added to CHROME's checker row.
+  - The scope grew past the brief (macros, the rewording of `ResultVolumeImplausible`, many owners' files). The review stays a style review, pointed at the macro surface, the consistency of the labelling ruling, double labels, and the new rows.
+- 2026-09-28 — PR 3346's style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the macros are least-surface (the `&'static str` callers are real), there are no double labels, and the chains row holds `Meter/Escalated`.
+  - The main fix: `OffsetFitError::Fit`/`Structure` now show a builder's repair, labelled `Recourse:`, to a user who didn't build the spline. They will render as `Elevation` does (the refusal plus the kernel-defect ending). The same class at other owners' sites (step-import, ssi, skin and others) becomes one row.
+  - Also taken:
+    - five missed endings, filed per owner;
+    - `ScaffoldingOperand`'s fold dropped, since `mev_null` is pub and "kernel defect" is not established;
+    - wording fixes;
+    - `#[doc(hidden)]` on the macros;
+    - constants renamed `*_ENDING`, since a dead end is not a recourse;
+    - `file:line` citations in the rows;
+    - a CHROME checker note on the lowercase marker and on "no way through yet".
+  - Kept as is: the A/B operand naming (outside this unit).
+- 2026-09-28 — Sequencing decisions (no Ev needed; both recommended):
+  - Parked `a-rigid-map-can-still-refuse-a-sound-approx-face-at-its-edges-or-meters` on SHELL's `shell-refuses-every-lofted-body-at-a-wall-seam-carrier`. The row is latent: no body the tree can move carries a curved `Approx` face with edges, and lofted bodies are refused earlier at their seam carriers. A two-designer fork now would weigh a problem no caller reaches. It runs when that row lands and a lofted body can be moved. Alternative considered: run the designers now. Not taken, because the cost is spent on an unreachable case and the answer may depend on how SHELL resolves the seam carriers.
+  - Dispatched `domain-uniform-refinement-grid-is-spelled-three-times` (P4) on `encl/domain-uniform-grid`, Opus, style review. The sites are PROPS/SSI/NURBS/Q territory, so seam notes follow at merge.
+- 2026-09-28 — PR 3346 merged (`fb0ec473b8`), hosted all green on `1f358a3519`. Closed `kernel-defect-endings-and-repair-labels-have-no-shared-home`. Seam notes posted on the props, nurbs, restfront, contact, tcost and tint logs.
+- 2026-09-28 — Priced `offset-meter-escalation-renders-the-coincidence-menu-unlabelled` (filed by the 3346 lane) at P3/E and dispatched it on `encl/meter-escalation-recourse`, Opus, style review. Its files (offset_meters, the editor-core chains row) are disjoint from the grid lane's.
+- 2026-09-28 — The meter-escalation lane opened PR 3347 (head `7ab8eadc13`).
+  - One routing home, `offset_meters::escalation_recourse`, read by both the Display and `classify_offset_fit`, whose copy is deleted. The checks-window text is unchanged.
+  - The predicate-name constants are used at the `decide` sites. The chains row now wants one marker on every arm.
+  - Four sibling rows filed (encl certify, iso, pcert, props); the pcert one disputes pcert's "delegates soundly" reading.
+  - Style review dispatched. The encl sibling `certify-escalation-renders-the-coincidence-menu-unlabelled` arrives with the merge and gets priced then.
+- 2026-09-28 — The PR 3347 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: the routing is byte-identical, and the rows go red on the swap, override and whole-render mutations.
+  - Taken:
+    - the new pub name-keyed table's default arm speaks for any name; it moves to explicit arms plus `MissingRecourse`, per BLEND-15 precedent;
+    - the checks window's routes are unpinned;
+    - an unrealistic sample predicate and a leftover probe name;
+    - the pcert dispute recorded on the disputed row;
+    - the lever sentences hoisted to one home;
+    - the CHROME-section claim tempered;
+    - the ~60-field deferral turned into a filed row.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — The grid lane opened PR 3348 (head `a3f01666d4`).
+  - Adds `algebra::domain_grid_points` with `GridSkip{BitEqual, WithinUlps}`. It is homed at `refine_dir`, `bezier_blocks`, ssi `refined` and edge_nurbs `localized`; the skip guard and cut-off stay per caller.
+  - Pinning rows were added on main first and pass unchanged after the refactor.
+  - `knot_aligned_cuts` is not homed: it is a different function (trim-rectangle range, and it clears the ends).
+  - Filed SSI's `chart-uniform-breaks-lean-on-exact-dedup`. edge_nurbs is ISO's by territory, not SSI/Q's.
+  - Style review dispatched.
+- 2026-09-28 — The PR 3348 style review came back APPROVE-WITH-FIXES.
+  - Confirmed: bits are unchanged at every site (by reading and executing), and the guard mutant turns four rows red.
+  - Taken:
+    - `WithinUlps(f64)` becomes `u32`, fixing a fail-quiet NaN/∞/negative hazard, with the clearance const made public beside `GridSkip`;
+    - the helper uses the typed `interior_knots()`; the other hand filters are recorded, not swept;
+    - a non-dyadic grid-arithmetic pin, since today no row catches an evaluation-order mutant;
+    - SSI row accuracy and pricing;
+    - one encl row recording the declined `knot_aligned_cuts` and the residual spellings;
+    - a hairline-row update;
+    - two trivial efficiency items.
+  - Declined: import-style taste.
+  - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
+- 2026-09-28 — PR 3347 merged (`2e913b87d0`), hosted all green on `695e7a39e6`. Closed `offset-meter-escalation-renders-the-coincidence-menu-unlabelled`. Seam notes posted on the restfront, tcost and tint logs.
+- 2026-09-28 — Priced `certify-escalation-renders-the-coincidence-menu-unlabelled` at P3/E and dispatched it on `encl/certify-escalation-recourse`, Opus, style review. The brief carries 3347's lessons: one routing home shared with `validate::classify_certify`, explicit arms plus `MissingRecourse` (no default arm), and pins on both surfaces.
+- 2026-09-28 — PR 3348 merged (`95b59b9361`), hosted all green on `10a32dfb5c`. Closed `domain-uniform-refinement-grid-is-spelled-three-times`, and posted seam notes on the program logs.
+  - On item 6 of the fix pass, the lane named three pinning rows for the hairline row, not four. That is correct: the review's fourth red row was `bezier_blocks`, which already uses the clearance guard.
+  - The residue row `domain-grid-homing-residue` (P4/E) is open.
+- 2026-09-28 — The certify-escalation lane opened PR 3351 (head `3dde3336d1`).
+  - One routing home, `certify::escalation_recourse`, with 45 explicit names and `MissingRecourse`. It is shared with `classify_certify` and its PlaneNurbs arm. The constants are hoisted across pcert, iso and ssi files.
+  - Checks-window text is unchanged for known names. An unknown name now reads "no recourse … recorded" where it used to read EDGE_CLOSE.
+  - Tier raised from style to a single full review. The table's completeness is load-bearing: a missed name regresses a live refusal to "no recourse".
+  - Filed `certify-escalation-lever-names-a-face-angle-for-checks-that-meter-no-angle` (encl), and added evidence to the issues and chrome rows.
+- 2026-09-28 — PR 3351 is red at `test (eps = 1e-12, 2/2)` on its own new row `every_certify_escalation_ends_in_its_routed_sentence`; everything else passes. It is this PR's failure, and the lane is reproducing it at 1e-12 now. The review's findings will follow into the same fix pass.
+- 2026-09-28 — **Design fork opened: escalation recourse vs D4 ¶1.** PR 3351's full review found a MAJOR, and its provenance checks out.
+  - The ratified two-tolerance principle (Ev, #129, `68c72a257c`; clause (iv) in Ev's `24e67b85ee`) binds a decision's definite and in-band arms to ONE recourse. It names that recourse as the three-arm sentence, and names certify `NotTransverse` vs `Escalated` as a pair.
+  - PR 3351 forks that pair (`Escalated` goes to the edge lever, the definite halves stay on the three-arm sentence) and deleted the S6 pin.
+  - Merged PR 3347 keeps its pairs together but replaced the three-arm sentence with site-specific levers at the meters. The checks window's `classify_*` already did that at many sites.
+  - Whether a site whose question has no declarable coincidence may carry its own lever is a change to what ratified text decides, so it is Ev's.
+  - Actions taken:
+    - 3351 is held from merging. Its lane does the CI fix and the fixes that don't depend on the ruling, and restores a pair-agreement pin that is red until the ruling.
+    - Two designers (Opus, Fable) dispatched concurrently with one problem statement. The blinding byte is on `analysis/design-fork/encl-escalation-recourse` (protocol `bb10a4cdd4`).
+    - The `[ev]` PR follows once they reconcile.
+  - 3347 is recorded as having landed ahead of the ruling. Whether it stands is part of the question put to Ev.
+- 2026-09-28 — Design fork `encl-escalation-recourse`: first reports recorded (A/B only; the full summaries are kept for the row).
+  - Both recommend the same final-state shape:
+    - the recourse belongs to the decision, with a typed-enum key rather than name strings;
+    - `Indeterminate` carries no recourse;
+    - the pair shares one recourse by construction;
+    - the three-arm sentence only where a door takes a declaration;
+    - the checks window may end a definite at-rest contradiction as a defect;
+    - D4 (i)/(ii) change (their agent-written parts), and (iv) stays.
+  - Both rejected the framing: the "three-arm at every site" scope is agent text.
+  - They split on one point, which arms carry "lower the tolerance". A: every band-decided arm. B: only where lowering ε moves toward a pass, since it is backwards on residuals.
+  - Reconciliation round 1: each designer was handed the other's For-Ev section.
+- 2026-09-28 — `[ev]` PR 3352 opened: D4 ¶1, one recourse per decision.
+  - Round 1 reconciliation converged both designers. The recourse is owned by the decision and keyed by a closed type, and the tolerance arm is derived from the decision's pass set and verdict: "lower" only where lowering ε can pass it, never on residuals. `Indeterminate` is data-only. (iv) gains the at-rest defect rider.
+  - One stated split, for Ev: whether a residual offers "loosen the tolerance" (B) or no tolerance arm at all (A, which the diff takes).
+  - The body carries both revised For-Ev sections verbatim, labelled A/B. Row 3 (recommendation half) is in `DESIGN-FORK-LOG.md`.
+  - `certify-escalation-renders-the-coincidence-menu-unlabelled` has `needs_ev: true`. PR 3351 is held at `28393a4e91`, red on its pair row by design.
+  - Subscribed to 3352 for Ev's answer.
+- 2026-09-28 — PR 3351 at `28393a4e91` has two red rows at 1e-12. One is the deliberate pair row. The other, `reader_census::every_site_that_reads_rust_source_is_in_the_ledger`, is the PR's own failure: the new source-scan census isn't in the reader ledger. It doesn't depend on the ruling and was sent to the lane to fix now.
+- 2026-09-28 — While 3351 and 3352 wait on Ev, dispatched `domain-grid-homing-residue` (P4/E) on `encl/domain-grid-residue`: Opus, style review. It is mechanical: the residual grid and sliver spellings and the hand interior filters in `props/quad.rs` (PROPS territory).
+  - Held until the ruling: the designers' off-question findings, i.e. `MeterError`'s Zero/Negative fold and main's `classify_certify` giving residual escalations a face-angle reason. Their content depends on 3352.
+- 2026-09-28 — The domain-grid residue lane opened PR 3354 (head `131a9f0c6b`).
+  - Adds `range_grid_points(…, mandatory)` under `domain_grid_points`. `knot_aligned_cuts` (both of its grids) now goes through it, and `block_edges` is deleted.
+  - Two `quad.rs` sites use `interior_knots()`; two range filters are kept, with comments.
+  - Pinning rows were added first, and bits are unchanged.
+  - Filed `work/issues/arc-rim-span-count-hand-spells-interior` (unowned `pcurves.rs`).
+  - Style review dispatched.
+  - PR 3351 at `054c90ae91` is confirmed red only on the pair row, as intended.
+- 2026-09-28 — The PR 3354 style review came back APPROVE-WITH-FIXES.
+  - Bits are unchanged, including the `block_edges` end drop (4M random ranges, worst gap 1.0·ε·width).
+  - Three new pins can't go red for their named mutations: two re-association forms, the sliver scale (only a collapse is caught), and the degree-2 double-knot dedup.
+  - Also taken:
+    - vacuous ends-clearance prose;
+    - the filed row moved to CHART (TRIM's cut gave `pcurves.rs` to CHART);
+    - the sliver overflow reassociated so it is exact;
+    - the sweep table completed.
+  - Fix pass sent back to the lane.
+- 2026-09-28 — PR 3354 merged (`260a8d3dba`), hosted green on `6a70b4c7de`. Closed `domain-grid-homing-residue` and posted seam notes on the props and nurbs logs.
+  - The degree-3 repeated-knot pin can go red only when both halves (the raw filter and the missing dedup) are reverted together. That is inherent, because either half alone is the pre-change code; it is recorded in the test's doc.

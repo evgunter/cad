@@ -788,6 +788,16 @@ failure, to localize the refusal. Same accept/reject decision, same
 error content on the failure path, one pass instead of two on success.
 Effort S; check `ProductError::SolidInvalid` consumers first.
 
+**[STATUS 2026-09-28: resolved on the product path.]** `product_recorded`
+gates the aggregate once, and re-gates each source body only when the
+aggregate refuses, to name the failing roots. The accept/reject decision
+is unchanged; the refusal's content is not: `SolidInvalid` (one root,
+the first to fail) retired into `ProductError::RootInvalid`, which lists
+EVERY failing root and output, and `ProductInvalid` now means only
+"every source passes", a graft defect. STEP import's per-instance gate
+is the same shape on the import path and is EXCH's
+(`work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`).
+
 #### 17. `geom-core` has zero `#[inline]` attributes **[verified]**
 
 `crates/geom-core/src/real.rs`, `interval.rs`, `dual.rs` and all 7

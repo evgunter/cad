@@ -65,7 +65,7 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Band, Point3, Tol};
+use geom_core::{Band, Point2, Point3, Tol};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::test_support::brick;
@@ -93,8 +93,8 @@ const FIXTURE_EXTENT: f64 = DONUT_R + DONUT_MINOR;
 /// its own self-mated seam meridian.
 fn donut() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(DONUT_R, -DONUT_MINOR), 1.0),
-        (p2(DONUT_R, DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, -DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -125,10 +125,10 @@ fn spool_arc() -> (f64, f64) {
 
 fn spool_loop() -> ProfileLoop<f64> {
     bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), SPOOL_BULGE),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), SPOOL_BULGE),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ])
 }
 
@@ -149,8 +149,8 @@ fn spool() -> Body<f64> {
 /// the MAJOR azimuth and wraps the minor angle.
 fn quarter_donut() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(DONUT_R, -DONUT_MINOR), 1.0),
-        (p2(DONUT_R, DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, -DONUT_MINOR), 1.0),
+        (Point2::new(DONUT_R, DONUT_MINOR), 1.0),
     ]);
     revolve(
         &validated(vec![lp]),
@@ -791,9 +791,9 @@ fn the_kind_refusal_no_longer_names_the_torus() {
 /// Neither is measured here, and neither should be read as covered by
 /// the row below. What IS closed regardless of the door is the concrete
 /// hazard: a spindle reaching the minor-window trim would divide by a
-/// vanishing radial, so `point_on_torus_in_face` decides
-/// `bool_torus_frame_radius` and takes a typed refusal instead of a
-/// poison frame. On a ring torus that predicate never fires.
+/// vanishing radial, so `point_on_torus_in_face` decides the ring
+/// convention at entry (`geom::ring_torus`) and takes a typed
+/// refusal instead of a poison frame. On a ring torus it never fires.
 #[test]
 fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     // A shallow bulge on the same chord: sagitta 0.15, arc radius
@@ -804,10 +804,10 @@ fn a_spindle_torus_is_not_mintable_through_the_public_door() {
     let big_r = 1.0 + s - r;
     assert!(big_r < r, "this profile really does describe a spindle");
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.3),
-        (p2(1.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.3),
+        (Point2::new(1.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp]).validate(Tol::witness());
     let refused = match profile {

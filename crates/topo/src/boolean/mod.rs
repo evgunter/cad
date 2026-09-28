@@ -94,8 +94,8 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point3, Real,
-    Tol,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    MarginDiag, Point3, Real, Tol,
 };
 
 use crate::body::Body;
@@ -109,10 +109,10 @@ use crate::validate::ValidationError;
 
 pub use carrier_eq::{CarrierDesc, CarrierEqError, CarrierRelation, carrier_eq};
 pub use contain::{ContainError, FaceContainment, contfp, curved_face_containment};
-// Crate-internal: tier 3's check 9 gates its nesting arm on the same
-// loop classification this module's own walk dispatches on, and
-// decides the disc class with the same exact side row.
-pub(crate) use contain::{LoopCircle, LoopShape, disc_side, loop_shape};
+// Crate-internal: tier 3's check 9 decides two whole-circle loops
+// against each other (its contact arm 4) on the same loop
+// classification this module's own walk dispatches on.
+pub(crate) use contain::{LoopShape, loop_shape};
 pub use join::CompletedPolygonPair;
 pub use ops::{
     BooleanBody, BooleanNaming, BooleanResult, BooleanResultKind, OperandKeys, boolean_op_with,
@@ -648,6 +648,23 @@ impl<T: Real> BooleanReduction<T> {
     }
 }
 
+/// Which site raised [`BooleanError::CurvedPairUnsupported`]. The three
+/// share one meaning — this pair of face kinds has no sound lane under
+/// this op — and differ in when it is known.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PairRefusalSite {
+    /// The operand gate, up front: a kind with no wired arm whose box
+    /// may meet an undeclared face of the other operand.
+    OperandGate,
+    /// The ∖/∩ front door, up front: a kind with no revert seam lane
+    /// whose box may meet a face of the other operand.
+    RevertRoster,
+    /// The crossings path's interior-loop guard, after the reduction: a
+    /// torus or sphere face that may meet a face of the other operand in
+    /// a closed loop no edge event marks.
+    InteriorLoopGuard,
+}
+
 /// Typed failure of [`boolean_reduce`]; the operands are never touched.
 #[derive(Debug)]
 pub enum BooleanError {
@@ -758,23 +775,17 @@ pub enum BooleanError {
         /// The edge.
         edge: EdgeKey,
     },
-    /// **Point-in-face on an arc-bearing loop the polygon walk cannot
-    /// express.** The ray-parity walk's contract is a planar POLYGON
-    /// through a loop's vertices (line carriers — the F5 regime); an
-    /// arc-bearing loop with fewer than three vertices gives it a
-    /// segment of ZERO AREA, so every interior point of the region
-    /// reads `Out` and the operands read as disjoint. Measured wrong at
-    /// exactly that shape — a half-disc cap, a half-cylinder cap, a
-    /// lens cap (two arcs of two different circles) — so the walk is
-    /// not called there. A loop of arcs of ONE circle is the disc class
-    /// and answers exactly; arc loops with three or more vertices keep
-    /// the polygon walk, measured correct at the shapes reviewed (a
-    /// slot, a rounded rectangle) and unproven in general. Both
-    /// remainders are issue #1076's.
+    /// **Point-in-face on a loop no walk expresses at the point.** The
+    /// in-plane walk reads each edge on its own carrier — a line as its
+    /// chord, a circle or ellipse arc on its conic — and has no crossing
+    /// row for a spiric or spline edge. It answers along any ray that
+    /// definitely misses a ball holding such an edge; a point where
+    /// every ray could meet one — a crossing of that edge could change
+    /// the answer — is refused here rather than guessed.
     ArcLoopContainmentUnsupported {
         /// The operand whose face carries the loop.
         operand: Operand,
-        /// The loop with no walk.
+        /// The loop no walk expresses at the point.
         r#loop: crate::entity::LoopKey,
     },
     /// An operand already carries null scaffolding (mid-surgery body).
@@ -1036,7 +1047,16 @@ pub enum BooleanError {
     ///   (deviation 5), and the fallback's extent test is unwritable
     ///   for the kind ([`BooleanError::NurbsExtentUnsupported`]).
     ///
-    /// These are refused UP FRONT because their downstream failure is
+    /// **Three sites raise it, and [`PairRefusalSite`] says which.** The
+    /// operand gate and the ∖/∩ revert roster refuse UP FRONT, on the
+    /// operands' kinds and boxes. The crossings path's interior-loop
+    /// guard (`ops::interior_loop_verdict`) refuses AFTER the pipeline
+    /// would have answered: a torus or sphere face that may meet a face
+    /// of the other operand in a loop no edge event marks (the reduction
+    /// saw crossings elsewhere, and the join and face-region propagation
+    /// cannot see the loop).
+    ///
+    /// The up-front refusals exist because their downstream failure is
     /// **silent, not typed**: with no crossings found the pipeline
     /// falls through to vertex-probed containment, and a curved face
     /// can leave the other solid between its vertices without any
@@ -1050,9 +1070,13 @@ pub enum BooleanError {
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
     CurvedPairUnsupported {
-        /// The op this refusal is specific to (never `Union`), or
-        /// `None` when the kind has no arm under any op.
+        /// The op this refusal is specific to, or `None` when the kind
+        /// has no arm under any op. `Union` is named only by the
+        /// interior-loop guard ([`PairRefusalSite::InteriorLoopGuard`]).
         op: Option<BooleanOp>,
+        /// Which site refused: the operand gate, the revert roster, or
+        /// the crossings path's interior-loop guard.
+        site: PairRefusalSite,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,
         /// That face — the first such in face-arena order.
@@ -1551,9 +1575,9 @@ impl core::fmt::Display for BooleanError {
             Self::ArcLoopContainmentUnsupported { .. } => write!(
                 f,
                 "the Boolean cannot yet tell what lies inside a flat face whose outline \
-                 mixes arcs with fewer than three corners (a half-disc or a lens, say), \
-                 so it refuses rather than guess. Recourse: split an arc so the outline \
-                 has at least three corners, or make it a whole circle"
+                 has a spiric or spline edge near the point it asked about, so it \
+                 refuses rather than guess. Recourse: model the outline with lines, \
+                 circles or ellipses"
             ),
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
@@ -1568,6 +1592,27 @@ impl core::fmt::Display for BooleanError {
                  the Boolean refuses it. Recourse: merge those faces first \
                  (merge_coplanar_faces)",
                 operand_word(*operand),
+            ),
+            Self::CurvedPairUnsupported {
+                site: PairRefusalSite::InteriorLoopGuard,
+                op,
+                operand,
+                kind,
+                other_kind,
+                ..
+            } => write!(
+                f,
+                "the {} operand's {} face may meet the {} operand's {} face along a closed \
+                 curve that crosses no edge of either solid, and the Boolean{} cannot yet \
+                 see such a meeting, so it refuses rather than guess. Recourse: move the \
+                 parts so every place they meet crosses an edge of one of them, or so the \
+                 {} face stays clear of the other solid",
+                operand_word(*operand),
+                kind_word(*kind),
+                operand_word(operand.other()),
+                kind_word(*other_kind),
+                op.map_or(String::new(), |op| format!(" {}", op_noun(op))),
+                kind_word(*kind),
             ),
             Self::CurvedPairUnsupported {
                 op,
@@ -1811,9 +1856,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "kernel invariant violated — this is a bug in the kernel, not in \
-                 your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it"
+                "the Boolean's result broke a bound a correct result's volume always meets \
+                 ({which}: got {got}, bound {bound}), so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}"
             ),
             Self::UnrepresentableResult => write!(
                 f,
@@ -2861,9 +2906,19 @@ mod tests {
             },
             BooleanError::CurvedPairUnsupported {
                 op: None,
+                site: PairRefusalSite::OperandGate,
                 operand: Operand::A,
                 face,
                 kind: geom_brep::SurfaceKind::Cone,
+                other_face: face,
+                other_kind: geom_brep::SurfaceKind::Plane,
+            },
+            BooleanError::CurvedPairUnsupported {
+                op: Some(BooleanOp::Union),
+                site: PairRefusalSite::InteriorLoopGuard,
+                operand: Operand::A,
+                face,
+                kind: geom_brep::SurfaceKind::Torus,
                 other_face: face,
                 other_kind: geom_brep::SurfaceKind::Plane,
             },

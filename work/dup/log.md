@@ -2306,3 +2306,24 @@ They are not filed here; each is a suite asserting less than it builds, which is
   - `plate_index` (viewer's module kinds);
   - the f64 aliases (a routing choice across 12 programs);
   - the façade box (a pncad test surface).
+
+## 2026-09-28: Ev's rulings, and batch 8 lands (#3307, #3309, #3310, #3311, #3312)
+
+Ev ruled on every question that was waiting on him.
+
+- **#3307** (Ev merged it). The reviewer-suite memory clause is now Ev's sentence, with no history. Sweep's `src/test_support` defers to the `tests/common` narrowest-home rule.
+- **#3309.** The PR 17 attribution came out of the seven M1 review headers, together with the "independent derivations" clause it sat in. `plate_index` stays as the one copy.
+- **#3310, the first S-DUP design fork.** Ev asked whether the chart-partition leak was a symptom. Two designers answered and converged after one round of reconciliation. Ev took the recommendation: the offset doors take the solids plus a per-chart rule, with an inward-by-t door on top.
+  - The follow-up is `work/shell/offset-doors-take-solids-and-a-per-chart-rule.md`, handed to `shell`. The side findings are in `work/shell/offset-doors-small-doc-and-message-drift.md`.
+  - **Protocol deviations (recorded on row 2 of `docs/DESIGN-FORK-LOG.md`).** No byte was drawn: A and B were labelled by delivery order. The orchestrator also named the models in chat before the PR opened, so the fork was not blind.
+- **#3311 and #3312.** The f64 point pass-throughs are inlined everywhere, per Ev's "(c) all the way": 92 in sweep and 134 elsewhere.
+  - Kept: two `let` bindings next to six-row face tables.
+  - Left: five rustdoc-example bindings.
+  - Also landed: the façade box fixture is pinned against drift by `box_document_fixture_twins_agree`, and sweep's sphere-recut group moved into `tests/common`.
+  - At merge time #3312 also had to inline `germ_torus_doors.rs`. That file arrived on main after the lane cut its branch, and still imported the deleted `revolve_common::p2`. Clippy caught it before the push. A deletion PR owes a re-check of main's new importers at merge time, not just at its own base.
+
+**The slate.** `dup` reads 3.5/30. Two rows are open:
+- `sweep-suites-import-fixtures-from-other-suites` (M): ordinary work under Ev's routing rule;
+- `the-arc-carrier-fence-fixture-is-written-twice-in-editor-core-tests` (E): waits on `tint`'s call about `cert3r1_dump`.
+
+S-REROUTE (11.5/30) still has no orchestrator.

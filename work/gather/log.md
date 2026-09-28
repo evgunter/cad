@@ -41,6 +41,27 @@ Load is 31/30. It is not split: this wave takes about 16 points off the
 dispatchable count, which leaves a slate one session can hold.
 `parallel-node-map-loses-the-funnel-and-the-symbolic-session` is next.
 
+## 2026-09-28 — the name-carrying edge set lands (PR 3321)
+
+`three-walks-over-the-name-carrying-edges` and
+`select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+closed on PR 3321. `verbatim_edge` (`names/role.rs`) is the one home
+both editor-core walks read; the compiler holds the three together.
+`SelectRefusal` has an in-crate census beside the enum.
+
+Single STYLE review, verdict mergeable. All four claims held. The
+reviewer mutated the census and confirmed it goes red for a missing
+sample. Fix pass: S1 (the doc no longer says "every walk"), S3 (the
+display-contract comment says what the census covers), S4 (the
+census uses `test_utils::census::set_difference`), S6 (`Intact`
+carries no unused field). No change: S5, S7, S8, S10.
+
+Filed from the review, as classes:
+- `verbatim-edge-is-not-tied-to-the-evaluator` (P1, M). Nothing ties
+  `verbatim_edge` to what `eval/wire.rs` passes through; a runtime
+  guard over the evaluated corpus is possible. The lane's "no runtime
+  test can exist" was corrected in the PR body.
+- STACK's `in-crate-census-hand-writes-the-set-comparison` (P4, E).
 ## 2026-09-28 — the second wave, and the rows re-priced
 
 The first wave closed: #3141 (the E batch), #3142 (two roots),
@@ -135,3 +156,66 @@ measurements (branch `gather/cusp-sweep-gate` holds the probes); this
 one may go to Ev, so its blinding byte is on
 `analysis/design-fork/sweep-cusp-declarations` (drawn after dispatch,
 before any report; disclosed there).
+
+## 2026-09-28 — the product gates its aggregate once (PR 3323)
+
+`product-per-part-gate-counts-solids-but-gates-sources` closed on PR
+3323, implementing the design the two designers converged on. The
+product gates the aggregate once, after every graft and before every
+naming refusal. On refusal it re-gates every grafted source and refuses
+`RootInvalid`, naming each failing root and output index with its own
+findings. `SolidInvalid` retired. `ProductInvalid` is only the
+graft-defect arm now. The product no longer calls
+`topo::per_part_gate_owed`; STEP import is its only caller.
+PERF-SCAN-2026-08 item 16 is marked resolved, with a source guard that
+the gather gates once on success and re-gates only on refusal.
+
+Single FULL review, verdict mergeable after fixes. All six claims held
+under probe: a pattern's instances 0 and 2 are named, and a `.take(1)`
+mutation reddens the cascade row. The fix pass took every item:
+- rows pinning non-zero output indices;
+- the r2_m10 `ProductInvalid` widening reverted;
+- one skip rule instead of two;
+- a header that counts roots;
+- the stale "two callers" prose made true;
+- the body-wide-stop argument given one home;
+- the gate-once guard;
+- the PR body now states the `SolidInvalid` → `Graft` class change for
+  malformed sources.
+
+CI was red at the first head on `test-utils`'s reader census. The
+ledger named the renamed `per_part_gate_policy.rs`, and the lane had
+not run the `test-utils` tests. The fix pass re-pointed the ledger.
+
+Left as they are, noted: three near-parallel (root, output) attribution
+shapes (`SourceFinding`, `SolidOrigin`, `CheckFinding`); Python binding
+only the first failing root as `node`.
+
+Filed by the lane and priced here: `assemble-runs-the-tier-3-local-battery-twice-on-one-aggregate`
+(P3, M), which waits on the cusp row. The cusp row's pin now reads
+`RootInvalid`.
+
+## 2026-09-28 — the pass-through set is tied to the evaluator (PR 3335)
+
+`verbatim-edge-is-not-tied-to-the-evaluator` closed on PR 3335. A
+corpus guard checks every evaluated node against `verbatim_edge`'s
+variant: `Whole`/`Selected` publish only rows other nodes head,
+`Intact` publishes both, and `None` publishes none foreign. A census
+forces every `Node` kind into the corpus with rows, or onto an explicit
+row-free list asserted to publish none. `Sweep`, which never evaluates,
+and `Shell`, which sits beside the registry, have one home in
+`tests/corpus`, read by both corpus suites.
+
+Single STYLE review, verdict mergeable. The reviewer's probes showed
+the first guard blind to which edge a node returns (`Part`/`Transform`
+misfiled as `Intact` stayed green; the walk suites caught them), and
+six kinds sampled vacuously. The fix pass took all four items: the
+guard reads the variant, row-free kinds are explicit, the frontier
+has one home, and the two checks are separate tests. The lane
+red-proofed each misfile.
+
+CI was red on `main` meanwhile: a 3322 × 3331 semantic merge in
+`topo`'s window-site census. Fixed by PR 3337 and ported here.
+
+Filed: TINT's `corpus-node-kinds-roster-is-hand-written`
+(`corpus::NODE_KINDS` is not welded to `Node`).

@@ -352,16 +352,14 @@ fn attach_surfaces(
         std::collections::BTreeMap::new();
     for (spec, &fk) in solid.faces.iter().zip(face_keys) {
         let sig = surface_sig(&spec.surface);
-        let attached = match seen.get(&sig) {
-            Some(&key) => body
-                .set_face_surface(fk, FaceSurface::Shared(key))
-                .map_err(op_err)?,
-            None => body
-                .set_face_surface(fk, FaceSurface::New(spec.surface.clone()))
-                .map_err(op_err)?,
+        let surface = match seen.get(&sig) {
+            Some(&key) => FaceSurface::Shared(key),
+            None => FaceSurface::New(spec.surface.clone()),
         };
+        let attached = body
+            .set_face_surface_and_sense(fk, surface, spec.sense)
+            .map_err(op_err)?;
         seen.insert(sig, attached);
-        body.set_face_sense(fk, spec.sense).map_err(op_err)?;
     }
     Ok(())
 }

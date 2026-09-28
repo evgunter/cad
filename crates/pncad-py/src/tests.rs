@@ -3507,7 +3507,7 @@ fn the_census_findings_read_as_prose_by_this_crate_s_own_rule() {
 /// **What one validator finding says, arm by arm** — including the
 /// arms no Python door can produce.
 ///
-/// `ValidationError` has seventy-one arms and Python reaches them
+/// Python reaches `ValidationError`'s arms
 /// through five `Body` methods — the four rungs of the ladder and
 /// `validate_geometric_measured`, whose gate half is the third rung —
 /// so most of the enum is unreachable
@@ -5076,8 +5076,8 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "product_invalid",
             "product_naming",
             "root_failed",
+            "root_invalid",
             "root_poisoned",
-            "solid_invalid",
             "unknown_node",
         ],
         delegates: &[],
@@ -5623,6 +5623,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "planar_boundary_residual",
             "planar_face_escalated",
             "planar_face_residual",
+            "poisoned_curve_datum",
             "poisoned_surface_datum",
             "poisoned_surface_description",
             "ring_contact_escalated",
@@ -5633,6 +5634,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "scaffolding_empty_loop",
             "scaffolding_strut_vertex",
             "shell_disconnected",
+            "shell_winding",
             "shell_without_faces",
             "sliver_dihedral",
             "solid_without_shells",
@@ -5645,6 +5647,7 @@ const TAG_INVENTORY: &[TagEntry] = &[
             "undeclared_contact",
             "undeclared_cusp",
             "unreachable_half_edge",
+            "unrepresentable_curve_datum",
             "unrepresentable_surface_datum",
             "vertex_orbit_overrun",
             "volume_uncomputable",

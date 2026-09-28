@@ -103,6 +103,8 @@ mod p1b_r1_probes;
 mod pcurve_p1b_r2_probes;
 #[path = "pis_arc_capped_poses.rs"]
 mod pis_arc_capped_poses;
+#[path = "pis_cut_cavity.rs"]
+mod pis_cut_cavity;
 #[path = "r1_lane0_e2e.rs"]
 mod r1_lane0_e2e;
 #[path = "r1_mate3_probes.rs"]
@@ -190,6 +192,8 @@ mod cert8_r1_probes;
 mod closed_chain_junctions;
 #[path = "contact_edge_must_carry.rs"]
 mod contact_edge_must_carry;
+#[path = "contfp_reads_arcs_on_their_carriers.rs"]
+mod contfp_reads_arcs_on_their_carriers;
 #[path = "encl_curved_loft_shell.rs"]
 mod encl_curved_loft_shell;
 #[path = "extrude_acceptance.rs"]
@@ -488,6 +492,8 @@ mod sign_walk_plus_v;
 
 #[path = "shell_census_is_thread_count_invariant.rs"]
 mod shell_census_is_thread_count_invariant;
+#[path = "shell_winding_curved.rs"]
+mod shell_winding_curved;
 
 #[path = "continuation_is_thread_count_invariant.rs"]
 mod continuation_is_thread_count_invariant;
@@ -504,6 +510,10 @@ mod r2_probe_cert8;
 #[path = "m9_3_wall_door.rs"]
 mod m9_3_wall_door;
 
+#[path = "germ_cone_doors.rs"]
+mod germ_cone_doors;
+#[path = "germ_interior_oval.rs"]
+mod germ_interior_oval;
 #[path = "germ_torus_doors.rs"]
 mod germ_torus_doors;
 #[path = "m9_3_zip.rs"]

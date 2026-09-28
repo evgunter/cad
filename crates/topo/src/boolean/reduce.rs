@@ -394,6 +394,7 @@ pub(super) fn gate_operand_pairs<T: Decide + Bounds>(
     })? {
         return Err(BooleanError::CurvedPairUnsupported {
             op: None,
+            site: super::PairRefusalSite::OperandGate,
             operand: p.operand,
             face: p.face,
             kind: p.kind,
@@ -1032,13 +1033,20 @@ pub(super) fn sweep_direction<T: Decide + Bounds>(
 ///
 /// UNDECLARED incidences unlock no RECORDING they did not already have
 /// — the recording door only widens what a verified declaration
-/// unlocks. One undeclared arm does read the third outcome, and only in
-/// the refusing direction: the MIXED-SIGN `NoInterior` span (one
-/// endpoint ON the carrier, the other definitely clear) whose every ON
-/// endpoint is certified `Elsewhere` answers NO EVENT instead of
-/// refusing, because the pierce ring that produced that fragment mints
-/// the vertex interior to the sibling face which does hold it. Nothing
-/// is recorded there; a refusal becomes an honest silence.
+/// unlocks. Two undeclared arms do read the third outcome, and they
+/// read it as SILENCE where the strict posture refused: a `NoInterior`
+/// span — the MIXED-SIGN one (one endpoint ON the carrier, the other
+/// definitely clear) and the `(Zero, Zero)` span with both ends on the
+/// carrier — whose every ON endpoint is certified `Elsewhere` answers
+/// NO EVENT on this face ([`Placement::undeclared_no_interior`]). That
+/// is a claim of absence, and it rests on certificates, not on a
+/// sibling face existing: the certified roots put every meeting of the
+/// line with the carrier at a root, each interior root was placed
+/// outside this face's trim, and each end was placed outside it too,
+/// so the span meets this face nowhere. Where the ends' incidences live
+/// — a pierce vertex interior to a sibling face, an operand's own
+/// vertex on another face, or nowhere on this operand at all — is not
+/// this pair's question.
 ///
 /// **The pierce ring lane** (the definite-crossing half): a LINE edge
 /// that definitely crosses a cylinder WALL or a TORUS inside that
@@ -1407,8 +1415,9 @@ fn curved_face_arm<T: Decide>(
         // record the planar sweep's `vertex_on_face` writes.
         //
         // `(Zero, Zero)` is NOT here: both endpoints on the carrier is
-        // the on-carrier-edge question, which is a cosurface claim and
-        // stays behind the declaration gate above.
+        // where the on-carrier-edge question could arise, so it has its
+        // own arm below, which separates the chord from that question
+        // structurally before it answers anything.
         (Sign::Zero, Sign::Positive | Sign::Negative)
         | (Sign::Positive | Sign::Negative, Sign::Zero) => {
             let (t0, t1) = curve.params();
@@ -1423,119 +1432,48 @@ fn curved_face_arm<T: Decide>(
                     Err(frontier())
                 }
                 SpanVerdict::NoInterior => {
-                    // UNDECLARED, and deliberately NOT
-                    // [`Placement::records_the_pair`] — that rule is
-                    // the DECLARED rungs', bought by a verified
-                    // declaration, and it is stricter than this arm in
-                    // one direction and laxer in the other. This arm
-                    // keeps its own long-standing OR rule for the
-                    // recording half (one `Recorded` end records, and
-                    // the sibling's answer does not veto it), and adds
-                    // one thing on top: an ON endpoint the trim places
-                    // definitely `Elsewhere` is a CERTIFIED absence
-                    // from this face, not the door's remainder, so a
-                    // span whose every ON end came back that way is
-                    // honestly eventless HERE. That is the TRIM
-                    // question, separate from the gluing question the
-                    // declared rungs answer; the derivation is below.
-                    let mut hit = false;
-                    // Every ON endpoint definitely placed OUTSIDE this
-                    // face's trim (see below).
-                    let mut all_elsewhere = true;
-                    for (on, w, pw) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)] {
-                        if !on {
-                            continue;
-                        }
-                        match vertex_on_curved_face(x_is, y, w, pw, face, contacts, band, tol)? {
-                            Placement::Recorded => hit = true,
-                            Placement::Elsewhere => {}
-                            Placement::Undecided => all_elsewhere = false,
+                    // UNDECLARED: the undeclared `NoInterior` rule
+                    // ([`Placement::undeclared_no_interior`]), over this
+                    // span's one ON end.
+                    let mut ends = [None, None];
+                    for (i, (on, w, pw)) in [(s1 == Sign::Zero, u, pu), (s2 == Sign::Zero, v, pv)]
+                        .into_iter()
+                        .enumerate()
+                    {
+                        if on {
+                            ends[i] = Some(vertex_on_curved_face(
+                                x_is, y, w, pw, face, contacts, band, tol,
+                            )?);
                         }
                     }
-                    if hit {
-                        return Ok(CurvedEvent::Recorded);
-                    }
-                    // **No incidence with THIS face, certified.** The
-                    // span's only contacts with the wall's CARRIER are
-                    // this arm's ON endpoint(s): `NoInterior` reports
-                    // the certified roots — every root the line has on
-                    // the carrier, two on a cylinder, two or four on a
-                    // torus — with none of them strictly inside the span
-                    // AND inside this face's trim.
-                    // A face is a subset of its carrier, so an ON
-                    // endpoint the trim places definitely OUT is not
-                    // an incidence of this face — the same sentence
-                    // `wall_crossing` already writes when it steps
-                    // over an interior root the trim puts `Out`. The
-                    // event is a SIBLING face's: a wall pierce mints
-                    // its vertex interior to the face that holds it,
-                    // and the split's fragments are then re-queried
-                    // against every other face of the same carrier.
-                    //
-                    // The `Undecided` half is what keeps this honest.
-                    // An endpoint with no verdict is not evidence of
-                    // absence, so a single one of them takes the whole
-                    // span back to the typed door.
-                    if all_elsewhere {
-                        Ok(CurvedEvent::None)
-                    } else {
-                        Err(frontier())
-                    }
+                    Placement::undeclared_no_interior(ends).ok_or_else(frontier)
                 }
             }
         }
-        // **BOTH endpoints on the wall, the pair UNDECLARED** — the
-        // CHORD a wall pierce leaves behind: an edge that crossed the
-        // wall twice is split at both roots, and the middle fragment
-        // is what remains.
+        // **BOTH endpoints on the carrier, the pair UNDECLARED** — the
+        // chord between two pierces, or any edge whose two ends sit on
+        // the carrier. Two invariants carry it:
         //
-        // This is the one arm where the cosurface fence and the ring
-        // lane meet, so the separation is STRUCTURAL rather than
-        // numeric: `NoInterior` is reached only through a CERTIFIED
-        // root count, whose roots are distinct. A line with two
-        // distinct points on a cylinder is a secant, and the only lines
-        // that LIE on a wall are its rulings, which are axis-parallel
-        // and answer `Constant`; no line lies on a torus at all (a
-        // quartic with a certified finite count is not identically
-        // zero). So an on-carrier edge cannot reach the endpoint
-        // treatment here and the undeclared cosurface question keeps
-        // its door untouched (CONTACT-DESIGN C2/C4) — as does a
-        // tangency, a trim with no verdict, and every other answer.
+        // - **It is not an on-carrier edge.** `NoInterior` is reached only
+        //   through a certified root count with distinct roots; the lines
+        //   that lie on a wall are its rulings, which answer `Constant`,
+        //   and no line lies on a torus. So the undeclared cosurface
+        //   question (CONTACT-DESIGN C2/C4) keeps its door, and so does a
+        //   tangency, a trim with no verdict, and every other answer.
+        // - **Its interior meets this face nowhere.** The face lies on its
+        //   carrier; the line meets the carrier only at its certified
+        //   roots; each root strictly inside the span was placed outside
+        //   the trim, and each root at an end is that end's own incidence.
         //
-        // **What this paragraph argues is narrow, and it is not the
-        // ruling on the undeclared TRIM question.** That question —
-        // whether a definite `Elsewhere` is answered as no-event on an
-        // undeclared pair — was settled separately and in the
-        // affirmative, but only for the MIXED-SIGN arm above, where
-        // the span has exactly one ON end and the pierce ring supplies
-        // the sibling face that holds the event. Here BOTH ends are ON
-        // and the chord's own interior is the thing in question, so
-        // this arm keeps the strict rule: only a `Recorded` end
-        // records. What is argued above is the C2/C4 COSURFACE
-        // question, which cannot be reached from here for the
-        // structural reason given, and that holds either way.
+        // So the ends decide, under the same rule as the mixed-sign arm
+        // ([`Placement::undeclared_no_interior`]).
         (Sign::Zero, Sign::Zero) => {
             let (t0, t1) = curve.params();
             match wall_crossing(y, face, &surface, curve.carrier(), t0, t1, band)? {
                 SpanVerdict::NoInterior => {
-                    // UNDECLARED, and STRICTER than the mixed-sign arm
-                    // above: only a RECORDED endpoint counts, every
-                    // other answer keeps the frontier door.
-                    // [`Placement::records_the_pair`] — the declared
-                    // rungs' rule, which lets an `Elsewhere` end pass
-                    // beside a recorded one — is deliberately NOT
-                    // applied outside a verified declaration; and the
-                    // mixed-sign arm's certified-`Elsewhere` no-event
-                    // does not reach here either, because with BOTH
-                    // ends ON the carrier the chord's interior is
-                    // itself the unanswered question.
                     let hu = vertex_on_curved_face(x_is, y, u, pu, face, contacts, band, tol)?;
                     let hv = vertex_on_curved_face(x_is, y, v, pv, face, contacts, band, tol)?;
-                    if hu == Placement::Recorded || hv == Placement::Recorded {
-                        Ok(CurvedEvent::Recorded)
-                    } else {
-                        Err(frontier())
-                    }
+                    Placement::undeclared_no_interior([Some(hu), Some(hv)]).ok_or_else(frontier)
                 }
                 _ => Err(frontier()),
             }
@@ -1999,6 +1937,36 @@ impl Placement {
         !ends.iter().flatten().any(|p| *p == Self::Undecided)
             && ends.iter().flatten().any(|p| *p == Self::Recorded)
     }
+
+    /// **The undeclared `NoInterior` arms' one rule** — the mixed-sign
+    /// span (one end ON the carrier) and the `(Zero, Zero)` chord. Given
+    /// each ON end's placement (`None` for an end that is not on the
+    /// carrier), the pair:
+    ///
+    /// - **records** if any end was `Recorded` (the long-standing OR
+    ///   rule: a sibling's answer does not veto a real incidence);
+    /// - is **no event HERE** if every ON end is `Elsewhere`: the span
+    ///   has no incidence strictly inside it on this face (`NoInterior`),
+    ///   and each ON end is certified outside this face's trim;
+    /// - otherwise keeps the typed door (`None`): an `Undecided` end is
+    ///   not evidence of absence.
+    ///
+    /// Unlike [`Self::records_the_pair`], an all-`Elsewhere` pair is
+    /// eventless rather than refused: that rule's nothing-recorded guard
+    /// exists for an on-carrier edge overlapping the window, which the
+    /// distinct certified roots behind `NoInterior` exclude here.
+    fn undeclared_no_interior<T: geom_core::Real>(
+        ends: [Option<Self>; 2],
+    ) -> Option<CurvedEvent<T>> {
+        let on = ends.iter().flatten();
+        if on.clone().any(|p| *p == Self::Recorded) {
+            Some(CurvedEvent::Recorded)
+        } else if on.clone().all(|p| *p == Self::Elsewhere) {
+            Some(CurvedEvent::None)
+        } else {
+            None
+        }
+    }
 }
 
 /// The declared-cosurface rung's endpoint treatment: classify an
@@ -2209,7 +2177,7 @@ fn split_at<T: Decide>(
 /// `p` must lie ON the carrier for the azimuth to name the event: the
 /// distance from `p` to the circle (radial and axial misses folded, the
 /// exact hypotenuse) is classified on `bool_contact_arc` — the same row
-/// [`super::contain::point_on_arc`] uses for the same quantity — before
+/// the boundary pre-pass uses for the same quantity — before
 /// the parameter is taken. The angular half of "on the ARC" is not
 /// repeated here: `split_edge`'s interiority gate is exactly that
 /// question, metered in metres at the radius.
@@ -2245,9 +2213,9 @@ fn split_other_at_point<T: Decide>(
         ..
     } = *curve.carrier()
     {
-        // On the carrier? The row and its impossible-negative arm have
-        // one body, shared with `super::contain::point_on_arc`, which
-        // asks the same question of the same quantity.
+        // On the carrier? `point_on_circle` is the row's body, with its
+        // impossible-negative arm; the boundary pre-pass's conic arm
+        // asks the same distance under the same row name.
         match super::contain::point_on_circle(p, center, axis, radius, band) {
             Ok(Some(_)) => {}
             // The caller placed the event ON this edge; a point
@@ -2265,7 +2233,7 @@ fn split_other_at_point<T: Decide>(
         // assumed: past a period the azimuth aliases by 2π silently,
         // and `split_edge`'s interiority gate cannot see it (an aliased
         // parameter is still inside a span that long). The row is the
-        // period guard `super::contain::point_on_arc` already spells,
+        // period guard the boundary pre-pass's conic arm already spells,
         // metered the same way; a full turn is `Zero` and passes.
         match decide(
             "bool_split_span_period",
@@ -2316,4 +2284,49 @@ fn requeue<T: Decide>(
     worklist.push_back((parent, next_face));
     worklist.push_back((child, next_face));
     Ok(())
+}
+
+#[cfg(test)]
+mod undeclared_rule_rows {
+    //! **The undeclared `NoInterior` rule, over every placement pair.**
+    //! Both undeclared arms — the mixed-sign span and the `(Zero, Zero)`
+    //! span — call [`Placement::undeclared_no_interior`], so these rows
+    //! hold the rule for both. The row a public fixture cannot reach is
+    //! the `Undecided` one: an end on a face whose trim the chart door
+    //! declines (a ringed face, a non-rectangular outline) is minted by
+    //! no public door that does not refuse first (a notched three-face
+    //! wall stops at the volume backstop), so it is held here.
+    #![allow(clippy::panic)]
+
+    use super::{CurvedEvent, Placement};
+
+    fn rule(ends: [Option<Placement>; 2]) -> &'static str {
+        match Placement::undeclared_no_interior::<f64>(ends) {
+            Some(CurvedEvent::Recorded) => "record",
+            Some(CurvedEvent::None) => "none",
+            Some(CurvedEvent::Pierce { .. }) => panic!("the rule never pierces"),
+            None => "door",
+        }
+    }
+
+    #[test]
+    fn an_undecided_end_keeps_the_door_unless_the_other_end_recorded() {
+        use Placement::{Elsewhere as E, Recorded as R, Undecided as U};
+        let rows = [
+            ([Some(R), Some(R)], "record"),
+            ([Some(R), Some(E)], "record"),
+            ([Some(R), Some(U)], "record"),
+            ([Some(E), Some(E)], "none"),
+            ([Some(E), Some(U)], "door"),
+            ([Some(U), Some(E)], "door"),
+            ([Some(U), Some(U)], "door"),
+            // The mixed-sign span: one ON end.
+            ([Some(R), None], "record"),
+            ([None, Some(E)], "none"),
+            ([Some(U), None], "door"),
+        ];
+        for (ends, want) in rows {
+            assert_eq!(rule(ends), want, "{ends:?}");
+        }
+    }
 }

@@ -464,8 +464,8 @@ pub use geom_brep::SurfaceKind;
 pub use topo::{
     Body, BooleanBody, BooleanDeclarations, BooleanError, BooleanOp, BooleanResult,
     BooleanResultKind, ContactRecords, Curve3, EdgeDescription, EdgeKey, EntityId, FaceKey,
-    GeomRef, LoopKey, Operand, PlaneRelation, Surface, TransformError, VertexKey, intersect,
-    intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
+    GeomRef, LoopKey, Operand, PairRefusalSite, PlaneRelation, Surface, TransformError, VertexKey,
+    intersect, intersect_with, subtract, subtract_with, transform_rigid, union, union_with,
 };
 
 // --- 5. The validation ladder ---------------------------------
@@ -631,7 +631,7 @@ pub use step_export::{StepExportError, StepOptions, step_string, write_step};
 // so a Python caller who reads it measures the import once instead of
 // twice — and on an admitted body whose volume is not measurable at
 // this ε, reading it raises the measurement refusal with the
-// sign-level bracket (`ImportReport.enclosure`).
+// bracket the measurement held (`ImportReport.enclosure`).
 //
 // **`StepImport::Solid::coherence` is the one field whose type is not
 // step-import's**, and the curated-type rule reaches through it

@@ -23,21 +23,17 @@ use sweep::test_support::sketch_from_axes;
 use sweep::{Extruded, Extrusion, extrude};
 use topo::{Body, FaceKey, LoopBoundary, LoopKey, validate_geometric};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The 6-vertex L: no rotation of its reversed chain equals the
 /// forward one (the signed area flips), so "which cap carries the
 /// canonical winding" is a question with exactly one answer.
 fn l_loop() -> ProfileLoop<f64> {
     ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ])
 }
 
@@ -46,7 +42,12 @@ fn l_loop() -> ProfileLoop<f64> {
 /// vertices, not a two-arc circle: a two-vertex chain's winding lives
 /// in its bulges and its vertex polygon has no signed area to read.
 fn square_hole(lo: f64, hi: f64) -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(lo, lo), p2(hi, lo), p2(hi, hi), p2(lo, hi)])
+    ProfileLoop::polygon([
+        Point2::new(lo, lo),
+        Point2::new(hi, lo),
+        Point2::new(hi, hi),
+        Point2::new(lo, hi),
+    ])
 }
 
 fn validated(plane: SketchPlane<f64>, loops: Vec<ProfileLoop<f64>>) -> ValidatedProfile<f64> {
@@ -110,7 +111,7 @@ fn offsets_along_n(body: &Body<f64>, face: FaceKey, plane: &SketchPlane<f64>) ->
 /// A world point back in sketch coordinates.
 fn in_sketch(plane: &SketchPlane<f64>, p: Point3<f64>) -> Point2<f64> {
     let d = p - plane.origin();
-    p2(d.dot(plane.u()), d.dot(plane.v()))
+    Point2::new(d.dot(plane.u()), d.dot(plane.v()))
 }
 
 fn near2(a: Point2<f64>, b: Point2<f64>) -> bool {

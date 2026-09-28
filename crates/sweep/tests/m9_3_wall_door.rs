@@ -24,14 +24,10 @@ use topo::{
     Body, BooleanDeclarations, BooleanError, BooleanResult, ContactClass, FacePairDeclaration,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A radius-`r` three-arc cylinder at (2, 2), z ∈ [z0, z0 + h] (the
 /// boss_union authorship: three 120° arcs on ONE cylinder surface).
 fn cyl(z0: f64, h: f64, r: f64) -> Body<f64> {
-    three_arc_cylinder(p2(2.0, 2.0), r, z0, h, 0.0)
+    three_arc_cylinder(Point2::new(2.0, 2.0), r, z0, h, 0.0)
 }
 
 /// The bored plate: a through-hole subtract (the shipped transverse
@@ -209,7 +205,7 @@ fn lying_cyl(zc: f64) -> Body<f64> {
     ));
     extruded(
         plane,
-        vec![three_arc(p2(zc, 2.0), 0.5, 60.0)],
+        vec![three_arc(Point2::new(zc, 2.0), 0.5, 60.0)],
         3.0,
         Tol::witness(),
     )
@@ -341,7 +337,12 @@ fn tangent_outside_the_witness_lane_refuses_by_class() {
     let a = plate::<f64>();
     // A second plate floating above (planar faces only, gap 1).
     let b = {
-        let lp = ProfileLoop::polygon([p2(1.0, 1.0), p2(3.0, 1.0), p2(3.0, 3.0), p2(1.0, 3.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(1.0, 1.0),
+            Point2::new(3.0, 1.0),
+            Point2::new(3.0, 3.0),
+            Point2::new(1.0, 3.0),
+        ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 2.0)));
         let profile = Profile::new(plane, vec![lp])
             .validate(Tol::witness())

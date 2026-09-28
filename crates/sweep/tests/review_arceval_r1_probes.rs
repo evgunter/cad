@@ -20,9 +20,9 @@
 //!
 //!   **What holds "the same fixture" is the compiler, not this
 //!   sentence.** E2 builds its operands from
-//!   `crate::m5_s12_curved_ops_interval::certified`'s `plate` and
-//!   `recut_ball`, and reads that module's
-//!   `RECUT_MAPPED_ENCLOSURE_HI`. One plate, one ball, one constant.
+//!   `crate::common::sphere_recut`'s `plate` and `recut_ball`, and
+//!   reads that module's `RECUT_MAPPED_ENCLOSURE_HI`, as the m5 row
+//!   does. One plate, one ball, one constant.
 //!   Each was two until 2026-09-19, held together by a sentence here —
 //!   which is precisely what a staleness pin must not rest on.
 //!
@@ -50,9 +50,7 @@ mod certified {
 
     use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
-    use crate::m5_s12_curved_ops_interval::certified::{
-        RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball,
-    };
+    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
     use sweep::test_support::ball_poled_y;
     use topo::{Body, mass_properties};
 

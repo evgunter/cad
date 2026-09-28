@@ -226,6 +226,25 @@ gate row wait for CONTACT-1 to merge.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-26 — CONTACT-1 merged; CONTACT-5 dispatched; CI-load posture
+
+CONTACT-1 merged as PR 3253, on hosted run 36214305025 (full matrix)
+with its tracker commit on top. The dual row is DR-8, renumbered in
+main's merge order.
+
+**CONTACT-5** takes census arm 2 now that it is free. It carries the
+half-overlap gate row and the beam refusal: both are about what the
+gate clears without reading the touches. Review: dual.
+
+**CI load (Ev, 2026-09-26, to all orchestrators).** Lanes push branches
+without opening PRs. Reviewed units land through combined PRs, one
+hosted gate for several units. CONTACT-3 and CONTACT-4 land together,
+and CONTACT-5 joins whichever combined PR is open when it is ready.
+Merges gated by local CI, and tracker-only commits on a green head,
+carry `[skip ci]`. Local gating is blocked for this track's lanes by
+the permission classifier (reported to Ev).
+
+Signed: (CONTACT orchestrator)
 ## 2026-09-27 — seam note from S-DUP (#3304)
 
 #3304 retyped topo's two ray-direction tables. `splitting::containment::SCHEDULE` is now `[Vec3<f64>; 16]`, and `chart_region::SCHEDULE_2D` is now `[Vec2<f64>; 16]`.
@@ -237,3 +256,255 @@ Their five lift sites now read `r.map(T::from_f64)`:
 The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
 
 Signed (S-DUP orchestrator).
+
+## 2026-09-28 — CONTACT-3 lands alone; CONTACT-4 reconciles with ATREST-12; process notes
+
+**CONTACT-3** lands on its own PR. The dual (DR-12) returned no MAJOR.
+Both reviewers found the refusal coarser than the spec asked, and the
+orchestrator ruled to fix that at the source rather than disclose it.
+The fix pass generalised the exact class to parity along the ruling.
+It was wider than the brief, and better. One single delta review
+followed, then a last pass pinning floors and caps.
+
+**CONTACT-4 left the combined PR.** ATREST-12 (#3325) reached main after
+CONTACT-4 branched and decided the same four questions in
+`splitting/containment.rs`. Ruling: main's decisions stand by default,
+with one exception. On the span rule, CONTACT-4 may override if main's
+rule reads an almost-closed eccentric arc as closed. The note is on
+RESTFRONT's log, since ATREST has closed. A delta review of the
+reconciliation follows.
+
+Process notes, each a class:
+- **The lever class generalises.** A scaling that is conservative where
+  a Zero only abandons a ray is unsound where a Zero is a verdict. It
+  surfaced four times in CONTACT-1 (touch cones) and again in CONTACT-4
+  (the ellipse pre-pass). The rows it filed are
+  `touch-cone-readings-are-levered-directions-not-face-distances`, and
+  CONTACT-4's two-sided ellipse bounds.
+- **The session scratchpad is shared by every agent.** A reviewer who
+  listed it saw other lanes' file names. Dual briefs now say: write
+  lane-prefixed files, open earlier probes by name, never list the
+  directory, never run process listings.
+- **Two lanes used pattern `pkill -f`,** which implementer discipline
+  forbids. Each time it hit only the lane's own processes. Briefs now
+  repeat "kill only recorded PIDs".
+- **The 2026-09-26 weekly usage limit** killed three agents mid-work.
+  Nothing was lost: the clones kept their work, and each agent resumed
+  with its context.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-3 landed (#3331); CONTACT-4 reconciled
+
+- **CONTACT-3 merged** as `08dc26f04`. Hosted CI on the first head
+  went red on two rows that the lane's local runs never reached:
+  - `reader_census`: `wall_section_rows.rs` skipped `//` lines by
+    hand over `include_str!`'d source. It now reads through
+    `test_utils::source::code_only`, with a `Shared` ledger line.
+  - `refusal_concision_at_rest`: the widened `FaceKindUnsupported`
+    text was 76 words against a cap of 75. One word came out.
+  Lesson for briefs: a lane that adds a refusal variant or reads
+  source text runs `-p editor-core` concision rows and `-p
+  test-utils`, not just its own crates.
+- **CONTACT-4** merged main (ATREST-12) into its branch at
+  `8c0ba900a`, taking main's `arc_trim`, ray-window trim, in-band retry
+  and span rule. A delta review is dispatched; it includes a
+  ground-truth check of the ~96 ray escalations main's retry now
+  answers.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 lands
+
+- **Orchestrator's read of the last pass (`c0b9838`).**
+  - The probe's refusals stand whenever `blocks` gives no reason, so
+    no path turns a refusal into a clear.
+  - The outer-shell argument holds: the outermost shell bounding a
+    component of the overlap has material on its bounded side, so it
+    is not a void.
+  - The relaxation (a declared-only pair's records read on their word
+    whatever its reach) is what the nineteen ratified declared seats
+    need. Reading those records refuses the seats. The residue stays
+    open at P0.
+- **DR-13** records the dual on `3af4ebc`. It has no tally candidate
+  (both MAJORs bilateral) and it is the twelfth fair pair, so the
+  protocol's first readout is owed (rule 9). The ask to Ev is an
+  `[ev]` PR from an `analysis/dual-review/` branch.
+- Landed alone. CONTACT-4 is under its delta review and follows in its
+  own PR.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 landed (#3341); CONTACT-4 lands
+
+- **CONTACT-5** merged as `e1ac23263`. The DR-13 number held on main.
+  The readout ask is PR #3342 (`[ev]`), not for merge.
+- **CONTACT-4.** The delta review of its ATREST-12 merge found a
+  wrong-answer defect in ATREST-12's span rule on main: an over-wound
+  ellipse window read as an arc. The lane made the rule two-sided.
+  - The orchestrator read the fix and landed it without another round.
+    The speed bound is exact calculus, and the row that pins it goes
+    red without the upper bound.
+  - Lesson, again: every lever-class defect this program has found sat
+    where a Zero or a non-negative result is itself a verdict. Briefs
+    for any unit touching a `decide` with a lever now ask, per verdict,
+    which bound makes it conservative.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-4 landed (#3345); CONTACT-6 traced
+
+- **CONTACT-4** merged as `032169bff`.
+- **CONTACT-6.** The cut-cavity false `Out` was not the ray lane's
+  fault. `split` handed back a lower half with one section face's
+  sense bit wrong, copied from the cavity wall it was carved from.
+  `validate_geometric` catches it (`LoopRoleInverted`); the row's
+  premise that the body validated was wrong. The fix is one bit at
+  its one writer, in REACH's `splitting/finish.rs` (seam posted).
+  Head against base: 1,274 false `Out` → 0 over six poses, with
+  refusals unchanged.
+- **Tier: single full review**, not dual. The certified walk is
+  unchanged: it answered what the data said, and the fix restores the
+  data's invariant.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — plan refreshed; two designer pairs dispatched
+
+- **`plan.md` rewritten.** There are two tracks: census arm 2, whose
+  three rows go one at a time, and the boolean rest door.
+- **Designer pairs** (`docs/prompts/designer.md`), one Opus and one
+  Fable each, on identical problem statements. The blinding bytes are
+  on `analysis/design-fork/contact-2026-09-28`.
+  - **The census touch analysis:** what a touch verdict should read so
+    that a Rest is sound by construction, and where a vertex's
+    neighbourhood reading lives. It carries
+    `touch-cone-readings-are-levered-directions-not-face-distances` and
+    `census-touch-cones-are-a-third-vertex-sector-builder`. If the two
+    designers agree and no ratified text moves, it is decided here and
+    not put to Ev, and it is then not a design-fork row.
+  - **The area-overlap declared cap contact**
+    (`area-overlap-contact-admitted-but-unmerged-refuses-at-the-next-step`).
+    It is likely to be Ev's call: what an operand may carry after a
+    declared area contact.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — the touch-analysis designers agree; CONTACT-7 specced
+
+- **First reports**, recorded as delivered:
+  - **A (likely):** a metric separating certificate. Star faces' vertex
+    distances from a plane through the touch point, in metres.
+    Directions only propose planes. A private constructor makes a Rest
+    buildable only by the check. It treats this as two questions, with
+    one shared `VertexStar` for the lanes' orbit loops.
+  - **B (sure):** replace the readings, not the levers. The same metric
+    readings over the finite star, read from the snapshot. The fan is
+    deleted, and the census builds no sectors. It treats this as one
+    question.
+  - Both corrected the brief's premise: `classify_dihedral` is unsigned
+    and edge-levered, so it cannot carry convexity. Both named the
+    boolean `side_code` as a possible sibling, unverified (filed at
+    P2). Neither proposes changing ratified text.
+- **Orchestrator's reconciliation, no further round.** The readings are
+  the same final state. The two differences:
+  - A's structural guard is taken (S4). It is cheap, and it is the only
+    thing that stops a sixth round other than review.
+  - B's home is taken (S2). Under metric readings the census needs no
+    fan, so sharing one would keep the class alive.
+  - Also from A: Crossing is claimed only on decided readings, and
+    arm 2's argument states its 2ε slab.
+- **Not put to Ev.** It is internal to `census.rs`, moves no ratified
+  text, and the designers agree. So it is not a design-fork row.
+- **CONTACT-7** is dispatched with a dual review.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — the area-overlap designers agree; [ev] PR #3350
+
+- **First reports**, recorded in `docs/DESIGN-FORK-LOG.md` row 3 on the
+  PR. They agree on both decisions:
+  - fix the merge door, deleting a seam edge left dangling at any
+    angle, repeatedly, by a topological test;
+  - a boolean refuses a planar declared group it cannot glue.
+
+  Both corrected the row's cause: the rest door is not on the path; the
+  skip is the merge's `GroupNotClosed{ScaffoldingEmptyLoop}`. Both
+  would reword `docs/DESIGN.md`'s "never elides vertices"
+  (`e16309aa7`, the M3-exit sweep, which Ev approved), so the change
+  goes to Ev.
+- **No reconciliation round.** The final states are the same.
+- **To Ev:** PR #3350 carries the clause edit and both `For Ev`
+  sections verbatim, as A/B. The implementation unit waits for the
+  ruling. The row is flagged `needs_ev` on the PR's branch.
+- **Filed**, found by the designers beyond the question:
+  - `a-same-operand-f7-refusal-is-rendered-as-a-declarable-undeclared-contact`
+    (P2);
+  - `editor-core-never-reads-merge-skipped` (P3);
+  - `gate-maximal-faces-may-miss-coincident-curved-faces-on-different-keys`
+    (P3).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-6 review: APPROVE-WITH-FIXES, one MAJOR
+
+- **MAJOR (executed):** the fix's "both section faces `true`" is false
+  when a section has a hole. The split then makes a square plus a
+  coplanar disc that cancel by orientation, and the disc's inherited
+  `false` was right. Forcing `true` made both halves of a horizontally
+  split bored body fail `validate_geometric`, where one did at base.
+  Point-in-solid and volume were right in both builds.
+- **Adjudicated.** The sense is read from the loop winding, through
+  check 6's own function. The re-chart door (`set_face_surface` onto a
+  `New` surface) takes the sense explicitly, so no caller can forget it
+  (the reviewer's S1, the class's root). The hole-class topology is
+  REACH's, filed there (P1). `split` not validating its output is filed
+  on REACH (P2).
+- **Fix pass sent to the lane.** Lesson: I set this unit to a single
+  review because "one bit at one writer" read as local, but the bit's
+  value was a universal claim nobody had measured across split classes.
+  A universal stated at a site needs a row over the class, not one pose.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 paused on a contradicted premise; the spec amended
+
+- **The contradiction.** The lane found that reading a non-convex star
+  face whole refuses CONTACT-1's L-bracket rests (four rows), against
+  the spec's "every existing touch row answers as before". It stopped
+  and reported, as the spec asks.
+- **Put back to both designers**, each shown the lane's finding and my
+  proposed resolution: read a convex piece at `p`. Both confirm that it
+  is sound (a reading at real points interpolates and never
+  extrapolates) and that beyond the piece the probe and completeness
+  carry it.
+- **The construction.**
+  - A: a scaled convex piece, and the piece must be canonical and
+    maximal.
+  - B: the visibility polygon (star-shaped from `p` is enough; no
+    subdivision). B also caught that the edge-convexity reading must use
+    pieces too.
+
+  Taken: B's construction, plus A's rule that construction choices only
+  err smaller. S5's reach-back hedge goes: a Below at a piece vertex is
+  exact local evidence.
+- **Recorded** as an amendment section in `docs/CONTACT-7-SPEC.md`.
+  The lane resumes on it.
+
+Signed: (CONTACT orchestrator)
+- 2026-09-28 — Seam note from ENCL: PR 3346 (merged `fb0ec473b8`) adds `geom_core::predicate::KERNEL_DEFECT_ENDING` and `KERNEL_OR_FILE_DEFECT_ENDING`, plus hidden `concat!` macros. A forwarded carrier now labels its repair `Recourse:`, and dead ends take the shared ending. It rewords refusal prose on your ground: `predicate.rs` and `geom/src/curves/fit.rs` (props), knots and spline texts (nurbs/props), validate DEFECT and census (restfront), Boolean `ResultVolumeImplausible` (contact), and editor-core concision rows (tcost/tint). No behaviour changed. Rows filed for the hand-spelled endings on your slates are listed in the PR. (ENCL orchestrator)
+
+## 2026-09-28 — CONTACT-6 lands
+
+- The fix pass reads a section face's sense from its loop's winding
+  (check 6's own function) and adds `set_face_surface_and_sense`, so a
+  re-chart cannot keep a stale bit. The orchestrator read it:
+  - an unsigned winding refuses typed;
+  - the hole class is at least as good as base on every body;
+  - the rows go red under both wrong rules (the inherited bit, and
+    "always `true`").
+- Landed through its own PR. The branch also carries the orchestrator's
+  tracker state since #3345, including CONTACT-7's spec with its
+  amendment.
+
+Signed: (CONTACT orchestrator)

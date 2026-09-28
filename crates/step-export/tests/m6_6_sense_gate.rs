@@ -23,8 +23,8 @@
 //! the kernel arm exempts on the boundary parse's typed refusal, the
 //! import rider finds no circle-rim pair. A single wall flip is now
 //! caught one dimension down (`LaminaWedge`), and a whole-body
-//! inversion at the circle-bounded bottom cap (`LoopRoleInverted`);
-//! the ellipse-bounded section face is the planar arm's own residue.
+//! inversion at both planar faces — the circle-bounded bottom cap and
+//! the ellipse-bounded section face (`LoopRoleInverted` each).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -337,9 +337,9 @@ fn planar_control_unchanged() {
     );
 }
 
-/// The conic-trim residual, RE-CUT twice: the single-face flip and the
-/// whole-body inversion are both caught now, and the ellipse-bounded
-/// section face is what is left.
+/// The conic-trim residual, closed: the single-face flip and the
+/// whole-body inversion are both caught, the inversion at both planar
+/// faces.
 ///
 /// `cut_cylinder`'s wall is trimmed by a tilted-section ELLIPSE, so its
 /// flux is quadrature-owned (winding-derived, bit-free) and its
@@ -352,13 +352,12 @@ fn planar_control_unchanged() {
 ///
 /// The WHOLE-BODY inversion leaves no pair's material sides in
 /// disagreement, so the wedge arm has nothing to say, and the volume
-/// stays positive. What refuses it is check 6's planar arm at the
-/// bottom cap, whose loop rides circle arcs: exactly one
-/// `LoopRoleInverted`, naming that cap. The section face, bounded by
-/// the `Ellipse`, is outside the planar arm and is never named
-/// (`work/atrest/check-6-planar-arm-skips-ellipse-and-nurbs-loops.md`).
+/// stays positive. What refuses it is check 6's planar arm, once per
+/// planar face: at the bottom cap, whose loop rides circle arcs, and at
+/// the section face, whose loop rides the `Ellipse` — one
+/// `LoopRoleInverted` each, and nothing else.
 #[test]
-fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue() {
+fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_refuses_at_both_planes() {
     let body = cut_cylinder();
     assert!(
         validate_geometric(&body, Tol::witness()).is_ok(),
@@ -410,18 +409,20 @@ fn cut_cylinder_conic_trim_wall_flip_is_caught_and_the_inversion_is_the_residue(
 
     let inverted = flip_all(&body);
     let errs = validate_geometric(&inverted, Tol::witness())
-        .expect_err("the whole-body inversion is refused at the circle-bounded cap");
-    let named: Vec<FaceKey> = errs
+        .expect_err("the whole-body inversion is refused at the planar faces");
+    let mut named: Vec<FaceKey> = errs
         .iter()
         .map(|e| match e {
             ValidationError::LoopRoleInverted { face, .. } => *face,
             other => panic!("only check 6's planar arm refuses the inversion, got {other:?}"),
         })
         .collect();
+    named.sort();
+    let mut planar: Vec<FaceKey> = caps.iter().chain(&section).copied().collect();
+    planar.sort();
     assert_eq!(
-        named, caps,
-        "exactly the circle-bounded cap refuses; the ellipse-bounded section face is the \
-         planar arm's residue"
+        named, planar,
+        "exactly the circle-bounded cap and the ellipse-bounded section face refuse, once each"
     );
     let v = topo::mass_properties(&inverted, Tol::witness())
         .expect("volume computes")

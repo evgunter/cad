@@ -50,6 +50,16 @@ pub struct TangentJet<T: Real> {
     /// finite on every non-singular pair, so `1/|κ_rel|` is a
     /// radius-scale lever and `sin θ / |κ_rel|` stays at or above
     /// `sin θ` times a length of the surfaces' own scale.
+    ///
+    /// **Off a tangency `κ_rel` says nothing about osculation**, so a
+    /// caller must not read a small or undecided `κ_rel` as one before
+    /// the first-order defect has been ruled out. `d̂` is built from
+    /// `s1`'s normal, so the reading depends on the argument order (a
+    /// plane crossing a cylinder at a right angle along a circle reads
+    /// `|κ_rel| = 1/r` with the plane first and `0` with the cylinder
+    /// first, `d̂` then being the ruling); and where the normals are
+    /// perpendicular `∇F₂ · n̂` straddles zero at `Interval`, so `σ₂`
+    /// hulls to `[−1, 1]` and `κ_rel`'s enclosure straddles zero.
     pub kappa_rel: T,
 }
 

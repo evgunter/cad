@@ -129,6 +129,39 @@ preferred the merge. Ev's reading is the cleaner one, and it removes the F7
 edit altogether. Still open for Ev: the `Band(s)` naming, and parking the
 π revolve.
 
+## 2026-09-26 — the torus-doors dual: both reviews NOT-MERGEABLE-AS-IS
+
+Dual on PR 3265, frozen head `ab143da4e`, protocol `fbeedfaf5`; R1 and R2
+had identical briefs. The union, adjudicated:
+
+- **Bilateral MAJOR.** Line×torus silently skips a certified root that
+  containment reads as definitely off the tube, so the union comes back an
+  `Assembly`. Main refused at the gate.
+- **Unilateral MAJOR (R2).** A torus that crosses only a face's interior
+  (the plane section is a closed oval touching no edge) falls to `ops.rs`'s
+  vertex-probe fallback, which is certified for the sphere and the cylinder
+  only.
+- **Bilateral MINOR.** The torus lever change loosens the pierce-normal
+  certificate (lever 0 at R ≤ r) and moves seven unpinned consumers.
+- **Other MINORs.** A stale gate-safety sentence (R1 is right against R2's
+  reading); an `Uncertain → Miss` mutant survives; one row was weakened;
+  every line row is axis-perpendicular, so none runs the Ferrari path.
+
+The fix pass is dispatched to the same lane. After it, one reviewer
+re-checks, on the same terms for both. The dual log row rides the PR last.
+
+**Classes, recorded at adjudication:**
+1. **Admitting a kind to the roster voids premises written elsewhere.**
+   Fallbacks and prose that assumed "the roster refuses X" (`ops.rs`'s
+   no-crossings fallback, `cylinder_extent_gate`'s torus bullet) go silently
+   false. A roster admission owes a sweep of every reader of the roster's
+   refusal, not only the kind dispatches.
+2. **One `Out` for two causes.** A containment answer of "off the carrier"
+   and "outside the trim" in one variant lets a contradicted certificate
+   read as a clean miss.
+3. **One function for two quantities.** `curvature_lever_arm` serves both a
+   curvature bound and a gradient-to-metres scale. Tightening one loosens
+   the other.
 ## 2026-09-26 — the ray-torus counterexample closes (PR 3255)
 
 The fault was in `line_torus_roots`: Cardano cancellation in the resolvent's
@@ -173,3 +206,77 @@ of `curved-face-containment-lacks-cone-torus`. Filed:
 
 REACH's `implicit.rs` gained `min_radius_of_curvature` (a note is on
 REACH's log).
+
+## 2026-09-28 — round two: two batched lanes
+
+PR 3265 merged, gated both by a full local `ci-local.sh` and by a hosted run
+on the merged head. Per Ev (2026-09-26), related units now ride one PR each
+to spare CI.
+
+- `germ/cone-containment-and-pose-gate` carries
+  `curved-face-containment-lacks-a-cone-arm` and
+  `c5-gate-admits-every-pose-of-an-implemented-pair`: the cone ground
+  `VERBS-CONE` builds on. **Tier: single full review.** The torus arm it
+  mirrors is reviewed and merged.
+- `germ/torus-ops-and-chord` carries
+  `undeclared-chord-between-two-pierces-refuses-on-the-sibling-face`,
+  `torus-onto-the-subtract-and-intersect-roster` and
+  `the-ring-torus-convention-is-checked-three-ways`. **Tier: dual.** It
+  admits the torus to two more ops and relaxes a reduction rule. The last
+  admission (PR 3265) turned two refusals into confident wrong answers, and
+  the class it logged binds this lane: a roster admission owes a sweep of
+  every reader of the roster's refusal.
+
+Held for the next round: `circle-crosses-a-torus-face-with-no-root-lane` and
+`torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere`
+(both H), and `VERBS-CONE`, behind the cone lane.
+
+## 2026-09-28 — the cone ground lands (PR 3322)
+
+The cone gets its `curved_face_containment` arm, and the C5 gate asks the
+arm about the POSE (`route_pose`; the new `NeighborPoseUnroutable`). Tier:
+a single full review, APPROVE-WITH-FIXES:
+- no wrong answer, and no working shell or offset newly refused;
+- one ordering MINOR: an operand guard's refusal read as "served", so
+  `route_pose` admitted a pose it never classified;
+- three rows missing that go red on degradation.
+
+The fix pass took all of it. Hosted run 36391755202 is green on
+`60da0f8c2`. The band-vs-zero posture stays open on its P3 row, which now
+carries the reviewer's argument that the aperture guards are policy, not
+numerical necessity. `VERBS-CONE` now carries the list of `reduce.rs` sites
+that have no cone arm.
+
+## 2026-09-28 — the stopgap lands (PR 3336)
+
+The live wrong answer is closed: `union(half_donut, bracket)` refuses, and
+so does the sphere analogue, which was wrong under every op on main and
+predates PR 3265. The torus is gated per op (a per-pair gate is unsound: one
+plane cuts a tube in two loops); the sphere per pair (its sections have one
+component, or components that cross a seam). Tier: single full review,
+APPROVE-WITH-FIXES, with no soundness break. With the guard off both wrong
+answers return; with it on it fires only in the new rows. **Merged ahead of
+its row-hygiene fixes, because it closes a live wrong answer.** The fixes
+(the ∩ row passes through the revert roster rather than the guard; the lens
+row's threshold is monotone in the wrong direction; stale variant docs; two
+near-parallel torus reach gates) are an immediate follow-up. DR-11 carries
+the escape line. Filed:
+`union-backstop-catches-a-suspect-body-from-a-tilted-rod-in-a-half-donut`.
+
+## 2026-09-28 — the chord rule and the ring convention land (PR 3330)
+
+A dual review (DR-14): both APPROVE-WITH-FIXES, no MAJOR, tally 0, fair.
+The chord relaxation's soundness argument held under about 2,300 adversarial
+ops. The fix pass moved the ring convention's one home down to `geom`, so
+`spiric` could reach it. The ∖/∩ torus roster is parked on the interior-loop
+row's section certificate. Hosted CI is re-run on the head with the stopgap
+merged in.
+
+## 2026-09-28 — the stopgap's guard rows land (PR 3349)
+
+- The guard is told apart from the roster by `PairRefusalSite`, a field on `CurvedPairUnsupported` (not a new variant), exported beside `BooleanError`.
+- The lens row checks the true union against a quadrature lens.
+- Both torus gates share the `carriers_apart` certificate. A wedge clear of the donut's carrier is now answered correctly.
+- The ball-to-plane gap has one home.
+- G1–G4 mutants are killed.
+- Tier: orchestrator read. The public field passes `payload-rung-sweep`. The certificate lane reuses `InteriorLoopGuard` for R-loop and R-undec.
