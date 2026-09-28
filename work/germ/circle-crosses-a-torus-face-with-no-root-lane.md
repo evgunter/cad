@@ -2,7 +2,7 @@
 id: circle-crosses-a-torus-face-with-no-root-lane
 kind: issue
 title: A circle edge against a torus face has no root lane: the lily's stem seam refuses CurvedPierceUnsupported at the arch's torus wall
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P1
 cost: H
