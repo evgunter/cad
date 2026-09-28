@@ -2,12 +2,14 @@
 id: surface-frame-directions-are-unchecked-at-rest
 kind: issue
 title: No tier-3 check reads an analytic surface's frame directions - a zero axis or u_ref is named nowhere, and geom's crate docs say tier 3 certifies them
-status: review
+status: closed
 opened: 2026-09-24
 priority: P3
 cost: D
 refs: [ATREST-6]
 parent: ATREST-13
+closed: 2026-09-27
+pr: 3238
 ---
 
 ## What
