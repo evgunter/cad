@@ -1012,3 +1012,6 @@ class of 65 sites is PRED's row.
   - Declined, and logged as a direction if a second caller appears: a typed pending-escalation value in place of choosing a splice.
   - Fix pass sent back to the lane.
 - 2026-09-28 — Dispatched `kernel-defect-endings-and-repair-labels-have-no-shared-home` (P4) on `encl/kernel-defect-recourse`, Opus, style review. It follows CHROME's refusal standard; the shared constant lands in `geom_core::predicate`, which is PROPS territory, so a seam note will follow at merge.
+- 2026-09-28 — PR 3343 fix pass landed at `0eb6236870`.
+  - The soundness comment now names its two non-invariant premises: `Tol` enforces only K > 1, and a fat torus breaks κ ≤ 1/arm. It rests the drop's safety unconditionally on "a failed node with an empty log bisects".
+  - While the lane's report flagged it, I repointed a stale `work/props/should-classify-replays…` path to `work/verdict/` in four files, on this branch. It is a mechanical path fix: `docs/MSOLVE-11-SPEC.md`, msolve's `mate-lane-escalations…`, and props' `indeterminate-error-arms-sweep` and `escalation-channel-misses…`.
