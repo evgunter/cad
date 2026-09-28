@@ -94,8 +94,8 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point3, Real,
-    Tol,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_ENDING,
+    MarginDiag, Point3, Real, Tol,
 };
 
 use crate::body::Body;
@@ -1044,8 +1044,11 @@ pub enum BooleanError {
     /// containment fallback), so ∪ is not gated here and the row is
     /// what keeps it visible.
     CurvedPairUnsupported {
-        /// The op this refusal is specific to (never `Union`), or
-        /// `None` when the kind has no arm under any op.
+        /// The op this refusal is specific to, or `None` when the kind
+        /// has no arm under any op. `Union` is named only by the
+        /// crossings path's reach gate (`ops::interior_loop_reach_gate`),
+        /// which refuses a torus face that may meet an undeclared face
+        /// of the other operand where no edge event can see it.
         op: Option<BooleanOp>,
         /// The operand carrying the face whose kind has no arm.
         operand: Operand,
@@ -1805,9 +1808,9 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "kernel invariant violated — this is a bug in the kernel, not in \
-                 your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it"
+                "the Boolean's result broke a bound a correct result's volume always meets \
+                 ({which}: got {got}, bound {bound}), so no body is returned. \
+                 {KERNEL_DEFECT_ENDING}"
             ),
             Self::UnrepresentableResult => write!(
                 f,

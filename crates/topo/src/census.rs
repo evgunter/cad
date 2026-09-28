@@ -2997,10 +2997,10 @@ impl Undecided {
                  is not a flat cut) the check cannot yet test a point against. Recourse: move the parts until \
                  their bounding boxes no longer overlap"
             }
-            Self::CorruptInstance => {
-                "one part's topology could not be walked. There is no way through: this is \
-                 a kernel defect or a damaged file; report it"
-            }
+            Self::CorruptInstance => concat!(
+                "one part's topology could not be walked. ",
+                geom_core::kernel_or_file_defect_ending!()
+            ),
         }
     }
 
