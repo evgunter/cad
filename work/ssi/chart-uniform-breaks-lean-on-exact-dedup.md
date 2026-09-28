@@ -4,6 +4,8 @@ kind: issue
 title: The chart certificate's uniform breaks are skipped against the operands' knots by exact dedup alone
 status: open
 opened: 2026-09-28
+priority: P4
+cost: E
 ---
 
 
@@ -19,8 +21,10 @@ as `t0c + (t1c − t0c)·i/SSI_CERT_SPANS` over the carrier's domain with
 no skip at all, and hands it to
 `geom_core::spline::compose::tensor::surface_curve_residual`, whose
 merged break list (`extra` ∪ the pcurve's and the carrier's interior
-knots, then `sort_by(total_cmp)` + `dedup`) is the only thing that
-drops a grid point sitting on a knot. `dedup` is exact `f64` equality,
+knots, then `sort_by(total_cmp)` + `dedup`) and
+`compose::to_bezier_spans_extra`'s exact `==` filter against the
+vector's own interior runs (`compose.rs:350-353`) are the only things
+that drop a grid point sitting on a knot. `dedup` is exact `f64` equality,
 so a stated carrier or pcurve knot one ulp off a 32nds grid point
 leaves two breaks an ulp apart: the mechanism
 `work/nurbs/refine-dir-hairline-knot-insertion.md` measures for
@@ -28,7 +32,11 @@ leaves two breaks an ulp apart: the mechanism
 
 It is not the same function as `domain_grid_points` (the skip set is
 the union of TWO vectors' knots, and the skip happens in the consumer),
-which is why the homing unit left it alone.
+which is why the homing unit left it alone. The GRID half is already
+the helper's: `certify.rs:505-508` computes exactly
+`domain_grid_points(carrier.knots(), SSI_CERT_SPANS, …)`'s points
+(same domain, same `t0c + (t1c − t0c)·(i/N)` expression) and could
+call it; only the skip set, spanning two vectors' knots, does not fit.
 
 ## What a fix looks like
 

@@ -150,7 +150,7 @@
 
 use geom_core::Bounds;
 use geom_core::interval::Interval;
-use geom_core::spline::algebra::{self, GridSkip};
+use geom_core::spline::algebra::{self, GridSkip, SLIVER_CLEARANCE_ULPS};
 use geom_core::spline::derivative_knot_slice;
 use geom_core::spline::net::TensorNet;
 use geom_core::spline::{KnotVector, Span};
@@ -2700,17 +2700,6 @@ fn quotient_second(
         + pt(12.0) * n * w_d.sqr() / w.powi(5)
 }
 
-/// How close a grid cut may come to a knot before it is dropped
-/// instead of minting a hairline cell, in ulps of the trim
-/// rectangle's own span.
-///
-/// A few ulps, because that is the whole width of the defect: the
-/// grid point and the knot are describing the same place, and the
-/// cell between them is arithmetic noise rather than geometry. It is
-/// deliberately NOT a tolerance in the ε sense — no input's meaning
-/// depends on it, only whether one redundant subdivision is taken.
-const SLIVER_CUT_ULPS: f64 = 8.0;
-
 /// The `QUAD2_HULL_BLOCKS + 1` block boundaries of one direction, as
 /// the block loop computes them — shared so the cut list and the
 /// block index cannot drift apart.
@@ -2805,7 +2794,7 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // both calls, so it is accepted in both or dropped in both — and
     // every cell therefore still lies inside exactly one block.
     let span = (hi - lo).abs();
-    let sliver = span * SLIVER_CUT_ULPS * f64::EPSILON;
+    let sliver = span * f64::from(SLIVER_CLEARANCE_ULPS) * f64::EPSILON;
     let clear = |t: f64, mandatory: &[f64]| -> bool {
         t > lo && t < hi && mandatory.iter().all(|m| (t - *m).abs() > sliver)
     };
@@ -4065,7 +4054,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     breaks.extend(algebra::domain_grid_points(
         kv,
         m,
-        GridSkip::WithinUlps(SLIVER_CUT_ULPS),
+        GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS),
     ));
     breaks.sort_by(f64::total_cmp);
     breaks.dedup();
@@ -7036,8 +7025,10 @@ mod tests {
     /// `bezier_blocks`' uniform breaks are the DOMAIN's `m`ths, dropped
     /// when within the sliver guard of a knot: a knot one ulp above
     /// `1/4` suppresses the break at `1/4` (four blocks, not five),
-    /// while `1/2` and `3/4` stand. On a degree-1 identity image each
-    /// block starts at its break, so the block starts ARE the breaks.
+    /// while `1/2` and `3/4` stand. The block COUNT carries the pin:
+    /// the starts' brackets (~1e-15 wide, the λ-rounding pad) cannot
+    /// tell `near` from `1/4`, so they only confirm the other breaks
+    /// sit where the grid puts them.
     #[test]
     fn bezier_blocks_drops_a_uniform_break_within_the_sliver_of_a_knot() {
         let near = f64::from_bits(0.25f64.to_bits() + 1);
