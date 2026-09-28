@@ -780,3 +780,22 @@ slate. Now dispatchable: `must-carry-lane-gate-hides-a-transverse-out-of-lane-pa
 Lesson, recorded: an orchestrator commit that follows `git merge` must
 check the merge's exit status first. `b3fd91ce17` went out with conflict
 markers because it did not, and was corrected on top.
+
+## PR 3320 (seed grid + tol/band) reported (2026-09-28)
+
+(ENCL orchestrator) Head `666b4cabca`.
+- **Seed grid.** `seed_direction` takes its interior points from
+  `equal_split_points`. Bit-identical: 508 fixture calls plus 142,521
+  random clamped knot vectors, degrees 1–5, scales 1e-300 to 1e300,
+  spans down to 1 ulp.
+- **The (tol, band) pair.** The offset-fit and transform doors take
+  `Tol` alone, and `Band::linear(tol)` is derived inside (`run_band`).
+  That makes the mint and tier 3's recertify meter at one band by
+  construction. It adds a new typed arm, `OffsetFitError::Band`.
+  - Disclosed: the public `replace_face_offset` still takes both
+    values, so a disagreeing band splits the fitted arm from the
+    analytic one. No in-tree caller does this.
+  - The wider class (65 more sites) is filed on PRED:
+    `tol-and-band-travel-as-a-redundant-pair-past-the-offset-fit-doors`.
+
+Style review dispatched on the frozen head.
