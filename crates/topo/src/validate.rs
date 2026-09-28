@@ -4247,10 +4247,9 @@ pub(crate) fn shell_vertices<'b, T: Real>(
         .filter_map(move |v| vertex_point(body, v))
 }
 
-/// One shell's role, from its own sign walk through `quad` decided by
-/// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
-/// or `None` where the walk refuses or the sign is still undecided when
-/// the schedule runs out.
+/// One shell's role, from its own sign walk through `quad` read by
+/// check 7's [`plus_v_read`], or `None` where the walk refuses or the
+/// sign is still undecided when the schedule runs out.
 pub(crate) fn shell_role<T: Decide>(
     body: &Body<T>,
     faces: &[FaceKey],
@@ -4258,18 +4257,13 @@ pub(crate) fn shell_role<T: Decide>(
     tol: Tol,
     quad: Option<crate::props::QuadLane<T>>,
 ) -> Option<crate::props::ShellRole> {
-    use crate::props::ShellRole;
     crate::props::sign_walk(
         body,
         faces,
         band,
         tol,
         quad,
-        |e| match plus_v_decide(e, band) {
-            PlusVOutcome::Pass => Some(Some(ShellRole::Outer)),
-            PlusVOutcome::Refuse => Some(Some(ShellRole::Void)),
-            PlusVOutcome::Undecided => None,
-        },
+        |e| plus_v_read(e, band).map(Some),
         |_| None,
     )
     .ok()
@@ -4391,26 +4385,39 @@ pub(crate) enum PlusVVerdict {
     Uncomputable(crate::props::MassPropsError),
 }
 
+/// Check 7's reading of one enclosure, as the role
+/// [`crate::props::ShellRole::decided_at`] gives it: the high end under
+/// `positive_volume` first, and the low end under
+/// `positive_volume_enclosure` only when the high end decides nothing.
+fn plus_v_read<T: geom_core::Decide>(
+    enclosure: crate::props::VolumeEnclosure<T>,
+    band: Band,
+) -> Option<crate::props::ShellRole> {
+    use crate::props::{BracketEnd, ShellRole};
+    let lever = enclosure.surface_area;
+    let role_at = |end, name, volume| {
+        decide(name, Margin::over_lever(volume, lever), band)
+            .ok()
+            .and_then(|sign| ShellRole::decided_at(end, sign))
+    };
+    role_at(BracketEnd::High, "positive_volume", enclosure.volume_hi).or_else(|| {
+        role_at(
+            BracketEnd::Low,
+            "positive_volume_enclosure",
+            enclosure.volume_lo,
+        )
+    })
+}
+
 fn plus_v_decide<T: geom_core::Decide>(
     enclosure: crate::props::VolumeEnclosure<T>,
     band: Band,
 ) -> PlusVOutcome {
-    let lever = enclosure.surface_area;
-    if let Ok(Sign::Negative) = decide(
-        "positive_volume",
-        Margin::over_lever(enclosure.volume_hi, lever),
-        band,
-    ) {
-        return PlusVOutcome::Refuse;
+    match plus_v_read(enclosure, band) {
+        Some(crate::props::ShellRole::Outer) => PlusVOutcome::Pass,
+        Some(crate::props::ShellRole::Void) => PlusVOutcome::Refuse,
+        None => PlusVOutcome::Undecided,
     }
-    if let Ok(Sign::Positive) = decide(
-        "positive_volume_enclosure",
-        Margin::over_lever(enclosure.volume_lo, lever),
-        band,
-    ) {
-        return PlusVOutcome::Pass;
-    }
-    PlusVOutcome::Undecided
 }
 
 /// **What an enclosure reading means once there is nothing left to

@@ -1847,6 +1847,37 @@ pub enum ShellRole {
     Void,
 }
 
+/// Which end of a volume bracket a sign was read at.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum BracketEnd {
+    /// The bracket's lower end.
+    Low,
+    /// The bracket's upper end.
+    High,
+}
+
+impl ShellRole {
+    /// **The enclosure-to-role reading**: the one place a decided end
+    /// of a volume bracket becomes a role.
+    ///
+    /// Every bracket contains the true volume, so a LOW end definitely
+    /// positive makes the boundary `Outer` and a HIGH end definitely
+    /// negative makes it `Void`, and no finer bracket can say otherwise.
+    /// Any other sign decides nothing at that end. An exact volume is a
+    /// bracket whose two ends coincide, so its one sign is read at both.
+    ///
+    /// Which end is read first, under which predicate name, and what a
+    /// bracket that neither end decides costs (a refinement, an
+    /// "undecided", a typed refusal) belong to the caller.
+    pub(crate) fn decided_at(end: BracketEnd, sign: Sign) -> Option<Self> {
+        match (end, sign) {
+            (BracketEnd::Low, Sign::Positive) => Some(Self::Outer),
+            (BracketEnd::High, Sign::Negative) => Some(Self::Void),
+            _ => None,
+        }
+    }
+}
+
 /// One shell's flux-derived properties and its decided role.
 ///
 /// `volume` is the shell's SIGNED enclosed volume (divergence theorem
@@ -2129,22 +2160,24 @@ fn classify_shells_via<T: Decide>(
         let sign_at = |end: T| {
             crate::validate::decide("chk_shell_volume_sign", Margin::over_lever(end, area), band)
         };
+        let role_at = |end, sign: Result<Sign, Indeterminate>| {
+            sign.ok().and_then(|sign| ShellRole::decided_at(end, sign))
+        };
+        // The low end first; the high end only when the low end decides
+        // nothing. Closed-form shells (pad = 0) reuse the one verdict.
         let lo = sign_at(volume - T::from_f64(volume_pad));
-        let role = if matches!(lo, Ok(Sign::Positive)) {
-            // Even the bracket's low end is definitely positive.
-            ShellRole::Outer
-        } else {
-            // Closed-form shells (pad = 0) reuse the one verdict; a
-            // padded bracket reads its own high end.
-            let hi = if volume_pad == 0.0 {
-                lo
-            } else {
-                sign_at(volume + T::from_f64(volume_pad))
-            };
-            if matches!(hi, Ok(Sign::Negative)) {
-                ShellRole::Void
-            } else {
-                return Err(shell_role_refusal(shell_key, lo, hi));
+        let role = match role_at(BracketEnd::Low, lo) {
+            Some(role) => role,
+            None => {
+                let hi = if volume_pad == 0.0 {
+                    lo
+                } else {
+                    sign_at(volume + T::from_f64(volume_pad))
+                };
+                match role_at(BracketEnd::High, hi) {
+                    Some(role) => role,
+                    None => return Err(shell_role_refusal(shell_key, lo, hi)),
+                }
             }
         };
         out.push(ShellClassification {

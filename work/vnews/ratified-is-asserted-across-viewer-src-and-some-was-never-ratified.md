@@ -287,7 +287,7 @@ The row names the blind spot: *"settled"*, *"the GUI plan's rulings"*,
 | `frame.rs` `unindexed_refusal` (:1516) | Ruled (Ev, 2026-09-06) | TRUE | the same |
 | `frame.rs` `prefs_badge` (:2085) | the argument Ev ruled on for the absent chooser | TRUE | VIEW log 2026-09-10: *"Ev ruled (c) on #2275 — '(c) is right!'"* |
 | `app.rs` `ViewerApp::remember_prefs` body (:1230) | the same ruling | TRUE | the same |
-| `platform.rs` `NO_CHOOSER_BACKEND` (:287) | *"Ev's ruling live[s] in `crates/viewer/README.md`"* | TRUE | The ruling is real (above). The README records it at `:877-878`; its primary record is the log |
+| `platform.rs` `ChooserBackend::unusable`'s doc (was the `NO_CHOOSER_BACKEND` const, gone 2026-09-28) | *"Ev's ruling live[s] in `crates/viewer/README.md`"* | TRUE | The ruling is real (above). The README records it at `:877-878`; its primary record is the log |
 | `pickcache.rs` `NotIndexed::AnotherPicture` (:546) | refusing is a ruling (Ev, 2026-09-15) | TRUE | VIEW log 2026-09-15: *"Ev ruled the product question on 2026-09-15: refuse"* |
 | `pane/viewport.rs` `drawn_index` (:149) | the gate is *"a product ruling"* | TRUE | the same |
 | `pane/viewport.rs` `drawn_index` (:151) | Ev ruled on 2026-09-15 | TRUE | the same |
