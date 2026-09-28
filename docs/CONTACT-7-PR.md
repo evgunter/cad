@@ -318,6 +318,26 @@ now calls it under its own predicate name.
 
 ## Local results
 
-To be filled from the final run (below).
+All under nextest, with the lane's own target directory:
+- `-p topo -p sweep`: 3300 of 3300 at ε unset, 1e-6 and 1e-12. After the
+  last text and clippy edit, it was re-run at ε unset (3300 of 3300),
+  and the census and contact rows at all three ε (100 of 100).
+- `editor-core`, the concision rows, `perf12_census_*` and
+  `docm6_seam_declarations`: 26 of 26 at all three ε. No `perf12`
+  golden moved.
+  - `refusal_concision_at_rest` first went red on the reworded
+    `TouchUnanalysed` (88 words against a budget of 75). The text was
+    cut to fit.
+- `-p test-utils`: 79 of 79. `-p geom-brep`: 782 of 782.
+- `cargo clippy -p topo -p geom-brep --all-targets --all-features -- -D
+  warnings`: clean.
+- rustdoc (`-D warnings -A rustdoc::private_intra_doc_links`, `-p topo
+  --document-private-items --all-features`): clean.
+- every `scripts/gates/*.sh`: OK. `python3 scripts/work.py lint`: 0
+  problems.
+- Mutation: a `Margin::levered` added to `Star::within` turns the S4
+  source row red. The first build read faces whole, which is the
+  mutation that drops the piece. It turned red the four L-bracket rows,
+  which the notch row now shares.
 
 The hosted run is the record.
