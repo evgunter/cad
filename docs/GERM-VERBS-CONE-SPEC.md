@@ -108,7 +108,7 @@ names its raising site.
 | site | status | what it does with a cone |
 |---|---|---|
 | `reduce.rs` `boolean_arm_exists` (:175), read by `first_unsupported_pair` (:284) | R | `CurvedPairUnsupported { site: OperandGate }`: the gate the flip opens (U7) |
-| `reduce.rs` `revert_arm_exists` (:196), read at the ∖/∩ front door (`ops.rs` :442) | R | `site: RevertRoster` (Q2) |
+| `reduce.rs` `revert_arm_exists` (:196), read at the ∖/∩ front door (`ops.rs` :451) | R | `site: RevertRoster` (Q2) |
 | `reduce.rs` `gate_operand_edges` (:423) | H | edge-carrier gate: lines, circles and ellipses pass, whatever their face's kind |
 | `mod.rs` `validate_declarations` `inventory_face` (:2596) | R | `InvalidDeclaration`: C8, cone is not declarable. Stays. |
 
@@ -748,8 +748,9 @@ preview cone:
    and class each by its seam-crossing parity. The rows must match
    `classify` with **0 mismatches** in count and class.
 2. **Every witness is on both carriers within the band.**
-3. **The item's ellipse fixture:** W2 on a frustum band with its seam;
-   W4 on the apex-closed face with an event; W2 there after U3.
+3. **The item's ellipse fixture:** W2 on a frustum band with its seam,
+   and on the apex-closed face (through U3's `describes`). W4 when the
+   face does not describe (a seamless band) and the pair has an event.
 4. **Sphere × cone:** a small ball that meets the lateral face in one
    null loop, its own seam turned away and no event. The answer is
    R-loop. **Red against the mutant "arc case read as whole circle"**,
