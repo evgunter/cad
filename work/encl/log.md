@@ -961,3 +961,4 @@ class of 65 sites is PRED's row.
   - Fallback pair appended to PRED's `lever-arm-fold-six-hand-rolled-siblings`.
   - Merging on hosted green of this head.
 - 2026-09-28 — PR 3333 merged (`435247c3a5`), hosted all green on `9e70ecbd9a`. Closed `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`. The discovering premise was refuted, but the fix stands where the continuation actually refines.
+- 2026-09-28 — PR 3332 merged (`a1a1e2fb4a`), hosted all green on `0fb0d14242`. That head's base predates 3333's merge. The two diffs are disjoint (transform/approx/editor-core test vs props/sweep test/tour), so the push-to-main run is the joint check; I am watching it. Closed `a-rotation-can-refuse-an-approx-face-that-certifies-near-eps`. Residues are open on encl: the 1e-12 re-fit stall, and edges/meters (latent, design).
