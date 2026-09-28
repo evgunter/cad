@@ -2,10 +2,12 @@
 id: conic-plane-sweep-examines-only-the-first-root
 kind: issue
 title: The sweep's conic × plane lane examines only the first root, so a second root inside the face is dropped unrecorded (premise S of the section certificate fails)
-status: open
+status: closed
 opened: 2026-09-28
 priority: P0
 cost: E
+closed: 2026-09-28
+branch: germ/conic-plane-every-root
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 ---
 
@@ -61,3 +63,26 @@ Loop over `roots` as `wall_crossing` does: an `Out` root continues to
 the next, the first `In`/`OnEdge`/`OnVertex` root splits and re-queues
 against the same face. The rows are the fixture above at `s = 0`,
 answering its closed forms under ∪, ∩ and ∖.
+
+## Closed — every root is examined (germ/conic-plane-every-root)
+
+`sweep_direction`'s conic × plane lane loops over `roots` as
+`wall_crossing` does: an `Out` root continues to the next, the first
+`In`/`OnEdge`/`OnVertex` root splits and re-queues both fragments
+against the same face (so any other root is found again on them), and
+only when no root lands in the face does the lane fall through to
+endpoint processing. The trace pushes `accepted` once, for the root
+that splits, exactly as before.
+
+Rows: `crates/sweep/tests/germ_conic_plane_roots.rs` — the fixture at
+`s ∈ {0, 0.3, 3}` for both `x` windows (`[−1.5, 0]`, `[−1.5, −0.3]`)
+under ∪, ∩, A∖B and B∖A, each at its closed form to 1e-9 relative
+and `point_in_solid` agreeing at five witness points. All 24 refused
+`Join(UnpairedLooseEnds { count: 4 })` on the base.
+
+The one other row in the `topo` and `sweep` suites that reaches a later
+root is `pcurve_p1b_r2_probes`'s tube pocket (a full-revolve tube minus
+a slab), which skips a refusal: it moves from
+`Join(UnpairedLooseEnds { count: 4 })` to the full-period wall's
+containment escalation (`bool_wall_trim_period`), the frontier
+`reach/full-period-wall-has-no-containment-verdict` already tracks.

@@ -125,6 +125,15 @@ fn fixtures() -> [Fixture; 2] {
     ]
 }
 
+/// One op: its name, its answer, its closed-form volume, and its set
+/// membership as a function of membership in A and in B.
+type Row = (
+    &'static str,
+    Result<topo::BooleanResult<f64>, topo::BooleanError>,
+    f64,
+    fn(bool, bool) -> bool,
+);
+
 #[test]
 fn every_op_answers_its_closed_form_when_the_outside_root_comes_first() {
     let band = Band::linear(Tol::witness()).unwrap();
@@ -135,7 +144,7 @@ fn every_op_answers_its_closed_form_when_the_outside_root_comes_first() {
         let ov = fx.overlap();
         for s in SPINS {
             let a = spin(&cyl(1.0, 1.0), Vec3::unit_z(), s);
-            let rows: [(&str, _, f64, fn(bool, bool) -> bool); 4] = [
+            let rows: [Row; 4] = [
                 (
                     "A ∪ B",
                     topo::union(&a, &b, Tol::witness()),
@@ -180,7 +189,9 @@ fn every_op_answers_its_closed_form_when_the_outside_root_comes_first() {
                 }
                 let got = volume(body);
                 if (got - want).abs() > 1e-9 * want.abs().max(1.0) {
-                    failures.push(format!("{what}: volume {got} against the closed form {want}"));
+                    failures.push(format!(
+                        "{what}: volume {got} against the closed form {want}"
+                    ));
                 }
                 for wt in fx.witnesses {
                     let expect = if member(wt.in_a, wt.in_b) {
