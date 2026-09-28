@@ -62,6 +62,10 @@ const KERNEL_KEYED: &[&str] = &[
     "Split/Pcurves",
     "Transform/Pcurve",
     "Transform/Certify",
+    "Transform/Certify/Escalated/wedge",
+    "Transform/Certify/Escalated/plane-nurbs-enclosure",
+    "Transform/Certify/Escalated/invalid",
+    "Transform/Certify/Escalated/unknown",
     "Transform/NullScaffold",
     "Loft/Euler",
     "Loft/Pcurve",
@@ -942,8 +946,102 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
     ]
     .into_iter()
     .map(|(n, e)| row(&format!("Transform/{n}"), NodeErrorKind::Transform(e)))
+    .chain(certify_escalation_routes())
     .chain(offset_fit_routes())
     .collect()
+}
+
+/// One `CertifyError::Escalated` sample per ending it routes to, with
+/// that whole ending: the edge-local lever for a name a check raises (in
+/// band, and an enclosure too wide to classify), the dead end on a
+/// poisoned margin, and the named hole for a name no check raises.
+fn certify_escalations() -> Vec<(&'static str, geom_brep::CertifyError, &'static str)> {
+    use geom_brep::dihedral::DIHEDRAL_WEDGE as WEDGE;
+    use geom_brep::edge_nurbs::PLANE_NURBS_TRANSVERSALITY as PLANE_NURBS;
+    use geom_core::{Indeterminate, MarginDiag};
+    const EDGE: &str =
+        "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
+    let escalated = |predicate, margin| geom_brep::CertifyError::Escalated {
+        check: geom_brep::CertCheck::Transversality,
+        sample: 4,
+        cause: Indeterminate {
+            margin,
+            band: payloads::band(),
+            predicate: Some(predicate),
+        },
+    };
+    let wide = MarginDiag::Enclosure {
+        lo: -2.0e-9,
+        hi: 4.0e-9,
+    };
+    vec![
+        ("wedge", escalated(WEDGE, MarginDiag::Value(5.0e-9)), EDGE),
+        ("plane-nurbs-enclosure", escalated(PLANE_NURBS, wide), EDGE),
+        (
+            "invalid",
+            escalated(WEDGE, MarginDiag::Invalid),
+            "There is no way through: this is a kernel defect; report it",
+        ),
+        (
+            "unknown",
+            escalated("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
+            "; no recourse specific to predicate 'roster_unknown_probe' is recorded",
+        ),
+    ]
+}
+
+/// [`certify_escalations`] as the feature tree meets them: a transform's
+/// re-certification of a mapped edge.
+fn certify_escalation_routes() -> Vec<(String, NodeErrorKind)> {
+    certify_escalations()
+        .into_iter()
+        .map(|(route, source, _)| {
+            row(
+                &format!("Transform/Certify/Escalated/{route}"),
+                NodeErrorKind::Transform(topo::TransformError::Certify {
+                    edge: topo::EdgeKey::default(),
+                    source,
+                }),
+            )
+        })
+        .collect()
+}
+
+/// A certification escalation ends in the one ending its predicate and
+/// margin route it to, whole: a named check's escalation carries one
+/// labelled repair and no coincidence menu (an edge's own two faces have
+/// nothing to declare); a poisoned margin carries the dead end; and a
+/// name no check raises carries no label and names the hole.
+#[test]
+fn every_certify_escalation_ends_in_its_routed_sentence() {
+    let rows = certify_escalation_routes();
+    let routed = certify_escalations();
+    assert_eq!(rows.len(), routed.len());
+    for ((name, kind), (route, _, ending)) in rows.into_iter().zip(routed) {
+        let text = as_the_viewer_shows_it(kind);
+        assert!(text.ends_with(ending), "{name}: {text}");
+        if route == "wedge" {
+            assert_eq!(
+                text,
+                "node 5 failed: the transform op refused: mapped edge EdgeKey(null) failed \
+                 re-certification: the transversality margin at sample 4 escalated: predicate \
+                 'dihedral_wedge' indeterminate: margin 5e-9 lies inside the ambiguity band \
+                 (1e-9, 1e-8). Recourse: move the geometry so the faces meet at a clearer \
+                 angle, or lower the tolerance"
+            );
+        }
+        let (markers, menu) = if route == "unknown" { (0, 1) } else { (1, 0) };
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            markers,
+            "{name}: {text}"
+        );
+        assert_eq!(
+            text.matches(geom_core::COINCIDENCE_RECOURSE).count(),
+            menu,
+            "{name}: {text}"
+        );
+    }
 }
 
 /// One `Meter/Escalated` sample per ending it routes to, with that

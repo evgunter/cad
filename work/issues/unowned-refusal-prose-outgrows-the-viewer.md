@@ -57,6 +57,18 @@ found three on screen in files open PRs are reworking:
 (`Shell/Roles`, `Check/Unsupported`, `Transform/Certify`); removing
 those entries is the check that this is done.
 
+**The certifier's two definite tangency arms offer a declaration the
+checks window does not (ENCL, 2026-09-28).** `CertifyError::Escalated`
+no longer opens with `certification:` and ends in one routed
+`Recourse:` (`geom_brep::certify::escalation_recourse`). Its two
+definite halves, `NotTransverse` and `NotSecondOrderSeparated`
+(`crates/geom-brep/src/certify.rs`, `CertifyError`'s `Display`), still
+open with `certification:` and end in `COINCIDENCE_RECOURSE`
+unlabelled, so `test_utils::refusal::recourse_markers` counts zero on
+them, while `topo::validate`'s `classify_certify` routes both to the
+kernel-or-file defect ending. The two surfaces disagree about whether
+the user can act; the repair decides that once and both read it.
+
 `work.py territory` names no owner for `topo/src/pcurves.rs` or
 `geom-brep/src/certify.rs`. `topo::BooleanError` (also unowned) was
 rewritten whole by the filing PR and is held to the budget by its test.

@@ -199,7 +199,9 @@ fn plane_nurbs_refusals() -> Vec<PlaneNurbsRefusal> {
             certified_clearance: 1e-7,
             boxes: 12,
         },
-        PlaneNurbsRefusal::Escalated(diag()),
+        PlaneNurbsRefusal::Escalated(
+            diag().with_predicate(geom_brep::edge_nurbs::PLANE_NURBS_TRANSVERSALITY),
+        ),
         PlaneNurbsRefusal::Unsupported {
             what: "a rational NURBS surface",
         },
@@ -229,10 +231,13 @@ fn certify_errors() -> Vec<CertifyError> {
             band: band(),
         },
         CertifyError::TangentCertificateUnsupported,
+        // Under the name the transversality check raises: the certifier
+        // routes its repair by name, and any other names a hole in that
+        // table.
         CertifyError::Escalated {
             check: CertCheck::Transversality,
             sample: 4,
-            cause: diag(),
+            cause: diag().with_predicate(geom_brep::dihedral::DIHEDRAL_WEDGE),
         },
     ];
     v.extend(band_errors().into_iter().map(CertifyError::Band));

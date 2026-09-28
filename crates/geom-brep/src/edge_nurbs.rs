@@ -80,6 +80,15 @@ use geom_core::{Band, Bounds, Decide, Indeterminate, Point2, Point3, Real, Vec3}
 use crate::certify::CERT_SAMPLES;
 use crate::ssi::{SsiError, SsiLimb, SsiOperand, TubeScale, certify_rung3};
 
+/// The predicate name of [`plane_nurbs_limbs`]'s per-sample
+/// transversality: one spelling for the decide site and for
+/// [`crate::certify::escalation_recourse`].
+pub const PLANE_NURBS_TRANSVERSALITY: &str = "plane_nurbs_transversality";
+
+/// The predicate name of [`plane_nurbs_limbs`]'s gate on the reported
+/// transversality.
+pub const PLANE_NURBS_TRANSVERSALITY_REPORTED: &str = "plane_nurbs_transversality_reported";
+
 /// What the plane × NURBS lane proved, in meters unless noted.
 #[derive(Clone, Copy, Debug)]
 pub struct PlaneNurbsLimbs<T: Real> {
@@ -329,7 +338,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
         // edge's spatial extent — the same meter the analytic
         // `Intersection` arm hands `classify_dihedral`.
         let margin = geom_core::Margin::levered(sin_theta, extent);
-        match crate::dihedral::decide("plane_nurbs_transversality", margin, band) {
+        match crate::dihedral::decide(PLANE_NURBS_TRANSVERSALITY, margin, band) {
             Ok(geom_core::Sign::Positive) => {}
             Ok(geom_core::Sign::Zero | geom_core::Sign::Negative) => {
                 return Err(PlaneNurbsRefusal::NotTransverse { sample: i });
@@ -350,7 +359,7 @@ pub fn plane_nurbs_limbs<T: Decide + Bounds + geom_core::CertifiedEnclosure>(
     // `Invalid` diagnostic, instead of riding out as a reported number
     // no caller can tell from a measurement.
     let min_sin =
-        geom_core::k_stats::gate_measured("plane_nurbs_transversality_reported", min_sin, band)
+        geom_core::k_stats::gate_measured(PLANE_NURBS_TRANSVERSALITY_REPORTED, min_sin, band)
             .map_err(PlaneNurbsRefusal::Escalated)?;
 
     // ---- The rung-3 door: all three limbs, both operands. ----

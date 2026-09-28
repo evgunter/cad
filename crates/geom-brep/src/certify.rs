@@ -54,7 +54,10 @@
 use geom::Curve3;
 use geom::Surface;
 use geom_core::spline::SpanLocate;
-use geom_core::{Band, BandError, Decide, Indeterminate, InfSpeed, Margin, Point3, Real, Sign};
+use geom_core::{
+    Band, BandError, Decide, Indeterminate, InfSpeed, KERNEL_DEFECT_ENDING, Margin, MarginDiag,
+    MissingRecourse, Point3, Real, Sign,
+};
 
 use crate::description::{
     ChartCurve, EdgeAuthority, EdgeDescription, EdgeDescriptionSpec, authority_of,
@@ -62,7 +65,7 @@ use crate::description::{
 use crate::dihedral::{DihedralClass, classify_dihedral, decide, decide_positive};
 use crate::implicit::{implicit_residual, seam_frame};
 use crate::keys::SurfaceKey;
-use crate::pcurve_cache::{Pcurve, PcurveCertifyError, chart_pcurve};
+use crate::pcurve_cache::{PCURVE_MAP_RESIDUAL, Pcurve, PcurveCertifyError, chart_pcurve};
 
 /// The fixed certification sample count (module docs): 9 uniform
 /// parameters, endpoints included.
@@ -371,6 +374,14 @@ pub enum CertifyError {
     TangentCertificateUnsupported,
     /// A classification escalated: the margin landed in the sliver band
     /// or was poisoned (D4 ¶3's escalate-never-guess).
+    ///
+    /// It renders the classifier's payload without `Indeterminate`'s
+    /// shared coincidence tail — every check here decides an edge
+    /// against its own two faces, where "declare the coincidence" has
+    /// no object — and ends in [`escalation_recourse`] for an undecided
+    /// margin, or [`KERNEL_DEFECT_ENDING`] for a poisoned one. A name no
+    /// check raises renders the classifier's own `Display` whole and
+    /// then [`MissingRecourse`], which names the hole in the table.
     Escalated {
         /// The check that escalated.
         check: CertCheck,
@@ -473,32 +484,154 @@ impl core::fmt::Display for CertifyError {
                  carriers on Plane/Cylinder/Sphere pairs (classes retire one at a time, \
                  each with its proof; no runtime fallback)"
             ),
-            // The not-a-sample sentinel renders as words, not as
-            // 4294967295: a diagnostic whose whole purpose is to stop
-            // claiming a schedule point it never visited should not
-            // then print a number that looks like one.
             Self::Escalated {
                 check,
                 sample,
                 cause,
-            } if *sample == NOT_A_SAMPLE => write!(
-                f,
-                "certification: {check} (not a sampled check) escalated: {cause}"
-            ),
-            Self::Escalated {
-                check,
-                sample,
-                cause,
-            } => write!(
-                f,
-                "certification: {check} at sample {sample} escalated: {cause}"
-            ),
+            } => {
+                // The not-a-sample sentinel renders as words, not as
+                // 4294967295: a diagnostic whose whole purpose is to
+                // stop claiming a schedule point it never visited
+                // should not then print a number that looks like one.
+                if *sample == NOT_A_SAMPLE {
+                    write!(f, "{check} (not a sampled check) escalated: ")?;
+                } else {
+                    write!(f, "{check} at sample {sample} escalated: ")?;
+                }
+                match (cause.margin, escalation_recourse(cause.predicate)) {
+                    (MarginDiag::Invalid, _) => {
+                        write!(f, "{}. {KERNEL_DEFECT_ENDING}", cause.payload())
+                    }
+                    (_, Some(recourse)) => write!(f, "{}. {recourse}", cause.payload()),
+                    // A name no check raises: the table has nothing for
+                    // it, and the refusal says so after the classifier's
+                    // own advice.
+                    (_, None) => write!(f, "{cause}; {}", MissingRecourse(cause.predicate)),
+                }
+            }
             Self::Band(e) => write!(f, "certification: {e}"),
         }
     }
 }
 
 impl std::error::Error for CertifyError {}
+
+/// The repair for an edge whose own two faces meet too nearly to
+/// decide: the edge-local lever, never a declaration (the faces are
+/// the edge's own, so there is no coincidence to declare).
+pub const EDGE_CLOSE_RECOURSE: &str =
+    "Recourse: move the geometry so the faces meet at a clearer angle, or lower the tolerance";
+
+// The predicate names this module's own checks decide under, one
+// spelling for the decide site and for [`escalation_recourse`].
+const INTERVAL_SPAN_FORWARD: &str = "interval_span_forward";
+const INTERVAL_SPAN_WINDING: &str = "interval_span_winding";
+const NURBS_SPAN_METER: &str = "nurbs_span_meter";
+const CARRIER_ENDPOINT_START: &str = "carrier_endpoint_start";
+const CARRIER_ENDPOINT_END: &str = "carrier_endpoint_end";
+const CARRIER_ON_SURFACE_1: &str = "carrier_on_surface_1";
+const CARRIER_ON_SURFACE_2: &str = "carrier_on_surface_2";
+const TANGENT_ON_SURFACE_1: &str = "tangent_on_surface_1";
+const TANGENT_ON_SURFACE_2: &str = "tangent_on_surface_2";
+const TANGENT_NORMAL_PARALLEL: &str = "tangent_normal_parallel";
+const CARRIER_MATCHES_MAPPED_SOURCE: &str = "carrier_matches_mapped_source";
+const CARRIER_IN_SEAM_HALFPLANE: &str = "carrier_in_seam_halfplane";
+const CARRIER_ON_SEAM_SIDE: &str = "carrier_on_seam_side";
+const TANGENT_HULL_SUP: &str = "tangent_hull_sup";
+const TANGENT_TUBE_MARGIN: &str = "tangent_tube_margin";
+const PLANE_NURBS_ON_LOCUS: &str = "plane_nurbs_on_locus";
+const PLANE_NURBS_HULL_SUP: &str = "plane_nurbs_hull_sup";
+const WITNESS_ON_SURFACE_1: &str = "witness_on_surface_1";
+const WITNESS_ON_SURFACE_2: &str = "witness_on_surface_2";
+const WITNESS_AT_MID_PARAMETER: &str = "witness_at_mid_parameter";
+
+/// The labelled repair for a certification margin the band could not
+/// decide, routed by the predicate that escalated: the one table every
+/// surface that renders [`CertifyError::Escalated`] reads (its own
+/// `Display`, and `topo::validate`'s checks-window classifier).
+///
+/// Every name a check of [`EdgeCurve::certify`] escalates under — its
+/// own, and those of the classifiers it calls (the dihedral and
+/// second-order readings, the chart-image mint, the plane × NURBS lane
+/// and the rung-3 certificate under it) — is listed by name. Each
+/// decides the edge against its own two faces, so each takes the
+/// edge-local lever. `None` for any other name (or none): the table
+/// holds nothing for it, and the caller says so with
+/// [`MissingRecourse`] rather than asserting a lever over a decision it
+/// does not know. A poisoned margin is not routed here: it is not a
+/// number the user can move, so each surface ends it in the
+/// kernel-defect ending its own subject calls for.
+#[must_use]
+pub fn escalation_recourse(predicate: Option<&str>) -> Option<&'static str> {
+    use crate::dihedral::{DIHEDRAL_ARM, DIHEDRAL_WEDGE, TANGENT_SECOND_ORDER};
+    use crate::edge_nurbs::{PLANE_NURBS_TRANSVERSALITY, PLANE_NURBS_TRANSVERSALITY_REPORTED};
+    use crate::pcurve_cache::{
+        PCURVE_CHART_ORIENTATION, PCURVE_CONE_CHART_AXIAL, PCURVE_CONE_CHART_CENTERED,
+        PCURVE_CONE_CHART_NAPPE, PCURVE_SPHERE_CHART_AXIAL, PCURVE_SPHERE_CHART_CENTERED,
+        PCURVE_SPHERE_CHART_MERIDIAN, PCURVE_SPHERE_CHART_POLAR_RATE,
+        PCURVE_SPHERE_CHART_POLE_FRAME, PCURVE_TORUS_CHART_AXIAL, PCURVE_TORUS_CHART_CENTERED,
+        PCURVE_TORUS_CHART_MERIDIAN, PCURVE_TORUS_CHART_MERIDIONAL_RATE,
+    };
+    use crate::ssi::certify::{
+        SSI_FOOT_ORTHOGONALITY, SSI_HULL_SUP, SSI_HULL_SUP_CHART, SSI_ON_LOCUS, SSI_ON_LOCUS_FOOT,
+        SSI_TUBE_TRANSVERSALITY,
+    };
+    match predicate {
+        Some(
+            // The span, the endpoints and the per-sample residuals.
+            INTERVAL_SPAN_FORWARD
+            | INTERVAL_SPAN_WINDING
+            | NURBS_SPAN_METER
+            | CARRIER_ENDPOINT_START
+            | CARRIER_ENDPOINT_END
+            | CARRIER_ON_SURFACE_1
+            | CARRIER_ON_SURFACE_2
+            | TANGENT_ON_SURFACE_1
+            | TANGENT_ON_SURFACE_2
+            | TANGENT_NORMAL_PARALLEL
+            | CARRIER_MATCHES_MAPPED_SOURCE
+            | PCURVE_MAP_RESIDUAL
+            | CARRIER_IN_SEAM_HALFPLANE
+            | CARRIER_ON_SEAM_SIDE
+            // The span-wide tangency statements and the witness.
+            | TANGENT_HULL_SUP
+            | TANGENT_TUBE_MARGIN
+            | PLANE_NURBS_ON_LOCUS
+            | PLANE_NURBS_HULL_SUP
+            | WITNESS_ON_SURFACE_1
+            | WITNESS_ON_SURFACE_2
+            | WITNESS_AT_MID_PARAMETER
+            // The dihedral and second-order readings.
+            | DIHEDRAL_ARM
+            | DIHEDRAL_WEDGE
+            | TANGENT_SECOND_ORDER
+            // The chart-image mint.
+            | PCURVE_CHART_ORIENTATION
+            | PCURVE_CONE_CHART_AXIAL
+            | PCURVE_CONE_CHART_CENTERED
+            | PCURVE_CONE_CHART_NAPPE
+            | PCURVE_SPHERE_CHART_AXIAL
+            | PCURVE_SPHERE_CHART_CENTERED
+            | PCURVE_SPHERE_CHART_MERIDIAN
+            | PCURVE_SPHERE_CHART_POLAR_RATE
+            | PCURVE_SPHERE_CHART_POLE_FRAME
+            | PCURVE_TORUS_CHART_AXIAL
+            | PCURVE_TORUS_CHART_CENTERED
+            | PCURVE_TORUS_CHART_MERIDIAN
+            | PCURVE_TORUS_CHART_MERIDIONAL_RATE
+            // The plane × NURBS lane and the rung-3 certificate.
+            | PLANE_NURBS_TRANSVERSALITY
+            | PLANE_NURBS_TRANSVERSALITY_REPORTED
+            | SSI_ON_LOCUS
+            | SSI_HULL_SUP
+            | SSI_ON_LOCUS_FOOT
+            | SSI_FOOT_ORTHOGONALITY
+            | SSI_HULL_SUP_CHART
+            | SSI_TUBE_TRANSVERSALITY,
+        ) => Some(EDGE_CLOSE_RECOURSE),
+        _ => None,
+    }
+}
 
 /// The uncertified input to [`EdgeCurve::certify`]: description,
 /// carrier cache, and the carrier-parameter interval, exactly as the
@@ -1660,7 +1793,7 @@ fn run_checks<T: Decide>(
         Curve3::Circle { radius, .. } => {
             let rate = InfSpeed::new(*radius);
             let arc = Margin::metered(span, rate);
-            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_FORWARD, arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
@@ -1669,7 +1802,7 @@ fn run_checks<T: Decide>(
             // Positive (a partial arc) both pass; definitely negative
             // is the alias family.
             let headroom = Margin::metered(T::tau() - span, rate);
-            match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_WINDING, headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
@@ -1691,18 +1824,18 @@ fn run_checks<T: Decide>(
         } => {
             let rate = InfSpeed::new(*minor);
             let arc = Margin::metered(span, rate);
-            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_FORWARD, arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
             let headroom = Margin::metered(T::tau() - span, rate);
-            match decide("interval_span_winding", headroom, band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_WINDING, headroom, band).map_err(span_escalated)? {
                 Sign::Positive | Sign::Zero => {}
                 Sign::Negative => return Err(CertifyError::WindingExceeded),
             }
         }
         Curve3::Line { .. } => {
-            match decide("interval_span_forward", Margin::of(span), band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_FORWARD, Margin::of(span), band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
@@ -1732,9 +1865,9 @@ fn run_checks<T: Decide>(
             let meter = n.speed_lower_bound();
             let (d0, d1) = n.domain();
             let net_length = Margin::metered(T::from_f64(d1 - d0), meter);
-            decide_positive("nurbs_span_meter", net_length, band).map_err(span_escalated)?;
+            decide_positive(NURBS_SPAN_METER, net_length, band).map_err(span_escalated)?;
             let arc = Margin::metered(span, meter);
-            match decide("interval_span_forward", arc, band).map_err(span_escalated)? {
+            match decide(INTERVAL_SPAN_FORWARD, arc, band).map_err(span_escalated)? {
                 Sign::Positive => {}
                 Sign::Zero | Sign::Negative => return Err(CertifyError::IntervalNotForward),
             }
@@ -1743,7 +1876,7 @@ fn run_checks<T: Decide>(
 
     // ---- Check 3: endpoint pinning. ----
     check_residual(
-        "carrier_endpoint_start",
+        CARRIER_ENDPOINT_START,
         CertCheck::EndpointStart,
         0,
         Margin::of(spec.carrier.eval(t0).distance(start)),
@@ -1751,7 +1884,7 @@ fn run_checks<T: Decide>(
         &mut max_residual,
     )?;
     check_residual(
-        "carrier_endpoint_end",
+        CARRIER_ENDPOINT_END,
         CertCheck::EndpointEnd,
         CERT_SAMPLES - 1,
         Margin::of(spec.carrier.eval(t1).distance(end)),
@@ -1858,7 +1991,7 @@ fn run_checks<T: Decide>(
             Resolved::Intersection { surf1, surf2, .. } => {
                 let p = spec.carrier.eval(t);
                 check_residual(
-                    "carrier_on_surface_1",
+                    CARRIER_ON_SURFACE_1,
                     CertCheck::Surface1Residual,
                     i,
                     Margin::of(implicit_residual(surf1, p)),
@@ -1866,7 +1999,7 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
                 check_residual(
-                    "carrier_on_surface_2",
+                    CARRIER_ON_SURFACE_2,
                     CertCheck::Surface2Residual,
                     i,
                     Margin::of(implicit_residual(surf2, p)),
@@ -1910,7 +2043,7 @@ fn run_checks<T: Decide>(
                 let r2 = implicit_residual(surf2, p);
                 tangent_resid_max = tangent_resid_max.max(r1.abs()).max(r2.abs());
                 check_residual(
-                    "tangent_on_surface_1",
+                    TANGENT_ON_SURFACE_1,
                     CertCheck::Surface1Residual,
                     i,
                     Margin::of(r1),
@@ -1918,7 +2051,7 @@ fn run_checks<T: Decide>(
                     &mut max_residual,
                 )?;
                 check_residual(
-                    "tangent_on_surface_2",
+                    TANGENT_ON_SURFACE_2,
                     CertCheck::Surface2Residual,
                     i,
                     Margin::of(r2),
@@ -1973,7 +2106,7 @@ fn run_checks<T: Decide>(
                             let (renamed, naming) = geom_core::k_stats::detached(|| {
                                 matches!(
                                     decide(
-                                        "tangent_normal_parallel",
+                                        TANGENT_NORMAL_PARALLEL,
                                         Margin::levered(jet.sin_theta, arm),
                                         band,
                                     ),
@@ -2008,7 +2141,7 @@ fn run_checks<T: Decide>(
                     tangent_kappa_min = tangent_kappa_min.min(jet.kappa_rel.abs());
                     tangent_arm_min = tangent_arm_min.min(arm);
                     check_residual(
-                        "tangent_normal_parallel",
+                        TANGENT_NORMAL_PARALLEL,
                         CertCheck::TangentParallel,
                         i,
                         Margin::levered_inv(jet.sin_theta, jet.kappa_rel.abs()),
@@ -2026,7 +2159,7 @@ fn run_checks<T: Decide>(
                 let p = spec.carrier.eval(t);
                 let s = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                 check_residual(
-                    "carrier_matches_mapped_source",
+                    CARRIER_MATCHES_MAPPED_SOURCE,
                     CertCheck::MappedSource,
                     i,
                     Margin::of(p.distance(mc.eval(s))),
@@ -2100,7 +2233,7 @@ fn run_checks<T: Decide>(
                 let p = spec.carrier.eval(t);
                 let q = chart.pcurve.eval(t);
                 check_residual(
-                    "pcurve_map_residual",
+                    PCURVE_MAP_RESIDUAL,
                     CertCheck::ChartResidual,
                     i,
                     Margin::of(p.distance(surface.eval(q.x, q.y))),
@@ -2124,7 +2257,7 @@ fn run_checks<T: Decide>(
                 if let Some(mc) = declared {
                     let frac = T::from_f64(f64::from(i) / f64::from(CERT_SAMPLES - 1));
                     check_residual(
-                        "carrier_matches_mapped_source",
+                        CARRIER_MATCHES_MAPPED_SOURCE,
                         CertCheck::MappedSource,
                         i,
                         Margin::of(p.distance(mc.eval(frac))),
@@ -2144,7 +2277,7 @@ fn run_checks<T: Decide>(
                 // check 1, and every remaining kind is axisymmetric.
                 if *seam && let Some((w, u_ref, v_ref)) = seam_frame(surface, p) {
                     check_residual(
-                        "carrier_in_seam_halfplane",
+                        CARRIER_IN_SEAM_HALFPLANE,
                         CertCheck::SeamHalfplane,
                         i,
                         Margin::of(w.dot(v_ref)),
@@ -2152,7 +2285,7 @@ fn run_checks<T: Decide>(
                         &mut max_residual,
                     )?;
                     check_residual(
-                        "carrier_on_seam_side",
+                        CARRIER_ON_SEAM_SIDE,
                         CertCheck::SeamSide,
                         i,
                         Margin::of((T::zero() - w.dot(u_ref)).max(T::zero())),
@@ -2184,7 +2317,7 @@ fn run_checks<T: Decide>(
             return Err(CertifyError::TangentCertificateUnsupported);
         };
         check_residual(
-            "tangent_hull_sup",
+            TANGENT_HULL_SUP,
             CertCheck::TangentHull,
             0,
             Margin::of(tangent_resid_max + bounds.residual_sag),
@@ -2192,7 +2325,7 @@ fn run_checks<T: Decide>(
             &mut max_residual,
         )?;
         let tube = Margin::sagitta(tangent_kappa_min - bounds.kappa_drift, tangent_arm_min);
-        match decide("tangent_tube_margin", tube, band) {
+        match decide(TANGENT_TUBE_MARGIN, tube, band) {
             Ok(Sign::Positive) => {}
             Ok(Sign::Zero | Sign::Negative) => {
                 return Err(CertifyError::NotSecondOrderSeparated { sample: 0, band });
@@ -2241,7 +2374,7 @@ fn run_checks<T: Decide>(
             other => CertifyError::PlaneNurbs(other),
         })?;
         check_residual(
-            "plane_nurbs_on_locus",
+            PLANE_NURBS_ON_LOCUS,
             CertCheck::PlaneNurbsOnLocus,
             0,
             Margin::of(limbs.on_locus_max),
@@ -2249,7 +2382,7 @@ fn run_checks<T: Decide>(
             &mut max_residual,
         )?;
         check_residual(
-            "plane_nurbs_hull_sup",
+            PLANE_NURBS_HULL_SUP,
             CertCheck::PlaneNurbsHull,
             0,
             Margin::of(limbs.hull_sup),
@@ -2274,7 +2407,7 @@ fn run_checks<T: Decide>(
     } = &resolved
     {
         check_residual(
-            "witness_on_surface_1",
+            WITNESS_ON_SURFACE_1,
             CertCheck::WitnessSurface1,
             0,
             Margin::of(implicit_residual(surf1, *witness)),
@@ -2282,7 +2415,7 @@ fn run_checks<T: Decide>(
             &mut max_residual,
         )?;
         check_residual(
-            "witness_on_surface_2",
+            WITNESS_ON_SURFACE_2,
             CertCheck::WitnessSurface2,
             0,
             Margin::of(implicit_residual(surf2, *witness)),
@@ -2293,7 +2426,7 @@ fn run_checks<T: Decide>(
             .carrier
             .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
         check_residual(
-            "witness_at_mid_parameter",
+            WITNESS_AT_MID_PARAMETER,
             CertCheck::WitnessMidpoint,
             (CERT_SAMPLES - 1) / 2,
             Margin::of(mid.distance(*witness)),
@@ -2310,7 +2443,7 @@ fn run_checks<T: Decide>(
     // move at this rung.
     if let Resolved::PlaneNurbs { plane, witness, .. } = &resolved {
         check_residual(
-            "witness_on_surface_1",
+            WITNESS_ON_SURFACE_1,
             CertCheck::WitnessSurface1,
             0,
             Margin::of(implicit_residual(plane, *witness)),
@@ -2321,7 +2454,7 @@ fn run_checks<T: Decide>(
             .carrier
             .eval(sample_param(t0, t1, (CERT_SAMPLES - 1) / 2));
         check_residual(
-            "witness_at_mid_parameter",
+            WITNESS_AT_MID_PARAMETER,
             CertCheck::WitnessMidpoint,
             (CERT_SAMPLES - 1) / 2,
             Margin::of(mid.distance(*witness)),
@@ -2528,10 +2661,7 @@ mod tests {
         }
         .to_string();
         assert!(
-            not_sampled.starts_with(
-                "certification: the stored interval's span (not a sampled check) \
-                              escalated: "
-            ),
+            not_sampled.starts_with("the stored interval's span (not a sampled check) escalated: "),
             "the not-a-sample escalation reads {not_sampled:?}"
         );
         let sampled = CertifyError::Escalated {
@@ -2541,10 +2671,7 @@ mod tests {
         }
         .to_string();
         assert!(
-            sampled.starts_with(
-                "certification: the transversality margin at sample 3 \
-                                 escalated: "
-            ),
+            sampled.starts_with("the transversality margin at sample 3 escalated: "),
             "the sampled escalation reads {sampled:?}"
         );
     }
@@ -3645,33 +3772,57 @@ mod tests {
         EdgeCurve::certify(spec.clone(), p0, p1, |_| None, band()).unwrap();
     }
 
-    /// S6 (two-tolerance, D4 ¶1 addendum): the transversality pair —
-    /// exactly-coincident tangent planes (`NotTransverse`) and in-band
-    /// (`Escalated`) — is one user situation; both arms carry the
-    /// shared recourse fragment.
+    /// An escalated check ends in exactly one ending, routed by the
+    /// predicate that escalated ([`escalation_recourse`]): the
+    /// edge-local lever for an undecided margin, in band or too wide to
+    /// classify; the kernel-defect ending for a poisoned one, whatever
+    /// the name; and, for a name no check raises, the classifier's own
+    /// advice followed by the sentence that names the hole. None but the
+    /// last offers a declaration: an edge's own two faces have no
+    /// coincidence to declare.
     #[test]
-    fn transversality_pair_carries_the_shared_recourse() {
-        let msg = CertifyError::NotTransverse { sample: 1 }.to_string();
-        assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
-        );
-
-        let msg = CertifyError::Escalated {
-            check: CertCheck::Transversality,
-            sample: 1,
-            cause: Indeterminate {
-                margin: geom_core::MarginDiag::Value(5e-9),
-                band: Band::new(1e-9, 1e-8).unwrap(),
-                predicate: Some("transversality"),
-            },
+    fn an_escalated_check_ends_in_its_routed_sentence() {
+        let says = |predicate, margin| {
+            CertifyError::Escalated {
+                check: CertCheck::Transversality,
+                sample: 1,
+                cause: Indeterminate {
+                    margin,
+                    band: Band::new(1e-9, 1e-8).unwrap(),
+                    predicate: Some(predicate),
+                },
+            }
+            .to_string()
+        };
+        let wide = MarginDiag::Enclosure {
+            lo: -2.0e-9,
+            hi: 4.0e-9,
+        };
+        let routed = [
+            says(crate::dihedral::DIHEDRAL_WEDGE, MarginDiag::Value(5e-9)),
+            says(CARRIER_IN_SEAM_HALFPLANE, wide),
+            says(crate::pcurve_cache::PCURVE_CONE_CHART_NAPPE, wide),
+        ];
+        for msg in routed {
+            assert!(msg.ends_with(EDGE_CLOSE_RECOURSE), "{msg}");
+            assert_eq!(msg.matches("Recourse:").count(), 1, "{msg}");
+            assert!(!msg.contains(geom_core::COINCIDENCE_RECOURSE), "{msg}");
         }
-        .to_string();
+        let poisoned = says(crate::dihedral::DIHEDRAL_WEDGE, MarginDiag::Invalid);
         assert_eq!(
-            msg.matches(geom_core::COINCIDENCE_RECOURSE).count(),
-            1,
-            "{msg}"
+            poisoned,
+            "the transversality margin at sample 1 escalated: predicate 'dihedral_wedge' \
+             indeterminate: margin is invalid (NaN or a poisoned enclosure) against the \
+             ambiguity band (1e-9, 1e-8). There is no way through: this is a kernel defect; \
+             report it"
         );
+        let unknown = says("roster_unknown_probe", MarginDiag::Value(5e-9));
+        assert!(
+            unknown.ends_with(
+                "; no recourse specific to predicate 'roster_unknown_probe' is recorded"
+            ),
+            "{unknown}"
+        );
+        assert!(!unknown.contains("Recourse:"), "{unknown}");
     }
 }
