@@ -5,7 +5,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::approx::band;
 use crate::common::operands;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -14,12 +13,8 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("polygon profile");
@@ -30,10 +25,10 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -41,7 +36,7 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -499,7 +494,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 
     let mut work = v.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, Tol::witness())
         .expect_err("a partial group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
@@ -518,7 +513,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
-    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, Tol::witness())
         .expect_err("a mixed group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
@@ -531,7 +526,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     );
 
     // The empty group.
-    let e = topo::replace_faces_offset(&mut work, &[], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &[], -0.2, Tol::witness())
         .expect_err("an empty group must refuse");
     assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
     assert_eq!(
@@ -550,14 +545,17 @@ fn probe_late_err_leaves_body_untouched() {
     // torus through the C5 gate (the arm is implemented), reaches the
     // per-chart reanchor plan, and refuses THERE — an Err decided even
     // deeper in the plan than the route gate this row used to stop at.
-    let lp = bulge_loop(vec![(p2(-0.3, 0.0), 1.0), (p2(0.3, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.3, 0.0), 1.0),
+        (Point2::new(0.3, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("disc profile");
     let elbow = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(1.2, 0.0),
+            origin: Point2::new(1.2, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
         Revolution::Partial(-0.5 * core::f64::consts::PI),
@@ -577,7 +575,7 @@ fn probe_late_err_leaves_body_untouched() {
         .unwrap();
     let mut work = elbow.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_face_offset(&mut work, cap, -0.05, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
         .expect_err("the per-chart rim corner leaves its carrier");
     // The door AND the magnitude are pinned, not just the variant.
     // This row pinned `NeighborPairUnroutable(Plane, Torus)` until the

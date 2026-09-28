@@ -14,8 +14,8 @@
 //! in `sf2b_r2_probes` is a second derivation that must not come here;
 //! [`super::orient`]'s facing probe is a check of a body's
 //! orientation, not of a chart's nappe, and neither reads the other;
-//! `revolve_common` keeps `p2` and the revolve vocabulary at large,
-//! and this module builds on it rather than restating it.
+//! `revolve_common` keeps the revolve vocabulary at large, and this
+//! module builds on it rather than restating it.
 
 use geom::Surface;
 use geom_core::{Point2, Point3, Tol, Vec2};
@@ -32,16 +32,12 @@ pub const R_WIDE: f64 = 4.0 / 64.0;
 /// Their narrow radius.
 pub const R_NARROW: f64 = 2.0 / 64.0;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A full revolve of the meridian through `pts` about `+y`.
 pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
         vec![bulge_loop(
-            pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect(),
+            pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())
@@ -49,7 +45,7 @@ pub fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -124,25 +120,6 @@ pub fn stations(body: &Body<f64>, face: FaceKey) -> Vec<f64> {
         .iter()
         .map(|p| (*p - apex).dot(axis))
         .collect()
-}
-
-/// One `ChartMove` per surface key: the axial door names every face of
-/// the body, and a chart is moved once however many bands wear it.
-pub fn chart_moves(body: &Body<f64>, d: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut moves: Vec<topo::ChartMove<f64>> = Vec::new();
-    for (k, f) in body.faces() {
-        match moves
-            .iter_mut()
-            .find(|m| body.get_face(m.faces[0]).unwrap().surface == f.surface)
-        {
-            Some(m) => m.faces.push(k),
-            None => moves.push(topo::ChartMove {
-                faces: vec![k],
-                distance: d,
-            }),
-        }
-    }
-    moves
 }
 
 /// Re-attach every face of `group` to one cone whose apex sits at

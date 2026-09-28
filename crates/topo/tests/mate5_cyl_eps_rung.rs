@@ -21,6 +21,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common;
+use crate::probe_support::wall_sheet;
 
 use geom::Surface;
 use geom_core::{Band, Point3, Tol, Vec3};
@@ -38,16 +39,7 @@ fn band() -> Band {
 /// The A-side sheet of the seat: an arc wall in the canonical frame,
 /// world azimuth `[t0, t1]`, world height `[z0, z1]`.
 fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    let mut body = Body::<f64>::new();
-    let f = cyl_wall_sheet(
-        &mut body,
-        CylFrame::canonical(1.0),
-        Some(7001),
-        (t0, t1),
-        (z0, z1),
-        Tol::witness(),
-    );
-    (body, f)
+    wall_sheet(CylFrame::canonical(1.0), 7001, t0, t1, z0, z1)
 }
 
 /// The B-side sheet: the SAME world region authored in `frame_b`. The
@@ -55,16 +47,14 @@ fn sheet_a(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// `z_world = 0.25 − v_B`, so the world window `[t0, t1] × [z0, z1]`
 /// is the B-chart window `[0.7 − t1, 0.7 − t0] × [0.25 − z1, 0.25 − z0]`.
 fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
-    let mut body = Body::<f64>::new();
-    let f = cyl_wall_sheet(
-        &mut body,
+    wall_sheet(
         CylFrame::opposed(0.7),
-        Some(7002),
-        (0.7 - t1, 0.7 - t0),
-        (0.25 - z1, 0.25 - z0),
-        Tol::witness(),
-    );
-    (body, f)
+        7002,
+        0.7 - t1,
+        0.7 - t0,
+        0.25 - z1,
+        0.25 - z0,
+    )
 }
 
 /// [`sheet_b`] at a radius that DISAGREES: the B instance of the
@@ -81,19 +71,17 @@ fn sheet_b(t0: f64, t1: f64, z0: f64, z1: f64) -> (Body<f64>, FaceKey) {
 /// helper are the bodies they build now, bit for bit.
 fn sheet_b_at_radius(r: f64, src: u64) -> (Body<f64>, FaceKey) {
     let (t0, t1, z0, z1) = (0.5, 1.3, 0.3, 0.7);
-    let mut body = Body::<f64>::new();
-    let f = cyl_wall_sheet(
-        &mut body,
+    wall_sheet(
         CylFrame {
             radius: r,
             ..CylFrame::opposed(0.7)
         },
-        Some(src),
-        (0.7 - t1, 0.7 - t0),
-        (0.25 - z1, 0.25 - z0),
-        Tol::witness(),
-    );
-    (body, f)
+        src,
+        0.7 - t1,
+        0.7 - t0,
+        0.25 - z1,
+        0.25 - z0,
+    )
 }
 
 /// The tilted-frame fixtures mint exact-structural iso chart images
@@ -260,31 +248,11 @@ fn the_verdict_does_not_depend_on_which_description_is_representative() {
 fn one_axis_tilt_two_levers_two_answers() {
     let eps = Tol::witness().eps();
     let tilt = 40.0 * Tol::witness().k() * eps;
-    let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
-        let mut body = Body::<f64>::new();
-        let frame = CylFrame::tilted(r, tilt);
-        let f = cyl_wall_sheet(
-            &mut body,
-            frame,
-            Some(7003),
-            (u0, u1),
-            (z0, z1),
-            Tol::witness(),
-        );
-        (body, f)
+    let tilted = |r: f64, u0: f64, u1: f64, z0: f64, z1: f64| {
+        wall_sheet(CylFrame::tilted(r, tilt), 7003, u0, u1, z0, z1)
     };
-    let small = |u0: f64, u1: f64, z0: f64, z1: f64| -> (Body<f64>, FaceKey) {
-        let mut body = Body::<f64>::new();
-        let frame = CylFrame::canonical(1e-3);
-        let f = cyl_wall_sheet(
-            &mut body,
-            frame,
-            Some(7005),
-            (u0, u1),
-            (z0, z1),
-            Tol::witness(),
-        );
-        (body, f)
+    let small = |u0: f64, u1: f64, z0: f64, z1: f64| {
+        wall_sheet(CylFrame::canonical(1e-3), 7005, u0, u1, z0, z1)
     };
     // The PEG: radius 1 mm, wall 1 mm — hyp ≈ 1.4 mm, so the tilt's
     // displacement anywhere on the pair is ≤ ~6e-10 m, inside the

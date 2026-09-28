@@ -33,19 +33,13 @@ use crate::fixture;
 
 use corpus::{body_of, eval, failures};
 use editor_core::{
-    Datum, Dimension, DocEdit, Expr, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram,
-    RecipeNodeId, TubeWindow, apply, load, save,
+    Datum, DocEdit, Node, NodeErrorKind, NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId,
+    TubeWindow, apply, load, save,
 };
-use fixture::len;
+use fixture::{ang, len, scl};
 use geom_core::Tol;
 use topo::{Body, Surface};
 
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite")
-}
-fn angle(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Angle).expect("finite")
-}
 fn push(d: &ProfileDoc, e: &DocEdit<ProfileProgram>) -> ProfileDoc {
     apply(d, e, Tol::witness(), &editor_core::RefusingReach)
         .expect("edit applies")
@@ -69,7 +63,7 @@ fn axis_doc(name: &str, dir: [f64; 3]) -> (ProfileDoc, RecipeNodeId) {
         &DocEdit::InsertNode {
             node: Node::Datum(Datum::Axis {
                 origin: [len(0.0), len(0.0), len(0.0)],
-                direction: dir.map(scalar),
+                direction: dir.map(scl),
             }),
         },
     );
@@ -111,7 +105,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
         &DocEdit::InsertNode {
             node: Node::HollowTube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(outer),
@@ -159,7 +153,7 @@ fn r2_the_storage_contract_holds_at_non_dyadic_radii() {
 #[test]
 fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
     let (mut doc, spine) = axis_doc("r2_crowded", [0.0, 0.0, 1.0]);
-    let u = [scalar(1.0), scalar(0.0), scalar(0.0)];
+    let u = [scl(1.0), scl(0.0), scl(0.0)];
     doc = push(
         &doc,
         &DocEdit::InsertNode {
@@ -168,8 +162,8 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 u_ref: u.clone(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
-                    t0: angle(0.0),
-                    t1: angle(1.5),
+                    t0: ang(0.0),
+                    t1: ang(1.5),
                 },
                 minor_radius: len(0.5),
             },
@@ -184,8 +178,8 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 u_ref: u.clone(),
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
-                    t0: angle(0.0),
-                    t1: angle(1.5),
+                    t0: ang(0.0),
+                    t1: ang(1.5),
                 },
                 minor_radius: len(0.5),
                 wall: len(0.125),
@@ -204,8 +198,8 @@ fn r2_two_tubes_and_a_revolve_mint_names_that_never_collide() {
                 u_ref: u,
                 major_radius: len(2.0),
                 window: TubeWindow::Arc {
-                    t0: angle(0.0),
-                    t1: angle(1.5),
+                    t0: ang(0.0),
+                    t1: ang(1.5),
                 },
                 minor_radius: len(0.5),
             },
@@ -280,7 +274,7 @@ fn r2_a_hollow_rings_cavity_is_named_by_the_revolve_template() {
         &DocEdit::InsertNode {
             node: Node::HollowTube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -331,7 +325,7 @@ fn r2_a_non_unit_axis_refuses_upstream_and_never_reaches_the_tube_door() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -379,7 +373,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine: long_spine,
-                u_ref: [2.0, 0.0, 0.0].map(scalar),
+                u_ref: [2.0, 0.0, 0.0].map(scl),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -401,7 +395,7 @@ fn r2_the_u_ref_verdicts_stay_reachable_from_a_document() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [0.0, 0.0, 1.0].map(scalar),
+                u_ref: [0.0, 0.0, 1.0].map(scl),
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),
@@ -452,7 +446,7 @@ fn r2_a_tube_bearing_save_refuses_typed_on_a_build_that_lacks_the_vocabulary() {
         &DocEdit::InsertNode {
             node: Node::Tube {
                 spine,
-                u_ref: [scalar(1.0), scalar(0.0), scalar(0.0)],
+                u_ref: [scl(1.0), scl(0.0), scl(0.0)],
                 major_radius: len(2.0),
                 window: TubeWindow::Full,
                 minor_radius: len(0.5),

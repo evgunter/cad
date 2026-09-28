@@ -759,9 +759,10 @@ mod tests {
     use super::*;
     use crate::edit::DocEdit;
     use crate::eval::{CancelToken, EvalOptions, NodeResult, evaluate};
-    use crate::expr::{Dimension, Expr};
+    use crate::expr::Expr;
     use crate::ident::DocumentId;
     use crate::program::{LoopProgram, ProfileProgram};
+    use crate::test_support::{ang, len, scl, xy_frame};
     use crate::{ProfileDoc, RefusingReach};
     use geom_core::Tol;
 
@@ -775,15 +776,6 @@ mod tests {
     const DANGLING: RecipeNodeId = RecipeNodeId(40);
     const MATE: RecipeNodeId = RecipeNodeId(50);
 
-    fn len(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Length).unwrap()
-    }
-    fn ang(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Angle).unwrap()
-    }
-    fn scl(v: f64) -> Expr {
-        Expr::literal(v, Dimension::Scalar).unwrap()
-    }
     fn xf(input: RecipeNodeId) -> Node<ProfileProgram> {
         Node::Transform {
             input,
@@ -791,13 +783,6 @@ mod tests {
             rotation_axis: [scl(0.0), scl(0.0), scl(1.0)],
             rotation_angle: ang(0.0),
         }
-    }
-    fn frame_datum() -> Node<ProfileProgram> {
-        Node::Datum(Datum::Frame {
-            origin: [len(0.0), len(0.0), len(0.0)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        })
     }
     fn axis_datum_node() -> Node<ProfileProgram> {
         Node::Datum(Datum::Axis {
@@ -833,7 +818,7 @@ mod tests {
             (a.doc, a.record.minted.unwrap())
         };
         let doc = ProfileDoc::empty(DocumentId::derive(label), Tol::witness());
-        let (doc, plane) = ins(doc, frame_datum());
+        let (doc, plane) = ins(doc, xy_frame());
         let (doc, profile) = ins(
             doc,
             Node::Profile(ProfileProgram {
@@ -864,7 +849,7 @@ mod tests {
             doc.order.push(id);
         };
         push(AXIS, axis_datum_node());
-        push(FRAME2, frame_datum());
+        push(FRAME2, xy_frame());
         push(T1, xf(id(t1_in)));
         push(T2, xf(T1));
         push(

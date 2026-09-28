@@ -912,12 +912,11 @@ impl ViewerApp {
         let dropped = self
             .tools
             .reconcile(self.session.doc(), self.session.landed_pair());
-        self.notices.extend(dropped.iter().map(|dropped| {
-            // A tool's survival drop is provoked by the document
-            // transition it did not survive, so the act that accepts
-            // the next one is what retires it.
-            frame::tool_news(dropped.to_string())
-        }));
+        // A tool's survival drop is provoked by the document transition
+        // it did not survive, so the act that accepts the next one is
+        // what retires it; `frame::tool_notice` reads from the event
+        // whether the pick is lost for good.
+        self.notices.extend(dropped.iter().map(frame::tool_notice));
         // **The budget picks the δ a document opens at**, once, before
         // anything is built at the δ in force — so the un-budgeted
         // build is never paid for, only avoided. `scene::fit_delta`
@@ -1943,13 +1942,11 @@ impl eframe::App for ViewerApp {
         // two-sequential-picks ruling — the same single-select value,
         // copied into tool state). Which vocabulary each tool reads is
         // `Tools::feed`'s to know, and a pick a tool DECLINED comes
-        // back as a notice shown exactly as a survival drop is.
+        // back as a notice through the same door as a survival drop.
+        // A declined pick answers an act the user aimed at the
+        // document, like every other rank-2 notice this frame.
         let declined = self.tools.feed(self.session.doc(), &ops);
-        self.notices.extend(declined.iter().map(|declined| {
-            // A declined pick answers an act the user aimed at the
-            // document, like every other rank-2 notice this frame.
-            frame::tool_news(declined.to_string())
-        }));
+        self.notices.extend(declined.iter().map(frame::tool_notice));
 
         self.perform_batch(ops);
     }
@@ -2596,8 +2593,13 @@ mod tests {
         toolbar_drawn(
             width,
             |app| {
-                app.status = status
-                    .map(|text| crate::frame::Message::new(crate::frame::Subject::Document, text));
+                app.status = status.map(|text| {
+                    crate::frame::Message::new(
+                        crate::frame::Subject::Document,
+                        text,
+                        crate::frame::Retold::Again,
+                    )
+                });
             },
             status,
         )

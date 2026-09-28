@@ -32,12 +32,13 @@ test_utils::gated_to![
     "crates/editor-core/src/doc.rs",
     "crates/editor-core/src/edit.rs",
     "crates/editor-core/tests/fixture/",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use crate::fixture;
 
 use editor_core::{DocEdit, DocumentId, Node, ProfileDoc, RecipeNodeId, load, save};
-use fixture::{desc, frame, insert, len, square, step, xy_frame};
+use fixture::{desc, insert, len, square, step, xy_frame};
 use geom_core::Tol;
 
 /// A fresh document under a derived id — nothing inserted, nothing
@@ -138,7 +139,7 @@ fn a_delete_leaves_the_id_minted() {
 #[test]
 fn the_answer_survives_a_save_load_round_trip() {
     let doc = fresh("has-minted-round-trip");
-    let (doc, plane) = insert(doc, frame([0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0]));
+    let (doc, plane) = insert(doc, xy_frame());
     let (doc, profile) = insert(doc, Node::Profile(desc(plane, vec![square(0.0, 0.0, 1.0)])));
     let (doc, extrude) = insert(
         doc,

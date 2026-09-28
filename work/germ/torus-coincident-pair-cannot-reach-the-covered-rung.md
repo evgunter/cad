@@ -2,11 +2,13 @@
 id: torus-coincident-pair-cannot-reach-the-covered-rung
 kind: issue
 title: A coincident torus pair cannot reach the declared-cover rung: the sampled enclosure's chord-dip charge outruns every band
-status: dispatched
+status: closed
 opened: 2026-09-13
 priority: P0
 cost: H
 branch: germ/torus-doors
+closed: 2026-09-26
+pr: 3265
 ---
 
 
@@ -64,3 +66,10 @@ unit.
 CURVED — `torus-operand-gate-admission` is the unit that carries the
 stem glue's door sequence and is where this lands; filed from
 CURVED-TORUS PR-2.
+
+## Closed (PR 3265, 2026-09-26)
+
+A declared-Rest coincident torus pair now meets the carrier-identity rung
+(`on_declared_rest_carrier`, reading the verdict the declaration door
+recorded) BEFORE the sampled clearance. The enclosure's manufactured
+margin no longer decides it.

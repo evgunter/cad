@@ -39,7 +39,9 @@ workspace = true
 # is the census row and not a compile: the `profile` dev-dependency
 # below already carries `test-support`, so this crate's own test
 # targets build either way.
-test-support = ["profile/test-support"]
+# FORWARDS `bvh/test-support` as well: `src/test_support.rs` builds its
+# rays through `bvh::test_support::ray`.
+test-support = ["profile/test-support", "bvh/test-support"]
 # Forwards geom-core's K-telemetry recording scalar so the
 # workspace-wide `--features probe` lane builds uniformly. See geom-core's manifest
 # for why Probe is opt-in (it is a `Real` instantiation, so it

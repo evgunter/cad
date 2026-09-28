@@ -40,3 +40,98 @@ slate.
 Load is 31/30. It is not split: this wave takes about 16 points off the
 dispatchable count, which leaves a slate one session can hold.
 `parallel-node-map-loses-the-funnel-and-the-symbolic-session` is next.
+
+## 2026-09-28 — the second wave, and the rows re-priced
+
+The first wave closed: #3141 (the E batch), #3142 (two roots),
+#3143 (member-space look-through), #3145 (parallel node map), #3256
+(split halves as roots), #3259 (the tag-vocabulary macro), #3264 (step
+arg roles) and #3280 (the per-part gate's home). Residue filed along
+the way is the slate now in `plan.md`.
+
+The seven open rows were priced `D`, which before 2026-09-27 was
+sometimes used to mean medium effort (#3308, Ev in chat). Re-priced by
+reading each body:
+
+- `product-gate-refuses-a-declared-cusp-sweep…` → **H**, no design flag.
+  The decisions it lists (the record's shape on the node value, which
+  gate reads it) are technical ones inside this program's own policy,
+  and whether the census certifies a curve contact between two faces
+  of one body is unmeasured, which is what makes it hard.
+- `three-walks-over-the-name-carrying-edges` → **M**; its fix is stated.
+- `select-refusal-coverage…` → **E**; its fix is written out in full.
+- `product-per-part-gate-counts-solids…` → **E + design**; the row says
+  so itself: option (b) changes a refusal callers observe.
+- `the-gather-tie-merge…`, `loft-path-loses-nine-predicate-families…`
+  → **M + design**; each needs a mechanism chosen (candidate identity;
+  one of three dispositions across two programs).
+- `wire-rs-accumulation-residue…` → **M + design**; whether a
+  comment-ratio budget exists at all binds future work.
+
+Load 17.5 → 17.
+
+**Second wave, dispatched 2026-09-28.** Every lane runs on Opus.
+
+- `product-gate-refuses-a-declared-cusp-sweep-the-verb-now-declares`
+  on `gather/cusp-sweep-gate`: **single FULL review**. It moves a gate
+  onto the declared door and carries a record across two crates, and
+  whether the census certifies a curve contact inside one body is
+  unmeasured, so believing it takes more than reading it.
+- `three-walks-over-the-name-carrying-edges`, with
+  `select-refusal-coverage-is-not-compiler-enforced-from-the-test-crate`
+  riding along, on `gather/name-edge-home`: **single STYLE review**.
+  Both fixes are stated in their rows, and the walks' semantics do not
+  change.
+- `product-per-part-gate-counts-solids-but-gates-sources`: to the two
+  designers (Opus and Fable, `docs/prompts/designer.md`) before
+  anything is built, because option (b) changes a refusal callers see.
+
+The other three `+design` rows wait for this wave to land.
+
+## 2026-09-28 — the per-part question converges; the cusp row forks
+
+**Per-part gate: decided by the designers, not taken to Ev.** Both
+designers (one Opus, one Fable) rejected the row's framing ("which
+count does the product pass"). The product's per-part gate re-reads
+every face the aggregate gate reads, for every product of two or more
+solids, not only the lone multi-solid one. That is PERF-SCAN-2026-08
+item 16 (`work/perf/plan.md`, "Tier-3 runs twice on the product path")
+seen from the refusal side. First reports differed on attribution: one
+re-gated sources on refusal, the other mapped the aggregate's findings
+back to roots through `solid_roots`. Round 1 showed each the other's
+report and the two contradicting claims. Executed and read: no
+`ValidationError` accessor yields a solid (35 of 75 variants carry no
+face, edge or solid key), and tier 3's early stops are body-wide, so a
+grafted A+B reports A's `LoopRoleInverted` and not B's
+`NegativeVolume`. The mapping designer withdrew, and both converged:
+
+- gate the aggregate once; on refusal re-gate EVERY source and refuse
+  with one finding list naming each failing root and output index;
+- `SolidInvalid` retires into that list; `ProductInvalid` remains only
+  for "the aggregate refused and every source passes" (a graft defect);
+- the product stops calling `topo::per_part_gate_owed`, which keeps its
+  STEP-import caller until `work/exch/the-per-instance-tier-3-gate-reads-every-assembly-face-twice.md`
+  is answered (that row owns the ratified step-4 question).
+
+No ratified text binds the product's two-gate shape, and with the two
+converged there is one clear answer, so it proceeds as a unit with its
+argument in the PR body. It changes a refusal callers see
+(`ProductErrorKind`, the `pncad-py` tag, the viewer's kind lists); Ev
+was told in chat. Not a design-fork row (the protocol counts forks put
+to Ev). Re-priced E+design to M. Dispatched on
+`gather/per-part-aggregate-gate`, **single FULL review**: the refusal
+vocabulary moves across three crates. The body-wide suppression is
+filed as ATREST's `check-7-stops-body-wide-so-one-solids-defect-hides-anothers-orientation`.
+
+**Cusp sweep: stopped at a fork, now with the designers.** The lane
+measured before building. The census certifies a strut or rim
+`CurveContact` for extrude and revolve (revolve has the extrude defect
+too), but refuses a loft's NURBS seam as
+`CensusUnsupported(NotCertifiable)`. A cusp loft gathers today only
+because tier 3 exempts NURBS edges by kind, so the row's shape would
+turn a working document into a refusal. Row back to `open`, flagged
+`design`. A designer pair was dispatched on the problem and the
+measurements (branch `gather/cusp-sweep-gate` holds the probes); this
+one may go to Ev, so its blinding byte is on
+`analysis/design-fork/sweep-cusp-declarations` (drawn after dispatch,
+before any report; disclosed there).

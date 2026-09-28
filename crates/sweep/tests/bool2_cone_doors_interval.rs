@@ -23,36 +23,25 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::interval::{p2, p3, v2};
 use geom_core::Tol;
-use geom_core::{Band, Interval, Point2, Point3, Real};
+use geom_core::{Band, Interval};
 use profile::RawLoop;
 use profile::{Profile, ProfileLoop, SketchPlane};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::boolean::{SolidContainment, point_in_solid};
 
-fn iv(x: f64) -> Interval {
-    Interval::from_f64(x)
-}
-
-fn p3(x: f64, y: f64, z: f64) -> Point3<Interval> {
-    Point3::new(iv(x), iv(y), iv(z))
-}
-
 /// The `revolve_cone` fixture at the certified scalar: the right
 /// triangle (0,0), (1,0), (0,1) about the y-axis — base disc of radius
 /// 1 at y = 0, apex at (0, 1, 0), half-angle π/4.
 fn cone() -> topo::Body<Interval> {
-    let lp = ProfileLoop::polygon([
-        Point2::new(iv(0.0), iv(0.0)),
-        Point2::new(iv(1.0), iv(0.0)),
-        Point2::new(iv(0.0), iv(1.0)),
-    ]);
+    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)]);
     let vp = Profile::new(SketchPlane::<Interval>::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: Point2::new(iv(0.0), iv(0.0)),
-        dir: geom_core::Vec2::new(iv(0.0), iv(1.0)),
+        origin: p2(0.0, 0.0),
+        dir: v2(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
         .unwrap()

@@ -2,9 +2,9 @@
 id: the-policy-memory-cites-a-tracker-file-that-left-the-tree
 kind: issue
 title: review-and-dependency-policy cites work/issues/reviewer-pair-rebuilds-two-trees-two-rules.md, which was deleted on 2026-09-11
-status: open
+status: closed
 opened: 2026-09-19
-needs_ev: true
+closed: 2026-09-27
 priority: P4
 cost: E
 ---
@@ -58,3 +58,7 @@ retract one, grep for the claim, not the sentence"*. This is the
 mirror case: the claim survived and its **evidence** moved. A census
 over citations finds it; a census over sentences cannot, because
 nothing about the sentence changed.
+
+## Closed (2026-09-27): Ev's ruling
+
+Ev chose a variant of (c): the clause keeps its substance with no history. In Ev's words: *"reviewer suites are a good source of integration tests, but make sure they're reasonably efficient and any fuzzers are configured appropriately"*. The clause in `memories/review-and-dependency-policy.md` now says that, followed by the ordinary-rows rule. The account of the withdrawn protected-class reading and its dead citation are both gone.

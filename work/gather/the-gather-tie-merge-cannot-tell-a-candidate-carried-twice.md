@@ -5,7 +5,8 @@ title: the gather's tie merge cannot tell two pieces of a tie from one candidate
 status: open
 opened: 2026-09-25
 priority: P3
-cost: D
+cost: M
+design: true
 ---
 
 Found by the GATHER split-halves lane (`gather/split-halves-tie-merge`),

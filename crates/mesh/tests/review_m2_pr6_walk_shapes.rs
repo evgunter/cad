@@ -8,8 +8,8 @@
 
 use crate::common;
 
-use common::{axis_y, check_mesh_acceptance, p2, validated};
-use geom_core::Tol;
+use common::{axis_y, check_mesh_acceptance, validated};
+use geom_core::{Point2, Tol};
 use mesh::validate::signed_volume;
 use profile::RawLoop;
 use profile::{ProfileLoop, test_support::bulge_loop};
@@ -25,22 +25,38 @@ fn rev(lp: ProfileLoop<f64>, r: Revolution<f64>) -> Body<f64> {
 }
 
 fn washer_profile() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ])
 }
 
 fn cone_profile() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 fn half_disc() -> ProfileLoop<f64> {
-    bulge_loop(vec![(p2(0.0, -1.0), 1.0), (p2(0.0, 1.0), 0.0)])
+    bulge_loop(vec![
+        (Point2::new(0.0, -1.0), 1.0),
+        (Point2::new(0.0, 1.0), 0.0),
+    ])
 }
 
 /// Downward-opening cone attached to a cylinder (mirror nappe under
 /// partial revolve): triangle (1,0)-(2,1)-(1,2) again, but revolved
 /// by an angle, so the nappe walls carry junction u/v assignments.
 fn diamond_profile() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 1.0), p2(1.0, 2.0)])
+    ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 2.0),
+    ])
 }
 
 #[test]
@@ -63,7 +79,12 @@ fn survives_axis_touching_wedge_angles() {
     // Unit square touching the axis, revolved: the axis edge is an
     // ordinary boundary edge; cylinder wall + 2 wedge caps + 2 discs.
     for theta in [0.05, PI - 0.01, PI, PI + 0.5] {
-        let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
+        let lp = ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(1.0, 1.0),
+            Point2::new(0.0, 1.0),
+        ]);
         let body = rev(lp, Revolution::Partial(theta));
         let v_exact = theta / 2.0;
         // A = cylinder wall θ·1 + two square caps + two discs θ/2.
@@ -92,10 +113,10 @@ fn survives_cone_wedges_apex_junctions_below_three_half_pi() {
 fn silo_profile() -> ProfileLoop<f64> {
     let b = (PI / 8.0).tan();
     let mut lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(1.0, 1.0), b),
-        (p2(0.0, 2.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(1.0, 1.0), b),
+        (Point2::new(0.0, 2.0), 0.0),
     ]);
     // The dome cap leaves the cylinder wall tangentially at (1, 1) --
     // intended smooth cap, declared (#101).
@@ -181,10 +202,13 @@ fn survives_many_segment_dome_wedges() {
     let t = |theta: f64| (theta / 4.0).tan();
     let a1 = 0.8f64;
     let lp = bulge_loop(vec![
-        (p2(0.0, -1.0), t(a1)),
-        (p2(a1.sin(), -a1.cos()), t(a1)),
-        (p2((2.0 * a1).sin(), -(2.0 * a1).cos()), t(PI - 2.0 * a1)),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, -1.0), t(a1)),
+        (Point2::new(a1.sin(), -a1.cos()), t(a1)),
+        (
+            Point2::new((2.0 * a1).sin(), -(2.0 * a1).cos()),
+            t(PI - 2.0 * a1),
+        ),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     for theta in [PI - 0.01, PI + 0.7] {
         let body = rev(lp.clone(), Revolution::Partial(theta));
@@ -200,8 +224,15 @@ fn survives_outward_shell_assumption_via_public_api() {
     // public API deliberately CW (inward-looking) profiles — the
     // profile layer canonicalizes, so every constructible body must
     // still mesh with positive signed volume.
-    let cw_tri = ProfileLoop::polygon([p2(0.0, 0.0), p2(0.0, 1.0), p2(1.0, 0.0)]); // CW
-    let cw_half_disc = bulge_loop(vec![(p2(0.0, 1.0), -1.0), (p2(0.0, -1.0), 0.0)]); // CW traversal of the same half disc
+    let cw_tri = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(0.0, 1.0),
+        Point2::new(1.0, 0.0),
+    ]); // CW
+    let cw_half_disc = bulge_loop(vec![
+        (Point2::new(0.0, 1.0), -1.0),
+        (Point2::new(0.0, -1.0), 0.0),
+    ]); // CW traversal of the same half disc
     for lp in [cw_tri, cw_half_disc] {
         for r in [Revolution::Full, Revolution::Partial(2.0)] {
             let body = rev(lp.clone(), r);

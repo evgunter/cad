@@ -104,7 +104,7 @@ fn set_param_on_a_program_slot_moves_geometry() {
             &DocEdit::SetParam {
                 node: PROFILE,
                 slot: radius_slot(),
-                expr: Expr::literal(0.75, Dimension::Length).unwrap(),
+                expr: len(0.75),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -142,11 +142,7 @@ fn set_expression_and_expr_at_route_into_programs() {
     let doc = circle_doc(0.5);
     // Replace the radius with (0.5 + 0.25), then re-point its LEFT
     // literal via a sub-path edit.
-    let sum = Expr::add(
-        Expr::literal(0.5, Dimension::Length).unwrap(),
-        Expr::literal(0.25, Dimension::Length).unwrap(),
-    )
-    .unwrap();
+    let sum = Expr::add(len(0.5), len(0.25)).unwrap();
     let doc = doc
         .apply(
             &DocEdit::SetParam {
@@ -173,7 +169,7 @@ fn set_expression_and_expr_at_route_into_programs() {
         .apply(
             &DocEdit::SetExpression {
                 path: path.clone(),
-                expr: Expr::literal(0.375, Dimension::Length).unwrap(),
+                expr: len(0.375),
             },
             Tol::witness(),
             &editor_core::RefusingReach,
@@ -195,7 +191,7 @@ fn program_slots_refuse_wrong_dimensions() {
         &DocEdit::SetParam {
             node: PROFILE,
             slot: radius_slot(),
-            expr: Expr::literal(0.5, Dimension::Angle).unwrap(),
+            expr: ang(0.5),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -220,7 +216,7 @@ fn program_breaking_slot_edit_refuses_at_the_door() {
         &DocEdit::SetParam {
             node: PROFILE,
             slot: radius_slot(),
-            expr: Expr::literal(0.0, Dimension::Length).unwrap(),
+            expr: len(0.0),
         },
         Tol::witness(),
         &editor_core::RefusingReach,
@@ -274,10 +270,7 @@ fn set_doc_param_never_refuses_for_downstream_profiles() {
                 node: Node::Profile(ProfileProgram {
                     plane: PLANE,
                     loops: vec![LoopProgram::Circle {
-                        centre: [
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
-                            Expr::literal(0.0, Dimension::Length).unwrap(),
-                        ],
+                        centre: [len(0.0), len(0.0)],
                         radius: Expr::param(ParamName::new("r"), Dimension::Length),
                     }],
                     ids: Vec::new(),
@@ -341,12 +334,9 @@ fn insert_node_checks_program_dimensions() {
     let bad = ProfileProgram {
         plane: PLANE,
         loops: vec![LoopProgram::Circle {
-            centre: [
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-                Expr::literal(0.0, Dimension::Length).unwrap(),
-            ],
+            centre: [len(0.0), len(0.0)],
             // An Angle where the Radius role demands Length.
-            radius: Expr::literal(0.5, Dimension::Angle).unwrap(),
+            radius: ang(0.5),
         }],
         ids: Vec::new(),
     };
@@ -369,7 +359,7 @@ fn insert_node_checks_program_dimensions() {
 /// **The arrival spec's `Sweep`/`ArcLen`/`Bulge` argument has a role of
 /// its own** — `SweepVal2`, `ArcLenVal2`, `Bulge2`.
 ///
-/// A fused step carries two specs, and `spec_slots` enumerates the
+/// A fused step carries two specs, and `spec_roles` enumerates the
 /// arrival's roles as the spec₂ twins. With a twin for every mode, a
 /// hand-built `ArcFilletArc` whose two specs share a mode addresses
 /// each spec's argument exactly once; the second clause here is the
@@ -387,9 +377,6 @@ fn insert_node_checks_program_dimensions() {
 /// is what the clauses below exercise.
 #[test]
 fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
-    let len = |v: f64| Expr::literal(v, Dimension::Length).unwrap();
-    let ang = |v: f64| Expr::literal(v, Dimension::Angle).unwrap();
-    let sca = |v: f64| Expr::literal(v, Dimension::Scalar).unwrap();
     let sweep = |a: f64| ProgramArcData::Sweep {
         r: len(1.5),
         side: profile::ArcSide::Left,
@@ -402,7 +389,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
     };
     let bulge = |b: f64| ProgramArcData::Bulge {
         target: ProgramTarget::Point([len(2.0), len(1.0)]),
-        b: sca(b),
+        b: scl(b),
     };
 
     // (incoming spec, arrival spec, incoming role, arrival role, the
@@ -430,7 +417,7 @@ fn the_arrival_specs_sweep_arclen_and_bulge_arguments_are_their_own_slots() {
             StepArg::Bulge,
             StepArg::Bulge2,
             0.45,
-            sca(0.55),
+            scl(0.55),
         ),
     ];
 

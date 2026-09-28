@@ -37,6 +37,7 @@
 // there. A marker's own file is implicit; a sibling helper module is not.
 test_utils::gated_to![
     "crates/editor-core/src/resolve/",
+    "crates/editor-core/src/test_support.rs",
     "crates/bvh/src/",
     "crates/mesh/src/",
     "crates/geom-core/src/linalg/",
@@ -45,13 +46,15 @@ test_utils::gated_to![
 
 use crate::fixture;
 
+use bvh::test_support::ray;
 use editor_core::resolve::{TSpan, ray_triangle};
+use editor_core::test_support::listed;
 use editor_core::{
-    CancelToken, EntityKey, EvalOptions, Evaluation, HitTestError, MeshPick, Node, PickTarget,
-    ProfileDoc, Ray, RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
+    CancelToken, EntityKey, EvalOptions, Evaluation, MeshPick, Node, PickTarget, ProfileDoc, Ray,
+    RecipeNodeId, Resolution, RunCtx, ValuePayload, pick_face, resolve,
 };
 use fixture::{insert, len, on_frame};
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point3, Tol};
 use mesh::Mesh;
 use test_utils::fuzz;
 use topo::Body;
@@ -66,13 +69,6 @@ fn run(doc: &ProfileDoc) -> Evaluation<f64> {
         &EvalOptions::default(),
         Tol::witness(),
     )
-}
-
-fn ray(origin: [f64; 3], dir: [f64; 3]) -> Ray {
-    Ray {
-        origin: Point3::new(origin[0], origin[1], origin[2]),
-        dir: Vec3::new(dir[0], dir[1], dir[2]),
-    }
 }
 
 /// A unit cube `[dx, dx+1] × [0,1] × [0,1]` as one extrude node.
@@ -276,24 +272,6 @@ fn tie_survivors(tied: &[OracleHit], meshes: &[(usize, &Mesh)], ray: &Ray) -> Ve
         .collect()
 }
 
-/// **What the door said**, as a list of hits: the one answer, the
-/// empty miss, or the tied faces of a refusal. Every row here reads
-/// the door this way, because the refusal is not an error to swallow
-/// — it is the door naming more than one face, and each hit in it is
-/// true.
-fn answered(
-    ev: &Evaluation<f64>,
-    targets: &[PickTarget<'_>],
-    ray: &Ray,
-) -> Vec<editor_core::PickHit> {
-    match pick_face(ev, targets, ray) {
-        Ok(None) => Vec::new(),
-        Ok(Some(hit)) => vec![hit],
-        Err(HitTestError::Ambiguous { hits }) => hits,
-        Err(other) => panic!("no hit-test error: {other:?}"),
-    }
-}
-
 /// The distinct patches a set of answers resolves to, sorted.
 fn patches_of(
     doc: &ProfileDoc,
@@ -423,7 +401,7 @@ fn dyadic_battery_pins_faces_edges_corners_and_the_certified_tie() {
             [o[0] * 2.0, o[1] * 2.0, o[2] * 2.0],
             [d[0] * 2.0, d[1] * 2.0, d[2] * 2.0],
         );
-        let said = answered(&ev, &scaled_targets, &r2);
+        let said = listed(pick_face(&ev, &scaled_targets, &r2));
         assert!(
             !said.is_empty(),
             "case {ci}: service hit expected (o={o:?} d={d:?})"
@@ -478,7 +456,7 @@ fn a_coplanar_cross_target_tie_refuses_with_both_bodies() {
     // reaching it at t = 1 for both bodies' y = 0 faces.
     let r = ray([1.0, -1.0, 0.5], [0.0, 1.0, 0.0]);
 
-    let said = answered(&ev, &[ta, tb], &r);
+    let said = listed(pick_face(&ev, &[ta, tb], &r));
     assert_eq!(
         said.iter().map(|h| h.node).collect::<Vec<_>>(),
         vec![a, b],
@@ -507,7 +485,7 @@ fn a_coplanar_cross_target_tie_refuses_with_both_bodies() {
          door refuses all the same"
     );
 
-    let flipped = answered(&ev, &[tb, ta], &r);
+    let flipped = listed(pick_face(&ev, &[tb, ta], &r));
     assert_eq!(
         flipped.iter().map(|h| h.node).collect::<Vec<_>>(),
         vec![b, a],
@@ -574,7 +552,7 @@ fn random_integer_rays_match_the_exact_oracle() {
         );
         let hits = oracle_hits(&meshes, o, d);
         let win = oracle_winner(&hits);
-        let said = answered(&ev, &targets, &r);
+        let said = listed(pick_face(&ev, &targets, &r));
         match (win, said.first()) {
             (None, None) => {}
             (None, Some(h)) => panic!(

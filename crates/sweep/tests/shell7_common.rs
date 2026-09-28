@@ -10,11 +10,7 @@ use geom_core::{Point2, Point3, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
-use topo::{Body, EdgeKey, FaceKey, ReplaceFaceError, ShellError, VertexKey};
-
-pub(crate) fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
+use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
 
 pub(crate) fn tol() -> Tol {
     Tol::witness()
@@ -28,7 +24,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -41,7 +37,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
 /// A polyline meridian revolved.
 pub(crate) fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
-        bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect()),
+        bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect()),
         turn,
     )
 }
@@ -115,26 +111,24 @@ pub(crate) fn carrier(body: &Body<f64>, e: EdgeKey) -> (Curve3<f64>, (f64, f64))
     (c.carrier().clone(), c.params())
 }
 
-pub(crate) fn face_of_he(body: &Body<f64>, he: topo::HalfEdgeKey) -> FaceKey {
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    body.get_loop(lp).unwrap().face
-}
-
 /// A seam to the door: an edge whose two sides lie on one SURFACE,
 /// whether or not they are one face.
 pub(crate) fn same_surface(body: &Body<f64>, e: EdgeKey) -> bool {
     let d = body.get_edge(e).unwrap();
-    let k = |he| body.get_face(face_of_he(body, he)).unwrap().surface;
+    let k = |he| {
+        body.get_face(body.face_of_half_edge(he).unwrap())
+            .unwrap()
+            .surface
+    };
     k(d.he_plus) == k(d.he_minus)
 }
 
 pub(crate) fn distinct_surfaces_at(body: &Body<f64>, v: VertexKey) -> usize {
-    let em = body.get_vertex(v).unwrap().emanating.unwrap();
     let mut s: Vec<_> = body
-        .vertex_orbit(em)
+        .faces_of_vertex(v)
         .unwrap()
         .into_iter()
-        .map(|he| body.get_face(face_of_he(body, he)).unwrap().surface)
+        .map(|f| body.get_face(f).unwrap().surface)
         .collect();
     s.sort();
     s.dedup();
@@ -189,26 +183,4 @@ pub(crate) fn edge_refusal(e: &ShellError<f64>) -> Option<(EdgeKey, &'static str
         ReplaceFaceError::TogetherAxialEdge { edge, what } => Some((edge, what)),
         _ => None,
     }
-}
-
-/// Every chart of `body` moved inward by `t` through the simultaneous
-/// door — the moves `shell` builds, spelled at the door itself.
-pub(crate) fn hollow_moves(body: &Body<f64>, t: f64) -> Vec<topo::ChartMove<f64>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }

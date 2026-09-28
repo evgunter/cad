@@ -206,23 +206,7 @@ fn a_bracket_block_authors_saves_reloads_and_undoes() {
     );
     // Rectangle profile → extrude: a 40 × 20 × 10 mm block.
     let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.04,
-                height: 0.02,
-            })],
-        },
-    );
-    let extrude = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let (profile, extrude) = common::box_in(&mut session, plane, [0.04, 0.02, 0.01]);
     let v = body_volume(&mut session, extrude, tol);
     let want = 0.04 * 0.02 * 0.01;
     assert!(
@@ -316,16 +300,7 @@ fn new_document_derives_its_id_and_clears_the_session() {
     // Give the session things to clear: a selection, a hover, and —
     // via Save — a backing path and its directory resolver.
     let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.02,
-                height: 0.01,
-            })],
-        },
-    );
+    let profile = common::rectangle_in(&mut session, plane, 0.02, 0.01);
     session.perform(SessionOp::Select(Selection::Node(profile)));
     session.perform(SessionOp::Hover(Some(Hovered::Face(synthetic_face(
         profile,
@@ -1224,24 +1199,7 @@ fn a_form_authoring_in_millimetres_reads_back_in_millimetres() {
 fn a_boss_is_authored_on_a_picked_face() {
     let tol = Tol::witness();
     let mut session = session(tol);
-    let plane = common::xy_frame_in(&mut session);
-    let profile = session_insert(
-        &mut session,
-        SessionOp::AddProfile {
-            plane: ProfilePlane::Existing(plane),
-            loops: vec![shape(&ProfileShape::Rectangle {
-                width: 0.04,
-                height: 0.02,
-            })],
-        },
-    );
-    let block = session_insert(
-        &mut session,
-        SessionOp::AddExtrude {
-            profile,
-            distance: len(0.01),
-        },
-    );
+    let block = common::xy_box_in(&mut session, [0.04, 0.02, 0.01]);
     session.pump();
 
     // The pick, as the viewport makes it: the name, and the node whose

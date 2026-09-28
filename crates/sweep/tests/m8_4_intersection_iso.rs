@@ -906,26 +906,15 @@ fn a_degree_two_widening_measures_against_the_oracle() {
         .find(|(_, f)| f.surface == key)
         .expect("the bowed wall has a face");
     let mut off = body.clone();
-    let got = topo::replace_face_offset(
-        &mut off,
-        fk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let got = topo::replace_face_offset(&mut off, fk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     let (_, obowed, _, _) = flat_bowed_seam(&oracle, INTERIOR_COLUMN_SCALE);
     let (ofk, _) = oracle
         .faces()
         .find(|(_, f)| f.surface == obowed)
         .expect("the oracle's bowed wall has a face");
     let mut ooff = oracle.clone();
-    let orc = topo::replace_face_offset(
-        &mut ooff,
-        ofk,
-        INTERIOR_COLUMN_SCALE / 16.0,
-        band(),
-        Tol::witness(),
-    );
+    let orc =
+        topo::replace_face_offset(&mut ooff, ofk, INTERIOR_COLUMN_SCALE / 16.0, Tol::witness());
     println!("E3 @ eps={eps:e}: offset(General-faced) {got:?}");
     println!("E3 @ eps={eps:e}: offset(oracle bowed)  {orc:?}");
     assert!(
