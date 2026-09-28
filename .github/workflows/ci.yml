@@ -135,9 +135,8 @@ jobs:
     needs: filter
     if: github.event.pull_request.draft != true
     steps:
+      # No prune here: the python lint covers local-scripts/ too.
       - uses: actions/checkout@v4
-      - name: prune local-only tooling (hosted CI may not depend on it)
-        run: rm -rf local-scripts .claude
       - name: work tracker lint
         run: python3 scripts/work.py lint
       - name: install ruff (pinned, official prebuilt)
