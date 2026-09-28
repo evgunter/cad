@@ -196,18 +196,63 @@ edges costs O(E·k). The groups here are small and the scan is the one
 the absorption loop already made; a worklist would be a second
 bookkeeping of the same set, so it is left.
 
-## Local results (fix pass, on the merge of origin/main)
+## The document layer: a merged face with two same-side constituents
 
-- `topo` + `sweep`, nextest: eps unset 3300/3300, `1e-6` 3300/3300,
-  `1e-12` 3300/3300.
-- `editor-core` concision rows, perf12, docm6, m4_pr5_declare: 35/35.
-  `test-utils`: 79/79.
-- `cargo clippy --workspace --all-targets -D warnings`: clean.
-- rustdoc (`-D warnings`, private items, `topo`): clean.
-- every `scripts/gates/*.sh`, self-test and pass: green (the pruning's
-  bridge arm is registered in `loop-boundary-discards.sh`, audited).
-  `python3 scripts/work.py lint`: ok.
-- First pass only: `demos/tour` clippy clean and nextest 89/89,
-  `demos/wild` clippy clean; the fix pass touches no demo.
+The merge now glues planar groups it used to skip, so document unions
+go further, and four `editor-core` rows moved. The root cause is one
+premise of the naming emitter (`editor-core`'s `names/emit_topo.rs`,
+WIRE's ground). `chord_descent` reads a seam chord that borders a
+MERGED face through to that face's unique constituent on the side it
+wants, and raised `Emission("merged face has several same-side
+constituents at a seam edge")` otherwise. That premise held only
+because the groups that break it were skipped. In
+`docm8_flat_merged`'s split fixture, order `[c, s, a]`: `c` and `s` are
+disjoint, so the accumulation is an assembly of two bodies when `a`
+joins, and the declared y-walls glue a face of each, plus `a`'s, into
+one merged wall. That group's seam bends where `s` rises out of `a`, so
+before the pruning it was skipped (`GroupNotClosed`) and naming failed
+earlier, at a seam vertex (`SeamVertexParentage`). Glued, the wall has
+two A-side constituents and the chord's premise breaks.
+
+The body is sound. The orders of the same documents that fuse are
+tier-3 green at the analytic volume (1.6 and 2.1). The case is a
+missing naming RULE, not a kernel bug. A rule would pick the
+constituent whose operand face holds the chord, geometrically, as
+`chord_on_rim` does for a rim. That is a naming design on WIRE's
+ground, so this unit does the minimal thing: the `Emission` becomes a
+typed missing-rule refusal, `NamingError::MergedChordConstituents
+{ edge, face, several }`, which opens with the not-a-bug framing. The
+new variant is wired everywhere its siblings are: its `Display`, the
+`display_tests` roster and category, `display_contract`'s census,
+`pncad-py`'s `naming_error_tag` (`merged_chord_constituents`) and that
+tag's census. The rule is filed on WIRE's slate:
+`work/wire/a-merged-face-with-several-same-side-constituents-has-no-chord-rule.md`.
+
+| row | before (`67acebe14` + main) | now |
+|---|---|---|
+| `docm8_flat_merged::a_member_face_split_by_a_later_member_refuses_as_a_split` | `[c,s,a]`, `[s,c,a]`: `Naming(Emission)`; the row wanted `SeamVertexParentage` | those two orders pin `MergedChordConstituents`; the other four are unchanged (two fuse at 1.6, two refuse as a split) |
+| `docm8_flat_merged::a_member_face_inside_a_merge_a_later_member_split_refuses_as_a_fragmented_merge` | tally `[6, 10, 4, 4]` expected; `Emission` on four orders | `[12, 4, 4, 4]`: fused, missing merged-chord rule, split, fragmented merge |
+| `docm8_flat_merged::the_three_neighbour_star_refuses_as_a_split_or_a_fragmented_merge` | `[6, 10, 4, 4]` expected; e.g. `[w, e, t, c]` now `Fused` | `[12, 4, 4, 4]` |
+| `wire_legal_union_refusals::a_seam_vertex_no_rule_names_is_a_missing_rule_not_a_kernel_bug` | `[c,s,a]` gave `Emission` | renamed `a_merged_face_with_several_constituents_is_a_missing_rule_not_a_kernel_bug`; pins `MergedChordConstituents { several: 2 }` on `[c,s,a]` and `[s,c,a]`, not-a-bug framing, "merged face" named |
+
+**The law the two four-member rows check** (`cap_outcome`, per order)
+changed in one arm. The capped member joining after the cutter and
+BOTH its partners used to be `SeamVertexNoRule`; it now fuses. Joining
+after the cutter and ONE partner, it now refuses as the missing
+merged-chord rule. Six of the ten old seam-vertex orders per fixture
+are the first case, four the second. Every order that fuses is checked
+in the row itself: tier 3 green, volume 2.1, which is the analytic
+union (`1 + 0.5 + 0.5 + 0.1` on both fixtures).
+
+**`SeamVertexParentage` has lost its only end-to-end witness.** Its
+only documents were these orders. I searched seven variants of the
+split fixture (the cutter moved along x and y, sunk, lowered) and none
+reaches it. The sentence stays pinned by `display_contract` and the
+concision rows. The lost witness is recorded in the WIRE row above
+rather than papered over with a contrived document.
+
+## Local results (second fix pass, on the merge of origin/main)
+
+RESULTS_PLACEHOLDER
 
 Hosted CI has not run; the branch is pushed without a PR.
