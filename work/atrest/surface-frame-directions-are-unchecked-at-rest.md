@@ -2,7 +2,7 @@
 id: surface-frame-directions-are-unchecked-at-rest
 kind: issue
 title: No tier-3 check reads an analytic surface's frame directions - a zero axis or u_ref is named nowhere, and geom's crate docs say tier 3 certifies them
-status: dispatched
+status: review
 opened: 2026-09-24
 priority: P3
 cost: D
@@ -51,3 +51,65 @@ certify at all, or `geom`'s sentence is what should change.
 
 Track P. `crates/topo/src/validate.rs` (check 1); the `geom` sentence
 is `props` ground and a seam to announce.
+
+## Answered (ATREST-13)
+
+**The poison half.** A zero or non-finite `normal`, `axis` or `u_ref`
+of any analytic surface is `ValidationError::PoisonedSurfaceDatum`,
+through the one reading ATREST-6's plane normal used
+(`crates/topo/src/validate.rs`, `is_direction`: `is_finite_length`
+per component, then `is_zero_length` on a finite norm). Pinned by the
+six zero-direction rungs of
+`check_1_names_the_analytic_datum_that_describes_no_locus`
+(`crates/topo/src/tier3_tests.rs`).
+
+**Unit-ness and `u_ref ⊥ axis`, measured first.** *Does a consumer
+read an off-convention frame as a different locus?* Yes, for every
+axisymmetric kind: the evaluators read the frame through
+`geom::azimuth::frame` (`radial(u) = u_ref·cos u + (axis × u_ref)·sin
+u`) while the implicit forms and the section arms read `axis` and the
+radius as the geometric axis and radius, so a `u_ref` of length
+`1 + δ` evaluates a cylinder of radius `r(1 + δ)` and an `axis` of
+length `1 + δ` evaluates an elliptic section — two loci off one datum.
+For a plane it does not (a non-unit `normal` or `u_ref` spans the
+same plane), and a plane's tilt and a cone's frame move the locus by
+an amount that grows with the face's extent, which no datum levers.
+*Does the corpus mint frames off unit beyond the band?* No. The
+corpus instrument (CI run 36154432046; every `validate_geometric`
+call of the nextest suite at all three ε rows, the tour's tests and
+binary, the wild STEP corpus) logged every frame deviation above
+`1e-15`. The largest locus movement it implies (deviation × the
+kind's radius) is `1.7e-14 m` at `f64` (a wild STEP cylinder's
+`u_ref`, `4.2e-13` off unit at `r = 0.04`; `step-import` adopts a
+near-unit `DIRECTION` verbatim within the file's ε_in) and
+`1.5e-13 m` at the interval scalar (an enclosure's width, a
+`fillet_h5` circle `axis` at `r = 0.05`) — against the tightest row's
+ε of `1e-12 m`. The stop clause did not fire.
+
+**So the frame is a representability convention**, refused through
+ATREST-6's door with the band: `geom::Surface::representability_margins`
+takes the run's `Band` and returns, after the scalar conventions, the
+frame's six ε-slack margins at the kind's radius (cylinder and sphere
+`r`, torus `R + r`; `geom::surfaces::frame_margins`), read by check 1's
+one `Bounds::lo` compare and refused as
+`UnrepresentableSurfaceDatum { datum: Axis | URef, end }`. Pinned by
+the frame rungs of the same test (a `u_ref` 100 ε long
+at `r = 1`, a half-length sphere axis, a tilted torus `u_ref`) and the
+inside rows of `datums_inside_their_conventions_draw_no_datum_verdict`
+(a `u_ref` ε/100 long, a plane frame of length 3).
+
+**`geom`'s crate docs made true**: the conventions paragraph now says
+what check 1 certifies and what it does not. The uncertified half is
+filed: `unlevered-frame-conventions-are-uncertified-at-rest`.
+
+**Fix pass (review of PR 3238).** The cylinder's `u_ref`-tilt margin is
+kept for a different reason than the rest, and says so
+(`crates/geom/src/convention.rs`, `frame_margins`): a tilt `c` moves
+the cylinder's LOCUS only `≈ r·c²/2` (the axial component slides along
+the rulings), but moves `S(u, v)` at fixed `(u, v)` by `r·c` — so on
+the cylinder it guards the chart every pcurve and chart-described edge
+reads, not representability. Refusals now say which frame quantity is
+out (`ConventionMeasure::{Value, Length, Tilt}` on the margin and the
+variant): "… stores a reference direction that is not perpendicular to
+its axis …". The lever is pinned against `1` and `r²` at both scalars
+(`the_frame_lever_is_the_kinds_radius`).
