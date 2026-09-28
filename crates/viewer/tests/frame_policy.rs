@@ -1826,7 +1826,13 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     // A stale answer is not a verdict at all — nor is one with nothing
     // outstanding, which is the leave case.
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(6, id), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(6, id),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     assert_eq!(
@@ -1835,7 +1841,13 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
     );
     // Nothing under the cursor on both sides is agreement.
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(7, IdMap::NOTHING), Some(7), Ok(&[])),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, IdMap::NOTHING),
+            Some(7),
+            Ok(&[])
+        ),
         None
     );
     // A real disagreement reports both sides.
@@ -1875,7 +1887,13 @@ fn the_agreement_check_compares_names_and_ignores_answers_nobody_asked_for() {
         .clone();
     let tied = [hit.name.clone(), second];
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(7, id), Some(7), Ok(&tied)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&tied)
+        ),
         None,
         "the id pass named one of the tied faces, which is agreement"
     );
@@ -2005,7 +2023,13 @@ fn an_edge_hover_is_not_a_disagreement_because_the_face_is_what_is_compared() {
     );
     // The fix: the ray side answers the question the id buffer asked.
     assert_eq!(
-        idpass::compare(&index, &DisplayView::none(), answer(7, id), Some(7), Ok(&named)),
+        idpass::compare(
+            &index,
+            &DisplayView::none(),
+            answer(7, id),
+            Some(7),
+            Ok(&named)
+        ),
         None,
         "the face under the cursor is what the id buffer named"
     );
