@@ -843,3 +843,27 @@ import-block conflict, resolved).
   `cargo fmt`.
 
 It merges on hosted green.
+
+## PR 3324 (must-carry lane-gate order) reported (2026-09-28)
+
+(ENCL orchestrator) Head `781c3b20d8`. It measured first:
+- **Reach.** Of about 36k calls to `must_carry_over_edge`, across
+  the Band 4 corpus at three ε, the tour k-probe, M2, E6, and sweep's
+  and editor-core's full suites, 0 were out of lane (bar the pinning
+  test's own). So no stored description moves, and the corpus K
+  stream is unchanged.
+- **Option (a), implemented.** First-order runs per station ahead of
+  the lane gate, and the lane gates only the second-order demand.
+  Out-of-lane pairs now answer `Transverse`/`InBand`, and
+  `UnderDetermined` only when every station is smooth.
+- **(b) and (c) are dominated.** (b), a witness-only check, gives two
+  first-order policies and misses mixed edges. (c) leaves surgery
+  unprotected.
+- **Ratified text.** No D2/D4 change is claimed ("lane gate first" was
+  code doc). The full review is asked to falsify that, and a MAJOR there
+  would make this a design fork.
+- **Filed.** `contact-verify-lane-gate-answers-a-crossing-not-certifiable`
+  (CONTACT).
+- **Open, handed to the review.** `sweep::swept::describe_face_rim_at_rest`.
+
+Full review dispatched.
