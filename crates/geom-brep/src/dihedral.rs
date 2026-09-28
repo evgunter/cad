@@ -319,12 +319,12 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///   `Positive`: the surfaces determine the locus along the whole
 ///   edge, so prefer-intrinsic (D2/OQ7) demands the intrinsic
 ///   [`crate::EdgeDescription::TangentIntersection`].
-/// - **[`MustCarryVerdict::UnderDetermined`]** — the join is smooth
-///   first-order at every station, and no intrinsic tangency is
-///   demanded: a station's second-order separation read
-///   `Zero`/`Negative`, or the pair is outside the certificate's lane
-///   and cannot store one (see the variant). The conventional
-///   description is the honest one either way.
+/// - **[`MustCarryVerdict::UnderDetermined`]** — every station read
+///   was smooth first-order, and no intrinsic tangency is demanded: a
+///   station's second-order separation read `Zero`/`Negative`, or the
+///   pair is outside the certificate's lane and cannot store one (see
+///   the variant). The conventional description is the honest one
+///   either way.
 /// - **[`MustCarryVerdict::InBand`]** — a station was certifiable as
 ///   neither, carrying that station's escalation: the caller refuses
 ///   TYPED (D4 ¶3). An in-band verdict is never silently either side,
@@ -358,20 +358,22 @@ pub struct SecondOrder<T: geom_core::Real> {
 ///
 /// **The lane gates the second-order reading, and only that.**
 /// [`crate::tangent_certificate_lane`] says whether the jet
-/// certificate can certify this carrier over this pair at all, and a
-/// pair it refuses cannot STORE an intrinsic tangency whatever the jet
-/// says, so an out-of-lane station never reaches
-/// [`tangent_second_order`]: that reading would spend a decision — and
-/// a K-stream sample — on a verdict no caller may act on. The
-/// first-order reading is a different question, and the lane has no
-/// say in it. Whether the join is smooth at all is the premise every
-/// caller acts on, whatever the carrier and surface kinds: a
-/// definitely transverse station refutes it (`Transverse`), an
-/// in-band one leaves it undecidable (`InBand`), and neither verdict
-/// may be answered as "conventional" because the certificate could
-/// not have stored a tangency there. So every pair is walked
-/// first-order, in lane or out, and an out-of-lane pair answers
+/// certificate can store an intrinsic tangency for this carrier over
+/// this pair, so an out-of-lane station never reaches
+/// [`tangent_second_order`]. The first-order reading is every pair's:
+/// a transverse or in-band station cannot be answered conventionally
+/// because the join there is not definitely smooth, whatever the
+/// certificate could store. An out-of-lane pair answers
 /// `UnderDetermined` only once every station has read `Smooth`.
+///
+/// **A `Nurbs` or `Approx` surface answers `InBand` at the first
+/// station, whatever its geometry.** Neither kind has an implicit
+/// form, so [`implicit_gradient`] returns poison and
+/// [`classify_dihedral`] escalates with an invalid margin — a
+/// genuinely smooth join included. That refusal means "kind not
+/// implemented", not ill-conditioned geometry, and the recourse an
+/// [`Indeterminate`] renders for an invalid margin (check the inputs,
+/// then the coincidence levers) names no lever that reaches it.
 ///
 /// **The stations are the certification schedule's interior**
 /// (`1..`[`crate::CERT_SAMPLES`]`-1`, through [`crate::sample_param`]), read in
