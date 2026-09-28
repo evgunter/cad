@@ -34,8 +34,9 @@ use topo::{Body, ContactRecords, ValidationError};
 
 /// A LENS extruded z0..z0+h: a profile loop of TWO vertices joined by
 /// two arcs of different circles. Its caps are planar and their outer
-/// loop is `LoopShape::NoWalk` — every walk the kernel has either
-/// needs three vertices for a polygon with area, or needs one circle.
+/// loop is `LoopShape::NoWalk` — neither walk `boolean::contfp`
+/// dispatches on expresses it: the polygon needs three vertices for
+/// area, and the disc row needs one circle.
 fn lens(z0: f64, h: f64) -> Body<f64> {
     let tol = Tol::witness();
     let lp = bulge_loop(vec![
