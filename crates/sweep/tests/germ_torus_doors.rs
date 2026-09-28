@@ -573,6 +573,49 @@ fn a_chord_across_the_hole_is_pierced_not_passed() {
     );
 }
 
+/// **A chord whose ends are the bar's own corners records on the face
+/// that holds them, and on no other.** A `0.2`-square bar across the
+/// hole, cut to the length that puts all eight corners ON the donut's
+/// inner face (by the torus's `x ↦ −x`, `y ↦ −y` symmetry, one corner
+/// on the tube puts all of them there). Every edge of the bar is then a
+/// `(Zero, Zero)` span: the long edges cross the hole, the end squares'
+/// edges run across the tube's inner wall, and no quartic root lies
+/// strictly inside any of them. Against the inner face each edge's
+/// corners are `In`, so every edge records there, and those records are
+/// the only place the corners' incidences come from. Against the outer
+/// face every corner is certified `Elsewhere`, so nothing lands there.
+#[test]
+fn a_bar_with_its_corners_on_the_inner_face_records_there_and_nowhere_else() {
+    let d = donut();
+    let (half_w, big_r, r) = (0.1_f64, 2.0_f64, 0.5_f64);
+    // ρ at a corner is the inner equator's side of the tube at height
+    // `y = ±half_w`: `(ρ − R)² + half_w² = r²`.
+    let rho = big_r - (r * r - half_w * half_w).sqrt();
+    let z = (rho * rho - half_w * half_w).sqrt();
+    let b = bar((-half_w, half_w), (-half_w, half_w), (-z, z));
+    let inner: Vec<_> = faces_where(&d, is_torus)
+        .into_iter()
+        .filter(|&f| {
+            topo::curved_face_containment(&d, f, Point3::new(0.0, 0.0, 1.5), band())
+                .is_ok_and(|c| c == Some(FaceContainment::In))
+        })
+        .collect();
+    assert_eq!(inner.len(), 1, "the donut has one inner face");
+    let (_, b_on_d) =
+        topo::sweep_traces(&d, &b, topo::SweepStrategy::Realized, None, Tol::witness())
+            .expect("a chord between two corners on the inner face is no event on the outer");
+    let recorded: std::collections::BTreeSet<_> = b_on_d.accepted.iter().map(|&(e, _)| e).collect();
+    assert_eq!(
+        recorded,
+        b.edges().map(|(k, _)| k).collect(),
+        "every edge of the bar records its corners: {b_on_d:?}"
+    );
+    assert!(
+        b_on_d.accepted.iter().all(|&(_, f)| f == inner[0]),
+        "every record lands on the inner face: {b_on_d:?}"
+    );
+}
+
 /// **The chord rule is kind-generic, and a cylinder reaches it too.** A
 /// wall split into THREE faces (seams at 0°, 120° and 240°) and a thin
 /// rod through it at mid-height, pierced at 60° and at 180°: the two

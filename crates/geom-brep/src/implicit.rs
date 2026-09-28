@@ -314,9 +314,12 @@ pub fn min_radius_of_curvature<T: Real>(s: &Surface<T>, p: Point3<T>) -> T {
 /// that relates the two datums, `R − r > 0`, as a length on the band
 /// under the one name `ring_torus_convention`. Tier 3 refuses a
 /// non-ring torus at rest with it, and every door that leans on the
-/// ring — a meridian frame, a chart arm, a regular outward normal, a
+/// ring — the trim's meridian frame, a regular outward normal, a
 /// closed-form section — reads it rather than re-spelling it, each
-/// mapping a non-`Positive` answer into its own refusal. The tube half
+/// mapping a non-`Positive` answer into its own refusal. A chart's
+/// azimuth stretch floor is the same number, `R − r`, but it is an arm
+/// bound that any positive floor satisfies, gated like every other
+/// kind's arm, and not a statement of the convention. The tube half
 /// `r > 0` is a separate datum and is not decided here: `R − r` alone
 /// passes a nonpositive tube radius whenever the difference stays
 /// positive, so a door that needs both asks the tube first.
