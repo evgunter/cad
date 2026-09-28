@@ -5,7 +5,6 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use crate::common::approx::band;
 use crate::common::operands;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
@@ -14,12 +13,8 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::readback::{EulerCounts, euler_counts};
 use topo::{Body, FaceKey, ShellError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
-    let lp = bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect());
+    let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("polygon profile");
@@ -30,10 +25,10 @@ fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -41,7 +36,7 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -499,7 +494,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 
     let mut work = v.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &cyl[..1], -0.2, Tol::witness())
         .expect_err("a partial group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::SharedSurfaceKey { .. }),
@@ -518,7 +513,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
         .map(|(k, _)| k)
         .unwrap();
     let mixed = vec![cyl[0], cap];
-    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &mixed, -0.2, Tol::witness())
         .expect_err("a mixed group must refuse");
     assert!(
         matches!(e, topo::ReplaceFaceError::GroupChartsDiffer { .. }),
@@ -531,7 +526,7 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
     );
 
     // The empty group.
-    let e = topo::replace_faces_offset(&mut work, &[], -0.2, band(), Tol::witness())
+    let e = topo::replace_faces_offset(&mut work, &[], -0.2, Tol::witness())
         .expect_err("an empty group must refuse");
     assert!(matches!(e, topo::ReplaceFaceError::EmptyGroup), "got {e}");
     assert_eq!(
@@ -542,83 +537,32 @@ fn probe_partial_group_refuses_and_leaves_body_untouched() {
 }
 
 /// A LATE Err path through the group door (a refusal decided after the
-/// mint and the boundary plan): whole-body Debug still untouched — the
-/// decided-then-mutated clone discipline.
+/// mint, inside the boundary plan): whole-body Debug still untouched —
+/// the decided-then-mutated clone discipline.
 ///
-/// The fixture is a quarter cone's base disc. Its pose against the cone
-/// is axis-normal, which the plane×cone arm serves, so the C5 gate
-/// passes it and the door proceeds to the per-chart reanchor plan,
-/// which refuses: the wedge caps' generator edges cannot follow the
-/// moved disc. The door and the magnitude are pinned — `d·sin α` at
-/// `α = π/4`, the rim vertex's slide along the generator it must still
-/// stand on.
+/// **The elbow's cap is also the torus arm's pose witness.** A partial
+/// revolve's torus wall: its planar caps contain the torus axis, which
+/// the plane×torus arm serves (the two meridian circles). Offset, a cap
+/// is parallel to the axis and OFF it, and cuts a spiric quartic the
+/// arm routes to the general rung, so the C5 gate refuses it by the
+/// arm's own grounds while planning the cap's boundary. This row
+/// pinned `ReanchorOffCarrier` at `8.331e-4` m while the gate read only
+/// the kind pair: the moved pose passed as served and the corner gate
+/// one door down caught it. The C5 table's own `plane × torus` note is
+/// held row by row in `intersect_table::route_inventory`.
 #[test]
 fn probe_late_err_leaves_body_untouched() {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(-0.3, 0.0), 1.0),
+        (Point2::new(0.3, 0.0), 1.0),
     ]);
-    let profile = Profile::new(SketchPlane::xy(), vec![lp])
-        .validate(Tol::witness())
-        .expect("triangle profile");
-    let quarter = revolve(
-        &profile,
-        RevolveAxis {
-            origin: p2(0.0, 0.0),
-            dir: Vec2::new(0.0, 1.0),
-        },
-        Revolution::Partial(0.5 * core::f64::consts::PI),
-        Tol::witness(),
-    )
-    .expect("the quarter cone revolves")
-    .body;
-    let disc = quarter
-        .faces()
-        .find(|(_, f)| {
-            matches!(
-                quarter.get_surface(f.surface),
-                Some(geom::Surface::Plane { normal, .. }) if normal.y.abs() > 0.5
-            )
-        })
-        .map(|(k, _)| k)
-        .unwrap();
-    let mut work = quarter.clone();
-    let before = format!("{work:?}");
-    let e = topo::replace_face_offset(&mut work, disc, 0.05, band(), Tol::witness())
-        .expect_err("the wedge caps cannot follow the moved disc");
-    let topo::ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
-        panic!("expected the reanchor refusal, got {e}");
-    };
-    assert!(
-        (gap - 0.05 * core::f64::consts::FRAC_1_SQRT_2).abs() <= 1e-12,
-        "the corner error is d·sin(pi/4), got {gap}"
-    );
-    assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
-}
-
-/// **The C5 gate reads the POSE, and the elbow's cap is the torus
-/// arm's witness.** A partial revolve's torus wall: its planar caps
-/// contain the torus axis, which the plane×torus arm serves (the two
-/// meridian circles). Offset, a cap is parallel to the axis and OFF it,
-/// and cuts a spiric quartic the arm routes to the general rung. The
-/// door refuses at the gate by the arm's own grounds, the body
-/// untouched.
-///
-/// This row pinned `ReanchorOffCarrier` at `8.331e-4` m while the gate
-/// read the kind pair: the moved pose passed as served and the corner
-/// gate one door down caught it. The C5 table's own `plane × torus`
-/// note is held row by row in `intersect_table::route_inventory`.
-#[test]
-fn probe_the_offset_elbow_cap_leaves_the_torus_arms_pose() {
-    let lp = bulge_loop(vec![(p2(-0.3, 0.0), 1.0), (p2(0.3, 0.0), 1.0)]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .expect("disc profile");
     let elbow = revolve(
         &profile,
         RevolveAxis {
-            origin: p2(1.2, 0.0),
+            origin: Point2::new(1.2, 0.0),
             dir: Vec2::new(0.0, -1.0),
         },
         Revolution::Partial(-0.5 * core::f64::consts::PI),
@@ -638,7 +582,7 @@ fn probe_the_offset_elbow_cap_leaves_the_torus_arms_pose() {
         .unwrap();
     let mut work = elbow.clone();
     let before = format!("{work:?}");
-    let e = topo::replace_face_offset(&mut work, cap, -0.05, band(), Tol::witness())
+    let e = topo::replace_face_offset(&mut work, cap, -0.05, Tol::witness())
         .expect_err("the moved cap cuts a spiric");
     let topo::ReplaceFaceError::NeighborPoseUnroutable {
         kind,

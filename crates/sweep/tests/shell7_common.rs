@@ -12,10 +12,6 @@ use sweep::test_support::tube_frame;
 use sweep::{Revolution, RevolveAxis, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::{Body, EdgeKey, ReplaceFaceError, ShellError, VertexKey};
 
-pub(crate) fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 pub(crate) fn tol() -> Tol {
     Tol::witness()
 }
@@ -28,7 +24,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         turn,
@@ -41,7 +37,7 @@ pub(crate) fn revolved(lp: ProfileLoop<f64>, turn: Revolution<f64>) -> Body<f64>
 /// A polyline meridian revolved.
 pub(crate) fn polyline(pts: &[(f64, f64)], turn: Revolution<f64>) -> Body<f64> {
     revolved(
-        bulge_loop(pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect()),
+        bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect()),
         turn,
     )
 }

@@ -10,12 +10,15 @@
 //! permissive evidence, the answer refuses only what no evidence would
 //! admit.
 //!
-//! The aperture rows are the file's division rule applied to
-//! plane×cone, which divided by `sin α·‖a×n‖` and by `cos α` with
-//! neither decided. Each was red before the guard: the near-right cone
-//! minted an axis-normal circle some `1e16` metres wide, and the
-//! near-line cone answered its apex lane from a quotient of two in-band
-//! numbers.
+//! The aperture rows hold plane×cone to the file's BAND posture on the
+//! cone's convention `α ∈ (0, π/2)` (the module docs; the posture itself
+//! is the open row `the-tube-and-radius-guards-decide-on-the-band-where-
+//! check-1-reads-lo`). Each was red before the guard: a cone at the
+//! stored right angle minted an axis-normal circle `h·tan α ≈ 3e16`
+//! metres wide, and a cone closed to `1e-300` answered its apex lane's
+//! tangent generator. Both answers are the correctly rounded values for
+//! the datums as stored; what the rows pin is the posture, which refuses
+//! a cone whose aperture the band cannot tell from its convention's end.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -257,10 +260,10 @@ fn an_in_band_pose_escalates() {
     assert!(matches!(err, SectionError::Escalated(_)), "{err:?}");
 }
 
-/// **The axis-normal lane's division by `cos α`, guarded.** At the
-/// stored right angle `cos α` is `6e-17` — no relative accuracy at all —
-/// and the arm used to mint a "circle" of radius `h·tan α ≈ 3e16` from
-/// it. Red before the guard: `Ok(AxisNormalCircle)`.
+/// **The axis-normal lane's `cos α` clause, decided on the band.** At
+/// the stored right angle `cos α` is `6e-17`, inside the band, and the
+/// arm used to mint a "circle" of radius `h·tan α ≈ 3e16` from it. Red
+/// before the guard: `Ok(AxisNormalCircle)`.
 #[test]
 fn a_right_angled_cone_refuses_the_axis_normal_division() {
     let cone = cone_z(core::f64::consts::FRAC_PI_2);
@@ -278,10 +281,10 @@ fn a_right_angled_cone_refuses_the_axis_normal_division() {
     assert_eq!(diag.predicate, Some("pn_aperture_cos"));
 }
 
-/// **The apex lane's division by `sin α·‖a×n‖`, guarded.** A cone
+/// **The apex lane's `sin α` clause, decided on the band.** A cone
 /// closed to within ε of its axis, cut by a plane through its apex,
-/// used to answer the tangent-generator lane from a quotient of two
-/// in-band numbers. Red before the guard: `Ok(ApexTangentLine)`.
+/// used to answer the tangent-generator lane. Red before the guard:
+/// `Ok(ApexTangentLine)`.
 #[test]
 fn a_closed_cone_refuses_the_apex_lane_division() {
     let cone = cone_z(1e-300);
@@ -319,4 +322,37 @@ fn the_pose_is_read_over_the_callers_reach() {
     let far = route_pose(&cone, &c, 1e3, band()).expect("decides at a long reach");
     assert!(near.implemented, "within the band over a unit reach");
     assert!(!far.implemented, "definitely tilted over a long reach");
+}
+
+/// **A pose the arm cannot classify is not served.** The aperture
+/// guards run ahead of plane×cone's pose trileans, so a cone whose
+/// `cos α` is inside the band refuses before the tilt is ever read. A
+/// gate that read that refusal as "served" would admit the tilted plane
+/// — which the same arm refuses at any classifiable aperture — only
+/// because the operand is degenerate.
+#[test]
+fn an_unclassified_pose_is_not_served() {
+    let cone = cone_z((0.2 * eps()).acos());
+    let tilted = plane(Point3::new(0.0, 0.0, 3.0), Vec3::new(0.3, 0.0, 1.0));
+    let p = route_pose(&tilted, &cone, 1.0, band()).unwrap();
+    assert!(!p.implemented, "an operand guard classified no pose");
+    let control = route_pose(&tilted, &cone_z(0.5), 1.0, band()).unwrap();
+    assert!(
+        !control.implemented,
+        "and the classifiable twin is refused too"
+    );
+}
+
+/// **The aperture guard is levered by the arm's extent.** `sin α = 20ε`
+/// over a unit reach is definitely open; over a reach of `0.01` it is
+/// inside the band. A guard that dropped its lever answers both alike.
+#[test]
+fn the_aperture_guard_is_levered_by_extent() {
+    let cone = cone_z(20.0 * eps());
+    let through = plane(Point3::new(0.0, 0.0, 1.0), Vec3::unit_x());
+    assert!(plane_cone_section(&through, &cone, 1.0, band()).is_ok());
+    assert!(matches!(
+        plane_cone_section(&through, &cone, 0.01, band()),
+        Err(SectionError::DegenerateOperand { .. })
+    ));
 }

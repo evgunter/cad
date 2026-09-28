@@ -31,7 +31,7 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Point3, Tol};
+use geom_core::{Point2, Point3, Tol};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -40,7 +40,11 @@ use topo::{Body, FaceContainment, FaceKey, ReplaceFaceError};
 /// The `revolve_cone` triangle: apex `(0, 1, 0)`, base radius `1` at
 /// `y = 0`, half-angle `π/4`. The carrier is `ρ = 1 − y`.
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 /// The full cone: its two bands are APEX-CLOSED.
@@ -59,7 +63,12 @@ fn cone() -> Body<f64> {
 /// `1` at `y = 0`, top radius `0.5` at `y = 1`. The carrier is
 /// `ρ = 1 − y/2`.
 fn frustum() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.5, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -221,6 +230,98 @@ fn an_apex_closed_band_beside_a_sibling_is_the_honest_remainder() {
     }
 }
 
+/// The triangle or the frustum revolved through `theta` about `y`.
+fn swept(frustum_profile: bool, theta: f64) -> Body<f64> {
+    let lp = if frustum_profile {
+        ProfileLoop::polygon([
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(0.5, 1.0),
+            Point2::new(0.0, 1.0),
+        ])
+    } else {
+        triangle()
+    };
+    revolve(
+        &validated(vec![lp]),
+        axis_y(),
+        Revolution::Partial(theta),
+        Tol::witness(),
+    )
+    .unwrap()
+    .body
+}
+
+/// **Partial revolves partition their swept window and hold nothing
+/// outside it.** For each sweep angle, on the triangle's cone and the
+/// frustum's, a carrier point strictly inside the swept azimuth window
+/// is `In` at most ONE cone face and `Out` of no fewer than all but one
+/// of them — never `In` twice, never `Out` everywhere — and a carrier
+/// point `1e-5` rad past either edge of the window (more in a coarse ε
+/// row, where the trim's band is wider) is `In` no face.
+/// The window is found from the face data rather than assumed: every
+/// in-window probe is asked of every cone face the body has.
+///
+/// A trim read a half-period away, a window read as wrapped, or a
+/// group-scoped window breaks one of the three.
+#[test]
+fn partial_revolves_partition_their_window_and_hold_nothing_outside() {
+    for frustum_profile in [false, true] {
+        let rho_at = |y: f64| {
+            if frustum_profile {
+                1.0 - y / 2.0
+            } else {
+                1.0 - y
+            }
+        };
+        for theta in [1.0, core::f64::consts::PI, 4.5] {
+            let body = swept(frustum_profile, theta);
+            let cones = cone_faces(&body);
+            assert!(!cones.is_empty());
+            // The sweep runs from the profile plane (`z = 0`, `x > 0`)
+            // through `theta` about `+y` by the right-hand rule, which is
+            // azimuth `−theta` in `at`'s convention.
+            let edge_a = 0.0;
+            let edge_b = -theta;
+            for y in [0.2, 0.5, 0.8] {
+                let rho = rho_at(y);
+                for k in 1..8 {
+                    let phi = edge_b * f64::from(k) / 8.0;
+                    let v: Vec<_> = cones
+                        .iter()
+                        .map(|&f| contain(&body, f, at(rho, y, phi)))
+                        .collect();
+                    let ins = v
+                        .iter()
+                        .filter(|x| **x == Some(FaceContainment::In))
+                        .count();
+                    let outs = v
+                        .iter()
+                        .filter(|x| **x == Some(FaceContainment::Out))
+                        .count();
+                    assert!(ins <= 1, "theta {theta}, y {y}, phi {phi}: in twice {v:?}");
+                    assert!(
+                        outs < cones.len(),
+                        "theta {theta}, y {y}, phi {phi}: out of all {v:?}"
+                    );
+                }
+                // `1e-5` rad past the edge, widened in a coarse ε row so the
+                // probe stays definitely clear of the trim's band.
+                let off = 1e-5_f64.max(1e3 * eps());
+                for phi in [edge_a + off, edge_b - off] {
+                    for &f in &cones {
+                        assert_ne!(
+                            contain(&body, f, at(rho, y, phi)),
+                            Some(FaceContainment::In),
+                            "theta {theta}, y {y}: phi {phi} is outside the sweep"
+                        );
+                    }
+                }
+            }
+        }
+    }
+}
+
 // -------------------------------------------------------------------
 // The C5 gate, asked about the pose.
 // -------------------------------------------------------------------
@@ -253,7 +354,7 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
         for d in [0.05, -0.05] {
             let mut work = body.clone();
             let before = format!("{work:?}");
-            let e = topo::replace_face_offset(&mut work, cap, d, band(), Tol::witness())
+            let e = topo::replace_face_offset(&mut work, cap, d, Tol::witness())
                 .expect_err("the moved cap cuts a hyperbola");
             let ReplaceFaceError::NeighborPoseUnroutable {
                 kind,
@@ -274,11 +375,15 @@ fn an_offset_wedge_cap_refuses_at_the_pose_gate() {
     }
 }
 
-/// **A pose the arm serves still passes.** The base disc is
-/// axis-normal, and an axis-normal plane off the apex is the circle the
-/// plane×cone arm mints; offset, it stays axis-normal. The gate must
-/// not refuse it: the refusal that stops this door is the corner
-/// re-anchor at the wedge caps, which is not a C5 question.
+/// **A pose the arm serves still passes, and the late refusal leaves
+/// the body untouched.** The base disc is axis-normal, and an
+/// axis-normal plane off the apex is the circle the plane×cone arm
+/// mints; offset, it stays axis-normal. The gate must not refuse it:
+/// the refusal that stops this door is the corner re-anchor at the
+/// wedge caps, decided after the mint and inside the boundary plan, so
+/// the body is untouched across it. The magnitude is pinned —
+/// `|d|·sin α` at `α = π/4`, the rim vertex's slide along the generator
+/// it must still stand on.
 #[test]
 fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     let body = quarter_cone();
@@ -290,11 +395,18 @@ fn an_offset_axis_normal_cap_passes_the_pose_gate() {
     };
     for d in [0.05, -0.05] {
         let mut work = body.clone();
-        let e = topo::replace_face_offset(&mut work, disc, d, band(), Tol::witness())
+        let before = format!("{work:?}");
+        let e = topo::replace_face_offset(&mut work, disc, d, Tol::witness())
             .expect_err("the wedge caps cannot follow the moved disc");
+        let ReplaceFaceError::ReanchorOffCarrier { gap, .. } = e else {
+            panic!(
+                "d {d}: the axis-normal pose is served; expected the re-anchor refusal, got {e}"
+            );
+        };
         assert!(
-            matches!(e, ReplaceFaceError::ReanchorOffCarrier { .. }),
-            "d {d}: the axis-normal pose is served; expected the re-anchor refusal, got {e}"
+            (gap - 0.05 * core::f64::consts::FRAC_1_SQRT_2).abs() <= 1e-12,
+            "d {d}: the corner error is |d|·sin(pi/4), got {gap}"
         );
+        assert_eq!(before, format!("{work:?}"), "body moved across a late Err");
     }
 }

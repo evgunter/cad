@@ -16,11 +16,12 @@ Found by GERM's aperture-division sweep (the C5 pose-gate unit).
 
 `geom_brep::ConeOffset` (`crates/geom-brep/src/offset.rs`) divides by
 `sin α` twice: `apex()` slides the apex by `d / sin α`, and `shift()`
-moves `v` by `d·cos α / sin α`. Neither division is unguarded in the
-sense the section arms guard theirs: `α` is a stored datum that tier-3
-check 1 holds strictly inside `(0, π/2)` at rest, and `sin α` of a
-stored `α` is relatively exact, so each quotient is correctly rounded.
-The sweep's disposition was therefore "no divisor guard owed".
+moves `v` by `d·cos α / sin α`. Neither division is guarded the way
+the section arms guard theirs, and neither needs to be for accuracy:
+`α` is a stored datum that tier-3 check 1 holds strictly inside
+`(0, π/2)` at rest, and `sin α` of a stored `α` is relatively exact,
+so each quotient is correctly rounded. The sweep's disposition was
+therefore "no divisor guard owed".
 
 What is left is a CANCELLATION one step later. A parallel re-minted at
 `v + shift` about the slid apex (`transport_curve`'s cone arm,

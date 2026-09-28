@@ -21,7 +21,7 @@
 
 use crate::revolve_common;
 
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::{ProfileLoop, test_support::bulge_loop};
 use revolve_common::*;
 use sweep::{Revolution, revolve};
@@ -37,15 +37,15 @@ const R_SPHERE: f64 = 0.010;
 fn dimpled_ring(l: f64) -> ProfileLoop<f64> {
     let r = R_SPHERE;
     bulge_loop(vec![
-        (p2(0.0, -2.0 * r), 0.0),
-        (p2(l, -2.0 * r), 0.0),
-        (p2(l, 2.0 * r), 0.0),
-        (p2(0.0, 2.0 * r), 0.0),
+        (Point2::new(0.0, -2.0 * r), 0.0),
+        (Point2::new(l, -2.0 * r), 0.0),
+        (Point2::new(l, 2.0 * r), 0.0),
+        (Point2::new(0.0, 2.0 * r), 0.0),
         // The dimple's meridian: a semicircle DOWN the axis bulging
         // into the material side, so the wall is a rimless sphere
         // band whose two meridians are the sweep's end copies.
-        (p2(0.0, r), -1.0),
-        (p2(0.0, -r), 0.0),
+        (Point2::new(0.0, r), -1.0),
+        (Point2::new(0.0, -r), 0.0),
     ])
 }
 

@@ -36,16 +36,12 @@ use geom_core::Tol;
 use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The three-arc cylinder these rows share, at `z ∈ [z0, z0 + 1]` and
 /// turned
 /// by `rot` degrees about its axis: radius 0.5, three ARC edges per
 /// cap, three cap vertices at `rot + {0°, 120°, 240°}`.
 fn cylinder(z0: f64, rot: f64) -> Body<f64> {
-    three_arc_cylinder(p2(0.0, 0.0), 0.5, z0, 1.0, rot)
+    three_arc_cylinder(Point2::new(0.0, 0.0), 0.5, z0, 1.0, rot)
 }
 
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +

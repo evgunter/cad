@@ -13,7 +13,7 @@ use sweep::test_support::block;
 use topo::{Body, FaceKey};
 
 use super::common::latitude_seam::two_arc_sphere;
-use super::shell7_common::{drum, p2, revolved, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{drum, revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
 use super::verbs_shell::{tube, vessel};
 
@@ -47,13 +47,16 @@ fn bulge(a: Point2<f64>, b: Point2<f64>, c: Point2<f64>) -> f64 {
 }
 
 fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
-    let c = p2(0.0, h / 2.0);
+    let c = Point2::new(0.0, h / 2.0);
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r, 0.0), bulge(p2(r, 0.0), p2(r, h), c)),
-            (p2(r, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (
+                Point2::new(r, 0.0),
+                bulge(Point2::new(r, 0.0), Point2::new(r, h), c),
+            ),
+            (Point2::new(r, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )
@@ -62,10 +65,10 @@ fn sphere_zone_vase(r: f64, h: f64) -> Body<f64> {
 fn cone_frustum(r0: f64, r1: f64, h: f64) -> Body<f64> {
     revolved(
         bulge_loop(vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(r0, 0.0), 0.0),
-            (p2(r1, h), 0.0),
-            (p2(0.0, h), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(r0, 0.0), 0.0),
+            (Point2::new(r1, h), 0.0),
+            (Point2::new(0.0, h), 0.0),
         ]),
         Revolution::Full,
     )

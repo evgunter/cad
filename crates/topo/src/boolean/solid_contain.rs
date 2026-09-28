@@ -1044,46 +1044,6 @@ fn cone_trimmed_window<T: Decide>(
     }
 }
 
-/// **A point's elevation off a cone** — its exact signed distance to the
-/// carrier, positive off the axis side, `ρ·cos α − s·sin α` with `ρ`
-/// the distance from the axis and `s` the point's axial height above
-/// the apex taken toward the nappe asked about:
-///
-/// - `Some(nappe)` — ONE nappe, the face's own (`true` the `v > 0`
-///   one). `s = ±h`, so a point on the MIRROR nappe reads `2ρ·cos α`
-///   off, which is what keeps it from reading as this face's.
-/// - `None` — the whole double cone, the [`geom::Surface::Cone`]
-///   carrier as the implicit form states it. `s = |h|`, the nearer
-///   nappe.
-///
-/// Not linearized: in the point's own meridian half-plane the nappe is
-/// the ray from the apex along `(sin α, cos α)` in `(ρ, s)`, and the
-/// expression is `(ρ, s)`'s perpendicular offset from that ray's line.
-/// Where `s ≥ 0` the foot lies on the ray itself (`ρ·sin α + s·cos α ≥
-/// 0`), so the offset IS the distance; where `s < 0` — a point below
-/// the apex, asked about one nappe — it is a positive lower bound on
-/// the distance `√(ρ² + s²)` (Cauchy–Schwarz), which is all a carrier
-/// verdict reads. Every door asking "is this point ON the cone" reads
-/// this one expression, so the solid door, the face door and their
-/// rows cannot disagree about which points lie on it.
-pub(super) fn cone_elevation<T: Decide>(
-    apex: Point3<T>,
-    axis: Vec3<T>,
-    half_angle: T,
-    nappe: Option<bool>,
-    p: Point3<T>,
-) -> T {
-    let w = p - apex;
-    let h = w.dot(axis);
-    let s = match nappe {
-        Some(true) => h,
-        Some(false) => T::zero() - h,
-        None => h.abs(),
-    };
-    let (sin_a, cos_a) = half_angle.sin_cos();
-    (w - axis * h).norm() * cos_a - s * sin_a
-}
-
 /// The face's slant window, folded over its outer cycle's vertices.
 ///
 /// # Errors
@@ -2561,6 +2521,36 @@ impl SolidFaces {
         let faces = body
             .faces_of_solid(solid)
             .ok_or(PointInSolidError::NoSuchSolid { solid })?;
+        Self::guarded(body, faces)
+    }
+
+    /// One SHELL's faces in face-arena order, guarded as [`Self::of`]
+    /// guards a solid's — selected by the faces' own `shell`
+    /// back-pointers, so the probe reads the material that shell ALONE
+    /// bounds: for a cavity wall, whose faces point into the cavity,
+    /// that is everything outside the cavity (the complement, read
+    /// through the probe's at-infinity side exactly as a reverted
+    /// operand is).
+    ///
+    /// A key the body does not hold selects no face, which the probe
+    /// answers [`PointInSolidError::ZeroVolumeBody`]; a group-read
+    /// surface key shared with a face of ANOTHER SHELL — of this solid
+    /// or of another — refuses [`PointInSolidError::SurfaceSharedOutsideSolid`],
+    /// whose reason holds unchanged at shell grain.
+    pub(crate) fn of_shell<T: Decide>(
+        body: &Body<T>,
+        shell: crate::entity::ShellKey,
+    ) -> Result<Self, PointInSolidError> {
+        let faces = body
+            .faces()
+            .filter(|(_, d)| d.shell == shell)
+            .map(|(k, _)| k)
+            .collect();
+        Self::guarded(body, faces)
+    }
+
+    /// `faces` as a selection, behind the shared-group-key guard.
+    fn guarded<T: Decide>(body: &Body<T>, faces: Vec<FaceKey>) -> Result<Self, PointInSolidError> {
         // A group-read kind whose surface key is carried on both sides
         // of the selection boundary (the variant's doc). One pass over
         // the arena: every key's first face outside the selection.
@@ -2710,7 +2700,17 @@ fn point_in_faces<T: Decide>(
                 if face != representative {
                     continue;
                 }
-                let elev = cone_elevation(apex, axis, half_angle, Some(nappe), q);
+                let elev = geom_brep::cone_elevation(
+                    apex,
+                    axis,
+                    half_angle,
+                    Some(if nappe {
+                        geom_brep::Nappe::Opening
+                    } else {
+                        geom_brep::Nappe::Mirror
+                    }),
+                    q,
+                );
                 if decide("bool_point_in_solid_plane", Margin::of(elev), band).map_err(escalate)?
                     == Sign::Zero
                 {

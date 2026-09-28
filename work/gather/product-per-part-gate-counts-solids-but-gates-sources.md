@@ -2,10 +2,12 @@
 id: product-per-part-gate-counts-solids-but-gates-sources
 kind: issue
 title: the product's per-part gate counts SOLIDS but gates SOURCES, so a lone multi-solid source is gated twice on one geometry
-status: open
+status: dispatched
 opened: 2026-09-26
 priority: P3
-cost: D
+cost: M
+branch: gather/per-part-aggregate-gate
+refs: [check-7-stops-body-wide-so-one-solids-defect-hides-anothers-orientation]
 ---
 
 

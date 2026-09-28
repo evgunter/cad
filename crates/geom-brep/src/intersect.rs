@@ -27,12 +27,15 @@
 //!   a named trilean metered at the arm's `extent` before the lane that
 //!   divides runs, and refuses [`SectionError::DegenerateOperand`] when
 //!   it is not definitely positive (`pn_aperture_*`, `coc_aperture_*`).
-//!   A body at rest already holds the convention exactly (tier-3 check
-//!   1); the trilean is the band's question — a divisor within ε of
-//!   zero carries no relative accuracy, and a quotient by it is not a
-//!   closed form this table can stand behind — and the arm's insurance
-//!   against operands that never came to rest, as `pt_tube_guard` is
-//!   the torus arm's.
+//!   This is the file's BAND posture on an operand convention — the one
+//!   `pt_tube_guard` takes on the torus — and it is a posture, not a
+//!   numerical necessity: `sin α` of a stored `α` is relatively exact,
+//!   and a quotient by it is the correctly rounded value for the datum
+//!   as stored. A body at rest holds the convention against ZERO (tier-3
+//!   check 1), so a cone that validates can be refused here. Whether the
+//!   convention is a band question or a datum-sign question is open
+//!   (`work/germ/the-tube-and-radius-guards-decide-on-the-band-where-check-1-reads-lo.md`),
+//!   and these trileans follow the band side until that is ruled.
 //! - **The M2 pairs enter unchanged**: plane×plane stays the existing
 //!   splitting/boolean seam (rung 1, implemented — the table names it,
 //!   the pipelines execute it bit-identically); plane×cylinder's rim
@@ -493,11 +496,17 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 /// - an in-band trilean ⇒ [`SectionError::Escalated`], returned: the
 ///   pose cannot be told from its neighbour at this ε.
 ///
-/// **Only ROUTING is read.** An arm that classifies the pose and then
-/// refuses its mint — a degenerate operand, a locus past `extent`, a
-/// coincidence, a carrier the conic constructor declines — has still
-/// said the pose is its own, and `implemented` stands; what it would
-/// not mint is that arm's refusal to give, not this question's.
+/// **Only ROUTING is read, and only a CLASSIFIED pose is served.** An
+/// arm that classifies the pose and then refuses its mint — a locus
+/// past `extent`, a coincidence, a carrier the conic constructor
+/// declines — has still said the pose is its own, and `implemented`
+/// stands; what it would not mint is that arm's refusal to give, not
+/// this question's. An arm that refuses BEFORE its pose trileans run —
+/// an operand guard ([`SectionError::DegenerateOperand`],
+/// [`SectionError::DegenerateTorus`]) — has classified nothing, and the
+/// pose is not served: a gate must not admit what it cannot classify.
+/// `note` is then the guard's own text, or this function's statement
+/// where the arm's refusal carries none.
 ///
 /// **Cylinder×cylinder is asked with [`RadiusEvidence::Declared`]**,
 /// the most permissive evidence the arm takes. A pose the arm refuses
@@ -522,9 +531,14 @@ pub fn route(a: SurfaceKind, b: SurfaceKind) -> PairRoute {
 ///
 /// # Errors
 ///
-/// [`SectionError::Escalated`] — a pose trilean in the band.
-/// [`SectionError::WrongLane`] — never, unless this dispatch itself is
-/// wrong (a kernel bug, loudly typed).
+/// [`SectionError::Escalated`] — a pose trilean (or an operand guard)
+/// in the band. [`SectionError::WrongLane`],
+/// [`SectionError::RadiusDeclarationContradicted`] and
+/// [`SectionError::CoaxialDeclarationContradicted`] only if this
+/// dispatch itself is wrong — it names each arm's seats in the arm's
+/// order, maps the cylinder pair's contradiction to a refused pose, and
+/// passes no coaxial declaration — so each is a kernel bug, returned
+/// typed rather than read as a verdict. Nothing else is returned.
 pub fn route_pose<T: Decide>(
     a: &Surface<T>,
     b: &Surface<T>,
@@ -569,20 +583,31 @@ pub fn route_pose<T: Decide>(
         | (Approx, Plane | Cylinder | Cone | Sphere | Torus | Nurbs | Approx)
         | (Plane | Cylinder | Cone | Sphere | Torus | Nurbs, Approx) => Ok(()),
     };
+    let refused = |note| {
+        Ok(PairRoute {
+            implemented: false,
+            note,
+            ..arm
+        })
+    };
     match verdict {
+        // Classified: the arm names the pose as its own, whatever it
+        // then says about minting it.
         Ok(())
         | Err(
-            SectionError::DegenerateOperand { .. }
-            | SectionError::BeyondOperandExtent { .. }
+            SectionError::BeyondOperandExtent { .. }
             | SectionError::CoincidentSurfaces
-            | SectionError::DegenerateTorus
             | SectionError::Carrier(_),
         ) => Ok(arm),
-        Err(SectionError::RoutesToGeneralRung { why, .. }) => Ok(PairRoute {
-            implemented: false,
-            note: why,
-            ..arm
-        }),
+        Err(SectionError::RoutesToGeneralRung { why, .. }) => refused(why),
+        // Refused BEFORE the pose was classified: an operand guard the
+        // arm runs ahead of its pose trileans. The pose is unknown, and
+        // a gate must not admit what it cannot classify.
+        Err(SectionError::DegenerateOperand { what }) => refused(what),
+        Err(SectionError::DegenerateTorus) => refused(
+            "the torus is not a ring (R > r > 0 is not decided), so the arm refuses \
+             it before classifying any pose",
+        ),
         Err(
             e @ (SectionError::Escalated(_)
             | SectionError::WrongLane { .. }
@@ -1676,13 +1701,11 @@ pub enum PlaneConeSection<T: Real> {
 ///
 /// 0. `pn_aperture_sin` and `pn_aperture_cos`, each metered at
 ///    `extent` — the two clauses of the cone's convention
-///    `α ∈ (0, π/2)`, decided because the lanes below DIVIDE by them
-///    (the apex lane by `sin α·‖a×n‖`, the axis-normal lane by
-///    `cos α`); either failing refuses
-///    [`SectionError::DegenerateOperand`]. The divisor of the apex
-///    lane is then bounded away from zero on both of its branches: on
-///    `Positive` it exceeds the decided discriminant, and on `Zero` it
-///    tracks `cos α·|a·n|`, whose small-`|a·n|` end is `sin α`'s.
+///    `α ∈ (0, π/2)`, on the file's band posture (module docs), at the
+///    two lanes below that DIVIDE by them (the apex lane by
+///    `sin α·‖a×n‖`, the axis-normal lane by `cos α`); either failing
+///    refuses [`SectionError::DegenerateOperand`] before any pose is
+///    classified.
 /// 1. `pn_apex_on_plane` — margin `(apex − q)·normal` (meters): Zero ⇒
 ///    the apex lane (step 2); definite ⇒ step 3.
 /// 2. `pn_apex_section` — margin `sin α·‖axis×normal‖ −
@@ -1729,11 +1752,11 @@ pub fn plane_cone_section<T: Decide>(
     };
 
     let (sin_a, cos_a) = half_angle.sin_cos();
-    // The division guards (the module's aperture rule): the apex lane
-    // divides by
-    // `sin α·‖a×n‖` and the axis-normal lane by `cos α`, so each
-    // convention clause is decided before either lane runs. Neither is
-    // a pose question — a pose that passes them is classified below.
+    // The aperture guards (the module's band posture on the cone's
+    // convention): the apex lane divides by `sin α·‖a×n‖` and the
+    // axis-normal lane by `cos α`, so each clause is decided before
+    // either lane runs. They run BEFORE the pose trileans, so a refusal
+    // here has classified no pose — `route_pose` reads it as unserved.
     for (name, margin, what) in [
         (
             "pn_aperture_sin",

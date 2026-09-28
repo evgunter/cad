@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P0
 cost: D
-refs: [sense-inversion-is-invisible-to-tier-3-on-arc-capped-lofts]
+refs: [3190]
 ---
 
 

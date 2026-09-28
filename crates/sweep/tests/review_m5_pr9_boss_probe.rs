@@ -15,15 +15,11 @@ use sweep::{Extrusion, extrude};
 use topo::Body;
 use topo::splitting::{SplitPlane, split};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn rect(w: f64, h: f64) -> ProfileLoop<f64> {
     bulge_loop(
         [(0.0, 0.0), (w, 0.0), (w, h), (0.0, h)]
             .into_iter()
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     )
 }
@@ -207,7 +203,10 @@ fn du_of_rims_sums_equal_span_arcs_the_shape_the_old_rule_silently_halved() {
     // accepted silently at HALF the true du. After the cosurface
     // merge the face has two arcs per rim level; volume must be the
     // closed-form half-cylinder.
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -245,7 +244,10 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     // sub-period wall fragments — merge_coplanar_faces would merge
     // them). The gate lets it in; the pipeline must then either work
     // correctly or refuse typed — never a silently wrong body.
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -265,7 +267,7 @@ fn a_genuinely_non_maximal_curved_operand_slips_the_f7_gate_what_then() {
     let lp2 = bulge_loop(
         [(-1.0, -1.0), (1.0, -1.0), (1.0, 1.0), (-1.0, 1.0)]
             .into_iter()
-            .map(|(x, y)| (p2(x, y), 0.0))
+            .map(|(x, y)| (Point2::new(x, y), 0.0))
             .collect(),
     );
     let plane2 = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.4)));
@@ -301,7 +303,7 @@ fn a_boss_overhanging_the_plate_edge_hits_the_curved_pierce_frontier() {
     // centered on the plate's edge): the crossing layer meets a
     // curved face away from any shared boundary — the typed frontier
     // door (CurvedPierceUnsupported), never a wrong body.
-    let boss_over = n_arc_boss(p2(0.0, 1.5), 3, 0.3, 1.0);
+    let boss_over = n_arc_boss(Point2::new(0.0, 1.5), 3, 0.3, 1.0);
     match topo::union(&plate(), &boss_over, Tol::witness()) {
         // This fixture reaches `CurvedSectorSideUnsupported` today, so
         // no text is asserted here; the pierce refusal's sentence is

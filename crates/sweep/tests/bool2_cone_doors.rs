@@ -52,7 +52,7 @@
 use crate::revolve_common;
 
 use crate::common::approx::band;
-use geom_core::{Point3, Tol, Vec3};
+use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::ProfileLoop;
 use profile::RawLoop;
 use revolve_common::*;
@@ -64,7 +64,11 @@ use topo::{Body, BooleanError, PointInSolidError, SolidContainment, point_in_sol
 /// (0,0), (1,0), (0,1). The slant edge is the cone (apex at (0,1,0),
 /// half-angle π/4), the base edge the disc, the axis edge omitted.
 fn triangle() -> ProfileLoop<f64> {
-    ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.0, 1.0)])
+    ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.0, 1.0),
+    ])
 }
 
 /// The full cone: base disc of radius 1 at y = 0, apex at (0, 1, 0).
@@ -81,7 +85,12 @@ fn cone() -> Body<f64> {
 /// the VIRTUAL one at (0, 2, 0), a point of free space above the body.
 /// The carrier is `ρ = 1 − y/2`.
 fn frustum() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(0.5, 1.0), p2(0.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(0.5, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
     let vp = validated(vec![lp]);
     revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
         .unwrap()
