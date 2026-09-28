@@ -133,23 +133,27 @@ fn a_rim_arc_in_the_face_plane_records_its_valence_two_vertex() {
 }
 
 /// **The rim in a parallel plane off the face's is a miss.** The same
-/// brick lowered by 0.1: the rim runs 0.1 above its top face, and the
-/// sweep records no contact of `A`'s at all (the side faces place both
-/// rim roots `Out`, above the brick).
+/// brick lowered by 0.1, and by twice the band's escalation threshold:
+/// the rim runs above its top face, and the sweep records no contact
+/// of `A`'s at all (the side faces place both rim roots `Out`, above
+/// the brick).
 ///
 /// Mutant: the offset decision dropped (every parallel frame taken as
-/// in the plane) records `w` against the top face it does not touch.
+/// in the plane) records `w` against the top face at the near offset,
+/// where `contfp`, handed a point off its plane, places it `In`.
 #[test]
 fn a_rim_arc_in_a_parallel_plane_off_the_face_is_a_miss() {
     let (a, _) = split_sheet();
-    let (b, _) = brick_under(0.9);
-    let contacts = sweep(&a, &b).expect("the sweep runs");
-    assert!(
-        contacts.a_on_b.is_empty() && contacts.vv.is_empty(),
-        "no contact: a_on_b {:?}, vv {:?}",
-        contacts.a_on_b,
-        contacts.vv
-    );
+    for top in [0.9, 1.0 - 2.0 * band().escalate()] {
+        let (b, _) = brick_under(top);
+        let contacts = sweep(&a, &b).expect("the sweep runs");
+        assert!(
+            contacts.a_on_b.is_empty() && contacts.vv.is_empty(),
+            "top {top}: no contact: a_on_b {:?}, vv {:?}",
+            contacts.a_on_b,
+            contacts.vv
+        );
+    }
 }
 
 /// **An offset the band cannot decide refuses, named.** The brick's
