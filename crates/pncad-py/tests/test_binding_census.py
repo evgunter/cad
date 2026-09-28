@@ -3568,6 +3568,7 @@ MEMBERS_BOUND_AS = {
     "ValidationError::RingContactEscalated": "ValidationFinding.variant",
     "ValidationError::RingOutsideOuter": "ValidationFinding.variant",
     "ValidationError::RingNestingUndecided": "ValidationFinding.variant",
+    "ValidationError::ShellWinding": "ValidationFinding.variant",
     "ValidationError::UndeclaredContact": "ValidationFinding.variant",
     "ValidationError::StaleContactDeclaration": "ValidationFinding.variant",
     "ValidationError::ContactContradicted": "ValidationFinding.variant",

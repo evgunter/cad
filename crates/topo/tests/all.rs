@@ -239,6 +239,8 @@ mod seat3_flush_detector;
 mod shell_roles;
 #[path = "shell_tolerance_chain.rs"]
 mod shell_tolerance_chain;
+#[path = "shell_winding.rs"]
+mod shell_winding;
 #[path = "solid_separation.rs"]
 mod solid_separation;
 #[path = "split_edge_pcurve_rows.rs"]

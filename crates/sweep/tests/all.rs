@@ -488,6 +488,8 @@ mod sign_walk_plus_v;
 
 #[path = "shell_census_is_thread_count_invariant.rs"]
 mod shell_census_is_thread_count_invariant;
+#[path = "shell_winding_curved.rs"]
+mod shell_winding_curved;
 
 #[path = "continuation_is_thread_count_invariant.rs"]
 mod continuation_is_thread_count_invariant;

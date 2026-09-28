@@ -1401,6 +1401,7 @@ fn attribute(
         | ValidationError::RingContactEscalated { .. }
         | ValidationError::RingOutsideOuter { .. }
         | ValidationError::RingNestingUndecided { .. }
+        | ValidationError::ShellWinding { .. }
         | ValidationError::DanglingTopology { .. }
         | ValidationError::DanglingGeometry { .. }
         | ValidationError::NextPrevMismatch { .. }

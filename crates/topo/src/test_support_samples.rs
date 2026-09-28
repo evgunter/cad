@@ -869,6 +869,19 @@ pub fn validation_error_samples() -> Vec<(String, ValidationError)> {
             },
         ));
     }
+    // Check 10: both rendered magnitudes, the doubled count and the
+    // negative one.
+    for (winding, bounded) in [(1, 2), (0, -1)] {
+        s.push((
+            format!("ShellWinding/{bounded}"),
+            ValidationError::ShellWinding {
+                solid,
+                shell: ShellKey::default(),
+                winding,
+                bounded,
+            },
+        ));
+    }
 
     // Tier 3′: the census.
     for contact in census_contacts() {

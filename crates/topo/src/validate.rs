@@ -177,13 +177,14 @@
 //! check list, gate, and the honest not-yet-checked list live on
 //! [`validate_geometric`].
 //!
-//! **The tier is two functions.** Eight of its nine checks are answerable
-//! by any deciding scalar; the ninth — the +V global orientation
-//! invariant — reads a volume enclosure, and deciding its sign through
-//! the certified quadrature is an act of certification rather than a
+//! **The tier is two functions.** Eight of its ten checks are answerable
+//! by any deciding scalar; the +V global orientation invariant (check 7)
+//! reads a volume enclosure, and shell winding (check 10) reads each
+//! shell's role off the same kind of sign — deciding either through the
+//! certified quadrature is an act of certification rather than a
 //! measurement. So [`validate_geometric`] is a private structural phase
-//! (checks 1–6, 8 and 9) followed by the certified check 7, carrying the
-//! union of their bounds — a scalar without certification rights cannot
+//! (checks 1–6, 8 and 9) followed by the certified checks 7 and 10,
+//! carrying the union of their bounds — a scalar without certification rights cannot
 //! write the composed call at all.
 //!
 //! **Its `_structural` twin holds no certified lane, and still makes
@@ -1400,6 +1401,30 @@ pub enum ValidationError {
         ring: LoopKey,
         /// What the containment walk stopped on.
         source: ContainError,
+    },
+    /// **Tier 3, check 10.** A shell of a solid stands where the
+    /// solid's OTHER shells already wind the wrong number, so a region
+    /// beside it winds outside `{0, 1}`: an `Outer` shell (which adds
+    /// `+1` inside itself) must sit at winding `0`, and a `Void` (which
+    /// adds `-1` inside its cavity) at `1`. The three shapes are a
+    /// `Void` outside every `Outer` (`winding` 0, `bounded` −1), an
+    /// `Outer` inside another with no `Void` between (1 and 2), and a
+    /// `Void` inside another `Void` with no `Outer` between (0 and −1).
+    /// A solid's total is positive on all three, so check 7 does not
+    /// see them. The shell's role is `bounded - winding`: `+1` for an
+    /// `Outer` shell, `-1` for a `Void`.
+    ShellWinding {
+        /// The solid whose shells wind outside `{0, 1}`.
+        solid: SolidKey,
+        /// The shell standing at the wrong winding.
+        shell: ShellKey,
+        /// The winding number the solid's other shells put on this
+        /// shell, measured at one of its vertices.
+        winding: i32,
+        /// The winding number of the region this shell bounds, just
+        /// across it: `winding + 1` inside an `Outer` shell,
+        /// `winding - 1` inside a `Void`'s cavity.
+        bounded: i32,
     },
     /// Tier 3′ (M3 PR 6a): the global coincidence census found a
     /// position coincidence between distinct entities that no declared
@@ -2786,6 +2811,13 @@ impl fmt::Display for ValidationError {
                      decided: {why}. {recourse}"
                 )
             }
+            // The region the shell bounds is the one out of range: its
+            // winding counts the material there twice, or below none.
+            Self::ShellWinding { bounded, .. } => write!(
+                f,
+                "a shell of a solid is placed where its other shells make the space it bounds \
+                 count as material {bounded} times, not 0 or 1. {DEFECT}"
+            ),
             // The position alone: a witness may carry detail after " — "
             // (the field's contract), which rides in `Debug`.
             Self::UndeclaredContact { contact, witness } => write!(
@@ -3424,6 +3456,18 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// 8. **Stored pcurve caches** ([`ValidationError::Pcurve`]).
 /// 9. **Ring versus outer loop** — disjointness and nesting
 ///    ([`ValidationError::RingMeetsOuter`] and its siblings).
+/// 10. **Shell winding, PER SOLID** (solids with more than one shell,
+///     behind a clean check 7): the solid's shells bound winding number
+///     0 or 1 everywhere — an `Outer` shell adds `+1` inside itself, a
+///     `Void` `-1` inside its cavity — decided at one vertex of each
+///     shell (the first that touches no other shell) from the other
+///     shells' point-in-solid answers
+///     ([`ValidationError::ShellWinding`]). Several disjoint `Outer`
+///     shells, an island inside a cavity, and an ordinary cavity all
+///     pass; a `Void` outside every `Outer`, an `Outer` inside another
+///     with no `Void` between, and a `Void` inside a `Void` refuse.
+///     Silent where the walk or a shell's sign cannot answer (the list
+///     below).
 ///
 /// **Coarse gate** (the pass-11 philosophy): the geometric passes run
 /// only when tiers 1–2 are clean — structural defects void geometric
@@ -3488,25 +3532,31 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 ///   therefore exempt — such a body's flips, single-face AND
 ///   whole-body, certify green today; executed on the tilted-section
 ///   cylinder and pinned as residual).
-/// - **A shell NESTED inside another shell's cavity.** No tier reads
-///   where one shell of a solid sits relative to another. What that
-///   leaves unchecked is precisely a solid holding an `Outer` shell, a
-///   `Void`, and a second `Outer` INSIDE that void
-///   (`work/atrest/tier-3-does-not-check-shell-roles-per-solid`): the
-///   nesting is the claim, and tier 3 has no at-rest containment walk
-///   for it — the same family as check 9's deferred nesting half and
-///   `validate-tier3-curved-boundary-containment`.
+/// - **Shell winding where the witness cannot be read** (check 10's
+///   silences, the false-refusal direction it must never fail in): a
+///   shell whose own signed volume does not decide a role (in-band,
+///   or a quadrature schedule that runs out first), and a point-in-solid
+///   walk that refuses — `KindUnsupported` on a spline or `Approx` face,
+///   a partial sphere, cone or torus face outside the walk's chart
+///   classes, an escalation, an exhausted ray schedule, an uncertified
+///   at-infinity volume. A shell every one of whose vertices touches
+///   another shell is silent too (a touching vertex is skipped for the
+///   next). And check 10 reads one point per shell, which decides only
+///   under the no-crossing premise — **shells that cross** are global
+///   self-intersection's, the first item of this list.
+///   (`work/atrest/check-10-is-silent-where-point-in-solid-refuses`.)
 ///
-///   **The COUNT is not the gap**, and that is measured rather than
-///   assumed. A solid holding several `Outer` shells is what four
-///   doors produce ON PURPOSE — `graft onto`, the boolean coplanar
-///   split, `subtract`'s two-shell complement and the editor's placed
-///   union — and how many material components a product should
-///   have is answered one layer up, as `editor_core`'s
-///   `CheckId::Connectedness` finding against an authored expectation.
-///   Tier 3 refusing that count would make tier 3 wrong, not the doors:
-///   `work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`
-///   carries the 36 rows that settled it.
+///   **What check 10 does not refuse is deliberate**: several `Outer`
+///   shells under one solid are what four doors produce ON PURPOSE —
+///   `graft onto`, the boolean coplanar split, `subtract`'s two-shell
+///   complement and the editor's placed union — and how many material
+///   components a product should have is answered one layer up, as
+///   `editor_core`'s `CheckId::Connectedness` finding against an
+///   authored expectation
+///   (`work/atrest/one-solid-holding-two-outer-shells-is-what-five-kernel-doors-produce`).
+///   An island inside a cavity of its own solid winds `1` and is valid;
+///   filing it under the wall's solid is the boolean's output
+///   convention, not an at-rest invalidity.
 /// - **The frame conventions no datum levers**: a line's unit `dir` and
 ///   a plane's unit `normal` and `u_ref` (each spans the same locus at
 ///   any length, so a non-unit one mis-scales a metric rather than
@@ -3526,17 +3576,19 @@ pub fn validate_closed<T: Real>(body: &Body<T>) -> Result<(), Vec<ValidationErro
 /// any, else the tier-3 failures in the documented order.
 /// # The two halves, and why the entry carries both bounds
 ///
-/// Tier 3 is a battery of nine checks, eight of which any deciding
-/// scalar can answer and one of which — check 7, the +V invariant — is,
-/// through the certified quadrature, an act of CERTIFICATION. So this
+/// Tier 3 is a battery of ten checks, eight of which any deciding
+/// scalar can answer and two of which — check 7, the +V invariant, and
+/// check 10, shell winding, which reads each shell's role off the same
+/// kind of sign — are, through the certified quadrature, acts of
+/// CERTIFICATION. So this
 /// entry is two private functions composed:
 ///
 /// - a structural phase running checks 1–6, 8 and 9 (with check 2's
 ///   certified plane × NURBS lane), at every [`crate::AtRestPolicy`]
 ///   scalar;
-/// - `validate_geometric_certified`, check 7 through
-///   [`crate::QuadLane::certified`], bounded on the quantity it
-///   actually needs.
+/// - `validate_geometric_certified`, check 7 and then check 10 through
+///   [`crate::QuadLane::certified`], bounded on the quantity they
+///   actually need.
 ///
 /// The entry is `structural(…)?` then certified, so its bound is the
 /// UNION and the `?` is the sequencing fact: a body that fails any
@@ -3653,7 +3705,7 @@ pub fn validate_geometric_certificate<
 }
 
 /// **[`validate_geometric`] holding no certified lane** — the whole
-/// nine-check battery at every [`crate::AtRestPolicy`] scalar with a
+/// ten-check battery at every [`crate::AtRestPolicy`] scalar with a
 /// bracket, a [`Dual`](geom_core::Dual) included (the bound is the
 /// policy trait rather than bare `Decide` because check 1 reads the
 /// offset-fit seam off it and check 2's carrier lane rides as its
@@ -3672,6 +3724,9 @@ pub fn validate_geometric_certificate<
 /// unbounded. **Check 2 makes no claim about an M7-8 edge** (a plane ×
 /// described-NURBS `Intersection`): that class re-derives only through
 /// the certified plane × NURBS lane, which this door does not hold.
+/// Check 10 (shell winding) reads each shell's role through the same
+/// closed form, so it is silent on a shell whose sign needed the
+/// quadrature.
 ///
 /// Its check 7 is gated the way the one-call battery gates it — on
 /// checks 1–6 — where the composed door gates on the whole structural
@@ -3807,8 +3862,9 @@ fn structural_declared_via<
     }
 }
 
-/// **Tier 3's check 7 alone** — the +V global orientation invariant,
-/// at a scalar with certification rights.
+/// **Tier 3's certifying checks** — the +V global orientation invariant
+/// (check 7) and, behind it, shell winding (check 10), at a scalar with
+/// certification rights.
 ///
 /// Private, and that is the guarantee: no caller can take the
 /// certified half without the structural one, so no body is ever
@@ -3823,7 +3879,15 @@ fn validate_geometric_certified<T: geom_core::Decide + geom_core::CertifiedBound
         Ok(band) => band,
         Err(error) => return Err(vec![ValidationError::Band { error }]),
     };
-    plus_v_by_sign(body, band, tol, Some(crate::props::QuadLane::certified()))
+    let quad = Some(crate::props::QuadLane::certified());
+    let certificate = plus_v_by_sign(body, band, tol, quad)?;
+    // Check 10, behind a clean check 7 (`shell_winding_errors`).
+    let errors = shell_winding_errors(body, band, tol, quad);
+    if errors.is_empty() {
+        Ok(certificate)
+    } else {
+        Err(errors)
+    }
 }
 
 /// **Check 7, the whole of it, at SIGN level** — one walk per solid
@@ -3971,6 +4035,211 @@ fn check7_subjects<T: Real>(body: &Body<T>) -> Vec<(SolidKey, Vec<FaceKey>)> {
             (solid_key, faces)
         })
         .collect()
+}
+
+/// **Tier 3, check 10: a solid's shells bound winding number 0 or 1
+/// everywhere.**
+///
+/// A solid's material is the region its closed oriented shells enclose,
+/// read by winding number: an `Outer` shell adds `+1` inside itself and
+/// a `Void` adds `-1` inside the cavity it bounds. Several disjoint
+/// `Outer` shells, an ordinary cavity, and an `Outer` island inside a
+/// `Void` of the same solid (`+1 -1 +1 = 1`) are all valid; what this
+/// check refuses is a shell standing where the others already wind the
+/// wrong number — a `Void` outside every `Outer` (`-1` in its cavity),
+/// an `Outer` inside another with no `Void` between (`2`), a `Void`
+/// inside a `Void` with no `Outer` between (`-1`). Check 7's per-solid
+/// total is positive on all three.
+///
+/// **One witness point per shell, under the no-crossing premise.** Tier
+/// 3 assumes shells do not cross — global self-intersection is on
+/// [`validate_geometric`]'s not-yet-checked list — and under that
+/// premise the winding the OTHER shells of the solid put on shell `s`
+/// is constant along `s`. So one point of `s` (a vertex: an exact
+/// stored position) decides it: that winding must be `0` if `s` is
+/// `Outer` (so the two sides of `s` wind `0` and `1`) and `1` if `s` is
+/// a `Void` (sides `1` and `0`).
+///
+/// **One shell's contribution** is read with the crate's one
+/// point-in-solid walk over THAT shell's faces
+/// ([`crate::boolean::solid_contain::SolidFaces::of_shell`]). The walk
+/// answers whether the point is in the material the selection alone
+/// bounds, read off the closest crossing's outward normal and, when no
+/// ray crosses, off the selection's own signed volume. For an `Outer`
+/// shell that material is its inside, so `In` is `+1` and `Out` is `0`.
+/// For a `Void` shell the faces point INTO the cavity, so the material
+/// the selection bounds is the cavity's complement: `In` is outside the
+/// cavity (`0`) and `Out` is inside it (`-1`). Both arms are one
+/// formula, `[In] - [Void]`, and both are pinned by rows.
+///
+/// **Silent where the walk cannot answer** — check 9's posture, and
+/// the false-refusal direction is the one this check must never fail
+/// in:
+///
+/// - a shell whose ROLE cannot be decided (a refused walk, or a sign
+///   still undecided when the schedule runs out) takes no part: no
+///   verdict is made about it, and none about a shell whose winding it
+///   enters;
+/// - a walk that refuses — `KindUnsupported` on a spline face, a
+///   partial curved face outside the chart classes, an escalation,
+///   an exhausted ray schedule, an uncertified at-infinity volume —
+///   leaves that shell's verdict unmade;
+/// - an `OnBoundary` answer means the witness lies where two shells
+///   TOUCH, which says nothing about winding; the premise holds
+///   elsewhere on the shell, so the next vertex of the shell is tried,
+///   and the shell is silent only when every one of its vertices
+///   touches another shell.
+///
+/// Those silences are the residue [`validate_geometric`]'s
+/// not-yet-checked list names.
+///
+/// **A shell's role is its own sign, read the way check 7 reads a
+/// solid's**: one [`crate::props::sign_walk`] over the shell's faces
+/// through the lane the door made check 7 through (`quad`), stopped at
+/// the round where [`plus_v_decide`] — check 7's own decision and
+/// predicates — reads the enclosure definitely positive (`Outer`) or
+/// definitely negative (`Void`). Every door that makes check 10 calls
+/// this, behind a clean check 7: a winding read off a solid whose
+/// orientation is refused would be cascade noise.
+///
+/// **What it costs.** A solid with one shell is skipped before anything
+/// is read, so the common body pays nothing. A solid with `n > 1`
+/// shells pays `n` sign walks and at least `n (n - 1)` point probes,
+/// with no bounding-box prefilter
+/// (`work/atrest/check-10-is-quadratic-in-shells-per-solid`).
+fn shell_winding_errors<T: Decide>(
+    body: &Body<T>,
+    band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
+) -> Vec<ValidationError> {
+    use crate::boolean::SolidContainment;
+    use crate::boolean::solid_contain::{SolidFaces, point_in_solid_faces};
+    use crate::props::ShellRole;
+
+    let mut errors = Vec::new();
+    for (solid, record) in body.solids.iter() {
+        if record.shells.len() < 2 {
+            continue;
+        }
+        // Every shell's role and selection, read once and probed many
+        // times. `None` is a shell this check cannot read, and it
+        // silences every verdict it would enter.
+        let read: Vec<(ShellKey, Option<(ShellRole, SolidFaces)>)> = record
+            .shells
+            .iter()
+            .map(|&shell| {
+                let sel = SolidFaces::of_shell(body, shell).ok();
+                let role = sel
+                    .as_ref()
+                    .and_then(|sel| shell_role(body, sel.faces(), band, tol, quad));
+                (shell, role.zip(sel))
+            })
+            .collect();
+        for (i, &(shell, ref this)) in read.iter().enumerate() {
+            let Some((role, _)) = this else { continue };
+            // The winding the other shells put on this one, at the
+            // first vertex of it that touches no other shell.
+            let mut winding = None;
+            'witness: for witness in shell_vertices(body, shell) {
+                let mut sum = 0i32;
+                for (j, (_, other)) in read.iter().enumerate() {
+                    if i == j {
+                        continue;
+                    }
+                    // A shell whose role is unread silences this one.
+                    let Some((other_role, sel)) = other else {
+                        break 'witness;
+                    };
+                    let void = i32::from(*other_role == ShellRole::Void);
+                    match point_in_solid_faces(body, sel, witness, band, tol) {
+                        Ok(SolidContainment::In) => sum += 1 - void,
+                        Ok(SolidContainment::Out) => sum -= void,
+                        // The shells touch HERE: try the next vertex.
+                        Ok(SolidContainment::OnBoundary) => continue 'witness,
+                        // A walk that cannot answer: silent (the doc
+                        // above).
+                        Err(_) => break 'witness,
+                    }
+                }
+                winding = Some(sum);
+                break;
+            }
+            let Some(winding) = winding else { continue };
+            // The winding the shell's own contribution puts just across
+            // it, and the one place its role is read.
+            let (required, bounded) = match role {
+                ShellRole::Outer => (0, winding + 1),
+                ShellRole::Void => (1, winding - 1),
+            };
+            if winding != required {
+                errors.push(ValidationError::ShellWinding {
+                    solid,
+                    shell,
+                    winding,
+                    bounded,
+                });
+            }
+        }
+    }
+    errors
+}
+
+/// Every vertex of `shell`, as positions, in face-arena order and each
+/// face's loop order (outer loop first), repeats included — the
+/// witnesses check 10 tries in turn. Lazy: a shell whose first vertex
+/// touches no other shell reads only that one.
+pub(crate) fn shell_vertices<'b, T: Real>(
+    body: &'b Body<T>,
+    shell: ShellKey,
+) -> impl Iterator<Item = geom_core::Point3<T>> + 'b {
+    body.faces()
+        .filter(move |(_, d)| d.shell == shell)
+        .flat_map(move |(_, face)| {
+            core::iter::once(face.outer)
+                .chain(face.rings.iter().copied())
+                .flat_map(move |lk| {
+                    let vertices: Vec<VertexKey> = match body.get_loop(lk).map(|l| l.boundary) {
+                        Some(LoopBoundary::Empty { vertex }) => vec![vertex],
+                        Some(LoopBoundary::Cycle { .. }) | None => loop_cycle_of(body, lk)
+                            .unwrap_or_default()
+                            .iter()
+                            .filter_map(|&he| body.half_edges.get(he).map(|h| h.start))
+                            .collect(),
+                    };
+                    vertices
+                })
+        })
+        .filter_map(move |v| vertex_point(body, v))
+}
+
+/// One shell's role, from its own sign walk through `quad` decided by
+/// check 7's [`plus_v_decide`] (`Pass` is `Outer`, `Refuse` is `Void`),
+/// or `None` where the walk refuses or the sign is still undecided when
+/// the schedule runs out.
+fn shell_role<T: Decide>(
+    body: &Body<T>,
+    faces: &[FaceKey],
+    band: Band,
+    tol: Tol,
+    quad: Option<crate::props::QuadLane<T>>,
+) -> Option<crate::props::ShellRole> {
+    use crate::props::ShellRole;
+    crate::props::sign_walk(
+        body,
+        faces,
+        band,
+        tol,
+        quad,
+        |e| match plus_v_decide(e, band) {
+            PlusVOutcome::Pass => Some(Some(ShellRole::Outer)),
+            PlusVOutcome::Refuse => Some(Some(ShellRole::Void)),
+            PlusVOutcome::Undecided => None,
+        },
+        |_| None,
+    )
+    .ok()
+    .and_then(|(role, _)| role)
 }
 
 /// [`validate_geometric`] with the body's **declared contacts** in
@@ -4368,7 +4637,7 @@ pub(crate) fn material_arm_error(
 ///
 /// **This pass makes every check in ONE call**, which is why it is not
 /// [`validate_geometric`] with a second return value: the whole
-/// nine-check battery runs in one call, check 7 included through the
+/// ten-check battery runs in one call, check 7 included through the
 /// certified quadrature ([`crate::QuadLane::certified`]) and check 2
 /// through the certified plane × NURBS lane, so its bound names the
 /// certification right. Its `Err` is the battery's vector and differs
@@ -6067,6 +6336,23 @@ pub(crate) fn tier3_local_checks_marked<
         }
     }
 
+    // ------------------------------------------------------------------
+    // Tier 3, check 10: a solid's shells bound winding 0 or 1
+    // everywhere (`shell_winding_errors` carries the invariant, the
+    // one-witness argument and the silences). Gated on the whole
+    // battery coming back clean, for check 7's reason: a winding read
+    // off a body the battery has refused is cascade noise. Each
+    // shell's role is its own sign through the lane check 7 was made
+    // through (`shell_winding_errors`) — so a door that makes no
+    // check 7 reads no role, and this check is silent there rather
+    // than made on a sign it did not derive.
+    // ------------------------------------------------------------------
+    if errors.is_empty()
+        && let PlusVCheck::Through(quad) = plus_v
+    {
+        errors.extend(shell_winding_errors(body, band, tol, quad));
+    }
+
     (errors, certificate)
 }
 
@@ -7100,7 +7386,7 @@ fn vertex_point<T: Real>(body: &Body<T>, vertex: VertexKey) -> Option<geom_core:
 /// Structure (D1):
 /// 1. Coarse-gate on tiers 1–2 (as [`validate_geometric`]).
 /// 2. All of tier 3's local checks, shared verbatim
-///    ([`tier3_local_checks`]) — the whole nine-check battery in one
+///    ([`tier3_local_checks`]) — the whole ten-check battery in one
 ///    call, check 7 included through the certified quadrature, and its
 ///    check-7 gate is the battery-internal one (checks 1-6) rather than
 ///    [`validate_geometric`]'s composition.
