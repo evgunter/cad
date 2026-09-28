@@ -15,7 +15,7 @@ use topo::{Body, FaceKey};
 use super::common::bulge;
 use super::common::latitude_seam::two_arc_sphere;
 use super::common::shell_operands::{tube, vessel};
-use super::shell7_common::{drum, revolved, tol, tube_torus, tube_torus_hollow};
+use super::shell7_common::{revolved, tol, tube_torus, tube_torus_hollow};
 use super::shell8_common::beside;
 
 /// Every stored row of `body` under the `[r2rows]` tag, then its count
@@ -105,7 +105,7 @@ fn r2_dump_the_corpus() {
         &cap_at_y(&frustum, 2.0),
     );
 
-    let d = drum(1.0, 2.0);
+    let d = vessel(1.0, 2.0);
     shelled("drum", &d, 0.1, &[]);
 
     let tt = tube_torus(2.0, 0.5);
@@ -138,7 +138,7 @@ fn r2_dump_the_corpus() {
     );
 
     let dsplit = {
-        let mut d2 = drum(1.0, 2.0);
+        let mut d2 = vessel(1.0, 2.0);
         let edges: Vec<_> = d2.edges().map(|(k, _)| k).collect();
         let seam = edges
             .into_iter()

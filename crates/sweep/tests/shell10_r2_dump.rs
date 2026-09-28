@@ -42,15 +42,6 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     .body
 }
 
-fn drum() -> Body<f64> {
-    revolved(bulge_loop(vec![
-        (Point2::new(0.0, 0.0), 0.0),
-        (Point2::new(3.0 / 64.0, 0.0), 0.0),
-        (Point2::new(3.0 / 64.0, 8.0 / 64.0), 0.0),
-        (Point2::new(0.0, 8.0 / 64.0), 0.0),
-    ]))
-}
-
 fn cone_frustum() -> Body<f64> {
     revolved(bulge_loop(vec![
         (Point2::new(0.0, 0.0), 0.0),
@@ -129,7 +120,7 @@ fn shell10_r2_dump_corpus() {
     let y = Vec3::new(0.0, 1.0, 0.0);
     let t = 0.5 / 64.0;
     for (name, body) in [
-        ("drum", drum()),
+        ("drum", vessel(3.0 / 64.0, 8.0 / 64.0)),
         ("cone frustum", cone_frustum()),
         ("bellied pot", bellied_pot()),
         ("sphere-zone vase", sphere_zone_vase()),

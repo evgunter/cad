@@ -14,6 +14,7 @@
 use core::f64::consts::PI;
 
 use crate::common::bulge;
+use crate::common::shell_operands::vessel;
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
@@ -195,15 +196,7 @@ fn the_drum_still_hollows_on_the_new_branch() {
     let want = PI * r * r * h - PI * (r - T) * (r - T) * (h - 2.0 * T);
     let got = wall(
         "the drum",
-        &revolved(
-            bulge_loop(vec![
-                (Point2::new(0.0, 0.0), 0.0),
-                (Point2::new(r, 0.0), 0.0),
-                (Point2::new(r, h), 0.0),
-                (Point2::new(0.0, h), 0.0),
-            ]),
-            Revolution::Full,
-        ),
+        &vessel(r, h),
     );
     assert!(
         (got - want).abs() <= 1e-15,

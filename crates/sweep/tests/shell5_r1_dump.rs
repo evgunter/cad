@@ -4,8 +4,7 @@
 //! (sealed and opened, planar and revolved), so the SAME file compiled
 //! at the merge base and at the PR head can be diffed line by line.
 //! It asserts nothing beyond "the fixture builds"; the diff is the
-//! verdict. Kept free of every symbol this PR adds so it compiles on
-//! both trees.
+//! verdict, so it reads only what both trees of the differential hold.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
@@ -13,6 +12,8 @@ use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, FaceKey};
+
+use crate::common::shell_operands::{tube, vessel};
 
 fn prism(pts: &[(f64, f64)], h: f64) -> Body<f64> {
     let lp = bulge_loop(pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect());
@@ -134,8 +135,8 @@ fn r1_dump_single_shell_corpus() {
         ],
         2.0,
     );
-    let vessel = revolved(&[(0.0, 0.0), (1.0, 0.0), (1.0, 2.0), (0.0, 2.0)]);
-    let tube = revolved(&[(0.6, 0.0), (1.0, 0.0), (1.0, 2.0), (0.6, 2.0)]);
+    let vessel = vessel(1.0, 2.0);
+    let tube = tube(0.6, 1.0, 2.0);
     // A bellied pot: a meridian with a sphere-like belly is what the
     // teapot tour scene is made of; here a cone + cylinder + caps
     // stands in (the meridian is a polyline, so every wall is exact).

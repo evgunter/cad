@@ -6,7 +6,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::common::operands;
-use crate::common::shell_operands::vessel;
+use crate::common::shell_operands::{hollow_box, vessel};
 use geom_core::{Point2, Tol, Vec2};
 use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::block;
@@ -187,9 +187,7 @@ fn probe_dumbbell_neck_collision_fails_loud() {
 /// void with the dilated twin as its OUTER shell.
 #[test]
 fn probe_shell_of_a_hollow_thickens_every_boundary() {
-    let hollow = topo::shell(&block(2.0, 3.0, 4.0, Tol::witness()), 0.25, Tol::witness())
-        .expect("the first shell is the PR's own green row")
-        .body;
+    let hollow = hollow_box();
     let shelled = topo::shell(&hollow, 0.05, Tol::witness())
         .expect("a hollow operand thickens every boundary")
         .body;
