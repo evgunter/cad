@@ -463,14 +463,14 @@ fn a_seam_whose_antipode_sits_beside_an_off_arc_root_still_pierces() {
 
 /// **A small tilted circle on the QUARTIC arm** (review of PR 3375,
 /// executed): a tube `R = 0.3, r = 0.05` whose axis is tilted off `B`'s,
-/// centred on `B`'s tube-centre circle, so both its seams cross `B`'s
-/// wall in a generic pose. With the ladder metered over the torus's
+/// centred just outside `B`'s tube-centre circle, so its seams cross
+/// `B`'s wall in a generic pose. With the ladder metered over the torus's
 /// extent the margins scaled like `ρ¹⁰/(R + r)¹¹` and this escalated at
 /// the discriminant; metered over the circle's own size it answers.
 #[test]
 fn a_small_tilted_seam_crosses_the_wall_on_the_quartic_arm() {
-    let az = 30_f64.to_radians();
-    let center = Point3::new(az.cos(), 0.0, az.sin());
+    let az = 20_f64.to_radians();
+    let center = Point3::new(1.1 * az.cos(), 0.05, 1.1 * az.sin());
     let axis = Vec3::new(0.2, 1.0, 0.3).normalize();
     let radial = axis.cross(Vec3::new(0.0, 0.0, 1.0)).normalize();
     let a = tube(
@@ -525,3 +525,4 @@ fn a_coaxial_seam_on_the_torus_keeps_the_door() {
         "the refusal names the coaxial seam: {err:?}"
     );
 }
+
