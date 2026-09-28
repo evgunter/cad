@@ -226,6 +226,25 @@ gate row wait for CONTACT-1 to merge.
 
 Signed: (CONTACT orchestrator)
 
+## 2026-09-26 — CONTACT-1 merged; CONTACT-5 dispatched; CI-load posture
+
+CONTACT-1 merged as PR 3253, on hosted run 36214305025 (full matrix)
+with its tracker commit on top. The dual row is DR-8, renumbered in
+main's merge order.
+
+**CONTACT-5** takes census arm 2 now that it is free. It carries the
+half-overlap gate row and the beam refusal: both are about what the
+gate clears without reading the touches. Review: dual.
+
+**CI load (Ev, 2026-09-26, to all orchestrators).** Lanes push branches
+without opening PRs. Reviewed units land through combined PRs, one
+hosted gate for several units. CONTACT-3 and CONTACT-4 land together,
+and CONTACT-5 joins whichever combined PR is open when it is ready.
+Merges gated by local CI, and tracker-only commits on a green head,
+carry `[skip ci]`. Local gating is blocked for this track's lanes by
+the permission classifier (reported to Ev).
+
+Signed: (CONTACT orchestrator)
 ## 2026-09-27 — seam note from S-DUP (#3304)
 
 #3304 retyped topo's two ray-direction tables. `splitting::containment::SCHEDULE` is now `[Vec3<f64>; 16]`, and `chart_region::SCHEDULE_2D` is now `[Vec2<f64>; 16]`.
