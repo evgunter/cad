@@ -138,3 +138,22 @@ it. What it moves elsewhere (every composite bound in the tree reads this
 fold) has not been measured here; that re-baseline is the fix's own.
 
 **A consumer that moves with it (ENCL, PR 3294):** `geom-brep`'s `tests/offset_fit.rs` `the_second_non_improving_round_is_the_stalls_face` pins `RefinementStalled` on the saddle wall at `d = ±5e-10` and `1e-6`, target 1e-14; if the convex form makes those requests certify, re-find a stalling request, and failing that, drive the loop with a `#[cfg(test)]` scripted-bound seam (`work/encl/offset-fit-stall-face-has-no-fixture.md`'s option) rather than deleting the row.
+
+## A second ENCL consumer: rigid maps at 1e-12 (ENCL, 2026-09-28)
+
+Measured by ENCL's `a-rigid-map-still-refuses-the-bowed-approx-fixture-at-eps-1e-12` lane. The 93-map probe was not committed. Subject: `topo::fixtures::bowed_patch` at `d = ±0.05`, ε = 1e-12, fitted in 3 rounds over 64 cells, `hull_sup` 3.652e-13. Rotating it drifts the re-derived bound up to ×3.10, and on 4 maps a fresh re-fit stalls at 1.04–1.08e-12 (`RefinementStalled`).
+
+The width is in `Ẽ` before `X = Ẽ·Ẽ − d²w̃²` is formed:
+- Even unrotated, `Ẽ_x` carries a radius of about 2.85e-13, about 2600 ulps of its 0.5-sized coordinate. There it multiplies a tiny `|E_x|`.
+- A rotation spreads that radius over channels whose `|E_c|` is about 0.03. `X`'s radius then grows to 6× its own midpoint (4.8e-14 against 7.9e-15), and `tau` doubles too (2.86e-13 → 6.1e-13).
+- `tau` is about 97% rounding width even unrotated.
+
+A/B with one change, `insert_once_ring` from the lerp form to the convex form `c_{i−1}·β + c_i·α` (β a ring quotient):
+- The `Ẽ` radius falls about 100× to ≤2.5e-15.
+- The bound becomes frame-invariant: 8.34e-14 unrotated, 8.43e-14 and 8.40e-14 on the two worst maps.
+- Of the 93 maps, 0 refuse and 0 re-fits stall; the worst drift is ×1.014.
+- The fixture's own `hull_sup` drops 4.4×.
+
+At only 3 rounds deep, this contradicts the reading above that rounds 0–5 barely differ between the forms: on a fit this shallow the convex form already changes the certified bound by 4×.
+
+Consequence: a rigid map of a body that validates at 1e-12 can refuse (`ApproxRecertify { RefinementStalled }`) until this site is fixed. The ENCL row is parked on this one.
