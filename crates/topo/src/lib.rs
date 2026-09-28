@@ -323,6 +323,22 @@ pub mod test_support {
             .collect())
     }
 
+    /// The no-crossings path's certificates on `a` × `b` — the sphere
+    /// extent scan, then the section pass — as that path runs them
+    /// before its vertex probe, whatever the crossing layer would find.
+    /// `Ok` with the number of sphere re-cuts the scan asked for.
+    ///
+    /// # Errors
+    ///
+    /// Either certificate's refusal.
+    pub fn no_crossings_certificates(
+        a: &Body<f64>,
+        b: &Body<f64>,
+        tol: geom_core::Tol,
+    ) -> Result<usize, crate::BooleanError> {
+        crate::boolean::no_crossings_certificates(a, b, tol)
+    }
+
     /// Does `face` describe for the section certificate's W2 — its
     /// `chart_boundary` answers, or, on a cone face, its apex closure
     /// closes? The verdict the certificate reads per face.

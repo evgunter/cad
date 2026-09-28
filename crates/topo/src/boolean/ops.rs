@@ -1086,6 +1086,28 @@ pub(crate) fn section_report<
     )
 }
 
+/// **The no-crossings path's two certificates**, run as the path runs
+/// them before the vertex probe: the sphere extent scan, then — when
+/// it asks for no re-cut — the section pass. `Ok` with the number of
+/// re-cuts the scan asked for.
+///
+/// # Errors
+///
+/// Either certificate's refusal.
+#[cfg(any(test, feature = "test-support"))]
+pub(crate) fn no_crossings_certificates<T: Decide + Bounds + geom_brep::PcurveFittedLane>(
+    a: &Body<T>,
+    b: &Body<T>,
+    tol: Tol,
+) -> Result<usize, BooleanError> {
+    let band = Band::linear(tol)?;
+    let recuts = sphere_extent_scan(a, b, band)?;
+    if recuts.is_empty() {
+        section_extent_pass(a, b, band)?;
+    }
+    Ok(recuts.len())
+}
+
 /// **A ball against a plane's CARRIER: the one home of that gap.**
 /// Decides `r − |s|` under `bool_sphere_extent_gap`, where `s` is the
 /// centre's signed distance to the plane along its stored normal, which
