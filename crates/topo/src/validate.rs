@@ -2253,7 +2253,7 @@ fn classify_band(e: &BandError) -> &'static str {
 
 fn classify_certify(e: &CertifyError) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::PlaneNurbsRefusal as P;
-    use geom_brep::certify::Reading;
+    use geom_brep::recourse::Reading;
     use std::borrow::Cow;
     const MISMATCH: &str = "its stored description does not match its geometry";
     const KIND: &str = "the kernel cannot yet check an edge of this kind";
@@ -2370,37 +2370,41 @@ fn classify_offset_fit(
     e: &geom_brep::OffsetFitError,
 ) -> (&'static str, std::borrow::Cow<'static, str>) {
     use geom_brep::OffsetFitError as O;
-    use geom_brep::offset_meters::{
-        CURVATURE_HEADROOM_RECOURSE, MeterError as M, NORMAL_FLOOR_RECOURSE, escalation_recourse,
-    };
+    use geom_brep::offset_meters::MeterError as M;
     // Each recourse is the one the fit's own message names for the same
     // arm (`geom_brep::OffsetFitError`'s `Display`), without its numbers.
     const DRIFT: &str =
         "the fitted surface does not stay within the tolerance of the one it stands for";
     let (why, recourse) = match e {
-        // The meters' escalation reads their own routing table; a name
-        // the table does not hold says so rather than borrowing a lever.
-        O::Meter(M::Escalated { source }) => {
-            let recourse = match escalation_recourse(source.predicate) {
-                Some(lever) => own_close(&source.margin, lever).into(),
-                None if source.margin == geom_core::MarginDiag::Invalid => DEFECT.into(),
-                None => geom_core::MissingRecourse(source.predicate)
-                    .to_string()
-                    .into(),
+        // Each meter's refusal ends as its decision gives its verdict,
+        // read at rest: the one table the fit's own message reads.
+        O::Meter(m) => {
+            // The lead says what the verdict decided: a zero verdict is
+            // band-decided, so it says "may".
+            use geom_brep::offset_meters::Refused as R;
+            let why = match m {
+                M::Escalated { .. } => {
+                    "whether this face can be offset is too close to call at this tolerance"
+                }
+                M::NormalFloor {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the face's surface normal may degenerate, so it may have no offset",
+                M::NormalFloor {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the face's surface normal degenerates, so it has no offset",
+                M::CurvatureHeadroom {
+                    verdict: R::Zero(_),
+                    ..
+                } => "the offset may fold over itself on this face",
+                M::CurvatureHeadroom {
+                    verdict: R::Negative { .. },
+                    ..
+                } => "the offset folds over itself on this face",
             };
-            return (
-                "whether this face can be offset is too close to call at this tolerance",
-                recourse,
-            );
+            return (why, m.ending(geom_brep::recourse::Reading::AtRest).into());
         }
-        O::Meter(M::NormalFloor { .. }) => (
-            "the face's surface normal degenerates, so it has no offset",
-            NORMAL_FLOOR_RECOURSE,
-        ),
-        O::Meter(M::CurvatureHeadroom { .. }) => (
-            "the offset folds over itself on this face",
-            CURVATURE_HEADROOM_RECOURSE,
-        ),
         O::BudgetExhausted {
             last_round: geom_brep::LastRound::Improved,
             ..
@@ -12497,56 +12501,110 @@ mod offset_fit_door_rows {
         crate::fixtures::assert_certificates_agree("check 1's recertify door", &door, &free);
     }
 
-    /// The checks window reads the meters' escalation table too, and
-    /// ends each route in its own sentence: the normal floor's split, the
-    /// curvature meter's distance, a poisoned margin's defect ending
-    /// (the file's, since the window reads a body at rest), and the
-    /// named hole for a name no meter raises.
+    /// The checks window renders every meter refusal whole at rest: a
+    /// lead that says what the verdict decided ("may" on a zero
+    /// verdict, which is band-decided), and the ending the meter's own
+    /// decision gives that verdict, the table the fit's message reads
+    /// too — the lever always; the conditional tighten, valued, on a
+    /// band-decided arm with a positive margin; the report clause on a
+    /// zero floor; the lever alone on a sign-certain arm and on a
+    /// straddling margin; and a poisoned margin keeps the lever.
     #[test]
-    fn a_meter_escalation_ends_in_its_routed_sentence() {
+    fn a_meter_refusal_renders_whole_at_rest() {
         use geom_brep::OffsetFitError;
-        use geom_brep::offset_meters::{
-            CURVATURE_HEADROOM_PREDICATE, MeterError, NORMAL_FLOOR_PREDICATE,
-        };
+        use geom_brep::offset_meters::{Meter, MeterError, Refused};
+        use geom_brep::recourse::Classified;
         use geom_core::{Indeterminate, MarginDiag};
-        let says = |predicate, margin| {
+        const LEAD: &str = "a face's fitted offset surface no longer certifies against the surface it approximates";
+        const SPLIT: &str = "Recourse: split the face clear of any pole, cusp or pinch";
+        const DISTANCE: &str =
+            "Recourse: use an offset distance of smaller magnitude, or offset to the other side";
+        let band = Band::new(1e-9, 1e-8).unwrap();
+        let zero = |margin| Refused::Zero(Classified { margin, band });
+        let says = |error| {
             ValidationError::ApproxCertification {
                 face: FaceKey::default(),
-                error: OffsetFitError::Meter(MeterError::Escalated {
-                    source: Indeterminate {
-                        margin,
-                        band: Band::linear(Tol::witness()).unwrap(),
-                        predicate: Some(predicate),
-                    },
-                }),
+                error: OffsetFitError::Meter(error),
             }
             .to_string()
         };
+        let escalated = |meter: Meter, margin| MeterError::Escalated {
+            meter,
+            source: Indeterminate {
+                margin,
+                band,
+                predicate: Some(meter.predicate()),
+            },
+        };
+        let close = "whether this face can be offset is too close to call at this tolerance";
         let wide = MarginDiag::Enclosure {
             lo: -2.0e-9,
             hi: 4.0e-9,
         };
         let rows = [
             (
-                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Value(5.0e-9)),
-                "Recourse: split the face clear of any pole, cusp or pinch, or lower the \
-                 tolerance",
+                says(escalated(Meter::NormalFloor, MarginDiag::Value(5.0e-9))),
+                format!(
+                    "{LEAD}: {close}. {SPLIT}, or, if this thinness is intended, tighten the \
+                     tolerance below 5e-10 m"
+                ),
             ),
             (
-                says(CURVATURE_HEADROOM_PREDICATE, wide),
-                "Recourse: use an offset distance of smaller magnitude, or lower the tolerance",
+                says(escalated(Meter::CurvatureHeadroom, wide)),
+                format!("{LEAD}: {close}. {DISTANCE}"),
             ),
             (
-                says(NORMAL_FLOOR_PREDICATE, MarginDiag::Invalid),
-                geom_core::KERNEL_OR_FILE_DEFECT_ENDING,
+                says(escalated(Meter::NormalFloor, MarginDiag::Invalid)),
+                format!(
+                    "{LEAD}: {close}. {SPLIT}; an unreadable or collapsed margin may indicate a \
+                     kernel bug worth reporting"
+                ),
             ),
             (
-                says("roster_unknown_probe", MarginDiag::Value(5.0e-9)),
-                "no recourse specific to predicate 'roster_unknown_probe' is recorded",
+                says(MeterError::NormalFloor {
+                    floor: 1.0e-9,
+                    speed_lever: 2.0,
+                    verdict: zero(5.0e-10),
+                }),
+                format!(
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}, or, if this thinness is intended, tighten the tolerance below \
+                     5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::NormalFloor {
+                    floor: 0.0,
+                    speed_lever: 2.0,
+                    verdict: zero(0.0),
+                }),
+                format!(
+                    "{LEAD}: the face's surface normal may degenerate, so it may have no offset. \
+                     {SPLIT}; if it has none, this may indicate a kernel bug worth reporting"
+                ),
+            ),
+            (
+                says(MeterError::CurvatureHeadroom {
+                    reach: 0.5,
+                    kappa: (2.0, 0.5),
+                    verdict: zero(5.0e-10),
+                }),
+                format!(
+                    "{LEAD}: the offset may fold over itself on this face. {DISTANCE}, or, if \
+                     this clearance is intended, tighten the tolerance below 5e-11 m"
+                ),
+            ),
+            (
+                says(MeterError::CurvatureHeadroom {
+                    reach: 0.5,
+                    kappa: (2.0, 0.5),
+                    verdict: Refused::Negative { margin: -0.1 },
+                }),
+                format!("{LEAD}: the offset folds over itself on this face. {DISTANCE}"),
             ),
         ];
-        for (msg, ending) in rows {
-            assert!(msg.ends_with(ending), "{msg}");
+        for (msg, want) in rows {
+            assert_eq!(msg, want);
         }
     }
 
