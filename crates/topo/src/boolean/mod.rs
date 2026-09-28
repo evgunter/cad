@@ -1875,7 +1875,7 @@ impl core::fmt::Display for BooleanError {
                 write!(
                     f,
                     "grafted edge description failed re-certification: {}",
-                    e.render(geom_brep::certify::Reading::Build)
+                    e.render(geom_brep::recourse::Reading::Build)
                 )
             }
         }
