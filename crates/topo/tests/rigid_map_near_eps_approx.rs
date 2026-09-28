@@ -68,11 +68,8 @@ fn near_eps_face(d: f64) -> geom::ApproxSurface<f64> {
         "a target of a metre certifies at round 0"
     );
     let s = eps * (1.0 - MARGIN) / unscaled.hull_sup;
-    let minted = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
+    let face = geom_brep::approx_offset_surface(Arc::new(bowed(s)), d * s, tol)
         .unwrap_or_else(|e| panic!("d = {d}: the scaled patch mints at the run's ε: {e}"));
-    let Surface::Approx(face) = minted else {
-        panic!("the mint door produces `Surface::Approx`")
-    };
     let c = face.certificate();
     // The subject is what the file says it is: a round-0 face whose
     // bound sits within twice the margin of ε. A scaled fit that

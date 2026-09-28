@@ -43,11 +43,8 @@ fn tol() -> Tol {
 }
 
 fn bowed_offset_approx<T: Real>() -> ApproxSurface<T> {
-    let minted = geom_brep::approx_offset_surface(Arc::new(bowed_patch()), 0.05, tol())
+    let approx = geom_brep::approx_offset_surface(Arc::new(bowed_patch()), 0.05, tol())
         .expect("the bowed patch's offset fits at the run's eps");
-    let Surface::Approx(approx) = minted else {
-        panic!("the mint door produces Surface::Approx");
-    };
     approx.map_scalar(T::from_f64)
 }
 

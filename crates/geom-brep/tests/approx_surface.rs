@@ -394,9 +394,9 @@ fn a_window_the_certifier_cannot_honour_refuses_typed() {
 /// mapped fit certifies against the mapped base, at the same `d` and
 /// the same target — a certified statement, not a sampled one — for a
 /// fit whose bound sits under the target by more than the map moves
-/// it. This row's does (0.44 of the target); one minted near its
-/// target need not, which `topo`'s `rigid_map_near_eps_approx` suite
-/// reproduces.
+/// it. This row's does (0.44 of the target, asserted under half); one
+/// minted near its target need not, which `topo`'s
+/// `rigid_map_near_eps_approx` suite reproduces.
 ///
 /// **What survives the map is the sampled limb, not the bound.**
 /// `on_locus_max` is a distance between two points, computed the same
@@ -434,6 +434,14 @@ fn a_rigid_map_of_an_offset_is_the_offset_of_the_rigid_map() {
         let s = approx_offset_surface_at(Arc::clone(&base), d, TARGET, band()).unwrap();
         let here = approx_of(&s).certificate();
         let fit = approx_of(&s).fit();
+        // The headroom the row's claim rests on (doc above): a bound
+        // this far under the target is not one a rotation carries past it.
+        assert!(
+            here.hull_sup <= 0.5 * TARGET,
+            "d = {d}: the fit's bound {} is not under half the target, so the map's drift \
+             could carry it past",
+            here.hull_sup
+        );
         for (name, map) in &maps {
             let mapped_base = base.map_points(|p| map.transform_point(p));
             let mapped_fit = fit.map_points(|p| map.transform_point(p));
