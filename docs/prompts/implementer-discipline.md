@@ -204,9 +204,7 @@ the logic of a change.
 **Excess commentary is a defect, and cutting it is a drive-by.** When a file
 you are already editing carries comments that restate what the code plainly
 does, argue at length for code that reads for itself, or say the same thing
-twice, delete or shorten them in the same PR and say so in its body. Keep what
-the code cannot say: an invariant it cannot enforce, why a non-obvious choice
-is right, a citation of a ratified clause. Do not add commentary to justify
+twice, delete or shorten them in the same PR. Do not add commentary to justify
 your own change; that argument goes in the PR description.
 
 ## 5. Sweeps
