@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-28
 priority: P1
 cost: M
-refs: [a-shell-role-is-decided-by-two-spellings]
+refs: [a-shell-role-is-decided-by-two-spellings, step-export-refuses-every-hollow-body]
 ---
 
 
@@ -38,9 +38,8 @@ closed form (`volume_pad == 0.0`), measured 2026-09-28. Yet `crates/sweep/tests/
 `a_curved_two_shell_shell_refuses_step_export`, pins the export of a
 shelled tube as a standing `CurvedShellClassification` refusal. So
 does `demos/README.md` ("no closed form yet"), along with
-`docs/KERNEL-VERBS.md`'s STEP rows. A body the shell verb builds on
-everyday geometry cannot leave the tree, though the kernel's own door
-answers the question the writer refuses on.
+`docs/KERNEL-VERBS.md`'s STEP rows. The writer refuses on a question
+the kernel's own door answers.
 
 **Fix.** Read the roles with `topo::classify_shells_of(body,
 shells, tol)` over the solid's shells, then retire
@@ -52,5 +51,10 @@ refusals. The self-retiring rows above then flip, and they say so.
 - the sign becomes band-decided rather than a raw `f64` comparison, so
   a planar shell whose volume is within the band now refuses typed
   (`ZeroVolume`/`Escalated`) where it used to pass on headroom;
-- curved multi-shell solids stop refusing;
+- a curved multi-shell solid is classified instead of refusing
+  `CurvedShellClassification`. A shelled tube still does not export:
+  its void shell now refuses `VoidShellUnsupported`, the writer's
+  standing refusal of every hollow body until it writes
+  `BREP_WITH_VOIDS` (`step-export-refuses-every-hollow-body`). The
+  pinned row flips to that refusal, not to success;
 - the error surface changes.
