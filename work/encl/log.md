@@ -822,3 +822,24 @@ Also taken:
 Appended to PRED's row: the per-crate "derive the run's band at the
 door" wrapper class (S2). Not taken: the projection seed grids (S11),
 since endpoint-inclusive grids are a different concept.
+
+## PR 3320 fix pass in (2026-09-28)
+
+(ENCL orchestrator) Head `5361cd02ad`, with main merged in (one
+import-block conflict, resolved).
+- **S1 is closed at the public door.** `replace_face(s)_offset` take
+  `Tol` alone and derive one band up front (`ReplaceFaceError::Band`),
+  so the analytic mint, the re-anchoring, the transport, the iso rows,
+  the apex decisions and the fit lane read one band by construction.
+  That touched 56 caller sites, each already `Band::linear` of the
+  same witness.
+- **S6 is stated, not closed.** `tier3_local_checks_marked` has a
+  caller (`n2r1_probes`) with a fixed band.
+- **`OffsetFitError::Band`** now renders one true recourse, and
+  `Meter` shares the corrected prefix.
+- **New ignored probes** drive each door to the new arms with
+  pathological committed tolerances.
+- **The earlier hosted rustfmt red** was the new probe file before
+  `cargo fmt`.
+
+It merges on hosted green.
