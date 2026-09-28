@@ -1090,7 +1090,11 @@ fn the_carrier_datum_read_names_every_datum_that_describes_no_curve() {
             spiric(0.0, 0.3),
             Some(V::Unrepresentable(D::MinorRadius, Value, Lower)),
         ),
-        ("finite NURBS carrier", line_net(Point3::new(1.0, 0.0, 0.0)), None),
+        (
+            "finite NURBS carrier",
+            line_net(Point3::new(1.0, 0.0, 0.0)),
+            None,
+        ),
         (
             "NURBS carrier, infinite control point",
             line_net(Point3::new(inf, 0.0, 0.0)),

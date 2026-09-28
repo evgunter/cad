@@ -7101,7 +7101,7 @@ fn window<T: Decide>(segment: MeetSegment<T>, p: geom_core::Point3<T>, band: Ban
 ///
 /// One condition: the surface is a `Plane`, because there is
 /// otherwise no plane for the walk to run in. The outer loop's CLASS
-/// is not gated on: [`crate::splitting::point_in_carrier_loop`] reads
+/// is not gated on: [`crate::splitting::containment::point_in_carrier_loop`] reads
 /// every edge on its own carrier and answers every class it has a
 /// crossing row for, and says so itself where it has none (`None`,
 /// read in [`ring_nesting`]), so the gate has nothing of its own to
@@ -7161,7 +7161,7 @@ enum RingNestingVerdict {
 /// nothing here and the walk moves to the next vertex.
 ///
 /// **One instrument, every class**:
-/// [`crate::splitting::point_in_carrier_loop`], which reads each outer
+/// [`crate::splitting::containment::point_in_carrier_loop`], which reads each outer
 /// edge on its own carrier — a line as its segment, a circle or
 /// ellipse arc on its conic inside its window — so the region it
 /// decides IS the loop's region, whatever mix of lines and arcs the
