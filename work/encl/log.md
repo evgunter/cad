@@ -1074,3 +1074,6 @@ class of 65 sites is PRED's row.
   - The reviewer also corrected my brief: 3e884c14be is the branch's first commit, not a commit on main.
 - 2026-09-28 — PR 3347 merged (`2e913b87d0`), hosted all green on `695e7a39e6`. Closed `offset-meter-escalation-renders-the-coincidence-menu-unlabelled`. Seam notes posted on the restfront, tcost and tint logs.
 - 2026-09-28 — Priced `certify-escalation-renders-the-coincidence-menu-unlabelled` at P3/E and dispatched it on `encl/certify-escalation-recourse`, Opus, style review. The brief carries 3347's lessons: one routing home shared with `validate::classify_certify`, explicit arms plus `MissingRecourse` (no default arm), and pins on both surfaces.
+- 2026-09-28 — PR 3348 merged (`95b59b9361`), hosted all green on `10a32dfb5c`. Closed `domain-uniform-refinement-grid-is-spelled-three-times`, and posted seam notes on the program logs.
+  - On item 6 of the fix pass, the lane named three pinning rows for the hairline row, not four. That is correct: the review's fourth red row was `bezier_blocks`, which already uses the clearance guard.
+  - The residue row `domain-grid-homing-residue` (P4/E) is open.
