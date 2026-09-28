@@ -50,3 +50,7 @@ into every lower crate's error type.
 Not investigated beyond `classify_offset_fit`: whether the other
 classifiers have already drifted from their lower `Display`s is
 this row's first measurement.
+
+## Re-homed
+
+2026-09-27, from `work/atrest/` at ATREST's close: the finding is one text spelled by hand in two places (the `classify_*` paraphrases and the lower crates' `Display` recourses), which is S-DUP's charter (CENSUS fits too, but stood at 46.5 of 30). The fix edits `validate.rs`, RESTFRONT's ground; the landing PR announces the seam.

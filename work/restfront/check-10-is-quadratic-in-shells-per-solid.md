@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-27
 priority: P3
 cost: M
-refs: [tier-3-does-not-check-shell-roles-per-solid]
+refs: [3301]
 ---
 
 

@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-25
 priority: P1
 cost: D
-refs: [ATREST-9]
+refs: [3204]
 ---
 
 Measured by an ATREST-9 dual reviewer (PR #3204) and re-measured in

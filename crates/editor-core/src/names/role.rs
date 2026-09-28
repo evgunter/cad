@@ -1403,6 +1403,82 @@ pub(crate) fn member_edge(seg: &RoleSeg) -> Option<RecipeNodeId> {
     }
 }
 
+/// **One name-carrying edge of the recipe** (N1): a node that adds no
+/// segment to the names it carries, so every name it publishes from
+/// below keeps its original minter. Which edge it is decides which of
+/// the input's names come through.
+#[derive(Debug)]
+pub(crate) enum VerbatimEdge<'a> {
+    /// Every body of `input`, body `k` in to body `k` out, moved: a
+    /// [`Node::Transform`](crate::node::Node::Transform). A selection
+    /// in effect above it rides through to `input` unchanged.
+    Whole {
+        /// The value placed.
+        input: RecipeNodeId,
+    },
+    /// The one body of `of` that `select` names, projected: a
+    /// [`Node::Part`](crate::node::Node::Part).
+    Selected {
+        /// The split or pattern read.
+        of: RecipeNodeId,
+        /// Which body of it.
+        select: &'a crate::node::PartSelect,
+    },
+    /// The entities of the split target the split leaves intact: a
+    /// [`Node::Split`](crate::node::Node::Split). Which ones those are
+    /// is the geometry's answer, not the recipe's, so no walk follows
+    /// this edge and it carries no input.
+    Intact,
+}
+
+/// **The name-carrying edge `node` is, if any**: a transform, a part's
+/// projection, a split's intact entities (N1's pass-through ops).
+/// Every other node is classified as re-minting what it carries.
+///
+/// Two walks read the set here: the product's two-roots check
+/// (`product::placed_under_two_roots`) and the mate member walk
+/// (`mate::member::walk`); they differ only in where each stops. The
+/// compiler holds the three together: this match is exhaustive, so a
+/// new node kind does not compile until it is classified here, and
+/// both walks match [`VerbatimEdge`] without a wildcard, so a new kind
+/// of edge does not compile until each decides what to do with it.
+///
+/// What is NOT held: that this classification agrees with what the
+/// evaluator actually passes through (`eval::wire`'s `wire_transform`,
+/// `wire_part`, `wire_split`). A node whose evaluation returns its
+/// input's table unchanged but is filed under `None` here compiles,
+/// and both walks stop at it
+/// (`work/gather/verbatim-edge-is-not-tied-to-the-evaluator`). Code
+/// outside this crate cannot read it either.
+pub(crate) fn verbatim_edge<P>(node: &crate::node::Node<P>) -> Option<VerbatimEdge<'_>> {
+    use crate::node::Node;
+    match node {
+        Node::Transform { input, .. } => Some(VerbatimEdge::Whole { input: *input }),
+        Node::Part { of, select } => Some(VerbatimEdge::Selected { of: *of, select }),
+        Node::Split { .. } => Some(VerbatimEdge::Intact),
+        Node::Datum(_)
+        | Node::Profile(_)
+        | Node::Extrude { .. }
+        | Node::Revolve { .. }
+        | Node::Tube { .. }
+        | Node::HollowTube { .. }
+        | Node::Loft { .. }
+        | Node::Sweep { .. }
+        | Node::Fillet { .. }
+        | Node::Chamfer { .. }
+        | Node::Shell { .. }
+        | Node::Boolean { .. }
+        | Node::Union { .. }
+        | Node::Pattern { .. }
+        | Node::PlacedUnion { .. }
+        | Node::Declare { .. }
+        | Node::InstantiatePart { .. }
+        | Node::Mate { .. }
+        | Node::Measure { .. }
+        | Node::Assertion { .. } => None,
+    }
+}
+
 /// The [`RoleSeg`] variants that embed no [`StableName`], as a
 /// PATTERN rather than a predicate.
 ///

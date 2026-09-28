@@ -6,7 +6,7 @@ status: open
 opened: 2026-09-24
 priority: P3
 cost: D
-refs: [tier-3-does-not-check-shell-roles-per-solid, check-9-nesting-is-line-bounded-only, point-in-solid-reads-out-from-inside-a-re-posed-torus-barrel, ray-wall-and-cone-near-root-cancels-over-a-small-lead]
+refs: [3301, 3179, 3204, ray-wall-and-cone-near-root-cancels-over-a-small-lead]
 ---
 
 
