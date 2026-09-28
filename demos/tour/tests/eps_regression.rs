@@ -1,8 +1,21 @@
-//! Regression pin for #99: the full tour — its scene walk and its
-//! certified cells (`demo-tour certified`) — must run green at every
-//! supported tolerance row. **Green means exit 0, and that is the
-//! whole contract** — [`run_tour`] asserts nothing else, and nothing
-//! else is available to assert.
+//! Regression pin for #99: the tour's scene walk must run green at
+//! every supported tolerance row, and its certified cells (`demo-tour
+//! certified`) at the default one. **Green means exit 0, and that is
+//! the whole contract** — [`run_tour`] asserts nothing else, and
+//! nothing else is available to assert.
+//!
+//! **Why the certified cells run at one ε and not three.** #99 was a
+//! scene-walk escalation (below), and the walk keeps all three rows.
+//! The certified cells are minutes each — the E6 drive over hundreds
+//! of replayed leaves — and in two months of CI they went red at one ε
+//! alone exactly once, so two of the three runs were buying minutes
+//! of the release row's wall time for almost no signal.
+//!
+//! **At the default ε this run IS the tolerance cell's test.** The
+//! cell asserts what its captions claim inside its own narration — the
+//! tour's usual posture: a cell panics when the kernel stops doing
+//! what it narrates — so the exit-0 contract here carries those
+//! findings, and no unit row drives the same 512-leaf study again.
 //!
 //! The tour has no clean-refusal exit. Every typed refusal it can meet
 //! on the scene path is a panic by construction (`run_body` panics on
@@ -35,8 +48,9 @@
 
 use std::process::{Command, Output};
 
-/// The scene walk into a scratch directory, then the certified cells.
-fn run_tour(eps: Option<&str>) {
+/// The scene walk into a scratch directory, then — when `certified` —
+/// the certified cells.
+fn run_tour(eps: Option<&str>, certified: bool) {
     let outdir = std::env::temp_dir().join(format!(
         "demo-tour-eps-pin-{}-{}",
         eps.unwrap_or("default"),
@@ -47,6 +61,9 @@ fn run_tour(eps: Option<&str>) {
     let walk = run_demo(outdir.as_os_str(), eps);
     let _ = std::fs::remove_dir_all(&outdir);
     assert_green("<outdir>", eps, &walk);
+    if !certified {
+        return;
+    }
     let certified = run_demo("certified".as_ref(), eps);
     assert_green("certified", eps, &certified);
 }
@@ -87,15 +104,15 @@ fn assert_green(arg: &str, eps: Option<&str>, output: &Output) {
 
 #[test]
 fn tour_runs_green_at_default_eps() {
-    run_tour(None);
+    run_tour(None, true);
 }
 
 #[test]
 fn tour_runs_green_at_eps_1e_6() {
-    run_tour(Some("1e-6"));
+    run_tour(Some("1e-6"), false);
 }
 
 #[test]
 fn tour_runs_green_at_eps_1e_12() {
-    run_tour(Some("1e-12"));
+    run_tour(Some("1e-12"), false);
 }

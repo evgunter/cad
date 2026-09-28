@@ -29,11 +29,10 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
+use crate::common::operands::three_arc_cylinder;
 use geom::Surface;
+use geom_core::Point2;
 use geom_core::Tol;
-use geom_core::{Affine3, Point2, Vec3};
-use profile::{Profile, SketchPlane, test_support::bulge_loop};
-use sweep::{Extrusion, extrude};
 use topo::query;
 use topo::{Body, ContactRecords, EntityId, FaceKey, ValidationError, validate_pseudomanifold};
 
@@ -46,19 +45,7 @@ fn p2(x: f64, y: f64) -> Point2<f64> {
 /// by `rot` degrees about its axis: radius 0.5, three ARC edges per
 /// cap, three cap vertices at `rot + {0°, 120°, 240°}`.
 fn cylinder(z0: f64, rot: f64) -> Body<f64> {
-    let b120 = (core::f64::consts::PI / 6.0).tan();
-    let at = |deg: f64| {
-        let th: f64 = (deg + rot).to_radians();
-        p2(0.5 * th.cos(), 0.5 * th.sin())
-    };
-    let lp = bulge_loop(vec![(at(0.0), b120), (at(120.0), b120), (at(240.0), b120)]);
-    let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
-    let profile = Profile::new(plane, vec![lp])
-        .validate(Tol::witness())
-        .unwrap();
-    extrude(&profile, Extrusion::Distance(1.0), Tol::witness())
-        .unwrap()
-        .body
+    three_arc_cylinder(p2(0.0, 0.0), 0.5, z0, 1.0, rot)
 }
 
 /// A planar-only brick: half-width `h` about the axis, `z ∈ [z0, z0 +
@@ -274,37 +261,18 @@ fn face_pair_refusals(errors: &[ValidationError]) -> Vec<(FaceKey, FaceKey)> {
 }
 
 /// The cylinder's three wall faces, split by whether they hold `v` on
-/// their boundary: `(holding, not_holding)`.
+/// their boundary: `(holding, not_holding)`, each in arena order.
 fn walls_by_vertex(body: &Body<f64>, v: topo::VertexKey) -> (Vec<FaceKey>, Vec<FaceKey>) {
-    let mut holding = Vec::new();
-    let mut apart = Vec::new();
-    for (f, data) in body.faces() {
-        if !matches!(
-            body.get_surface(data.surface),
-            Some(Surface::Cylinder { .. })
-        ) {
-            continue;
-        }
-        let mut owns = false;
-        for &lk in core::iter::once(&data.outer).chain(&data.rings) {
-            let Some(l) = body.get_loop(lk) else { continue };
-            let topo::LoopBoundary::Cycle { first } = l.boundary else {
-                // A lone-vertex loop has no cycle to walk. Extruded
-                // bodies have none; the skip is a shape requirement of
-                // the walk, not a judgement that an empty loop carries
-                // nothing — the reading that turns a shape
-                // requirement into a silent skip.
-                continue;
-            };
-            for he in body.loop_cycle(first).unwrap() {
-                if body.get_half_edge(he).unwrap().start == v {
-                    owns = true;
-                }
-            }
-        }
-        if owns { holding.push(f) } else { apart.push(f) }
-    }
-    (holding, apart)
+    let around = body.faces_of_vertex(v).expect("the vertex's orbit walks");
+    body.faces()
+        .filter(|(_, data)| {
+            matches!(
+                body.get_surface(data.surface),
+                Some(Surface::Cylinder { .. })
+            )
+        })
+        .map(|(f, _)| f)
+        .partition(|f| around.contains(f))
 }
 
 /// **The containment-deferral regression row.** A three-arc cylinder

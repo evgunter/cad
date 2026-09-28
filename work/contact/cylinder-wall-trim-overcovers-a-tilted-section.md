@@ -2,11 +2,12 @@
 id: cylinder-wall-trim-overcovers-a-tilted-section
 kind: issue
 title: point_in_solid's cylinder wall arm reads a wall bounded by a tilted planar section as its vertex rectangle and answers In across the cut (the cut cylinder)
-status: open
+status: dispatched
 opened: 2026-09-25
 priority: P0
 cost: H
 refs: [ATREST-9]
+parent: CONTACT-3
 ---
 
 Found by ATREST-9's fix pass (PR #3204), measuring its new ellipse arm

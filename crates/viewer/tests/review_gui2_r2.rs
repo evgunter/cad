@@ -33,7 +33,9 @@ test_utils::gated_to![
     "crates/pncad/src/",
     "crates/bvh/src/",
     "crates/viewer/tests/common/",
-    "crates/viewer/tests/gallery_ring.pncad"
+    "crates/viewer/tests/gallery_ring.pncad",
+    "crates/viewer/src/test_support.rs",
+    "crates/editor-core/src/test_support.rs",
 ];
 
 use std::sync::{Arc, Mutex};
@@ -42,7 +44,7 @@ use crate::common;
 use crate::common::{ang, len, scl, xy_frame};
 
 use pncad::document::{Doc, Evaluation, Expr, Node, PatternKind, ProfileProgram, RecipeNodeId};
-use pncad::geom_core::{Point3, Tol, Vec3};
+use pncad::geom_core::{Point3, Tol};
 use pncad::prelude::StableName;
 use pncad::select::{Ray, Resolution};
 use viewer::camera::Camera;
@@ -952,13 +954,7 @@ fn picking_again_replaces_rather_than_accumulates() {
         .expect("no refusal")
         .expect("the top face");
     let side = index
-        .face_at(
-            eval,
-            &Ray {
-                origin: Point3::new(-1.0, 0.010, 0.005),
-                dir: Vec3::new(1.0, 0.0, 0.0),
-            },
-        )
+        .face_at(eval, &common::along_x(1.0, 0.010, 0.005))
         .expect("no refusal")
         .expect("a wall");
     assert_ne!(top.name, side.name, "the fixture offers two distinct faces");

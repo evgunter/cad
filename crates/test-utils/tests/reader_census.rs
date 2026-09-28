@@ -161,6 +161,10 @@ const LEDGER: &[Entry] = &[
                              // mate/member.rs and mate/solve.rs, code view
     },
     Entry {
+        path: "crates/editor-core/tests/per_part_gate_policy.rs",
+        disposition: Shared, // product.rs's per-part policy consultation, code view
+    },
+    Entry {
         path: "crates/editor-core/tests/refusal_concision_chains.rs",
         disposition: Shared, // blend raise-site details over sweep/src/blend,
                              // code and code-and-literals views
@@ -293,6 +297,10 @@ const LEDGER: &[Entry] = &[
     Entry {
         path: "crates/step-import/tests/all.rs",
         disposition: Shared, // mount guard, literal view
+    },
+    Entry {
+        path: "crates/step-import/tests/per_part_gate_policy.rs",
+        disposition: Shared, // lib.rs's per-part policy consultation, code view
     },
     Entry {
         path: "crates/step-import/tests/tier_gate.rs",

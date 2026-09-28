@@ -55,7 +55,7 @@ use editor_core::{
 use geom_core::interval::Interval;
 use geom_core::{CertifiedEnclosure, Dual64, Tol};
 
-use fixture::{Recorder, fname, len, scl, wall};
+use fixture::{Recorder, fname, len, wall};
 
 /// The bore/pin worst-case hull's enclosure padding per analyzed
 /// half-width, measured at every CI ε row (see the consumer-walk row).
@@ -436,11 +436,11 @@ fn loft() -> (ProfileDoc, RecipeNodeId) {
     // A frame per section height: the two sections are drawn on
     // DIFFERENT planes, so they are different nodes.
     let frame_at = |r: &mut Recorder, z: f64| {
-        r.insert(Node::Datum(editor_core::Datum::Frame {
-            origin: [len(0.0), len(0.0), len(z)],
-            u: [scl(1.0), scl(0.0), scl(0.0)],
-            v: [scl(0.0), scl(1.0), scl(0.0)],
-        }))
+        r.insert(fixture::frame(
+            [0.0, 0.0, z],
+            [1.0, 0.0, 0.0],
+            [0.0, 1.0, 0.0],
+        ))
     };
     let (c0, z0) = section(0.0);
     let f0 = frame_at(&mut r, z0);

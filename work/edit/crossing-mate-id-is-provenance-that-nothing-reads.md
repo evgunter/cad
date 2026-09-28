@@ -190,7 +190,7 @@ after the merge and each reds its row.
   and all three now call `doctored`. The suites that cut the same
   save by LINE rather than by brace are a second rule for one
   question and S-DUP's ground; filed as
-  `work/dup/wire-surgery-header-split-is-spelled-nine-more-times-by-line.md`.
+  `work/reroute/wire-surgery-header-split-is-spelled-nine-more-times-by-line.md`.
 - **One home for the "no provenance" argument.** The variant's doc in
   `node.rs` argues it; `payload_read_sites`' group comment, the
   `pncad.pyi`/`py/refactor.rs` pair (one sentence, identically

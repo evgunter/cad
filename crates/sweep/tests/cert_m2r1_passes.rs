@@ -13,7 +13,7 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, ContactRecords, SplitPart, SplitPlane, split};
 
 fn v<T: Real>(x: f64, y: f64, b: f64) -> (Point2<T>, T) {
-    (Point2::new(T::from_f64(x), T::from_f64(y)), T::from_f64(b))
+    (Point2::new(x, y).map(T::from_f64), T::from_f64(b))
 }
 
 fn profile<T: geom_core::Decide>(lp: ProfileLoop<T>) -> profile::ValidatedProfile<T> {

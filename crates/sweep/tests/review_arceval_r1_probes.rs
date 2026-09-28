@@ -48,11 +48,12 @@
 mod certified {
     use core::f64::consts::PI;
 
-    use geom_core::{Bounds, Interval, Tol};
+    use geom_core::{Bounds, Interval, Real, Tol, Vec3};
 
     use crate::m5_s12_curved_ops_interval::certified::{
-        RECUT_MAPPED_ENCLOSURE_HI, ball, plate, recut_ball,
+        RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball,
     };
+    use sweep::test_support::ball_poled_y;
     use topo::{Body, mass_properties};
 
     /// A block covering the ball laterally, spanning `z ∈ [z0, z0 + len]`
@@ -69,8 +70,16 @@ mod certified {
     fn e1_ball_minus_cap_block_decides_definitely_at_interval() {
         const R: f64 = 0.6;
         const Z_CUT: f64 = 0.3;
-        let cut = topo::subtract(&ball(R), &block(Z_CUT, 1.0), Tol::witness())
-            .expect("the cap cut decides at Interval");
+        let cut = topo::subtract(
+            &ball_poled_y(
+                Interval::from_f64(R),
+                Vec3::new(Interval::zero(), Interval::zero(), Interval::zero()),
+                Tol::witness(),
+            ),
+            &block(Z_CUT, 1.0),
+            Tol::witness(),
+        )
+        .expect("the cap cut decides at Interval");
         let cut = &cut.body().expect("a body").body;
         assert_eq!(topo::validate_geometric(cut, Tol::witness()), Ok(()));
         let h = R - Z_CUT;

@@ -19,35 +19,9 @@ use topo::ShellNaming;
 use topo::{Body, FaceKey, ShellError, ShellRole, SolidKey, VoidContainment, VoidEvidence};
 
 use crate::common::approx::band;
+use crate::common::charts::{charts_of, moves_inward};
+use crate::shell8_common::{beside, beside_raw, cap, faces_of, solid_of, tol, volume};
 use crate::verbs_shell::{hollow_box, v, vessel};
-
-fn tol() -> Tol {
-    Tol::witness()
-}
-
-/// `other` placed `d` along `+x` beside `body` as a second solid, through
-/// the public disjoint-graft door. No validity assertion — some rows
-/// build operands tier 3 would not bless on purpose.
-fn beside_raw(body: &Body<f64>, other: &Body<f64>, d: Vec3<f64>) -> (Body<f64>, SolidKey) {
-    let mut out = body.clone();
-    let placed = topo::transform_rigid(other, &Affine3::translation(d), tol()).expect("rigid");
-    let k = topo::graft_disjoint(&mut out, &placed, tol()).expect("grafts");
-    (out, k)
-}
-
-fn beside(body: &Body<f64>, other: &Body<f64>, dx: f64) -> Body<f64> {
-    let (out, _) = beside_raw(body, other, Vec3::new(dx, 0.0, 0.0));
-    assert_eq!(
-        topo::validate_geometric(&out, tol()),
-        Ok(()),
-        "operand valid"
-    );
-    out
-}
-
-fn volume(body: &Body<f64>) -> f64 {
-    topo::mass_properties(body, tol()).expect("props").volume
-}
 
 fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
     body.vertices()
@@ -56,74 +30,6 @@ fn points(body: &Body<f64>) -> Vec<(topo::VertexKey, (u64, u64, u64))> {
             (k, (p.x.to_bits(), p.y.to_bits(), p.z.to_bits()))
         })
         .collect()
-}
-
-fn solid_of(body: &Body<f64>, face: FaceKey) -> SolidKey {
-    let shell = body.get_face(face).unwrap().shell;
-    body.get_shell(shell).unwrap().solid
-}
-
-fn solid_of_vertex(body: &Body<f64>, vertex: topo::VertexKey) -> SolidKey {
-    let he = body.get_vertex(vertex).unwrap().emanating.unwrap();
-    let lp = body.get_half_edge(he).unwrap().parent_loop;
-    let face = body.get_loop(lp).unwrap().face;
-    solid_of(body, face)
-}
-
-fn faces_of(body: &Body<f64>, solid: SolidKey) -> Vec<FaceKey> {
-    body.faces()
-        .filter(|(k, _)| solid_of(body, *k) == solid)
-        .map(|(k, _)| k)
-        .collect()
-}
-
-fn charts_of(body: &Body<f64>, solid: SolidKey) -> Vec<Vec<FaceKey>> {
-    let mut out: Vec<(topo::SurfaceKey, Vec<FaceKey>)> = Vec::new();
-    for face in faces_of(body, solid) {
-        let key = body.get_face(face).unwrap().surface;
-        match out.iter_mut().find(|(k, _)| *k == key) {
-            Some((_, v)) => v.push(face),
-            None => out.push((key, vec![face])),
-        }
-    }
-    out.into_iter().map(|(_, v)| v).collect()
-}
-
-/// Inward moves for every chart of `solid` at wall `t` (the verb's own
-/// `inward` rule: sense true → −t).
-fn inward_moves(body: &Body<f64>, solid: SolidKey, t: f64) -> Vec<topo::ChartMove<f64>> {
-    charts_of(body, solid)
-        .into_iter()
-        .map(|faces| {
-            let sense = body.get_face(faces[0]).unwrap().sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
-}
-
-/// The chart of `shell` whose plane is normal to `axis` at `value`.
-fn cap(body: &Body<f64>, shell: topo::ShellKey, axis: Vec3<f64>, value: f64) -> Vec<FaceKey> {
-    for &face in &body.get_shell(shell).unwrap().faces {
-        let f = body.get_face(face).unwrap();
-        let Some(geom::Surface::Plane { origin, normal, .. }) = body.get_surface(f.surface) else {
-            continue;
-        };
-        if normal.cross(axis).norm() > 1e-9 {
-            continue;
-        }
-        if (Vec3::new(origin.x, origin.y, origin.z).dot(axis) - value).abs() < 1e-9 {
-            let chart = f.surface;
-            return body
-                .faces()
-                .filter(|(_, g)| g.surface == chart)
-                .map(|(k, _)| k)
-                .collect();
-        }
-    }
-    panic!("no cap of {shell:?} normal to {axis:?} at {value}")
 }
 
 fn roles(body: &Body<f64>) -> Vec<(topo::ShellKey, ShellRole)> {
@@ -140,10 +46,11 @@ fn bitwise_solid(before: &Body<f64>, after: &Body<f64>, solid: SolidKey) -> (usi
     let a = points(before);
     let b = points(after);
     assert_eq!(a.len(), b.len(), "no vertex minted or killed");
+    let owners = topo::SolidOwners::of(before);
     let (mut same, mut moved) = (0, 0);
     for ((k, pa), (k2, pb)) in a.iter().zip(b.iter()) {
         assert_eq!(k, k2, "arena order kept");
-        if solid_of_vertex(before, *k) != solid {
+        if owners.vertex(*k).expect("every vertex has an owning solid") != solid {
             continue;
         }
         if pa == pb {
@@ -176,8 +83,13 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
 
     // The vessel's charts only, through the axial door.
     let mut work = pair.clone();
-    topo::offset_charts_together(&mut work, &inward_moves(&pair, vs, t), band(), tol())
-        .expect("the vessel's charts move through the axial door while the box stands by");
+    topo::offset_charts_together(
+        &mut work,
+        &moves_inward(&pair, charts_of(&pair, vs), t),
+        band(),
+        tol(),
+    )
+    .expect("the vessel's charts move through the axial door while the box stands by");
     let (same, moved) = bitwise_solid(&pair, &work, bx);
     println!("[r2] axial door scoped to vessel: box vertices same={same} moved={moved}");
     assert_eq!(moved, 0, "the box moved");
@@ -189,7 +101,12 @@ fn r2_axial_door_scoped_to_the_vessel_leaves_the_box_bitwise() {
     // The box's charts only, through the planar door — the vessel's
     // curved faces are OUT of scope and must not trip `TogetherNonPlanar`.
     let mut work = pair.clone();
-    let r = topo::offset_planes_together(&mut work, &inward_moves(&pair, bx, t), band(), tol());
+    let r = topo::offset_planes_together(
+        &mut work,
+        &moves_inward(&pair, charts_of(&pair, bx), t),
+        band(),
+        tol(),
+    );
     println!("[r2] planar door scoped to box beside a vessel: {r:?}");
     r.expect("the box's charts move through the planar door while the vessel stands by");
     let (same, moved) = bitwise_solid(&pair, &work, vs);
@@ -208,8 +125,8 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     let three = beside(&two, &block(2.0, 3.0, 4.0, Tol::witness()), 20.0);
     let solids: Vec<SolidKey> = three.solids().map(|(k, _)| k).collect();
     assert_eq!(solids.len(), 3);
-    let mut moves = inward_moves(&three, solids[0], t);
-    moves.extend(inward_moves(&three, solids[2], t));
+    let mut moves = moves_inward(&three, charts_of(&three, solids[0]), t);
+    moves.extend(moves_inward(&three, charts_of(&three, solids[2]), t));
     let mut work = three.clone();
     topo::offset_planes_together(&mut work, &moves, band(), tol()).expect("two of three move");
     let mid = bitwise_solid(&three, &work, solids[1]);
@@ -221,8 +138,8 @@ fn r2_scope_naming_two_of_three_solids_leaves_the_third_bitwise() {
     assert_eq!(c, (0, 8));
 
     // Two of three named, one of them in part: refuses naming the face.
-    let mut partial = inward_moves(&three, solids[0], t);
-    partial.extend(inward_moves(&three, solids[2], t));
+    let mut partial = moves_inward(&three, charts_of(&three, solids[0]), t);
+    partial.extend(moves_inward(&three, charts_of(&three, solids[2]), t));
     partial.pop();
     let mut work = three.clone();
     let e = topo::offset_planes_together(&mut work, &partial, band(), tol()).unwrap_err();
@@ -482,9 +399,10 @@ fn r2_lift_on_the_vessels_void_ceiling_alone_and_beside_a_box() {
         topo::shell_open(&pair, t, &ceiling, tol()).expect("opened on the vessel's void ceiling");
     // By OPERAND key: the box's entities survive under their keys in
     // both results, while the rim surgery kills vertices elsewhere.
+    let owners = topo::SolidOwners::of(&pair);
     let (mut same, mut moved) = (0, 0);
     for (k, _) in pair.vertices() {
-        if solid_of_vertex(&pair, k) != box_solid {
+        if owners.vertex(k).expect("every vertex has an owning solid") != box_solid {
             continue;
         }
         let p = |b: &Body<f64>| {

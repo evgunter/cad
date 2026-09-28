@@ -947,10 +947,7 @@ fn indexed(doc: Doc<ProfileProgram>, tol: Tol) -> (DocSession, PickIndex) {
 /// reach.
 fn at_the_wall() -> Ray {
     let [_, depth, thickness] = PLATE_EXTENT;
-    Ray {
-        origin: Point3::new(-1.0, depth * 0.5, thickness * 0.5),
-        dir: Vec3::new(1.0, 0.0, 0.0),
-    }
+    common::along_x(1.0, depth * 0.5, thickness * 0.5)
 }
 
 /// The ray across the first box's top rim edge: it meets the top face

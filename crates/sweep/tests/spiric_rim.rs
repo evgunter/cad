@@ -24,6 +24,8 @@ use profile::{ArcSweep, Center, Profile, ProfileLoop, SketchPlane, test_support:
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, ShellError, transform_rigid};
 
+use crate::common::charts::hollow_moves;
+
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -101,28 +103,6 @@ fn vessel_quarter() -> Body<f64> {
     )
     .expect("the meridian revolves")
     .body
-}
-
-/// The chart moves `shell` would make for an inward wall `t`, one per
-/// surface (`torax_axial::hollow_moves`, at any deciding scalar).
-fn hollow_moves<T: geom_core::Real>(body: &Body<T>, t: T) -> Vec<topo::ChartMove<T>> {
-    let mut charts: Vec<(topo::SurfaceKey, Vec<topo::FaceKey>)> = Vec::new();
-    for (k, f) in body.faces() {
-        match charts.iter_mut().find(|(s, _)| *s == f.surface) {
-            Some((_, v)) => v.push(k),
-            None => charts.push((f.surface, vec![k])),
-        }
-    }
-    charts
-        .into_iter()
-        .map(|(_, faces)| {
-            let sense = body.get_face(faces[0]).expect("face").sense;
-            topo::ChartMove {
-                faces,
-                distance: if sense { -t } else { t },
-            }
-        })
-        .collect()
 }
 
 /// The sectioned vessel's cavity through the axial door — the body
@@ -654,13 +634,11 @@ fn a_spiric_rim_splits_at_its_mid_parameter() {
 }
 
 mod interval_rows {
-    use geom_core::{Bounds, Interval, Real};
+    use geom_core::{Bounds, Interval};
 
     use super::*;
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
+    use crate::common::interval::iv;
 
     /// The vessel's meridian as a raw loop at any deciding scalar — the
     /// band arc as its bulge (`tan(θ/4) = 1/2`, the 3-4-5 arc), so the

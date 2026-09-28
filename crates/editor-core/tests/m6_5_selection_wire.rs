@@ -10,6 +10,7 @@
 
 use crate::fixture;
 
+use crate::fixture::len;
 use editor_core::{PersistError, load};
 use geom_core::Tol;
 
@@ -18,14 +19,11 @@ use geom_core::Tol;
 /// names out of order; the bytes show them sorted.
 #[test]
 fn the_selection_reaches_the_wire_canonical() {
-    use editor_core::{
-        CapEnd, Dimension, DocEdit, Expr, Node, ProfileDoc, RoleSeg, StableName, apply, save,
-    };
+    use editor_core::{CapEnd, DocEdit, Node, ProfileDoc, RoleSeg, StableName, apply, save};
 
     let square =
         editor_core::LoopProgram::polygon([(0.0, 0.0), (1.0, 0.0), (1.0, 1.0), (0.0, 1.0)])
             .expect("finite");
-    let len = |v: f64| Expr::literal(v, Dimension::Length).expect("a length literal");
     let mut doc = ProfileDoc::empty_derived("m6_5_selection_wire", Tol::witness());
     for edit in [
         DocEdit::InsertNode {

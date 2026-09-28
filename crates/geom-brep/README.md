@@ -354,11 +354,14 @@ introduces a square root), so the kernel fits one and carries the
 intent beside the fit (`geom/src/surfaces/approx.rs`):
 `SurfaceDescription::Offset { base: Arc<NurbsSurface>, d }` is the
 intensional layer and its only inhabitant (the canal blend is the next,
-not built); `SurfaceSpec { description, fit, window, tolerance }` is the
+not built); `SurfaceSpec { description, fit, window }` is the
 uncertified input; `ApproxSurface::certify(spec, certifier)` is the sole
 door and its fields are private, so an uncertified approximating surface
 is unrepresentable. The certifier is injected because the derivation
-lives one crate up (`offset_fit.rs`) and is `f64`-only. The base is an
+lives one crate up (`offset_fit.rs`) and is `f64`-only. The certifier
+carries its own target, and every production certifier's is the run's
+`Tol`, so the surface stores no tolerance and every re-derivation
+classifies at the ε of the run that performs it (D4 ¶1). The base is an
 owned `Arc`, not an arena key (layering, and `Surface` values travel
 without an arena), and it is NURBS by type: analytic bases mint exactly
 under O1 and never reach this door. Storage is the seventh variant
@@ -383,11 +386,13 @@ a degenerate one). The fit (`offset_fit.rs`) is the NURBS Book's A9.4
 grid interpolation at the base's own parameters, then a
 certify-and-insert loop that refines the cells carrying the sup until
 every cell certifies or the loop refuses naming what stopped it —
-`BudgetExhausted` (the round budget) or `SampleCapReached` (the
-per-direction sample cap), each carrying the achieved bound;
-`RefinementStalled` when the strongest step gains nothing, on the last
-round as on any other; `BoundNotFinite`, carrying the last finite bound
-any grid reached or none, when the last grid's bound is not finite;
+`BudgetExhausted` (the round budget, saying whether the last round
+improved or did not improve) or `SampleCapReached` (the per-direction
+sample cap); `RefinementStalled` when the strongest step gains nothing,
+on the last round as on any other; each carries the last grid's bound
+and the smallest any round reached (`BestBound`, whose doc states when a
+request at it certifies); `BoundNotFinite`, carrying that smallest
+finite bound or none, when the last grid's bound is not finite;
 A9.10's downward knot-removal compression is not built.
 `OffsetCertificate` has two limbs: `on_locus_max`, a sampled residual
 that steers, and `hull_sup`, the certified bound via
