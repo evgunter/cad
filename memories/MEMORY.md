@@ -44,17 +44,14 @@ not what it says.
 - [Review and dependency policy](review-and-dependency-policy.md) —
   reviews run real e2e demos; when a stated gap blocks; reviewer tests
   are ordinary tests; ~2-week dependency age
-- [Test suite cost](test-suite-cost.md) — ask which SHAPE a test is
-  before giving it a seed; effort dials; assertion-free tests never gate
 - [Tessellation budget](tessellation-budget.md) — MEASURE whether a mesh
   is bigger than it needs to be; where instrument may live; the
   anisotropic-sliver hazard behind the NURBS schedule
 - [Perf measurement lane](perf-measurement-lane.md) — where committed
   timings come from and what may be done with them; reporting, never
   gating (cited by name from nightly.yml and the perf-data READMEs)
-- [FreeCAD render lane](freecad-render-lane.md) — the nightly renders,
-  re-baselines and commits the lanes; PRs do not render; FreeCAD's
-  two failure modes; the per-process budget
+- [FreeCAD render lane](freecad-render-lane.md) — how to re-render for
+  a PR (the nightly re-baselines main); FreeCAD's two failure modes; the per-process budget
 
 ## Kernel rules
 

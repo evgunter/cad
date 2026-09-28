@@ -14,7 +14,7 @@
 //! - the shipped rim identity at the shape the constructor builds, with
 //!   a bulge at |b| = 1 (a semicircle), |b| > 1 (a major arc) and b < 0.
 //!
-//! Every row is a deterministic fixture ([[test-suite-cost]]). NOT
+//! Every row is a deterministic fixture (implementer-discipline §8). NOT
 //! proposed for merge: the branch carries a probe instrument in
 //! `geom_core::sym::report` (the enclosure column).
 

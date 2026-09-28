@@ -23,7 +23,7 @@
 //! rows would delete the finding; they go green the day the
 //! composition becomes a sum.
 //!
-//! Sweep shape (`memories/test-suite-cost.md`): nothing here samples —
+//! Sweep shape (implementer-discipline §8): nothing here samples —
 //! every row is a witness that can be written down, so all are static
 //! fixtures asserted every run and no seed appears. Rows whose doc
 //! comment says EVIDENCE-ONLY assert that a documented behaviour is

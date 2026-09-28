@@ -10,7 +10,7 @@
 //! - **DATUM** — a state the reviewer measured and is recording as the
 //!   shipped behaviour, red-capable if it changes.
 //! - **EVIDENCE-ONLY** — a print, no assertion that can fail on a
-//!   number (`memories/test-suite-cost.md`).
+//!   number (implementer-discipline §8).
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::fixture;

@@ -8,7 +8,7 @@
 //! review, not as a contract.
 //!
 //! No fuzzing: every row is a written-down witness (static fixture),
-//! per `memories/test-suite-cost.md` — no seeds anywhere.
+//! per implementer-discipline §8 — no seeds anywhere.
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 // Gated to the code it tests (TCOST-1). This suite is specific to the E6

@@ -343,7 +343,7 @@ future red behind. A gated suite's break persists — the code it was written
 against is still wrong tomorrow — and the nightly's `--gated-set` row runs the
 WHOLE gated set ungated on any day main moved, so the longest a break confined
 to an unnamed path can hide is a day. This is the same argument the k-lint
-draw rests on, at a longer period, and `memories/test-suite-cost.md`
+draw rests on, at a longer period, and implementer-discipline §8
 already RULED the case for the first users: a fuzzer must be *"MARKED to run
 only on changes to the code it was written to test"*, and one that is not
 gated is a defect in the fuzzer.

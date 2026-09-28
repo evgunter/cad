@@ -3,8 +3,8 @@ name: nightly
 # Everything the per-PR gate (ci.yml) does not run on every PR: the whole
 # suite at every eps row including the slow set, the k-lint rows, the render
 # lanes (which re-baseline and commit to main), rustdoc, wasm32, and each
-# path-gated PR row, ungated. A red here is a red on main; whoever reads it
-# first fixes it or files it.
+# path-gated PR row, ungated. A red here is a red on main; the orchestrator
+# that finds it assigns the fix.
 
 on:
   schedule:

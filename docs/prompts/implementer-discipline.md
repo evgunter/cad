@@ -26,12 +26,14 @@ the whole suite at every eps row, the k-lint rows, the render lanes, rustdoc,
 wasm32. The `change filter` job's log prints what this run selected, and
 `gate ok` is the one check to read.
 
-- **A green PR is not a green nightly.** If your change could plausibly move
-  a slow test, another eps row, or a demo, run that locally
-  (`cargo nextest run -p <crate>` runs the slow set too;
-  `CAD_TOLERANCE_EPS=1e-12` for a row) — or accept that the nightly may name
-  you. **A red nightly is a red main**: whoever reads it first fixes it or
-  files it.
+- **A green PR is not a green nightly.** Running more locally is your call,
+  not a hoop: if a slow test, another eps row or a demo is directly relevant
+  to your change and you think it has a good chance of catching a bug, you
+  can run it (`cargo nextest run -p <crate>` includes the slow set;
+  `CAD_TOLERANCE_EPS=1e-12` picks a row). Otherwise let the nightly have it.
+- **A red nightly is a red main, and the orchestrator owns it.** An
+  implementer that notices one reports it to its orchestrator rather than
+  fixing it; the orchestrator assigns the fix.
 - **A test that costs ≥ 1 s goes in the slow set** unless it has caught
   something the fast set would miss. Add it to `.config/nextest.toml`'s `ci`
   filter in the PR that adds the test.
@@ -196,3 +198,41 @@ Say in your report which rows you filed and where.
 
 **Cite by name; line numbers rot.** A number may ride along beside the
 name and is allowed to go stale; a bare `file.rs:NNN` is not a citation.
+
+## 8. Writing tests
+
+**First ask which SHAPE a randomized test is.** Three shapes; only the first
+wants a varying seed:
+
+1. **Counterexample search** (*for all sampled x, P(x)*): vary the seed. Cutting
+   its count loses detection power, never correctness.
+2. **A witness you can write down** (*at least K of class C*, C concisely
+   constructible): do not search. Build it as a static fixture.
+3. **A witness you cannot write down** ("a walk that reaches every op kind"):
+   fix the seed. It is a fixture identifier, and it cannot flake — provided K is
+   large enough that a lucky seed cannot pass it by accident.
+
+Do not mix 1 and 3 in one test: an anti-vacuity floor bolted onto a property
+sweep makes one count serve two obligations. Make the floor's witness static,
+or split the test. A sweep whose real content is an edge-value table is an
+enumeration; write it as one. Any other fixed seed says in-file why (a pinned
+counterexample too big to write out: "this seed reproduces #N"; cross-process
+byte-identical inputs).
+
+**A fuzzer** (shape 1) logs its seed on every run and in its assertion
+messages, takes an env override for exact replay, and scales its counts on
+the shared EFFORT dial (`CAD_FUZZ_EFFORT`). It runs at EFFORT = 1 in the
+default suite; its `gated_to!` marker names the paths whose change raises it.
+A genuine counterexample it finds is pinned as an ordinary deterministic test
+beside the fix.
+
+**Merge tests that rebuild the same expensive fixture**: nextest is
+process-per-test, so each pays in full. Label every assertion so the failing
+property is clear from the message alone.
+
+**A test that asserts nothing is never a gate.** It is evidence for a reviewer
+at the time; drop it, or `#[ignore]` it with its run command. The same holds
+for a one-shot comparison artefact once its comparison has been taken.
+
+**No silent skips.** A bare `return` at some ε reports green having asserted
+nothing; use `test_utils::loud_skip_marker!` so the absence shows in the log.
