@@ -18,7 +18,7 @@
 
 use geom_core::{Point2, Point3, Tol, Vec3};
 use profile::test_support::bulge_loop;
-use profile::{Open, Profile, ProfileLoop, SketchPlane, Start};
+use profile::{Open, Profile, ProfileLoop, Start};
 use sweep::blend::{BlendError, chamfer_edges, fillet_edges};
 use sweep::test_support::{brick, sketch_at};
 use sweep::{Extruded, Extrusion, extrude};
