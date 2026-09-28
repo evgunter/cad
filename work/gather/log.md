@@ -284,3 +284,16 @@ fins (991 faces, local dev profile) that drops the assembly gate from
 `census_ms` series steps down at this merge. Four rows filed from the
 sweep and review (tour re-gate, shell re-gate across the graft, the
 stale 11.4 s figure, the kept verdict's Sym session).
+
+## 2026-09-28 — every op that can mint a wedge end is audited (PR 3373)
+
+The audit left one hole in split and closed it: a plane tangent to a
+hole wall along a vertex ruling minted a cusp, which now refuses
+`SectionCusp`. The refusal reads the material pairing through
+`classify_material_pairing`, as tier 3 does, after the FULL review
+showed a kind test refusing a legal π seam (the rounded shoulder).
+The loft's opposite-turning joints are filed on carve as a
+self-overlap. STEP import mints nothing its file did not state: a
+designer pair found no open fork (Ev's ruling on PR 3317 covers it),
+and a round-trip row pins the admission. The shoulder's other
+orientation refusing at reduce is filed on reach.
