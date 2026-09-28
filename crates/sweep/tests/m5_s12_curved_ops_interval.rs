@@ -18,11 +18,12 @@
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-pub(crate) mod certified {
+mod certified {
     use core::f64::consts::PI;
     use geom_core::Tol;
 
     use crate::common::operands::m5_boss;
+    use crate::common::sphere_recut::{RECUT_MAPPED_ENCLOSURE_HI, plate, recut_ball};
     use geom::Surface;
     use geom_core::{Bounds, Interval, OrthoFrame};
     use profile::{
@@ -31,7 +32,7 @@ pub(crate) mod certified {
     use sweep::{Extrusion, extrude};
     use topo::{Body, mass_properties};
 
-    use crate::common::interval::{iv, p2, p3, v3};
+    use crate::common::interval::{iv, p2, p3};
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
@@ -40,23 +41,6 @@ pub(crate) mod certified {
     }
 
     const R: f64 = 0.35;
-
-    /// The 3x3x0.8 plate. **`pub(crate)` because
-    /// `review_arceval_r1_probes`'s E2 row re-runs this fixture to pin
-    /// the same constant from a second file**: the two rows say they use
-    /// the same plate, and this is what makes that so rather than saying
-    /// it.
-    pub(crate) fn plate() -> Body<Interval> {
-        sweep::test_support::block(3.0, 3.0, 0.8, Tol::witness())
-    }
-
-    /// The sphere-recut fixture's cutter: the unit
-    /// [`ball_poled_y`](sweep::test_support::ball_poled_y) at
-    /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
-    /// `review_arceval_r1_probes`'s E2 row builds it from here too.
-    pub(crate) fn recut_ball() -> Body<Interval> {
-        sweep::test_support::ball_poled_y(iv(1.0), v3(1.5, 1.5, 0.5), Tol::witness())
-    }
 
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
     /// wall — S11's `sense: false` arc wall at the certified scalar.
@@ -193,30 +177,6 @@ pub(crate) mod certified {
             "the mef re-mint did not inherit the parent bit at Interval"
         );
     }
-
-    /// The `carrier_matches_mapped_source` enclosure this row's chain
-    /// escalates on (metres), measured at the FIRST escalating sample
-    /// of the crossing insertion's second child — certification aborts
-    /// there, so later samples of that edge never run and this is not a
-    /// claim about them. It is ε-INDEPENDENT — the same bits at every ε
-    /// — because it is the interval lane's enclosure width, a property
-    /// of the arithmetic that built the two points, not of the
-    /// tolerance they are judged against. The row therefore certifies
-    /// exactly when ε is at or above it.
-    ///
-    /// The escalation arm below pins `hi` to this value BIT-EXACTLY, in
-    /// both directions. A regression that widens the arc chain is loud,
-    /// and so is a tightening that narrows it — including a partial one
-    /// that lands between the band and this constant, which an
-    /// upper-bound-only guard would admit in silence. Either way the
-    /// answer is the same: re-measure and re-state the constant, never
-    /// loosen the guard around it.
-    // **Re-measured 2026-08-31.** Was `1.1414768974413613e-12`. The arc
-    // chain tightened under enclosure work that merged with gates
-    // drawing default-ε only, so no run compared this constant until a
-    // later branch drew (interval, 1e-12). Re-stated, not loosened, as
-    // the constant's own doc requires.
-    pub(crate) const RECUT_MAPPED_ENCLOSURE_HI: f64 = 1.136_277_333_393_965_9e-12;
 
     /// **CONSTRUCTION row, flipped from the S12 door pin** (M5 S13):
     /// the sphere class now goes ALL the way through at the certified

@@ -17,10 +17,6 @@ use topo::{
     Body, BooleanDeclarations, BooleanResult, ContactClass, FacePairDeclaration, mass_properties,
 };
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn body_of(r: BooleanResult<f64>) -> Body<f64> {
     match r {
         BooleanResult::Body(b) => b.body,
@@ -187,10 +183,10 @@ fn quarter_round_below() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            (p2(0.0, 0.0), 0.0),
-            (p2(1.0, 0.0), 0.0),
-            (p2(1.0, 2.0), b90),
-            (p2(0.0, 3.0), 0.0),
+            (Point2::new(0.0, 0.0), 0.0),
+            (Point2::new(1.0, 0.0), 0.0),
+            (Point2::new(1.0, 2.0), b90),
+            (Point2::new(0.0, 3.0), 0.0),
         ],
         vec![2],
     )
@@ -203,11 +199,11 @@ fn quarter_round_above() -> Body<f64> {
     let b90 = (core::f64::consts::PI / 8.0).tan();
     lying_extrude(
         vec![
-            (p2(1.0, 0.5), 0.0),
-            (p2(1.0, 2.0), -b90),
-            (p2(2.0, 3.0), 0.0),
-            (p2(3.0, 3.0), 0.0),
-            (p2(3.0, 0.5), 0.0),
+            (Point2::new(1.0, 0.5), 0.0),
+            (Point2::new(1.0, 2.0), -b90),
+            (Point2::new(2.0, 3.0), 0.0),
+            (Point2::new(3.0, 3.0), 0.0),
+            (Point2::new(3.0, 0.5), 0.0),
         ],
         vec![1, 2],
     )

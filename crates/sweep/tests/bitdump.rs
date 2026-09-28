@@ -463,7 +463,6 @@ fn bitdump_extrude_revolve_corpus() {
         return;
     };
     let tol = Tol::witness();
-    let p2 = Point2::<f64>::new;
     let b = core::f64::consts::FRAC_PI_8.tan();
     let extruded_by = |name: &str,
                        loops: Vec<ProfileLoop<f64>>,
@@ -478,19 +477,23 @@ fn bitdump_extrude_revolve_corpus() {
     let extruded = |name: &str, loops: Vec<ProfileLoop<f64>>, h: f64| -> (String, Body<f64>) {
         extruded_by(name, loops, sweep::Extrusion::Distance(h))
     };
-    let circle =
-        |cx: f64, cy: f64, r: f64| bulge_loop(vec![(p2(cx - r, cy), 1.0), (p2(cx + r, cy), 1.0)]);
+    let circle = |cx: f64, cy: f64, r: f64| {
+        bulge_loop(vec![
+            (Point2::new(cx - r, cy), 1.0),
+            (Point2::new(cx + r, cy), 1.0),
+        ])
+    };
 
     let mut rows: Vec<(String, Body<f64>)> = vec![
         extruded(
             "L prism (all-line, one concave corner)",
             vec![ProfileLoop::polygon([
-                p2(0.0, 0.0),
-                p2(2.0, 0.0),
-                p2(2.0, 1.0),
-                p2(1.0, 1.0),
-                p2(1.0, 2.0),
-                p2(0.0, 2.0),
+                Point2::new(0.0, 0.0),
+                Point2::new(2.0, 0.0),
+                Point2::new(2.0, 1.0),
+                Point2::new(1.0, 1.0),
+                Point2::new(1.0, 2.0),
+                Point2::new(0.0, 2.0),
             ])],
             0.75,
         ),
@@ -502,7 +505,12 @@ fn bitdump_extrude_revolve_corpus() {
         extruded(
             "holed prism (square + circular ring)",
             vec![
-                ProfileLoop::polygon([p2(0.0, 0.0), p2(2.0, 0.0), p2(2.0, 2.0), p2(0.0, 2.0)]),
+                ProfileLoop::polygon([
+                    Point2::new(0.0, 0.0),
+                    Point2::new(2.0, 0.0),
+                    Point2::new(2.0, 2.0),
+                    Point2::new(0.0, 2.0),
+                ]),
                 circle(1.0, 1.0, 0.5),
             ],
             1.0,
@@ -511,14 +519,14 @@ fn bitdump_extrude_revolve_corpus() {
             "rounded square (tangent line-arc joins)",
             vec![
                 bulge_loop(vec![
-                    (p2(0.25, 0.0), 0.0),
-                    (p2(0.75, 0.0), b),
-                    (p2(1.0, 0.25), 0.0),
-                    (p2(1.0, 0.75), b),
-                    (p2(0.75, 1.0), 0.0),
-                    (p2(0.25, 1.0), b),
-                    (p2(0.0, 0.75), 0.0),
-                    (p2(0.0, 0.25), b),
+                    (Point2::new(0.25, 0.0), 0.0),
+                    (Point2::new(0.75, 0.0), b),
+                    (Point2::new(1.0, 0.25), 0.0),
+                    (Point2::new(1.0, 0.75), b),
+                    (Point2::new(0.75, 1.0), 0.0),
+                    (Point2::new(0.25, 1.0), b),
+                    (Point2::new(0.0, 0.75), 0.0),
+                    (Point2::new(0.0, 0.25), b),
                 ])
                 .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
             ],
@@ -527,10 +535,10 @@ fn bitdump_extrude_revolve_corpus() {
         extruded(
             "concave arc leg",
             vec![bulge_loop(vec![
-                (p2(0.0, 0.0), 0.0),
-                (p2(3.0, 0.0), 0.0),
-                (p2(3.0, 2.0), 0.0),
-                (p2(0.0, 2.0), -0.4),
+                (Point2::new(0.0, 0.0), 0.0),
+                (Point2::new(3.0, 0.0), 0.0),
+                (Point2::new(3.0, 2.0), 0.0),
+                (Point2::new(0.0, 2.0), -0.4),
             ])],
             1.25,
         ),
@@ -544,10 +552,10 @@ fn bitdump_extrude_revolve_corpus() {
     rows.push(extruded_by(
         "square prism by vector (the Vector door)",
         vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(2.0, 0.0),
-            p2(2.0, 2.0),
-            p2(0.0, 2.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(2.0, 0.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(0.0, 2.0),
         ])],
         sweep::Extrusion::Vector(geom_core::Vec3::new(0.0, 0.0, 1.75)),
     ));
@@ -555,14 +563,14 @@ fn bitdump_extrude_revolve_corpus() {
         "rounded-corner prism, reversed (negative distance)",
         vec![
             bulge_loop(vec![
-                (p2(0.25, 0.0), 0.0),
-                (p2(0.75, 0.0), b),
-                (p2(1.0, 0.25), 0.0),
-                (p2(1.0, 0.75), b),
-                (p2(0.75, 1.0), 0.0),
-                (p2(0.25, 1.0), b),
-                (p2(0.0, 0.75), 0.0),
-                (p2(0.0, 0.25), b),
+                (Point2::new(0.25, 0.0), 0.0),
+                (Point2::new(0.75, 0.0), b),
+                (Point2::new(1.0, 0.25), 0.0),
+                (Point2::new(1.0, 0.75), b),
+                (Point2::new(0.75, 1.0), 0.0),
+                (Point2::new(0.25, 1.0), b),
+                (Point2::new(0.0, 0.75), 0.0),
+                (Point2::new(0.0, 0.25), b),
             ])
             .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]),
         ],

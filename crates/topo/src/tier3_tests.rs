@@ -29,27 +29,23 @@ use geom_brep::MaterialWedge;
 use geom_core::Indeterminate;
 use geom_core::Tol;
 
-fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-
 /// A geometric digon pillow: two vertices, two chord edges, two
 /// coplanar faces (the z = 0 plane on both sides) — the minimal
 /// tier-3-clean body, and the coplanar-split smooth-dihedral case.
 fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(1.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
             tol,
         )
         .unwrap();
     let plane = Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
@@ -59,7 +55,7 @@ fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             },
-            EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)),
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)),
             FaceSurface::New(plane.clone()),
             tol,
         )
@@ -77,8 +73,9 @@ fn coplanar_pillow(tol: Tol) -> (Body<f64>, crate::MefCreated) {
     // 3 refuses a scaffold on a body with faces).
     let chart = body.get_face(split.face).unwrap().surface;
     for e in [seg.edge, split.edge] {
-        let spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0))
-            .at_rest_in_chart(chart, false);
+        let spec =
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0))
+                .at_rest_in_chart(chart, false);
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     (body, split)
@@ -108,7 +105,8 @@ fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
     assert_eq!(validate_geometric(&body, tol), Ok(()));
 
     // RED — back through the scaffolding door.
-    let scaffolded = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
+    let scaffolded =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     body.set_edge_curve(split.edge, scaffolded.clone(), tol)
         .expect("the door itself is legal: certification is not where the fence lives");
     let errors = validate_geometric(&body, tol).expect_err("a scaffold at rest is refused");
@@ -132,12 +130,12 @@ fn a_scaffold_at_rest_is_refused_and_the_chart_description_is_not() {
 fn the_scaffolding_door_still_passes_mid_construction() {
     let tol = Tol::witness();
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     body.mev_line(
         MevSite::Lone {
             r#loop: seed.r#loop,
         },
-        pt(1.0, 0.0, 0.0),
+        Point3::new(1.0, 0.0, 0.0),
         tol,
     )
     .unwrap();
@@ -163,13 +161,17 @@ fn bilinear_net(control: Vec<Point3<f64>>) -> Surface<f64> {
 
 /// A finite control point of the unit-square net.
 fn finite_point(i: i32) -> Point3<f64> {
-    pt(f64::from(i % 2), f64::from(i / 2), 0.0)
+    Point3::new(f64::from(i % 2), f64::from(i / 2), 0.0)
 }
 
 /// `NetState::Poisoned`: every control point carries poison in `x` over
 /// finite `y`/`z`.
 fn poisoned_net() -> Surface<f64> {
-    bilinear_net((0..4).map(|i| pt(f64::NAN, f64::from(i), 2.0)).collect())
+    bilinear_net(
+        (0..4)
+            .map(|i| Point3::new(f64::NAN, f64::from(i), 2.0))
+            .collect(),
+    )
 }
 
 /// `NetState::Described`: the same knots and weights over finite
@@ -257,13 +259,21 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
         ("the mvfs placeholder", Surface::nurbs_placeholder()),
         (
             "all channels of all points, hand-built",
-            bilinear_net((0..4).map(|_| pt(f64::NAN, f64::NAN, f64::NAN)).collect()),
+            bilinear_net(
+                (0..4)
+                    .map(|_| Point3::new(f64::NAN, f64::NAN, f64::NAN))
+                    .collect(),
+            ),
         ),
         ("finite", finite_net()),
         ("poison x at every point", poisoned_net()),
         (
             "poison y at every point",
-            bilinear_net((0..4).map(|i| pt(f64::from(i), f64::NAN, 2.0)).collect()),
+            bilinear_net(
+                (0..4)
+                    .map(|i| Point3::new(f64::from(i), f64::NAN, 2.0))
+                    .collect(),
+            ),
         ),
         (
             "poison z at ONE point",
@@ -271,7 +281,11 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
                 (0..4)
                     .map(|i| {
                         let p = finite_point(i);
-                        if i == 2 { pt(p.x, p.y, f64::NAN) } else { p }
+                        if i == 2 {
+                            Point3::new(p.x, p.y, f64::NAN)
+                        } else {
+                            p
+                        }
                     })
                     .collect(),
             ),
@@ -282,7 +296,7 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
                 (0..4)
                     .map(|i| {
                         if i == 3 {
-                            pt(f64::NAN, f64::NAN, f64::NAN)
+                            Point3::new(f64::NAN, f64::NAN, f64::NAN)
                         } else {
                             finite_point(i)
                         }
@@ -294,7 +308,7 @@ fn the_net_state_ladder_decides_check_1s_verdict() {
             "infinite x at every point",
             bilinear_net(
                 (0..4)
-                    .map(|i| pt(f64::INFINITY, f64::from(i), 2.0))
+                    .map(|i| Point3::new(f64::INFINITY, f64::from(i), 2.0))
                     .collect(),
             ),
         ),
@@ -346,7 +360,7 @@ fn datum_verdicts(errs: &[ValidationError]) -> Vec<ValidationError> {
 
 fn cylinder(radius: f64) -> Surface<f64> {
     Surface::Cylinder {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
         radius,
         u_ref: Vec3::unit_x(),
@@ -355,7 +369,7 @@ fn cylinder(radius: f64) -> Surface<f64> {
 
 fn sphere(radius: f64) -> Surface<f64> {
     Surface::Sphere {
-        center: pt(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         radius,
         axis: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
@@ -364,7 +378,7 @@ fn sphere(radius: f64) -> Surface<f64> {
 
 fn cone(half_angle: f64) -> Surface<f64> {
     Surface::Cone {
-        apex: pt(0.0, 0.0, 0.0),
+        apex: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
         half_angle,
         u_ref: Vec3::unit_x(),
@@ -373,7 +387,7 @@ fn cone(half_angle: f64) -> Surface<f64> {
 
 fn torus(major_radius: f64, minor_radius: f64) -> Surface<f64> {
     Surface::Torus {
-        center: pt(0.0, 0.0, 0.0),
+        center: Point3::new(0.0, 0.0, 0.0),
         axis: Vec3::unit_z(),
         major_radius,
         minor_radius,
@@ -412,11 +426,11 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         Unrepresentable(geom::ConventionEnd),
     }
     let tol = Tol::witness();
-    let o = pt(0.0, 0.0, 0.0);
+    let o = Point3::new(0.0, 0.0, 0.0);
     let cases: Vec<(&str, Surface<f64>, K, D, Verdict)> = vec![
         (
             "plane, NaN origin",
-            plane(pt(f64::NAN, 0.0, 0.0), Vec3::unit_z()),
+            plane(Point3::new(f64::NAN, 0.0, 0.0), Vec3::unit_z()),
             K::Plane,
             D::Origin,
             Verdict::Poisoned,
@@ -458,7 +472,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         ),
         (
             "plane, infinite origin",
-            plane(pt(0.0, f64::INFINITY, 0.0), Vec3::unit_z()),
+            plane(Point3::new(0.0, f64::INFINITY, 0.0), Vec3::unit_z()),
             K::Plane,
             D::Origin,
             Verdict::Poisoned,
@@ -554,7 +568,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "cone, NaN apex",
             Surface::Cone {
-                apex: pt(0.0, f64::NAN, 0.0),
+                apex: Point3::new(0.0, f64::NAN, 0.0),
                 axis: Vec3::unit_z(),
                 half_angle: core::f64::consts::FRAC_PI_4,
                 u_ref: Vec3::unit_x(),
@@ -578,7 +592,7 @@ fn check_1_names_the_analytic_datum_that_describes_no_locus() {
         (
             "sphere, NaN center",
             Surface::Sphere {
-                center: pt(f64::NAN, 0.0, 0.0),
+                center: Point3::new(f64::NAN, 0.0, 0.0),
                 radius: 1.0,
                 axis: Vec3::unit_z(),
                 u_ref: Vec3::unit_x(),
@@ -634,15 +648,15 @@ fn datums_inside_their_conventions_draw_no_datum_verdict() {
         ("ring torus", torus(2.0, 0.5)),
         (
             "plane, normal underflowed but not zero",
-            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e-200)),
         ),
         (
             "plane, normal whose norm overflows at f64 (1e160)",
-            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e160)),
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e160)),
         ),
         (
             "plane, normal whose norm overflows at f64 (1e200)",
-            plane(pt(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e200)),
+            plane(Point3::new(0.0, 0.0, 0.0), Vec3::new(0.0, 0.0, 1e200)),
         ),
     ];
     for (name, surface) in cases {
@@ -668,7 +682,7 @@ fn wrong_cache_at_rest_is_rejected_by_tier3() {
     let (mut body, split) = coplanar_pillow(tol);
     let curve_key = body.get_edge(split.edge).unwrap().curve;
     *body.curves.get_mut(curve_key).unwrap() =
-        crate::null::CurveGeom::Certified(test_curve(pt(50.0, 0.0, 0.0), tol));
+        crate::null::CurveGeom::Certified(test_curve(Point3::new(50.0, 0.0, 0.0), tol));
     assert_eq!(validate(&body), Ok(()), "structurally still coherent");
     let errs = validate_geometric(&body, tol).unwrap_err();
     assert!(
@@ -690,7 +704,7 @@ fn offset_plane_at_rest_fails_planar_residuals() {
     let eps = tol.eps();
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
-        origin: pt(0.0, 0.0, 100.0 * eps),
+        origin: Point3::new(0.0, 0.0, 100.0 * eps),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
@@ -714,7 +728,7 @@ fn sliver_dihedral_at_rest_is_rejected() {
     let theta = 3.0 * eps;
     let surface_key = body.get_face(split.face).unwrap().surface;
     *body.surfaces.get_mut(surface_key).unwrap() = Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::new(0.0, theta.sin(), theta.cos()),
         u_ref: Vec3::unit_x(),
     };
@@ -736,16 +750,17 @@ fn dangling_description_is_a_tier1_error() {
     let s_plus = body.get_face(split.face).unwrap().surface;
     let seed_face = body.face_of_half_edge(split.he_plus).unwrap();
     let s_seed = body.get_face(seed_face).unwrap().surface;
-    let mut spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         s1: s_seed,
         s2: s_plus,
-        witness: pt(0.5, 0.0, 0.0),
+        witness: Point3::new(0.5, 0.0, 0.0),
     };
     // NB: coincident planes would fail transversality — so tilt the
     // split face definitively first (a legal corner), then upgrade.
     *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
@@ -773,15 +788,16 @@ fn description_references_keep_a_surface_alive() {
     let s_seed = body.get_face(seed_face).unwrap().surface;
     // Make the corner genuine, then describe the edge intrinsically.
     *body.surfaces.get_mut(s_plus).unwrap() = Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: Vec3::unit_y(),
         u_ref: Vec3::unit_x(),
     };
-    let mut spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0));
+    let mut spec =
+        EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0));
     spec.description = geom_brep::EdgeDescriptionSpec::Intersection {
         s1: s_seed,
         s2: s_plus,
-        witness: pt(0.5, 0.0, 0.0),
+        witness: Point3::new(0.5, 0.0, 0.0),
     };
     body.set_edge_curve(split.edge, spec, tol).unwrap();
     // Repoint the split face to a NEW surface: the old one is now
@@ -789,7 +805,7 @@ fn description_references_keep_a_surface_alive() {
     body.set_face_surface(
         split.face,
         FaceSurface::New(Surface::Plane {
-            origin: pt(0.0, 0.0, 0.0),
+            origin: Point3::new(0.0, 0.0, 0.0),
             normal: Vec3::unit_y(),
             u_ref: Vec3::unit_x(),
         }),
@@ -836,33 +852,33 @@ pub(crate) fn cusp_prism(tol: Tol) -> crate::fixtures::RawPrism {
     for (i, (x, y)) in xy.into_iter().enumerate() {
         for (v, z) in [(p.t[i], 1.0), (p.u[i], 0.0)] {
             let point = p.body.get_vertex(v).unwrap().point;
-            *p.body.points.get_mut(point).unwrap() = pt(x, y, z);
+            *p.body.points.get_mut(point).unwrap() = Point3::new(x, y, z);
         }
     }
     let inner = Surface::Cylinder {
-        origin: pt(0.0, 1.0, 0.0),
+        origin: Point3::new(0.0, 1.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 1.0,
         u_ref: Vec3::unit_x(),
     };
     let outer = Surface::Cylinder {
-        origin: pt(0.0, 2.0, 0.0),
+        origin: Point3::new(0.0, 2.0, 0.0),
         axis: Vec3::unit_z(),
         radius: 2.0,
         u_ref: Vec3::unit_x(),
     };
     let flat = Surface::Plane {
-        origin: pt(0.0, 2.0, 0.0),
+        origin: Point3::new(0.0, 2.0, 0.0),
         normal: -Vec3::unit_x(),
         u_ref: Vec3::unit_y(),
     };
     let cap_top = Surface::Plane {
-        origin: pt(0.0, 0.0, 1.0),
+        origin: Point3::new(0.0, 0.0, 1.0),
         normal: Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
     let cap_bottom = Surface::Plane {
-        origin: pt(0.0, 0.0, 0.0),
+        origin: Point3::new(0.0, 0.0, 0.0),
         normal: -Vec3::unit_z(),
         u_ref: Vec3::unit_x(),
     };
@@ -938,7 +954,7 @@ fn edge_spec(body: &Body<f64>, edge: crate::entity::EdgeKey, kind: Carrier) -> E
         // that `v_ref = axis × u_ref` points at +x: the half turn from
         // θ = 0 to θ = π is then the lip's arc, never its mirror.
         Carrier::Arc(radius) => {
-            let center = pt(0.0, radius, p0.z);
+            let center = Point3::new(0.0, radius, p0.z);
             let u_ref = (p0 - center) / radius;
             let axis = if u_ref.y < 0.0 {
                 Vec3::unit_z()
@@ -1251,18 +1267,18 @@ fn kiss_declared(p: &crate::fixtures::RawPrism) -> [DeclaredContact; 1] {
 /// surfaces and an edge between them.
 fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
     let mut body = Body::<f64>::new();
-    let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+    let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
     let seg = body
         .mev_line(
             MevSite::Lone {
                 r#loop: seed.r#loop,
             },
-            pt(0.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
             tol,
         )
         .unwrap();
     let cylinder = |radius: f64| Surface::Cylinder {
-        origin: pt(0.0, 0.0, radius),
+        origin: Point3::new(0.0, 0.0, radius),
         axis: Vec3::unit_y(),
         radius,
         u_ref: Vec3::unit_x(),
@@ -1273,7 +1289,7 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
                 he1: seg.he_plus,
                 he2: seg.he_minus,
             },
-            EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(0.0, 1.0, 0.0)),
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0)),
             FaceSurface::New(cylinder(r2)),
             tol,
         )
@@ -1282,8 +1298,9 @@ fn kissing_cylinder_pillow(tol: Tol, r2: f64) -> Vec<ValidationError> {
         .unwrap();
     let chart = body.get_face(split.face).unwrap().surface;
     for e in [seg.edge, split.edge] {
-        let spec = EdgeCurveSpec::line_between(pt(0.0, 0.0, 0.0), pt(0.0, 1.0, 0.0))
-            .at_rest_in_chart(chart, false);
+        let spec =
+            EdgeCurveSpec::line_between(Point3::new(0.0, 0.0, 0.0), Point3::new(0.0, 1.0, 0.0))
+                .at_rest_in_chart(chart, false);
         body.set_edge_curve(e, spec, tol).unwrap();
     }
     let flipped = body.flipped_face_sense_for_tests(split.face).unwrap();
@@ -1489,7 +1506,7 @@ fn cube_solid(body: &mut Body<f64>, origin: (f64, f64, f64), s: f64, inside_out:
         body,
         move |x, y, z| {
             let x = if inside_out { 1.0 - x } else { x };
-            pt(ox + x * s, oy + y * s, oz + z * s)
+            Point3::new(ox + x * s, oy + y * s, oz + z * s)
         },
         tol,
     );
@@ -1504,8 +1521,8 @@ fn solids_of(body: &Body<f64>) -> Vec<crate::entity::SolidKey> {
 /// A read of the geometry rather than of the fixture's literals: a
 /// cube placed somewhere else moves this.
 fn shell_extent(body: &Body<f64>, shell: crate::entity::ShellKey) -> (Point3<f64>, Point3<f64>) {
-    let mut lo = pt(f64::INFINITY, f64::INFINITY, f64::INFINITY);
-    let mut hi = pt(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
+    let mut lo = Point3::new(f64::INFINITY, f64::INFINITY, f64::INFINITY);
+    let mut hi = Point3::new(f64::NEG_INFINITY, f64::NEG_INFINITY, f64::NEG_INFINITY);
     for &face in &body.get_shell(shell).expect("a live shell").faces {
         let f = body.get_face(face).expect("a live face");
         for &lp in core::iter::once(&f.outer).chain(f.rings.iter()) {

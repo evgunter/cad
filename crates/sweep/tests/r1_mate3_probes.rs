@@ -10,22 +10,18 @@ use profile::{Open, Start};
 use sweep::{Extrusion, extrude};
 use topo::{ContactClass, ValidationError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The lune (PR body's own corpus loop): one lip of the crescent
 /// between two internally tangent circles, `.cusp()` at the kiss.
 fn lune() -> profile::ClosedLoop<f64> {
     let tol = Tol::witness();
-    Open.at(p2(0.0, 4.0))
+    Open.at(Point2::new(0.0, 4.0))
         .angle(-std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
         .line(2.0, tol)
         .unwrap()
         .turn(std::f64::consts::FRAC_PI_2, tol)
         .unwrap()
-        .tangent_arc_to(p2(0.0, 0.0), tol)
+        .tangent_arc_to(Point2::new(0.0, 0.0), tol)
         .unwrap()
         .cusp()
         .tangent_arc_to(Start, tol)

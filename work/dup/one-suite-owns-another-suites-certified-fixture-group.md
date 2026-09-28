@@ -2,10 +2,12 @@
 id: one-suite-owns-another-suites-certified-fixture-group
 kind: issue
 title: review_arceval's certified operands are m5_s12's, by cross-suite import rather than a shared home
-status: open
+status: closed
 opened: 2026-09-20
+closed: 2026-09-28
 priority: P4
 cost: E
+pr: 3312
 ---
 
 
@@ -72,3 +74,48 @@ territory by design (`plan.md`). One row rather than two.
 ## Unparked (2026-09-27)
 
 Ev ruled that the `tests/common` narrowest-home rule governs (see `two-rules-disagree-on-when-a-fixture-leaves-a-suite`, closed). So the four shared items belong in `crates/sweep/tests/common`, and this row is an ordinary fold.
+## Closed (2026-09-28)
+
+Ev ruled that `tests/common`'s narrowest-home rule governs (see
+`two-rules-disagree-on-when-a-fixture-leaves-a-suite`), so this is an
+ordinary fold. At the merge base the cross-suite import named
+**three** items, not the four quoted above: `certified::ball` had
+already gone (`the-interval-ball-fixture-is-homed-in-a-row-that-never-varies-it`),
+leaving `plate`, `recut_ball` and `RECUT_MAPPED_ENCLOSURE_HI`.
+
+All three moved together to a new `crates/sweep/tests/common/sphere_recut.rs`,
+and both `m5_s12_curved_ops_interval` and `review_arceval_r1_probes`
+import them from there. `m5_s12`'s `certified` module is private again.
+
+- **The group stays whole.** The constant is a measurement of this
+  exact pair of bodies, so moving the plate to `common/operands.rs` by
+  shape would have split what the site's reason binds. `operands.rs`'s
+  not-absorbed list names the plate, and the new module's own list
+  names `operands` and `oracles`.
+- **The constant, under `oracles.rs`'s rule.** That rule lets a
+  spelling come to a shared home when it cannot disagree with the
+  other, and this constant has one spelling that both rows read. It
+  does not go to `oracles` itself, which holds truths derived WITHOUT
+  the kernel. This constant is the opposite: a measurement of the
+  kernel.
+- **The site's reason is kept.** Its sentence, *"the two rows say they
+  use the same plate, and this is what makes that so rather than
+  saying it"*, is now the module header's, and the shared home
+  satisfies it.
+- `common/mod.rs`'s routing list, `review_arceval_r1_probes`'s header
+  and `m5_s13_pips_interval`'s pointer to the constant name the new
+  home.
+
+**Plants**, on `common/sphere_recut.rs`, scoped to the two consuming
+suites (6 rows; baseline 6/6 at both ε). Each plant was restored by
+copying the file's bytes back, then checked clean against `HEAD`.
+
+| plant | ε | red |
+| --- | --- | --- |
+| constant `…965_9e-12` → `…967e-12` | default | 0: the constant only selects the arm above 1e-12 |
+| same | 1e-12 | 2: `m5_s12` sphere row, E2 (both on the bit-exact `hi ==`) |
+| ball centre `z` 0.5 → 0.55 | default | 1: `m5_s12` sphere row (volume enclosure) |
+| same | 1e-12 | 2: `m5_s12` sphere row, E2 (`hi` moved to `1.1177e-12`) |
+| `plate()` → `panic!` | default | 2: `m5_s12` blind hole, sphere row (E2 returns before building) |
+| same | 1e-12 | 3: those two and E2 |
+

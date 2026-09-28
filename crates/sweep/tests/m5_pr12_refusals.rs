@@ -33,10 +33,6 @@ fn in_band() -> f64 {
     5.0 * tol().eps()
 }
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// A cylinder: a three-arc circle extruded.
 fn cylinder() -> Body<f64> {
     disc_of_arcs(3, 0.5, 1.0, tol())
@@ -556,13 +552,16 @@ fn trio_corner_independence() {
     let body = cube(1.0, Tol::witness());
     let (_, v, _) = keys(&body);
     let b = band();
-    let n = |x: f64, y: f64, z: f64| Vec3::new(x, y, z);
     // Definitely independent: the orthonormal trihedron.
     corner_config(
         v,
         3,
         3,
-        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(0.0, 0.0, 1.0)],
+        [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, 1.0),
+        ],
         1.0,
         b,
     )
@@ -572,7 +571,11 @@ fn trio_corner_independence() {
         v,
         3,
         3,
-        [n(1.0, 0.0, 0.0), n(0.0, 1.0, 0.0), n(1.0, 1.0, 0.0)],
+        [
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(1.0, 1.0, 0.0),
+        ],
         1.0,
         b,
     )
@@ -591,9 +594,9 @@ fn trio_corner_independence() {
         3,
         3,
         [
-            n(1.0, 0.0, 0.0),
-            n(0.0, 1.0, 0.0),
-            n(0.0, 0.0, t).normalize() * t,
+            Vec3::new(1.0, 0.0, 0.0),
+            Vec3::new(0.0, 1.0, 0.0),
+            Vec3::new(0.0, 0.0, t).normalize() * t,
         ],
         1.0,
         b,
@@ -638,7 +641,10 @@ fn trio_corner_independence() {
 /// `review_blend1_r1_probes::r1_tilted_cap_is_tier2_valid_and_tier3_names_the_tilt`
 /// and `::r1_tilted_cap_departure_is_the_meridian_reading`.
 fn tilted_rim(departure: f64) -> (Body<f64>, Vec<EdgeKey>) {
-    let lp = bulge_loop(vec![(p2(0.5, 0.0), 1.0), (p2(-0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.5, 0.0), 1.0),
+        (Point2::new(-0.5, 0.0), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(tol())
         .unwrap();
