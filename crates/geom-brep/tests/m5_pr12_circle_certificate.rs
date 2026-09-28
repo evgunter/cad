@@ -325,4 +325,3 @@ fn a_right_angle_crossing_described_as_a_tangency_is_refused_at_interval() {
         );
     }
 }
-
