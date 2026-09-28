@@ -2090,11 +2090,11 @@ impl fmt::Display for StaleDeclaration {
     }
 }
 
-/// The recourse a kernel defect gets: nothing the user can change in
+/// The ending a kernel defect gets: nothing the user can change in
 /// the model repairs a body whose structure a kernel operation (or a
-/// damaged file) left wrong, and the sentence says so plainly.
-const DEFECT: &str =
-    "There is no way through: this is a kernel defect or a damaged file; report it";
+/// damaged file) left wrong. A body at rest may have been read, so it
+/// is the shared ending that names the file too.
+const DEFECT: &str = geom_core::KERNEL_OR_FILE_DEFECT_RECOURSE;
 
 /// The recourse for a shape the kernel cannot check yet.
 const NOT_YET: &str = "There is no way through yet";

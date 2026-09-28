@@ -177,32 +177,35 @@ impl PatchBoundError {
         match self {
             Self::DegreeZero => {
                 "NURBS face of degree 0 in one direction, which is a step rather than a \
-                 surface: describe that direction at degree 1 or above"
+                 surface. Recourse: describe that direction at degree 1 or above"
             }
             Self::Degree1Crease => {
-                "NURBS face of degree 1 with a sharp crease inside it: split the face at \
-                 the crease"
+                "NURBS face of degree 1 with a sharp crease inside it. Recourse: split the \
+                 face at the crease"
             }
             Self::Crease => {
-                "NURBS face with a sharp crease inside it: split the face at the crease"
+                "NURBS face with a sharp crease inside it. Recourse: split the face at the \
+                 crease"
             }
             Self::NonPositiveWeight => {
                 "rational NURBS face with a non-positive or non-finite weight, which \
-                 describes no valid surface: supply strictly positive, finite weights"
+                 describes no valid surface. Recourse: supply strictly positive, finite weights"
             }
             Self::RefinedWeightLostPositivity => {
                 "rational NURBS face whose weights are too small to refine without one \
-                 rounding to zero: describe the face with every weight scaled up by one \
-                 constant, which is the same surface"
+                 rounding to zero. Recourse: describe the face with every weight scaled up \
+                 by one constant, which is the same surface"
             }
-            Self::RefinementFailed => {
+            Self::RefinementFailed => concat!(
                 "NURBS face that could not be subdivided for bounding, which a valid face \
-                 always allows: report the face's description"
-            }
-            Self::DerivedKnots => {
+                 always allows. ",
+                geom_core::kernel_defect_recourse!()
+            ),
+            Self::DerivedKnots => concat!(
                 "NURBS face whose derivative could not be formed, which a valid face always \
-                 allows: report the face's description"
-            }
+                 allows. ",
+                geom_core::kernel_defect_recourse!()
+            ),
         }
     }
 }
@@ -945,6 +948,19 @@ mod tests {
         for arm in arms {
             let msg = arm.to_string();
             assert_eq!(msg, arm.note(), "Display is the shared note");
+            // One ending: a labelled repair, or on the two arms only a
+            // kernel defect reaches, the shared dead end.
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one ending: {msg}"
+            );
+            if matches!(
+                arm,
+                PatchBoundError::RefinementFailed | PatchBoundError::DerivedKnots
+            ) {
+                assert!(msg.ends_with(geom_core::KERNEL_DEFECT_RECOURSE), "{msg}");
+            }
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),

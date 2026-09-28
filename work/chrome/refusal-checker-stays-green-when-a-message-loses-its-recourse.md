@@ -48,3 +48,18 @@ first measurement.
 Flag `markers == 0` in `problems` (the at-rest row's own check, moved
 into the shared tool), after the marker vocabulary is settled, so that
 every caller holds both directions.
+
+## Evidence: the offset fit's spellings are settled (2026-09-28)
+
+ENCL's `kernel-defect-endings-and-repair-labels-have-no-shared-home`
+labels every repair the offset fit forwards (`PatchBoundError::note()`,
+`FitError`, `SplineError`, `KnotVectorIssue`) `Recourse:` and ends
+every kernel-defect refusal there in `geom_core::KERNEL_DEFECT_RECOURSE`
+(or `KERNEL_OR_FILE_DEFECT_RECOURSE`), which carries the marker. On the
+feature-tree rows `offset_fit_routes` renders, one arm still counts
+zero, `Meter/Escalated` (filed:
+`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`);
+`every_offset_fit_refusal_ends_exactly_once` in
+`refusal_concision_chains.rs` holds the rest at exactly one. The
+kernel-bug tags that still count zero elsewhere are filed on their
+owners' slates (see that unit's PR).

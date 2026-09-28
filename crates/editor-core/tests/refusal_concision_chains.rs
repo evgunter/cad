@@ -258,6 +258,32 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
+/// Every offset-fit refusal the feature tree shows ends exactly once,
+/// on every route: a labelled repair, or the shared dead end. The
+/// carriers the fit forwards whole (`FitError`, `SplineError`,
+/// `PatchBoundError`) label their own repair, so a wrapper that added
+/// one of its own would read here as two.
+///
+/// `Meter/Escalated` ends zero times: it forwards `Indeterminate`'s
+/// shared menu, which is unlabelled and offers a declaration a single
+/// face's meter has no object for; filed on ENCL's slate
+/// (`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`).
+/// The row holds that at zero so its repair has to come back here.
+#[test]
+fn every_offset_fit_refusal_ends_exactly_once() {
+    let rows = offset_fit_routes();
+    assert!(!rows.is_empty(), "the offset-fit roster is empty");
+    for (name, kind) in rows {
+        let text = as_the_viewer_shows_it(kind);
+        let want = usize::from(!name.contains("/Meter/Escalated"));
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            want,
+            "{name}: {text}"
+        );
+    }
+}
+
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
 fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     let mut rows = own_arms();

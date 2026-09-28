@@ -223,7 +223,7 @@ use geom_core::Bounds;
 use geom_core::spline::algebra::equal_split_points;
 use geom_core::spline::compose::patch::PatchSpans;
 use geom_core::spline::{KnotAlgebraError, KnotVector, SplineError};
-use geom_core::{Band, BandError, Interval, Point3, Tol};
+use geom_core::{Band, BandError, Interval, KERNEL_DEFECT_RECOURSE, Point3, Tol};
 
 use crate::offset_meters::{MeterError, MeterResult, meter_patch, mig, norm_sup, sqrt_down};
 use crate::patch_bound::{Net, PatchBoundError, derived_knots, is_rational};
@@ -828,14 +828,12 @@ impl core::fmt::Display for OffsetFitError {
                 f,
                 "the offset surface's fit could not raise the face to degree 2 where it is \
                  linear: weight {index} came out as {weight}, which a valid surface never \
-                 gives. There is no way through: this is a kernel defect; report the \
-                 face's description"
+                 gives. {KERNEL_DEFECT_RECOURSE}"
             ),
             Self::Elevation(_) => write!(
                 f,
                 "the offset surface's fit could not raise the face to degree 2 where it is \
-                 linear, which a valid surface always allows. There is no way through: \
-                 this is a kernel defect; report the face's description"
+                 linear, which a valid surface always allows. {KERNEL_DEFECT_RECOURSE}"
             ),
             // The carrier's own prose is not rendered: its repairs
             // (set a positive ε; raise ε or K) are addressed to a
@@ -3203,8 +3201,8 @@ mod recourse_tests {
                 );
                 assert!(msg.contains("weight 3 came out as"), "{msg}");
                 assert!(
-                    msg.contains("There is no way through") && !msg.contains("Recourse:"),
-                    "not exactly the one kernel-defect ending: {msg}"
+                    msg.ends_with(geom_core::KERNEL_DEFECT_RECOURSE),
+                    "not the shared kernel-defect ending: {msg}"
                 );
             }
             if let OffsetFitError::Band(band) = arm {
@@ -3217,6 +3215,14 @@ mod recourse_tests {
                     "not exactly the one recourse: {msg}"
                 );
             }
+            // One ending per refusal, a forwarded carrier's included:
+            // its repair is labelled, so a `Recourse:` added here on top
+            // of it would count two.
+            assert_eq!(
+                test_utils::refusal::recourse_markers(&msg),
+                1,
+                "not exactly one ending: {msg}"
+            );
             let lower = msg.to_lowercase();
             assert!(
                 RECOURSE_WORDS.iter().any(|w| lower.contains(w)),

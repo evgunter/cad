@@ -94,8 +94,8 @@ pub(crate) mod vtxfac;
 mod zip;
 
 use geom_core::{
-    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, MarginDiag, Point3, Real,
-    Tol,
+    Band, BandError, Bounds, COINCIDENCE_RECOURSE, Decide, Indeterminate, KERNEL_DEFECT_RECOURSE,
+    MarginDiag, Point3, Real, Tol,
 };
 
 use crate::body::Body;
@@ -1560,8 +1560,8 @@ impl core::fmt::Display for BooleanError {
             Self::ScaffoldingOperand { operand, .. } => write!(
                 f,
                 "the {} operand is a body left in the middle of an edit (it still \
-                 carries unfinished edges), so the Boolean refuses it. This is a bug in \
-                 whatever produced that body; please report it",
+                 carries unfinished edges), so the Boolean refuses it. \
+                 {KERNEL_DEFECT_RECOURSE}",
                 operand_word(*operand),
             ),
             Self::NonMaximalFaces { operand, .. } => write!(
@@ -1813,9 +1813,8 @@ impl core::fmt::Display for BooleanError {
             ),
             Self::ResultVolumeImplausible { which, got, bound } => write!(
                 f,
-                "kernel invariant violated — this is a bug in the kernel, not in \
-                 your geometry: {which} failed (got {got}, bound {bound}); no such body is \
-                 returned. Please report it, with the model that produced it"
+                "the Boolean's result broke a bound its volume always meets ({which}: got \
+                 {got}, bound {bound}), so no body is returned. {KERNEL_DEFECT_RECOURSE}"
             ),
             Self::UnrepresentableResult => write!(
                 f,
