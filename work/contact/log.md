@@ -539,3 +539,21 @@ Signed: (CONTACT orchestrator)
   continues while the readout (#3342) waits for Ev (rule 9).
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — Ev ruled on the readout (#3359); CONTACT-8 built, in review
+
+- **#3342, Ev:** "continue duals until there are 12 pairs which found
+  any MAJOR". Rule 9 is re-stated in #3359, which is merged; the tally
+  trigger of eight is kept. Four fair pairs have found a MAJOR so far.
+  #3342 is closed unmerged; readouts stay off file.
+- **CONTACT-8** built at `f99bd79ef`.
+  - S4's history check: the collinearity licence existed only because
+    of the `merge_skip` pin (#1131). No wrong bent-seam result was ever
+    cited, so the licence and `redundant_subdivision_vertex` are gone.
+  - Curved groups are left unpruned. The orchestrator accepts this: the
+    ratified clause only requires a curved skip to be recorded.
+  - S2 has a reachable shape: an exactly plugged through-hole. It
+    shipped with skipped caps and now refuses `Merge(ResultNotClosed)`.
+  - A single full review is dispatched.
+
+Signed: (CONTACT orchestrator)
