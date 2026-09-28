@@ -1120,3 +1120,12 @@ class of 65 sites is PRED's row.
   - Filed `work/issues/arc-rim-span-count-hand-spells-interior` (unowned `pcurves.rs`).
   - Style review dispatched.
   - PR 3351 at `054c90ae91` is confirmed red only on the pair row, as intended.
+- 2026-09-28 — The PR 3354 style review came back APPROVE-WITH-FIXES.
+  - Bits are unchanged, including the `block_edges` end drop (4M random ranges, worst gap 1.0·ε·width).
+  - Three new pins can't go red for their named mutations: two re-association forms, the sliver scale (only a collapse is caught), and the degree-2 double-knot dedup.
+  - Also taken:
+    - vacuous ends-clearance prose;
+    - the filed row moved to CHART (TRIM's cut gave `pcurves.rs` to CHART);
+    - the sliver overflow reassociated so it is exact;
+    - the sweep table completed.
+  - Fix pass sent back to the lane.
