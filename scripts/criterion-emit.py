@@ -304,8 +304,7 @@ def selftest() -> int:
 
     What it does NOT hold is the VALUE of most collected fields: `plant`
     writes one scalar into five of them, so a reader that swapped two is
-    invisible here. `work/ciw/criterion-selftest-fixture-is-one-scalar-in-five-fields`
-    carries the measurement and the repair.
+    invisible here.
     """
     failures = []
     with tempfile.TemporaryDirectory() as tmp:
