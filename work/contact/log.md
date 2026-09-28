@@ -508,3 +508,90 @@ Signed: (CONTACT orchestrator)
   amendment.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — Ev ruled on #3350; CONTACT-6 landed (#3357); CONTACT-8 dispatched
+
+- **CONTACT-6** merged as `545ae86a9`.
+- **#3350: Ev took both decisions** ("sounds good!"). The second
+  commit filled in the design-fork row's decision and A/B mapping
+  (byte 58, A = Opus, B = Fable), and cleared `needs_ev`. GATHER's row
+  reached main first, so this fork is row 4. Merged as `d3a962cdb`.
+- **CONTACT-8** carries the ratified implementation, with a single full
+  review (the risk is record carriage).
+- **Process slip, fixed.** Twice a `work.py lint | tail -1 && git
+  commit` committed through a lint failure, because the pipe returns
+  `tail`'s status. My shell now runs `set -o pipefail`, and lane briefs
+  say the same.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 built; dual review dispatched
+
+- The lane's head is `d176506ec`. The four L-bracket rows are green.
+  Sweeps: brick grid 0/0, rebuilt rotated prisms 0 wrong / 12 false
+  refusals (the known saddle, the same at base), rebuilt crossed
+  ridges 0/0. No golden moved.
+- The lane made two departures from the spec, sent to the reviewers:
+  `EdgeInFace` reads at an overlap cell's midpoint, and a vertex star's
+  convexity reads pieces taken at the vertex.
+- **Dual review** (protocol `c3129311b`): two Opus reviewers,
+  concurrent, on identical briefs, on the frozen head. The dual stream
+  continues while the readout (#3342) waits for Ev (rule 9).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — Ev ruled on the readout (#3359); CONTACT-8 built, in review
+
+- **#3342, Ev:** "continue duals until there are 12 pairs which found
+  any MAJOR". Rule 9 is re-stated in #3359, which is merged; the tally
+  trigger of eight is kept. Four fair pairs have found a MAJOR so far.
+  #3342 is closed unmerged; readouts stay off file.
+- **CONTACT-8** built at `f99bd79ef`.
+  - S4's history check: the collinearity licence existed only because
+    of the `merge_skip` pin (#1131). No wrong bent-seam result was ever
+    cited, so the licence and `redundant_subdivision_vertex` are gone.
+  - Curved groups are left unpruned. The orchestrator accepts this: the
+    ratified clause only requires a curved skip to be recorded.
+  - S2 has a reachable shape: an exactly plugged through-hole. It
+    shipped with skipped caps and now refuses `Merge(ResultNotClosed)`.
+  - A single full review is dispatched.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-8 review: no MAJOR; fix pass
+
+- S1 held under the reviewer's 22 unions (8 at an oblique pose), and
+  every mutant was caught.
+- Three MINORs, adjudicated:
+  - **The plugged hole now glues rather than refusing.** An isolated
+    doubled edge with both ends free goes with both ends, and its empty
+    ring goes too. Both are free ends of a dangling seam edge, which is
+    inside the ratified clause.
+  - **S3 gets a real-pipeline row**, or a pin on `absorb_merge` with a
+    real pruning's `Descendants`.
+  - **Stale prose** in `m4_pr5_declare`, `KERNEL-VERBS.md` and
+    `work/topo/D262.md`.
+- Filed: `a-curved-merge-group-with-a-dangling-seam-refuses-as-period-closure`
+  (P3).
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — container restart; CONTACT-8 landing check red
+
+- **A container restart** stopped the CONTACT-7 fix-pass lane (its
+  clone survived clean at its merge of main) and my CONTACT-8 landing
+  run. The lane was resumed, and the run restarted.
+- **CONTACT-8's landing check went red on four `editor-core` rows** the
+  lane's subset runs never ran. Caps that used to be skipped now merge,
+  so document unions go further: three rows hit a naming-emission error
+  ("merged face has several same-side constituents at a seam edge"),
+  and the three-neighbour star now fuses where it refused. The lane is
+  back on it, to root-cause each and fix at its home or re-sign with
+  ground truth.
+- **Lesson** (third time today, after CONTACT-3's concision row): a
+  unit that changes kernel behaviour runs ALL of `editor-core`, not a
+  subset. Briefs now say so.
+- **CONTACT-7's dual** is coded (byte 143, odd: A = R2), with no tally
+  candidate; the pair advances the found-a-MAJOR count to 5 at merge.
+
+Signed: (CONTACT orchestrator)
