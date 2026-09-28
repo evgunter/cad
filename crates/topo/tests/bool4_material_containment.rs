@@ -349,10 +349,11 @@ fn a_part_in_a_planar_pocket_clears() {
 }
 
 /// An instance whose every vertex lies on the container's boundary is
-/// not a placement its vertices decide: the typed refusal, beside the
-/// sixteen touch findings, and never an interference verdict (the slab
-/// IS inside the cube's material, and the arm says it cannot tell —
-/// which is true of what it reads).
+/// not a placement its vertices decide, and never an interference
+/// verdict. The slab IS inside the cube's material, and the touch
+/// analysis says so: with the probe undecided, the findings are read,
+/// and their reason — a touch whose cones overlap — is the one
+/// refusal, beside the sixteen touch findings.
 #[test]
 fn every_vertex_on_the_boundary_refuses_typed() {
     let body = all_on_boundary();
@@ -362,7 +363,7 @@ fn every_vertex_on_the_boundary_refuses_typed() {
     assert_eq!(placements.len(), 1, "{errors:?}");
     let what = undecidable_what(placements[0]).expect("the typed refusal");
     assert!(
-        what.contains("every corner of one lies on the other's boundary"),
+        what.contains("one passes into the other where they touch"),
         "{what}"
     );
     assert_eq!(errors.len(), 17, "{errors:?}");
@@ -375,8 +376,10 @@ fn every_vertex_on_the_boundary_refuses_typed() {
 /// boundary pre-pass escalates on it in BOTH orderings — the part's
 /// vertices against the wall's plane, and the wall's vertices against
 /// the part's near face's plane (the pre-pass decides a plane residual
-/// before it asks the region) — so each ordering refuses typed
-/// ("escalated in band"), with no clear and no interference. `delta`
+/// before it asks the region) — so neither ordering decides, and with
+/// the probe undecided the findings are read: the sweeps' escalations
+/// stand, so the one refusal is the pair's boundaries left unchecked,
+/// with no clear and no interference. `delta`
 /// is taken from the run's band, so the row is the same statement at
 /// every `CAD_TOLERANCE_EPS` row of the matrix (default, 1e-6, 1e-12).
 #[test]
@@ -395,14 +398,12 @@ fn a_witness_at_the_band_edge_refuses_typed_at_this_eps() {
         "the sweeps escalate on the in-band residual: {errors:?}"
     );
     let placements = placement_findings(&errors);
-    assert_eq!(placements.len(), 2, "{errors:?}");
-    for p in placements {
-        let what = undecidable_what(p).expect("the typed refusal");
-        assert!(
-            what.contains("too close to the other's boundary to place at this tolerance"),
-            "{what}"
-        );
-    }
+    assert_eq!(placements.len(), 1, "{errors:?}");
+    let what = undecidable_what(placements[0]).expect("the typed refusal");
+    assert!(
+        what.contains("another finding left their boundaries unchecked"),
+        "{what}"
+    );
     // And just past the band the part floats in the concavity and
     // clears — the refusal above is the band's, not the placement's.
     let (body, _) = lbracket(false, 10.0 * band.escalate());
