@@ -604,8 +604,9 @@ fn carrier_loop<T: Decide>(
 ///   skips its own `s = 0` root. Every graze — a vertex on the ray line,
 ///   a ray tangent to a conic, a root at an arc's endpoint, a zero
 ///   advance — abandons the ray, and so does an in-band margin on any
-///   row past the pre-pass: each is a fact about that ray, not about
-///   `q`. Only the pre-pass's rows, which ask where `q` stands, escalate.
+///   row past the pre-pass (why that is sound is argued once, at the
+///   walk's ray loop below). Only the pre-pass's rows, which ask where
+///   `q` stands, escalate.
 /// - **An edge on any other carrier** (a spiric, a spline): no crossing
 ///   row exists, so the loop is answered only where no crossing could
 ///   matter — `q` definitely outside a ball holding the whole loop is
@@ -695,11 +696,18 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
         }
     }
     // ---- The rays. ----
+    // WHY A RAY-LEVEL MARGIN RETRIES (the one home of this argument).
     // Past the pre-pass, every row is a fact about ONE RAY — which
     // schedule member, where it meets a vertex's line, a conic, an
-    // arc's end — and not about `q`: an in-band margin on any of them
-    // abandons that ray for the next, exactly as a graze does. Only the
-    // pre-pass's rows, which ask where `q` itself stands, escalate.
+    // arc's end — and not about `q`: the pre-pass has decided `q` off
+    // every edge and arc by more than the band, which bounds any
+    // crossing's advance `t` away from zero, so no in-band margin on a
+    // ray can be the question "is `q` on the boundary". And a ray's
+    // parity is used only when EVERY row on it is decisive, so
+    // abandoning one — exactly as a graze is abandoned — can only turn
+    // an escalation into an answer or into `RayExhausted`, never into a
+    // wrong verdict. Only the pre-pass's rows, which ask where `q`
+    // itself stands, escalate.
     walk_schedule(
         r#loop,
         normal,
@@ -731,8 +739,8 @@ pub(crate) fn point_in_carrier_loop<T: Decide>(
 }
 
 /// How many times the ray `q + d·t`, `t > 0`, crosses the arc `k` —
-/// `None` for a graze, and for an in-band margin on any of its rows,
-/// each of which is about this ray and not about `q`. `on_carrier` says the pre-pass put `q` on the
+/// `None` for a graze, and for an in-band margin on any of its rows
+/// (why that is sound: the ray loop in [`point_in_carrier_loop`]). `on_carrier` says the pre-pass put `q` on the
 /// conic and off the arc, so a root at `q` itself is no crossing.
 fn conic_crossings<T: Decide>(
     k: ConicArc<T>,

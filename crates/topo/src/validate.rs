@@ -1386,8 +1386,12 @@ pub enum ValidationError {
     /// inside its face's outer loop could not be certified: no vertex
     /// of the ring was placed either way, and at least one query
     /// escalated (a margin of the parity walk), exhausted that walk's
-    /// schedule, or met topology it could not read. That last clause
-    /// is what separates this
+    /// schedule, or met topology it could not read. On an arc-bearing
+    /// outer loop only the walk's point-level rows escalate — its
+    /// ray-level ones retry the next ray — so most undecided pairs there
+    /// arrive as an exhausted schedule, which names no predicate; on a
+    /// loop of lines a ray-level escalation still names its row. That
+    /// last clause is what separates this
     /// from silence — a ring every one of whose queries came back
     /// `OnBoundary` escalated nothing and is the contact arms'
     /// business, not this one's. Reported rather than rounded to
@@ -7167,14 +7171,16 @@ enum RingNestingVerdict {
 /// It is also the instrument for a loop of arcs of ONE circle, which
 /// `boolean::contain`'s `disc_side` decides in one radial margin — one
 /// instrument for every class, rather than two dispatched on the
-/// loop's shape. On that class the two agree in the band as well as
-/// out of it: the walk's only point-level row there is the same radial
-/// gap (`point_in_arc_loop_conic_on`, levered at the radius), which
-/// escalates exactly where `disc_side`'s does; every other row it
-/// decides is about one RAY — a schedule member, a vertex's line, the
-/// circle's roots, an arc's ends, trimmed by distance so that no row
-/// compresses near an end — and an in-band margin there abandons that
-/// ray for the next, never the point. What `disc_side` has over it is
+/// loop's shape. On that class the two share their band: the walk's
+/// only point-level row there is the radial gap
+/// (`point_in_arc_loop_conic_on`, levered at the radius), the same
+/// quantity as `disc_side`'s margin — computed differently, so the two
+/// can part by an ulp at the band's edge, and no further. Every other
+/// row it decides is about one RAY — a schedule member, a vertex's
+/// line, the circle's roots, an arc's ends, trimmed by distance so that
+/// no row compresses near an end — and an in-band margin there abandons
+/// that ray for the next, never the point (the soundness argument is
+/// at the ray loop of [`crate::splitting::containment::point_in_carrier_loop`]). What `disc_side` has over it is
 /// cost and immunity to a graze, and a schedule exhausted is reported,
 /// never guessed. The corpus-wide agreement of the two was measured
 /// once, by an instrument that did not land; what holds it now is
@@ -10618,19 +10624,11 @@ mod tests {
         }
     }
 
-    /// **Near an arc's end the walk decides what the radial row does.**
-    /// A circle of radius 10 split at −0.01, 0.01 and π — one circle,
-    /// so `boolean::loop_shape` reads the `Disc` class — and a query
-    /// just below the short arc's end at angle 0.01, at 20ε to 80ε
-    /// from the ray line through it (ε = 1e-9, K = 10). The radial
-    /// margin is ten metres; only the rays are ever near anything. The
-    /// ray toward that end crosses the circle 20ε–80ε from a window's
-    /// end, where an angular window margin compresses by `sin(w/2)`
-    /// into the band: the walk must abandon THAT RAY, not the point.
-    #[test]
-    fn a_query_near_a_short_arcs_end_is_placed_not_escalated() {
+    /// A circle of radius 10 about the origin split at −0.01, 0.01 and
+    /// π, carried as three arcs of it (the `Disc` class, asserted), on
+    /// a lamina: the body, its outer loop, the chart normal, the radius.
+    fn split_circle(band: Band) -> (Body<f64>, LoopKey, geom_core::Vec3<f64>, f64) {
         let tol = Tol::witness();
-        let band = Band::new(1e-9, 1e-8).expect("ε = 1e-9, K = 10");
         let r = 10.0;
         let outer: Vec<Point3<f64>> = [-0.01_f64, 0.01, core::f64::consts::PI]
             .iter()
@@ -10653,6 +10651,45 @@ mod tests {
             "three arcs of one circle are the disc class"
         );
         let normal = nesting_normal(&body, body.get_face(face).unwrap().surface).unwrap();
+        (body, outer_loop, normal, r)
+    }
+
+    /// **A ray-level margin abandons the ray, not the point.** The
+    /// circle of [`split_circle`], and a query 2ε to 9ε below the
+    /// line `y = 10·sin 0.01` through two of its vertices: a ray along
+    /// that line passes within the band of both, so its SIDE row lands
+    /// in band. That is a fact about the ray — the pre-pass has already
+    /// put `q` ten metres from the boundary — and the walk takes the
+    /// next ray and answers `In`.
+    #[test]
+    fn a_ray_level_margin_retries_the_ray() {
+        let band = Band::new(1e-9, 1e-8).expect("ε = 1e-9, K = 10");
+        let (body, outer_loop, normal, r) = split_circle(band);
+        for delta in [2e-9, 5e-9, 9e-9] {
+            let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
+            let got = crate::splitting::containment::point_in_carrier_loop(
+                &body, outer_loop, normal, q, band,
+            );
+            assert!(
+                matches!(got, Ok(Some(crate::splitting::LoopContainment::In))),
+                "δ = {delta:e}: a point ten metres inside the circle is In; got {got:?}"
+            );
+        }
+    }
+
+    /// **Near an arc's end the walk decides what the radial row does.**
+    /// A circle of radius 10 split at −0.01, 0.01 and π — one circle,
+    /// so `boolean::loop_shape` reads the `Disc` class — and a query
+    /// just below the short arc's end at angle 0.01, at 20ε to 80ε
+    /// from the ray line through it (ε = 1e-9, K = 10). The radial
+    /// margin is ten metres; only the rays are ever near anything. The
+    /// ray toward that end crosses the circle 20ε–80ε from a window's
+    /// end, where an angular window margin compresses by `sin(w/2)`
+    /// into the band: the walk must abandon THAT RAY, not the point.
+    #[test]
+    fn a_query_near_a_short_arcs_end_is_placed_not_escalated() {
+        let band = Band::new(1e-9, 1e-8).expect("ε = 1e-9, K = 10");
+        let (body, outer_loop, normal, r) = split_circle(band);
         for delta in [2e-7, 5e-7, 8e-7] {
             let q = Point3::new(0.0, r * 0.01_f64.sin() - delta, 0.0);
             let got = crate::splitting::containment::point_in_carrier_loop(
