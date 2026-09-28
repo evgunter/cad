@@ -20,15 +20,62 @@
 
 use crate::fixture;
 use editor_core::{
-    BooleanValue, CancelToken, DocEdit, DocumentId, EvalOptions, Evaluation, Frame, Node,
-    NodeResult, ProductError, ProfileDoc, RecipeNodeId, SourceFinding, ValuePayload, evaluate,
-    product_recorded,
+    BooleanValue, CancelToken, Datum, DocEdit, DocumentId, EvalOptions, Evaluation, Expr, Frame,
+    Node, NodeResult, PatternKind, ProductError, ProfileDoc, RecipeNodeId, SourceFinding,
+    SplitHalf, SplitSide, ValuePayload, evaluate, product_recorded,
 };
 use fixture::resolver::{PartStore, with_resolver};
-use fixture::{insert, len, on_frame, square, step};
+use fixture::{insert, len, on_frame, scl, square, step};
 use geom_core::Tol;
 use std::sync::Arc;
+use test_utils::source::{ItemBody, blanked, code_only, item_body, required_matches};
 use topo::{Body, ValidationError};
+
+const PRODUCT: &str = include_str!("../src/product.rs");
+
+/// **A successful gather runs the at-rest gate once.** The gate is
+/// called in exactly two places: on the aggregate, and inside
+/// `attribute_at_rest`, which is called only from the block that the
+/// aggregate's refusal enters. A per-source pass re-inserted before the
+/// graft would be a third call, and one moved out of the refusal block
+/// would leave the block; either reds here. No behavioural row can see
+/// this: an extra pass on the same geometry changes no verdict.
+#[test]
+fn the_gather_gates_the_aggregate_once_and_sources_only_on_refusal() {
+    let code = blanked(code_only, "editor-core/src/product.rs", PRODUCT);
+    let what = "editor-core/src/product.rs (code view)";
+    let gates = required_matches(&code, what, "T::gate_at_rest(");
+    assert_eq!(gates.len(), 2, "{what}: the gate is called in two places");
+    let on_aggregate = required_matches(
+        &code,
+        what,
+        "if let Err(errors) = T::gate_at_rest(&aggregate",
+    );
+    assert_eq!(on_aggregate.len(), 1, "{what}: one aggregate gate");
+    let ItemBody::Body(refusal) = item_body(&code, on_aggregate[0]) else {
+        panic!("{what}: the aggregate gate's `if let` has no block");
+    };
+    let attribute = required_matches(&code, what, "fn attribute_at_rest");
+    assert_eq!(attribute.len(), 1, "{what}: one attribution fn");
+    let ItemBody::Body(attribution) = item_body(&code, attribute[0]) else {
+        panic!("{what}: `attribute_at_rest` has no body");
+    };
+    assert!(
+        gates
+            .iter()
+            .all(|at| *at == on_aggregate[0] + "if let Err(errors) = ".len()
+                || attribution.contains(at)),
+        "{what}: a gate call sits outside the aggregate gate and the attribution fn"
+    );
+    let calls: Vec<usize> = required_matches(&code, what, "attribute_at_rest(")
+        .into_iter()
+        .filter(|at| !code[..*at].ends_with("fn "))
+        .collect();
+    assert!(
+        calls.len() == 1 && refusal.contains(&calls[0]),
+        "{what}: `attribute_at_rest` is called once, from the aggregate's refusal block"
+    );
+}
 
 fn run(doc: &ProfileDoc) -> Evaluation<f64> {
     evaluate::<f64>(
@@ -73,17 +120,8 @@ fn slot(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> &mut Arc<Body<f64>> {
 /// its value slot, and returns how many solids that body holds.
 fn flip_one_face(ev: &mut Evaluation<f64>, node: RecipeNodeId) -> usize {
     let body = slot(ev, node);
-    let (face, _) = body.faces().next().expect("the body has a face");
-    let flipped = body
-        .flipped_face_sense_for_tests(face)
-        .expect("the face is live");
-    assert!(
-        topo::validate_geometric(&flipped, Tol::witness()).is_err(),
-        "the flipped body is invalid at rest on its own (anti-vacuity)"
-    );
-    let solids = flipped.solids().count();
-    *body = Arc::new(flipped);
-    solids
+    *body = flipped(body);
+    body.solids().count()
 }
 
 /// Writes the reversed, inside-out copy of `node`'s body into its value
@@ -236,4 +274,87 @@ fn a_defect_that_stops_check_7_does_not_hide_another_roots_inside_out_body() {
             && text.contains(&format!("root {} output 0", b.0)),
         "the message names both roots: {text}"
     );
+}
+
+/// A copy of `body` with one face's sense flipped: invalid at rest.
+fn flipped(body: &Body<f64>) -> Arc<Body<f64>> {
+    let (face, _) = body.faces().next().expect("the body has a face");
+    let out = body
+        .flipped_face_sense_for_tests(face)
+        .expect("the face is live");
+    assert!(
+        topo::validate_geometric(&out, Tol::witness()).is_err(),
+        "the flipped body is invalid at rest on its own (anti-vacuity)"
+    );
+    Arc::new(out)
+}
+
+/// **A pattern root names each failing INSTANCE by its output index.**
+/// Three instances, the first and the last flipped: the refusal lists
+/// outputs 0 and 2 of the one root, and not 1.
+#[test]
+fn a_pattern_root_names_each_failing_instance() {
+    let (doc, a) = block(ProfileDoc::empty_derived("per-part-5", Tol::witness()), 0.0);
+    let (doc, pattern) = insert(
+        doc,
+        Node::Pattern {
+            input: a,
+            count: Expr::count(3),
+            kind: PatternKind::Linear {
+                direction: [scl(1.0), scl(0.0), scl(0.0)],
+                spacing: len(3.0),
+            },
+        },
+    );
+    assert_eq!(doc.roots(), &[pattern][..]);
+    let mut ev = run(&doc);
+    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&pattern) else {
+        panic!("the pattern evaluated to no value");
+    };
+    let ValuePayload::Instances(bodies) = &mut value.payload else {
+        panic!("the pattern is not an instance list: {:?}", value.payload);
+    };
+    assert_eq!(bodies.len(), 3);
+    for i in [0, 2] {
+        bodies[i] = flipped(&bodies[i]);
+    }
+    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("invalid instances refuse");
+    assert_eq!(named(&err), [(pattern, 0), (pattern, 2)]);
+    let text = err.to_string();
+    assert!(
+        text.starts_with("product: 1 root not valid at rest:"),
+        "one root, however many of its outputs fail: {text}"
+    );
+}
+
+/// **A split root names its BELOW half by that half's output index**
+/// (`SplitHalf::Below.output_body()`, 1), not by its position in the
+/// gather's list.
+#[test]
+fn a_split_root_names_its_below_half_as_output_1() {
+    let (doc, a) = block(ProfileDoc::empty_derived("per-part-6", Tol::witness()), 0.0);
+    let (doc, tool) = insert(
+        doc,
+        Node::Datum(Datum::Plane {
+            origin: [len(0.0), len(0.0), len(0.5)],
+            normal: [scl(0.0), scl(0.0), scl(1.0)],
+        }),
+    );
+    let (doc, split) = insert(doc, Node::Split { target: a, tool });
+    assert_eq!(doc.roots(), &[split][..]);
+    let mut ev = run(&doc);
+    let Some(NodeResult::Ok(value)) = ev.nodes.get_mut(&split) else {
+        panic!("the split evaluated to no value");
+    };
+    let ValuePayload::Split {
+        below: SplitSide::Body(below),
+        above: SplitSide::Body(_),
+    } = &mut value.payload
+    else {
+        panic!("the split has two halves: {:?}", value.payload);
+    };
+    *below = flipped(below);
+    let err = product_recorded(&doc, &ev, Tol::witness()).expect_err("an invalid half refuses");
+    assert_eq!(SplitHalf::Below.output_body(), 1);
+    assert_eq!(named(&err), [(split, SplitHalf::Below.output_body())]);
 }

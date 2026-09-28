@@ -155,12 +155,15 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 
 /// **Whether an aggregate of `aggregate_solids` solids owes its parts
 /// the at-rest gate one by one** (F8/D7) — the one statement of that
-/// policy. A caller that gathers parts into one body and gates it asks
-/// here rather than spelling the threshold itself.
+/// policy. A caller that gates each part BEFORE the aggregate asks here
+/// rather than spelling the threshold itself; a caller that gates only
+/// the aggregate and re-gates parts to attribute a refusal
+/// (`editor_core::product_recorded`) does not ask, because it owes no
+/// part a gate on the success path.
 ///
-/// Such an aggregate is gated at rest for two subjects: each part on
-/// its own body, so a refusal names the part it is about and arrives
-/// before the part is grafted, and then the aggregate. `docs/DESIGN.md`
+/// A caller that asks gates for two subjects: each part on its own
+/// body, so a refusal names the part it is about and arrives before the
+/// part is grafted, and then the aggregate. `docs/DESIGN.md`
 /// import step 4 states why each part is asked: whole-body sums letting
 /// an inside-out part cancel against its neighbour. Whether that still
 /// holds now that check 7 reads each solid's sign on its own faces
@@ -173,7 +176,7 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// geometry. It is skipped as an IDENTITY, never as an exemption: the
 /// aggregate gate still runs, on that same solid.
 ///
-/// **The count is over the aggregate's SOLIDS.** Its caller,
+/// **The count is over the aggregate's SOLIDS.** Its one caller,
 /// `step_import::import_step`, gates each placed instance, which is one
 /// solid, with tier 3; its aggregate gate is tier 3′, the
 /// declared-contact census, which is where the cross-part structure is
@@ -181,13 +184,9 @@ pub fn graft_disjoint_all<T: geom_core::Decide>(
 /// the call. A caller that counts something else owes the reason its
 /// count IS the solid count, at the call.
 ///
-/// `editor_core::product_recorded` does not ask: it gates its aggregate
-/// once and re-gates each source only to attribute a refusal.
-///
-/// The caller above is held to consulting this function by a
-/// source-reading guard (`step-import`'s
-/// `tests/per_part_gate_policy.rs`); a new caller is held to it by
-/// convention only.
+/// That caller is held to consulting this function by a source-reading
+/// guard (`step-import`'s `tests/per_part_gate_policy.rs`); a new caller
+/// is held to it by convention only.
 #[must_use]
 pub const fn per_part_gate_owed(aggregate_solids: usize) -> bool {
     aggregate_solids > 1

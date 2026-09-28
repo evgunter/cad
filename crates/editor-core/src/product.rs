@@ -49,13 +49,12 @@
 //! is gated at rest, and only when it refuses is each source body
 //! gated on its own, in gather order, so the refusal names every root
 //! and output index whose body fails ([`ProductError::RootInvalid`]).
-//! Attribution is paid for on the refusing path alone. It is re-gated
-//! rather than read off the aggregate's findings because the battery's
-//! early stops are body-wide: a structural finding anywhere, or a
-//! finding of checks 1–6, 8 or 9 on any solid, stops check 7 for every
-//! solid, so one root's defect can hide another's inside-out solid
-//! from the aggregate's list. An aggregate refusal with every source
-//! clean is a graft defect ([`ProductError::ProductInvalid`]). Both
+//! Attribution is paid for on the refusing path alone, so a successful
+//! gather runs the gate once (held by the source row in
+//! `tests/product_gate_attribution.rs`). Why a refusal re-gates rather
+//! than reading the aggregate's findings is `attribute_at_rest`'s doc.
+//! An aggregate refusal with every source clean is a graft defect
+//! ([`ProductError::ProductInvalid`]). Both
 //! gates go through the SCALAR'S at-rest
 //! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
 //! certifying scalars run [`topo::validate_geometric`] verbatim; at a
@@ -70,8 +69,7 @@
 //! solid's signed volume, read on that solid's own faces), so no check
 //! compares one solid against another and solids that OVERLAP pass THIS
 //! call undetected — inter-solid interference is not among its checks.
-//! It is not local in what it REPORTS: the early stops above are
-//! body-wide, which is why a refusal is attributed by re-gating. Undeclared
+//! It is not local in what it REPORTS (`attribute_at_rest`). Undeclared
 //! cross-instance contact is A5's hard error and interference fits are
 //! C6's recorded-gate-skips territory; both are decided by the tier-3′
 //! door ([`topo::validate_pseudomanifold`]), which the ASSEMBLY gate
@@ -224,10 +222,10 @@ pub enum ProductError {
     /// source body, in gather order, each carrying the validator's
     /// findings about that body in that body's own keys.
     ///
-    /// Every source is re-gated when the aggregate refuses, so the list
-    /// names EVERY failing root, not only the one whose defect the
-    /// aggregate's list happened to report (module docs: the battery's
-    /// early stops are body-wide). Non-empty. A per-entity local
+    /// Every grafted source is re-gated when the aggregate refuses, so
+    /// the list names EVERY failing root, not only the one whose defect
+    /// the aggregate's list happened to report (`attribute_at_rest`
+    /// says why those differ). Non-empty. A per-entity local
     /// verdict; inter-solid overlap is not among its checks (module
     /// docs, issue #382).
     RootInvalid {
@@ -318,9 +316,11 @@ impl crate::finding::Finding for SourceLine<'_> {
 // the PROBLEM and FORWARDS its payload's own `Display` — the kernel's
 // refusals and validity findings both carry one, so no arm re-states
 // them (and none Debug-dumps them). A validity-finding list renders
-// one kernel finding per indented line through the finding sink's own
-// `render_lines`, which is where that shape lives for the whole layer;
-// node ids render plain, names as kind + minting node.
+// one kernel finding per indented line through the finding sink
+// ([`crate::finding`]): the aggregate's bare findings through
+// `render_lines`, a per-root list through `render_list`, each line
+// composed with its root and output as the subject. Node ids render
+// plain, names as kind + minting node.
 impl core::fmt::Display for ProductError {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         let list = crate::finding::render_lines::<&ValidationError, _>;
@@ -419,11 +419,12 @@ impl core::fmt::Display for ProductError {
                             .map(move |error| SourceLine { source, error })
                     })
                     .collect();
-                write!(
-                    f,
-                    "product: roots not valid at rest ({} finding(s)):",
-                    lines.len()
-                )?;
+                // Findings arrive in gather order, so one root's outputs
+                // are adjacent and `dedup` counts roots.
+                let mut roots: Vec<RecipeNodeId> = findings.iter().map(|s| s.node).collect();
+                roots.dedup();
+                let noun = if roots.len() == 1 { "root" } else { "roots" };
+                write!(f, "product: {} {noun} not valid at rest:", roots.len())?;
                 crate::finding::render_list(f, &lines)
             }
             Self::ProductInvalid { errors } => {
@@ -937,7 +938,11 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
     // before any naming collision is read. Only a refusal pays for
     // attribution (`attribute_at_rest`).
     if let Err(errors) = T::gate_at_rest(&aggregate, tol) {
-        return Err(attribute_at_rest(&sources, errors, tol));
+        return Err(attribute_at_rest(
+            grafted.iter().map(|(source, _)| *source),
+            errors,
+            tol,
+        ));
     }
 
     // Pass 3: the carries, per grafted source, each across the key
@@ -1092,21 +1097,21 @@ type Source<T> = (
 /// reasons. Many [`ValidationError`] arms carry no key a solid can be
 /// recovered from, so a finding cannot always be mapped to the root
 /// that caused it. And the battery's early stops are body-wide, so the
-/// aggregate's list can omit one root's defect entirely: a finding of
-/// checks 1–6 on one solid stops check 7 for every solid, and an
-/// inside-out solid beside it goes unreported. Each source gated alone
+/// aggregate's list can omit one root's defect entirely: a structural
+/// finding anywhere stops every tier-3 check, and a finding of checks
+/// 1–6, 8 or 9 on any solid stops check 7 for every solid, so an
+/// inside-out solid beside it goes unreported. The battery is local in
+/// what it CHECKS, not in what it REPORTS. Each source gated alone
 /// reports what that source would have reported as the only body.
 ///
-/// A solidless source is skipped, as the graft skips it: it put
-/// nothing into the aggregate, so it is not what refused.
-fn attribute_at_rest<T: Decide + AtRestPolicy>(
-    sources: &[Source<T>],
+/// `grafted` is exactly the sources the graft put into the aggregate,
+/// in gather order.
+fn attribute_at_rest<'a, T: Decide + AtRestPolicy + 'a>(
+    grafted: impl Iterator<Item = &'a Source<T>>,
     aggregate: Vec<ValidationError>,
     tol: Tol,
 ) -> ProductError {
-    let findings: Vec<SourceFinding> = sources
-        .iter()
-        .filter(|(_, _, body, _, _, _)| body.solids().next().is_some())
+    let findings: Vec<SourceFinding> = grafted
         .filter_map(|(node, output, body, _, _, _)| {
             T::gate_at_rest(body.as_ref(), tol)
                 .err()

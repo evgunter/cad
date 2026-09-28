@@ -1883,7 +1883,7 @@ fn the_gather_refusals_render_prose_never_debug_guts() {
     ];
     let expected: [&[&str]; 3] = [
         &[
-            "roots not valid at rest (2 finding(s)):",
+            "product: 1 root not valid at rest:",
             "\n  root 3 output 1: a solid encloses negative volume, so it is inside-out",
         ],
         &["root 2's face name (minted by node 1) collides"],
