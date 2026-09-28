@@ -221,7 +221,7 @@ pub(super) fn build_sectors<T: Decide>(
 /// sector walk. What stays here is this lane's
 /// adaptation of it, and only that: the boolean error type, whose
 /// every arm carries the [`Operand`] the shared walk has no notion of.
-/// All three wired arms — `Plane`, `Cylinder`, `Sphere` (M5 PR 9) —
+/// All four wired arms — `Plane`, `Cylinder`, `Sphere`, `Torus` —
 /// are live on this side; kinds without one refuse typed (C12.1, per
 /// arm).
 ///
@@ -260,7 +260,10 @@ pub(super) fn sector_face<T: Decide>(
     // error in BOTH lanes, not silently accepted by the one whose
     // downstream algebra happens not to read the carrier.
     match resolved.carrier {
-        SectorCarrier::Plane | SectorCarrier::Cylinder | SectorCarrier::Sphere => {}
+        SectorCarrier::Plane
+        | SectorCarrier::Cylinder
+        | SectorCarrier::Sphere
+        | SectorCarrier::Torus => {}
     }
     Ok((resolved.face, resolved.normal))
 }

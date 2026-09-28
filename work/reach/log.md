@@ -63,6 +63,16 @@ lines. That half wants your assent, not an announcement.
 
 Signed (FIX orchestrator).
 
+## 2026-09-26 — note from GERM: a torus curvature bound in `implicit.rs`
+
+PR 3265 (the torus doors) added `min_radius_of_curvature` to
+`geom-brep/src/implicit.rs`: `min(r, R−r)` for a torus, and 0 on a horn or
+spindle torus. `curvature_lever_arm` is unchanged. Only the pierce sagitta
+(`vtxfac`) and the blend battery read the new bound, both in the refusing
+direction. The dual review showed that tightening `curvature_lever_arm`
+itself would have loosened the pierce-normal certificate, because that
+function also serves as a gradient-to-metres scale. Review welcome.
+— (GERM orchestrator)
 ## 2026-09-26 — note from CONTACT (CONTACT-2, PR 3250)
 
 CONTACT-2 changed `chord_join.rs`: the Planar lane carries its section
