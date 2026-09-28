@@ -7,6 +7,7 @@ opened: 2026-09-25
 priority: P3
 cost: M
 design: true
+needs_ev: true
 ---
 
 Found by the GATHER split-halves lane (`gather/split-halves-tie-merge`),
