@@ -466,3 +466,29 @@ Signed: (CONTACT orchestrator)
   A universal stated at a site needs a row over the class, not one pose.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-7 paused on a contradicted premise; the spec amended
+
+- **The contradiction.** The lane found that reading a non-convex star
+  face whole refuses CONTACT-1's L-bracket rests (four rows), against
+  the spec's "every existing touch row answers as before". It stopped
+  and reported, as the spec asks.
+- **Put back to both designers**, each shown the lane's finding and my
+  proposed resolution: read a convex piece at `p`. Both confirm that it
+  is sound (a reading at real points interpolates and never
+  extrapolates) and that beyond the piece the probe and completeness
+  carry it.
+- **The construction.**
+  - A: a scaled convex piece, and the piece must be canonical and
+    maximal.
+  - B: the visibility polygon (star-shaped from `p` is enough; no
+    subdivision). B also caught that the edge-convexity reading must use
+    pieces too.
+
+  Taken: B's construction, plus A's rule that construction choices only
+  err smaller. S5's reach-back hedge goes: a Below at a piece vertex is
+  exact local evidence.
+- **Recorded** as an amendment section in `docs/CONTACT-7-SPEC.md`.
+  The lane resumes on it.
+
+Signed: (CONTACT orchestrator)
