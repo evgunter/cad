@@ -19,13 +19,9 @@ use sweep::test_support::brick;
 use sweep::{Extrusion, extrude};
 use topo::Body;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn cyl(r: f64, z0: f64, z1: f64) -> Body<f64> {
     let tol = Tol::witness();
-    let lp = profile::circle(p2(0.0, 0.0), r, tol).unwrap();
+    let lp = profile::circle(Point2::new(0.0, 0.0), r, tol).unwrap();
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp.into()]).validate(tol).unwrap();
     extrude(&profile, Extrusion::Distance(z1 - z0), tol)
@@ -127,10 +123,14 @@ fn a_box_buried_in_a_cylinder_unions_to_the_cylinder() {
 #[test]
 fn a_box_down_a_circular_hole_in_a_square_plate_sees_the_hole() {
     let tol = Tol::witness();
-    let hole = profile::circle(p2(0.0, 0.0), 0.5, tol).unwrap();
+    let hole = profile::circle(Point2::new(0.0, 0.0), 0.5, tol).unwrap();
     let plate = {
-        let outer: ProfileLoop<f64> =
-            RawLoop::polygon([p2(-2.0, -2.0), p2(2.0, -2.0), p2(2.0, 2.0), p2(-2.0, 2.0)]);
+        let outer: ProfileLoop<f64> = RawLoop::polygon([
+            Point2::new(-2.0, -2.0),
+            Point2::new(2.0, -2.0),
+            Point2::new(2.0, 2.0),
+            Point2::new(-2.0, 2.0),
+        ]);
         let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
         let profile = Profile::new(plane, vec![outer, hole.into()])
             .validate(tol)

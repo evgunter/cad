@@ -46,7 +46,7 @@ use geom::Surface;
 use geom_core::Tol;
 use geom_core::{Band, Point2, Point3};
 use profile::{Profile, ProfileLoop, SketchPlane, test_support::bulge_loop};
-use revolve_common::{axis_y, p2, validated};
+use revolve_common::{axis_y, validated};
 use sweep::{Extrusion, Revolution, extrude, revolve};
 use topo::boolean::point_in_solid;
 use topo::{Body, FaceKey};
@@ -62,7 +62,10 @@ fn ball() -> Body<f64> {
 /// on-axis diameter). `cy ≠ 0` is what the anchored-versus-vector-area
 /// row needs: it makes the `c·A⃗` terms nonzero.
 fn ball_at(cy: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, cy - 1.0), 1.0), (p2(0.0, cy + 1.0), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, cy - 1.0), 1.0),
+        (Point2::new(0.0, cy + 1.0), 0.0),
+    ]);
     revolve(
         &validated(vec![lp]),
         axis_y(),
@@ -175,10 +178,10 @@ fn offcentre_flipped_ball_still_cancels() {
 fn assembly_flip_is_wrong_but_nonzero() {
     let ball = ball_at(0.0);
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(5.0, 0.0),
-        p2(6.0, 0.0),
-        p2(6.0, 2.0),
-        p2(5.0, 2.0),
+        Point2::new(5.0, 0.0),
+        Point2::new(6.0, 0.0),
+        Point2::new(6.0, 2.0),
+        Point2::new(5.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -222,10 +225,10 @@ fn assembly_flip_is_wrong_but_nonzero() {
 #[test]
 fn tier_three_refusal_is_surgical() {
     let lp = <ProfileLoop<f64> as RawLoop<f64>>::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(0.0, 1.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(0.0, 1.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -268,10 +271,10 @@ fn mixed_turn_arcs() -> sweep::Extruded<f64> {
     // Leaving bulges: the bottom arc bows out (+b), the top one bows
     // into the region (-b); the two sides are straight.
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), b),
-        (p2(2.0, 0.0), 0.0),
-        (p2(2.0, 1.5), -b),
-        (p2(0.0, 1.5), 0.0),
+        (Point2::new(0.0, 0.0), b),
+        (Point2::new(2.0, 0.0), 0.0),
+        (Point2::new(2.0, 1.5), -b),
+        (Point2::new(0.0, 1.5), 0.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -631,7 +634,12 @@ fn an_inverted_arc_bounded_planar_cap_refuses_naming_its_face_and_loop() {
 /// `Circle` carriers only, so every chord polygon is a DIGON: its
 /// Newell term is zero and the winding is the arcs' segment terms alone.
 fn washer() -> Body<f64> {
-    let circle = |r: f64| bulge_loop(vec![(p2(-r, 0.0), 1.0), (p2(r, 0.0), 1.0)]);
+    let circle = |r: f64| {
+        bulge_loop(vec![
+            (Point2::new(-r, 0.0), 1.0),
+            (Point2::new(r, 0.0), 1.0),
+        ])
+    };
     let prof = Profile::new(SketchPlane::xy(), vec![circle(1.0), circle(0.5)])
         .validate(Tol::witness())
         .expect("the washer profile validates");
@@ -694,12 +702,12 @@ fn an_inverted_cap_refuses_at_its_arc_ring_as_well_as_its_outline() {
 /// or a semicircle the mutants below are invisible.
 fn notched_slab() -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(0.5, 0.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(0.5, 0.0), 0.0),
         // Bulge −tan(Δ/4), Δ = 60°: a clockwise arc, bowing INTO the
         // counterclockwise region. Chord 0.5 = 2R sin 30° gives R = ½.
-        (p2(0.5, 0.08), -(15f64.to_radians().tan())),
-        (p2(0.0, 0.08), 0.0),
+        (Point2::new(0.5, 0.08), -(15f64.to_radians().tan())),
+        (Point2::new(0.0, 0.08), 0.0),
     ]);
     let prof = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -942,7 +950,8 @@ fn the_public_sense_door_inversion_of_an_arc_loft_is_refused_at_its_caps() {
 /// of its vertices plus the arc's apex (−3.06): a convex arc makes the
 /// inscribed polygon smaller than the region, and a big one flips it.
 fn c_shape(dx: f64) -> Vec<ProfileLoop<f64>> {
-    let d = |deg: f64, r: f64| p2(dx + r * deg.to_radians().cos(), r * deg.to_radians().sin());
+    let d =
+        |deg: f64, r: f64| Point2::new(dx + r * deg.to_radians().cos(), r * deg.to_radians().sin());
     vec![bulge_loop(vec![
         (d(5.0, 1.0), 87.5f64.to_radians().tan()),
         (d(355.0, 1.0), 0.0),

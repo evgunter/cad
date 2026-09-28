@@ -12,7 +12,7 @@
 use crate::mate2_common;
 
 use crate::common::three_arc;
-use geom_core::{OrthoFrame, Point3, Tol, Vec2};
+use geom_core::{OrthoFrame, Point2, Point3, Tol, Vec2};
 use mate2_common::*;
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane};
 use sweep::test_support::extruded;
@@ -169,14 +169,19 @@ fn r2_proud_one_end_is_never_silent() {
 /// The collar as a FULL revolve about the sketch y-axis: rectangle
 /// x ∈ [0.5, 1.5], y ∈ [1, 2] — a full-period bore wall (one face).
 fn revolved_collar() -> Body<f64> {
-    let lp = ProfileLoop::polygon([p2(0.5, 1.0), p2(1.5, 1.0), p2(1.5, 2.0), p2(0.5, 2.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.5, 1.0),
+        Point2::new(1.5, 1.0),
+        Point2::new(1.5, 2.0),
+        Point2::new(0.5, 2.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     sweep::revolve(
         &vp,
         sweep::RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         sweep::Revolution::Full,
@@ -191,7 +196,7 @@ fn peg_along_y(y0: f64, h: f64) -> Body<f64> {
     let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, y0, 0.0)));
     extruded(
         plane,
-        vec![three_arc(p2(0.0, 0.0), 0.5, 0.0)],
+        vec![three_arc(Point2::new(0.0, 0.0), 0.5, 0.0)],
         h,
         Tol::witness(),
     )
@@ -238,7 +243,7 @@ fn r2_full_period_bore_still_refuses_typed() {
 fn r2_full_period_peg_still_refuses_typed() {
     // The collar along Y, arc-split (extruded on the peg's plane).
     let plane = SketchPlane::from_frame(OrthoFrame::axes_zx(Point3::new(0.0, 1.0, 0.0)));
-    let o = p2(0.0, 0.0);
+    let o = Point2::new(0.0, 0.0);
     let c = extruded(
         plane,
         vec![three_arc(o, 1.5, 0.0), three_arc(o, 0.5, 0.0)],
@@ -246,14 +251,19 @@ fn r2_full_period_peg_still_refuses_typed() {
         Tol::witness(),
     );
     // The peg as a full revolve: rectangle x ∈ (0, 0.5], y ∈ [0.5, 2.5].
-    let lp = ProfileLoop::polygon([p2(0.0, 0.5), p2(0.5, 0.5), p2(0.5, 2.5), p2(0.0, 2.5)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(0.0, 0.5),
+        Point2::new(0.5, 0.5),
+        Point2::new(0.5, 2.5),
+        Point2::new(0.0, 2.5),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let p = sweep::revolve(
         &vp,
         sweep::RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         sweep::Revolution::Full,

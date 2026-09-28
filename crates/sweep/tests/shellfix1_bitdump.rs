@@ -17,20 +17,16 @@ use sweep::{Revolution, RevolveAxis, revolve};
 use topo::readback::euler_counts;
 use topo::{Body, FaceKey, LoopBoundary};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn dump_dir() -> Option<std::path::PathBuf> {
     std::env::var_os("SHELLFIX_BITDUMP_DIR").map(Into::into)
 }
 
 fn vessel(r: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r, 0.0), 0.0),
-        (p2(r, h), 0.0),
-        (p2(0.0, h), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r, 0.0), 0.0),
+        (Point2::new(r, h), 0.0),
+        (Point2::new(0.0, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -38,7 +34,7 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -50,10 +46,10 @@ fn vessel(r: f64, h: f64) -> Body<f64> {
 
 fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     let lp = bulge_loop(vec![
-        (p2(ri, 0.0), 0.0),
-        (p2(ro, 0.0), 0.0),
-        (p2(ro, h), 0.0),
-        (p2(ri, h), 0.0),
+        (Point2::new(ri, 0.0), 0.0),
+        (Point2::new(ro, 0.0), 0.0),
+        (Point2::new(ro, h), 0.0),
+        (Point2::new(ri, h), 0.0),
     ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
@@ -61,7 +57,7 @@ fn tube(ri: f64, ro: f64, h: f64) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,

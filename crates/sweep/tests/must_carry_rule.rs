@@ -104,19 +104,18 @@ fn definite_zero_margin() -> f64 {
 /// else that is smooth; each wall pair is plane–cylinder on a `Line`
 /// carrier, which is inside the jet certificate's lane.
 fn filleted_block(h: f64) -> Result<Body<f64>, ExtrudeError> {
-    let p2 = Point2::<f64>::new;
     let q = MERIDIAN_R;
     // A quarter arc: bulge = tan(θ/4) at θ = π/2.
     let b = (core::f64::consts::FRAC_PI_8).tan();
     let lp = bulge_loop(vec![
-        (p2(q, 0.0), 0.0),
-        (p2(1.0 - q, 0.0), b),
-        (p2(1.0, q), 0.0),
-        (p2(1.0, 1.0 - q), b),
-        (p2(1.0 - q, 1.0), 0.0),
-        (p2(q, 1.0), b),
-        (p2(0.0, 1.0 - q), 0.0),
-        (p2(0.0, q), b),
+        (Point2::new(q, 0.0), 0.0),
+        (Point2::new(1.0 - q, 0.0), b),
+        (Point2::new(1.0, q), 0.0),
+        (Point2::new(1.0, 1.0 - q), b),
+        (Point2::new(1.0 - q, 1.0), 0.0),
+        (Point2::new(q, 1.0), b),
+        (Point2::new(0.0, 1.0 - q), 0.0),
+        (Point2::new(0.0, q), b),
     ])
     .with_tangent_joints(vec![0, 1, 2, 3, 4, 5, 6, 7]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])

@@ -52,9 +52,16 @@ fn cube_minus_ball() -> Body<f64> {
 
 /// A unit plate with a circular through-hole (two-vertex bulge loop).
 fn plate_with_hole() -> Body<f64> {
-    let p2 = |x: f64, y: f64| Point2::new(x, y);
-    let outer = ProfileLoop::polygon([p2(0.0, 0.0), p2(1.0, 0.0), p2(1.0, 1.0), p2(0.0, 1.0)]);
-    let hole = bulge_loop(vec![(p2(0.4, 0.5), 1.0), (p2(0.6, 0.5), 1.0)]);
+    let outer = ProfileLoop::polygon([
+        Point2::new(0.0, 0.0),
+        Point2::new(1.0, 0.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(0.0, 1.0),
+    ]);
+    let hole = bulge_loop(vec![
+        (Point2::new(0.4, 0.5), 1.0),
+        (Point2::new(0.6, 0.5), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![outer, hole])
         .validate(tol())
         .unwrap();

@@ -34,10 +34,6 @@ use profile::{Profile, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::test_support::brick;
 use topo::{Body, BooleanError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
 }
@@ -84,12 +80,12 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         0.0 // straight generator: a cone with its apex on the axis
     };
     let mut lp = bulge_loop(vec![
-        (p2(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
-        (p2(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
-        (p2(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
-        (p2(0.5, 1.5), 0.0),   // wall → (0.5, 2.0)
-        (p2(0.5, 2.0), cap),   // top cap → (0, 2.5)
-        (p2(0.0, 2.5), 0.0),   // axis seam → start
+        (Point2::new(0.0, 0.0), cap),   // bottom cap → (0.5, 0.5)
+        (Point2::new(0.5, 0.5), 0.0),   // wall → (0.5, 1.0)
+        (Point2::new(0.5, 1.0), BULGE), // torus arc → (0.5, 1.5)
+        (Point2::new(0.5, 1.5), 0.0),   // wall → (0.5, 2.0)
+        (Point2::new(0.5, 2.0), cap),   // top cap → (0, 2.5)
+        (Point2::new(0.0, 2.5), 0.0),   // axis seam → start
     ]);
     if sphere {
         lp = lp.with_tangent_joints(vec![1, 4]);
@@ -98,7 +94,7 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())
@@ -116,12 +112,15 @@ fn vase_with_caps(sphere: bool) -> Body<f64> {
 /// own self-mated seam, so neither carries a chart window.
 fn donut() -> Body<f64> {
     use sweep::{Revolution, RevolveAxis, revolve};
-    let lp = bulge_loop(vec![(p2(0.5, 1.10), 1.0), (p2(0.5, 1.40), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.5, 1.10), 1.0),
+        (Point2::new(0.5, 1.40), 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     revolve(&vp, axis, Revolution::Full, Tol::witness())

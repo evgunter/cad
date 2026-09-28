@@ -35,9 +35,9 @@
 
 use crate::revolve_common;
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Band, Point2, Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
-use revolve_common::{axis_y, p2, validated};
+use revolve_common::{axis_y, validated};
 use sweep::test_support::tube_frame;
 use sweep::{Revolution, TubeWindow, revolve, tube_along_arc, tube_along_arc_hollow};
 use topo::query;
@@ -649,9 +649,9 @@ fn a_declared_torus_pair_under_subtract_is_still_refused_by_the_revert_roster() 
 fn a_cone_face_still_cannot_be_declared_at_all() {
     let cone = {
         let vp = validated(vec![ProfileLoop::polygon([
-            p2(0.0, 0.0),
-            p2(1.0, 0.0),
-            p2(0.0, 1.0),
+            Point2::new(0.0, 0.0),
+            Point2::new(1.0, 0.0),
+            Point2::new(0.0, 1.0),
         ])]);
         revolve(&vp, axis_y(), Revolution::Full, Tol::witness())
             .expect("the cone body builds")

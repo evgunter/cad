@@ -34,11 +34,12 @@
 
 use geom::Surface;
 use geom_brep::{CertifyError, EdgeCurve, Pcurve};
+use geom_core::Point2;
 use sweep::Revolution;
 use topo::{Body, EdgeKey, VoidContainment, VoidEvidence};
 
 use super::charts::hollow_moves;
-use crate::shell7_common::{p2, point, polyline, revolved, tol};
+use crate::shell7_common::{point, polyline, revolved, tol};
 
 /// The drum's radius.
 pub const DRUM_R: f64 = 1.0;
@@ -72,9 +73,9 @@ pub fn two_arc_sphere() -> Body<f64> {
     let (s, c) = v.sin_cos();
     revolved(
         bulge_loop(vec![
-            (p2(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
-            (p2(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
-            (p2(0.0, r), 0.0),
+            (Point2::new(0.0, -r), ((FRAC_PI_2 + v) / 4.0).tan()),
+            (Point2::new(r * c, r * s), ((FRAC_PI_2 - v) / 4.0).tan()),
+            (Point2::new(0.0, r), 0.0),
         ]),
         Revolution::Full,
     )
