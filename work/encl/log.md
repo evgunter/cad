@@ -960,3 +960,4 @@ class of 65 sites is PRED's row.
   - Driver side channel (b) cannot be fixed cheaply (it needs a new k_stats door or unwrapping about 40 op wrappers), so it is filed as `driver-escalation-log-names-a-renamed-tangent-refusal-osculating` (P3/M). It is visible only on a sliver enclosure.
   - Fallback pair appended to PRED's `lever-arm-fold-six-hand-rolled-siblings`.
   - Merging on hosted green of this head.
+- 2026-09-28 — PR 3333 merged (`435247c3a5`), hosted all green on `9e70ecbd9a`. Closed `measure-budget-bracket-is-the-sign-level-one-not-the-continuations`. The discovering premise was refuted, but the fix stands where the continuation actually refines.
