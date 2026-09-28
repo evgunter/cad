@@ -293,3 +293,23 @@ Process notes, each a class:
   with its context.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-3 landed (#3331); CONTACT-4 reconciled
+
+- **CONTACT-3 merged** as `08dc26f04`. Hosted CI on the first head
+  went red on two rows that the lane's local runs never reached:
+  - `reader_census`: `wall_section_rows.rs` skipped `//` lines by
+    hand over `include_str!`'d source. It now reads through
+    `test_utils::source::code_only`, with a `Shared` ledger line.
+  - `refusal_concision_at_rest`: the widened `FaceKindUnsupported`
+    text was 76 words against a cap of 75. One word came out.
+  Lesson for briefs: a lane that adds a refusal variant or reads
+  source text runs `-p editor-core` concision rows and `-p
+  test-utils`, not just its own crates.
+- **CONTACT-4** merged main (ATREST-12) into its branch at
+  `8c0ba900a`, taking main's `arc_trim`, ray-window trim, in-band retry
+  and span rule. A delta review is dispatched; it includes a
+  ground-truth check of the ~96 ray escalations main's retry now
+  answers.
+
+Signed: (CONTACT orchestrator)
