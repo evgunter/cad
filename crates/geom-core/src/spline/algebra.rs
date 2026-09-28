@@ -612,19 +612,21 @@ pub fn equal_split_plan(
 /// depends on it, only whether one redundant subdivision is taken.
 pub const SLIVER_CLEARANCE_ULPS: u32 = 8;
 
-/// When [`domain_grid_points`] counts a grid point as already a knot
-/// of the vector, and skips it.
+/// When a uniform grid ([`domain_grid_points`], [`range_grid_points`])
+/// counts a grid point as already one of the MANDATORY points it
+/// defers to — a vector's interior knots, or a caller's cut set — and
+/// skips it.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum GridSkip {
-    /// Skip a grid point that IS an interior knot: `f64` equality, so a
-    /// knot one ulp off a grid point does not suppress it and both
+    /// Skip a grid point that IS a mandatory point: `f64` equality, so
+    /// a knot one ulp off a grid point does not suppress it and both
     /// reach the output's consumer. The same rule as `WithinUlps(0)`,
     /// named for the reader.
     BitEqual,
-    /// Skip a grid point within `ulps · ε · |hi − lo|` of an interior
-    /// knot, `[lo, hi]` the vector's domain: the knot stands and the
-    /// hairline span the grid point would open beside it is never
-    /// minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
+    /// Skip a grid point within `ulps · ε · |hi − lo|` of a mandatory
+    /// point, `[lo, hi]` the grid's range: the mandatory point stands
+    /// and the hairline span the grid point would open beside it is
+    /// never minted. [`SLIVER_CLEARANCE_ULPS`] is the clearance the tree
     /// uses.
     WithinUlps(u32),
 }
@@ -649,21 +651,49 @@ pub enum GridSkip {
 #[must_use]
 pub fn domain_grid_points(kv: &KnotVector, pieces: usize, skip: GridSkip) -> Vec<f64> {
     let (lo, hi) = kv.domain();
+    let knots: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
+    range_grid_points(lo, hi, pieces, skip, &knots)
+}
+
+/// **The range-uniform grid** under [`domain_grid_points`]: the
+/// interior points `lo + (hi − lo)·k/pieces`, `0 < k < pieces`, of an
+/// arbitrary range `[lo, hi]`, ascending, minus every point that falls
+/// outside the open range or that `skip` finds on a point of
+/// `mandatory` — `skip`'s clearance scaled by `|hi − lo|`.
+///
+/// `mandatory` is whatever set the grid must defer to, and it is not
+/// the grid's to widen: [`domain_grid_points`] passes a vector's
+/// interior knots, while a caller cutting a sub-range on a raw knot
+/// slice passes that slice's in-range knots AND the range's ends, so
+/// no grid point opens a hairline span beside either. The test is
+/// against `mandatory` alone, never against other grid points, so a
+/// point two grids share (a coarse grid's point is a fine grid's when
+/// the counts divide) is kept by both or dropped by both.
+///
+/// `pieces` of 0 or 1 yields none.
+#[must_use]
+pub fn range_grid_points(
+    lo: f64,
+    hi: f64,
+    pieces: usize,
+    skip: GridSkip,
+    mandatory: &[f64],
+) -> Vec<f64> {
     let sliver = match skip {
         GridSkip::BitEqual => None,
         GridSkip::WithinUlps(ulps) => Some((hi - lo).abs() * f64::from(ulps) * f64::EPSILON),
-    };
-    let clear = |t: f64| {
-        kv.interior_knots().all(|(k, _)| match sliver {
-            None => k != t,
-            Some(sliver) => (t - k).abs() > sliver,
-        })
     };
     (1..pieces)
         .filter_map(|k| {
             #[allow(clippy::cast_precision_loss)]
             let t = lo + (hi - lo) * (k as f64 / pieces as f64);
-            (t > lo && t < hi && clear(t)).then_some(t)
+            (t > lo
+                && t < hi
+                && mandatory.iter().all(|m| match sliver {
+                    None => *m != t,
+                    Some(sliver) => (t - *m).abs() > sliver,
+                }))
+            .then_some(t)
         })
         .collect()
 }

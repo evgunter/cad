@@ -1051,14 +1051,7 @@ pub fn bspline_green_integral(
             what: "height channel too degenerate to differentiate",
         });
     };
-    let interior: Vec<f64> = {
-        let (d0, d1) = kv.domain();
-        kv.knots()
-            .iter()
-            .copied()
-            .filter(|k| *k > d0 && *k < d1)
-            .collect()
-    };
+    let interior: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
     let mut total = Interval::zero();
     #[allow(clippy::cast_precision_loss)]
     let h = span / pieces as f64;
@@ -2700,19 +2693,6 @@ fn quotient_second(
         + pt(12.0) * n * w_d.sqr() / w.powi(5)
 }
 
-/// The `QUAD2_HULL_BLOCKS + 1` block boundaries of one direction, as
-/// the block loop computes them — shared so the cut list and the
-/// block index cannot drift apart.
-fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
-    (0..=QUAD2_HULL_BLOCKS)
-        .map(|b| {
-            #[allow(clippy::cast_precision_loss)]
-            let f = b as f64 / QUAD2_HULL_BLOCKS as f64;
-            lo + (hi - lo) * f
-        })
-        .collect()
-}
-
 /// **The composite's cut list in one direction**: the uniform
 /// `pieces` grid, the coarse block boundaries, and the interior knots,
 /// merged.
@@ -2755,7 +2735,8 @@ fn block_edges(lo: f64, hi: f64) -> Vec<f64> {
 /// vector's own domain and clears only its interior knots, while this
 /// range is the trim rectangle's, its knots are a raw slice that may be
 /// a derivative's, and a grid point must stand clear of the range ends
-/// as well.
+/// as well. Both are [`algebra::range_grid_points`] underneath; what
+/// differs is the range and the mandatory set each hands it.
 ///
 /// `knots` is the raw slice the caller cuts on. A caller cutting on a
 /// derivative's knots takes the once-differenced slice from
@@ -2777,13 +2758,14 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     cuts.dedup();
 
     // GRID cuts — the uniform `pieces` grid and the coarse block
-    // edges — are conveniences, not invariants: they only subdivide,
-    // and a cell that is wider because one was dropped is still
-    // inside one smooth piece and still inside its block. So a grid
-    // point is taken only when it stands clear of every mandatory cut
-    // by `SLIVER`, which is what stops the cut rule minting hairline
-    // cells (and hairline coarse blocks) when a knot happens to land
-    // an ulp from a grid point.
+    // edges, the `QUAD2_HULL_BLOCKS` grid — are conveniences, not
+    // invariants: they only subdivide, and a cell that is wider
+    // because one was dropped is still inside one smooth piece and
+    // still inside its block. So a grid point is taken only when it
+    // stands clear of every mandatory cut by the sliver clearance,
+    // which is what stops the cut rule minting hairline cells (and
+    // hairline coarse blocks) when a knot happens to land an ulp from
+    // a grid point.
     //
     // The test is against the MANDATORY set alone, never against
     // other grid points. That is what makes the block-edge list and
@@ -2793,27 +2775,16 @@ fn knot_aligned_cuts(lo: f64, hi: f64, pieces: usize, knots: &[f64]) -> Vec<f64>
     // [`QUAD2_HULL_BLOCKS`]), and it faces the identical predicate in
     // both calls, so it is accepted in both or dropped in both — and
     // every cell therefore still lies inside exactly one block.
-    let span = (hi - lo).abs();
-    let sliver = span * f64::from(SLIVER_CLEARANCE_ULPS) * f64::EPSILON;
-    let clear = |t: f64, mandatory: &[f64]| -> bool {
-        t > lo && t < hi && mandatory.iter().all(|m| (t - *m).abs() > sliver)
-    };
+    let skip = GridSkip::WithinUlps(SLIVER_CLEARANCE_ULPS);
     let mandatory = cuts.clone();
-    let mut grid: Vec<f64> = Vec::new();
-    for i in 1..pieces {
-        #[allow(clippy::cast_precision_loss)]
-        let f = i as f64 / pieces as f64;
-        let t = lo + (hi - lo) * f;
-        if clear(t, &mandatory) {
-            grid.push(t);
-        }
-    }
-    for e in block_edges(lo, hi) {
-        if clear(e, &mandatory) {
-            grid.push(e);
-        }
-    }
-    cuts.extend(grid);
+    cuts.extend(algebra::range_grid_points(lo, hi, pieces, skip, &mandatory));
+    cuts.extend(algebra::range_grid_points(
+        lo,
+        hi,
+        QUAD2_HULL_BLOCKS,
+        skip,
+        &mandatory,
+    ));
     cuts.sort_by(|a, b| a.partial_cmp(b).unwrap_or(core::cmp::Ordering::Equal));
     cuts.dedup();
     cuts
@@ -3224,6 +3195,8 @@ fn rational_patch_face<T: Decide>(
     // inserted knots are artificial (the locus and its smoothness are
     // unchanged), so cutting on them would only cost cells. What the
     // cells must land on is where the smoothness actually breaks.
+    // A range filter, not `interior_knots`: `(lo, hi)` is the trim
+    // rectangle's side, which is the vector's domain only sometimes.
     let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
         kv.knots()
             .iter()
@@ -3654,6 +3627,8 @@ pub fn nurbs_patch_face_rounds<T: Decide>(
     let suuv = suu.as_ref().and_then(PatchGrid::deriv_v);
     let suvv = suv.as_ref().and_then(PatchGrid::deriv_v);
     let svvv = svv.as_ref().and_then(PatchGrid::deriv_v);
+    // A range filter, not `interior_knots`: `(lo, hi)` is the trim
+    // rectangle's side, which is the vector's domain only sometimes.
     let interior = |kv: &KnotVector, lo: f64, hi: f64| -> Vec<f64> {
         kv.knots()
             .iter()
@@ -4041,13 +4016,7 @@ fn bezier_blocks(img: &TrimPiece, m: usize) -> Option<Vec<Vec<RPt2>>> {
     if p == 0 || img.control.len() != kv.control_count() || img.weights.len() != img.control.len() {
         return None;
     }
-    let (d0, d1) = kv.domain();
-    let mut breaks: Vec<f64> = kv
-        .knots()
-        .iter()
-        .copied()
-        .filter(|k| *k > d0 && *k < d1)
-        .collect();
+    let mut breaks: Vec<f64> = kv.interior_knots().map(|(k, _)| k).collect();
     // A uniform cut that lands on a knot is the knot; minting the
     // hairline span between them would be arithmetic noise, and the
     // block list would carry a box of zero width.
