@@ -4,7 +4,7 @@ kind: issue
 title: no gate, test or script in the tree runs a line of .claude/hooks/session-start.sh
 status: open
 opened: 2026-09-11
-refs: [session-start-hook-restates-ci-pins, 2327]
+refs: [2327]
 priority: P4
 cost: E
 ---

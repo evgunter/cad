@@ -4,7 +4,7 @@ kind: issue
 title: the criterion lane's hosted-only argument now lives in four prose copies and no machine-read one
 status: open
 opened: 2026-09-11
-refs: [criterion-selftest-nightly-only, 2330]
+refs: [2330]
 priority: P4
 cost: E
 ---

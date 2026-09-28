@@ -49,6 +49,6 @@ declare the edge (`crates/geom-core/Cargo.toml`, root
 ## Where
 
 - `scripts/ci-filter.py`, `ORACLE_PATHS` and `_touches_oracle`
-- `.github/workflows/ci.yml`, the `interval oracle (certify vs
+- `.github/workflows/interval.yml`, the `interval oracle (certify vs
   inari+MPFR)` job
 - found by RING-1's review (R2 NOTE-6)

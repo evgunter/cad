@@ -4,7 +4,7 @@ kind: issue
 title: nightly.yml runs opt-level-calibrate.py record with no selftest before it, on refs the merge gate never saw
 status: open
 opened: 2026-09-11
-refs: [criterion-selftest-nightly-only, 2124]
+refs: [2124]
 priority: P4
 cost: E
 ---

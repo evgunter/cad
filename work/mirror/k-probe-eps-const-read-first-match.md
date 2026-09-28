@@ -4,7 +4,6 @@ kind: issue
 title: rundump-guard-selftest.sh reads k_probe_sweep.sh's PLAIN_EPS with a first-match grep
 status: open
 opened: 2026-09-11
-refs: [seal-oracle-toolchain-read-first-match]
 priority: P4
 cost: E
 ---

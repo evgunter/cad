@@ -4,7 +4,7 @@ kind: issue
 title: criterion-emit.py's selftest passes 11 of 20 single-token mutations - its fixture writes one scalar into five collected fields
 status: open
 opened: 2026-09-11
-refs: [criterion-selftest-nightly-only, 2330]
+refs: [2330]
 priority: P4
 cost: E
 ---

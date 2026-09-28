@@ -78,7 +78,7 @@ five restore attempts on one branch, hits at 9 and 17 minutes, misses
 at 38, 60 and 88. The budget is 10 GB for the whole repository and the
 build lanes' own `rust-cache` entries live in it — on the same runs,
 `rust-cache` reported `No cache found` on five of seven build jobs
-(`work/tcost/rust-cache-never-restores-across-branches`).
+(`rust-cache-never-restores-across-branches` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)).
 
 A render-cells cache is ~55 cells across two PNG lanes, keyed per lane,
 and would sit in that same budget. Two consequences, both against

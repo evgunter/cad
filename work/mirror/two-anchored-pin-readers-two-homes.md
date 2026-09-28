@@ -4,7 +4,7 @@ kind: issue
 title: the tree now has two anchored pin readers, in two languages, and only one can go red
 status: open
 opened: 2026-09-11
-refs: [seal-oracle-toolchain-read-first-match, ci-pin-quoted-branch-skips-the-bare-branch-rejection, 2327]
+refs: [ci-pin-quoted-branch-skips-the-bare-branch-rejection, 2327]
 priority: P4
 cost: E
 ---

@@ -31,7 +31,7 @@ minting another claim, which is worse. That answer is correct per unit and says
 nothing about the sequence. Six consecutive units have each taken a claim or an
 arm here; the seventh will make the same argument.
 
-`work/ciw/mirror-pairs-context-beyond-env.md` names accumulation as the
+`mirror-pairs-context-beyond-env` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) names accumulation as the
 counter-argument to writing all three of its clauses at once — so the file's
 size is already being used as a scheduling input, by lanes, with no measured
 basis. Nothing in the repo measures it, no threshold exists, and the growth is

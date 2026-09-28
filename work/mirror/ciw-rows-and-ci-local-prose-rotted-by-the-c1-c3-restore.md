@@ -16,8 +16,8 @@ their three nightly counterparts. These three sites are CIW's —
 one-file-one-item forbids another program editing.
 
 **Two other CIW premises are NOT in this row because the same PR
-un-broke them**: `work/ciw/facade-guards-defer-to-rustdoc-json` and
-`work/ciw/nightly-demotions-have-never-run`'s **rustdoc** row both build
+un-broke them**: `facade-guards-defer-to-rustdoc-json` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) and
+`nightly-demotions-have-never-run` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)'s **rustdoc** row both build
 on `rustdoc (gate, every root)` existing, and it does — an earlier
 revision of that PR deleted it, a review established the deletion lost
 the only full-strength `viewer --all-features` doc pass, and the job was
@@ -25,14 +25,14 @@ kept. Worth stating so nobody re-files them.
 
 ## The three
 
-**1. `work/ciw/python-suite-zero-test-guard-three-copies` counts three
+**1. `python-suite-zero-test-guard-three-copies` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) counts three
 copies; there are now two.** The item's title, its body and its argument
 all turn on the number. PR 2434 removed the nightly re-take that carried
 the third. The finding survives — two hand-kept copies of a guard still
 drift — but every figure in it is off by one, including in the title,
 which is the part that shows on the board.
 
-**2. `work/ciw/nightly-demotions-have-never-run` tabulates jobs that no
+**2. `nightly-demotions-have-never-run` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) tabulates jobs that no
 longer exist.** Its subject is whether the 2026-09 demotions ever
 executed unattended. Two of the rows it tabulates —
 `python suite (ungated re-take)` and `release-corruption` — are deleted;
@@ -77,7 +77,7 @@ job that implements it, and none of the structural gates
 
 ## Related
 
-`work/ciw/critical-path-citations-name-a-job-that-is-not-the-pole` and
-`work/ciw/billed-minute-arguments-survive-across-ci-yml` are the same
-shape from the same week; `work/tcost/nightly-demotions-c1-c3-were-bought-with-billed-minutes`
+`critical-path-citations-name-a-job-that-is-not-the-pole` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) and
+`billed-minute-arguments-survive-across-ci-yml` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`) are the same
+shape from the same week; `nightly-demotions-c1-c3-were-bought-with-billed-minutes` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)
 (closed at PR 2434) is the re-cost that caused this rot.

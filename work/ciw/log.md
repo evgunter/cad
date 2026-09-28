@@ -2905,3 +2905,16 @@ viewer file redded with file and line, tree restored; and in CI in
 (a bare field under another name — none in the crate, and banning the
 name would be a rule about a widget nobody asked for), and a field
 built in another crate.
+
+## 2026-09-28 — tracker sweep after the CI-latency cut
+
+Deleted 75 rows: every closed row except `latency-cut`, and the 18 open
+rows whose subject the cut removed (sampling, the lane/shard/archive
+layout, the mirror and its parity checkers, the local mirror scripts, the
+opt-level calibrator, the read reach, the `fmt`/`discipline` jobs, the
+`gate ok` jobs-API read). `an-unmergeable-pr-is-silently-ungated-not-visibly-red`
+folded into `dirty-pr-gets-no-actions-run`. Kept ten live rows with their
+citations re-pointed at the current workflows; filed
+`ci-prose-and-pins-outlive-the-latency-cut` for the billed-minute and
+archive prose that survives outside `ci.yml`. `program.md` and `plan.md`
+rewritten to the present CI. Recovery: `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`.

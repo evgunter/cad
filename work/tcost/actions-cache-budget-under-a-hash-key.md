@@ -44,7 +44,7 @@ where it stops hitting — and it decides at least one live row.
 
 ## Who is waiting on it
 
-`work/ciw/cache-rendered-cells-on-input-hash` is parked on exactly this
+`work/mirror/cache-rendered-cells-on-input-hash` is parked on exactly this
 and says so in its own `Unparked by` clause: *"either the budget stops
 being the binding constraint... or it is measured and found to hold a
 render-cells entry for long enough."* It was parked on the rust-cache row

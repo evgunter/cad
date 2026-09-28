@@ -57,7 +57,7 @@ wrong on `origin/main` before it — and none is VIEW's, so they are not
 this row's to carry. Named here only so a reader does not take five for
 the total:
 
-- `work/ciw/ci-draw-rows-tree-rs-citation-does-not-locate-the-unleverable-arm`
+- `ci-draw-rows-tree-rs-citation-does-not-locate-the-unleverable-arm` (deleted; `docs/doc-ledger/ciw-tcost-latency-cut-sweep.md`)
   and
   `work/msolve/memo-key-rows-tree-rs-citation-now-lands-on-the-opposite-claim`
   — filed on their owners' slates rather than listed here, because a

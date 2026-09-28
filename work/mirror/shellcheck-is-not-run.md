@@ -4,7 +4,6 @@ kind: issue
 title: no shell linter runs anywhere: 20+ `# shellcheck` markers are unverifiable claims
 status: open
 opened: 2026-09-10
-refs: [apt-preamble-bypass-is-unguarded, pipestatus-after-assignment-in-ci-yml]
 priority: P4
 cost: E
 ---

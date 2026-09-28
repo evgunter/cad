@@ -4,7 +4,6 @@ kind: issue
 title: FreeCAD, the 3.12 interpreter and the demo render venv are pinned as literals nothing reconciles
 status: open
 opened: 2026-09-11
-refs: [session-start-hook-restates-ci-pins, pinned-version-named-in-present-tense-prose]
 priority: P3
 cost: E
 ---
