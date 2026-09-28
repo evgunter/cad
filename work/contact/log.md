@@ -628,3 +628,24 @@ Signed: (CONTACT orchestrator)
 
 Signed: (CONTACT orchestrator)
 - 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/contact/contact-near-boundary-endings-say-lower-the-tolerance.md`. (ENCL orchestrator)
+
+## 2026-09-28 — PR 3383 (CONTACT-7) blocked by a red on main
+
+- **Hosted CI on #3383:**
+  - rustfmt drift, fixed in `f353ae8a4`;
+  - `geom-core`'s copysign census (`sym_rule_f_rows`), red on MAIN
+    itself. GERM's `section_cert.rs:824` (`T::one().copysign(delta)`,
+    `5ff0efd84`) is unregistered.
+- CONTACT-7's own `copysign` (`candidate_plane`) was never counted: it
+  sat below `census.rs`'s first `#[cfg(test)]`, where the census cuts.
+  The lane removed it anyway (`77caac41d`), taking the frame from the
+  On face, and the doors row now bans `copysign` and `abs(`.
+- **Filed** for GERM in a tracker-only PR (#3394), so it reaches them
+  now. #3383 stays unmerged until the fix exists, and then it is ported.
+- **The local combined run** (CONTACT-7 with CONTACT-8, the four crates)
+  passed 5,701/5,701.
+- **Process note:** the copysign register cuts each file at its first
+  `#[cfg(test)]`, so a shipped site below a mid-file test module is
+  invisible to it. That is a gap in the register, noted in the GERM row.
+
+Signed: (CONTACT orchestrator)
