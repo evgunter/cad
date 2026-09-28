@@ -453,6 +453,7 @@ pub fn boolean_op_with<
         )? {
             return Err(BooleanError::CurvedPairUnsupported {
                 op: Some(op),
+                site: super::PairRefusalSite::RevertRoster,
                 operand: p.operand,
                 face: p.face,
                 kind: p.kind,
@@ -724,6 +725,7 @@ fn interior_loop_verdict<T: Decide + Bounds>(
     };
     let refuse = |p: super::reduce::UnsupportedPair| BooleanError::CurvedPairUnsupported {
         op: Some(op),
+        site: super::PairRefusalSite::InteriorLoopGuard,
         operand: p.operand,
         face: p.face,
         kind: p.kind,
@@ -827,12 +829,8 @@ fn partner_kind<T: Real>(
     a: &Body<T>,
     b: &Body<T>,
 ) -> Option<geom_brep::SurfaceKind> {
-    let body = match operand {
-        Operand::A => b,
-        Operand::B => a,
-    };
-    let f = body.get_face(other)?;
-    Some(geom_brep::SurfaceKind::of(body.get_surface(f.surface)?))
+    let (_, other_body) = own_and_other(operand, a, b);
+    Some(geom_brep::SurfaceKind::of(face_surface(other_body, other)?))
 }
 
 /// Does a certificate put the two faces' CARRIERS apart? `face` (of
@@ -861,13 +859,7 @@ fn carriers_apart<T: Decide>(
     b: &Body<T>,
     band: Band,
 ) -> bool {
-    fn surface<T: Real>(x: &Body<T>, f: FaceKey) -> Option<&geom::Surface<T>> {
-        x.get_face(f).and_then(|fd| x.get_surface(fd.surface))
-    }
-    let (body, other_body) = match operand {
-        Operand::A => (a, b),
-        Operand::B => (b, a),
-    };
+    let (body, other_body) = own_and_other(operand, a, b);
     let positive =
         |name: &'static str, m: T| matches!(decide(name, Margin::of(m), band), Ok(Sign::Positive));
     let unit = |v: Vec3<T>| v / v.norm();
@@ -878,13 +870,13 @@ fn carriers_apart<T: Decide>(
         let rho = (w - unit(axis) * h).norm();
         Vec3::new(rho - big_r, h, T::zero()).norm()
     };
-    match (surface(body, face), surface(other_body, other)) {
+    match (face_surface(body, face), face_surface(other_body, other)) {
         (
             Some(&geom::Surface::Sphere { center, radius, .. }),
             Some(&geom::Surface::Plane { origin, normal, .. }),
-        ) => positive(
-            "bool_interior_loop_plane_clear",
-            (center - origin).dot(unit(normal)).abs() - radius,
+        ) => matches!(
+            ball_against_plane(center, radius, origin, normal, band),
+            Ok((Sign::Negative, _))
         ),
         (
             Some(&geom::Surface::Sphere { center, radius, .. }),
@@ -955,6 +947,49 @@ fn carriers_apart<T: Decide>(
     }
 }
 
+/// `operand`'s own body first, the other operand's second — the one
+/// prelude every per-pair question here opens with.
+fn own_and_other<'a, T: Real>(
+    operand: Operand,
+    a: &'a Body<T>,
+    b: &'a Body<T>,
+) -> (&'a Body<T>, &'a Body<T>) {
+    match operand {
+        Operand::A => (a, b),
+        Operand::B => (b, a),
+    }
+}
+
+/// A face's resolved surface, or `None` for a dangling key.
+fn face_surface<T: Real>(body: &Body<T>, face: FaceKey) -> Option<&geom::Surface<T>> {
+    body.get_face(face)
+        .and_then(|fd| body.get_surface(fd.surface))
+}
+
+/// **A ball against a plane's CARRIER: the one home of that gap.**
+/// Decides `r − |s|` under `bool_sphere_extent_gap`, where `s` is the
+/// centre's signed distance to the plane along its stored normal, which
+/// the plane convention makes unit (and which is read as stored rather
+/// than re-normalised, because at the interval scalar a division by the
+/// normal's own norm widens `s` and moves the scan's escalations):
+/// `Negative` is a ball definitely clear of the carrier, `Zero` a
+/// tangency, `Positive` a ball the carrier cuts in a circle of radius
+/// `√((r − |s|)(r + |s|))` about `centre − n̂·s`. Returns the sign and
+/// `s`. Read by the no-crossings sphere scan ([`sphere_extent_scan`])
+/// and by the crossings path's guard ([`carriers_apart`],
+/// [`circle_misses_a_face`]).
+fn ball_against_plane<T: Decide>(
+    center: Point3<T>,
+    radius: T,
+    origin: Point3<T>,
+    normal: Vec3<T>,
+    band: Band,
+) -> Result<(Sign, T), geom_core::Indeterminate> {
+    let s = (center - origin).dot(normal);
+    let sign = decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)?;
+    Ok((sign, s))
+}
+
 /// **A sphere face and a plane face with no event between them: is
 /// their section circle outside one of the two faces?**
 ///
@@ -976,16 +1011,9 @@ fn circle_misses_a_face<T: Decide>(
     b: &Body<T>,
     band: Band,
 ) -> bool {
-    let (body, other_body) = match operand {
-        Operand::A => (a, b),
-        Operand::B => (b, a),
-    };
-    let sphere = body
-        .get_face(face)
-        .and_then(|fd| body.get_surface(fd.surface));
-    let plane = other_body
-        .get_face(other)
-        .and_then(|fd| other_body.get_surface(fd.surface));
+    let (body, other_body) = own_and_other(operand, a, b);
+    let sphere = face_surface(body, face);
+    let plane = face_surface(other_body, other);
     let (
         Some(&geom::Surface::Sphere { center, radius, .. }),
         Some(&geom::Surface::Plane {
@@ -999,17 +1027,11 @@ fn circle_misses_a_face<T: Decide>(
         return false;
     };
     let n = normal / normal.norm();
-    let d = (center - origin).dot(n);
-    let rho_sq = (radius - d) * (radius + d);
-    // The carrier circle exists (a clear pair was certified above).
-    if decide(
-        "bool_interior_loop_circle_exists",
-        Margin::of(rho_sq / radius),
-        band,
-    ) != Ok(Sign::Positive)
-    {
+    // The carrier circle exists: the ball definitely crosses the plane.
+    let Ok((Sign::Positive, d)) = ball_against_plane(center, radius, origin, normal, band) else {
         return false;
-    }
+    };
+    let rho_sq = (radius - d) * (radius + d);
     let along = u_ref - n * u_ref.dot(n);
     let p = center - n * d + along / along.norm() * rho_sq.sqrt();
     let out_of_plane_face = matches!(
@@ -2303,7 +2325,7 @@ fn sphere_extent_scan<T: Decide + Bounds>(
     }
     let pad = boxes::sweep_pad(band);
     cylinder_extent_gate(a, b, pad)?;
-    torus_extent_gate(a, b, pad)?;
+    torus_extent_gate(a, b, pad, band)?;
     let mut out: Vec<SphereRecut<T>> = Vec::new();
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         let mut seen: Vec<SurfaceKey> = Vec::new();
@@ -2352,10 +2374,9 @@ fn sphere_extent_scan<T: Decide + Bounds>(
                         normal,
                         u_ref,
                     }) => {
-                        let s = (center - origin).dot(normal);
-                        match decide("bool_sphere_extent_gap", Margin::of(radius - s.abs()), band)
-                            .map_err(esc)?
-                        {
+                        let (side, s) = ball_against_plane(center, radius, origin, normal, band)
+                            .map_err(esc)?;
+                        match side {
                             // Clear of the whole carrier plane.
                             Sign::Negative => {}
                             // Tangency: a touching configuration the
@@ -2705,7 +2726,12 @@ fn sphere_extent_scan<T: Decide + Bounds>(
 ///   no meridian at all, would void the argument and put the plane
 ///   partner back in this gate's scope. Nothing in the type system
 ///   forbids one; state the premise when you add a constructor that
-///   breaks it, and widen this gate in the same change.
+///   breaks it, and widen this gate in the same change. **It has a
+///   second dependent**: [`interior_loop_verdict`]'s sphere half clears
+///   a sphere × cylinder pair with an event on it because an encircling
+///   section loop crosses the wall's seam meridians — the same premise
+///   — so a seamless band voids that clause too, and it must be widened
+///   in the same change.
 /// - against a SPHERE face the scan's own sphere arm already refuses
 ///   on reach, and it says so in the sphere's words rather than the
 ///   cylinder's — this gate must not shadow it.
@@ -2764,7 +2790,7 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 }
 
 /// **The torus class's no-crossings posture: a typed refusal on reach,
-/// against EVERY partner kind.**
+/// against EVERY partner kind but the sphere.**
 ///
 /// The cylinder gate's argument, without its exemption. A torus face can
 /// meet ANY partner face in a closed loop interior to both faces: a
@@ -2777,21 +2803,32 @@ fn cylinder_extent_gate<T: Decide + Bounds>(
 /// outside the other, and the union would be metered as two disjoint
 /// solids.
 ///
-/// No certificate exists for the kind (a torus has no `center ± r`
-/// extent to consult, and no exact torus-vs-face gap test is wired), so
-/// the gate refuses on REACH: a torus face whose certified BOX overlaps
-/// the box of a face of the other operand. That is a box test, not a
-/// meeting: a torus whose BOXES clear the other body's costs nothing,
-/// but one whose boxes overlap refuses even where the loci stand apart.
-/// **The known conservative refusal is a cube sitting in the donut's
-/// hole**: it touches nothing, yet the outer face's box spans the hole,
-/// so the union refuses here (main refused it too, at the operand gate).
-/// SPHERE partners are left to the sphere arm below, which refuses
-/// on reach in its own words; this gate must not shadow it.
+/// The gate refuses on REACH: a torus face whose certified BOX overlaps
+/// the box of a face of the other operand, unless the two CARRIERS are
+/// certified apart — the one certificate the crossings path's guard
+/// reads too ([`carriers_apart`]: a plane beyond the torus's support, a
+/// ball clear of the tube). No test of the torus FACE against a partner
+/// face is wired, so a torus whose carrier meets the partner's while its
+/// face does not still refuses. **The known conservative refusal is a
+/// cube sitting in the donut's hole**: it touches nothing, yet the outer
+/// face's box spans the hole and the cube's planes cut the carrier.
+///
+/// **Where it differs from the crossings path's torus guard
+/// ([`interior_loop_verdict`]), and why it must:**
+///
+/// - a DECLARED pair is not exempt here. On this path there are no
+///   crossings, so a declared coincident torus pair is exactly the case
+///   the vertex probe cannot decide (every vertex it would probe lies on
+///   the other torus); on the crossings path the declared rungs walk the
+///   pair's contact along its edges.
+/// - SPHERE partners are left to the sphere arm below, which refuses on
+///   reach in its own words; this gate must not shadow it. The guard has
+///   no sphere arm behind it, so it reads the ball's certificate itself.
 fn torus_extent_gate<T: Decide + Bounds>(
     a: &Body<T>,
     b: &Body<T>,
     pad: f64,
+    band: Band,
 ) -> Result<(), BooleanError> {
     for (x_is, x, y) in [(Operand::A, a, b), (Operand::B, b, a)] {
         for (face, fd) in x.faces() {
@@ -2806,15 +2843,17 @@ fn torus_extent_gate<T: Decide + Bounds>(
                 ) {
                     continue;
                 }
-                if torus_box.overlaps(&boxes::face_box(y, yf, pad)?) {
+                if torus_box.overlaps(&boxes::face_box(y, yf, pad)?)
+                    && !carriers_apart(x_is, face, yf, a, b, band)
+                {
                     return Err(BooleanError::FallbackExtentUnsupported {
                         operand: x_is,
                         face,
                         what: "a torus face's box overlaps the box of a face of the other \
                                solid and no crossing layer saw an event — a torus can meet \
                                any face in a closed loop interior to both, which no vertex \
-                               probe and no edge event can see, and no exact torus-vs-face \
-                               gap test is wired to rule the meeting in or out",
+                               probe and no edge event can see, and the two carriers are not \
+                               certified apart",
                     });
                 }
             }
