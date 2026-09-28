@@ -33,8 +33,6 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::query;
 use topo::{Body, EdgeKey, FaceKey, ValidationError};
 
-use crate::common::approx::band;
-
 fn p2(x: f64, y: f64) -> Point2<f64> {
     Point2::new(x, y)
 }
@@ -301,7 +299,7 @@ fn r2_no_face_offset_flips_is_declared_silently() {
     for f in faces {
         for d in [0.03_f64, -0.03] {
             let mut body = base.clone();
-            match topo::replace_face_offset(&mut body, f, d, band(), Tol::witness()) {
+            match topo::replace_face_offset(&mut body, f, d, Tol::witness()) {
                 Err(e) => {
                     println!("[R2-S2] face {f:?} at d = {d}: refused loudly — {e:?}");
                 }
@@ -390,7 +388,7 @@ fn r2_an_undeclared_edge_still_crosses_a_non_translating_offset() {
         return;
     };
     let mut body = base.clone();
-    let outcome = topo::replace_face_offset(&mut body, cone, 0.02, band(), Tol::witness());
+    let outcome = topo::replace_face_offset(&mut body, cone, 0.02, Tol::witness());
     println!("[R2-S4] cone offset: {:?}", outcome.as_ref().err());
     if outcome.is_ok() {
         let before = declared_map(&base);
@@ -563,7 +561,7 @@ fn r2_the_declared_arm_of_the_retired_refusal_is_reachable_at_rest() {
         .collect();
 
     let mut body = ball.clone();
-    let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, band(), Tol::witness());
+    let outcome = topo::replace_faces_offset(&mut body, &group, 0.05, Tol::witness());
     println!("[R2-S6] offsetting the sphere chart: {outcome:?}");
     match outcome {
         Err(topo::ReplaceFaceError::CarrierLaneUnsupported { what, .. }) => {

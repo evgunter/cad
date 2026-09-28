@@ -28,7 +28,7 @@ use geom_brep::OffsetFitError;
 use geom_core::Tol;
 use topo::{FaceKey, ReplaceFaceError, ShellError};
 
-use crate::common::approx::{band, nurbs_walls, twisted_loft};
+use crate::common::approx::{nurbs_walls, twisted_loft};
 
 /// The wall thickness these rows shell and offset at, in metres: 2.5%
 /// of the 2 m section, a thickness a user would ask for.
@@ -122,7 +122,7 @@ fn a_saddle_walls_offset_at_shell_thickness_reaches_its_measured_bound() {
     );
     for d in [THICKNESS, -THICKNESS] {
         let mut b = body.clone();
-        let e = topo::replace_face_offset(&mut b, wall, d, band(), Tol::witness())
+        let e = topo::replace_face_offset(&mut b, wall, d, Tol::witness())
             .expect_err("a fitted wall's boundary cannot follow it");
         match e {
             ReplaceFaceError::FittedBoundaryUnsupported { .. } => assert!(

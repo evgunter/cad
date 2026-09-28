@@ -7,7 +7,7 @@
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic, dead_code)]
 
 use core::f64::consts::{FRAC_PI_2, PI};
-use geom_core::{Band, Point2, Point3, Real, Tol, Vec2, Vec3};
+use geom_core::{Point2, Point3, Real, Tol, Vec2, Vec3};
 use profile::{Profile, ProfileLoop, RawLoop, SketchPlane, test_support::bulge_loop};
 use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::{Body, ContactRecords, SplitPart, SplitPlane, split};
@@ -366,7 +366,6 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 /// builds it; plus its reverted twin so check 7 WOULD also fire.
 pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
     let tol = Tol::witness();
-    let band = Band::linear(tol).unwrap();
     let mut out = Vec::new();
     let vessel = revolved(bulge_loop(vec![
         v(0.0, 0.0, 0.0),
@@ -396,7 +395,7 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         let (o_from, n_from) = plane_of(&sealed, counterpart[0]);
         let (o_onto, _) = plane_of(&sealed, mouth[0]);
         let back = (o_onto - o_from).dot(n_from);
-        topo::replace_faces_offset(&mut sealed, &counterpart, back, band, tol).unwrap();
+        topo::replace_faces_offset(&mut sealed, &counterpart, back, tol).unwrap();
         for (&rim, &source) in mouth.iter().zip(&counterpart) {
             sealed.kfmrh(rim, source).unwrap();
         }

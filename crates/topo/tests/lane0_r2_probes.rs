@@ -16,7 +16,7 @@
 use std::sync::Arc;
 
 use geom::{ApproxSurface, NurbsSurface, Surface};
-use geom_core::{Affine3, Band, Decide, Point3, Real, Tol, Vec3};
+use geom_core::{Affine3, Decide, Point3, Real, Tol, Vec3};
 use topo::{Body, ContactRecords, FaceKey, FaceSurface};
 
 /// The bowed patch the head's fixture uses, copied so the base can
@@ -40,10 +40,6 @@ fn bowed_patch() -> NurbsSurface<f64> {
 
 fn tol() -> Tol {
     Tol::witness()
-}
-
-fn band() -> Band {
-    Band::linear(tol()).unwrap()
 }
 
 fn bowed_offset_approx<T: Real>() -> ApproxSurface<T> {
@@ -135,7 +131,7 @@ fn doors_at<T: geom_core::Bounds + topo::AtRestPolicy>(label: &str, lane: Option
 
     // So does the offset mint, on a NURBS-faced seed.
     let (mut nurbs, nface) = nurbs_seed::<T>();
-    let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), band(), tol());
+    let minted = topo::replace_faces_offset(&mut nurbs, &[nface], T::from_f64(0.05), tol());
     match minted {
         Err(topo::ReplaceFaceError::ApproxLaneUnsupported { face: f }) => {
             assert!(

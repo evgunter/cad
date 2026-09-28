@@ -1,23 +1,19 @@
-//! The offset-fit doors' `OffsetFitError::Band` arm, reached through
-//! the real doors from a tolerance the run's own validator admits.
+//! `replace_face_offset` / `replace_faces_offset`'s
+//! `ReplaceFaceError::Band` arm, reached through the real doors from a
+//! tolerance the run's own validator admits.
 //!
 //! The doors take the run's ε as the `Tol` witness alone and derive the
-//! meters' band from it, so the only way to reach the arm is to COMMIT
-//! a pathological tolerance. The global commits once per process, so
-//! each arm is an `#[ignore]`d probe re-exec'd in its own process by
-//! `the_band_arm_is_reachable_through_the_doors` — `geom-core`'s
-//! `band_tolerance.rs` pattern. The spawner touches no global itself,
-//! and a probe is inert in an ordinary run.
+//! band once, first, so the arm is reached before any face is read —
+//! an empty body is enough. The global tolerance commits once per
+//! process, so each arm is an `#[ignore]`d probe re-exec'd in its own
+//! process by `the_band_arm_is_reachable_through_the_doors`
+//! (`geom-core`'s `band_tolerance.rs` pattern).
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
-use std::sync::Arc;
-
-use geom_brep::offset_fit::{OffsetFitError, approx_offset_surface, certify_offset, fit_offset};
 use geom_core::tolerance::{DEFAULT_K, Tolerance};
 use geom_core::{BandError, BandField, Tol};
-
-use crate::shared::fixture::quarter_cylinder;
+use topo::{Body, FaceKey, ReplaceFaceError};
 
 /// Commits `(eps, k)` through the validating door and hands back the
 /// witness. Panics if the validator refuses, which is the premise.
@@ -29,22 +25,23 @@ fn commit(eps: f64, k: f64) -> Tol {
     tol
 }
 
-/// Drives the three doors that take a base at `tol` and checks each
-/// refuses with exactly `want`, rendered with the one recourse.
-fn every_door_refuses(tol: Tol, want: BandError) {
-    let base = quarter_cylinder(1.0, 1.0);
-    let fit = fit_offset(&base, 0.1, tol).map(|_| ());
-    let certify = certify_offset(&base, &base, 0.1, tol).map(|_| ());
-    let mint = approx_offset_surface(Arc::new(base.clone()), 0.1, tol).map(|_| ());
+/// Both doors refuse with exactly `want`, rendered with the one
+/// recourse and without the carrier's own repairs.
+fn both_doors_refuse(tol: Tol, want: BandError) {
+    let mut body = Body::<f64>::new();
+    let group = topo::replace_faces_offset(&mut body, &[], 0.1, tol);
+    let single = topo::replace_face_offset(&mut body, FaceKey::default(), 0.1, tol);
     for (door, got) in [
-        ("fit_offset", fit),
-        ("certify_offset", certify),
-        ("approx_offset_surface", mint),
+        ("replace_faces_offset", group),
+        ("replace_face_offset", single),
     ] {
         let Err(error) = got else {
             panic!("{door} did not refuse at eps={:e}", tol.eps());
         };
-        assert_eq!(error, OffsetFitError::Band(want), "{door}");
+        let ReplaceFaceError::Band { error: carried } = error else {
+            panic!("{door} refused on another arm: {error:?}");
+        };
+        assert_eq!(carried, want, "{door}");
         let msg = error.to_string();
         assert!(
             msg.contains("Recourse: run at a less extreme tolerance"),
@@ -55,12 +52,12 @@ fn every_door_refuses(tol: Tol, want: BandError) {
 }
 
 /// PROBE (own process). The OVERFLOW arm: ε = `f64::MAX` at the
-/// ratified default K, so K·ε is not a threshold.
+/// ratified default K.
 #[test]
 #[ignore]
 fn probe_overflow_arm_through_the_doors() {
     let tol = commit(f64::MAX, DEFAULT_K);
-    every_door_refuses(
+    both_doors_refuse(
         tol,
         BandError::InvalidValue {
             field: BandField::Escalate,
@@ -71,13 +68,13 @@ fn probe_overflow_arm_through_the_doors() {
 }
 
 /// PROBE (own process). The COLLAPSE arm: the subnormal ε = 2⁻¹⁰²³ with
-/// the least admitted K, so K·ε rounds back onto ε.
+/// the least admitted K.
 #[test]
 #[ignore]
 fn probe_collapse_arm_through_the_doors() {
     let eps = f64::from_bits(1u64 << 51);
     let tol = commit(eps, 1.0f64.next_up());
-    every_door_refuses(
+    both_doors_refuse(
         tol,
         BandError::Empty {
             zero: eps,
@@ -87,9 +84,8 @@ fn probe_collapse_arm_through_the_doors() {
     println!("PROBE collapse-through-the-doors OK at eps={eps:e}");
 }
 
-/// **Both arms of `Band::linear` reach the offset-fit doors' `Band`
-/// arm**, each from a tolerance the run's validator admits. Each row is
-/// a re-exec'd child because each commits a different global.
+/// **Both arms of `Band::linear` reach the face-replacement doors'
+/// `Band` arm**, each from a tolerance the run's validator admits.
 #[test]
 fn the_band_arm_is_reachable_through_the_doors() {
     for probe in [

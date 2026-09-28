@@ -4548,6 +4548,15 @@ fn poisoned_datums<T: Real>(surface: &Surface<T>) -> Vec<geom::SurfaceDatum> {
 /// [`ValidationError::ApproxLaneUnsupported`], because a surface
 /// certificate is the one claim this kernel refuses to leave
 /// unchecked.
+///
+/// **`band` is not read by that door.** Every other check here
+/// classifies at `band`; check 1's offset re-derivation takes the
+/// witness alone and meters at the run's linear band,
+/// `Band::linear(tol)`, which it derives inside
+/// ([`geom_brep::OffsetFitLane::recertify`]). The production callers
+/// derive `band` as exactly that, so they classify at one band; a
+/// caller that hands a band of its own (`crate::n2r1_probes`' fixed
+/// pair) gets its band everywhere except that one arm.
 // The eighth parameter is the third INJECTED DERIVATION (`plus_v`,
 // `nurbs_lane`, `offset_fit`), and each is a door whose availability
 // differs by caller: bundling them into one struct would hide behind a
@@ -4626,6 +4635,9 @@ pub(crate) fn tier3_local_checks_marked<
             // red is D4's blessed behaviour rather than a regression.
             // The witness travels; the value is read once, inside the
             // door, so this site cannot hand it a number of its own.
+            // Nor its band: the door meters at `Band::linear(tol)`,
+            // which it derives itself, NOT at this battery's `band`
+            // (the split the function's docs state).
             Some(Surface::Approx(approx)) => match offset_fit {
                 Some(lane) => {
                     if let Err(error) = lane.recertify(approx, tol) {
