@@ -274,3 +274,13 @@ attach, `Live`'s `Copy`), corrected a `wire_union` paragraph that
 had contradicted the code on main, and cut the hand-kept caller
 lists. Three WIRE rows filed for comments that were doing the
 code's work.
+## 2026-09-28 — assemble runs the local battery once (PR 3374)
+
+The product gather now keeps its tier-3 verdict on the body
+(`topo::AtRestBody`), and the assembly gate runs tier 3′'s census over
+it instead of re-running the local battery. On the heat sink at 160
+fins (991 faces, local dev profile) that drops the assembly gate from
+185–246 ms to 97–143 ms, the battery's 62–105 ms, and the hosted
+`census_ms` series steps down at this merge. Four rows filed from the
+sweep and review (tour re-gate, shell re-gate across the graft, the
+stale 11.4 s figure, the kept verdict's Sym session).
