@@ -2,19 +2,12 @@
 id: cylinder-wall-pair-meeting-in-an-interior-loop-while-crossings-exist-elsewhere
 kind: issue
 title: Two cylinder walls meeting in a saddle loop interior to both faces, while crossings exist elsewhere, come back as a valid wrong body under every op
-<<<<<<< HEAD
-status: dispatched
-=======
 status: closed
->>>>>>> origin/main
 refs: [torus-face-meeting-a-partner-only-in-an-interior-loop-while-crossings-exist-elsewhere]
 opened: 2026-09-28
 priority: P0
 cost: M
-<<<<<<< HEAD
-=======
 closed: 2026-09-28
->>>>>>> origin/main
 ---
 
 
@@ -90,8 +83,6 @@ GERM, beside `interior_loop_verdict`. Two ways to close it:
   encircle the thinner wall's axis and so cross its seam lines. That
   argument is unmeasured here.
 - **The section certificate (b)** on the torus item. It is kind-generic.
-<<<<<<< HEAD
-=======
 
 ## Stopgap (GERM cylinder-guard PR, 2026-09-28)
 
@@ -154,4 +145,3 @@ tolerance of both carriers can sit on the wrong side of
 interior loop on the other. That needs a face boundary within about
 tol of the loop that never touches it: a near-tangency, which the
 section certificate refuses as R-tan.
->>>>>>> origin/main
