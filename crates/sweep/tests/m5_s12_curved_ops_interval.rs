@@ -24,20 +24,14 @@ pub(crate) mod certified {
 
     use crate::common::operands::m5_boss;
     use geom::Surface;
-    use geom_core::{Bounds, Interval, OrthoFrame, Point2, Real, Vec3};
+    use geom_core::{Bounds, Interval, OrthoFrame};
     use profile::{
         Profile, ProfileLoop, RawLoop, SketchPlane, ValidatedProfile, test_support::bulge_loop,
     };
     use sweep::{Extrusion, extrude};
     use topo::{Body, mass_properties};
 
-    fn iv(x: f64) -> Interval {
-        Interval::from_f64(x)
-    }
-
-    fn p2(x: f64, y: f64) -> Point2<Interval> {
-        Point2::new(iv(x), iv(y))
-    }
+    use crate::common::interval::{iv, p2, p3, v3};
 
     fn validated(loops: Vec<ProfileLoop<Interval>>) -> ValidatedProfile<Interval> {
         Profile::new(SketchPlane::xy(), loops)
@@ -61,11 +55,7 @@ pub(crate) mod certified {
     /// `(1.5, 1.5, 0.5)`. With [`plate`] it is the whole fixture, and
     /// `review_arceval_r1_probes`'s E2 row builds it from here too.
     pub(crate) fn recut_ball() -> Body<Interval> {
-        sweep::test_support::ball_poled_y(
-            iv(1.0),
-            Vec3::new(iv(1.5), iv(1.5), iv(0.5)),
-            Tol::witness(),
-        )
+        sweep::test_support::ball_poled_y(iv(1.0), v3(1.5, 1.5, 0.5), Tol::witness())
     }
 
     /// A 3 × 3 × 1 plate with a concave semicircular notch on its `x = 3`
@@ -176,11 +166,7 @@ pub(crate) mod certified {
             p2(4.0, 2.5),
             p2(2.0, 2.5),
         ]);
-        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(geom_core::Point3::new(
-            iv(0.0),
-            iv(0.0),
-            iv(0.3),
-        )));
+        let plane = SketchPlane::from_frame(OrthoFrame::axes_xy(p3(0.0, 0.0, 0.3)));
         let vp = Profile::new(plane, vec![lp])
             .validate(Tol::witness())
             .unwrap();

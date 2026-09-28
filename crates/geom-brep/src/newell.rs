@@ -186,19 +186,15 @@ mod tests {
         Band::linear(Tol::witness()).unwrap()
     }
 
-    fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-        Point3::new(x, y, z)
-    }
-
     #[test]
     fn unit_square_ccw_gives_plus_z() {
         // CCW in the xy-plane viewed from +z ⇒ normal = +z (the
         // orientation contract).
         let pts = [
-            pt(0.0, 0.0, 0.0),
-            pt(1.0, 0.0, 0.0),
-            pt(1.0, 1.0, 0.0),
-            pt(0.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, 0.0),
+            Point3::new(0.0, 1.0, 0.0),
         ];
         let plane = newell_plane(&pts, band()).unwrap();
         let Surface::Plane {
@@ -239,7 +235,7 @@ mod tests {
         // vectors, so the corner coordinates are exact dyadics — the
         // data is *exactly* planar in ℝ, and the certification residual
         // isolates the method's own error.
-        let off = pt(1.0e8 + 0.25, 1.0e8 + 0.5, 1.0e8 + 0.125);
+        let off = Point3::new(1.0e8 + 0.25, 1.0e8 + 0.5, 1.0e8 + 0.125);
         let u = Vec3::new(1.0, 0.0, 0.5);
         let v = Vec3::new(0.0, 1.0, -0.25);
         let true_n = u.cross(v).normalize();
@@ -282,10 +278,10 @@ mod tests {
     fn non_planar_loop_is_rejected() {
         let lift = 1000.0 * Tol::witness().get().eps; // ≥ K·ε at every CI row
         let pts = [
-            pt(0.0, 0.0, 0.0),
-            pt(1.0, 0.0, 0.0),
-            pt(1.0, 1.0, lift),
-            pt(0.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, lift),
+            Point3::new(0.0, 1.0, 0.0),
         ];
         let err = newell_plane(&pts, band()).unwrap_err();
         assert!(matches!(err, NewellError::NotPlanar { .. }), "{err:?}");
@@ -295,10 +291,10 @@ mod tests {
         // the band: lift = 12ε ⇒ residual ≈ 3ε ∈ (ε, 10ε).
         let lift = 12.0 * Tol::witness().get().eps;
         let pts = [
-            pt(0.0, 0.0, 0.0),
-            pt(1.0, 0.0, 0.0),
-            pt(1.0, 1.0, lift),
-            pt(0.0, 1.0, 0.0),
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(1.0, 1.0, lift),
+            Point3::new(0.0, 1.0, 0.0),
         ];
         let err = newell_plane(&pts, band()).unwrap_err();
         assert!(matches!(err, NewellError::Escalated { .. }), "{err:?}");
@@ -307,12 +303,20 @@ mod tests {
     #[test]
     fn degenerate_loops_escalate_not_panic() {
         // Collinear: zero normal ⇒ poison residuals ⇒ escalation.
-        let pts = [pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0), pt(2.0, 0.0, 0.0)];
+        let pts = [
+            Point3::new(0.0, 0.0, 0.0),
+            Point3::new(1.0, 0.0, 0.0),
+            Point3::new(2.0, 0.0, 0.0),
+        ];
         let err = newell_plane(&pts, band()).unwrap_err();
         assert!(matches!(err, NewellError::Escalated { .. }), "{err:?}");
         // Arity floor.
         assert_eq!(
-            newell_plane(&[pt(0.0, 0.0, 0.0), pt(1.0, 0.0, 0.0)], band()).unwrap_err(),
+            newell_plane(
+                &[Point3::new(0.0, 0.0, 0.0), Point3::new(1.0, 0.0, 0.0)],
+                band()
+            )
+            .unwrap_err(),
             NewellError::TooFewVertices { got: 2 }
         );
     }

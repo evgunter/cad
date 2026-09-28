@@ -45,10 +45,9 @@
 //! aggregate table of its own, and the per-node tables it reads are
 //! untouched).
 //!
-//! Validation is the same F8/D7 shape as the import loop: each source
-//! body is gated on its own when the product holds more than one solid
-//! (with one, the per-solid and aggregate subjects are the same body
-//! and the call is skipped as an identity, never as an exemption), then the
+//! Validation is the kernel's F8/D7 shape: each source body is gated on
+//! its own where [`topo::per_part_gate_owed`] asks for it — asked with
+//! the product's SOLID count, which is that policy's subject — then the
 //! aggregate is gated. Both gates go through the SCALAR'S at-rest
 //! policy ([`topo::AtRestPolicy`], `docs/DUAL-DESIGN.md` DL3):
 //! certifying scalars run [`topo::validate_geometric`] verbatim; at a
@@ -59,8 +58,9 @@
 //! beside it, whose value channel is bit-identical, is the validation
 //! of record. Disjoint multi-solid bodies are tier-3 legal.
 //! Know what the aggregate gate proves: tier 3 is a LOCAL battery
-//! (per-face, per-edge, per-edge–face-pair, plus one whole-body signed
-//! volume that SUMS), so solids that OVERLAP pass THIS call undetected
+//! (per-face, per-edge, per-edge–face-pair, plus each solid's signed
+//! volume, read on that solid's own faces), so no check compares one
+//! solid against another and solids that OVERLAP pass THIS call undetected
 //! — inter-solid interference is not among its checks. Undeclared
 //! cross-instance contact is A5's hard error and interference fits are
 //! C6's recorded-gate-skips territory; both are decided by the tier-3′
@@ -210,8 +210,8 @@ pub enum ProductError {
         source: Box<topo::BooleanError>,
     },
     /// A source body failed the at-rest validity gate on its own — a
-    /// multi-solid source is gated whole, as one body (only asked when
-    /// the product holds more than one solid).
+    /// multi-solid source is gated whole, as one body (only asked where
+    /// [`topo::per_part_gate_owed`] says the product owes it).
     SolidInvalid {
         /// The root that contributed it.
         node: RecipeNodeId,
@@ -838,16 +838,21 @@ pub fn product_recorded<P, T: Decide + AtRestPolicy>(
         return Err(ProductError::NoBodyRoots);
     }
 
-    // Pass 2: the per-source gate, asked only when the product holds
-    // more than one solid (this module's F8/D7 shape). The count is
-    // over SOLIDS, not sources: one source may itself carry several
-    // (an instantiated sub-assembly), and it is the product's solid
-    // count the rule speaks about.
+    // Pass 2: the per-source gate, asked where `topo::per_part_gate_owed`
+    // says the product owes it. The policy counts the aggregate's
+    // SOLIDS, and so does this sum: the graft below carries every solid
+    // of every source into the aggregate. But the PART gated here is a
+    // SOURCE, gated whole, and one source may carry several solids (an
+    // instantiated sub-assembly, a pattern) — so a lone multi-solid
+    // source is gated twice on the same geometry, here and as the
+    // aggregate. That is today's behaviour, pinned by
+    // `per_part_gate_policy.rs`; whether this call should count sources
+    // instead is `work/gather/product-per-part-gate-counts-solids-but-gates-sources.md`.
     let total_solids: usize = sources
         .iter()
         .map(|(_, _, b, _, _, _)| b.solids().count())
         .sum();
-    if total_solids > 1 {
+    if topo::per_part_gate_owed(total_solids) {
         for (node, _, body, _, _, _) in &sources {
             T::gate_at_rest(body.as_ref(), tol).map_err(|errors| ProductError::SolidInvalid {
                 node: *node,

@@ -245,3 +245,14 @@ carry `[skip ci]`. Local gating is blocked for this track's lanes by
 the permission classifier (reported to Ev).
 
 Signed: (CONTACT orchestrator)
+## 2026-09-27 — seam note from S-DUP (#3304)
+
+#3304 retyped topo's two ray-direction tables. `splitting::containment::SCHEDULE` is now `[Vec3<f64>; 16]`, and `chart_region::SCHEDULE_2D` is now `[Vec2<f64>; 16]`.
+
+Their five lift sites now read `r.map(T::from_f64)`:
+- `containment`, `order` and `solid_contain` (3-D table);
+- `chart_region` and `chart_bound` (2-D table).
+
+The numerals are textually unchanged. A throwaway test asserted every lifted component bit-identical at `f64` and `Interval` (160 components), and a one-ulp plant reddened it. No behaviour changed.
+
+Signed (S-DUP orchestrator).

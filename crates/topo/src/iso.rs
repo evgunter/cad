@@ -497,21 +497,17 @@ mod tests {
     use crate::fixtures::ops_holed_box;
     use crate::test_support_fixtures::declined_cube;
 
-    fn pt(x: f64, y: f64, z: f64) -> Point3<f64> {
-        Point3::new(x, y, z)
-    }
-
     /// The digon pillow built the canonical way: mvfs, mev(Lone),
     /// mef(Chords) — two vertices at x = 0 and x = 1.
     fn pillow_via_segment() -> Body<f64> {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 Tol::witness(),
             )
             .unwrap();
@@ -532,13 +528,13 @@ mod tests {
     /// on different halves.
     fn pillow_via_mirrored_chord() -> Body<f64> {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 Tol::witness(),
             )
             .unwrap();
@@ -562,7 +558,7 @@ mod tests {
     #[test]
     fn the_circle_route_to_the_pillow_moved_an_edge_off_its_carrier() {
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let circle = body
             .mef_chord(
                 MefSite::Lone {
@@ -577,7 +573,7 @@ mod tests {
                     he1: circle.he_plus,
                     he2: circle.he_minus,
                 },
-                pt(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 Tol::witness(),
             ),
             Err(crate::EulerOpError::RebasedCarrier { edge, .. }) if edge == circle.edge
@@ -623,13 +619,13 @@ mod tests {
         // Bitwise coordinate comparison is part of the relation.
         let a = pillow_via_segment();
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(2.0, 0.0, 0.0),
+                Point3::new(2.0, 0.0, 0.0),
                 Tol::witness(),
             )
             .unwrap();
@@ -698,13 +694,13 @@ mod tests {
         // header cannot tell them apart; the structural emission must.
         let build = |split: bool| {
             let mut body = Body::<f64>::new();
-            let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+            let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
             let seg = body
                 .mev_line(
                     MevSite::Lone {
                         r#loop: seed.r#loop,
                     },
-                    pt(1.0, 0.0, 0.0),
+                    Point3::new(1.0, 0.0, 0.0),
                     Tol::witness(),
                 )
                 .unwrap();
@@ -723,7 +719,7 @@ mod tests {
                 let strut = body
                     .mev_line(
                         MevSite::Fan { he1: at, he2: at },
-                        pt(x, 0.0, 0.0),
+                        Point3::new(x, 0.0, 0.0),
                         Tol::witness(),
                     )
                     .unwrap();
@@ -757,13 +753,13 @@ mod tests {
         // permute the list (retain + push). Permuting it by hand must
         // not change the form.
         let mut body = Body::<f64>::new();
-        let seed = body.mvfs(pt(0.0, 0.0, 0.0)).unwrap();
+        let seed = body.mvfs(Point3::new(0.0, 0.0, 0.0)).unwrap();
         let seg = body
             .mev_line(
                 MevSite::Lone {
                     r#loop: seed.r#loop,
                 },
-                pt(1.0, 0.0, 0.0),
+                Point3::new(1.0, 0.0, 0.0),
                 Tol::witness(),
             )
             .unwrap();
@@ -774,7 +770,7 @@ mod tests {
                         he1: seg.he_minus,
                         he2: seg.he_minus,
                     },
-                    pt(x, 0.0, 0.0),
+                    Point3::new(x, 0.0, 0.0),
                     Tol::witness(),
                 )
                 .unwrap();

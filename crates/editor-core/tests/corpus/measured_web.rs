@@ -141,7 +141,7 @@ pub fn document() -> CorpusDoc {
     );
     let _assertion = r.insert(Node::Assertion {
         measure,
-        bound: Expr::literal(MIN_WEB, Dimension::Length).expect("finite"),
+        bound: len(MIN_WEB),
         dir: AssertionDir::AtLeast,
     });
 

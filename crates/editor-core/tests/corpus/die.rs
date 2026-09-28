@@ -18,10 +18,10 @@
 //! so its cone is exactly {master extrude, its Transform, the final
 //! Subtract} — the minimal-cone probe).
 
-use editor_core::{Dimension, DocEdit, Expr, SlotId};
+use editor_core::{DocEdit, SlotId};
 
 use super::{CorpusDoc, MassPin};
-use crate::fixture::die;
+use crate::fixture::{die, len};
 
 /// The die corpus document.
 pub fn document() -> CorpusDoc {
@@ -41,7 +41,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: d.pz_extrude,
             slot: SlotId::Distance,
-            expr: Expr::literal(-0.1875, Dimension::Length).expect("dyadic length literal"),
+            expr: len(-0.1875),
         },
         bump_root: d.pz_extrude,
     }

@@ -24,8 +24,8 @@
 //! plus both subtracts).
 
 use editor_core::{
-    BooleanOp, CapEnd, Dimension, DocEdit, EntityKind, Expr, Node, RecipeNodeId, RoleSeg, SitedRef,
-    SlotId, StableName,
+    BooleanOp, CapEnd, DocEdit, EntityKind, Node, RecipeNodeId, RoleSeg, SitedRef, SlotId,
+    StableName,
 };
 
 use crate::fixture::len;
@@ -118,7 +118,7 @@ pub fn document() -> CorpusDoc {
         bump: DocEdit::SetParam {
             node: slot1,
             slot: SlotId::Distance,
-            expr: Expr::literal(1.25, Dimension::Length).expect("dyadic length literal"),
+            expr: len(1.25),
         },
         bump_root: slot1,
     }

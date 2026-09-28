@@ -40,16 +40,11 @@ use crate::fixture;
 use std::collections::BTreeSet;
 
 use editor_core::{
-    BooleanOp, CancelToken, CapEnd, Dimension, DocEdit, EntityKind, EvalOptions, Expr, Node,
-    NodeResult, ProfileDoc, ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply,
-    evaluate,
+    BooleanOp, CancelToken, CapEnd, DocEdit, EntityKind, EvalOptions, Node, NodeResult, ProfileDoc,
+    ProfileProgram, RecipeNodeId, RoleSeg, StableName, ValuePayload, apply, evaluate,
 };
-use fixture::prism_edges;
+use fixture::{len, prism_edges};
 use geom_core::Tol;
-
-fn len(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("a length literal")
-}
 
 fn eval(doc: &ProfileDoc) -> editor_core::Evaluation<f64> {
     evaluate::<f64>(

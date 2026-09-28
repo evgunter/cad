@@ -9,11 +9,13 @@
 //! The certified cells are minutes each — the E6 drive over hundreds
 //! of replayed leaves — and in two months of CI they went red at one ε
 //! alone exactly once, so two of the three runs were buying minutes
-//! of the release row's wall time for almost no signal. Their
-//! assertions do not live here anyway: the cells' own unit row
-//! (`tolerance::tests::the_two_stops_say_what_their_captions_say`)
-//! pins what the captions claim, and this pin only proves the
-//! narration exits 0.
+//! of the release row's wall time for almost no signal.
+//!
+//! **At the default ε this run IS the tolerance cell's test.** The
+//! cell asserts what its captions claim inside its own narration — the
+//! tour's usual posture: a cell panics when the kernel stops doing
+//! what it narrates — so the exit-0 contract here carries those
+//! findings, and no unit row drives the same 512-leaf study again.
 //!
 //! The tour has no clean-refusal exit. Every typed refusal it can meet
 //! on the scene path is a panic by construction (`run_body` panics on

@@ -40,18 +40,10 @@ use editor_core::{
     RecipeNodeId, SlotId, StableName, evaluate,
 };
 
-use fixture::{Recorder, tol};
+use fixture::{Recorder, len, scl, tol, xy_frame};
 
 fn name(n: &str) -> ParamName {
     ParamName::new(n)
-}
-
-fn lit(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Length).expect("finite length literal")
-}
-
-fn scalar(v: f64) -> Expr {
-    Expr::literal(v, Dimension::Scalar).expect("finite scalar literal")
 }
 
 fn param(n: &str) -> Expr {
@@ -69,11 +61,7 @@ fn budget(max_depth: u32, max_leaves: usize) -> DriveConfig {
 }
 
 fn frame(r: &mut Recorder) -> RecipeNodeId {
-    r.insert(Node::Datum(editor_core::Datum::Frame {
-        origin: [lit(0.0), lit(0.0), lit(0.0)],
-        u: [scalar(1.0), scalar(0.0), scalar(0.0)],
-        v: [scalar(0.0), scalar(1.0), scalar(0.0)],
-    }))
+    r.insert(xy_frame())
 }
 
 fn declare(r: &mut Recorder, n: &str, value: f64) {
@@ -124,7 +112,7 @@ fn slab_slot(depth: f64) -> (ProfileDoc, RecipeNodeId) {
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
-        distance: lit(depth),
+        distance: len(depth),
     });
     (r.doc, e)
 }
@@ -146,10 +134,10 @@ fn two_param_slab() -> ProfileDoc {
     let p = r.insert(Node::Profile(ProfileProgram {
         plane: f,
         loops: vec![LoopProgram::polygon_expr([
-            [lit(0.0), lit(0.0)],
-            [param("side"), lit(0.0)],
+            [len(0.0), len(0.0)],
+            [param("side"), len(0.0)],
             [param("side"), param("side")],
-            [lit(0.0), param("side")],
+            [len(0.0), param("side")],
         ])],
         ids: Vec::new(),
     }));
@@ -171,14 +159,14 @@ fn patterned() -> (ProfileDoc, RecipeNodeId) {
     }));
     let e = r.insert(Node::Extrude {
         profile: p,
-        distance: lit(0.5),
+        distance: len(0.5),
     });
     let pat = r.insert(Node::Pattern {
         input: e,
         count: Expr::count(3),
         kind: PatternKind::Linear {
-            direction: [scalar(1.0), scalar(0.0), scalar(0.0)],
-            spacing: lit(2.0),
+            direction: [scl(1.0), scl(0.0), scl(0.0)],
+            spacing: len(2.0),
         },
     });
     (r.doc, pat)

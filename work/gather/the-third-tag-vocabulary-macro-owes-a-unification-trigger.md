@@ -1,11 +1,14 @@
 ---
 id: the-third-tag-vocabulary-macro-owes-a-unification-trigger
-kind: issue
+kind: unit
 title: target_forms! and arc_modes! are near-copies one meta-level up, and the PR's own not-yet argument names a trigger with no schedule
-status: open
+status: closed
 opened: 2026-09-12
 priority: P1
 cost: D
+branch: gather/tag-vocabulary-trigger
+pr: 3259
+closed: 2026-09-26
 ---
 
 
@@ -81,3 +84,33 @@ have to re-derive the reasoning:
 Not fixed from there, deliberately: this row has its own subject and
 reaching into it from a prose unit would have been a second surface
 decision nobody asked for.
+
+## Decision (2026-09-25)
+
+**The trigger counts a macro that expands the same tag projections**:
+a payload-free tag enum, its `ALL`, and the payload → tag read-back.
+Measured, `transition_table!` expands all three for `Verb` (the enum,
+`Verb::ALL`, and `Step::verb`'s `Step::$name { .. } => Verb::$name`
+arm), not only the `ALL` idiom — so the trigger had already fired.
+The three tag halves are now one inner macro, `tag_projections!`,
+which each declaring macro calls with its variant names; the payload
+halves stay per-macro because their variant shapes differ. The
+macro's own rustdoc states the trigger by SHAPE (all three
+projections, however they are spelled). It also names the two live
+vocabularies of that shape it does not reach, with the reasons that
+hold:
+
+- `editor-core`'s `SegTag` (`seg_tags!` + `SegTag::of`): another crate,
+  and its own macro is private; `RoleSeg` is not generic, against the
+  macro's `impl<T: Real>`; and `SegTag` derives `Hash`/`PartialOrd`/`Ord`.
+- `viewer`'s `ToolKind` (`vocabulary!` + `OpenTool::kind`): another
+  crate; `OpenTool` is not generic; and `ToolKind` derives `Hash`.
+
+The rustdoc also marks the macro's boundary against Ev's 2026-09-12
+decline of a single declaration for kind mirror pairs
+(`work/census/a-new-kind-pair-arrives-unguarded-by-default.md`). The
+expansion table and the sweep are in the PR body.
+
+The sweep turned up a false "never soundness" claim in the prose
+census. It is filed on LIB's slate as
+`prose-census-judges-an-unrelated-type-when-the-meant-one-is-unindexed`.

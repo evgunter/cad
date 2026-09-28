@@ -5,9 +5,10 @@
 //! Three things are pinned here, on torus geometry a producer actually
 //! mints (`sweep::tube_along_arc`, solid and hollow):
 //!
-//! 1. **The operand gate's covered-pair rung.** A torus pair the
-//!    caller's declarations speak for is no longer refused by the KIND
-//!    roster; an undeclared one is refused exactly as before.
+//! 1. **The operand gate lets a torus through.** The torus is on the
+//!    KIND roster, so no torus pair is the gate's question any more,
+//!    declared or not; an undeclared coincident pair still refuses
+//!    typed, one layer further on.
 //! 2. **The carrier ladder's torus rung**, reached through the public
 //!    door: a declared torus×torus `Rest` pair on one carrier is
 //!    VERIFIED rather than turned away at the declaration door for
@@ -21,21 +22,17 @@
 //!
 //! **What this suite also RECORDS is where the lane stops**, because
 //! the stopping point is the unit's measurement and not an omission:
-//! an admitted torus pair reaches the crossing layer and refuses
-//! there. The enclosure the circle rung consults HAS a torus arm now
-//! (`geom_brep::circle_arc_residual_range`), so the rung no longer
-//! declines for want of one — it decides, and on a COINCIDENT pair it
-//! decides definitely-not-one-sided, because the residual is
-//! identically zero along a seam meridian and the sampled enclosure
-//! is `±charge` about it. The declared-cover rung behind it needs a
-//! `Zero` and is still never consulted. Two rows below hold that
-//! boundary, and the one that names it carries the measurement.
+//! a declared coincident torus pair now passes the crossing layer —
+//! the carrier-identity rung reads the verified `Rest` declaration
+//! before the sampled clearance, whose `±charge` about an identically
+//! zero residual would read definitely negative — and stops at the
+//! no-crossings fallback's torus extent gate.
 
 #![allow(clippy::unwrap_used, clippy::expect_used, clippy::panic)]
 
 use crate::revolve_common;
 
-use geom_core::{Band, Point3, Tol, Vec3};
+use geom_core::{Point3, Tol, Vec3};
 use profile::{ProfileLoop, RawLoop};
 use revolve_common::{axis_y, p2, validated};
 use sweep::test_support::tube_frame;
@@ -277,32 +274,33 @@ fn a_contradicted_torus_rest_declaration_refuses_loudly() {
 // 2. The operand gate's covered-pair rung.
 // -------------------------------------------------------------------
 
-/// **Undeclared, the KIND roster still refuses at the gate**, and it
-/// refuses pair-scoped with `op: None` — the invariant half. Nothing
-/// about the widening loosens what an undeclared torus operand
-/// reaches.
+/// **Undeclared, a torus pair passes the gate and still refuses
+/// typed.** The KIND roster has a torus, so the gate has nothing to say
+/// about the socket and the peg; what refuses is the crossing layer,
+/// where the peg's circle edges ride the socket bore's carrier and no
+/// declared cover licenses the endpoint posture. Admitting the kind
+/// loosened nothing an undeclared operand reaches: it is refused at the
+/// circle rung's frontier, or escalated where the run's band puts the
+/// sampled margin in its ambiguity window — never a body.
 #[test]
-fn an_undeclared_torus_pair_still_gates() {
+fn an_undeclared_torus_pair_passes_the_gate_and_still_refuses() {
     let err = topo::union(&socket(), &segment_a(), Tol::witness())
         .expect_err("an undeclared torus pair must still refuse");
     assert!(
         matches!(
             err,
-            BooleanError::CurvedPairUnsupported {
-                op: None,
-                kind: geom_brep::SurfaceKind::Torus,
-                ..
-            }
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
         ),
-        "the undeclared refusal stays the operand gate's, naming the torus: {err:?}"
+        "the undeclared refusal is the crossing layer's, typed: {err:?}"
     );
 }
 
-/// **Fully covered, the gate has nothing left to say.** A full torus
-/// carries NOTHING but its two wall faces, so declaring every cross
-/// pair covers every pair the KIND roster could object to — and the
-/// operation reaches the classification layer, which is the depth
-/// admission buys.
+/// **Fully covered, nothing refuses at the gate or at the circle
+/// rung.** A full torus carries NOTHING but its two wall faces, so
+/// declaring every cross pair covers every pair — and the operation
+/// reaches the classification layer, which is the depth the roster and
+/// the carrier-identity rung buy together. Undeclared, the same pair
+/// refuses at the crossing layer.
 ///
 /// The two operands are the SAME torus, which is what makes the
 /// declaration true rather than convenient: one carrier, one material
@@ -317,18 +315,14 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
         "a full torus must carry nothing but wall faces, or the covering below is partial"
     );
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
-    let undeclared =
-        topo::union(&a, &b, Tol::witness()).expect_err("undeclared, the KIND roster refuses");
+    let undeclared = topo::union(&a, &b, Tol::witness())
+        .expect_err("undeclared, the coincident pair has no crossing verdict");
     assert!(
         matches!(
             undeclared,
-            BooleanError::CurvedPairUnsupported {
-                op: None,
-                kind: geom_brep::SurfaceKind::Torus,
-                ..
-            }
+            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
         ),
-        "the undeclared refusal is the operand gate's: {undeclared:?}"
+        "the undeclared refusal is the crossing layer's: {undeclared:?}"
     );
     let declared = topo::union_with(&a, &b, &decls, Tol::witness())
         .expect_err("the lane still stops downstream of the gate");
@@ -338,135 +332,58 @@ fn a_fully_covered_torus_pair_reaches_past_the_operand_gate() {
     );
 }
 
-/// **Coverage is per PAIR, and a partial covering does not open the
-/// gate.** The socket carries an OUTER wall as well as its bore; the
-/// declarations name the bore against the peg, so the outer wall
-/// against the peg stays uncovered and the gate still refuses — naming
-/// that pair rather than a declared one.
-///
-/// That refusal is also this unit's measurement of what BINDS. The two
-/// loci it names never meet: the socket's outer wall stands 0.03 m
-/// clear of everything the peg occupies. What overlaps is the two
-/// faces' BOXES.
-///
-/// **A boundary-tight torus box does not move this row, and that is
-/// the answer to the question it used to leave open** (issue 1488;
-/// `boolean::boxes`'s `TorusWindow` arm now reads a torus face's
-/// chart window from its boundary's certified pcurves). The socket's
-/// outer wall and the peg's wall are tubes of radius 0.09 and 0.06
-/// about the SAME spine circle, over the same 22° window, so their
-/// windows are the same rectangle and one AABB sits inside the other
-/// in every coordinate. No sound box can separate them; only the 0.03 m
-/// of radial clearance between the two LOCI could, and no box reads a
-/// radius that way. So the covered rung is still defeated here — by a
-/// genuine near-approach rather than by a whole-ring artifact, which
-/// is the difference the box fix made.
-///
-/// **What that shows, stated no wider than the fixture supports.** An
-/// undeclared face defeats the covered rung when its box meets a torus
-/// face's box on the other operand. It is NOT the claim that any extra
-/// face defeats it: a face whose box clears the wall's is exactly what
-/// the pair-scoped gate was built to let through, and it would not
-/// gate. The two regimes this suite demonstrates are the row above
-/// (operands carrying nothing but wall faces, so every pair is
-/// coverable) and this one (an extra face whose box does meet the
-/// wall's).
+/// **A partial covering is no longer a gate question.** The socket
+/// carries an OUTER wall as well as its bore; the declarations name the
+/// bore against the peg and leave the outer wall against the peg
+/// uncovered. That uncovered pair used to be the gate's refusal, on
+/// nothing but two boxes: the outer wall stands 0.03 m clear of the
+/// peg, and the two faces' windows are one rectangle about one spine
+/// circle, so no sound box separates them. With the torus on the KIND
+/// roster the pair's boxes decide nothing, and the op runs on to a
+/// typed refusal downstream — never the gate's, never a body.
 #[test]
-fn a_partly_covered_torus_pair_still_gates_on_the_uncovered_one() {
+fn a_partly_covered_torus_pair_is_no_longer_a_gate_question() {
     let (s, p) = (socket(), segment_a());
     let decls = wall_declarations(&s, &p, TUBE, ContactClass::Rest);
     let err = topo::union_with(&s, &p, &decls, Tol::witness())
-        .expect_err("the socket's outer wall is nobody's declared pair");
-    match err {
-        BooleanError::CurvedPairUnsupported {
-            face, other_face, ..
-        } => {
-            assert!(
-                !decls
-                    .coincident_faces
-                    .iter()
-                    .any(|d| (d.a, d.b) == (face, other_face)),
-                "the gate must refuse an UNCOVERED pair, never the declared one"
-            );
-        }
-        other => panic!("expected the operand gate's refusal, got {other:?}"),
-    }
+        .expect_err("the peg-in-socket union does not build yet");
+    assert!(
+        !matches!(err, BooleanError::CurvedPairUnsupported { .. }),
+        "the uncovered outer wall must not gate: {err:?}"
+    );
 }
 
-/// **Where the lane stops once the gate is past, held still.** The
-/// admitted pair reaches the crossing layer and refuses at the
-/// curved-pierce frontier — and the ROW is the same while the CAUSE
-/// has moved one rung on.
+/// **Where the lane stops once the gate is past, held still.** Two
+/// coincident full tori, every wall pair declared `Rest`.
 ///
-/// It used to be that every edge of a torus-walled body is a CIRCLE
-/// and the clearance enclosure had no torus arm at all, so the rung
-/// declined on a `None` before the declared-cover rung behind it was
-/// consulted. The enclosure has a torus arm now
-/// (`geom_brep::circle_arc_residual_range`), so the rung DECIDES —
-/// and on this fixture, two coincident tori, it decides
-/// definitely-NEGATIVE: the residual is identically zero along a seam
-/// meridian, so the sampled enclosure is `±charge` and its
-/// one-sidedness margin is `−charge`, which is 1.8e-5 m and outruns
-/// every eps cell in the run matrix. The rung takes the frontier at
-/// its `Zero | Negative` arm instead of at the `None` door.
+/// The seam meridians ride the other torus's carrier, where the
+/// residual is identically zero and the sampled enclosure is `±charge`
+/// about it — a one-sidedness margin of `−charge` that reads
+/// definitely negative (or in-band, at a loose eps), so the circle rung
+/// used to take its frontier before the declared cover behind it was
+/// ever consulted. The carrier-identity rung now reads the verified
+/// `Rest` declaration FIRST: the edge bounds a face on the other face's
+/// carrier, so its clearance is zero by that certificate, and the
+/// declared cover takes the endpoint posture.
 ///
-/// The declared-cover rung behind it needs a `Zero`, and a sampled
-/// enclosure of a COINCIDENT pair cannot produce one at any `K`: the
-/// charge falls as `K⁻²` and the band does not follow it. That is
-/// `work/curved/torus-coincident-pair-cannot-reach-the-covered-rung`,
-/// and the enclosure's own width is pinned in `geom-brep`'s
-/// `a_coincident_torus_pair_encloses_pm_charge_and_reads_negative`.
-///
-/// **The landing is eps-DEPENDENT, and the margin is why.** The
-/// margin here is −4.56e-6 m. Where the escalation threshold stands
-/// under it the verdict is a definite Negative and the rung takes the
-/// typed frontier; where the margin falls INSIDE the ambiguity band
-/// the predicate is `Indeterminate` and the op escalates instead.
-/// Both are typed refusals of the same fact — no crossing verdict for
-/// a coincident torus pair — and the row asserts whichever the run's
-/// own band selects rather than picking one and skipping the other.
+/// What stops the lane now is the no-crossings fallback's TORUS extent
+/// gate: no crossing cuts either torus, and a torus face whose reach
+/// meets the other operand is exactly the case the vertex probe cannot
+/// decide (every vertex it would probe lies on the other torus), so the
+/// gate refuses typed before the probe runs. The property is the one
+/// this row has always held: a coincident torus pair never reaches a
+/// body it cannot justify.
 #[test]
-fn the_admitted_torus_lane_stops_at_the_curved_pierce_frontier() {
+fn the_admitted_torus_lane_stops_at_the_torus_extent_gate() {
     let (a, b) = (full_torus(RING), full_torus(RING));
     let decls = wall_declarations(&a, &b, TUBE, ContactClass::Rest);
     let err = topo::union_with(&a, &b, &decls, Tol::witness())
-        .expect_err("a coincident torus pair still has no crossing verdict");
-    println!("the admitted torus lane answers {err:?}");
-    // **The PROPERTY, not the variant.** Both arms of the v6 dual
-    // agreed the conservative reading is the one to pin: a coincident
-    // torus pair must never reach a validated BODY, and which typed
-    // refusal carries that is the run's band's business, not this
-    // row's. Matching on whichever the run selects made the row a
-    // restatement of the implementation rather than a claim about it.
+        .expect_err("a coincident torus pair still has no classification verdict");
     assert!(
-        matches!(
-            err,
-            BooleanError::CurvedPierceUnsupported { .. } | BooleanError::Escalated { .. }
-        ),
-        "a coincident torus pair must refuse TYPED, never grant: {err:?}"
+        matches!(err, BooleanError::FallbackExtentUnsupported { .. }),
+        "the declared coincident pair passes the crossing layer and stops at \
+         the torus extent gate: {err:?}"
     );
-    // And where the run's band puts the margin inside the ambiguity
-    // window, the escalation's payload is pinned — so a charge that
-    // drifts is visible here rather than silently reclassifying the
-    // refusal. The margin is the chord-dip charge on this fixture's
-    // seam meridian, which is a half meridian: 4.56e-6 m.
-    let band = Band::linear(Tol::witness()).expect("the run's linear band");
-    const MARGIN: f64 = 4.559_414_566_271_785e-6;
-    if MARGIN < band.escalate() && MARGIN > band.zero() {
-        let BooleanError::Escalated { diag } = &err else {
-            panic!("inside the ambiguity band the clearance predicate escalates: {err:?}");
-        };
-        let text = format!("{diag:?}");
-        assert!(
-            text.contains("bool_circle_curved_clearance"),
-            "the escalation must name the clearance predicate: {text}"
-        );
-        assert!(
-            text.contains("-4.559414566271785e-6"),
-            "and carry the measured margin, so a drifting charge is \
-             visible rather than silent: {text}"
-        );
-    }
 }
 
 // -------------------------------------------------------------------

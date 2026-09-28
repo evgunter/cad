@@ -154,23 +154,23 @@ impl std::error::Error for PointInLoopError {}
 /// sibling of `splitting` rather than a descendant. `chart_region`'s
 /// `SCHEDULE_2D` is a different table by dimension, not a fourth
 /// reader of this one.
-pub(crate) const SCHEDULE: [[f64; 3]; 16] = [
-    [1.0, 0.0, 0.0],
-    [0.0, 1.0, 0.0],
-    [0.0, 0.0, 1.0],
-    [0.5, 0.25, 1.0],
-    [1.0, 0.5, 0.25],
-    [0.25, 1.0, 0.5],
-    [-0.5, 1.0, 0.125],
-    [0.125, -0.5, 1.0],
-    [1.0, 0.125, -0.5],
-    [0.75, -1.0, 0.375],
-    [0.375, 0.75, -1.0],
-    [-1.0, 0.375, 0.75],
-    [0.625, 0.9375, 0.3125],
-    [0.3125, -0.625, 0.9375],
-    [0.9375, 0.3125, -0.625],
-    [-0.75, -0.25, 1.0],
+pub(crate) const SCHEDULE: [Vec3<f64>; 16] = [
+    Vec3::new(1.0, 0.0, 0.0),
+    Vec3::new(0.0, 1.0, 0.0),
+    Vec3::new(0.0, 0.0, 1.0),
+    Vec3::new(0.5, 0.25, 1.0),
+    Vec3::new(1.0, 0.5, 0.25),
+    Vec3::new(0.25, 1.0, 0.5),
+    Vec3::new(-0.5, 1.0, 0.125),
+    Vec3::new(0.125, -0.5, 1.0),
+    Vec3::new(1.0, 0.125, -0.5),
+    Vec3::new(0.75, -1.0, 0.375),
+    Vec3::new(0.375, 0.75, -1.0),
+    Vec3::new(-1.0, 0.375, 0.75),
+    Vec3::new(0.625, 0.9375, 0.3125),
+    Vec3::new(0.3125, -0.625, 0.9375),
+    Vec3::new(0.9375, 0.3125, -0.625),
+    Vec3::new(-0.75, -0.25, 1.0),
 ];
 
 /// Collects the loop's vertex points in cycle order.
@@ -288,7 +288,7 @@ fn walk_schedule<T: Decide>(
     mut ray: impl FnMut(Vec3<T>, Vec3<T>) -> Result<Option<bool>, PointInLoopError>,
 ) -> Result<LoopContainment, PointInLoopError> {
     for r in &SCHEDULE {
-        let r = Vec3::new(T::from_f64(r[0]), T::from_f64(r[1]), T::from_f64(r[2]));
+        let r = r.map(T::from_f64);
         let n_dot_r = normal.dot(r);
         let d_raw = r - normal * n_dot_r;
         // sin(schedule member, plane NORMAL) × loop extent — the

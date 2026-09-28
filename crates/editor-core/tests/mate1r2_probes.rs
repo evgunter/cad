@@ -25,7 +25,7 @@ use editor_core::{
     MateFrame, MatePrimitive, MateRole, Node, PatternKind, ProfileDoc, StableName, assemble,
 };
 use fixture::resolver::{PartStore, in_part, with_resolver};
-use fixture::{in_copy, insert, len, on_frame, run, scl, solve, step};
+use fixture::{ang, in_copy, insert, len, on_frame, run, scl, solve, step};
 use geom_core::Tol;
 
 // ---- Substrate (the shared resolver, `fixture::resolver`) ----
@@ -246,8 +246,7 @@ fn r2_oblique_circular_conjugation_at_a_placed_cluster_frame() {
             count: Expr::count(3),
             kind: PatternKind::Circular {
                 axis,
-                step: Expr::literal(theta, editor_core::Dimension::Angle)
-                    .expect("an angle literal"),
+                step: ang(theta),
             },
         },
     );
