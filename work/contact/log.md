@@ -293,3 +293,61 @@ Process notes, each a class:
   with its context.
 
 Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-3 landed (#3331); CONTACT-4 reconciled
+
+- **CONTACT-3 merged** as `08dc26f04`. Hosted CI on the first head
+  went red on two rows that the lane's local runs never reached:
+  - `reader_census`: `wall_section_rows.rs` skipped `//` lines by
+    hand over `include_str!`'d source. It now reads through
+    `test_utils::source::code_only`, with a `Shared` ledger line.
+  - `refusal_concision_at_rest`: the widened `FaceKindUnsupported`
+    text was 76 words against a cap of 75. One word came out.
+  Lesson for briefs: a lane that adds a refusal variant or reads
+  source text runs `-p editor-core` concision rows and `-p
+  test-utils`, not just its own crates.
+- **CONTACT-4** merged main (ATREST-12) into its branch at
+  `8c0ba900a`, taking main's `arc_trim`, ray-window trim, in-band retry
+  and span rule. A delta review is dispatched; it includes a
+  ground-truth check of the ~96 ray escalations main's retry now
+  answers.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 lands
+
+- **Orchestrator's read of the last pass (`c0b9838`).**
+  - The probe's refusals stand whenever `blocks` gives no reason, so
+    no path turns a refusal into a clear.
+  - The outer-shell argument holds: the outermost shell bounding a
+    component of the overlap has material on its bounded side, so it
+    is not a void.
+  - The relaxation (a declared-only pair's records read on their word
+    whatever its reach) is what the nineteen ratified declared seats
+    need. Reading those records refuses the seats. The residue stays
+    open at P0.
+- **DR-13** records the dual on `3af4ebc`. It has no tally candidate
+  (both MAJORs bilateral) and it is the twelfth fair pair, so the
+  protocol's first readout is owed (rule 9). The ask to Ev is an
+  `[ev]` PR from an `analysis/dual-review/` branch.
+- Landed alone. CONTACT-4 is under its delta review and follows in its
+  own PR.
+
+Signed: (CONTACT orchestrator)
+
+## 2026-09-28 — CONTACT-5 landed (#3341); CONTACT-4 lands
+
+- **CONTACT-5** merged as `e1ac23263`. The DR-13 number held on main.
+  The readout ask is PR #3342 (`[ev]`), not for merge.
+- **CONTACT-4.** The delta review of its ATREST-12 merge found a
+  wrong-answer defect in ATREST-12's span rule on main: an over-wound
+  ellipse window read as an arc. The lane made the rule two-sided.
+  - The orchestrator read the fix and landed it without another round.
+    The speed bound is exact calculus, and the row that pins it goes
+    red without the upper bound.
+  - Lesson, again: every lever-class defect this program has found sat
+    where a Zero or a non-negative result is itself a verdict. Briefs
+    for any unit touching a `decide` with a lever now ask, per verdict,
+    which bound makes it conservative.
+
+Signed: (CONTACT orchestrator)

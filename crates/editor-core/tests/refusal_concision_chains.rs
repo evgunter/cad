@@ -258,6 +258,45 @@ fn every_node_refusal_renders_within_the_budget() {
     }
 }
 
+/// Every offset-fit refusal the feature tree shows ends exactly once,
+/// on every route: a labelled repair, or the shared dead end. The
+/// carrier the fit forwards whole (`PatchBoundError`) labels its own
+/// repair, so a wrapper that added one of its own would read here as
+/// two. The interpolation's carriers (`Fit/`, `Structure/`) are NOT
+/// forwarded: the kernel chose their samples and knots, so a builder's
+/// repair would name nothing the user supplied, and those rows end in
+/// the kernel-defect ending instead.
+///
+/// `Meter/Escalated` ends zero times: it forwards `Indeterminate`'s
+/// shared menu, which is unlabelled and offers a declaration a single
+/// face's meter has no object for; filed on ENCL's slate
+/// (`work/encl/offset-meter-escalation-renders-the-coincidence-menu-unlabelled.md`).
+/// The row holds that at zero so its repair has to come back here.
+#[test]
+fn every_offset_fit_refusal_ends_exactly_once() {
+    let rows = offset_fit_routes();
+    assert!(!rows.is_empty(), "the offset-fit roster is empty");
+    for (name, kind) in rows {
+        let text = as_the_viewer_shows_it(kind);
+        let want = usize::from(!name.contains("/Meter/Escalated"));
+        assert_eq!(
+            test_utils::refusal::recourse_markers(&text),
+            want,
+            "{name}: {text}"
+        );
+        let arm = name
+            .strip_prefix("Shell/Face/Fit/")
+            .or_else(|| name.strip_prefix("Transform/ApproxRecertify/"))
+            .expect("every offset-fit row is on one of the two routes");
+        if arm.starts_with("Fit/") || arm.starts_with("Structure/") {
+            assert!(
+                text.ends_with(geom_core::KERNEL_DEFECT_ENDING),
+                "{name}: {text}"
+            );
+        }
+    }
+}
+
 /// Every `NodeErrorKind` arm, and every arm of each refusal it forwards.
 fn node_refusals() -> Vec<(String, NodeErrorKind)> {
     let mut rows = own_arms();
@@ -906,16 +945,19 @@ fn transform() -> Vec<(String, NodeErrorKind)> {
 ///   the chart rectangle it fitted) and `Band` (below). The loop's own
 ///   terminations — `BudgetExhausted`, `SampleCapReached`, `BoundNotFinite`,
 ///   `RefinementStalled` — and the interpolation's `Fit`, `Structure`
-///   and `NonFiniteSample` reach the user by this route only. Its
-///   wrapper still opens with a stage prefix and names the face by key;
+///   and `NonFiniteSample` reach the user by this route and by the
+///   transform's re-fit. Its wrapper still opens with a stage prefix and names the face by key;
 ///   both are SHELL's and filed
 ///   (`work/shell/replace-face-refusals-open-with-a-stage-prefix-and-name-keys.md`),
 ///   so [`FILED_NAMESPACES`] admits exactly that label and that key on
 ///   these rows and nothing else.
-/// - **The transform op's re-certification** (`Transform/ApproxRecertify/…`):
-///   `certify_offset_over` runs the meters and the certificate limbs on
-///   a fit it did not make, so it raises `Meter`, `PatchBound`,
-///   `WindowUnsupported`, `Limb` and `Elevation`.
+/// - **The transform op** (`Transform/ApproxRecertify/…`) raises the
+///   certifier's arms on the image — `certify_offset_over` runs the
+///   meters and the certificate limbs on a fit it did not make, so
+///   `Meter`, `PatchBound`, `WindowUnsupported`, `Limb` and
+///   `Elevation` — and the mint's arms on a re-fit, when a sound face's
+///   image refuses a limb and the map fits the mapped description
+///   afresh: every arm the shell route raises. So every arm but `Band`.
 ///
 /// `Band` reaches neither route. The door derives the run's band from
 /// the witness, and both ops derive the same band before they reach the
@@ -977,14 +1019,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
     let face = FaceKey::default();
     let mut rows = Vec::new();
     for (arm, source) in roster {
-        let certify = matches!(
-            source,
-            O::Meter(_)
-                | O::PatchBound(_)
-                | O::WindowUnsupported { .. }
-                | O::Limb { .. }
-                | O::Elevation(_)
-        );
+        let transform = !matches!(source, O::Band(_));
         if !matches!(source, O::WindowUnsupported { .. } | O::Band(_)) {
             rows.push(row(
                 &format!("Shell/Face/Fit/{arm}"),
@@ -997,7 +1032,7 @@ fn offset_fit_routes() -> Vec<(String, NodeErrorKind)> {
                 })),
             ));
         }
-        if certify {
+        if transform {
             rows.push(row(
                 &format!("Transform/ApproxRecertify/{arm}"),
                 NodeErrorKind::Transform(topo::TransformError::ApproxRecertify { source }),

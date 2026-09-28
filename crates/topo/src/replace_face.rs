@@ -1407,6 +1407,7 @@ fn mint_offset<T: Decide>(
             None => Err(ReplaceFaceError::ApproxLaneUnsupported { face }),
             Some(lane) => lane
                 .mint(Arc::clone(base), d, tol)
+                .map(Surface::Approx)
                 .map_err(|error| ReplaceFaceError::Fit { face, error }),
         };
     }
@@ -2408,7 +2409,7 @@ mod offset_fit_door_rows {
         let Ok(Surface::Approx(through_door)) = mint(Some(OffsetFitLane::fit())) else {
             panic!("the bowed patch's offset fits at the witness tolerance");
         };
-        let Ok(Surface::Approx(free)) =
+        let Ok(free) =
             geom_brep::approx_offset_surface(Arc::new(crate::fixtures::bowed_patch()), 0.05, tol)
         else {
             panic!("the free function mints the same surface");

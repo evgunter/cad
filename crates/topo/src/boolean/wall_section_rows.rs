@@ -455,12 +455,12 @@ fn the_window_construction_sites_are_the_ones_listed() {
             // restated
             "point_on_sphere_in_face",
             "sphere_chart_trim",
-            "cone_chart_trim",
+            "cone_trimmed_window",
             "torus_face_windows",
         ])
     );
     assert_eq!(
         sites(include_str!("contain.rs")),
-        named(&["point_on_arc", "curved_face_placement"])
+        named(&["curved_face_placement"])
     );
 }

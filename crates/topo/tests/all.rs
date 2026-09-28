@@ -79,6 +79,8 @@ mod census_g2_carrier;
 mod cone_apex_cap_body;
 #[path = "contact1_touch_cones.rs"]
 mod contact1_touch_cones;
+#[path = "contact5_gate_and_beam.rs"]
+mod contact5_gate_and_beam;
 #[path = "corner_table.rs"]
 mod corner_table;
 #[path = "crosslap_rest.rs"]
@@ -229,6 +231,8 @@ mod review_s6_probe;
 mod review_ssiflat_r1_probes;
 #[path = "review_ssiflat_r2_probes.rs"]
 mod review_ssiflat_r2_probes;
+#[path = "rigid_map_near_eps_approx.rs"]
+mod rigid_map_near_eps_approx;
 #[path = "rim_dim_boolean_twins.rs"]
 mod rim_dim_boolean_twins;
 #[path = "rim_dim_review_probes.rs"]

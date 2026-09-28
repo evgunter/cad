@@ -2189,11 +2189,10 @@ pub(super) fn point_on_torus_in_face<T: Decide>(
 /// - [`sphere_chart_trim`] — a meridian edge's own span: the period
 ///   guard as a class question, then the comparison run with `r̂ = ±â`
 ///   to find a pole inside the edge;
-/// - [`cone_chart_trim`] and [`torus_face_windows`] — the period guard
+/// - [`cone_trimmed_window`] (behind [`cone_chart_trim`]) and
+///   [`torus_face_windows`] — the period guard
 ///   as a class question (a window a period wide is the wrapped class,
 ///   not an escalation);
-/// - [`super::contain::point_on_arc`] (a rim ARC's own angular span,
-///   boundary walk);
 /// - [`super::contain::curved_face_placement`] (the same period guard
 ///   asked as a chart-form question, which is why its answer is `None`
 ///   where this one escalates).

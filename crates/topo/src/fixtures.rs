@@ -1118,11 +1118,8 @@ pub(crate) fn bowed_patch() -> geom::NurbsSurface<f64> {
 /// scalars that have no fit).
 pub(crate) fn bowed_offset_approx<T: geom_core::Real>() -> geom::ApproxSurface<T> {
     let tol = Tol::witness();
-    let minted = geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol)
+    let approx = geom_brep::approx_offset_surface(std::sync::Arc::new(bowed_patch()), 0.05, tol)
         .expect("the bowed patch's offset fits at every eps row the gate commits");
-    let geom::Surface::Approx(approx) = minted else {
-        panic!("the mint door produces `Surface::Approx`");
-    };
     approx.map_scalar(T::from_f64)
 }
 
