@@ -461,3 +461,13 @@ The spec is `docs/GERM-VERBS-CONE-SPEC.md` on `germ/verbs-cone-spec` (`3edfab44f
 - **Consequence:** VERBS-CONE's U2 (circle × cone) reuses this quartic, so it waits on the conditioning fix.
 
 **Class (logged):** "every root is examined" rows must put an Out root FIRST in the solver's own order. A row whose first-examined root is In cannot kill a first-root-only mutant. This is the third first-root defect this week, counting the P0 (PR 3358) and this row.
+
+## 2026-09-29 — PR 3375's delta review: every first-round finding is closed, and one new MAJOR
+
+- **Closed, confirmed by execution:** all five first-round findings. That includes pole conditioning: 12/12 against the oracle, and about 18k fuzz cases with 0 wrong.
+- **New MAJOR:** at large circle radius the f64 lane certifies rounding noise. The coefficients scale as ρ⁴ while the margin is levered by R+r.
+  - 96 of 1500 wrong at ρ=100, and 557 at ρ=300 (torus R=1, r=0.25).
+  - The threshold is ≈40 m for this torus and ≈4 m for a 5 cm fillet.
+  - It is pre-existing in the lever choice, but the new lane turns it into a silent premise-S miss.
+- **The fix must be a real f64 noise meter,** not a lever swap, since a lever of 2ρ refuses everything. It goes to the implementer in a second pass, with the parallel arm's tilt-displaced root positions and NITs. The delta reviewer re-checks the noise meter.
+- **Class (logged):** a lever justified by "where the roots can be" is not a bound on rounding noise. Every certified polynomial ladder needs its coefficients' evaluation error metered against their magnitude, and not only at the scales the rows happen to use.
