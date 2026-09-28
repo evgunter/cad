@@ -4,6 +4,7 @@ kind: issue
 title: step-import: a band-decided certification refusal at adoption names no tolerance, because the ladder certifies at the kernel's ε and not at the file's ε_in
 status: open
 opened: 2026-09-28
+needs_ev: true
 ---
 
 

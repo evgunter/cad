@@ -104,6 +104,14 @@ import and interval, ungated.
   reader ledger still runs on every code PR; the other seven a PR hears
   about when it touches their crate, or from the nightly.
 
+## Watching it
+
+The nightly's `ci-latency` job reds when the median wall-clock of the last
+24 h of completed PR runs (queue included) exceeds 20 min, and prints the
+median and p90 either way. It replaces the opt-level calibrator, which
+asked a question about the old whole-suite gate; the nightly full suite
+runs at opt-2 on that calibrator's last verdict, the PR gate at opt-1.
+
 ## Expected shape
 
 A leaf-crate PR: ~5 jobs, dominated by its own compile. A deep kernel PR

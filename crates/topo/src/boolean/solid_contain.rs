@@ -4705,15 +4705,22 @@ fn at_infinity_side<T: Decide>(
             }
         })?;
     let margin = Margin::over_lever(props.volume, props.surface_area);
-    match decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
+    let sign = decide("bool_point_in_solid_infinity", margin, band).map_err(|diag| {
         PointInSolidError::Escalated {
             face: faces[0],
             diag,
         }
-    })? {
-        Sign::Positive => Ok(SolidContainment::Out),
-        Sign::Negative => Ok(SolidContainment::In),
-        Sign::Zero => Err(PointInSolidError::ZeroVolumeBody),
+    })?;
+    // The closed-form volume is exact: one sign, read at both ends. An
+    // `Outer` boundary leaves infinity outside its material, a `Void`
+    // one inside.
+    use crate::props::{BracketEnd, ShellRole};
+    match ShellRole::decided_at(BracketEnd::Low, sign)
+        .or_else(|| ShellRole::decided_at(BracketEnd::High, sign))
+    {
+        Some(ShellRole::Outer) => Ok(SolidContainment::Out),
+        Some(ShellRole::Void) => Ok(SolidContainment::In),
+        None => Err(PointInSolidError::ZeroVolumeBody),
     }
 }
 

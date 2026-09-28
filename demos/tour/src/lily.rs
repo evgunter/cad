@@ -2183,10 +2183,10 @@ pub fn wall_probes<S: Scalar>(tol: Tol) {
     //    on one plane key; `merge_coplanar_faces` now repairs both —
     //    faces 10 to 8, vertices 10 to 8, edges 18 to 14, tier 3
     //    clean — because each cap's seam is the two halves of the
-    //    disc's DIAMETER, so the pole is a vertex interior to one
-    //    straight carrier and removing it changes no locus. The
-    //    licence is collinearity, not poleness
-    //    (`merge_faces::redundant_subdivision_vertex`). The teapot
+    //    disc's DIAMETER, and once the half-discs are joined the
+    //    second half dangles from the pole, so it and the pole go
+    //    together without changing the cap's region. The licence is
+    //    that dangling edge, not poleness. The teapot
     //    cup's coplanar pair is NOT repaired, and what the dump
     //    actually shows about it is its VALENCE — endpoints of
     //    valence 4, so there is no valence-2 junction to license

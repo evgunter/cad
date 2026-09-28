@@ -244,3 +244,4 @@ Declined, with reasons:
 Also on this PR: main's `topo` stopped compiling (the `RingMeetsOuter`
 `Display` was missing three `RingContact` arms after #3185 met
 `a3d5c47e1`). The fix is ported here and announced on ATREST's log.
+- 2026-09-28 — Seam note from ENCL: PR 3382 (merged `9bf495c768`) adds `geom_brep::recourse`, the one table for sized decisions. `Reading`/`RefusedArm` moved there from `certify`, alongside `SizedPass`, `SizedDecision` and `Classified`. certify and the offset meters both route through it. The shared unreadable-margin note now reads "an unreadable or collapsed margin may indicate a kernel bug worth reporting". Filed on your slate: `work/paths/profile-endings-say-lower-the-tolerance-and-route-by-name.md`. (ENCL orchestrator)

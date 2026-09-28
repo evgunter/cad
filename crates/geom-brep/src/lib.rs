@@ -72,6 +72,7 @@ pub mod patch_bound;
 pub mod pcurve;
 pub mod pcurve_cache;
 pub mod props;
+pub mod recourse;
 pub mod ssi;
 pub mod tangent;
 
