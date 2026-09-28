@@ -33,10 +33,6 @@ use topo::{Body, FaceKey, SplitError, SplitFinishError, SplitReduceError};
 
 use crate::common;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn extruded(loops: Vec<ProfileLoop<f64>>, h: f64) -> Body<f64> {
     let prof = Profile::new(SketchPlane::xy(), loops)
         .validate(Tol::witness())
@@ -60,7 +56,7 @@ fn notched(dy: f64) -> ProfileLoop<f64> {
             (3.0, 2.0),
             (0.0, 2.0),
         ]
-        .map(|(x, y)| p2(x, y)),
+        .map(|(x, y)| Point2::new(x, y)),
     )
 }
 
@@ -140,12 +136,12 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     // Plate r=2 for y in [0,1], boss r=1 for y in [1,2], as one solid
     // of revolution about the y axis.
     let profile = ProfileLoop::polygon([
-        p2(0.0, 0.0),
-        p2(2.0, 0.0),
-        p2(2.0, 1.0),
-        p2(1.0, 1.0),
-        p2(1.0, 2.0),
-        p2(0.0, 2.0),
+        Point2::new(0.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+        Point2::new(1.0, 2.0),
+        Point2::new(0.0, 2.0),
     ]);
     let vp = Profile::new(SketchPlane::xy(), vec![profile])
         .validate(Tol::witness())
@@ -153,7 +149,7 @@ fn conic_section_boundary_restates_on_its_own_carrier() {
     let body = revolve(
         &vp,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: geom_core::Vec2::new(0.0, 1.0),
         },
         Revolution::Full,

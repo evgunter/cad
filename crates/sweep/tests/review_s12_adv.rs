@@ -37,10 +37,6 @@ use sweep::{Extrusion, Revolution, RevolveAxis, extrude, revolve};
 use topo::boolean::{BooleanDeclarations, BooleanOp, boolean_op_with};
 use topo::{Body, SweepStrategy};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn vol(body: &Body<f64>) -> f64 {
     topo::mass_properties(body, Tol::witness()).unwrap().volume
 }
@@ -48,7 +44,7 @@ fn vol(body: &Body<f64>) -> f64 {
 /// 2-arc disc radius `r` centred at origin with seam vertices at
 /// angles `phi` and `phi + pi`, extruded z0..z0+len.
 fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
-    let at = |th: f64| p2(r * th.cos(), r * th.sin());
+    let at = |th: f64| Point2::new(r * th.cos(), r * th.sin());
     let lp = bulge_loop(vec![(at(phi), 1.0), (at(phi + PI), 1.0)]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, z0)));
     let profile = Profile::new(plane, vec![lp])
@@ -65,12 +61,15 @@ fn disc2(r: f64, phi: f64, z0: f64, len: f64) -> Body<f64> {
 #[test]
 fn probe_torus_union_is_never_silently_wrong() {
     // Circle profile centred (1.5, 0) radius 0.4, revolved about y.
-    let lp = bulge_loop(vec![(p2(1.1, 0.0), 1.0), (p2(1.9, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(1.1, 0.0), 1.0),
+        (Point2::new(1.9, 0.0), 1.0),
+    ]);
     let vp = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
     let axis = RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: geom_core::Vec2::new(0.0, 1.0),
     };
     let torus = revolve(&vp, axis, Revolution::Full, Tol::witness())

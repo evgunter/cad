@@ -25,7 +25,7 @@ use crate::common;
 
 use common::*;
 use geom::Surface;
-use geom_core::Tol;
+use geom_core::{Point2, Tol};
 use profile::RawLoop as _;
 
 /// The wedge's cone-patch triangle count at one δ, through the full
@@ -88,7 +88,11 @@ fn an_apex_free_single_column_cone_patch_is_the_same_strip() {
     // drift from flipping while this row's pins stand either way. At
     // δ = 0.1, hu ≈ 0.448 < π/6: two columns, the schedule honoured
     // (nv = 2, one interior point).
-    let lp = profile::ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(1.0, 1.0)]);
+    let lp = profile::ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let body = sweep::revolve(
         &validated(vec![lp]),
         axis_y(),

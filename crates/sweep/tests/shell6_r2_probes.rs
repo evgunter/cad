@@ -27,10 +27,6 @@ use profile::{Profile, SketchPlane, test_support::bulge_loop};
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 const T: f64 = 1.0 / 128.0;
 const H: f64 = 8.0 / 64.0;
 const R_WIDE: f64 = 4.0 / 64.0;
@@ -40,7 +36,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     let profile = Profile::new(
         SketchPlane::xy(),
         vec![bulge_loop(
-            pts.iter().map(|&(x, y)| (p2(x, y), 0.0)).collect(),
+            pts.iter().map(|&(x, y)| (Point2::new(x, y), 0.0)).collect(),
         )],
     )
     .validate(Tol::witness())
@@ -48,7 +44,7 @@ fn revolved(pts: &[(f64, f64)]) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,

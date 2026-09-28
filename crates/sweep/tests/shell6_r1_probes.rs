@@ -31,10 +31,6 @@ use profile::{
 use sweep::{Revolution, RevolveAxis, revolve};
 use topo::{Body, FaceKey, ReplaceFaceError};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 const T: f64 = 1.0 / 128.0;
 const H: f64 = 8.0 / 64.0;
 const R_WIDE: f64 = 4.0 / 64.0;
@@ -47,7 +43,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile,
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -59,10 +55,10 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
 
 fn frustum(r0: f64, r1: f64) -> Body<f64> {
     revolved(bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(r0, 0.0), 0.0),
-        (p2(r1, H), 0.0),
-        (p2(0.0, H), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(r0, 0.0), 0.0),
+        (Point2::new(r1, H), 0.0),
+        (Point2::new(0.0, H), 0.0),
     ]))
 }
 
@@ -270,8 +266,8 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
     let (c0, c1) = (center(r0, z0), center(r1, z1));
     let big0 = (r0 * r0 + (z0 - c0).powi(2)).sqrt();
     let big1 = (r1 * r1 + (z1 - c1).powi(2)).sqrt();
-    let bottom = p2(0.0, c0 - big0);
-    let top = p2(0.0, c1 + big1);
+    let bottom = Point2::new(0.0, c0 - big0);
+    let top = Point2::new(0.0, c1 + big1);
     println!(
         "[r1] sphere-capped cone: apex_y {apex_y}, images {:?} {:?}, spheres c0={c0} R0={big0} c1={c1} R1={big1}",
         image(r0, z0),
@@ -280,12 +276,22 @@ fn sphere_capped_cone(r0: f64, z0: f64, r1: f64, z1: f64, d_mint: f64) -> (Body<
     let body = revolved(bulge_loop(vec![
         (
             bottom,
-            bulge_from_center(bottom, p2(r0, z0), p2(0.0, c0), ArcSweep::Ccw),
+            bulge_from_center(
+                bottom,
+                Point2::new(r0, z0),
+                Point2::new(0.0, c0),
+                ArcSweep::Ccw,
+            ),
         ),
-        (p2(r0, z0), 0.0),
+        (Point2::new(r0, z0), 0.0),
         (
-            p2(r1, z1),
-            bulge_from_center(p2(r1, z1), top, p2(0.0, c1), ArcSweep::Ccw),
+            Point2::new(r1, z1),
+            bulge_from_center(
+                Point2::new(r1, z1),
+                top,
+                Point2::new(0.0, c1),
+                ArcSweep::Ccw,
+            ),
         ),
         (top, 0.0),
     ]));

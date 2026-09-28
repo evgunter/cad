@@ -33,13 +33,6 @@ use topo::{Body, EdgeKey, FaceKey, LoopBoundary};
 /// The fillet radius the concave-fillet suite carves at.
 const R: f64 = 0.25;
 
-fn p(x: f64, y: f64, z: f64) -> Point3<f64> {
-    Point3::new(x, y, z)
-}
-fn v(x: f64, y: f64, z: f64) -> Vec3<f64> {
-    Vec3::new(x, y, z)
-}
-
 // ------------------------------------------------------------------
 // The two carves these rows read: the cube's twelve convex edges and
 // `common::cavity`'s vented cavity's twelve concave ones.
@@ -458,10 +451,18 @@ fn r2_no_sliver_wedge_pose_is_silently_wrong_on_the_corner_path() {
 #[test]
 fn r2_the_concave_feet_land_on_their_walls_at_an_oblique_trihedron() {
     let r = 0.2;
-    let normals = [v(1.0, 0.0, 0.0), v(0.0, 1.0, 0.0), v(0.6, 0.0, 0.8)];
+    let normals = [
+        Vec3::new(1.0, 0.0, 0.0),
+        Vec3::new(0.0, 1.0, 0.0),
+        Vec3::new(0.6, 0.0, 0.8),
+    ];
     // Three DISTINCT wall points, so the solve is not handed a common
     // origin that would hide a per-wall offset error.
-    let verts = [p(0.0, 0.5, 0.25), p(-0.3, 0.0, 0.75), p(0.0, 1.5, 0.0)];
+    let verts = [
+        Point3::new(0.0, 0.5, 0.25),
+        Point3::new(-0.3, 0.0, 0.75),
+        Point3::new(0.0, 1.5, 0.0),
+    ];
     let ball = corner_ball(verts, normals, r, Convexity::Concave);
     for (i, n) in normals.iter().enumerate() {
         let rest = (ball.center - verts[i]).dot(*n);

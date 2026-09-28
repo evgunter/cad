@@ -21,15 +21,14 @@ use sweep::{Extrusion, extrude};
 use topo::splitting::{SplitPart, SplitPlane, split};
 use topo::{Body, validate, validate_closed, validate_geometric};
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// The disc profile: two half-circle arcs (bulge 1), radius 0.5 about
 /// the sketch origin — extrudes to a cylinder of height 1 whose two
 /// wall faces share ONE cylinder surface (the cosurface run).
 fn disc() -> ValidatedProfile<f64> {
-    let lp = bulge_loop(vec![(p2(-0.5, 0.0), 1.0), (p2(0.5, 0.0), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(-0.5, 0.0), 1.0),
+        (Point2::new(0.5, 0.0), 1.0),
+    ]);
     Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap()

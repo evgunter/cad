@@ -333,10 +333,6 @@ fn m2r1_passes_interval() {
 
 // ---- f64-only corrupt constructions (check 8 / check 9 failures). ----
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 fn plane_chart_at_y(body: &Body<f64>, y: f64) -> Vec<topo::FaceKey> {
     body.faces()
         .filter(|(_, f)| {
@@ -351,7 +347,7 @@ fn revolved(lp: ProfileLoop<f64>) -> Body<f64> {
     revolve(
         &profile(lp),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Full,
@@ -405,11 +401,16 @@ pub(crate) fn f64_only_corpus() -> Vec<(String, Body<f64>)> {
         out.push((what.to_string(), sealed));
     }
     // Diagonal chord split of a quarter washer wall (check 2 + check 8).
-    let lp = ProfileLoop::polygon([p2(1.0, 0.0), p2(2.0, 0.0), p2(2.0, 1.0), p2(1.0, 1.0)]);
+    let lp = ProfileLoop::polygon([
+        Point2::new(1.0, 0.0),
+        Point2::new(2.0, 0.0),
+        Point2::new(2.0, 1.0),
+        Point2::new(1.0, 1.0),
+    ]);
     let tq = revolve(
         &profile(lp),
         RevolveAxis {
-            origin: p2(0.0, 0.0),
+            origin: Point2::new(0.0, 0.0),
             dir: Vec2::new(0.0, 1.0),
         },
         Revolution::Partial(FRAC_PI_2),

@@ -34,10 +34,6 @@ use topo::{
 
 const BORE_R: f64 = 0.5;
 
-fn p2(x: f64, y: f64) -> Point2<f64> {
-    Point2::new(x, y)
-}
-
 /// Scene A: the peg floats in the bore (z ∈ [1.5, 2.5] against a bore
 /// z ∈ [1, 2]); nine wall `Rest`s.
 fn scene_a() -> (Body<f64>, Body<f64>, BooleanDeclarations) {
@@ -343,12 +339,12 @@ fn d_prism_with_split_keys() -> (
     let sweep = 2.0 * core::f64::consts::PI - 2.0 * 0.5f64.atan2(0.25);
     let bulge = (sweep / 2.0 / 4.0).tan();
     let lp = bulge_loop(vec![
-        (p2(0.0, 0.0), 0.0),
-        (p2(1.0, 0.0), 0.0),
-        (p2(2.0, 0.0), bulge),
-        (p2(2.25 + r, 0.5), bulge),
-        (p2(2.0, 1.0), 0.0),
-        (p2(0.0, 1.0), 0.0),
+        (Point2::new(0.0, 0.0), 0.0),
+        (Point2::new(1.0, 0.0), 0.0),
+        (Point2::new(2.0, 0.0), bulge),
+        (Point2::new(2.25 + r, 0.5), bulge),
+        (Point2::new(2.0, 1.0), 0.0),
+        (Point2::new(0.0, 1.0), 0.0),
     ]);
     let plane = SketchPlane::new(Affine3::translation(Vec3::new(0.0, 0.0, 0.0)));
     let profile = Profile::new(plane, vec![lp])
@@ -528,7 +524,10 @@ fn pair_with_no_live_faces_mints_no_record() {
 
 /// A ball of radius `r` (a revolved semicircle).
 fn ball(r: f64) -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(0.0, -r), 1.0), (p2(0.0, r), 0.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(0.0, -r), 1.0),
+        (Point2::new(0.0, r), 0.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -539,7 +538,10 @@ fn ball(r: f64) -> Body<f64> {
 
 /// A donut (a revolved circle off the axis).
 fn donut() -> Body<f64> {
-    let lp = bulge_loop(vec![(p2(1.0, -0.3), 1.0), (p2(1.0, 0.3), 1.0)]);
+    let lp = bulge_loop(vec![
+        (Point2::new(1.0, -0.3), 1.0),
+        (Point2::new(1.0, 0.3), 1.0),
+    ]);
     let profile = Profile::new(SketchPlane::xy(), vec![lp])
         .validate(Tol::witness())
         .unwrap();
@@ -550,7 +552,7 @@ fn donut() -> Body<f64> {
 
 fn axis_y() -> RevolveAxis<f64> {
     RevolveAxis {
-        origin: p2(0.0, 0.0),
+        origin: Point2::new(0.0, 0.0),
         dir: Vec2::new(0.0, 1.0),
     }
 }
